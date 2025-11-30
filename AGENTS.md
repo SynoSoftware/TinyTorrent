@@ -19,7 +19,7 @@ TinyTorrent = **modern µTorrent** × **glass cyberpunk UI** × **Apple/Linear p
 
 - **Speed:** No lag. No hesitation.
 - **Density:** Data-rich layout, zero wasted space.
-- **Stealth:** Dark mode first.
+- **Stealth:** Dark-themed identity (but respects system mode).
 - **Zero Bloat:** Extremely small executable.
 - **World-Class Visuals:** Premium, clean, and effortless.
 - **Native HUD Feel:** Glass, blur, depth, minimal chrome.
@@ -30,7 +30,7 @@ TinyTorrent = **modern µTorrent** × **glass cyberpunk UI** × **Apple/Linear p
 
 - **Frontend:** React 19 + TypeScript + Vite
 - **Styling:** TailwindCSS v4 + HeroUI
-- **Motion:** Framer Motion — mandatory for all interactive elements. Every complex component (preview panes, compare sliders, drag handles, reordering, progress visualizations) must use intentional kinetic motion. Motion is not decorative; it expresses structure, hierarchy, and state.
+- **Motion:** Framer Motion — required for every interactive element. Complex components (lists, draggable rows, compare sliders, zoomable panes, split-views, progress animations) must use motion to express structure, state, and depth. Motion must feel physical, intentional, and consistent with system physics.
 - **Drag & Drop:** react-dropzone (full-window detection)
 - **Icons:** Lucide (tree-shaken)
 - **State:** React Hooks; Zustand only when necessary
@@ -59,75 +59,107 @@ No hard-coded hex colors or arbitrary Tailwind colors.
 
 ### Aesthetic
 
-- Detect browser/windows mode and use it. if fails, use Dark mode first.
-- Detect language of the browser and use it. if fails use English.
-- Glass layers (`backdrop-blur`) for nav, sidebar, modals, table headers.
-- High-density layout.
-- Minimal padding, clean grid, strong typography hierarchy.
+- Detect system dark/light mode and use it automatically; fallback = Dark.
+- Detect system/browser language and use it; fallback = English.
+- Glass layers (backdrop-blur) for all UI surfaces that float or overlay (sidebar, modals, table headers, toolbars, workspace areas).
+- High-density professional layout — tooling-level, not consumer-level.
+- Minimal padding, tight alignment, compact controls.
+- Strong typography hierarchy (Swiss style).
+- Layered shadows used sparingly for depth — never decoration.
 
 ---
 
 # **4. UI/UX Philosophy**
 
-## Zero Friction
+### **Zero Friction**
 
-Every interaction must feel physically obvious, self-revealing, and continuous. Complex widgets (comparators, sliders, zoomable canvases, reorderable lists) must remain effortless and predictable. Every gesture (drag, wheel, zoom, resize, compare, reorder) must be smooth, reversible, and immediately responsive — without exposing implementation cost.
+Every interaction must be physically obvious, reversible, continuous, and feel like a professional tool — not a webpage.
+Complex widgets must behave like a workspace:
 
-### Interaction Principles
+- zoomable
+- pannable
+- resizable
+- draggable
+- comparable
+- reorderable
+- state-aware
+- motion-coherent
 
-- **Full-window drop zone**: dropping a `.torrent` file or magnet text opens the add-modal immediately.
-- **Auto-paste UX**: pasting magnet text should trigger add-modal.
-- **Right-click everywhere**: context menus are primary.
-- **Keyboard-first**: essential actions mapped to obvious keys (Start, Pause, Delete, Add, Refresh).
-- **No clutter**: keep controls minimalistic.
+Every gesture (drag, wheel, zoom, pan, resize, compare, reorder) must be smooth, predictable, and never block or jitter.
 
-## Motion
+### **Interaction Principles**
 
-Tasteful micro-interactions:
+- **Full-window drop zone** with animated overlay.
+- **Auto-paste** for magnet links.
+- **Context menus everywhere.**
+- **Keyboard-first** for core actions.
+- **Continuous feedback** — no dead states.
+- **Minimal chrome, maximal clarity.**
+- **No click-hunting** — controls must appear where they are needed.
 
-- Buttons shift subtly on hover.
-- Icons animate meaningfully (not as decoration).
-- Modals fade + slide smoothly.
-- Progress transitions cleanly.
+### **Motion**
+
+Kinetic micro-interactions must clarify structure:
+
+- Buttons: micro-scale + color shifts
+- Icons: task-specific motion (e.g., rotate, pulse, bounce subtly)
+- Rows: animate on reorder
+- Progress bars: smooth transitions
+- Modals: fade + slide + depth bloom
+- Overlays: opacity + blur transitions
+- Workspace zoom/pan: eased, continuous
+
+Motion is part of the UX language, not decoration.
 
 ---
 
 # **5. Component System**
 
-## Table (Core)
+### **Table (Core)**
 
 - HeroUI `<Table>`
-- Compact density
+- **Compact, dense, tooling-level row height**
 - Sticky blurred header
-- Monospace for numbers/hashes/speeds
+- Monospace for numbers/speeds
 - Sans-serif for names
 - Thin, minimal progress bars
-- Optional sparkline: tiny SVG inline (if added later)
+- Optional sparkline SVG allowed
+- No row flicker on updates
+- Row-level motion for selection, hover, reorder
 
-## Modals
+---
 
-- Used for Add and Settings
-- Centered, blurred backdrop
-- Clean, focused content
-- Immediate autofocus
+### **Modals**
+
+- Instant autofocus
+- Blur + depth shadow
 - Framer Motion transitions
+- Must feel like floating “panels” inside a HUD
+- No heavy chrome; no wasted margins
 
-## Buttons
+---
 
-- Primary: `variant="shadow"`
-- Secondary: `variant="light"` / `variant="ghost"`
-- Icon-only buttons for toolbar
+### **Buttons**
 
-## Drag & Drop Overlay
+- Primary = `shadow`
+- Secondary = `light` / `ghost`
+- Icon-only buttons for toolbars
+- Must animate on hover/press
+- Must keep density — no oversized UI
 
-When dragging files/text:
+---
 
-- Full-window overlay
-- Glass effect
-- Clear text: “Drop to Add Torrent”
-- Soft fade in/out
+### **Drag & Drop Overlay**
 
-## Iconography (Lucide)
+- Full-window detection
+- Glass layer with kinetic fade-in
+- Bold “Drop to Add Torrent” text
+- Dims background but keeps context visible
+- Cancels instantly on drag-out
+
+---
+
+### **Iconography (Lucide)**
 
 Thin strokes (1.5).
 Use curated set only:
@@ -140,7 +172,24 @@ Use curated set only:
 - `Gauge` — speed/settings
 - `Zap` — connection/activity
 
-Icons must always use semantic colors.
+- Icons must always use semantic colors.
+
+### **Workspace Components (New Standard)**
+
+Any component that presents data visually (torrent details, file info, preview panels, charts, peer maps, piece distribution) must behave like a **workspace**, not a static block.
+
+Workspace capabilities:
+
+- Smooth zoom (wheel / pinch / +/- buttons)
+- Smooth pan (click-drag)
+- Reset view
+- Motion-driven transforms
+- Toolbars that float above content
+- Dynamic affordances (handles, sliders, overlays)
+- Split views or comparison views when appropriate
+
+This matches the interaction model you demonstrated:
+**professional tool UI, not a webpage UI.**
 
 ---
 
@@ -150,7 +199,7 @@ Rules only — **no fixed intervals, no fixed behaviour**.
 
 - A proper handshake: handle Transmission’s CSRF token requirement gracefully.
 - A polling mechanism exists — internal frequency/config is up to your later implementation.
-- Request lightweight fields frequently; request heavy static fields only on demand.
+- Request lightweight fields in the update loop; request heavy static fields only when needed.
 - Avoid unnecessary rerenders.
 - Strict typing for all RPC responses.
 - Errors must be silent, recoverable, and non-blocking.
@@ -200,8 +249,17 @@ No magic numbers. No configuration decisions.
 
 ---
 
-## **10. UX Excellence Directive**
+## **10. UX Excellence Directive — Updated**
 
-**All Agents must operate as world-class UI/UX designers.**
-The interface must achieve **jaw-dropping visual quality**, combining simplicity, full functionality, and zero friction.
-Every screen, component, interaction, and motion must reflect **premium, intuitive, world-class design standards**.
+All Agents must operate as **world-class tool-UI designers**, not app designers.
+TinyTorrent must deliver:
+
+- **jaw-dropping visual polish**
+- **dense, professional, tooling-grade ergonomics**
+- **deeply interactive component choreography**
+- **workspace-style interactions everywhere they make sense**
+- **motion-driven clarity and responsiveness**
+- **zero friction and zero cognitive load**
+
+Simplicity of presentation —
+**not** simplicity of capability.
