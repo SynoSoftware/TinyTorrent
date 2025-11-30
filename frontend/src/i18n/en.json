@@ -1,0 +1,64 @@
+{
+    "brand": {
+        "name": "TINY TORRENT",
+        "version": "v1.0.0"
+    },
+    "nav": {
+        "filter_all": "All",
+        "filter_downloading": "Downloading",
+        "filter_seeding": "Seeding",
+        "search_placeholder": "Filter torrents..."
+    },
+    "toolbar": {
+        "add_torrent": "Add Torrent",
+        "settings": "Settings"
+    },
+    "table": {
+        "header_name": "NAME",
+        "header_progress": "PROGRESS",
+        "header_status": "STATUS",
+        "header_speed": "SPEED",
+        "header_peers": "PEERS",
+        "header_size": "SIZE",
+        "eta": "ETA: {{time}}",
+        "status_dl": "DL",
+        "status_seed": "SEED",
+        "status_pause": "PAUSE"
+    },
+    "status_bar": {
+        "down": "DOWN",
+        "up": "UP",
+        "dht_nodes": "{{count}} Nodes",
+        "rpc_status": "RPC",
+        "rpc_idle": "Initializing",
+        "rpc_connected": "Connected",
+        "rpc_error": "Offline",
+        "online": "Online"
+    },
+    "modals": {
+        "add_title": "Add Torrent",
+        "magnet_label": "MAGNET LINK",
+        "magnet_placeholder": "magnet:?xt=urn:btih...",
+        "save_path": "SAVE PATH",
+        "options": "OPTIONS",
+        "start_now": "Start Immediately",
+        "cancel": "Cancel",
+        "download": "Download"
+    },
+    "drop_overlay": {
+        "title": "Drop to Add",
+        "subtitle": "Supports .torrent and Magnets"
+    },
+    "theme": {
+        "dark": "Dark",
+        "light": "Light",
+        "toggle_label": "Theme: {{value}}"
+    },
+    "language": {
+        "menu_label": "Language",
+        "english": "English",
+        "dutch": "Nederlands",
+        "spanish": "Español",
+        "chinese": "中文"
+    }
+}

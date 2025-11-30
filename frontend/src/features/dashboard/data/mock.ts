@@ -1,0 +1,43 @@
+import type { Torrent } from "../components/TorrentTable";
+
+export const MOCK_TORRENTS: Torrent[] = [
+  {
+    id: 1,
+    hashString: "abc1",
+    name: "cyberpunk_phantom_liberty_patch_2.1.iso",
+    totalSize: 45000000000,
+    percentDone: 0.82,
+    status: "downloading",
+    rateDownload: 25400000,
+    rateUpload: 50000,
+    peersConnected: 142,
+    seedsConnected: 45,
+    eta: 340,
+  },
+  {
+    id: 2,
+    hashString: "abc2",
+    name: "archlinux-2025.01.01-x86_64.iso",
+    totalSize: 850000000,
+    percentDone: 1.0,
+    status: "seeding",
+    rateDownload: 0,
+    rateUpload: 4500000,
+    peersConnected: 12,
+    seedsConnected: 0,
+    eta: -1,
+  },
+  {
+    id: 3,
+    hashString: "abc3",
+    name: "Tears of Steel (4K Master).mkv",
+    totalSize: 6500000000,
+    percentDone: 0.45,
+    status: "paused",
+    rateDownload: 0,
+    rateUpload: 0,
+    peersConnected: 0,
+    seedsConnected: 0,
+    eta: -1,
+  },
+];
