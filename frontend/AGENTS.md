@@ -1,9 +1,3 @@
-Understood.
-Here is the **cleaned, corrected, high-quality merged spec** with **zero invented values**, **zero arbitrary configuration choices**, and **no implementation details that constrain you**.
-Pure architecture, design language, interaction rules, and philosophy — nothing that locks you into numbers, intervals, or settings.
-
----
-
 # **AGENTS.md — TinyTorrent Mission Specification**
 
 **Purpose:**
@@ -19,7 +13,7 @@ TinyTorrent = **modern µTorrent** × **glass cyberpunk UI** × **Apple/Linear p
 
 - **Speed:** No lag. No hesitation.
 - **Density:** Data-rich layout, zero wasted space.
-- **Stealth:** Dark-themed identity (but respects system mode).
+- **Stealth:** Dark-first visual identity (system mode respected automatically).
 - **Zero Bloat:** Extremely small executable.
 - **World-Class Visuals:** Premium, clean, and effortless.
 - **Native HUD Feel:** Glass, blur, depth, minimal chrome.
@@ -36,8 +30,6 @@ TinyTorrent = **modern µTorrent** × **glass cyberpunk UI** × **Apple/Linear p
 - **State:** React Hooks; Zustand only when necessary
 - **Backend:** Transmission RPC via Fetch
 - **Routing:** Only if strictly required
-
-**No libraries beyond this stack unless absolutely justified.**
 
 ---
 
@@ -174,7 +166,7 @@ Use curated set only:
 
 - Icons must always use semantic colors.
 
-### **Workspace Components (New Standard)**
+### **Workspace Components **
 
 Any component that presents data visually (torrent details, file info, preview panels, charts, peer maps, piece distribution) must behave like a **workspace**, not a static block.
 
@@ -249,7 +241,7 @@ No magic numbers. No configuration decisions.
 
 ---
 
-## **10. UX Excellence Directive — Updated**
+## **10. UX Excellence Directive (Highest Priority)**
 
 All Agents must operate as **world-class tool-UI designers**, not app designers.
 TinyTorrent must deliver:
@@ -263,3 +255,76 @@ TinyTorrent must deliver:
 
 Simplicity of presentation —
 **not** simplicity of capability.
+
+## **11. Architectural Principles (Mandatory)**
+
+- **Use HeroUI as the primary design system.**
+  HeroUI components and tokens are the default for every surface, layout, and control.
+  Custom UI exists only when HeroUI cannot express a required interaction.
+  No external UI kits. No custom CSS that replicates HeroUI features.
+
+- **One responsibility per unit.**
+  Every component, hook, and module must do exactly one thing. No mixed concerns.
+
+- **Pure UI.**
+  Components render; they don’t fetch, store, transform, or decide business rules.
+
+- **Hard layer boundaries.**
+  Data enters from RPC → flows through state/hooks → ends in components.
+  Never backwards, never sideways.
+
+- **Typed reality, not guesses.**
+  All data structures must match real RPC shapes exactly. No “maybe”, no loose models.
+
+- **No magic.**
+  No hidden behaviors, no unexplained values, no silent side effects.
+
+- **Replaceable building blocks.**
+  Every piece of UI must be swappable without breaking unrelated parts.
+
+- **Local state first.**
+  Global state only when multiple distant parts truly need it.
+
+- **Deterministic behavior.**
+  No randomness, no ambiguity, no implicit rules. Everything explicit and intentional.
+
+- **Code must age well.**
+  Every change should increase clarity, not decrease it. No hacks, no shortcuts, no debt.
+
+- **Don’t reinvent solved problems.**
+  Use libraries with purpose — avoid bloat and avoid reinvention. Adopt modern, battle-tested libraries for non-core needs, but introduce nothing legacy and nothing that doesn’t earn its place.
+
+## **12. Project Structure (Guiding Blueprint) **
+
+A clean, layered, responsibility-driven structure is mandatory.
+This blueprint defines where code belongs; no cross-layer leakage.
+
+src/
+├── app/ # Application entry & shell (App, routing, providers)
+│ ├── App.tsx
+│ └── main.tsx
+├── features/ # Business logic (the “what”)
+│ ├── dashboard/ # Dashboard feature
+│ │ ├── components/ # Pure UI components (table, rows, cells)
+│ │ └── hooks/ # Data loading & feature-specific logic
+│ ├── settings/ # Settings feature
+│ └── torrent-add/ # Add torrent modal & logic
+├── shared/ # Reusable, generic building blocks (the “how”)
+│ ├── ui/ # Composed UI built from HeroUI (wrappers, layouts, skins)
+│ ├── assets/ # Icons, images
+│ ├── hooks/ # Generic hooks (theme, color mode, keyboard)
+│ └── utils/ # Pure functions (formatBytes, helpers)
+├── core/ # Engine layer (RPC + types)
+│ ├── rpc-client.ts # Transmission RPC wrapper
+│ └── types.ts # Strict TypeScript definitions
+└── i18n/ # Localization
+└── en.json
+
+## Other
+
+1. To save tokens Only work with en.json, do not update any other translation files.
+2. before you report the task as completed, perform a review of the code and fix all important issues. repeat until fully happy.
+3. perform a npm run build and fix if possible
+4. Don't try to execute linux commands. The build machine is Windows environment
+5. The following extra windows .exe are available. you can use the,: rg, fd, bat
+6. For code search, never use Select-String. Always use ripgrep: rg -n -C 5 "<pattern>" <path>
