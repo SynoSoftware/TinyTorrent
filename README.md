@@ -17,8 +17,8 @@ I got pissed when I realized that we no longer have a proper torrent client. As 
 Back then the protocol was simpler and the world was smaller; today’s requirements demand more code therefore we'll have to get to 1-2-3 megabytes, but the philosophy is identical:
 **ruthless efficiency + a UI that looks like it came from the future.**
 
-So I decided to go minmalist. I wanted to write a pure C application for Windows 11 that uses no external libraries. I called it rawBit.
-However, then I realized that I can do even better: I can write it to use even less memory, less code, more beautiful, by using your browser that's already installed: a fully optimized, GPU-accelerated UI framework.
+So I decided to go bare-metal. I wanted to write a pure C application for Windows 11 that uses no external libraries, just call windows API. I called it rawBit.
+However, then I realized that will be ugly and nobody will use it ... but I can also do better: I can write it to use even less memory, less code, more beautiful, by using your browser that's already installed: a fully optimized, GPU-accelerated UI framework.
 
 **This is how TinyTorrent was born**
 
