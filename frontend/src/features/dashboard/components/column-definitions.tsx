@@ -5,19 +5,7 @@ import { formatBytes, formatDate, formatSpeed, formatTime } from "../../../share
 import type { Torrent } from "../types/torrent";
 import type { ReactNode } from "react";
 
-export type ColumnId =
-  | "selection"
-  | "name"
-  | "progress"
-  | "status"
-  | "eta"
-  | "speed"
-  | "peers"
-  | "size"
-  | "ratio"
-  | "hash"
-  | "added"
-  | "actions";
+export type ColumnId = "selection" | "name" | "progress" | "status" | "eta" | "speed" | "peers" | "size" | "ratio" | "hash" | "added" | "actions";
 
 export interface ColumnRendererProps {
   torrent: Torrent;
@@ -31,6 +19,7 @@ export interface ColumnDefinition {
   labelKey?: string;
   descriptionKey?: string;
   width?: number;
+  minSize?: number;
   align?: "start" | "center" | "end";
   sortable?: boolean;
   sortAccessor?: (torrent: Torrent) => number | string;
@@ -72,12 +61,13 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
   name: {
     id: "name",
     labelKey: "table.header_name",
+    minSize: 90,
     sortable: true,
     rpcField: "name",
     defaultVisible: true,
     sortAccessor: (torrent) => torrent.name,
     render: ({ torrent, t }) => (
-      <div className="flex flex-col gap-0.5">
+      <div className="flex flex-col gap-0.5 min-w-0">
         <span className={cn("font-medium text-sm truncate max-w-md transition-colors", torrent.status === "paused" && "text-foreground/50")}>
           {torrent.name}
         </span>
@@ -95,12 +85,13 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
     id: "progress",
     labelKey: "table.header_progress",
     width: 220,
+    minSize: 110,
     sortable: true,
     rpcField: "percentDone",
     defaultVisible: true,
     sortAccessor: (torrent) => torrent.percentDone,
     render: ({ torrent }) => (
-      <div className="flex flex-col gap-1.5 w-full">
+      <div className="flex flex-col gap-1.5 w-full min-w-0">
         <div className="flex justify-between items-end text-[10px] font-mono font-medium opacity-80 tabular-nums">
           <span>{(torrent.percentDone * 100).toFixed(1)}%</span>
           <span className="text-foreground/40">{formatBytes(torrent.totalSize * torrent.percentDone)}</span>
@@ -128,6 +119,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
     id: "status",
     labelKey: "table.header_status",
     width: 110,
+    minSize: 95,
     sortable: true,
     rpcField: "status",
     defaultVisible: true,
@@ -136,18 +128,20 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
       const conf = statusMap[torrent.status] ?? { color: "default", icon: Pause, labelKey: "torrent_modal.statuses.status_error" };
       const Icon = conf.icon;
       return (
-        <Chip
-          size="sm"
-          variant="flat"
-          color={conf.color}
-          startContent={<Icon size={10} />}
-          classNames={{
-            base: "h-5 px-2",
-            content: "font-bold text-[9px] uppercase tracking-wider",
-          }}
-        >
-          {t(conf.labelKey)}
-        </Chip>
+        <div className="min-w-0">
+          <Chip
+            size="sm"
+            variant="flat"
+            color={conf.color}
+            startContent={<Icon size={10} />}
+            classNames={{
+              base: "h-5 px-2",
+              content: "font-bold text-[9px] uppercase tracking-wider",
+            }}
+          >
+            {t(conf.labelKey)}
+          </Chip>
+        </div>
       );
     },
   },
@@ -160,7 +154,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
     descriptionKey: "table.column_desc_eta",
     sortAccessor: (torrent) => (torrent.eta < 0 ? Number.MAX_SAFE_INTEGER : torrent.eta),
     render: ({ torrent, t }) => (
-      <span className="text-xs font-mono text-foreground/70 tabular-nums">
+      <span className="text-xs font-mono text-foreground/70 tabular-nums min-w-0">
         {torrent.eta < 0 ? t("table.eta_unknown") : formatTime(torrent.eta)}
       </span>
     ),
@@ -176,7 +170,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
     descriptionKey: "table.column_desc_speed",
     sortAccessor: (torrent) => (torrent.status === "seeding" ? torrent.rateUpload : torrent.rateDownload),
     render: ({ torrent }) => (
-      <div className="font-mono text-xs tabular-nums text-right">
+      <div className="font-mono text-xs tabular-nums text-right min-w-0">
         {torrent.status === "downloading" ? (
           <span className="text-success font-medium">{formatSpeed(torrent.rateDownload)}</span>
         ) : torrent.status === "seeding" ? (
@@ -197,7 +191,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
     defaultVisible: true,
     sortAccessor: (torrent) => torrent.peersConnected,
     render: ({ torrent }) => (
-      <div className="flex items-center justify-end gap-1 font-mono text-xs text-foreground/60 tabular-nums">
+      <div className="flex items-center justify-end gap-1 font-mono text-xs text-foreground/60 tabular-nums min-w-0">
         <Users size={12} className="opacity-50" />
         <span>{torrent.peersConnected}</span>
         <span className="opacity-30">/</span>
@@ -214,9 +208,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
     rpcField: "totalSize",
     defaultVisible: true,
     sortAccessor: (torrent) => torrent.totalSize,
-    render: ({ torrent }) => (
-      <span className="font-mono text-xs text-foreground/50 tabular-nums">{formatBytes(torrent.totalSize)}</span>
-    ),
+    render: ({ torrent }) => <span className="font-mono text-xs text-foreground/50 tabular-nums min-w-0">{formatBytes(torrent.totalSize)}</span>,
   },
   ratio: {
     id: "ratio",
@@ -227,9 +219,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
     rpcField: "uploadRatio",
     descriptionKey: "table.column_desc_ratio",
     sortAccessor: (torrent) => ratioValue(torrent),
-    render: ({ torrent }) => (
-      <span className="font-mono text-xs text-foreground/60 tabular-nums">{ratioValue(torrent).toFixed(2)}</span>
-    ),
+    render: ({ torrent }) => <span className="font-mono text-xs text-foreground/60 tabular-nums min-w-0">{ratioValue(torrent).toFixed(2)}</span>,
   },
   hash: {
     id: "hash",
@@ -238,9 +228,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
     sortable: false,
     rpcField: "hashString",
     descriptionKey: "table.column_desc_hash",
-    render: ({ torrent }) => (
-      <span className="text-xs font-mono text-foreground/50 tracking-tight">{torrent.hashString.slice(0, 10)}</span>
-    ),
+    render: ({ torrent }) => <span className="text-xs font-mono text-foreground/50 tracking-tight min-w-0">{torrent.hashString.slice(0, 10)}</span>,
   },
   added: {
     id: "added",
@@ -251,7 +239,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
     rpcField: "dateAdded",
     descriptionKey: "table.column_desc_added",
     sortAccessor: (torrent) => torrent.dateAdded,
-    render: ({ torrent }) => <span className="text-xs font-mono text-foreground/50">{formatDate(torrent.dateAdded)}</span>,
+    render: ({ torrent }) => <span className="text-xs font-mono text-foreground/50 min-w-0">{formatDate(torrent.dateAdded)}</span>,
   },
   actions: {
     id: "actions",
@@ -262,18 +250,18 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
     render: ({ t }) => (
       <div onClick={(e) => e.stopPropagation()}>
         <Dropdown placement="bottom-end">
-        <DropdownTrigger>
-          <Button
-            isIconOnly
-            size="sm"
-            variant="light"
-            radius="full"
-            className="text-foreground/30 hover:text-foreground"
-            aria-label={t("table.column_actions")}
-            title={t("table.column_actions")}
-          >
-            <MoreVertical size={16} />
-          </Button>
+          <DropdownTrigger>
+            <Button
+              isIconOnly
+              size="sm"
+              variant="light"
+              radius="full"
+              className="text-foreground/30 hover:text-foreground min-w-0"
+              aria-label={t("table.column_actions")}
+              title={t("table.column_actions")}
+            >
+              <MoreVertical size={16} />
+            </Button>
           </DropdownTrigger>
           <DropdownMenu aria-label="Actions" variant="faded">
             <DropdownItem key="pause" startContent={<PauseCircle size={14} />}>
@@ -310,16 +298,7 @@ export const DEFAULT_COLUMN_ORDER: ColumnId[] = [
   "actions",
 ];
 
-export const DEFAULT_VISIBLE_COLUMN_IDS: ColumnId[] = [
-  "selection",
-  "name",
-  "progress",
-  "status",
-  "speed",
-  "peers",
-  "size",
-  "actions",
-];
+export const DEFAULT_VISIBLE_COLUMN_IDS: ColumnId[] = ["selection", "name", "progress", "status", "speed", "peers", "size", "actions"];
 
 export const REQUIRED_COLUMN_IDS: ColumnId[] = ["selection", "actions"];
 
