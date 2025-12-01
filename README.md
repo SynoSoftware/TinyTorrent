@@ -5,104 +5,139 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-19-cyan)](https://react.dev/)
 [![Engine](https://img.shields.io/badge/Engine-Libtransmission-orange)](https://github.com/transmission/transmission)
-[![Size](https://img.shields.io/badge/Binary_Target-<2MB-success)]()
+[![Size](https://img.shields.io/badge/Binary_Target-<3MB-success)]()
 
-**The spiritual successor to µTorrent v2.2, built for the modern web.**
+**A modern µTorrent-style BitTorrent client with a browser-native UI and a micro-sized backend.**
 
-TinyTorrent will be a high-performance, single-binary BitTorrent client. It combines the battle-tested C backend of **libtransmission** with a world-class, GPU-accelerated frontend built on **React 19** and **HeroUI**.
+---
 
-We are rejecting the "bloat" of modern clients. No ads, no crypto-miners, no media players, no bundled web browsers. Just a razor-sharp tool for moving data.
+I realized every machine already ships with a fully optimized, GPU-accelerated UI framework: **the browser**.
+So instead of dragging a C++/Win32/Qt/GTK UI into the binary, TinyTorrent splits cleanly:
 
-> **The Mission:** A single `.exe` under 2MB or 3MB that launches instantly and looks like a professional tool from the future.
+* A **minimal C/C++ backend** (a trimmed transmission-daemon that also serves static assets)
+* A **TypeScript/React HUD** running in the browser via `http://localhost`
+
+The result: a **single 2–3 MB `.exe`** that feels weightless.
+**Zero GUI memory footprint** unless you actively open the interface — exactly how it should be.
+
+The intent is simple: you shouldn’t feel this tool running at all. It should use only the memory you willingly allow it.
+µTorrent was ~160 KB because the protocol was simpler and the world was smaller; today’s requirements demand a few extra megabytes, but the philosophy is identical:
+**ruthless efficiency + a UI that looks like it came from the future.**
+
+No bloat. No ads. No crypto. No boat whatsoever!
+Just a tool for moving data that uses minimal memory and is minimal in size. 
 
 ---
 
 ## 💎 Key Features
 
-### The "Glass Monolith" UI
-*   **Zero Friction:** The interface is designed to anticipate user intent. Drag-and-drop works globally. Context menus appear where you expect them.
-*   **Deep Aesthetics:** Built with a "Stealth" dark mode first identity, utilizing glassmorphism, ambient lighting, and blur effects for a native HUD feel.
-*   **Kinetic Motion:** Every interaction is powered by `Framer Motion`. Menus bloom, rows slide, and graphs pulse. Nothing jumps; everything flows.
+### Browser-Native HUD (frontend/)
+
+* **Zero GUI RAM when unused** — the UI runs in the browser only when opened.
+* **Glass Monolith UI** using Tailwind v4 + HeroUI + blur + depth.
+* **Kinetic motion** everywhere (`Framer Motion`).
+* **Global drag-and-drop**, predictable context menus, tabular numerals.
+* **Real-time sparklines** and a defrag-style pieces map.
 
 ### Professional Mechanics
-*   **OS-Level Control:** Shift-click range selection, Ctrl-click toggling, and full keyboard navigation.
-*   **Visual Data:** Real-time SVG sparklines for speed monitoring and a "Defrag-style" piece map to visualize availability.
-*   **Tabular Precision:** All data uses tabular lining numerals to prevent jitter during updates.
 
-### The Engine
-*   **Core:** Built on `libtransmission` (C) for minimal RAM usage and maximum protocol compatibility.
-*   **Security:** Full encryption support (MbedTLS) with 'Preferred' or 'Required' modes.
-*   **Connectivity:** DHT, PEX, LPD, and Blocklist support enabled by default.
+* Native OS interaction patterns: Shift-click ranges, Ctrl-click toggles, full keyboard nav.
+* High-density dashboard for advanced users.
+* Perfectly typed RPC schema.
+
+### The Engine (backend/)
+
+* Built on **libtransmission** for protocol correctness and low RAM footprint.
+* Embedded HTTP server (Mongoose) serves the compiled HUD.
+* Encrypted connections (MbedTLS).
+* DHT, PEX, LPD, blocklists — all standard transmission features.
 
 ---
 
-## 🏗 Architecture - frontend/
+## 🏗 Repository Structure
 
-TinyTorrent enforces **Hard Layer Boundaries** to ensure maintainability. Data flows strictly from the Engine to the UI.
+This README is in the **root** of the project.
 
-```text
-src/
-├── app/                  # Application Entry & Shell
-├── features/             # Business Logic (Dashboard, Settings, Add)
-├── shared/               # Reusable UI (GlassPanel, Buttons, Icons)
-├── core/                 # The Engine (RPC Client, Types)
-└── i18n/                 # Localization (Strict separation)
+```
+TinyTorrent/
+├── frontend/   # React 19 HUD, Vite build, Tailwind v4, HeroUI, Framer Motion
+├── backend/    # C/C++ daemon (libtransmission + embedded Mongoose server)
+└── README.md   # You are here
 ```
 
-### Tech Stack
-*   **Frontend:** React 19, TypeScript, Vite.
-*   **Styling:** TailwindCSS v4, HeroUI.
-*   **State:** React Hooks (Local-first philosophy).
-*   **Backend:** Custom C++ wrapper around `libtransmission-daemon`.
-*   **Server:** Mongoose (Embedded Web Server for the single binary).
+### Frontend Tech
+
+* React 19
+* TypeScript
+* TailwindCSS v4
+* HeroUI
+* Framer Motion
+* Vite
+
+### Backend Tech
+
+* C / C++17 (no exceptions, no RTTI)
+* libtransmission
+* Mongoose (embedded web server)
+* Static asset bundler for shipping UI inside a single binary
 
 ---
 
 ## 🚀 Getting Started
 
 ### Prerequisites
-*   Node.js 20+
-*   (Optional) A running instance of standard Transmission Daemon on port 9091 for live data testing during frontend development.
 
-### Development (Frontend)
-This starts the UI in your browser with mocked data (or proxied to a local daemon).
+* Node.js 20+ (for the frontend)
+* Any Transmission Daemon (optional) if you want to test against a real RPC endpoint
+
+### Development (frontend)
+
+Runs the HUD with mock data or via proxy.
 
 ```bash
-# 1. Install dependencies
+cd frontend
 npm install
-
-# 2. Start the HUD
 npm run dev
 ```
 
-### Building the Single Binary
-*Coming Soon: C++ compilation instructions.*
+### Backend
+
+Currently you can use a regular Transmission Daemon during development.
+
+Custom TinyTorrent backend (single-binary build) will replace it.
 
 ---
 
 ## 🎨 Design Philosophy
 
-This project strictly adheres to the **AGENTS.md** specification found in this repository.
+The entire stack follows **AGENTS.md**:
 
-1.  **Speed:** No lag. No hesitation.
-2.  **Density:** Data-rich layout. No wasted whitespace.
-3.  **One Responsibility:** Every component does exactly one thing.
-4.  **Typed Reality:** No `any`. All data structures match the RPC shape exactly.
+1. Speed
+2. Density
+3. One Responsibility
+4. Exact Typing
+5. No entropy in the codebase
 
 ---
 
 ## 🤝 Contributing
 
-We welcome pull requests that adhere to our **Visual Excellence Directive**.
+Pull requests must follow the **Visual Excellence Directive**:
 
-If you contribute code, it must:
-1.  Look beautiful and consistent with the design system.
-2.  Use `Framer Motion` for transitions.
-3.  Be strictly typed.
+* Beautiful and consistent components
+* Transitions via Framer Motion
+* Strict TypeScript
+* No regressions in density or performance
 
 ---
 
+## Backend Note
 
-Backend - will be a modified transmission daemon that serves the compiled frontend. - currently - just install the transmission-daemon instead.
+The real TinyTorrent backend will be a **minimal, modified Transmission daemon** that embeds and serves the compiled frontend.
+For now, use the standard `transmission-daemon`.
 
-**TinyTorrent** — *Simple. Fast. Beautiful.*
+---
+
+**TinyTorrent** — *Simple. Fast. Beautiful. Browser-Native.*
+
+
