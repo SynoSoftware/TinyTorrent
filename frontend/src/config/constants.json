@@ -1,0 +1,14 @@
+{
+  "performance": {
+    "history_data_points": 60,
+    "max_concurrent_requests": 5
+  },
+  "ui": {
+    "animation_duration_ms": 200,
+    "toast_display_duration_ms": 3000
+  },
+  "defaults": {
+    "rpc_endpoint": "/transmission/rpc",
+    "magnet_protocol_prefix": "magnet:?"
+  }
+}

@@ -42,7 +42,12 @@
             "pause": "Pause",
             "resume": "Resume",
             "recheck": "Force Recheck",
-            "remove": "Remove"
+            "remove": "Remove",
+            "remove_with_data": "Remove and Delete Files",
+            "copy_hash": "Copy Hash",
+            "copy_magnet": "Copy Magnet Link",
+            "confirm_delete_data": "Delete downloaded data?"
+            ,"confirm_delete_data": "Delete downloaded data?"
         },
         "status_dl": "DL",
         "status_seed": "SEED",
@@ -58,12 +63,18 @@
         "rpc_idle": "Initializing",
         "rpc_connected": "Connected",
         "rpc_error": "Offline",
-        "online": "Online"
+        "online": "Online",
+        "reconnect": "Reconnect"
     },
     "modals": {
         "add_title": "Add Torrent",
         "magnet_label": "MAGNET LINK",
         "magnet_placeholder": "magnet:?xt=urn:btih...",
+        "file_label": "TORRENT FILE",
+        "file_placeholder": "Select a .torrent file",
+        "file_browse": "Choose File",
+        "file_remove": "Clear File",
+        "file_help": "Drop or select a .torrent to upload it to Transmission.",
         "save_path": "SAVE PATH",
         "options": "OPTIONS",
         "start_now": "Start Immediately",
@@ -94,6 +105,7 @@
             "upload": "Upload",
             "eta_unknown": "Unknown"
         },
+        "eta_unknown": "Unknown",
         "trackers": {
             "tier": "Tier",
             "last_announce": "Last Announce",
@@ -144,11 +156,12 @@
     "settings": {
         "modal": {
             "title": "Settings",
-            "footer": {
-                "reset": "Reset",
-                "cancel": "Cancel",
-                "save": "Save Changes"
-            }
+        "footer": {
+            "reset": "Reset",
+            "reset_defaults": "Reset to Defaults",
+            "cancel": "Cancel",
+            "save": "Save Changes"
+        }
         },
         "tabs": {
             "speed": "Speed",
@@ -168,6 +181,7 @@
             "bandwidth": "Global Bandwidth",
             "turtle": "Turtle Mode (Scheduled)",
             "seeding": "Seeding Behavior",
+            "polling": "Polling & Timeout",
             "listeningPort": "Listening Port",
             "protocol": "Protocol Features",
             "connectionLimits": "Connection Limits",
@@ -184,6 +198,10 @@
             "altSpeedUp": "Upload (KB/s)",
             "altSpeedStart": "Start Time",
             "altSpeedEnd": "End Time",
+            "altSpeedDays": "Scheduled Days",
+            "altSpeedDaysHelp": "Toggle the days Turtle Mode should obey",
+            "refreshInterval": "Refresh Interval (ms)",
+            "requestTimeout": "Request Timeout (ms)",
             "seedRatioToggle": "Enforce Seed Ratio",
             "seedRatioLimit": "Seed Ratio Limit",
             "idleSeedingToggle": "Idle Seeding Limit",
@@ -201,6 +219,13 @@
             "incompleteFolder": "Incomplete Folder",
             "renamePartial": "Rename Partial Files",
             "startAdded": "Start Added Torrents",
+            "day_sunday": "Sun",
+            "day_monday": "Mon",
+            "day_tuesday": "Tue",
+            "day_wednesday": "Wed",
+            "day_thursday": "Thu",
+            "day_friday": "Fri",
+            "day_saturday": "Sat",
             "encryption": "Encryption Level",
             "blocklistToggle": "Enable Blocklist",
             "blocklistUrl": "Blocklist URL"

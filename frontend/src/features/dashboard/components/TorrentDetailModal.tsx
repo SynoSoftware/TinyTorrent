@@ -1,53 +1,96 @@
-import { Button, Chip, Divider, Modal, ModalBody, ModalContent, Progress, Tab, Tabs, cn, Tooltip, Select, SelectItem } from "@heroui/react";
+import { Button, Chip, Divider, Modal, ModalBody, ModalContent, Progress, Tab, Tabs, cn, Tooltip } from "@heroui/react";
 import { Activity, Copy, FileText, Grid, HardDrive, Info, Lock, Network, Server, X, Zap } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
-import { useEffect, useMemo, useState, useRef } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { GlassPanel } from "../../../shared/ui/layout/GlassPanel";
 import { formatBytes, formatSpeed, formatTime } from "../../../shared/utils/format";
-import type { Torrent } from "../types/torrent";
+import type { TorrentDetail } from "../types/torrent";
 
 // --- TYPES ---
 type DetailTab = "general" | "content" | "pieces" | "trackers" | "peers" | "speed";
 
 interface TorrentDetailModalProps {
-  torrent: Torrent | null;
+  torrent: TorrentDetail | null;
   isOpen: boolean;
   onClose: () => void;
 }
 
-// --- SUB-COMPONENT: PIECES MAP (The "Defrag" Visualizer) ---
-// Renders a grid representing download availability without 10,000 DOM nodes.
-const PiecesMap = ({ percent }: { percent: number }) => {
-  // Generate 240 blocks for a 20x12 grid look
-  const blocks = useMemo(() => {
-    const total = 240;
-    const downloaded = Math.floor(total * percent);
-    return Array.from({ length: total }, (_, i) => ({
-      status: i < downloaded ? "done" : i === downloaded ? "active" : "missing",
-      // Add random "scattering" for realism to show non-sequential downloads
-      isScattered: i > downloaded && Math.random() > 0.95 && percent > 0 && percent < 1,
-    }));
-  }, [percent]);
+type PieceStatus = "done" | "downloading" | "missing";
+
+interface PiecesMapProps {
+  percent: number;
+  pieceCount?: number;
+  pieceStates?: number[];
+  pieceSize?: number;
+}
+
+const PIECE_COLUMNS = 42;
+
+const PiecesMap = ({ percent, pieceStates, pieceCount, pieceSize }: PiecesMapProps) => {
+  const displayPieces = Math.max(64, pieceCount ?? Math.round(256 * Math.max(percent, 0.1)));
+  const gridRows = Math.ceil(displayPieces / PIECE_COLUMNS);
+  const totalCells = gridRows * PIECE_COLUMNS;
+
+  const cells = useMemo(() => {
+    return Array.from({ length: totalCells }, (_, index) => {
+      const state = pieceStates?.[index];
+      let status: PieceStatus = "missing";
+      if (typeof state === "number") {
+        if (state & 0x1) {
+          status = "done";
+        } else if (state & 0x2) {
+          status = "downloading";
+        }
+      } else {
+        const doneThreshold = Math.floor(displayPieces * percent);
+        if (index < doneThreshold) {
+          status = "done";
+        } else if (index === doneThreshold && percent < 1) {
+          status = "downloading";
+        }
+      }
+      return { index, status };
+    });
+  }, [displayPieces, percent, pieceStates, totalCells]);
+
+  const doneCount = cells.filter((cell) => cell.status === "done").length;
+  const downloadingCount = cells.filter((cell) => cell.status === "downloading").length;
+
+  const pieceSizeLabel = pieceSize ? formatBytes(pieceSize) : "Unknown";
 
   return (
-    <div className="grid grid-cols-[repeat(auto-fill,minmax(12px,1fr))] gap-[2px] p-4 bg-content1/20 rounded-xl border border-content1/20">
-      {blocks.map((b, i) => (
-        <Tooltip key={i} content={`Piece #${i + 1400}: ${b.status === "done" ? "Verified" : "Pending"}`} closeDelay={0}>
-          <div
-            className={cn(
-              "aspect-square rounded-[1px] transition-colors duration-500",
-              b.status === "done"
-                ? "bg-primary/80 shadow-[0_0_4px_rgba(0,255,128,0.3)]"
-                : b.status === "active"
-                ? "bg-warning animate-pulse"
-              : b.isScattered
-                ? "bg-primary/40" // Simulate random pieces downloaded ahead
-                : "bg-content1/30"
-            )}
-          />
-        </Tooltip>
-      ))}
+    <div className="flex flex-col gap-4 h-full">
+      <div className="flex flex-wrap justify-between text-[10px] uppercase tracking-[0.2em] text-foreground/50">
+        <span>
+          Pieces: <span className="text-foreground font-mono">{pieceCount ?? displayPieces}</span>
+        </span>
+        <span>
+          Piece Size: <span className="text-foreground font-mono">{pieceSizeLabel}</span>
+        </span>
+        <span>
+          Verified: <span className="text-foreground font-mono">{doneCount}</span>
+        </span>
+        <span>
+          Downloading: <span className="text-warning font-mono">{downloadingCount}</span>
+        </span>
+      </div>
+      <div className="grid gap-[3px] rounded-2xl border border-content1/20 bg-content1/10 p-4" style={{ gridTemplateColumns: `repeat(${PIECE_COLUMNS}, minmax(0, 1fr))` }}>
+        {cells.map((cell) => (
+          <Tooltip key={cell.index} content={`Piece #${cell.index + 1}`} closeDelay={0}>
+            <div
+              className={cn(
+                "aspect-square rounded-[1px] transition-colors duration-500",
+                cell.status === "done"
+                  ? "bg-primary/90 shadow-[0_0_6px_rgba(6,182,212,0.5)]"
+                  : cell.status === "downloading"
+                  ? "bg-warning animate-pulse shadow-[0_0_4px_rgba(245,158,11,0.3)]"
+                  : "bg-content1/20"
+              )}
+            />
+          </Tooltip>
+        ))}
+      </div>
     </div>
   );
 };
@@ -170,6 +213,14 @@ const STATUS_CONFIG = {
   error: { color: "danger", label: "Error" },
 } as const;
 
+const PRIORITY_LABELS: Record<number, string> = {
+  0: "Low",
+  1: "Normal",
+  2: "High",
+};
+
+const getPriorityLabel = (priority: number) => PRIORITY_LABELS[priority] ?? "Normal";
+
 export function TorrentDetailModal({ torrent, isOpen, onClose }: TorrentDetailModalProps) {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<DetailTab>("general");
@@ -187,69 +238,12 @@ export function TorrentDetailModal({ torrent, isOpen, onClose }: TorrentDetailMo
     }
   };
 
-  // Mock Data Generators
-  const trackers = useMemo(
-    () =>
-      torrent
-        ? [
-            { name: "udp://tracker.opentrackr.org:1337", tier: 0, status: "active", peers: 45 },
-            { name: "udp://tracker.openbittorrent.com:80", tier: 1, status: "active", peers: 12 },
-            { name: "udp://tracker.cybercore.net:69", tier: 2, status: "error", peers: 0 },
-          ]
-        : [],
-    [torrent]
-  );
-
-  const peers = useMemo(
-    () =>
-      torrent
-        ? [
-            {
-              ip: "192.168.1.105",
-              client: "qBittorrent 4.6.0",
-              country: "NL",
-              progress: 0.92,
-              down: torrent.rateUpload * 1.2,
-              up: torrent.rateDownload * 0.4,
-              flags: "D E",
-            },
-            {
-              ip: "185.24.3.12",
-              client: "Transmission 4.0.0",
-              country: "US",
-              progress: 0.74,
-              down: torrent.rateDownload * 0.6,
-              up: torrent.rateUpload * 0.3,
-              flags: "D",
-            },
-            {
-              ip: "104.248.105.2",
-              client: "uTorrent 3.5.5",
-              country: "CA",
-              progress: 0.33,
-              down: torrent.rateDownload * 0.3,
-              up: torrent.rateUpload * 0.2,
-              flags: "uTP",
-            },
-          ]
-        : [],
-    [torrent]
-  );
-
-  const files = useMemo(
-    () =>
-      torrent
-        ? Array.from({ length: 8 }, (_, i) => ({
-            name: `${torrent.name.split(".")[0]}_part_${i + 1}.dat`,
-            size: torrent.totalSize / 8,
-            priority: i === 2 ? "High" : "Normal",
-            progress: Math.min(1, Math.max(0, torrent.percentDone + (Math.random() * 0.2 - 0.1))),
-          }))
-        : [],
-    [torrent]
-  );
-
   if (!torrent) return null;
+
+  const trackers = torrent.trackers ?? [];
+  const peers = torrent.peers ?? [];
+  const files = torrent.files ?? [];
+  const downloadDir = torrent.downloadDir ?? "Unknown";
 
   return (
     <Modal
@@ -290,7 +284,14 @@ export function TorrentDetailModal({ torrent, isOpen, onClose }: TorrentDetailMo
                 Hash: {torrent.hashString.substring(0, 8)}...
               </span>
             </div>
-            <Button isIconOnly size="sm" variant="light" onPress={onClose} className="text-foreground/40 hover:text-foreground">
+            <Button
+              isIconOnly
+              size="sm"
+              variant="light"
+              onPress={onClose}
+              className="text-foreground/40 hover:text-foreground"
+              aria-label={t("torrent_modal.actions.close")}
+            >
               <X size={20} />
             </Button>
           </div>
@@ -379,7 +380,7 @@ export function TorrentDetailModal({ torrent, isOpen, onClose }: TorrentDetailMo
                       </div>
                       <div className="text-right">
                         <div className="text-[10px] uppercase tracking-widest text-foreground/40 font-bold">Time Remaining</div>
-                        <div className="font-mono text-xl">{torrent.eta > 0 ? formatTime(torrent.eta) : "∞"}</div>
+                        <div className="font-mono text-xl">{torrent.eta > 0 ? formatTime(torrent.eta) : t("torrent_modal.eta_unknown")}</div>
                       </div>
                     </div>
 
@@ -393,7 +394,9 @@ export function TorrentDetailModal({ torrent, isOpen, onClose }: TorrentDetailMo
                     <div className="space-y-1.5">
                       <div className="flex justify-between text-[9px] uppercase tracking-wider font-bold text-foreground/40">
                         <span>Availability (Swarm)</span>
-                        <span className="text-primary">14.23x</span>
+                        <span className="text-primary">
+                          {torrent.peersConnected + torrent.seedsConnected} Active
+                        </span>
                       </div>
                       <div className="h-1.5 w-full bg-content1/20 rounded-full overflow-hidden flex">
                         <div className="h-full bg-primary w-full opacity-80" /> {/* Full bar implies 100% available */}
@@ -404,21 +407,29 @@ export function TorrentDetailModal({ torrent, isOpen, onClose }: TorrentDetailMo
                   <div className="grid grid-cols-2 gap-4">
                     <GlassPanel className="p-4 flex flex-col gap-1">
                       <span className="text-[10px] uppercase tracking-widest text-foreground/40">Downloaded</span>
-                      <span className="font-mono text-sm">{formatBytes(torrent.totalSize * torrent.percentDone)}</span>
+                      <span className="font-mono text-sm">{formatBytes(torrent.downloadedEver)}</span>
                     </GlassPanel>
                     <GlassPanel className="p-4 flex flex-col gap-1">
                       <span className="text-[10px] uppercase tracking-widest text-foreground/40">Uploaded</span>
-                      <span className="font-mono text-sm text-primary">{formatBytes(torrent.totalSize * 0.4)} (Ratio: 0.4)</span>
+                      <span className="font-mono text-sm text-primary">
+                        {formatBytes(torrent.uploadedEver)} (Ratio: {torrent.uploadRatio.toFixed(2)})
+                      </span>
                     </GlassPanel>
                     <GlassPanel className="col-span-2 p-4 flex flex-col gap-2">
                       <span className="text-[10px] uppercase tracking-widest text-foreground/40">Save Path</span>
-                      <code className="font-mono text-xs text-foreground/70 bg-content1/20 px-2 py-1 rounded">C:/Downloads/Linux_ISOs/</code>
+                      <code className="font-mono text-xs text-foreground/70 bg-content1/20 px-2 py-1 rounded">{downloadDir}</code>
                     </GlassPanel>
                     <GlassPanel className="col-span-2 p-4 flex flex-col gap-2">
                       <span className="text-[10px] uppercase tracking-widest text-foreground/40">Info Hash</span>
                       <div className="flex gap-2">
                         <code className="font-mono text-xs text-foreground/70 bg-content1/20 px-2 py-1 rounded flex-1">{torrent.hashString}</code>
-                        <Button isIconOnly size="sm" variant="flat" onPress={handleCopyHash}>
+                        <Button
+                          isIconOnly
+                          size="sm"
+                          variant="flat"
+                          onPress={handleCopyHash}
+                          aria-label={t("table.actions.copy_hash")}
+                        >
                           <Copy size={12} />
                         </Button>
                       </div>
@@ -429,30 +440,17 @@ export function TorrentDetailModal({ torrent, isOpen, onClose }: TorrentDetailMo
 
               {/* --- TAB: PIECES (New) --- */}
               {activeTab === "pieces" && (
-                <div className="h-full flex flex-col gap-4">
-                  <div className="flex justify-between items-center px-1">
-                    <div className="text-xs text-foreground/50">
-                      Pieces: <span className="text-foreground font-mono">1,492</span> • Size:{" "}
-                      <span className="text-foreground font-mono">2.0 MiB</span>
-                    </div>
-                    <div className="flex gap-3 text-[10px] uppercase font-bold tracking-wider">
-                      <span className="flex items-center gap-1">
-                        <div className="w-2 h-2 bg-primary/80" /> Downloaded
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <div className="w-2 h-2 bg-warning" /> Downloading
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <div className="w-2 h-2 bg-content1/20" /> Missing
-                      </span>
-                    </div>
-                  </div>
+                <div className="h-full flex flex-col">
                   <GlassPanel className="flex-1 overflow-y-auto">
-                    <PiecesMap percent={torrent.percentDone} />
+                    <PiecesMap
+                      percent={torrent.percentDone}
+                      pieceCount={torrent.pieceCount}
+                      pieceSize={torrent.pieceSize}
+                      pieceStates={torrent.pieceStates}
+                    />
                   </GlassPanel>
                 </div>
               )}
-
               {/* --- TAB: SPEED (New) --- */}
               {activeTab === "speed" && (
                 <div className="h-full flex flex-col">
@@ -473,12 +471,12 @@ export function TorrentDetailModal({ torrent, isOpen, onClose }: TorrentDetailMo
                       <div className="flex-1 min-w-0 flex flex-col gap-1.5">
                         <div className="flex justify-between items-center">
                           <span className="text-xs font-medium truncate pr-4">{file.name}</span>
-                          <span className="text-[10px] font-mono text-foreground/50">{formatBytes(file.size)}</span>
+                          <span className="text-[10px] font-mono text-foreground/50">{formatBytes(file.length)}</span>
                         </div>
-                        <Progress size="sm" value={file.progress * 100} classNames={{ track: "h-0.5 bg-content1/10", indicator: "bg-foreground/50" }} />
+                        <Progress size="sm" value={file.percentDone * 100} classNames={{ track: "h-0.5 bg-content1/10", indicator: "bg-foreground/50" }} />
                       </div>
                       <Chip size="sm" variant="flat" classNames={{ base: "h-5 bg-content1/20", content: "text-[9px]" }}>
-                        {file.priority}
+                        {getPriorityLabel(file.priority)}
                       </Chip>
                     </GlassPanel>
                   ))}
@@ -492,48 +490,60 @@ export function TorrentDetailModal({ torrent, isOpen, onClose }: TorrentDetailMo
                     <GlassPanel key={i} className="p-3 grid grid-cols-12 items-center gap-4 hover:bg-content1/50 transition-colors">
                       <div className="col-span-4 flex flex-col">
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-mono">{peer.ip}</span>
-                          <Chip size="sm" variant="flat" classNames={{ base: "h-4 px-1", content: "text-[9px] font-bold" }}>
-                            {peer.country}
-                          </Chip>
+                          <span className="text-xs font-mono">{peer.address}</span>
+                          {peer.country && (
+                            <Chip size="sm" variant="flat" classNames={{ base: "h-4 px-1", content: "text-[9px] font-bold" }}>
+                              {peer.country}
+                            </Chip>
+                          )}
                         </div>
-                        <span className="text-[10px] text-foreground/40 truncate">{peer.client}</span>
+                        <span className="text-[10px] text-foreground/40 truncate">{peer.clientName}</span>
                       </div>
-                      <div className="col-span-2 text-[10px] font-mono opacity-50">{peer.flags}</div>
+                      <div className="col-span-2 text-[10px] font-mono opacity-50">{peer.flagStr}</div>
                       <div className="col-span-3 flex flex-col gap-1">
                         <Progress size="sm" value={peer.progress * 100} classNames={{ track: "h-1 bg-content1/10", indicator: "bg-primary" }} />
                       </div>
                       <div className="col-span-3 flex flex-col items-end font-mono text-[10px]">
-                        <span className="text-success">▼ {formatSpeed(peer.down)}</span>
-                        <span className="text-primary">▲ {formatSpeed(peer.up)}</span>
+                        <span className="text-success">{formatSpeed(peer.rateToClient)}</span>
+                        <span className="text-primary">{formatSpeed(peer.rateToPeer)}</span>
                       </div>
                     </GlassPanel>
                   ))}
                 </div>
               )}
-
               {/* --- TAB: TRACKERS --- */}
               {activeTab === "trackers" && (
                 <div className="flex flex-col gap-2">
-                  {trackers.map((tr, i) => (
-                    <GlassPanel key={i} className="p-3 flex items-center justify-between hover:bg-content1/50 transition-colors">
+                  {trackers.length === 0 && (
+                    <div className="px-4 py-3 text-xs text-foreground/50">No tracker history available.</div>
+                  )}
+                  {trackers.map((tracker) => (
+                    <GlassPanel
+                      key={`${tracker.announce}-${tracker.tier}`}
+                      className="p-3 flex items-center justify-between hover:bg-content1/50 transition-colors"
+                    >
                       <div className="flex items-center gap-3">
                         <div
                           className={cn(
                             "w-1.5 h-1.5 rounded-full",
-                            tr.status === "active" ? "bg-success shadow-[0_0_8px_rgba(34,197,94,0.4)]" : "bg-danger"
+                            tracker.lastAnnounceSucceeded ? "bg-success shadow-[0_0_8px_rgba(34,197,94,0.4)]" : "bg-warning"
                           )}
                         />
                         <div className="flex flex-col">
-                          <span className="text-xs font-mono text-foreground/80">{tr.name}</span>
+                          <span className="text-xs font-mono text-foreground/80 truncate max-w-xs">{tracker.announce}</span>
                           <span className="text-[10px] text-foreground/40">
-                            Tier {tr.tier} • {tr.status}
+                            Tier {tracker.tier} - {tracker.lastAnnounceResult || "—"} -
+                            {tracker.lastAnnounceSucceeded
+                              ? t("torrent_modal.trackers.status_online")
+                              : t("torrent_modal.trackers.status_partial")}
                           </span>
                         </div>
                       </div>
                       <div className="text-right">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-foreground/30">Peers</span>
-                        <div className="font-mono text-xs">{tr.peers}</div>
+                        <div className="font-mono text-xs">
+                          {tracker.seederCount} seeded / {tracker.leecherCount} leeching
+                        </div>
                       </div>
                     </GlassPanel>
                   ))}
