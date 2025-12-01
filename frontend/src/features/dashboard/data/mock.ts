@@ -1,4 +1,4 @@
-import type { Torrent } from "../components/TorrentTable";
+import type { Torrent } from "../types/torrent";
 
 export const MOCK_TORRENTS: Torrent[] = [
   {
