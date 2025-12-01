@@ -73,6 +73,11 @@ export class TransmissionClient {
           "peersConnected",
           "seedsConnected",
           "eta",
+          "dateAdded",
+          "queuePosition",
+          "uploadRatio",
+          "uploadedEver",
+          "downloadedEver",
         ],
       },
     });

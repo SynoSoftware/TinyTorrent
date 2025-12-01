@@ -12,6 +12,11 @@ export interface TransmissionTorrent {
   peersConnected: number;
   seedsConnected: number;
   eta: number;
+  dateAdded: number;
+  queuePosition: number;
+  uploadRatio: number;
+  uploadedEver: number;
+  downloadedEver: number;
 }
 
 export interface TransmissionPollResponse {

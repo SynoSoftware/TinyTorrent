@@ -1,12 +1,15 @@
 import {
   Button,
   Checkbox,
-  Chip,
   Dropdown,
   DropdownItem,
   DropdownMenu,
   DropdownTrigger,
-  Progress,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
   Skeleton,
   Table,
   TableBody,
@@ -14,16 +17,64 @@ import {
   TableColumn,
   TableHeader,
   TableRow,
-  cn,
   type SortDescriptor,
 } from "@heroui/react";
-import { ArrowDown, ArrowUp, CheckCircle2, FileUp, MoreVertical, Pause, PauseCircle, PlayCircle, Trash2, Users } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { CheckCircle2, FileUp, Gauge, PauseCircle, PlayCircle, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState, type DragEvent } from "react";
+import type { MouseEvent as ReactMouseEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { formatBytes, formatSpeed, formatTime } from "../../../shared/utils/format";
+
 import type { Torrent } from "../types/torrent";
 import { TorrentDetailModal } from "./TorrentDetailModal";
+import {
+  ALL_COLUMN_IDS,
+  COLUMN_DEFINITIONS,
+  DEFAULT_COLUMN_ORDER,
+  DEFAULT_VISIBLE_COLUMN_IDS,
+  REQUIRED_COLUMN_IDS,
+} from "./column-definitions";
+import type { ColumnDefinition, ColumnId } from "./column-definitions";
+
+const STORAGE_KEY = "tiny-torrent.column-config";
+
+const hydrateColumnOrder = (order: ColumnId[]) => {
+  const seen = new Set<ColumnId>();
+  const normalized: ColumnId[] = [];
+  order.forEach((id) => {
+    if (!seen.has(id) && COLUMN_DEFINITIONS[id]) {
+      seen.add(id);
+      normalized.push(id);
+    }
+  });
+  ALL_COLUMN_IDS.forEach((id) => {
+    if (!seen.has(id)) {
+      normalized.push(id);
+    }
+  });
+  return normalized;
+};
+
+const createVisibleColumnSet = (ids: ColumnId[]) => {
+  const next = new Set<ColumnId>();
+  ids.forEach((id) => {
+    if (COLUMN_DEFINITIONS[id]) {
+      next.add(id);
+    }
+  });
+  REQUIRED_COLUMN_IDS.forEach((required) => next.add(required));
+  if (!next.size && ALL_COLUMN_IDS[0]) {
+    next.add(ALL_COLUMN_IDS[0]);
+  }
+  return next;
+};
+
+const compareValues = (first?: string | number, second?: string | number) => {
+  if (first === undefined || first === null) return second === undefined || second === null ? 0 : -1;
+  if (second === undefined || second === null) return 1;
+  if (typeof first === "string" || typeof second === "string") return String(first).localeCompare(String(second));
+  return Number(first) - Number(second);
+};
 
 interface TorrentTableProps {
   torrents: Torrent[];
@@ -31,63 +82,124 @@ interface TorrentTableProps {
   isLoading?: boolean;
 }
 
-type ColumnId = "selection" | "name" | "progress" | "status" | "speed" | "peers" | "size" | "actions";
-
-const COLUMNS: { id: ColumnId; label?: string; width?: number; align?: "start" | "center" | "end"; sortable?: boolean }[] = [
-  { id: "selection", width: 40, align: "center" },
-  { id: "name", label: "table.header_name", sortable: true },
-  { id: "progress", label: "table.header_progress", width: 220, sortable: true },
-  { id: "status", label: "table.header_status", width: 110, sortable: true },
-  { id: "speed", label: "table.header_speed", width: 120, align: "end", sortable: true },
-  { id: "peers", label: "table.header_peers", width: 100, align: "end" },
-  { id: "size", label: "table.header_size", width: 100, align: "end", sortable: true },
-  { id: "actions", width: 50, align: "end" },
-];
-
 export function TorrentTable({ torrents, filter, isLoading = false }: TorrentTableProps) {
   const { t } = useTranslation();
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set<number>());
   const [lastSelectedId, setLastSelectedId] = useState<number | null>(null);
   const [activeTorrent, setActiveTorrent] = useState<Torrent | null>(null);
-  const [sortDescriptor, setSortDescriptor] = useState<SortDescriptor>({ column: "name", direction: "ascending" });
+  const [sortDescriptor, setSortDescriptor] = useState<SortDescriptor>({
+    column: "name",
+    direction: "ascending",
+  });
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; torrent: Torrent } | null>(null);
 
-  // --- FILTER & SORT ---
+  const [columnOrder, setColumnOrder] = useState<ColumnId[]>(() => hydrateColumnOrder(DEFAULT_COLUMN_ORDER));
+  const [visibleColumns, setVisibleColumns] = useState<Set<ColumnId>>(() => createVisibleColumnSet(DEFAULT_VISIBLE_COLUMN_IDS));
+  const [isColumnModalOpen, setIsColumnModalOpen] = useState(false);
+  const [modalVisibility, setModalVisibility] = useState<Set<ColumnId>>(() => createVisibleColumnSet(DEFAULT_VISIBLE_COLUMN_IDS));
+  const [columnWidths, setColumnWidths] = useState<Partial<Record<ColumnId, number>>>(() => {
+    const widths: Partial<Record<ColumnId, number>> = {};
+    DEFAULT_COLUMN_ORDER.forEach((id) => {
+      const definition = COLUMN_DEFINITIONS[id];
+      if (definition?.width) {
+        widths[id] = definition.width;
+      }
+    });
+    return widths;
+  });
+  const [resizingColumn, setResizingColumn] = useState<{ column: ColumnId; startX: number; startWidth: number } | null>(null);
+  const [draggingColumn, setDraggingColumn] = useState<ColumnId | null>(null);
+  const [dropTargetColumn, setDropTargetColumn] = useState<ColumnId | null>(null);
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(STORAGE_KEY);
+      if (!saved) return;
+      const payload = JSON.parse(saved) as { order?: ColumnId[]; visible?: ColumnId[] };
+      if (Array.isArray(payload.order)) {
+        setColumnOrder(hydrateColumnOrder(payload.order));
+      }
+      if (Array.isArray(payload.visible)) {
+        setVisibleColumns(createVisibleColumnSet(payload.visible));
+      }
+    } catch {
+      /* ignore invalid payload */
+    }
+  }, []);
+
+  useEffect(() => {
+    const payload = {
+      order: columnOrder,
+      visible: Array.from(visibleColumns),
+    };
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+  }, [columnOrder, visibleColumns]);
+
+  const displayColumns = columnOrder
+    .map((id) => COLUMN_DEFINITIONS[id])
+    .filter((column): column is ColumnDefinition => Boolean(column) && visibleColumns.has(column.id));
+
+  useEffect(() => {
+    const safeColumn = displayColumns.find((column) => column.id === sortDescriptor.column && column.sortable);
+    if (safeColumn) return;
+    const fallback = displayColumns.find((column) => column.sortable);
+    if (fallback) {
+      setSortDescriptor((prev) => ({
+        ...prev,
+        column: fallback.id,
+      }));
+    }
+  }, [displayColumns, sortDescriptor.column]);
+
   const filteredItems = useMemo(() => {
     let items = [...torrents];
-    if (filter !== "all") items = items.filter((t) => t.status === filter);
-    return items.sort((a: any, b: any) => {
-      const first = a[sortDescriptor.column as keyof Torrent];
-      const second = b[sortDescriptor.column as keyof Torrent];
-      const cmp = first < second ? -1 : first > second ? 1 : 0;
+    if (filter !== "all") {
+      items = items.filter((torrent) => torrent.status === filter);
+    }
+    const column = COLUMN_DEFINITIONS[sortDescriptor.column as ColumnId];
+    const accessor =
+      column?.sortAccessor ??
+      ((item: Torrent) => {
+        const value = item[sortDescriptor.column as keyof Torrent];
+        return value;
+      });
+
+    return items.sort((first, second) => {
+      const firstValue = accessor(first) as string | number | undefined;
+      const secondValue = accessor(second) as string | number | undefined;
+      const cmp = compareValues(firstValue, secondValue);
       return sortDescriptor.direction === "descending" ? -cmp : cmp;
     });
   }, [torrents, filter, sortDescriptor]);
 
-  // --- SELECTION ---
   const handleSelection = (id: number, multiSelect: boolean, shiftKey: boolean) => {
-    const newSet = new Set(multiSelect ? selectedIds : []);
+    const newSet = new Set<number>(multiSelect ? selectedIds : []);
     if (shiftKey && lastSelectedId !== null) {
-      const start = filteredItems.findIndex((t) => t.id === lastSelectedId);
-      const end = filteredItems.findIndex((t) => t.id === id);
+      const start = filteredItems.findIndex((torrent) => torrent.id === lastSelectedId);
+      const end = filteredItems.findIndex((torrent) => torrent.id === id);
       const range = filteredItems.slice(Math.min(start, end), Math.max(start, end) + 1);
-      range.forEach((t) => newSet.add(t.id));
+      range.forEach((torrent) => newSet.add(torrent.id));
     } else {
-      if (newSet.has(id) && multiSelect) newSet.delete(id);
-      else newSet.add(id);
+      if (newSet.has(id) && multiSelect) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
     }
     setSelectedIds(newSet);
     setLastSelectedId(id);
   };
 
-  const handleSelectAll = (val: boolean) => setSelectedIds(new Set(val ? filteredItems.map((t) => t.id) : []));
+  const handleSelectAll = (value: boolean) => {
+    const flattened = value ? new Set(filteredItems.map((torrent) => torrent.id)) : new Set<number>();
+    setSelectedIds(flattened);
+  };
 
-  // --- KEYBOARD ---
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
+    const handleKeyDown = (event: KeyboardEvent) => {
       if (!selectedIds.size) return;
-      if (e.key === "Escape") {
-        setSelectedIds(new Set());
+      if (event.key === "Escape") {
+        setSelectedIds(new Set<number>());
         setContextMenu(null);
       }
     };
@@ -97,8 +209,103 @@ export function TorrentTable({ torrents, filter, isLoading = false }: TorrentTab
 
   const allSelected = filteredItems.length > 0 && selectedIds.size === filteredItems.length;
   const isIndeterminate = selectedIds.size > 0 && !allSelected;
+  const openColumnModal = () => {
+    setModalVisibility(new Set(visibleColumns));
+    setIsColumnModalOpen(true);
+  };
 
-  // --- EMPTY STATE ---
+  const handleModalReset = () => {
+    setColumnOrder(hydrateColumnOrder(DEFAULT_COLUMN_ORDER));
+    setModalVisibility(createVisibleColumnSet(DEFAULT_VISIBLE_COLUMN_IDS));
+    setVisibleColumns(createVisibleColumnSet(DEFAULT_VISIBLE_COLUMN_IDS));
+  };
+
+  const handleColumnVisibilityToggle = (id: ColumnId) => {
+    if (REQUIRED_COLUMN_IDS.includes(id)) return;
+    setModalVisibility((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const applyColumnConfiguration = () => {
+    setVisibleColumns(createVisibleColumnSet(Array.from(modalVisibility)));
+    setIsColumnModalOpen(false);
+  };
+
+  const moveColumn = (source: ColumnId, target: ColumnId) =>
+    setColumnOrder((prev) => {
+      const next = [...prev];
+      const fromIndex = next.indexOf(source);
+      const toIndex = next.indexOf(target);
+      if (fromIndex === -1 || toIndex === -1) return prev;
+      next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, source);
+      return next;
+    });
+
+  const handleColumnDragStart = (event: DragEvent<HTMLDivElement>, id: ColumnId) => {
+    event.dataTransfer?.setData("column", id);
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = "move";
+    }
+    setDraggingColumn(id);
+  };
+
+  const handleColumnDragOver = (event: DragEvent<HTMLDivElement>, id: ColumnId) => {
+    event.preventDefault();
+    setDropTargetColumn(id);
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = "move";
+    }
+  };
+
+  const handleColumnDragEnd = () => {
+    setDraggingColumn(null);
+    setDropTargetColumn(null);
+  };
+  const handleColumnDrop = (event: DragEvent<HTMLDivElement>, target: ColumnId) => {
+    event.preventDefault();
+    const source = event.dataTransfer?.getData("column");
+    if (source && source !== target) {
+      moveColumn(source as ColumnId, target);
+    }
+    setDraggingColumn(null);
+    setDropTargetColumn(null);
+  };
+
+  const handleResizeStart = (event: ReactMouseEvent<HTMLSpanElement>, columnId: ColumnId) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const definition = COLUMN_DEFINITIONS[columnId];
+    const currentWidth = columnWidths[columnId] ?? definition?.width ?? 140;
+    setResizingColumn({ column: columnId, startX: event.clientX, startWidth: currentWidth });
+  };
+
+  useEffect(() => {
+    if (!resizingColumn) return;
+    const handleMouseMove = (event: MouseEvent) => {
+      const deltaX = event.clientX - resizingColumn.startX;
+      const nextWidth = Math.max(80, resizingColumn.startWidth + deltaX);
+      setColumnWidths((prev) => {
+        if (prev[resizingColumn.column] === nextWidth) return prev;
+        return { ...prev, [resizingColumn.column]: nextWidth };
+      });
+    };
+    const handleMouseUp = () => setResizingColumn(null);
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [resizingColumn]);
+
   if (!isLoading && torrents.length === 0) {
     return (
       <motion.div
@@ -107,12 +314,12 @@ export function TorrentTable({ torrents, filter, isLoading = false }: TorrentTab
         transition={{ duration: 0.4 }}
         className="flex-1 flex flex-col items-center justify-center text-foreground/40 gap-6"
       >
-          <div className="relative">
-            <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full" />
-            <div className="relative w-24 h-24 rounded-3xl bg-content1/20 border border-content1/20 flex items-center justify-center shadow-2xl">
-              <FileUp size={40} className="text-foreground/60" />
-            </div>
+        <div className="relative">
+          <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full" />
+          <div className="relative w-24 h-24 rounded-3xl bg-content1/20 border border-content1/20 flex items-center justify-center shadow-2xl">
+            <FileUp size={40} className="text-foreground/60" />
           </div>
+        </div>
         <div className="text-center space-y-1">
           <h3 className="text-lg font-bold text-foreground tracking-tight">{t("table.empty_title", "No Torrents")}</h3>
           <p className="text-sm text-foreground/50">{t("table.empty_desc", "Drop a file to start downloading")}</p>
@@ -125,7 +332,7 @@ export function TorrentTable({ torrents, filter, isLoading = false }: TorrentTab
     <>
       <div
         className="flex-1 flex flex-col min-h-0 relative group/container"
-        onContextMenu={(e) => e.target === e.currentTarget && setContextMenu(null)}
+        onContextMenu={(event) => event.target === event.currentTarget && setContextMenu(null)}
         onClick={() => setContextMenu(null)}
       >
         <Table
@@ -140,31 +347,67 @@ export function TorrentTable({ torrents, filter, isLoading = false }: TorrentTab
             table: "min-w-full",
             thead: "z-10",
             th: "bg-background/90 backdrop-blur-xl text-default-400 font-bold uppercase text-[10px] tracking-[0.2em] h-10 border-b border-content1/20 first:pl-6 last:pr-6",
-            // THE NEON ROW:
             tr: "group transition-all duration-150 border-b border-content1/20 data-[selected=true]:bg-gradient-to-r data-[selected=true]:from-primary/10 data-[selected=true]:to-transparent data-[context=true]:bg-content1/20 cursor-default outline-none",
             td: "py-2 px-3 text-xs first:pl-6 last:pr-6",
             emptyWrapper: "h-full",
           }}
         >
-          <TableHeader columns={COLUMNS}>
-            {(column) => (
-              <TableColumn key={column.id} width={column.width} align={column.align} allowsSorting={column.sortable}>
-                {column.id === "selection" ? (
-                  <div onClick={(e) => e.stopPropagation()} className="flex justify-center">
-                    <Checkbox
-                      isSelected={allSelected}
-                      isIndeterminate={isIndeterminate}
-                      onValueChange={handleSelectAll}
-                      classNames={{ wrapper: "m-0" }}
-                    />
+          <TableHeader columns={displayColumns}>
+            {(column) => {
+              const width = columnWidths[column.id] ?? column.width;
+              const isDropTarget = dropTargetColumn === column.id && draggingColumn !== column.id;
+              const isDraggable = !column.isRequired;
+              return (
+                <TableColumn
+                  key={column.id}
+                  width={width}
+                  align={column.align}
+                  allowsSorting={column.sortable}
+                  style={width ? { width } : undefined}
+                >
+                  <div
+                    className={`relative flex h-full items-center gap-2 ${
+                      column.id === "selection" ? "justify-center" : "justify-between"
+                    } ${isDropTarget ? "bg-content1/20 border border-primary/30" : ""} ${
+                      isDraggable ? "cursor-grab" : "cursor-default"
+                    }`}
+                    draggable={isDraggable}
+                    onDragStart={isDraggable ? (event) => handleColumnDragStart(event, column.id) : undefined}
+                    onDragOver={isDraggable ? (event) => handleColumnDragOver(event, column.id) : undefined}
+                    onDrop={isDraggable ? (event) => handleColumnDrop(event, column.id) : undefined}
+                    onDragEnd={isDraggable ? handleColumnDragEnd : undefined}
+                    onDragLeave={() => setDropTargetColumn((prev) => (prev === column.id ? null : prev))}
+                    onContextMenu={(event) => {
+                      event.preventDefault();
+                      openColumnModal();
+                    }}
+                  >
+                    {column.id === "selection" ? (
+                      <div onClick={(event) => event.stopPropagation()} className="flex justify-center w-full">
+                        <Checkbox
+                          isSelected={allSelected}
+                          isIndeterminate={isIndeterminate}
+                          onValueChange={handleSelectAll}
+                          classNames={{ wrapper: "m-0" }}
+                          aria-label={t("table.select_all")}
+                        />
+                      </div>
+                    ) : column.labelKey ? (
+                      <span className="flex-1 text-center">{t(column.labelKey)}</span>
+                    ) : (
+                      ""
+                    )}
+                    {!column.isRequired && (
+                      <span
+                        role="presentation"
+                        className="absolute inset-y-0 right-0 w-2 cursor-col-resize"
+                        onMouseDown={(event) => handleResizeStart(event, column.id)}
+                      />
+                    )}
                   </div>
-                ) : column.label ? (
-                  t(column.label)
-                ) : (
-                  ""
-                )}
-              </TableColumn>
-            )}
+                </TableColumn>
+              );
+            }}
           </TableHeader>
           <TableBody items={isLoading ? Array(5).fill({ id: -1 }) : filteredItems} isLoading={isLoading}>
             {(item) => (
@@ -173,24 +416,26 @@ export function TorrentTable({ torrents, filter, isLoading = false }: TorrentTab
                 data-selected={selectedIds.has(item.id)}
                 data-context={contextMenu?.torrent.id === item.id}
                 className={selectedIds.has(item.id) ? "border-l-2 border-primary" : "border-l-2 border-transparent"}
-                onClick={(e) => {
-                  if (!e.defaultPrevented) handleSelection(item.id, e.ctrlKey || e.metaKey, e.shiftKey);
+                onClick={(event) => {
+                  if (!event.defaultPrevented) {
+                    handleSelection(item.id, event.ctrlKey || event.metaKey, event.shiftKey);
+                  }
                 }}
                 onDoubleClick={() => setActiveTorrent(item)}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  setContextMenu({ x: e.clientX, y: e.clientY, torrent: item });
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  setContextMenu({ x: event.clientX, y: event.clientY, torrent: item });
                   if (!selectedIds.has(item.id)) handleSelection(item.id, false, false);
                 }}
               >
-                {(columnKey) => (
+                {(columnId) => (
                   <TableCell>
                     {isLoading ? (
                       <Skeleton className="rounded-lg h-5 w-full bg-content1/20 before:animate-[shimmer_2s_infinite]" />
                     ) : (
                       <TorrentCell
                         item={item}
-                        columnKey={columnKey as ColumnId}
+                        columnKey={columnId as ColumnId}
                         isSelected={selectedIds.has(item.id)}
                         toggleSelection={() => handleSelection(item.id, true, false)}
                         t={t}
@@ -203,7 +448,6 @@ export function TorrentTable({ torrents, filter, isLoading = false }: TorrentTab
           </TableBody>
         </Table>
 
-        {/* --- KINETIC CONTEXT MENU --- */}
         <AnimatePresence>
           {contextMenu && (
             <motion.div
@@ -214,14 +458,14 @@ export function TorrentTable({ torrents, filter, isLoading = false }: TorrentTab
               className="fixed z-50 origin-top-left"
               style={{ top: contextMenu.y, left: contextMenu.x }}
             >
-                  <Dropdown
-                    isOpen={true}
-                    onClose={() => setContextMenu(null)}
-                    placement="bottom-start"
-                    classNames={{
-                      content: "bg-background/80 backdrop-blur-xl border border-content1/20 shadow-[0_20px_40px_rgba(0,0,0,0.5)] rounded-xl",
-                    }}
-                  >
+              <Dropdown
+                isOpen
+                onClose={() => setContextMenu(null)}
+                placement="bottom-start"
+                classNames={{
+                  content: "bg-background/80 backdrop-blur-xl border border-content1/20 shadow-[0_20px_40px_rgba(0,0,0,0.5)] rounded-xl",
+                }}
+              >
                 <DropdownTrigger>
                   <div className="w-0 h-0 opacity-0" />
                 </DropdownTrigger>
@@ -230,13 +474,13 @@ export function TorrentTable({ torrents, filter, isLoading = false }: TorrentTab
                     {contextMenu.torrent.name}
                   </DropdownItem>
                   <DropdownItem key="pause" startContent={<PauseCircle size={14} className="text-warning" />}>
-                    Pause
+                    {t("table.actions.pause")}
                   </DropdownItem>
                   <DropdownItem key="resume" startContent={<PlayCircle size={14} className="text-success" />}>
-                    Resume
+                    {t("table.actions.resume")}
                   </DropdownItem>
                   <DropdownItem key="recheck" showDivider startContent={<CheckCircle2 size={14} />}>
-                    Force Recheck
+                    {t("table.actions.recheck")}
                   </DropdownItem>
                   <DropdownItem
                     key="delete"
@@ -244,7 +488,7 @@ export function TorrentTable({ torrents, filter, isLoading = false }: TorrentTab
                     color="danger"
                     startContent={<Trash2 size={14} />}
                   >
-                    Remove
+                    {t("table.actions.remove")}
                   </DropdownItem>
                 </DropdownMenu>
               </Dropdown>
@@ -253,124 +497,98 @@ export function TorrentTable({ torrents, filter, isLoading = false }: TorrentTab
         </AnimatePresence>
       </div>
 
+      <Modal
+        isOpen={isColumnModalOpen}
+        onOpenChange={setIsColumnModalOpen}
+        placement="center"
+        backdrop="blur"
+        size="xl"
+        classNames={{
+          base: "bg-content1/80 backdrop-blur-xl border border-content1/20 shadow-2xl",
+          header: "border-b border-content1/30 py-4",
+          footer: "border-t border-content1/30 py-4 justify-between",
+        }}
+        motionProps={{
+          variants: {
+            enter: { y: 0, opacity: 1, scale: 1, transition: { duration: 0.3, ease: [0.32, 0.72, 0, 1] } },
+            exit: { y: 10, opacity: 0, scale: 0.95, transition: { duration: 0.2 } },
+          },
+        }}
+      >
+        <ModalContent>
+          {() => (
+            <>
+              <ModalHeader className="flex flex-col gap-1">
+                <h3 className="text-lg font-bold flex items-center gap-2">
+                  <Gauge size={20} className="text-primary" />
+                  {t("table.column_picker_title")}
+                </h3>
+                <p className="text-xs uppercase tracking-[0.4em] text-foreground/50">{t("table.column_picker_description")}</p>
+              </ModalHeader>
+              <ModalBody className="space-y-3 py-6">
+                <div className="space-y-3">
+                  {columnOrder.map((columnId) => {
+                    const column = COLUMN_DEFINITIONS[columnId];
+                    if (!column) return null;
+                    const isRequired = REQUIRED_COLUMN_IDS.includes(columnId);
+                    const isVisible = modalVisibility.has(columnId);
+                    return (
+                      <div
+                        key={columnId}
+                        className="rounded-2xl border border-content1/20 bg-content1/10 px-4 py-3 shadow-[0_10px_30px_rgba(0,0,0,0.25)]"
+                      >
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="flex flex-col">
+                            <p className="text-sm font-semibold text-foreground">{t(column.labelKey ?? column.id)}</p>
+                            {column.descriptionKey && (
+                              <p className="text-[11px] text-foreground/50">{t(column.descriptionKey)}</p>
+                            )}
+                          </div>
+                          <Checkbox
+                            isSelected={isVisible}
+                            onValueChange={() => handleColumnVisibilityToggle(columnId)}
+                            disabled={isRequired}
+                            classNames={{ wrapper: "m-0" }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </ModalBody>
+              <ModalFooter>
+                <div className="flex items-center gap-3">
+                  <Button variant="ghost" size="sm" onPress={handleModalReset} className="text-foreground/60">
+                    {t("table.column_picker_reset")}
+                  </Button>
+                  <Button variant="light" size="sm" onPress={() => setIsColumnModalOpen(false)}>
+                    {t("table.column_picker_cancel")}
+                  </Button>
+                </div>
+                <Button color="primary" variant="shadow" size="sm" onPress={applyColumnConfiguration}>
+                  {t("table.column_picker_apply")}
+                </Button>
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
+
       <TorrentDetailModal torrent={activeTorrent} isOpen={Boolean(activeTorrent)} onClose={() => setActiveTorrent(null)} />
     </>
   );
 }
 
-// --- CELL RENDERER (Optimized) ---
-const TorrentCell = ({ item, columnKey, isSelected, toggleSelection, t }: any) => {
-  switch (columnKey) {
-    case "selection":
-      return (
-        <div onClick={(e) => e.stopPropagation()} className="flex justify-center">
-          <Checkbox isSelected={isSelected} onValueChange={toggleSelection} classNames={{ wrapper: "m-0" }} />
-        </div>
-      );
-    case "name":
-      return (
-        <div className="flex flex-col gap-0.5">
-          <span className={cn("font-medium text-sm truncate max-w-md transition-colors", item.status === "paused" && "text-foreground/50")}>
-            {item.name}
-          </span>
-          {item.status === "downloading" && (
-            <div className="flex items-center gap-2 text-[10px] font-mono text-foreground/50 tracking-tight">
-              <span className="text-success">{formatSpeed(item.rateDownload)}</span>
-              <span className="w-0.5 h-0.5 rounded-full bg-foreground/30" />
-              <span>{t("table.eta", { time: formatTime(item.eta) })}</span>
-            </div>
-          )}
-        </div>
-      );
-    case "progress":
-      return (
-        <div className="flex flex-col gap-1.5 w-full">
-          <div className="flex justify-between items-end text-[10px] font-mono font-medium opacity-80 tabular-nums">
-            <span>{(item.percentDone * 100).toFixed(1)}%</span>
-            <span className="text-foreground/40">{formatBytes(item.totalSize * item.percentDone)}</span>
-          </div>
-          <Progress
-            size="sm"
-            radius="full"
-            value={item.percentDone * 100}
-            classNames={{
-              track: "h-1 bg-content1/20",
-              indicator: cn(
-                "h-1 bg-gradient-to-r",
-                item.status === "paused"
-                  ? "from-warning/50 to-warning"
-                  : item.status === "seeding"
-                  ? "from-primary/50 to-primary"
-                  : "from-success/50 to-success"
-              ),
-            }}
-          />
-        </div>
-      );
-    case "status":
-      const statusMap: any = {
-        downloading: { color: "success", icon: ArrowDown, label: "table.status_dl" },
-        seeding: { color: "primary", icon: ArrowUp, label: "table.status_seed" },
-        paused: { color: "warning", icon: Pause, label: "table.status_pause" },
-      };
-      const conf = statusMap[item.status] || { color: "default", icon: Pause, label: "Unknown" };
-      return (
-        <Chip
-          size="sm"
-          variant="flat"
-          color={conf.color}
-          startContent={<conf.icon size={10} />}
-          classNames={{
-            base: `h-5 px-1 bg-${conf.color}/10 border border-${conf.color}/20`,
-            content: `font-bold text-[9px] uppercase tracking-wider text-${conf.color}`,
-          }}
-        >
-          {t(conf.label)}
-        </Chip>
-      );
-    case "speed":
-      return (
-        <div className="font-mono text-xs tabular-nums">
-          {item.status === "downloading" ? (
-            <span className="text-success font-medium">{formatSpeed(item.rateDownload)}</span>
-          ) : item.status === "seeding" ? (
-            <span className="text-primary font-medium">{formatSpeed(item.rateUpload)}</span>
-          ) : (
-            <span className="text-foreground/20">-</span>
-          )}
-        </div>
-      );
-    case "peers":
-      return (
-        <div className="flex items-center justify-end gap-1 font-mono text-xs text-foreground/60 tabular-nums">
-          <Users size={12} className="opacity-50" />
-          <span>{item.peersConnected}</span>
-          <span className="opacity-30">/</span>
-          <span className="opacity-50">{item.seedsConnected}</span>
-        </div>
-      );
-    case "size":
-      return <span className="font-mono text-xs text-foreground/50 tabular-nums">{formatBytes(item.totalSize)}</span>;
-    case "actions":
-      return (
-        <div onClick={(e) => e.stopPropagation()}>
-          <Dropdown placement="bottom-end">
-            <DropdownTrigger>
-              <Button isIconOnly size="sm" variant="light" radius="full" className="text-foreground/30 hover:text-foreground">
-                <MoreVertical size={16} />
-              </Button>
-            </DropdownTrigger>
-            <DropdownMenu aria-label="Actions" variant="faded">
-              <DropdownItem key="pause" startContent={<PauseCircle size={14} />}>
-                Pause
-              </DropdownItem>
-              <DropdownItem key="delete" className="text-danger" color="danger" startContent={<Trash2 size={14} />}>
-                Remove
-              </DropdownItem>
-            </DropdownMenu>
-          </Dropdown>
-        </div>
-      );
-  }
-  return null;
+interface TorrentCellProps {
+  item: Torrent;
+  columnKey: ColumnId;
+  isSelected: boolean;
+  toggleSelection: () => void;
+  t: ReturnType<typeof useTranslation>["t"];
+}
+
+const TorrentCell = ({ item, columnKey, isSelected, toggleSelection, t }: TorrentCellProps) => {
+  const definition = COLUMN_DEFINITIONS[columnKey];
+  if (!definition) return null;
+  return definition.render({ torrent: item, t, isSelected, toggleSelection });
 };
