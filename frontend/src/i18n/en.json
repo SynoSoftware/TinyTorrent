@@ -117,5 +117,83 @@
         "dutch": "Nederlands",
         "spanish": "Español",
         "chinese": "中文"
+    },
+    "settings": {
+        "modal": {
+            "title": "Settings",
+            "footer": {
+                "reset": "Reset",
+                "cancel": "Cancel",
+                "save": "Save Changes"
+            }
+        },
+        "tabs": {
+            "speed": "Speed",
+            "network": "Network",
+            "peers": "Peers",
+            "storage": "Storage",
+            "privacy": "Privacy"
+        },
+        "headers": {
+            "speed": "Speed Limits",
+            "network": "Connectivity",
+            "peers": "Peer Limits",
+            "storage": "Storage",
+            "privacy": "Privacy"
+        },
+        "sections": {
+            "bandwidth": "Global Bandwidth",
+            "turtle": "Turtle Mode (Scheduled)",
+            "seeding": "Seeding Behavior",
+            "listeningPort": "Listening Port",
+            "protocol": "Protocol Features",
+            "connectionLimits": "Connection Limits",
+            "locations": "Locations",
+            "behavior": "Behavior",
+            "encryption": "Encryption",
+            "blocklist": "Blocklist"
+        },
+        "labels": {
+            "downloadLimit": "Download Limit",
+            "uploadLimit": "Upload Limit",
+            "turtleMode": "Turtle Mode",
+            "altSpeedDown": "Download (KB/s)",
+            "altSpeedUp": "Upload (KB/s)",
+            "altSpeedStart": "Start Time",
+            "altSpeedEnd": "End Time",
+            "seedRatioToggle": "Enforce Seed Ratio",
+            "seedRatioLimit": "Seed Ratio Limit",
+            "idleSeedingToggle": "Idle Seeding Limit",
+            "idleSeedingLimit": "Minutes to Stop Seeding",
+            "incomingPort": "Incoming Port",
+            "randomizePort": "Randomize Port on Start",
+            "upnp": "Enable UPnP / NAT-PMP",
+            "dht": "DHT",
+            "lpd": "LPD",
+            "pex": "PEX",
+            "globalPeers": "Global Peer Limit",
+            "perTorrentPeers": "Peers Per Torrent",
+            "downloadFolder": "Default Download Folder",
+            "useIncompleteFolder": "Use Incomplete Folder",
+            "incompleteFolder": "Incomplete Folder",
+            "renamePartial": "Rename Partial Files",
+            "startAdded": "Start Added Torrents",
+            "encryption": "Encryption Level",
+            "blocklistToggle": "Enable Blocklist",
+            "blocklistUrl": "Blocklist URL"
+        },
+        "buttons": {
+            "testPort": "Test"
+        },
+        "units": {
+            "kbps": "{{value}} KB/s"
+        },
+        "options": {
+            "encryption": {
+                "required": "Require Encryption",
+                "preferred": "Prefer Encryption",
+                "tolerated": "Allow Unencrypted"
+            }
+        }
     }
 }
