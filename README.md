@@ -24,7 +24,7 @@ However, then I realized that will be ugly and nobody will use it ... but I can 
 
 Instead of dragging C++/Win32/Qt/GTK toolkits into the binary, TinyTorrent splits:
 
-* Native shell: minimal executable, manages window, lifecycle, and RPC - this is the hardwork that has already been done: libtransmission-daemon (I'll patch it to serve my frontend instead)
+* Native shell: minimal executable, manages window, lifecycle, and RPC - this is the hardwork that has already been done by others: libtransmission-daemon (I'll patch it to serve my frontend instead)
 * Frontend: React + TypeScript + HeroUI, leveraging the browser’s rendering engine for layout, animation, and GPU composition
 
 There's no need for heavy UI libraries baked into the binary, no platform-specific UI maintenance cost
