@@ -328,3 +328,4 @@ src/
 4. Don't try to execute linux commands. The build machine is Windows environment
 5. The following extra windows .exe are available. you can use the,: rg, fd, bat
 6. For code search, never use Select-String. Always use ripgrep: rg -n -C 5 "<pattern>" <path>
+7. Never write complex or nested shell one-liners. If a command requires tricky quoting or multiple pipes, move it into a script file instead. All commands must be simple, cross-platform, and Windows-safe.

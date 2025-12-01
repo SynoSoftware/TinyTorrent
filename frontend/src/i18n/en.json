@@ -23,7 +23,9 @@
         "eta": "ETA: {{time}}",
         "status_dl": "DL",
         "status_seed": "SEED",
-        "status_pause": "PAUSE"
+        "status_pause": "PAUSE",
+        "select_all": "Select all",
+        "select_item": "Select {{name}}"
     },
     "status_bar": {
         "down": "DOWN",
@@ -44,6 +46,61 @@
         "start_now": "Start Immediately",
         "cancel": "Cancel",
         "download": "Download"
+    },
+    "torrent_modal": {
+        "title": "Torrent Details",
+        "actions": {
+            "close": "Close"
+        },
+        "tabs": {
+            "general": "General",
+            "trackers": "Trackers",
+            "peers": "Peers",
+            "https": "HTTPS Source",
+            "content": "Content",
+            "speed": "Speed"
+        },
+        "general": {
+            "hash": "Hash",
+            "size": "Total Size",
+            "progress": "Progress",
+            "peers": "Peers",
+            "eta": "ETA",
+            "status": "Status",
+            "download": "Download",
+            "upload": "Upload",
+            "eta_unknown": "Unknown"
+        },
+        "trackers": {
+            "tier": "Tier",
+            "last_announce": "Last Announce",
+            "status_online": "Online",
+            "status_partial": "Partial"
+        },
+        "peers": {
+            "ip": "IP",
+            "progress": "Progress",
+            "download": "DL",
+            "upload": "UL"
+        },
+        "https": {
+            "label": "Secure Source",
+            "certificate": "Certificate",
+            "last_checked": "Checked"
+        },
+        "speed": {
+            "download": "Download Speed",
+            "upload": "Upload Speed",
+            "average": "Average",
+            "stable": "Steady Connection"
+        },
+        "statuses": {
+            "status_downloading": "Downloading",
+            "status_seeding": "Seeding",
+            "status_paused": "Paused",
+            "status_checking": "Checking",
+            "status_error": "Error"
+        }
     },
     "drop_overlay": {
         "title": "Drop to Add",
