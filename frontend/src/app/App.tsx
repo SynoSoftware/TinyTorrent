@@ -11,6 +11,7 @@ import { Navbar } from "../shared/ui/layout/Navbar";
 import { StatusBar } from "../shared/ui/layout/StatusBar";
 import { TorrentTable } from "../features/dashboard/components/TorrentTable";
 import { AddTorrentModal } from "../features/torrent-add/components/AddTorrentModal";
+import { SettingsModal } from "../features/settings/components/SettingsModal";
 
 // Data
 import { MOCK_TORRENTS } from "../features/dashboard/data/mock";
@@ -22,6 +23,7 @@ export default function App() {
   const [torrents] = useState(MOCK_TORRENTS);
   const [filter, setFilter] = useState("all");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [rpcStatus, setRpcStatus] = useState<"idle" | "connected" | "error">("idle");
 
   // Stats History (Simulated)
@@ -94,7 +96,12 @@ export default function App() {
       </AnimatePresence>
 
       {/* 3. LAYOUT: Header */}
-      <Navbar filter={filter} setFilter={setFilter} onAdd={() => setIsAddModalOpen(true)} />
+      <Navbar
+        filter={filter}
+        setFilter={setFilter}
+        onAdd={() => setIsAddModalOpen(true)}
+        onSettings={() => setIsSettingsOpen(true)}
+      />
 
       {/* 4. LAYOUT: Main Content */}
       <main className="flex-1 relative overflow-hidden flex flex-col z-10">
@@ -112,6 +119,7 @@ export default function App() {
 
       {/* 6. MODALS */}
       <AddTorrentModal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} />
+      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
     </div>
   );
 }

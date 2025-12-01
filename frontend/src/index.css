@@ -6,6 +6,7 @@
 
 /* index.css - AGGRESSIVE TUNING FOR VISIBILITY */
 @layer components {
+
   main [data-slot="input-wrapper"],
   main [data-slot="trigger"],
   main [data-slot="inner-wrapper"] {
@@ -14,6 +15,7 @@
 }
 
 @layer utilities {
+
   /* LIGHT – emerald paper */
   .texture-emerald {
     /* base from HeroUI theme */
@@ -21,24 +23,18 @@
 
     background-image:
       /* soft emerald glow top-left */
-      radial-gradient(
-        circle at 0% 0%,
+      radial-gradient(circle at 0% 0%,
         rgba(0, 159, 107, 0.65) 0,
-        transparent 52%
-      ),
+        transparent 52%),
       /* softer emerald glow bottom-right */
-      radial-gradient(
-        circle at 100% 100%,
+      radial-gradient(circle at 100% 100%,
         rgba(0, 159, 107, 0.80) 0,
-        transparent 58%
-      ),
+        transparent 58%),
       /* gentle vertical depth – much less white now */
-      linear-gradient(
-        180deg,
+      linear-gradient(180deg,
         rgba(255, 255, 255, 0.55) 0%,
         rgba(255, 255, 255, 0.18) 40%,
-        rgba(0, 0, 0, 0.02) 100%
-      ),
+        rgba(0, 0, 0, 0.02) 100%),
       /* very faint diagonal grid */
       linear-gradient(135deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
       linear-gradient(45deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
@@ -51,11 +47,16 @@
       repeat;
 
     background-size:
-      135% 135%,  /* radial 1 */
-      135% 135%,  /* radial 2 */
-      100% 100%,  /* vignette */
-      72px 72px,  /* grid 1 */
-      72px 72px;  /* grid 2 */
+      135% 135%,
+      /* radial 1 */
+      135% 135%,
+      /* radial 2 */
+      100% 100%,
+      /* vignette */
+      72px 72px,
+      /* grid 1 */
+      72px 72px;
+    /* grid 2 */
 
     background-attachment: fixed;
   }
@@ -66,23 +67,17 @@
 
     background-image:
       /* emerald glow top-left */
-      radial-gradient(
-        circle at 0% 0%,
+      radial-gradient(circle at 0% 0%,
         rgba(0, 223, 162, 0.30) 0,
-        transparent 45%
-      ),
+        transparent 45%),
       /* emerald glow bottom-right */
-      radial-gradient(
-        circle at 100% 100%,
+      radial-gradient(circle at 100% 100%,
         rgba(0, 223, 162, 0.15) 0,
-        transparent 50%
-      ),
+        transparent 50%),
       /* darker vignette than before – less “foggy” */
-      linear-gradient(
-        180deg,
+      linear-gradient(180deg,
         rgba(255, 255, 255, 0.015) 0,
-        rgba(0, 0, 0, 0.85) 100%
-      ),
+        rgba(0, 0, 0, 0.85) 100%),
       /* subtle graphite grid */
       linear-gradient(135deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
       linear-gradient(45deg, rgba(0, 0, 0, 0.45) 1px, transparent 1px);
@@ -103,4 +98,23 @@
 
     background-attachment: fixed;
   }
+}
+
+/* "Stealth" Scrollbar */
+.scrollbar-hide::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scrollbar-hide::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-hide::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+
+.scrollbar-hide::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
 }

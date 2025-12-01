@@ -8,9 +8,10 @@ interface NavbarProps {
   filter: string;
   setFilter: (key: string) => void;
   onAdd: () => void;
+  onSettings: () => void;
 }
 
-export function Navbar({ filter, setFilter, onAdd }: NavbarProps) {
+export function Navbar({ filter, setFilter, onAdd, onSettings }: NavbarProps) {
   const { t } = useTranslation();
 
   return (
@@ -62,7 +63,15 @@ export function Navbar({ filter, setFilter, onAdd }: NavbarProps) {
         <div className="h-6 w-px bg-content1/20 mx-1" />
         <LanguageMenu />
         <ThemeToggle />
-        <Button isIconOnly variant="ghost" radius="full" className="text-foreground/70">
+        <Button
+          isIconOnly
+          variant="ghost"
+          radius="full"
+          className="text-foreground/70"
+          onPress={onSettings}
+          aria-label={t("toolbar.settings")}
+          title={t("toolbar.settings")}
+        >
           <Settings2 size={20} />
         </Button>
         <Button
