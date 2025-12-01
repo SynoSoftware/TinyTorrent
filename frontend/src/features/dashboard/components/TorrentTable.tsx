@@ -20,13 +20,12 @@ import {
   type SortDescriptor,
 } from "@heroui/react";
 import { AnimatePresence, motion } from "framer-motion";
-import { CheckCircle2, FileUp, Gauge, PauseCircle, PlayCircle, Trash2 } from "lucide-react";
+import { CheckCircle2, Copy, FileUp, Gauge, Link, PauseCircle, PlayCircle, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState, type DragEvent } from "react";
 import type { MouseEvent as ReactMouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { Torrent } from "../types/torrent";
-import { TorrentDetailModal } from "./TorrentDetailModal";
 import {
   ALL_COLUMN_IDS,
   COLUMN_DEFINITIONS,
@@ -35,8 +34,29 @@ import {
   REQUIRED_COLUMN_IDS,
 } from "./column-definitions";
 import type { ColumnDefinition, ColumnId } from "./column-definitions";
+import constants from "../../../config/constants.json";
 
 const STORAGE_KEY = "tiny-torrent.column-config";
+
+const createSkeletonTorrent = (id: number): Torrent => ({
+  id,
+  hashString: "",
+  name: "",
+  totalSize: 0,
+  percentDone: 0,
+  status: "paused",
+  rateDownload: 0,
+  rateUpload: 0,
+  peersConnected: 0,
+  seedsConnected: 0,
+  eta: 0,
+  dateAdded: 0,
+  queuePosition: 0,
+  uploadRatio: 0,
+  uploadedEver: 0,
+  downloadedEver: 0,
+  downloadDir: "",
+});
 
 const hydrateColumnOrder = (order: ColumnId[]) => {
   const seen = new Set<ColumnId>();
@@ -69,6 +89,10 @@ const createVisibleColumnSet = (ids: ColumnId[]) => {
   return next;
 };
 
+export type TorrentTableAction = "pause" | "resume" | "recheck" | "remove" | "remove-with-data";
+
+const MAGNET_PREFIX = constants.defaults.magnet_protocol_prefix ?? "magnet:?";
+
 const compareValues = (first?: string | number, second?: string | number) => {
   if (first === undefined || first === null) return second === undefined || second === null ? 0 : -1;
   if (second === undefined || second === null) return 1;
@@ -80,13 +104,14 @@ interface TorrentTableProps {
   torrents: Torrent[];
   filter: string;
   isLoading?: boolean;
+  onAction?: (action: TorrentTableAction, torrent: Torrent) => void;
+  onRequestDetails?: (torrent: Torrent) => void;
 }
 
-export function TorrentTable({ torrents, filter, isLoading = false }: TorrentTableProps) {
+export function TorrentTable({ torrents, filter, isLoading = false, onAction, onRequestDetails }: TorrentTableProps) {
   const { t } = useTranslation();
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set<number>());
   const [lastSelectedId, setLastSelectedId] = useState<number | null>(null);
-  const [activeTorrent, setActiveTorrent] = useState<Torrent | null>(null);
   const [sortDescriptor, setSortDescriptor] = useState<SortDescriptor>({
     column: "name",
     direction: "ascending",
@@ -172,6 +197,8 @@ export function TorrentTable({ torrents, filter, isLoading = false }: TorrentTab
     });
   }, [torrents, filter, sortDescriptor]);
 
+  const skeletonRows = useMemo(() => Array.from({ length: 5 }, (_, idx) => createSkeletonTorrent(-(idx + 1))), []);
+
   const handleSelection = (id: number, multiSelect: boolean, shiftKey: boolean) => {
     const newSet = new Set<number>(multiSelect ? selectedIds : []);
     if (shiftKey && lastSelectedId !== null) {
@@ -212,6 +239,34 @@ export function TorrentTable({ torrents, filter, isLoading = false }: TorrentTab
   const openColumnModal = () => {
     setModalVisibility(new Set(visibleColumns));
     setIsColumnModalOpen(true);
+  };
+
+  const handleContextAction = (key: string | number) => {
+    if (!contextMenu) return;
+    const action = String(key);
+    const { torrent } = contextMenu;
+
+    const copyToClipboard = (value: string) => {
+      if (typeof navigator !== "undefined" && navigator.clipboard) {
+        void navigator.clipboard.writeText(value);
+      }
+    };
+
+    if (action === "copy-hash") {
+      copyToClipboard(torrent.hashString);
+      setContextMenu(null);
+      return;
+    }
+
+    if (action === "copy-magnet") {
+      copyToClipboard(`${MAGNET_PREFIX}xt=urn:btih:${torrent.hashString}`);
+      setContextMenu(null);
+      return;
+    }
+
+    const rpcAction = action as TorrentTableAction;
+    onAction?.(rpcAction, torrent);
+    setContextMenu(null);
   };
 
   const handleModalReset = () => {
@@ -409,10 +464,10 @@ export function TorrentTable({ torrents, filter, isLoading = false }: TorrentTab
               );
             }}
           </TableHeader>
-          <TableBody items={isLoading ? Array(5).fill({ id: -1 }) : filteredItems} isLoading={isLoading}>
+          <TableBody items={isLoading ? skeletonRows : filteredItems} isLoading={isLoading}>
             {(item) => (
               <TableRow
-                key={item.id === -1 ? `skeleton-${Math.random()}` : item.id}
+                key={`row-${item.id}`}
                 data-selected={selectedIds.has(item.id)}
                 data-context={contextMenu?.torrent.id === item.id}
                 className={selectedIds.has(item.id) ? "border-l-2 border-primary" : "border-l-2 border-transparent"}
@@ -421,7 +476,7 @@ export function TorrentTable({ torrents, filter, isLoading = false }: TorrentTab
                     handleSelection(item.id, event.ctrlKey || event.metaKey, event.shiftKey);
                   }
                 }}
-                onDoubleClick={() => setActiveTorrent(item)}
+                onDoubleClick={() => onRequestDetails?.(item)}
                 onContextMenu={(event) => {
                   event.preventDefault();
                   setContextMenu({ x: event.clientX, y: event.clientY, torrent: item });
@@ -469,9 +524,15 @@ export function TorrentTable({ torrents, filter, isLoading = false }: TorrentTab
                 <DropdownTrigger>
                   <div className="w-0 h-0 opacity-0" />
                 </DropdownTrigger>
-                <DropdownMenu aria-label="Context Actions" variant="flat" onAction={() => setContextMenu(null)}>
+              <DropdownMenu aria-label="Context Actions" variant="flat" onAction={handleContextAction}>
                   <DropdownItem key="info" className="h-8 gap-2 font-bold opacity-50" isReadOnly>
                     {contextMenu.torrent.name}
+                  </DropdownItem>
+                  <DropdownItem key="copy-hash" startContent={<Copy size={14} className="text-foreground/60" />}>
+                    {t("table.actions.copy_hash")}
+                  </DropdownItem>
+                  <DropdownItem key="copy-magnet" startContent={<Link size={14} className="text-foreground/60" />}>
+                    {t("table.actions.copy_magnet")}
                   </DropdownItem>
                   <DropdownItem key="pause" startContent={<PauseCircle size={14} className="text-warning" />}>
                     {t("table.actions.pause")}
@@ -483,12 +544,21 @@ export function TorrentTable({ torrents, filter, isLoading = false }: TorrentTab
                     {t("table.actions.recheck")}
                   </DropdownItem>
                   <DropdownItem
-                    key="delete"
+                    key="remove"
                     className="text-danger data-[hover=true]:bg-danger/20"
                     color="danger"
                     startContent={<Trash2 size={14} />}
                   >
                     {t("table.actions.remove")}
+                  </DropdownItem>
+                  <DropdownItem
+                    key="remove-with-data"
+                    className="text-danger data-[hover=true]:bg-danger/25"
+                    color="danger"
+                    showDivider
+                    startContent={<Trash2 size={14} />}
+                  >
+                    {t("table.actions.remove_with_data")}
                   </DropdownItem>
                 </DropdownMenu>
               </Dropdown>
@@ -574,7 +644,6 @@ export function TorrentTable({ torrents, filter, isLoading = false }: TorrentTab
         </ModalContent>
       </Modal>
 
-      <TorrentDetailModal torrent={activeTorrent} isOpen={Boolean(activeTorrent)} onClose={() => setActiveTorrent(null)} />
     </>
   );
 }

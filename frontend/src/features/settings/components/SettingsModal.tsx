@@ -1,46 +1,12 @@
 import { Button, Card, Divider, Input, Modal, ModalContent, Select, SelectItem, Slider, Switch, cn } from "@heroui/react";
 import type { LucideIcon } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FolderOpen, Globe, Network, Save, Shield, RotateCcw, Zap, X } from "lucide-react";
+import { DEFAULT_SETTINGS_CONFIG, type ConfigKey, type SettingsConfig } from "../data/config";
 
 type SettingsTab = "speed" | "network" | "peers" | "storage" | "privacy";
-
-const INITIAL_CONFIG = {
-  peer_port: 51413,
-  peer_port_random_on_start: false,
-  port_forwarding_enabled: true,
-  encryption: "preferred",
-  speed_limit_down: 15000,
-  speed_limit_down_enabled: true,
-  speed_limit_up: 500,
-  speed_limit_up_enabled: false,
-  alt_speed_down: 1000,
-  alt_speed_up: 50,
-  alt_speed_time_enabled: false,
-  alt_speed_begin: "08:00",
-  alt_speed_end: "17:00",
-  peer_limit_global: 200,
-  peer_limit_per_torrent: 50,
-  lpd_enabled: true,
-  dht_enabled: true,
-  pex_enabled: true,
-  blocklist_url: "http://list.iblocklist.com/?list=bt_level1",
-  blocklist_enabled: true,
-  download_dir: "/Downloads/Torrents",
-  incomplete_dir_enabled: true,
-  incomplete_dir: "/Downloads/Incomplete",
-  rename_partial_files: true,
-  start_added_torrents: true,
-  seedRatioLimit: 2.0,
-  seedRatioLimited: true,
-  idleSeedingLimit: 30,
-  idleSeedingLimited: false,
-} as const;
-
-type SettingsConfig = typeof INITIAL_CONFIG;
-type ConfigKey = keyof SettingsConfig;
 
 type VisibilityCheck = (config: SettingsConfig) => boolean;
 
@@ -106,6 +72,11 @@ type DividerBlock = {
   type: "divider";
 } & BlockBase;
 
+type DaySelectorBlock = {
+  type: "day-selector";
+  labelKey: string;
+} & BlockBase;
+
 type ButtonActionKey = "testPort";
 
 type ButtonRowBlock = {
@@ -120,7 +91,15 @@ type ButtonRowBlock = {
   }>;
 } & BlockBase;
 
-type SectionBlock = SwitchSliderBlock | SwitchBlock | InputBlock | InputPairBlock | SelectBlock | DividerBlock | ButtonRowBlock;
+type SectionBlock =
+  | SwitchSliderBlock
+  | SwitchBlock
+  | InputBlock
+  | InputPairBlock
+  | SelectBlock
+  | DividerBlock
+  | ButtonRowBlock
+  | DaySelectorBlock;
 
 interface SectionDefinition {
   titleKey: string;
@@ -191,6 +170,11 @@ const SETTINGS_TABS: TabDefinition[] = [
               { labelKey: "settings.labels.altSpeedEnd", stateKey: "alt_speed_end", inputType: "time", variant: "flat" },
             ],
           },
+          {
+            type: "day-selector",
+            labelKey: "settings.labels.altSpeedDays",
+            visible: (config) => config.alt_speed_time_enabled,
+          },
         ],
       },
       {
@@ -223,6 +207,25 @@ const SETTINGS_TABS: TabDefinition[] = [
             inputType: "number",
             variant: "bordered",
             dependsOn: "idleSeedingLimited",
+          },
+        ],
+      },
+      {
+        titleKey: "settings.sections.polling",
+        blocks: [
+          {
+            type: "input",
+            labelKey: "settings.labels.refreshInterval",
+            stateKey: "refresh_interval_ms",
+            inputType: "number",
+            variant: "bordered",
+          },
+          {
+            type: "input",
+            labelKey: "settings.labels.requestTimeout",
+            stateKey: "request_timeout_ms",
+            inputType: "number",
+            variant: "bordered",
           },
         ],
       },
@@ -340,6 +343,16 @@ const SETTINGS_TABS: TabDefinition[] = [
   },
 ];
 
+const ALT_SPEED_DAY_OPTIONS: ReadonlyArray<{ id: string; mask: number; labelKey: string }> = [
+  { id: "sunday", mask: 1, labelKey: "settings.labels.day_sunday" },
+  { id: "monday", mask: 2, labelKey: "settings.labels.day_monday" },
+  { id: "tuesday", mask: 4, labelKey: "settings.labels.day_tuesday" },
+  { id: "wednesday", mask: 8, labelKey: "settings.labels.day_wednesday" },
+  { id: "thursday", mask: 16, labelKey: "settings.labels.day_thursday" },
+  { id: "friday", mask: 32, labelKey: "settings.labels.day_friday" },
+  { id: "saturday", mask: 64, labelKey: "settings.labels.day_saturday" },
+];
+
 interface SectionTitleProps {
   title: string;
 }
@@ -357,20 +370,33 @@ function SectionTitle({ title }: SectionTitleProps) {
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
+  initialConfig: SettingsConfig;
+  isSaving: boolean;
+  onSave: (config: SettingsConfig) => Promise<void>;
+  onTestPort?: () => void;
 }
 
-export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
+export function SettingsModal({ isOpen, onClose, initialConfig, isSaving, onSave, onTestPort }: SettingsModalProps) {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<SettingsTab>("speed");
-  const [config, setConfig] = useState<SettingsConfig>(() => ({ ...INITIAL_CONFIG }));
-  const [isSaving, setIsSaving] = useState(false);
+  const [config, setConfig] = useState<SettingsConfig>(() => ({ ...initialConfig }));
 
-  const handleSave = () => {
-    setIsSaving(true);
-    setTimeout(() => {
-      setIsSaving(false);
+  useEffect(() => {
+    if (isOpen) {
+      setConfig(initialConfig);
+    }
+  }, [initialConfig, isOpen]);
+
+  const handleSave = async () => {
+    try {
+      await onSave(config);
       onClose();
-    }, 800);
+    } finally {
+    }
+  };
+
+  const handleReset = () => {
+    setConfig({ ...DEFAULT_SETTINGS_CONFIG });
   };
 
   const updateConfig = <K extends ConfigKey>(key: K, value: SettingsConfig[K]) => {
@@ -379,7 +405,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
   const buttonActions: Record<ButtonActionKey, () => void> = {
     testPort: () => {
-      // placeholder for future implementation
+      void onTestPort?.();
     },
   };
 
@@ -486,6 +512,43 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         );
       }
 
+      case "day-selector": {
+        const selectedMask = config.alt_speed_time_day;
+        const toggleDay = (mask: number) => {
+          const nextValue = selectedMask & mask ? selectedMask & ~mask : selectedMask | mask;
+          updateConfig("alt_speed_time_day", nextValue);
+        };
+        return (
+          <div key={`section-${sectionIndex}-block-${blockIndex}`} className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-foreground/70">
+                {t(block.labelKey)}
+              </span>
+              <span className="text-[9px] uppercase tracking-[0.4em] text-foreground/40">
+                {t("settings.labels.altSpeedDaysHelp")}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {ALT_SPEED_DAY_OPTIONS.map((day) => {
+                const isSelected = Boolean(selectedMask & day.mask);
+                return (
+                  <Button
+                    key={day.id}
+                    size="sm"
+                    variant={isSelected ? "shadow" : "light"}
+                    color={isSelected ? "primary" : undefined}
+                    onPress={() => toggleDay(day.mask)}
+                    className="uppercase tracking-[0.3em] px-3 py-1"
+                  >
+                    {t(day.labelKey)}
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      }
+
       case "select": {
         return (
           <Select
@@ -493,7 +556,9 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             label={t(block.labelKey)}
             size="sm"
             variant={block.variant ?? "bordered"}
-            selectedKeys={[String(config[block.stateKey])]}
+            selectedKeys={
+              config[block.stateKey] !== undefined ? [String(config[block.stateKey])] : []
+            }
             onSelectionChange={(keys) => {
               const [next] = [...keys];
               if (next) {
@@ -584,7 +649,15 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         <div className="flex-1 flex flex-col min-w-0 bg-background relative">
           <div className="shrink-0 h-14 border-b border-divider/50 flex items-center justify-between px-6 bg-background/50 backdrop-blur-md z-10">
             <h1 className="text-sm font-bold text-foreground/80">{t(activeTabDefinition.headerKey)}</h1>
-            <Button isIconOnly radius="full" size="sm" variant="light" onPress={onClose} className="text-foreground/40 hover:text-foreground">
+            <Button
+              isIconOnly
+              radius="full"
+              size="sm"
+              variant="light"
+              onPress={onClose}
+              className="text-foreground/40 hover:text-foreground"
+              aria-label={t("settings.modal.footer.cancel")}
+            >
               <X size={18} />
             </Button>
           </div>
@@ -610,8 +683,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             </AnimatePresence>
           </div>
           <div className="shrink-0 h-16 border-t border-divider bg-background/80 backdrop-blur-md px-6 flex items-center justify-between z-20 absolute bottom-0 left-0 right-0">
-            <Button size="sm" variant="light" color="danger" startContent={<RotateCcw size={14} />}>
-              {t("settings.modal.footer.reset")}
+            <Button size="sm" variant="light" color="danger" startContent={<RotateCcw size={14} />} onPress={handleReset}>
+              {t("settings.modal.footer.reset_defaults")}
             </Button>
             <div className="flex gap-2">
               <Button size="sm" variant="flat" onPress={onClose}>{t("settings.modal.footer.cancel")}</Button>

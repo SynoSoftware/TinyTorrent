@@ -1,4 +1,5 @@
-import type { TransmissionPollResponse, TransmissionSession, TransmissionTorrent } from "./types";
+import type { TransmissionSessionSettings, TransmissionTorrent, TransmissionTorrentDetail } from "./types";
+import constants from "../config/constants.json";
 
 type RpcRequest<M extends string> = {
   method: M;
@@ -12,75 +13,206 @@ type RpcResponse<T> = {
   tag?: number;
 };
 
-const DEFAULT_ENDPOINT = import.meta.env.VITE_RPC_ENDPOINT ?? "/transmission/rpc";
+type TorrentGetResponse<T> = {
+  torrents: T[];
+};
+
+type AddTorrentResponse = {
+  "torrent-added"?: TransmissionTorrent;
+  "torrent-duplicate"?: TransmissionTorrent;
+};
+
+const DEFAULT_ENDPOINT = import.meta.env.VITE_RPC_ENDPOINT ?? constants.defaults.rpc_endpoint;
+
+const SUMMARY_FIELDS: Array<keyof TransmissionTorrent> = [
+  "id",
+  "hashString",
+  "name",
+  "totalSize",
+  "percentDone",
+  "status",
+  "rateDownload",
+  "rateUpload",
+  "peersConnected",
+  "seedsConnected",
+  "eta",
+  "dateAdded",
+  "queuePosition",
+  "uploadRatio",
+  "uploadedEver",
+  "downloadedEver",
+  "downloadDir",
+];
+
+const DETAIL_FIELDS = [
+  ...SUMMARY_FIELDS,
+  "files",
+  "trackers",
+  "peers",
+  "pieceCount",
+  "pieceSize",
+  "pieceStates",
+  "pieceAvailability",
+];
 
 export class TransmissionClient {
   private endpoint: string;
   private sessionId?: string;
+  private username: string;
+  private password: string;
+  private requestTimeout?: number;
 
-  constructor(endpoint?: string) {
-    this.endpoint = endpoint ?? DEFAULT_ENDPOINT;
+  constructor(options?: { endpoint?: string; username?: string; password?: string; requestTimeout?: number }) {
+    this.endpoint = options?.endpoint ?? DEFAULT_ENDPOINT;
+    this.username = options?.username ?? "";
+    this.password = options?.password ?? "";
+    this.requestTimeout = options?.requestTimeout;
   }
 
-  private async send<T>(payload: RpcRequest<string>): Promise<RpcResponse<T>> {
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
-    if (this.sessionId) {
-      headers["X-Transmission-Session-Id"] = this.sessionId;
+  public updateRequestTimeout(timeout: number) {
+    this.requestTimeout = timeout;
+  }
+
+  private getAuthorizationHeader(): string | undefined {
+    if (!this.username && !this.password) {
+      return undefined;
     }
+    const token = `${this.username}:${this.password}`;
+    return `Basic ${btoa(token)}`;
+  }
 
-    const response = await fetch(this.endpoint, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(payload),
-    });
+  private async send<T>(payload: RpcRequest<string>, retryCount = 0): Promise<RpcResponse<T>> {
+    const controller = new AbortController();
+    let timeoutId: number | undefined;
+    if (this.requestTimeout && this.requestTimeout > 0) {
+      timeoutId = window.setTimeout(() => controller.abort(), this.requestTimeout);
+    }
+    try {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (this.sessionId) {
+        headers["X-Transmission-Session-Id"] = this.sessionId;
+      }
+      const authHeader = this.getAuthorizationHeader();
+      if (authHeader) {
+        headers.Authorization = authHeader;
+      }
 
-    if (response.status === 409) {
-      const token = response.headers.get("X-Transmission-Session-Id");
-      if (token) {
-        this.sessionId = token;
-        return this.send<T>(payload);
+      const response = await fetch(this.endpoint, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+
+      if (response.status === 409) {
+        const token = response.headers.get("X-Transmission-Session-Id");
+        if (token && token !== this.sessionId && retryCount < 1) {
+          this.sessionId = token;
+          return this.send(payload, retryCount + 1);
+        }
+      }
+
+      if (!response.ok) {
+        throw new Error(`Transmission RPC responded with ${response.status}`);
+      }
+
+      const data = (await response.json()) as RpcResponse<T>;
+      return data;
+    } finally {
+      if (timeoutId) {
+        window.clearTimeout(timeoutId);
       }
     }
-
-    if (!response.ok) {
-      throw new Error(`Transmission RPC responded with ${response.status}`);
-    }
-
-    const data = (await response.json()) as RpcResponse<T>;
-    return data;
   }
 
-  public async handshake(): Promise<TransmissionSession> {
-    const result = await this.send<TransmissionSession>({ method: "session-get" });
+  private async mutate(method: string, args: Record<string, unknown> = {}) {
+    await this.send<void>({ method, arguments: args });
+  }
+
+  public async handshake(): Promise<TransmissionSessionSettings> {
+    const result = await this.send<TransmissionSessionSettings>({ method: "session-get" });
     return result.arguments;
   }
 
+  public async fetchSessionSettings(): Promise<TransmissionSessionSettings> {
+    const result = await this.send<TransmissionSessionSettings>({ method: "session-get" });
+    return result.arguments;
+  }
+
+  public async updateSessionSettings(settings: Partial<TransmissionSessionSettings>): Promise<void> {
+    await this.send<void>({ method: "session-set", arguments: settings });
+  }
+
+  public async testPort(): Promise<boolean> {
+    const result = await this.send<{ portIsOpen?: boolean }>({ method: "session-test" });
+    return Boolean(result.arguments?.portIsOpen);
+  }
+
   public async fetchTorrents(): Promise<TransmissionTorrent[]> {
-    const result = await this.send<TransmissionPollResponse>({
+    const result = await this.send<TorrentGetResponse<TransmissionTorrent>>({
       method: "torrent-get",
       arguments: {
-        fields: [
-          "id",
-          "hashString",
-          "name",
-          "totalSize",
-          "percentDone",
-          "status",
-          "rateDownload",
-          "rateUpload",
-          "peersConnected",
-          "seedsConnected",
-          "eta",
-          "dateAdded",
-          "queuePosition",
-          "uploadRatio",
-          "uploadedEver",
-          "downloadedEver",
-        ],
+        fields: SUMMARY_FIELDS,
       },
     });
     return result.arguments.torrents;
+  }
+
+  public async fetchTorrentDetails(id: number): Promise<TransmissionTorrentDetail> {
+    const result = await this.send<TorrentGetResponse<TransmissionTorrentDetail>>({
+      method: "torrent-get",
+      arguments: {
+        fields: DETAIL_FIELDS,
+        ids: [id],
+      },
+    });
+    const [torrent] = result.arguments.torrents;
+    if (!torrent) {
+      throw new Error(`Torrent ${id} not found`);
+    }
+    return torrent;
+  }
+
+  public async startTorrents(ids: number[], now = false): Promise<void> {
+    const method = now ? "torrent-start-now" : "torrent-start";
+    await this.mutate(method, { ids });
+  }
+
+  public async stopTorrents(ids: number[]): Promise<void> {
+    await this.mutate("torrent-stop", { ids });
+  }
+
+  public async verifyTorrents(ids: number[]): Promise<void> {
+    await this.mutate("torrent-verify", { ids });
+  }
+
+  public async removeTorrents(ids: number[], deleteData = false): Promise<void> {
+    await this.mutate("torrent-remove", { ids, "delete-local-data": deleteData });
+  }
+
+  public async addTorrent(payload: {
+    magnetLink?: string;
+    metainfo?: string;
+    downloadDir?: string;
+    paused?: boolean;
+  }): Promise<TransmissionTorrent | null> {
+    const args: Record<string, unknown> = {
+      "download-dir": payload.downloadDir,
+      paused: payload.paused,
+    };
+    if (payload.metainfo) {
+      args.metainfo = payload.metainfo;
+    } else if (payload.magnetLink) {
+      args.filename = payload.magnetLink;
+    } else {
+      throw new Error("No torrent source provided");
+    }
+    const result = await this.send<AddTorrentResponse>({
+      method: "torrent-add",
+      arguments: args,
+    });
+    return result.arguments["torrent-added"] ?? result.arguments["torrent-duplicate"] ?? null;
   }
 }

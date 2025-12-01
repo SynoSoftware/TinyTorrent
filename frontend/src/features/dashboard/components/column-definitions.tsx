@@ -262,10 +262,18 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
     render: ({ t }) => (
       <div onClick={(e) => e.stopPropagation()}>
         <Dropdown placement="bottom-end">
-          <DropdownTrigger>
-            <Button isIconOnly size="sm" variant="light" radius="full" className="text-foreground/30 hover:text-foreground">
-              <MoreVertical size={16} />
-            </Button>
+        <DropdownTrigger>
+          <Button
+            isIconOnly
+            size="sm"
+            variant="light"
+            radius="full"
+            className="text-foreground/30 hover:text-foreground"
+            aria-label={t("table.column_actions")}
+            title={t("table.column_actions")}
+          >
+            <MoreVertical size={16} />
+          </Button>
           </DropdownTrigger>
           <DropdownMenu aria-label="Actions" variant="faded">
             <DropdownItem key="pause" startContent={<PauseCircle size={14} />}>
