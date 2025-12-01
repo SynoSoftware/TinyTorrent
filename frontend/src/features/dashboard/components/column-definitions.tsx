@@ -23,7 +23,7 @@ export interface ColumnRendererProps {
   torrent: Torrent;
   t: TFunction;
   isSelected: boolean;
-  toggleSelection: () => void;
+  toggleSelection: (value?: unknown) => void;
 }
 
 export interface ColumnDefinition {
