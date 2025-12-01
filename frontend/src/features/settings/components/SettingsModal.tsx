@@ -1,30 +1,358 @@
-import {
-  Button,
-  Chip,
-  Divider,
-  Input,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalFooter,
-  Select,
-  SelectItem,
-  Slider,
-  Switch,
-  Tab,
-  Tabs,
-  TimeInput,
-  Tooltip,
-  cn,
-} from "@heroui/react";
-import { Clock, Download, FolderOpen, Globe, HardDrive, Lock, Network, Save, Shield, Upload, Wifi, X, Zap } from "lucide-react";
+import { Button, Card, Divider, Input, Modal, ModalContent, Select, SelectItem, Slider, Switch, cn } from "@heroui/react";
+import type { LucideIcon } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { GlassPanel } from "../../../shared/ui/layout/GlassPanel";
+import { FolderOpen, Globe, Network, Save, Shield, RotateCcw, Zap, X } from "lucide-react";
 
-// --- TYPES (Mirroring Transmission RPC) ---
-type SettingsTab = "network" | "speed" | "peers" | "storage" | "privacy";
+type SettingsTab = "speed" | "network" | "peers" | "storage" | "privacy";
+
+const INITIAL_CONFIG = {
+  peer_port: 51413,
+  peer_port_random_on_start: false,
+  port_forwarding_enabled: true,
+  encryption: "preferred",
+  speed_limit_down: 15000,
+  speed_limit_down_enabled: true,
+  speed_limit_up: 500,
+  speed_limit_up_enabled: false,
+  alt_speed_down: 1000,
+  alt_speed_up: 50,
+  alt_speed_time_enabled: false,
+  alt_speed_begin: "08:00",
+  alt_speed_end: "17:00",
+  peer_limit_global: 200,
+  peer_limit_per_torrent: 50,
+  lpd_enabled: true,
+  dht_enabled: true,
+  pex_enabled: true,
+  blocklist_url: "http://list.iblocklist.com/?list=bt_level1",
+  blocklist_enabled: true,
+  download_dir: "/Downloads/Torrents",
+  incomplete_dir_enabled: true,
+  incomplete_dir: "/Downloads/Incomplete",
+  rename_partial_files: true,
+  start_added_torrents: true,
+  seedRatioLimit: 2.0,
+  seedRatioLimited: true,
+  idleSeedingLimit: 30,
+  idleSeedingLimited: false,
+} as const;
+
+type SettingsConfig = typeof INITIAL_CONFIG;
+type ConfigKey = keyof SettingsConfig;
+
+type VisibilityCheck = (config: SettingsConfig) => boolean;
+
+type SliderDefinition = {
+  min: number;
+  max: number;
+  step: number;
+};
+
+interface BlockBase {
+  visible?: VisibilityCheck;
+  className?: string;
+  dependsOn?: ConfigKey;
+}
+
+type SwitchSliderBlock = {
+  type: "switch-slider";
+  labelKey: string;
+  switchKey: ConfigKey;
+  sliderKey: ConfigKey;
+  slider: SliderDefinition;
+  color?: "primary" | "success" | "warning" | "danger";
+  valueSuffixKey?: string;
+  disabledWhenSwitchOff?: boolean;
+} & BlockBase;
+
+type SwitchBlock = {
+  type: "switch";
+  labelKey: string;
+  stateKey: ConfigKey;
+  color?: "primary" | "success" | "warning" | "danger";
+} & BlockBase;
+
+type InputBlock = {
+  type: "input";
+  labelKey: string;
+  stateKey: ConfigKey;
+  inputType?: string;
+  variant?: "bordered" | "flat";
+  size?: "sm" | "md";
+  endIcon?: LucideIcon;
+} & BlockBase;
+
+type InputPairBlock = {
+  type: "input-pair";
+  inputs: Array<{
+    labelKey: string;
+    stateKey: ConfigKey;
+    inputType?: string;
+    variant?: "bordered" | "flat";
+  }>;
+} & BlockBase;
+
+type SelectBlock = {
+  type: "select";
+  labelKey: string;
+  stateKey: ConfigKey;
+  options: Array<{ key: string; labelKey: string }>;
+  variant?: "bordered" | "flat";
+} & BlockBase;
+
+type DividerBlock = {
+  type: "divider";
+} & BlockBase;
+
+type ButtonActionKey = "testPort";
+
+type ButtonRowBlock = {
+  type: "button-row";
+  buttons: Array<{
+    labelKey: string;
+    action: ButtonActionKey;
+    variant?: "flat" | "light" | "shadow";
+    color?: "primary" | "success" | "warning" | "danger";
+    size?: "sm" | "md" | "lg";
+    className?: string;
+  }>;
+} & BlockBase;
+
+type SectionBlock = SwitchSliderBlock | SwitchBlock | InputBlock | InputPairBlock | SelectBlock | DividerBlock | ButtonRowBlock;
+
+interface SectionDefinition {
+  titleKey: string;
+  cardClass?: string;
+  blocks: SectionBlock[];
+}
+
+interface TabDefinition {
+  id: SettingsTab;
+  labelKey: string;
+  icon: LucideIcon;
+  headerKey: string;
+  sections: SectionDefinition[];
+}
+
+const SETTINGS_TABS: TabDefinition[] = [
+  {
+    id: "speed",
+    labelKey: "settings.tabs.speed",
+    icon: Zap,
+    headerKey: "settings.headers.speed",
+    sections: [
+      {
+        titleKey: "settings.sections.bandwidth",
+        blocks: [
+          {
+            type: "switch-slider",
+            labelKey: "settings.labels.downloadLimit",
+            switchKey: "speed_limit_down_enabled",
+            sliderKey: "speed_limit_down",
+            slider: { min: 0, max: 50000, step: 100 },
+            color: "success",
+            valueSuffixKey: "settings.units.kbps",
+          },
+          {
+            type: "switch-slider",
+            labelKey: "settings.labels.uploadLimit",
+            switchKey: "speed_limit_up_enabled",
+            sliderKey: "speed_limit_up",
+            slider: { min: 0, max: 5000, step: 10 },
+            color: "primary",
+            valueSuffixKey: "settings.units.kbps",
+          },
+        ],
+      },
+      {
+        titleKey: "settings.sections.turtle",
+        cardClass: "border-warning/30 bg-warning/5",
+        blocks: [
+          {
+            type: "switch",
+            labelKey: "settings.labels.turtleMode",
+            stateKey: "alt_speed_time_enabled",
+            color: "warning",
+          },
+          {
+            type: "input-pair",
+            inputs: [
+              { labelKey: "settings.labels.altSpeedDown", stateKey: "alt_speed_down", inputType: "number", variant: "bordered" },
+              { labelKey: "settings.labels.altSpeedUp", stateKey: "alt_speed_up", inputType: "number", variant: "bordered" },
+            ],
+          },
+          {
+            type: "input-pair",
+            visible: (config) => config.alt_speed_time_enabled,
+            inputs: [
+              { labelKey: "settings.labels.altSpeedStart", stateKey: "alt_speed_begin", inputType: "time", variant: "flat" },
+              { labelKey: "settings.labels.altSpeedEnd", stateKey: "alt_speed_end", inputType: "time", variant: "flat" },
+            ],
+          },
+        ],
+      },
+      {
+        titleKey: "settings.sections.seeding",
+        blocks: [
+          {
+            type: "switch",
+            labelKey: "settings.labels.seedRatioToggle",
+            stateKey: "seedRatioLimited",
+            color: "success",
+          },
+          {
+            type: "input",
+            labelKey: "settings.labels.seedRatioLimit",
+            stateKey: "seedRatioLimit",
+            inputType: "number",
+            variant: "bordered",
+            dependsOn: "seedRatioLimited",
+          },
+          {
+            type: "switch",
+            labelKey: "settings.labels.idleSeedingToggle",
+            stateKey: "idleSeedingLimited",
+            color: "warning",
+          },
+          {
+            type: "input",
+            labelKey: "settings.labels.idleSeedingLimit",
+            stateKey: "idleSeedingLimit",
+            inputType: "number",
+            variant: "bordered",
+            dependsOn: "idleSeedingLimited",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "network",
+    labelKey: "settings.tabs.network",
+    icon: Network,
+    headerKey: "settings.headers.network",
+    sections: [
+      {
+        titleKey: "settings.sections.listeningPort",
+        blocks: [
+          { type: "input", labelKey: "settings.labels.incomingPort", stateKey: "peer_port", inputType: "number", variant: "bordered" },
+          {
+            type: "button-row",
+            buttons: [
+              {
+                labelKey: "settings.buttons.testPort",
+                action: "testPort",
+                variant: "flat",
+                color: "primary",
+                size: "lg",
+                className: "h-12",
+              },
+            ],
+          },
+          { type: "switch", labelKey: "settings.labels.randomizePort", stateKey: "peer_port_random_on_start" },
+          { type: "switch", labelKey: "settings.labels.upnp", stateKey: "port_forwarding_enabled" },
+        ],
+      },
+      {
+        titleKey: "settings.sections.protocol",
+        blocks: [
+          { type: "switch", labelKey: "settings.labels.dht", stateKey: "dht_enabled" },
+          { type: "switch", labelKey: "settings.labels.lpd", stateKey: "lpd_enabled" },
+          { type: "switch", labelKey: "settings.labels.pex", stateKey: "pex_enabled" },
+        ],
+      },
+    ],
+  },
+  {
+    id: "peers",
+    labelKey: "settings.tabs.peers",
+    icon: Globe,
+    headerKey: "settings.headers.peers",
+    sections: [
+      {
+        titleKey: "settings.sections.connectionLimits",
+        blocks: [
+          {
+            type: "input-pair",
+            inputs: [
+              { labelKey: "settings.labels.globalPeers", stateKey: "peer_limit_global", inputType: "number", variant: "bordered" },
+              { labelKey: "settings.labels.perTorrentPeers", stateKey: "peer_limit_per_torrent", inputType: "number", variant: "bordered" },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "storage",
+    labelKey: "settings.tabs.storage",
+    icon: FolderOpen,
+    headerKey: "settings.headers.storage",
+    sections: [
+      {
+        titleKey: "settings.sections.locations",
+        blocks: [
+          { labelKey: "settings.labels.downloadFolder", stateKey: "download_dir", type: "input", endIcon: FolderOpen, variant: "bordered" },
+          { type: "switch", labelKey: "settings.labels.useIncompleteFolder", stateKey: "incomplete_dir_enabled" },
+          { type: "input", labelKey: "settings.labels.incompleteFolder", stateKey: "incomplete_dir", variant: "flat", dependsOn: "incomplete_dir_enabled" },
+        ],
+      },
+      {
+        titleKey: "settings.sections.behavior",
+        blocks: [
+          { type: "switch", labelKey: "settings.labels.renamePartial", stateKey: "rename_partial_files" },
+          { type: "switch", labelKey: "settings.labels.startAdded", stateKey: "start_added_torrents" },
+        ],
+      },
+    ],
+  },
+  {
+    id: "privacy",
+    labelKey: "settings.tabs.privacy",
+    icon: Shield,
+    headerKey: "settings.headers.privacy",
+    sections: [
+      {
+        titleKey: "settings.sections.encryption",
+        blocks: [
+          {
+            type: "select",
+            labelKey: "settings.labels.encryption",
+            stateKey: "encryption",
+            options: [
+              { key: "required", labelKey: "settings.options.encryption.required" },
+              { key: "preferred", labelKey: "settings.options.encryption.preferred" },
+              { key: "tolerated", labelKey: "settings.options.encryption.tolerated" },
+            ],
+          },
+        ],
+      },
+      {
+        titleKey: "settings.sections.blocklist",
+        blocks: [
+          { type: "switch", labelKey: "settings.labels.blocklistToggle", stateKey: "blocklist_enabled", color: "danger" },
+          { type: "input", labelKey: "settings.labels.blocklistUrl", stateKey: "blocklist_url", variant: "bordered", dependsOn: "blocklist_enabled" },
+        ],
+      },
+    ],
+  },
+];
+
+interface SectionTitleProps {
+  title: string;
+}
+
+const SectionCard = ({ className, children }: { className?: string; children: React.ReactNode }) => (
+  <Card className={cn("p-5 rounded-xl border border-divider bg-content1/50", className)}>
+    {children}
+  </Card>
+);
+
+function SectionTitle({ title }: SectionTitleProps) {
+  return <h3 className="text-[10px] font-bold uppercase tracking-widest text-foreground/40 mb-3 mt-1">{title}</h3>;
+}
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -34,392 +362,178 @@ interface SettingsModalProps {
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<SettingsTab>("speed");
+  const [config, setConfig] = useState<SettingsConfig>(() => ({ ...INITIAL_CONFIG }));
   const [isSaving, setIsSaving] = useState(false);
-
-  // --- MOCK STATE (Replace with useTransmissionSettings hook later) ---
-  const [config, setConfig] = useState({
-    // Network
-    peer_port: 51413,
-    peer_port_random_on_start: false,
-    port_forwarding_enabled: true,
-    encryption: "preferred", // required, preferred, tolerated
-
-    // Speed
-    speed_limit_down: 15000, // KB/s
-    speed_limit_down_enabled: true,
-    speed_limit_up: 500,
-    speed_limit_up_enabled: false,
-
-    // Turtle Mode (Alt Limits)
-    alt_speed_down: 1000,
-    alt_speed_up: 50,
-    alt_speed_time_enabled: false,
-    alt_speed_time_begin: 540, // Minutes from midnight
-    alt_speed_time_end: 1020,
-
-    // Peers
-    peer_limit_global: 200,
-    peer_limit_per_torrent: 50,
-    lpd_enabled: true, // Local Peer Discovery
-    dht_enabled: true,
-    pex_enabled: true,
-
-    // Storage
-    download_dir: "/Downloads/Torrents",
-    incomplete_dir_enabled: true,
-    incomplete_dir: "/Downloads/Incomplete",
-    rename_partial_files: true,
-    start_added_torrents: true,
-
-    // Seeding
-    seedRatioLimit: 2.0,
-    seedRatioLimited: true,
-    idleSeedingLimit: 30,
-    idleSeedingLimited: false,
-
-    // Blocklist
-    blocklist_url: "http://list.iblocklist.com/?list=bt_level1&fileformat=p2p&archiveformat=gz",
-    blocklist_enabled: true,
-  });
 
   const handleSave = () => {
     setIsSaving(true);
-    // Simulate RPC call
     setTimeout(() => {
       setIsSaving(false);
       onClose();
     }, 800);
   };
 
-  // --- RENDERERS ---
+  const updateConfig = <K extends ConfigKey>(key: K, value: SettingsConfig[K]) => {
+    setConfig((prev) => ({ ...prev, [key]: value }));
+  };
 
-  const renderContent = () => {
+  const buttonActions: Record<ButtonActionKey, () => void> = {
+    testPort: () => {
+      // placeholder for future implementation
+    },
+  };
+
+  const activeTabDefinition = SETTINGS_TABS.find((tab) => tab.id === activeTab) ?? SETTINGS_TABS[0];
+
+  const renderInput = (block: InputBlock, index: number) => {
+    const dependsOn = block.dependsOn;
+    const isDisabled = dependsOn && !(config[dependsOn] as boolean);
+    const value = String(config[block.stateKey] ?? "");
+
     return (
-      <motion.div
-        key={activeTab}
-        initial={{ opacity: 0, x: 10 }}
-        animate={{ opacity: 1, x: 0 }}
-        exit={{ opacity: 0, x: -10 }}
-        transition={{ duration: 0.15 }}
-        className="h-full overflow-y-auto pr-2 scrollbar-hide space-y-6 p-1"
-      >
-        {activeTab === "speed" && (
-          <>
-            <GlassPanel className="p-6 space-y-6">
-              <div className="flex items-center gap-2 mb-2">
-                <Zap size={18} className="text-primary" />
-                <h3 className="text-sm font-bold uppercase tracking-wider text-foreground/70">Standard Limits</h3>
-              </div>
-
-              {/* Download Slider */}
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <Switch
-                    size="sm"
-                    isSelected={config.speed_limit_down_enabled}
-                    onValueChange={(v) => setConfig({ ...config, speed_limit_down_enabled: v })}
-                  >
-                    <span className="text-xs font-medium text-foreground/80">Download Limit</span>
-                  </Switch>
-                  <div className="flex items-center gap-2 bg-content1/20 px-2 py-1 rounded text-xs font-mono text-success">
-                    <Download size={12} />
-                    {config.speed_limit_down} KB/s
-                  </div>
-                </div>
-                <Slider
-                  size="sm"
-                  step={100}
-                  maxValue={50000}
-                  minValue={0}
-                  value={config.speed_limit_down}
-                  onChange={(v) => setConfig({ ...config, speed_limit_down: v as number })}
-                  isDisabled={!config.speed_limit_down_enabled}
-                  color="success"
-                  className="opacity-90"
-                />
-              </div>
-
-              <Divider className="bg-content1/20" />
-
-              {/* Upload Slider */}
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <Switch
-                    size="sm"
-                    isSelected={config.speed_limit_up_enabled}
-                    onValueChange={(v) => setConfig({ ...config, speed_limit_up_enabled: v })}
-                  >
-                    <span className="text-xs font-medium text-foreground/80">Upload Limit</span>
-                  </Switch>
-                  <div className="flex items-center gap-2 bg-content1/20 px-2 py-1 rounded text-xs font-mono text-primary">
-                    <Upload size={12} />
-                    {config.speed_limit_up} KB/s
-                  </div>
-                </div>
-                <Slider
-                  size="sm"
-                  step={10}
-                  maxValue={5000}
-                  minValue={0}
-                  value={config.speed_limit_up}
-                  onChange={(v) => setConfig({ ...config, speed_limit_up: v as number })}
-                  isDisabled={!config.speed_limit_up_enabled}
-                  color="primary"
-                  className="opacity-90"
-                />
-              </div>
-            </GlassPanel>
-
-            <GlassPanel className="p-6 space-y-5 border-warning/20 bg-warning/5">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <Clock size={18} className="text-warning" />
-                  <h3 className="text-sm font-bold uppercase tracking-wider text-foreground/70">Turtle Mode (Alt Limits)</h3>
-                </div>
-                <Switch
-                  size="sm"
-                  color="warning"
-                  isSelected={config.alt_speed_time_enabled}
-                  onValueChange={(v) => setConfig({ ...config, alt_speed_time_enabled: v })}
-                >
-                  <span className="text-[10px] uppercase font-bold text-warning">Scheduled</span>
-                </Switch>
-              </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <Input
-                type="number"
-                label="Download (KB/s)"
-                labelPlacement="outside"
-                placeholder="1000"
-                value={config.alt_speed_down.toString()}
-                onChange={(e) => setConfig({ ...config, alt_speed_down: Number(e.target.value) })}
-                variant="bordered"
-                startContent={<Download size={14} className="text-default-400" />}
-              />
-              <Input
-                type="number"
-                label="Upload (KB/s)"
-                labelPlacement="outside"
-                placeholder="50"
-                value={config.alt_speed_up.toString()}
-                onChange={(e) => setConfig({ ...config, alt_speed_up: Number(e.target.value) })}
-                variant="bordered"
-                startContent={<Upload size={14} className="text-default-400" />}
-              />
-            </div>
-
-              {config.alt_speed_time_enabled && (
-                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} className="flex gap-4 items-end pt-2">
-                  <div className="flex-1">
-                    <label className="text-xs text-foreground/50 mb-1 block">From</label>
-                    <div className="h-10 bg-content1/20 rounded border border-content1/20 flex items-center px-3 text-sm">08:00</div>
-                  </div>
-                  <div className="flex-1">
-                    <label className="text-xs text-foreground/50 mb-1 block">To</label>
-                    <div className="h-10 bg-content1/20 rounded border border-content1/20 flex items-center px-3 text-sm">17:00</div>
-                  </div>
-                  <div className="pb-3 text-xs text-foreground/40">Daily</div>
-                </motion.div>
-              )}
-            </GlassPanel>
-          </>
-        )}
-
-        {activeTab === "network" && (
-          <div className="space-y-4">
-            <GlassPanel className="p-6 space-y-6">
-              <div className="flex items-center gap-2 mb-2">
-                <Network size={18} className="text-primary" />
-                <h3 className="text-sm font-bold uppercase tracking-wider text-foreground/70">Connectivity</h3>
-              </div>
-
-              <div className="flex gap-4 items-end">
-                <Input
-                  label="Incoming Port"
-                  labelPlacement="outside"
-                  placeholder="51413"
-                  value={config.peer_port.toString()}
-                  variant="bordered"
-                  className="flex-1"
-                />
-                <Button variant="flat" color="primary">
-                  Test Port
-                </Button>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="flex justify-between items-center p-3 rounded-lg bg-content1/20 border border-content1/20">
-                  <span className="text-sm">Randomize on Start</span>
-                  <Switch
-                    size="sm"
-                    isSelected={config.peer_port_random_on_start}
-                    onValueChange={(v) => setConfig({ ...config, peer_port_random_on_start: v })}
-                  />
-                </div>
-                <div className="flex justify-between items-center p-3 rounded-lg bg-content1/20 border border-content1/20">
-                  <span className="text-sm">Port Forwarding (UPnP)</span>
-                  <Switch
-                    size="sm"
-                    isSelected={config.port_forwarding_enabled}
-                    onValueChange={(v) => setConfig({ ...config, port_forwarding_enabled: v })}
-                  />
-                </div>
-              </div>
-            </GlassPanel>
-
-            <GlassPanel className="p-6 space-y-6">
-              <div className="flex items-center gap-2 mb-2">
-                <Lock size={18} className="text-primary" />
-                <h3 className="text-sm font-bold uppercase tracking-wider text-foreground/70">Encryption & Privacy</h3>
-              </div>
-
-              <Select label="Encryption Mode" labelPlacement="outside" selectedKeys={[config.encryption]} variant="bordered">
-                <SelectItem key="required">Require Encryption (Stealth)</SelectItem>
-                <SelectItem key="preferred">Prefer Encryption (Standard)</SelectItem>
-                <SelectItem key="tolerated">Allow Unencrypted (Legacy)</SelectItem>
-              </Select>
-
-              <div className="flex flex-col gap-2">
-                <div className="flex justify-between items-center py-2">
-                  <span className="text-sm text-foreground/80">DHT (Distributed Hash Table)</span>
-                  <Switch size="sm" isSelected={config.dht_enabled} onValueChange={(v) => setConfig({ ...config, dht_enabled: v })} />
-                </div>
-                <Divider className="bg-content1/20" />
-                <div className="flex justify-between items-center py-2">
-                  <span className="text-sm text-foreground/80">LPD (Local Peer Discovery)</span>
-                  <Switch size="sm" isSelected={config.lpd_enabled} onValueChange={(v) => setConfig({ ...config, lpd_enabled: v })} />
-                </div>
-                <Divider className="bg-content1/20" />
-                <div className="flex justify-between items-center py-2">
-                  <span className="text-sm text-foreground/80">PEX (Peer Exchange)</span>
-                  <Switch size="sm" isSelected={config.pex_enabled} onValueChange={(v) => setConfig({ ...config, pex_enabled: v })} />
-                </div>
-              </div>
-            </GlassPanel>
-          </div>
-        )}
-
-        {activeTab === "peers" && (
-          <GlassPanel className="p-6 space-y-6">
-            <div className="flex items-center gap-2 mb-2">
-              <Globe size={18} className="text-primary" />
-              <h3 className="text-sm font-bold uppercase tracking-wider text-foreground/70">Connections</h3>
-            </div>
-
-            <div className="grid grid-cols-2 gap-6">
-              <Input
-                type="number"
-                label="Global Peer Limit"
-                labelPlacement="outside"
-                value={config.peer_limit_global.toString()}
-                variant="bordered"
-                description="Total connections across all torrents"
-              />
-              <Input
-                type="number"
-                label="Peers Per Torrent"
-                labelPlacement="outside"
-                value={config.peer_limit_per_torrent.toString()}
-                variant="bordered"
-              />
-            </div>
-
-              <Divider className="bg-content1/20 my-4" />
-
-            <h3 className="text-sm font-bold uppercase tracking-wider text-foreground/70 mb-4">Blocklist</h3>
-            <div className="space-y-4">
-              <Switch isSelected={config.blocklist_enabled} onValueChange={(v) => setConfig({ ...config, blocklist_enabled: v })}>
-                Enable Blocklist
-              </Switch>
-              <div className="flex gap-2">
-                <Input
-                  label="Blocklist URL"
-                  labelPlacement="outside"
-                  value={config.blocklist_url}
-                  variant="bordered"
-                  className="flex-1"
-                  isDisabled={!config.blocklist_enabled}
-                />
-                <Button className="mt-6" variant="flat">
-                  Update
-                </Button>
-              </div>
-              <p className="text-xs text-foreground/40">Contains 142,059 ranges.</p>
-            </div>
-          </GlassPanel>
-        )}
-
-        {activeTab === "storage" && (
-          <GlassPanel className="p-6 space-y-6">
-            <div className="flex items-center gap-2 mb-2">
-              <HardDrive size={18} className="text-primary" />
-              <h3 className="text-sm font-bold uppercase tracking-wider text-foreground/70">File System</h3>
-            </div>
-
-            <Input
-              label="Default Download Folder"
-              labelPlacement="outside"
-              value={config.download_dir}
-              variant="bordered"
-              endContent={<FolderOpen size={16} className="text-foreground/50" />}
-            />
-
-            <div className="space-y-3 pt-2">
-              <Switch size="sm" isSelected={config.incomplete_dir_enabled} onValueChange={(v) => setConfig({ ...config, incomplete_dir_enabled: v })}>
-                Use Incomplete Folder
-              </Switch>
-              <Input value={config.incomplete_dir} variant="bordered" isDisabled={!config.incomplete_dir_enabled} className="opacity-80" />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 pt-2">
-              <div className="p-3 rounded-lg border border-content1/20 bg-content1/20 flex items-center justify-between">
-                <span className="text-sm">Rename partial files (.part)</span>
-                <Switch size="sm" isSelected={config.rename_partial_files} onValueChange={(v) => setConfig({ ...config, rename_partial_files: v })} />
-              </div>
-              <div className="p-3 rounded-lg border border-content1/20 bg-content1/20 flex items-center justify-between">
-                <span className="text-sm">Auto-start added torrents</span>
-                <Switch size="sm" isSelected={config.start_added_torrents} onValueChange={(v) => setConfig({ ...config, start_added_torrents: v })} />
-              </div>
-            </div>
-
-            <Divider className="bg-content1/20" />
-
-            <div className="flex items-center gap-2 mb-2">
-              <Zap size={18} className="text-success" />
-              <h3 className="text-sm font-bold uppercase tracking-wider text-foreground/70">Seeding Limits</h3>
-            </div>
-
-            <div className="grid grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Switch size="sm" isSelected={config.seedRatioLimited} onValueChange={(v) => setConfig({ ...config, seedRatioLimited: v })}>
-                  Stop at Ratio
-                </Switch>
-                <Input
-                  type="number"
-                  value={config.seedRatioLimit.toString()}
-                  variant="bordered"
-                  isDisabled={!config.seedRatioLimited}
-                  endContent={<span className="text-xs text-foreground/50">Ratio</span>}
-                />
-              </div>
-              <div className="space-y-2">
-                <Switch size="sm" isSelected={config.idleSeedingLimited} onValueChange={(v) => setConfig({ ...config, idleSeedingLimited: v })}>
-                  Stop if Idle
-                </Switch>
-                <Input
-                  type="number"
-                  value={config.idleSeedingLimit.toString()}
-                  variant="bordered"
-                  isDisabled={!config.idleSeedingLimited}
-                  endContent={<span className="text-xs text-foreground/50">Min</span>}
-                />
-              </div>
-            </div>
-          </GlassPanel>
-        )}
-      </motion.div>
+      <Input
+        key={`${block.stateKey}-${index}`}
+        label={t(block.labelKey)}
+        size={block.size ?? "sm"}
+        variant={block.variant ?? "bordered"}
+        value={value}
+        type={block.inputType}
+        isDisabled={!!isDisabled}
+        endContent={block.endIcon ? <block.endIcon size={14} className="text-default-400" /> : undefined}
+        onChange={(event) => {
+          const rawValue = event.target.value;
+          const parsedValue = block.inputType === "number" ? Number(rawValue) : rawValue;
+          updateConfig(block.stateKey, parsedValue as SettingsConfig[ConfigKey]);
+        }}
+        className={block.className}
+      />
     );
+  };
+
+  const renderBlock = (block: SectionBlock, sectionIndex: number, blockIndex: number) => {
+    if (block.visible && !block.visible(config)) {
+      return null;
+    }
+
+    const dependsOn = (block as BlockBase).dependsOn;
+    const dependsDisabled = dependsOn && !(config[dependsOn] as boolean);
+
+    switch (block.type) {
+      case "switch-slider": {
+        const value = config[block.sliderKey] as number;
+        const sliderDisabled = block.disabledWhenSwitchOff !== false ? !(config[block.switchKey] as boolean) : false;
+        return (
+          <div
+            key={`section-${sectionIndex}-block-${blockIndex}`}
+            className="space-y-3"
+          >
+            <div className="flex justify-between items-center">
+              <Switch
+                size="sm"
+                isSelected={config[block.switchKey] as boolean}
+                color={block.color}
+                onValueChange={(value) => updateConfig(block.switchKey, value as SettingsConfig[ConfigKey])}
+              >
+                <span className="text-sm font-medium">{t(block.labelKey)}</span>
+              </Switch>
+              <div className="text-xs font-mono font-bold text-foreground/70 bg-foreground/5 px-2 py-1 rounded-full">
+                {block.valueSuffixKey
+                  ? t(block.valueSuffixKey, { value })
+                  : value}
+              </div>
+            </div>
+            <Slider
+              size="sm"
+              step={block.slider.step}
+              maxValue={block.slider.max}
+              minValue={block.slider.min}
+              value={value}
+              onChange={(value) => updateConfig(block.sliderKey, value as SettingsConfig[ConfigKey])}
+              isDisabled={sliderDisabled}
+              color={block.color}
+              className="opacity-90"
+            />
+          </div>
+        );
+      }
+
+      case "switch": {
+        return (
+          <div key={`section-${sectionIndex}-block-${blockIndex}`} className="flex justify-between items-center">
+            <span className={cn("text-sm font-medium text-foreground/80", dependsDisabled && "opacity-40")}>{t(block.labelKey)}</span>
+            <Switch
+              size="sm"
+              color={block.color}
+              isSelected={config[block.stateKey] as boolean}
+              onValueChange={(value) => updateConfig(block.stateKey, value as SettingsConfig[ConfigKey])}
+            />
+          </div>
+        );
+      }
+
+      case "input": {
+        return renderInput(block, blockIndex);
+      }
+
+      case "input-pair": {
+        const gridCols = block.inputs.length === 1 ? "grid-cols-1" : "grid-cols-2";
+        return (
+          <div key={`section-${sectionIndex}-block-${blockIndex}`} className={cn("grid gap-4", gridCols)}>
+            {block.inputs.map((inputBlock, inputIndex) =>
+              renderInput({ ...inputBlock, type: "input" } as InputBlock, inputIndex)
+            )}
+          </div>
+        );
+      }
+
+      case "select": {
+        return (
+          <Select
+            key={`section-${sectionIndex}-block-${blockIndex}`}
+            label={t(block.labelKey)}
+            size="sm"
+            variant={block.variant ?? "bordered"}
+            selectedKeys={[String(config[block.stateKey])]}
+            onSelectionChange={(keys) => {
+              const [next] = [...keys];
+              if (next) {
+                updateConfig(block.stateKey, next as SettingsConfig[ConfigKey]);
+              }
+            }}
+          >
+            {block.options.map((option) => (
+              <SelectItem key={option.key}>{t(option.labelKey)}</SelectItem>
+            ))}
+          </Select>
+        );
+      }
+
+      case "button-row": {
+        return (
+          <div key={`section-${sectionIndex}-block-${blockIndex}`} className="flex">
+            {block.buttons.map((button) => (
+              <Button
+                key={button.labelKey}
+                size={button.size ?? "sm"}
+                variant={button.variant ?? "light"}
+                color={button.color}
+                onPress={buttonActions[button.action]}
+                className={button.className}
+              >
+                {t(button.labelKey)}
+              </Button>
+            ))}
+          </div>
+        );
+      }
+
+      case "divider": {
+        return <Divider key={`section-${sectionIndex}-block-${blockIndex}`} className="my-3" />;
+      }
+
+      default:
+        return null;
+    }
   };
 
   return (
@@ -431,81 +545,78 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       size="5xl"
       hideCloseButton
       classNames={{
-        base: "bg-background/90 backdrop-blur-2xl border border-content1/20 shadow-2xl h-[700px] flex flex-col overflow-hidden",
-        body: "p-0 flex-1 overflow-hidden flex flex-row",
+        base: "bg-background/95 backdrop-blur-2xl border border-divider shadow-2xl h-[650px] max-h-[90vh] flex flex-row overflow-hidden rounded-2xl",
       }}
       motionProps={{
         variants: {
-          enter: { scale: 1, opacity: 1, transition: { duration: 0.2, ease: "easeOut" } },
-          exit: { scale: 0.95, opacity: 0, transition: { duration: 0.15 } },
+          enter: { scale: 1, opacity: 1, transition: { duration: 0.2 } },
+          exit: { scale: 0.98, opacity: 0, transition: { duration: 0.1 } },
         },
       }}
     >
       <ModalContent>
-        {/* --- SIDEBAR --- */}
-        <div className="w-64 shrink-0 bg-content1/15 border-r border-content1/20 flex flex-col pt-6 pb-4">
-          <div className="px-6 mb-8">
-            <h2 className="text-xl font-bold tracking-tight">Settings</h2>
-            <p className="text-xs text-foreground/40 mt-1">Configure Daemon</p>
+        <div className="w-56 shrink-0 bg-default-50/50 border-r border-divider flex flex-col">
+          <div className="p-5 border-b border-divider/50">
+            <h2 className="text-lg font-bold tracking-tight text-foreground">{t("settings.modal.title")}</h2>
           </div>
-
-          <div className="flex-1 px-3 space-y-1">
-            {[
-              { id: "speed", label: "Speed & Limits", icon: Zap },
-              { id: "network", label: "Network", icon: Wifi },
-              { id: "peers", label: "Peers", icon: Globe },
-              { id: "storage", label: "Files", icon: FolderOpen },
-              { id: "privacy", label: "Privacy", icon: Shield },
-            ].map((item) => (
+          <div className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
+            {SETTINGS_TABS.map((tab) => (
               <button
-                key={item.id}
-                onClick={() => setActiveTab(item.id as SettingsTab)}
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200",
-                  activeTab === item.id
-                    ? "bg-primary/10 text-primary shadow-sm"
-                    : "text-foreground/60 hover:text-foreground hover:bg-content1/20"
+                  "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 group relative",
+                  activeTab === tab.id
+                    ? "bg-primary/10 text-primary"
+                    : "text-foreground/60 hover:text-foreground hover:bg-default-100"
                 )}
               >
-                <item.icon size={18} />
-                {item.label}
+                <tab.icon size={16} />
+                <span>{t(tab.labelKey)}</span>
+                {activeTab === tab.id && <div className="absolute left-0 top-2 bottom-2 w-0.5 bg-primary rounded-r-full" />}
               </button>
             ))}
           </div>
-
-          <div className="px-6 mt-auto">
-            <div className="p-3 rounded-lg bg-content1/20 border border-content1/20 text-xs text-foreground/40">
-              Transmission 4.0.5
-              <br />
-              RPC v17
-            </div>
+          <div className="p-4 border-t border-divider/50">
+            <div className="text-[10px] text-foreground/30 font-mono">{t("brand.version")}</div>
           </div>
         </div>
-
-        {/* --- CONTENT AREA --- */}
-        <div className="flex-1 flex flex-col min-w-0">
-          <div className="flex-1 overflow-hidden bg-background/30 p-6 relative">
-            <AnimatePresence mode="wait">{renderContent()}</AnimatePresence>
-          </div>
-
-          {/* Footer Action Bar */}
-          <div className="shrink-0 h-20 border-t border-content1/20 bg-content1/20 px-8 flex items-center justify-between">
-            <Button variant="light" color="danger" onPress={() => setConfig({} as any)}>
-              Reset Defaults
+        <div className="flex-1 flex flex-col min-w-0 bg-background relative">
+          <div className="shrink-0 h-14 border-b border-divider/50 flex items-center justify-between px-6 bg-background/50 backdrop-blur-md z-10">
+            <h1 className="text-sm font-bold text-foreground/80">{t(activeTabDefinition.headerKey)}</h1>
+            <Button isIconOnly radius="full" size="sm" variant="light" onPress={onClose} className="text-foreground/40 hover:text-foreground">
+              <X size={18} />
             </Button>
-            <div className="flex gap-3">
-              <Button variant="flat" onPress={onClose}>
-                Cancel
-              </Button>
-              <Button
-                color="primary"
-                variant="shadow"
-                onPress={handleSave}
-                isLoading={isSaving}
-                startContent={!isSaving && <Save size={18} />}
-                className="px-8 font-bold"
+          </div>
+          <div className="flex-1 overflow-y-auto px-6 py-6 scrollbar-hide">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeTabDefinition.id}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.15 }}
+                className="space-y-6 pb-20"
               >
-                Apply Changes
+                {activeTabDefinition.sections.map((section, sectionIndex) => (
+                  <SectionCard key={`${section.titleKey}-${sectionIndex}`} className={section.cardClass}>
+                    <SectionTitle title={t(section.titleKey)} />
+                    <div className="space-y-5">
+                      {section.blocks.map((block, blockIndex) => renderBlock(block, sectionIndex, blockIndex))}
+                    </div>
+                  </SectionCard>
+                ))}
+              </motion.div>
+            </AnimatePresence>
+          </div>
+          <div className="shrink-0 h-16 border-t border-divider bg-background/80 backdrop-blur-md px-6 flex items-center justify-between z-20 absolute bottom-0 left-0 right-0">
+            <Button size="sm" variant="light" color="danger" startContent={<RotateCcw size={14} />}>
+              {t("settings.modal.footer.reset")}
+            </Button>
+            <div className="flex gap-2">
+              <Button size="sm" variant="flat" onPress={onClose}>{t("settings.modal.footer.cancel")}</Button>
+              <Button size="sm" color="primary" variant="shadow" onPress={handleSave} isLoading={isSaving} startContent={!isSaving && <Save size={16} />}>
+                {t("settings.modal.footer.save")}
               </Button>
             </div>
           </div>
