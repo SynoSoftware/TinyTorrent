@@ -1,15 +1,4 @@
-export type TorrentStatus = "downloading" | "seeding" | "paused" | "checking" | "error";
+import type { TransmissionTorrent, TorrentStatus as RpcTorrentStatus } from "../../../core/types";
 
-export interface Torrent {
-  id: number;
-  hashString: string;
-  name: string;
-  totalSize: number;
-  percentDone: number;
-  status: TorrentStatus;
-  rateDownload: number;
-  rateUpload: number;
-  peersConnected: number;
-  seedsConnected: number;
-  eta: number;
-}
+export type TorrentStatus = RpcTorrentStatus;
+export type Torrent = TransmissionTorrent;

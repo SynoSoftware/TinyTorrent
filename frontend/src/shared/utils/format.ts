@@ -9,8 +9,15 @@ export const formatBytes = (bytes: number) => {
 export const formatSpeed = (bytes: number) => `${formatBytes(bytes)}/s`;
 
 export const formatTime = (seconds: number) => {
-  if (seconds < 0) return "∞";
+  if (seconds < 0) return "�";
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   return h > 0 ? `${h}h ${m}m` : `${m}m ${seconds % 60}s`;
+};
+
+export const formatDate = (timestamp: number) => {
+  if (!timestamp || timestamp <= 0) return "-";
+  return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "2-digit" }).format(
+    new Date(timestamp * 1000)
+  );
 };
