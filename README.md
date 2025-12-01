@@ -9,6 +9,8 @@
 
 **A modern µTorrent-style BitTorrent client with a browser-native UI and a micro-sized backend.**
 
+**NOTE THIS IS WORK IN PROGRESS - DON'T EXPECT IT TO WORK JUST YET**
+
 ---
 
 I got pissed when I realized that we no longer have a proper torrent client. As I grew up when we had a torrent client that was 160kb .exe, lightweight and fast.
