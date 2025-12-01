@@ -11,18 +11,27 @@
 
 ---
 
-I realized every machine already ships with a fully optimized, GPU-accelerated UI framework: **the browser**.
-So instead of dragging a C++/Win32/Qt/GTK UI into the binary, TinyTorrent splits cleanly:
+I got pissed when I realized that we no longer have a proper torrent client. As I grew up when we had a torrent client that was 160kb .exe, lightweight and fast.
+Back then the protocol was simpler and the world was smaller; today’s requirements demand more code therefore we'll have to get to 1-2-3 megabytes, but the philosophy is identical:
+**ruthless efficiency + a UI that looks like it came from the future.**
 
-* A **minimal C/C++ backend** (a trimmed transmission-daemon that also serves static assets)
-* A **TypeScript/React HUD** running in the browser via `http://localhost`
+So I decided to go minmalist. I wanted to write a pure C application for Windows 11 that uses no external libraries. I called it rawBit.
+However, then I realized that I can do even better: I can write it to use even less memory, less code, more beautiful, by using your browser that's already installed: a fully optimized, GPU-accelerated UI framework.
+
+**This is how TinyTorrent was born**
+
+Instead of dragging C++/Win32/Qt/GTK toolkits into the binary, TinyTorrent splits:
+
+* Native shell: minimal executable, manages window, lifecycle, and RPC - this is the hardwork that has already been done: libtransmission-daemon (I'll patch it to serve my frontend instead)
+* Frontend: React + TypeScript + HeroUI, leveraging the browser’s rendering engine for layout, animation, and GPU composition
+
+There's no need for heavy UI libraries baked into the binary, no platform-specific UI maintenance cost
+This keeps the executable tiny, portable, the UI beautiful, fast, world-class, and the architecture clean and future-proof
 
 The result: a **single 2–3 MB `.exe`** that feels weightless.
 **Zero GUI memory footprint** unless you actively open the interface — exactly how it should be.
 
 The intent is simple: you shouldn’t feel this tool running at all. It should use only the memory you willingly allow it.
-µTorrent was ~160 KB because the protocol was simpler and the world was smaller; today’s requirements demand a few extra megabytes, but the philosophy is identical:
-**ruthless efficiency + a UI that looks like it came from the future.**
 
 No bloat. No ads. No crypto. No boat whatsoever!
 Just a tool for moving data that uses minimal memory and is minimal in size. 
