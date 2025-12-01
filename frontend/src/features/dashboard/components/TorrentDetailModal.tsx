@@ -103,15 +103,10 @@ const SpeedChart = ({ downSpeed, upSpeed }: { downSpeed: number; upSpeed: number
   // Simulation Tick
   useEffect(() => {
     const interval = setInterval(() => {
-      setHistory((prev) => {
-        // Add jitter for realism
-        const newDown = downSpeed * (0.9 + Math.random() * 0.2);
-        const newUp = upSpeed * (0.9 + Math.random() * 0.2);
-        return {
-          down: [...prev.down.slice(1), newDown],
-          up: [...prev.up.slice(1), newUp],
-        };
-      });
+      setHistory((prev) => ({
+        down: [...prev.down.slice(1), downSpeed],
+        up: [...prev.up.slice(1), upSpeed],
+      }));
     }, 1000);
     return () => clearInterval(interval);
   }, [downSpeed, upSpeed]);

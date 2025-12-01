@@ -72,7 +72,7 @@ export default heroui({
         },
       },
       colors: {
-        // Cyberpunk Neon Primary
+        // Neon Primary
         primary: {
           DEFAULT: "#00DFA2",
           foreground: "#000000",

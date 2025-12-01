@@ -7,7 +7,7 @@ Single authoritative reference for the architecture, UI/UX rules, design tokens,
 
 # **1. Brand Identity**
 
-TinyTorrent = **modern µTorrent** × **glass cyberpunk UI** × **Apple/Linear polish**.
+TinyTorrent = **modern µTorrent** × **glass UI** × **Apple/Linear polish**.
 
 ### Identity pillars:
 
