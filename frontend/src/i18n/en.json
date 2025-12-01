@@ -1,7 +1,7 @@
 {
     "brand": {
         "name": "TINY TORRENT",
-        "version": "v1.0.0"
+        "version": "v0.1"
     },
     "nav": {
         "filter_all": "All",
@@ -46,8 +46,8 @@
             "remove_with_data": "Remove and Delete Files",
             "copy_hash": "Copy Hash",
             "copy_magnet": "Copy Magnet Link",
+            "confirm_delete_data": "Delete downloaded data?",
             "confirm_delete_data": "Delete downloaded data?"
-            ,"confirm_delete_data": "Delete downloaded data?"
         },
         "status_dl": "DL",
         "status_seed": "SEED",
@@ -156,12 +156,12 @@
     "settings": {
         "modal": {
             "title": "Settings",
-        "footer": {
-            "reset": "Reset",
-            "reset_defaults": "Reset to Defaults",
-            "cancel": "Cancel",
-            "save": "Save Changes"
-        }
+            "footer": {
+                "reset": "Reset",
+                "reset_defaults": "Reset to Defaults",
+                "cancel": "Cancel",
+                "save": "Save Changes"
+            }
         },
         "tabs": {
             "speed": "Speed",
