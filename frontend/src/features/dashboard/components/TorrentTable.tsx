@@ -52,6 +52,8 @@ import { COLUMN_DEFINITIONS, DEFAULT_COLUMN_ORDER, REQUIRED_COLUMN_IDS, type Col
 // --- CONSTANTS ---
 const STORAGE_KEY = "tiny-torrent.table-state.v2.6"; // Bumped version
 const ROW_HEIGHT = 36;
+const CELL_PADDING_CLASS = "pl-3 pr-4";
+const CELL_BASE_CLASSES = "flex items-center overflow-hidden h-full truncate box-border";
 
 // --- TYPES ---
 export type TorrentTableAction = "pause" | "resume" | "recheck" | "remove" | "remove-with-data";
@@ -98,6 +100,7 @@ const DraggableHeader = memo(
       transition,
       width: column.getSize(),
       zIndex: isDragging || isOverlay ? 50 : 0,
+      boxSizing: "border-box",
     };
 
     const sortState = column.getIsSorted();
@@ -115,6 +118,7 @@ const DraggableHeader = memo(
         onContextMenu={onContextMenu}
         className={cn(
           "relative flex items-center h-10 border-r border-content1/10 transition-colors group select-none overflow-hidden",
+          "box-border",
           // STABILITY FIX: Always add a transparent left border so it aligns with rows that have a colored left border
           "border-l-2 border-l-transparent",
           canSort ? "cursor-pointer hover:bg-content1/10" : "cursor-default",
@@ -124,11 +128,12 @@ const DraggableHeader = memo(
       >
         <div
           className={cn(
-            "flex-1 flex items-center gap-2 h-full truncate",
+            CELL_BASE_CLASSES,
+            "flex-1 gap-2",
             "text-[10px] font-bold uppercase tracking-[0.15em] text-foreground/60",
             isOverlay && "text-foreground",
-            // STANDARD PADDING: No fancy math. just standard px-3 (12px)
-            "px-3",
+            // STANDARD PADDING: Not fancy math; pl-3 pr-4 keeps text away from handles.
+            CELL_PADDING_CLASS,
             align === "center" && "justify-center",
             align === "end" && "justify-end",
             isSelection && "justify-center px-0"
@@ -139,7 +144,6 @@ const DraggableHeader = memo(
           {sortState === "desc" && <ArrowDown size={12} className="text-primary shrink-0" />}
         </div>
 
-        {/* Resize Handle */}
         {!isOverlay && header.column.getCanResize() && (
           <div
             onMouseDown={(e) => {
@@ -157,7 +161,7 @@ const DraggableHeader = memo(
               className={cn(
                 "w-[1px] h-4 bg-foreground/10 transition-colors rounded-full",
                 "group-hover:bg-primary/50",
-                column.getIsResizing() && "bg-primary w-[2px] h-full"
+                column.getIsResizing() && "bg-primary w-[2px] h-6"
               )}
             />
           </div>
@@ -186,10 +190,11 @@ const VirtualRow = memo(
     onDoubleClick: (torrent: Torrent) => void;
     onContextMenu: (e: React.MouseEvent, torrent: Torrent) => void;
   }) => {
-    const rowStyle = useMemo(
+    const rowStyle = useMemo<CSSProperties>(
       () => ({
         transform: `translateY(${virtualRow.start}px)`,
         height: `${ROW_HEIGHT}px`,
+        boxSizing: "border-box",
       }),
       [virtualRow.start]
     );
@@ -199,6 +204,7 @@ const VirtualRow = memo(
         data-index={virtualRow.index}
         className={cn(
           "absolute top-0 left-0 flex items-center w-full border-b border-content1/5 transition-colors cursor-default",
+          "box-border",
           // STABILITY FIX: Always have border-l-2. Use transparent when not selected.
           "border-l-2",
           isSelected ? "bg-primary/10 border-l-primary" : "border-l-transparent hover:bg-content1/10",
@@ -214,11 +220,10 @@ const VirtualRow = memo(
           return (
             <div
               key={cell.id}
-              style={{ width: cell.column.getSize() }}
+              style={{ width: cell.column.getSize(), boxSizing: "border-box" }}
               className={cn(
-                "flex items-center overflow-hidden h-full truncate",
-                // STANDARD PADDING: Matches Header Exactly
-                "px-3",
+                CELL_BASE_CLASSES,
+                CELL_PADDING_CLASS,
                 align === "center" && "justify-center",
                 align === "end" && "justify-end",
                 cell.column.id === "selection" && "justify-center px-0"
@@ -311,13 +316,15 @@ export function TorrentTable({ torrents, filter, isLoading = false, onAction, on
           enableResizing: false,
           enableSorting: false,
           header: ({ table }) => (
-            <Checkbox
-              size="sm"
-              isSelected={table.getIsAllPageRowsSelected()}
-              isIndeterminate={table.getIsSomePageRowsSelected()}
-              onValueChange={(val) => table.toggleAllPageRowsSelected(!!val)}
-              classNames={{ wrapper: "m-0" }}
-            />
+            <div className="flex justify-center items-center h-full w-full">
+              <Checkbox
+                size="sm"
+                isSelected={table.getIsAllPageRowsSelected()}
+                isIndeterminate={table.getIsSomePageRowsSelected()}
+                onValueChange={(val) => table.toggleAllPageRowsSelected(!!val)}
+                classNames={{ wrapper: "m-0" }}
+              />
+            </div>
           ),
           cell: ({ row }) => (
             <Checkbox size="sm" isSelected={row.getIsSelected()} onValueChange={(val) => row.toggleSelected(!!val)} classNames={{ wrapper: "m-0" }} />
@@ -329,7 +336,7 @@ export function TorrentTable({ torrents, filter, isLoading = false, onAction, on
         accessorKey: def.rpcField,
         header: () => (def.labelKey ? t(def.labelKey) : ""),
         size: def.width ?? 150,
-        minSize: 80,
+        minSize: def.minSize ?? 80,
         meta: { align: def.align },
         cell: ({ row }) =>
           def.render({
