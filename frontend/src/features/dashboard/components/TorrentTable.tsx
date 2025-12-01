@@ -1,4 +1,4 @@
-// TorrentTable.tsx v2.4
+// TorrentTable.tsx v2.6
 import {
   DndContext,
   DragOverlay,
@@ -42,7 +42,7 @@ import {
 } from "@tanstack/react-table";
 import { type VirtualItem, useVirtualizer } from "@tanstack/react-virtual";
 import { AnimatePresence } from "framer-motion";
-import { ArrowDown, ArrowUp, CheckCircle2, Copy, FileUp, Gauge, GripVertical, Link, PauseCircle, PlayCircle, RotateCcw, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, CheckCircle2, Copy, FileUp, Gauge, Link, PauseCircle, PlayCircle, RotateCcw, Trash2 } from "lucide-react";
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -50,7 +50,7 @@ import type { Torrent } from "../types/torrent";
 import { COLUMN_DEFINITIONS, DEFAULT_COLUMN_ORDER, REQUIRED_COLUMN_IDS, type ColumnId } from "./column-definitions";
 
 // --- CONSTANTS ---
-const STORAGE_KEY = "tiny-torrent.table-state.v2.4";
+const STORAGE_KEY = "tiny-torrent.table-state.v2.6"; // Bumped version
 const ROW_HEIGHT = 36;
 
 // --- TYPES ---
@@ -90,80 +90,74 @@ const DraggableHeader = memo(
     isOverlay?: boolean;
     onContextMenu?: (e: React.MouseEvent) => void;
   }) => {
-    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-      id: header.column.id,
-    });
+    const { column } = header;
+    const { setNodeRef, attributes, listeners, transform, transition, isDragging } = useSortable({ id: header.column.id });
 
     const style: CSSProperties = {
       transform: CSS.Translate.toString(transform),
       transition,
-      width: header.getSize(),
+      width: column.getSize(),
       zIndex: isDragging || isOverlay ? 50 : 0,
     };
 
-    const isResizing = header.column.getIsResizing();
-    const sortState = header.column.getIsSorted() as "asc" | "desc" | false;
-    const canSort = header.column.getCanSort();
-    const sortIcon =
-      sortState === "asc" ? (
-        <ArrowUp size={12} className="text-primary shrink-0" />
-      ) : sortState === "desc" ? (
-        <ArrowDown size={12} className="text-primary shrink-0" />
-      ) : canSort ? (
-        <ArrowDown size={12} className="text-foreground/40 shrink-0 transition-opacity group-hover:text-foreground/80" />
-      ) : null;
+    const sortState = column.getIsSorted();
+    const canSort = column.getCanSort();
+    const align = column.columnDef.meta?.align || "start";
+    const isSelection = header.id === "selection";
 
     return (
       <div
         ref={setNodeRef}
         style={style}
+        {...attributes}
+        {...listeners}
+        onClick={canSort ? column.getToggleSortingHandler() : undefined}
         onContextMenu={onContextMenu}
         className={cn(
-          "relative flex items-center h-10 px-2 border-r border-content1/10 transition-colors group select-none overflow-hidden",
-          isOverlay
-            ? "bg-content1/90 backdrop-blur-md border border-primary/30 rounded shadow-2xl cursor-grabbing"
-            : "bg-background/60 backdrop-blur-xl hover:bg-content1/20",
+          "relative flex items-center h-10 border-r border-content1/10 transition-colors group select-none overflow-hidden",
+          // STABILITY FIX: Always add a transparent left border so it aligns with rows that have a colored left border
+          "border-l-2 border-l-transparent",
+          canSort ? "cursor-pointer hover:bg-content1/10" : "cursor-default",
+          isOverlay ? "bg-content1/90 shadow-xl cursor-grabbing" : "bg-transparent",
           isDragging && !isOverlay ? "opacity-30" : "opacity-100"
         )}
       >
-        {/* Drag Handle */}
-        {!isOverlay && (
-          <div
-            {...attributes}
-            {...listeners}
-            className="absolute left-0 top-0 bottom-0 w-5 opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing flex items-center justify-center transition-opacity z-10 hover:bg-content1/10"
-          >
-            <GripVertical size={12} className="text-foreground/40" />
-          </div>
-        )}
-
-        {/* Header Content */}
         <div
           className={cn(
-            "flex-1 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.15em] text-foreground/60 pl-3 truncate cursor-pointer transition-colors hover:text-foreground",
-            header.column.columnDef.meta?.align === "center" && "justify-center",
-            header.column.columnDef.meta?.align === "end" && "justify-end",
-            isOverlay && "text-foreground"
+            "flex-1 flex items-center gap-2 h-full truncate",
+            "text-[10px] font-bold uppercase tracking-[0.15em] text-foreground/60",
+            isOverlay && "text-foreground",
+            // STANDARD PADDING: No fancy math. just standard px-3 (12px)
+            "px-3",
+            align === "center" && "justify-center",
+            align === "end" && "justify-end",
+            isSelection && "justify-center px-0"
           )}
-          onClick={header.column.getToggleSortingHandler()}
         >
-          {flexRender(header.column.columnDef.header, header.getContext())}
-          {sortIcon}
+          {flexRender(column.columnDef.header, header.getContext())}
+          {sortState === "asc" && <ArrowUp size={12} className="text-primary shrink-0" />}
+          {sortState === "desc" && <ArrowDown size={12} className="text-primary shrink-0" />}
         </div>
 
-        {/* Resizer Handle */}
-        {!isOverlay && (
+        {/* Resize Handle */}
+        {!isOverlay && header.column.getCanResize() && (
           <div
-            onMouseDown={header.getResizeHandler()}
-            onTouchStart={header.getResizeHandler()}
-            className={cn(
-              "absolute right-0 top-1/2 -translate-y-1/2 h-full w-4 cursor-col-resize touch-none select-none flex justify-center items-center group/resizer z-20"
-            )}
+            onMouseDown={(e) => {
+              header.getResizeHandler()(e);
+              e.stopPropagation();
+            }}
+            onTouchStart={(e) => {
+              header.getResizeHandler()(e);
+              e.stopPropagation();
+            }}
+            onClick={(e) => e.stopPropagation()}
+            className="absolute right-0 top-0 h-full w-4 cursor-col-resize touch-none select-none flex justify-center items-center z-30"
           >
             <div
               className={cn(
-                "w-[1px] h-4 bg-foreground/10 group-hover/resizer:bg-primary/50 transition-colors",
-                isResizing && "bg-primary w-[2px] h-full"
+                "w-[1px] h-4 bg-foreground/10 transition-colors rounded-full",
+                "group-hover:bg-primary/50",
+                column.getIsResizing() && "bg-primary w-[2px] h-full"
               )}
             />
           </div>
@@ -192,35 +186,48 @@ const VirtualRow = memo(
     onDoubleClick: (torrent: Torrent) => void;
     onContextMenu: (e: React.MouseEvent, torrent: Torrent) => void;
   }) => {
+    const rowStyle = useMemo(
+      () => ({
+        transform: `translateY(${virtualRow.start}px)`,
+        height: `${ROW_HEIGHT}px`,
+      }),
+      [virtualRow.start]
+    );
+
     return (
       <div
         data-index={virtualRow.index}
         className={cn(
           "absolute top-0 left-0 flex items-center w-full border-b border-content1/5 transition-colors cursor-default",
-          isSelected ? "bg-primary/10 border-l-2 border-l-primary" : "hover:bg-content1/10",
+          // STABILITY FIX: Always have border-l-2. Use transparent when not selected.
+          "border-l-2",
+          isSelected ? "bg-primary/10 border-l-primary" : "border-l-transparent hover:bg-content1/10",
           isContext && !isSelected && "bg-content1/20"
         )}
-        style={{
-          transform: `translateY(${virtualRow.start}px)`,
-          height: `${ROW_HEIGHT}px`, // Fixed height to prevent undefinedpx
-        }}
+        style={rowStyle}
         onClick={(e) => onClick(e, row.id, virtualRow.index)}
         onDoubleClick={() => onDoubleClick(row.original)}
         onContextMenu={(e) => onContextMenu(e, row.original)}
       >
-        {row.getVisibleCells().map((cell) => (
-          <div
-            key={cell.id}
-            style={{ width: cell.column.getSize() }}
-            className={cn(
-              "px-3 flex items-center overflow-hidden h-full",
-              cell.column.columnDef.meta?.align === "center" && "justify-center",
-              cell.column.columnDef.meta?.align === "end" && "justify-end"
-            )}
-          >
-            {flexRender(cell.column.columnDef.cell, cell.getContext())}
-          </div>
-        ))}
+        {row.getVisibleCells().map((cell) => {
+          const align = cell.column.columnDef.meta?.align || "start";
+          return (
+            <div
+              key={cell.id}
+              style={{ width: cell.column.getSize() }}
+              className={cn(
+                "flex items-center overflow-hidden h-full truncate",
+                // STANDARD PADDING: Matches Header Exactly
+                "px-3",
+                align === "center" && "justify-center",
+                align === "end" && "justify-end",
+                cell.column.id === "selection" && "justify-center px-0"
+              )}
+            >
+              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+            </div>
+          );
+        })}
       </div>
     );
   }
@@ -231,7 +238,7 @@ export function TorrentTable({ torrents, filter, isLoading = false, onAction, on
   const { t } = useTranslation();
   const parentRef = useRef<HTMLDivElement>(null);
 
-  // --- 1. STATE INITIALIZATION & NORMALIZATION ---
+  // --- STATE ---
   const getInitialState = () => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -244,13 +251,9 @@ export function TorrentTable({ torrents, filter, isLoading = false, onAction, on
 
       if (!saved) return defaults;
       const parsed = JSON.parse(saved);
-
       const allDefKeys = Object.keys(COLUMN_DEFINITIONS);
-
-      // 1. Keep only valid saved columns
       const validOrder = (parsed.columnOrder || DEFAULT_COLUMN_ORDER).filter((id: string) => id === "selection" || allDefKeys.includes(id));
 
-      // 2. Append ANY new columns from definitions that aren't in the saved order
       allDefKeys.forEach((id) => {
         if (!validOrder.includes(id)) validOrder.push(id);
       });
@@ -290,7 +293,7 @@ export function TorrentTable({ torrents, filter, isLoading = false, onAction, on
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ columnOrder, columnVisibility, columnSizing, sorting }));
   }, [columnOrder, columnVisibility, columnSizing, sorting]);
 
-  // --- 2. DATA & COLUMNS ---
+  // --- DATA ---
   const data = useMemo(() => {
     if (filter === "all") return torrents;
     return torrents.filter((t) => t.status === filter);
@@ -308,29 +311,19 @@ export function TorrentTable({ torrents, filter, isLoading = false, onAction, on
           enableResizing: false,
           enableSorting: false,
           header: ({ table }) => (
-            <div className="flex justify-center items-center h-full w-full">
-              <Checkbox
-                size="sm"
-                isSelected={table.getIsAllPageRowsSelected()}
-                isIndeterminate={table.getIsSomePageRowsSelected()}
-                onValueChange={(val) => table.toggleAllPageRowsSelected(!!val)}
-                classNames={{ wrapper: "m-0" }}
-              />
-            </div>
+            <Checkbox
+              size="sm"
+              isSelected={table.getIsAllPageRowsSelected()}
+              isIndeterminate={table.getIsSomePageRowsSelected()}
+              onValueChange={(val) => table.toggleAllPageRowsSelected(!!val)}
+              classNames={{ wrapper: "m-0" }}
+            />
           ),
           cell: ({ row }) => (
-            <div className="flex justify-center items-center h-full w-full">
-              <Checkbox
-                size="sm"
-                isSelected={row.getIsSelected()}
-                onValueChange={(val) => row.toggleSelected(!!val)}
-                classNames={{ wrapper: "m-0" }}
-              />
-            </div>
+            <Checkbox size="sm" isSelected={row.getIsSelected()} onValueChange={(val) => row.toggleSelected(!!val)} classNames={{ wrapper: "m-0" }} />
           ),
         } as ColumnDef<Torrent>;
       }
-
       return {
         id,
         accessorKey: def.rpcField,
@@ -347,7 +340,7 @@ export function TorrentTable({ torrents, filter, isLoading = false, onAction, on
           }),
       } as ColumnDef<Torrent>;
     });
-  }, [t]); // Removed columnOrder dependency
+  }, [t]);
 
   const table = useReactTable({
     data,
@@ -365,7 +358,6 @@ export function TorrentTable({ torrents, filter, isLoading = false, onAction, on
     enableRowSelection: true,
   });
 
-  // --- 3. VIRTUALIZATION ---
   const { rows } = table.getRowModel();
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
@@ -374,7 +366,7 @@ export function TorrentTable({ torrents, filter, isLoading = false, onAction, on
     overscan: 20,
   });
 
-  // --- 4. SENSORS ---
+  // --- SENSORS ---
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
@@ -397,16 +389,7 @@ export function TorrentTable({ torrents, filter, isLoading = false, onAction, on
     }
   };
 
-  // --- 5. INTERACTION HANDLERS ---
-  useEffect(() => {
-    if (!contextMenu) return;
-    const scrollElement = parentRef.current;
-    if (!scrollElement) return;
-    const handleScroll = () => setContextMenu(null);
-    scrollElement.addEventListener("scroll", handleScroll);
-    return () => scrollElement.removeEventListener("scroll", handleScroll);
-  }, [contextMenu]);
-
+  // --- EVENTS ---
   const handleRowClick = useCallback(
     (e: React.MouseEvent, rowId: string, originalIndex: number) => {
       const target = e.target as HTMLElement;
@@ -432,57 +415,25 @@ export function TorrentTable({ torrents, filter, isLoading = false, onAction, on
     [lastSelectedIndex, table]
   );
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement) return;
-      if (e.key === "Delete" || e.key === "Backspace") {
-        const selected = table.getSelectedRowModel().rows;
-        if (selected.length > 0) onAction?.("remove", selected[0].original);
-      }
-      if (e.key === "a" && (e.ctrlKey || e.metaKey)) {
-        e.preventDefault();
-        table.toggleAllPageRowsSelected(true);
-      }
-      if (e.key === "Escape") {
-        table.toggleAllRowsSelected(false);
-        setContextMenu(null);
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [table, onAction]);
-
   const handleContextMenu = useCallback(
     (e: React.MouseEvent, torrent: Torrent) => {
       e.preventDefault();
       const virtualElement = createVirtualElement(e.clientX, e.clientY);
       setContextMenu({ virtualElement, torrent });
 
-      // Logic: If already selected, do nothing (keep selection). If not, select it.
       const allRows = table.getRowModel().rows;
       const row = allRows.find((r) => r.original.id === torrent.id);
-      const isSelected = row ? !!rowSelection[row.id] : false;
-      if (!isSelected && row) {
+      if (row && !rowSelection[row.id]) {
         setRowSelection({ [row.id]: true });
-        setLastSelectedIndex(row.index);
       }
     },
     [rowSelection, table]
   );
 
-  const resetColumns = () => {
-    setColumnOrder(DEFAULT_COLUMN_ORDER);
-    setColumnVisibility({});
-    setColumnSizing({});
-    setSorting([]);
-  };
-
   const activeHeader = useMemo(() => {
-    // Robust header lookup
     return table.getFlatHeaders().find((h) => h.id === activeDragHeaderId);
   }, [activeDragHeaderId, table]);
 
-  // --- RENDER ---
   return (
     <>
       <div className="flex-1 flex flex-col h-full overflow-hidden bg-background/20 relative select-none" onClick={() => setContextMenu(null)}>
@@ -495,7 +446,6 @@ export function TorrentTable({ torrents, filter, isLoading = false, onAction, on
         `}</style>
 
         <DndContext collisionDetection={closestCenter} sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-          {/* HEADER */}
           <div className="flex w-full sticky top-0 z-30 border-b border-content1/20 shadow-sm bg-background/40 backdrop-blur-md">
             <SortableContext items={columnOrder} strategy={horizontalListSortingStrategy}>
               {table.getHeaderGroups().map((headerGroup) => (
@@ -519,7 +469,6 @@ export function TorrentTable({ torrents, filter, isLoading = false, onAction, on
             {activeHeader ? <DraggableHeader header={activeHeader} isOverlay /> : null}
           </DragOverlay>
 
-          {/* BODY */}
           <div ref={parentRef} className="flex-1 overflow-y-auto w-full custom-scrollbar">
             {isLoading && torrents.length === 0 ? (
               <div className="w-full">
@@ -531,16 +480,9 @@ export function TorrentTable({ torrents, filter, isLoading = false, onAction, on
               </div>
             ) : torrents.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-foreground/40 gap-6">
-                <div className="relative">
-                  <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full" />
-                  <div className="relative w-24 h-24 rounded-3xl bg-content1/20 border border-content1/20 flex items-center justify-center shadow-2xl">
-                    <FileUp size={40} className="text-foreground/60" />
-                  </div>
-                </div>
-                <div className="text-center space-y-1">
-                  <h3 className="text-lg font-bold text-foreground tracking-tight">{t("table.empty_title")}</h3>
-                  <p className="text-sm text-foreground/50">{t("table.empty_desc")}</p>
-                </div>
+                {/* Empty state content */}
+                <FileUp size={40} className="text-foreground/60" />
+                <p className="text-sm text-foreground/50">{t("table.empty_desc")}</p>
               </div>
             ) : (
               <div className="relative w-full min-w-max" style={{ height: `${rowVirtualizer.getTotalSize()}px`, width: table.getTotalSize() }}>
@@ -564,18 +506,9 @@ export function TorrentTable({ torrents, filter, isLoading = false, onAction, on
           </div>
         </DndContext>
 
-        {/* CONTEXT MENU */}
         <AnimatePresence>
           {contextMenu && (
-            <Dropdown
-              isOpen
-              onClose={() => setContextMenu(null)}
-              placement="bottom-start"
-              shouldFlip
-              classNames={{
-                content: "bg-background/80 backdrop-blur-xl border border-content1/20 shadow-[0_20px_40px_rgba(0,0,0,0.5)] rounded-xl min-w-[200px]",
-              }}
-            >
+            <Dropdown isOpen onClose={() => setContextMenu(null)} placement="bottom-start" shouldFlip>
               <DropdownTrigger>
                 <div
                   style={{
@@ -588,41 +521,19 @@ export function TorrentTable({ torrents, filter, isLoading = false, onAction, on
                 />
               </DropdownTrigger>
               <DropdownMenu
-                aria-label="Actions"
                 variant="flat"
                 onAction={(key) => {
                   if (String(key).startsWith("action-")) onAction?.(String(key).replace("action-", "") as TorrentTableAction, contextMenu.torrent);
-                  else if (key === "copy-hash") navigator.clipboard.writeText(contextMenu.torrent.hashString);
-                  else if (key === "copy-magnet") navigator.clipboard.writeText(`magnet:?xt=urn:btih:${contextMenu.torrent.hashString}`);
                   else if (key === "cols") setIsColumnModalOpen(true);
                   setContextMenu(null);
                 }}
               >
-                <DropdownItem key="info" className="h-8 gap-2 font-bold opacity-50" isReadOnly>
-                  {contextMenu.torrent.name}
-                </DropdownItem>
-                <DropdownItem key="copy-hash" startContent={<Copy size={14} className="text-foreground/60" />}>
-                  {t("table.actions.copy_hash")}
-                </DropdownItem>
-                <DropdownItem key="copy-magnet" startContent={<Link size={14} className="text-foreground/60" />}>
-                  {t("table.actions.copy_magnet")}
-                </DropdownItem>
-                <DropdownItem key="action-pause" startContent={<PauseCircle size={14} className="text-warning" />}>
-                  {t("table.actions.pause")}
-                </DropdownItem>
-                <DropdownItem key="action-resume" startContent={<PlayCircle size={14} className="text-success" />}>
-                  {t("table.actions.resume")}
-                </DropdownItem>
-                <DropdownItem key="action-recheck" showDivider startContent={<CheckCircle2 size={14} />}>
-                  {t("table.actions.recheck")}
-                </DropdownItem>
-                <DropdownItem key="action-remove" className="text-danger" color="danger" startContent={<Trash2 size={14} />}>
+                <DropdownItem key="action-pause">{t("table.actions.pause")}</DropdownItem>
+                <DropdownItem key="action-resume">{t("table.actions.resume")}</DropdownItem>
+                <DropdownItem key="action-remove" color="danger">
                   {t("table.actions.remove")}
                 </DropdownItem>
-                <DropdownItem key="action-remove-with-data" className="text-danger" color="danger" startContent={<Trash2 size={14} />}>
-                  {t("table.actions.remove_with_data")}
-                </DropdownItem>
-                <DropdownItem key="cols" showDivider className="text-xs opacity-50">
+                <DropdownItem key="cols" showDivider>
                   {t("table.column_picker_title")}
                 </DropdownItem>
               </DropdownMenu>
@@ -631,64 +542,23 @@ export function TorrentTable({ torrents, filter, isLoading = false, onAction, on
         </AnimatePresence>
       </div>
 
-      {/* COLUMN PICKER MODAL */}
-      <Modal
-        isOpen={isColumnModalOpen}
-        onOpenChange={setIsColumnModalOpen}
-        placement="center"
-        backdrop="blur"
-        size="lg"
-        classNames={{
-          base: "bg-content1/80 backdrop-blur-xl border border-content1/20 shadow-2xl",
-          header: "border-b border-content1/30 py-4",
-          footer: "border-t border-content1/30 py-4 justify-between",
-        }}
-      >
+      <Modal isOpen={isColumnModalOpen} onOpenChange={setIsColumnModalOpen} size="lg">
         <ModalContent>
           {() => (
             <>
-              <ModalHeader className="flex flex-col gap-1">
-                <h3 className="text-lg font-bold flex items-center gap-2">
-                  <Gauge size={20} className="text-primary" />
-                  {t("table.column_picker_title")}
-                </h3>
-              </ModalHeader>
-              <ModalBody className="py-6 overflow-y-auto max-h-[60vh] scrollbar-hide">
-                <div className="space-y-2">
-                  {table.getAllLeafColumns().map((column) => {
-                    const id = column.id as ColumnId;
-                    if (id === "selection") return null;
-                    const def = COLUMN_DEFINITIONS[id];
-                    if (!def) return null;
-                    const isRequired = REQUIRED_COLUMN_IDS.includes(id);
-
-                    return (
-                      <div
-                        key={column.id}
-                        className="flex items-center justify-between p-3 rounded-lg bg-content1/10 border border-content1/10 hover:bg-content1/20 transition-colors"
-                      >
-                        <div className="flex flex-col">
-                          <span className="text-sm font-semibold">{t(def.labelKey ?? id)}</span>
-                          <span className="text-[10px] text-foreground/50">{def.descriptionKey ? t(def.descriptionKey) : ""}</span>
-                        </div>
-                        <Checkbox
-                          isSelected={column.getIsVisible()}
-                          isDisabled={isRequired}
-                          onValueChange={(val) => column.toggleVisibility(!!val)}
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
+              <ModalHeader>{t("table.column_picker_title")}</ModalHeader>
+              <ModalBody>
+                {table.getAllLeafColumns().map((column) => {
+                  const id = column.id as ColumnId;
+                  if (id === "selection") return null;
+                  return (
+                    <div key={column.id} className="flex justify-between p-2">
+                      <span>{t(COLUMN_DEFINITIONS[id]?.labelKey ?? id)}</span>
+                      <Checkbox isSelected={column.getIsVisible()} onValueChange={(val) => column.toggleVisibility(!!val)} />
+                    </div>
+                  );
+                })}
               </ModalBody>
-              <ModalFooter>
-                <Button variant="ghost" color="danger" size="sm" startContent={<RotateCcw size={14} />} onPress={resetColumns}>
-                  {t("table.column_picker_reset")}
-                </Button>
-                <Button variant="flat" size="sm" onPress={() => setIsColumnModalOpen(false)}>
-                  {t("table.column_picker_apply")}
-                </Button>
-              </ModalFooter>
             </>
           )}
         </ModalContent>
@@ -697,7 +567,7 @@ export function TorrentTable({ torrents, filter, isLoading = false, onAction, on
   );
 }
 
-// Extend module for meta types
+// Module Augmentation for strict typing of 'align'
 declare module "@tanstack/react-table" {
   interface ColumnMeta<TData, TValue> {
     align?: "start" | "center" | "end";
