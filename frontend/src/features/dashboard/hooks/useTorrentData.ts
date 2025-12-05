@@ -1,22 +1,22 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { usePerformanceHistory } from "../../../core/hooks/usePerformanceHistory";
-import type { TransmissionClient } from "../../../core/rpc-client";
-import type { RpcStatus } from "../../../core/hooks/useTransmissionSession";
-import { normalizeTorrent } from "../types/torrent";
+import type { ITorrentClient } from "../../../core/domain/client.interface";
+import type { RpcStatus } from "../../../core/hooks/useRpcConnection";
 import type { Torrent } from "../types/torrent";
 
 type UseTorrentDataOptions = {
-  client: TransmissionClient;
+  client: ITorrentClient;
   sessionReady: boolean;
   pollingIntervalMs: number;
+  autoRefresh?: boolean;
   onRpcStatusChange?: (status: Exclude<RpcStatus, "idle">) => void;
 };
 
-type QueueActionHandlers = {
-  moveToTop: (ids: number[]) => Promise<void>;
-  moveUp: (ids: number[]) => Promise<void>;
-  moveDown: (ids: number[]) => Promise<void>;
-  moveToBottom: (ids: number[]) => Promise<void>;
+export type QueueActionHandlers = {
+  moveToTop: (ids: string[]) => Promise<void>;
+  moveUp: (ids: string[]) => Promise<void>;
+  moveDown: (ids: string[]) => Promise<void>;
+  moveToBottom: (ids: string[]) => Promise<void>;
 };
 
 type UseTorrentDataResult = {
@@ -26,7 +26,13 @@ type UseTorrentDataResult = {
   queueActions: QueueActionHandlers;
 };
 
-export function useTorrentData({ client, sessionReady, pollingIntervalMs, onRpcStatusChange }: UseTorrentDataOptions): UseTorrentDataResult {
+export function useTorrentData({
+  client,
+  sessionReady,
+  pollingIntervalMs,
+  autoRefresh = true,
+  onRpcStatusChange,
+}: UseTorrentDataOptions): UseTorrentDataResult {
   const [torrents, setTorrents] = useState<Torrent[]>([]);
   const [isInitialLoadFinished, setIsInitialLoadFinished] = useState(false);
   const pollingRef = useRef<number | null>(null);
@@ -36,12 +42,11 @@ export function useTorrentData({ client, sessionReady, pollingIntervalMs, onRpcS
 
   const refresh = useCallback(async () => {
     try {
-      const data = await client.fetchTorrents();
+      const data = await client.getTorrents();
       if (!isMountedRef.current) return;
-      const normalized = data.map(normalizeTorrent);
-      setTorrents(normalized);
-      const totalDown = normalized.reduce((acc, torrent) => acc + (torrent.status === "downloading" ? torrent.rateDownload : 0), 0);
-      const totalUp = normalized.reduce((acc, torrent) => acc + torrent.rateUpload, 0);
+      setTorrents(data);
+      const totalDown = data.reduce((acc, torrent) => acc + (torrent.state === "downloading" ? torrent.speed.down : 0), 0);
+      const totalUp = data.reduce((acc, torrent) => acc + torrent.speed.up, 0);
       pushSpeeds(totalDown, totalUp);
       onRpcStatusChange?.("connected");
     } catch (error) {
@@ -64,7 +69,7 @@ export function useTorrentData({ client, sessionReady, pollingIntervalMs, onRpcS
   }, []);
 
   useEffect(() => {
-    if (!sessionReady) return;
+    if (!sessionReady || !autoRefresh) return;
     void refresh();
     const intervalMs = Math.max(1000, pollingIntervalMs);
     if (pollingRef.current) {
@@ -80,7 +85,7 @@ export function useTorrentData({ client, sessionReady, pollingIntervalMs, onRpcS
         pollingRef.current = null;
       }
     };
-  }, [sessionReady, pollingIntervalMs, refresh]);
+  }, [sessionReady, pollingIntervalMs, refresh, autoRefresh]);
 
   return {
     torrents,
@@ -88,20 +93,16 @@ export function useTorrentData({ client, sessionReady, pollingIntervalMs, onRpcS
     refresh,
     queueActions: {
       moveToTop: async (ids) => {
-        await client.moveTorrentsToTop(ids);
-        await refresh();
+        await client.moveToTop(ids);
       },
       moveUp: async (ids) => {
-        await client.moveTorrentsUp(ids);
-        await refresh();
+        await client.moveUp(ids);
       },
       moveDown: async (ids) => {
-        await client.moveTorrentsDown(ids);
-        await refresh();
+        await client.moveDown(ids);
       },
       moveToBottom: async (ids) => {
-        await client.moveTorrentsToBottom(ids);
-        await refresh();
+        await client.moveToBottom(ids);
       },
     },
   };

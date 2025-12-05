@@ -1,10 +1,9 @@
-
 # TinyTorrent
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-19-cyan)](https://react.dev/)
-[![Engine](https://img.shields.io/badge/Engine-Libtransmission-orange)](https://github.com/transmission/transmission)
+[![Architecture](https://img.shields.io/badge/Architecture-Hexagonal%2FAdapter-purple)]()
 [![Size](https://img.shields.io/badge/Binary_Target-<3MB-success)]()
 
 **A modern µTorrent-style BitTorrent client with a browser-native UI and a micro-sized backend.**
@@ -13,30 +12,22 @@
 
 ---
 
-I got pissed when I realized that we no longer have a proper torrent client. As I grew up when we had a torrent client that was 160kb .exe, lightweight and fast.
-Back then the protocol was simpler and the world was smaller; today’s requirements demand more code therefore we'll have to get to 1-2-3 megabytes, but the philosophy is identical:
-**ruthless efficiency + a UI that looks like it came from the future.**
+I got pissed when I realized that we no longer have a proper torrent client. I grew up when we had a torrent client that was a 160kb .exe—lightweight and fast.
+Back then the protocol was simpler and the world was smaller; today’s requirements demand more code, so we'll have to settle for 1-3 megabytes, but the philosophy is identical:
+**high efficiency + a UI that looks like it came from the future.**
 
-So I decided to go bare-metal. I wanted to write a pure C application for Windows 11 that uses no external libraries, just call windows API. I called it rawBit.
-However, then I realized that will be ugly and nobody will use it ... but I can also do better: I can write it to use even less memory, less code, more beautiful, by using your browser that's already installed: a fully optimized, GPU-accelerated UI framework.
+So I decided to go bare-metal. I wanted to write a pure C application for Windows 11 that uses no external libraries, just calling Windows API. I called it rawBit.
+However, I realized that would be ugly and nobody would use it. I can do better: I can write it to use even less memory, less code, and be more beautiful by using the browser that's already installed—a fully optimized, GPU-accelerated UI framework.
 
-**This is how TinyTorrent was born**
+**This is how TinyTorrent was born.**
 
 Instead of dragging C++/Win32/Qt/GTK toolkits into the binary, TinyTorrent splits:
 
-* Native shell: minimal executable, manages window, lifecycle, and RPC - this is the hardwork that has already been done by others: libtransmission-daemon (I'll patch it to serve my frontend instead)
-* Frontend: React + TypeScript + HeroUI, leveraging the browser’s rendering engine for layout, animation, and GPU composition
-
-There's no need for heavy UI libraries baked into the binary, no platform-specific UI maintenance cost
-This keeps the executable tiny, portable, the UI beautiful, fast, world-class, and the architecture clean and future-proof
+- **Native Shell:** A minimal executable that manages the window, lifecycle, and the torrent engine. It exposes a generic RPC interface.
+- **Frontend:** React + TypeScript + HeroUI, leveraging the browser’s rendering engine for layout, animation, and GPU composition.
 
 The result: a **single 2–3 MB `.exe`** that feels weightless.
 **Zero GUI memory footprint** unless you actively open the interface — exactly how it should be.
-
-The intent is simple: you shouldn’t feel this tool running at all. It should use only the memory you willingly allow it.
-
-No bloat. No ads. No crypto. No boat whatsoever!
-Just a tool for moving data that uses minimal memory and is minimal in size. 
 
 ---
 
@@ -44,24 +35,27 @@ Just a tool for moving data that uses minimal memory and is minimal in size.
 
 ### Browser-Native HUD (frontend/)
 
-* **Zero GUI RAM when unused** — the UI runs in the browser only when opened.
-* **Glass Monolith UI** using Tailwind v4 + HeroUI + blur + depth.
-* **Kinetic motion** everywhere (`Framer Motion`).
-* **Global drag-and-drop**, predictable context menus, tabular numerals.
-* **Real-time sparklines** and a defrag-style pieces map.
+- **Zero GUI RAM when unused** — The UI runs in the browser/WebView only when opened.
+- **Glass Monolith UI** — Tailwind v4 + HeroUI + blur + depth for a "Stealth" aesthetic.
+- **Workspace Components** — Not just tables, but functional tools:
+  - **File Explorer Tree:** Nested, accordion-style file selection with priority toggling.
+  - **Visualizers:** Real-time speed graphs, Disk Space Gauge, and Peer Maps.
+- **Kinetic Motion** — Framer Motion used for structural changes, not just decoration.
+
+### Backend Agnostic Architecture
+
+TinyTorrent is no longer tied to a single engine.
+
+- **Domain-Driven Design:** The UI interacts with a API interface
+- **Adapter Pattern:** We support multiple backends
+  - **Transmission Adapter:** Connects to standard Transmission RPC.
+  - **Libtorrent Adapter:** Connects to a custom C++ wrapper around `libtorrent-rasterbar`. (to be developed in the future)
 
 ### Professional Mechanics
 
-* Native OS interaction patterns: Shift-click ranges, Ctrl-click toggles, full keyboard nav.
-* High-density dashboard for advanced users.
-* Perfectly typed RPC schema.
-
-### The Engine (backend/)
-
-* Built on **libtransmission** for protocol correctness and low RAM footprint.
-* Embedded HTTP server (Mongoose) serves the compiled HUD.
-* Encrypted connections (MbedTLS).
-* DHT, PEX, LPD, blocklists — all standard transmission features.
+- **Queue Management:** Reorder torrents, move to top/bottom, drag-and-drop ordering.
+- **Deep Interaction:** Shift-click ranges, Ctrl-click toggles, full keyboard navigation.
+- **Exact Typing:** No "any" types. The RPC schema is strictly typed and normalized.
 
 ---
 
@@ -78,19 +72,19 @@ TinyTorrent/
 
 ### Frontend Tech
 
-* React 19
-* TypeScript
-* TailwindCSS v4
-* HeroUI
-* Framer Motion
-* Vite
+- React 19
+- TypeScript
+- TailwindCSS v4
+- HeroUI
+- Framer Motion
+- Vite
 
 ### Backend Tech
 
-* C / C++17 (no exceptions, no RTTI)
-* libtransmission
-* Mongoose (embedded web server)
-* Static asset bundler for shipping UI inside a single binary
+- C / C++17 (no exceptions, no RTTI)
+- libtransmission
+- Mongoose (embedded web server)
+- Static asset bundler for shipping UI inside a single binary
 
 ---
 
@@ -98,12 +92,12 @@ TinyTorrent/
 
 ### Prerequisites
 
-* Node.js 20+ (for the frontend)
-* Any Transmission Daemon (optional) if you want to test against a real RPC endpoint
+- Node.js 20+ (for the frontend)
+- **Development:** You can run the frontend against a standard `transmission-daemon` (port 9091) to test the UI.
 
 ### Development (frontend)
 
-Runs the HUD with mock data or via proxy.
+Runs the HUD with the Transmission Adapter active.
 
 ```bash
 cd frontend
@@ -135,10 +129,10 @@ The entire stack follows **AGENTS.md**:
 
 Pull requests must follow the **Visual Excellence Directive**:
 
-* Beautiful and consistent components
-* Transitions via Framer Motion
-* Strict TypeScript
-* No regressions in density or performance
+- Beautiful and consistent components
+- Transitions via Framer Motion
+- Strict TypeScript
+- No regressions in density or performance
 
 ---
 
@@ -149,6 +143,4 @@ For now, use the standard `transmission-daemon`.
 
 ---
 
-**TinyTorrent** — *Simple. Fast. Beautiful. Browser-Native.*
-
-
+**TinyTorrent** — _Simple. Fast. Beautiful. Browser-Native._

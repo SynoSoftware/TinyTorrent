@@ -67,6 +67,8 @@ export type TorrentTableAction =
   | "queue-move-down"
   | "queue-move-bottom";
 
+type ContextMenuKey = TorrentTableAction | "cols";
+
 interface TorrentTableProps {
   torrents: Torrent[];
   filter: string;
@@ -374,7 +376,7 @@ export function TorrentTable({ torrents, filter, isLoading = false, onAction, on
   // --- DATA ---
   const data = useMemo(() => {
     if (filter === "all") return torrents;
-    return torrents.filter((t) => t.status === filter);
+    return torrents.filter((t) => t.state === filter);
   }, [torrents, filter]);
 
   const columns = useMemo<ColumnDef<Torrent>[]>(() => {
@@ -603,21 +605,18 @@ export function TorrentTable({ torrents, filter, isLoading = false, onAction, on
               <DropdownMenu
                 variant="flat"
                 onAction={(key) => {
-                  if (typeof key === "string") {
-                    if (key.startsWith("action-")) {
-                      onAction?.(key.replace("action-", "") as TorrentTableAction, contextMenu.torrent);
-                    } else if (key.startsWith("queue-")) {
-                      onAction?.(key as TorrentTableAction, contextMenu.torrent);
-                    } else if (key === "cols") {
-                      setIsColumnModalOpen(true);
-                    }
+                  const menuKey = key as ContextMenuKey | undefined;
+                  if (menuKey === "cols") {
+                    setIsColumnModalOpen(true);
+                  } else if (menuKey) {
+                    onAction?.(menuKey, contextMenu.torrent);
                   }
                   setContextMenu(null);
                 }}
               >
-                <DropdownItem key="action-pause">{t("table.actions.pause")}</DropdownItem>
-                <DropdownItem key="action-resume">{t("table.actions.resume")}</DropdownItem>
-                <DropdownItem key="action-remove" color="danger">
+                <DropdownItem key="pause">{t("table.actions.pause")}</DropdownItem>
+                <DropdownItem key="resume">{t("table.actions.resume")}</DropdownItem>
+                <DropdownItem key="remove" color="danger">
                   {t("table.actions.remove")}
                 </DropdownItem>
                 <div className="border-t border-content1/20 mt-2 pt-2">
