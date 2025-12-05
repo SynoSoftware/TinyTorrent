@@ -3,245 +3,272 @@
         "name": "TINY TORRENT",
         "version": "v0.1"
     },
+    "drop_overlay": {
+        "subtitle": "Supports .torrent and Magnets",
+        "title": "Drop to Add"
+    },
+    "language": {
+        "chinese": "中文",
+        "dutch": "Nederlands",
+        "english": "English",
+        "menu_label": "Language",
+        "spanish": "Español"
+    },
+    "modals": {
+        "add_title": "Add Torrent",
+        "cancel": "Cancel",
+        "disk_gauge": {
+            "free": "Free",
+            "path_unknown": "Path",
+            "title": "Disk Space",
+            "torrent": "Torrent",
+            "updating": "Refreshing...",
+            "used": "Used"
+        },
+        "disk_gauge_error": "Unable to refresh disk usage.",
+        "download": "Download",
+        "file_browse": "Choose File",
+        "file_help": "Drop or select a .torrent to upload it to Transmission.",
+        "file_label": "TORRENT FILE",
+        "file_placeholder": "Select a .torrent file",
+        "file_remove": "Clear File",
+        "file_tree_description": "Pick which files should download (unchecked files are skipped).",
+        "file_tree_empty": "No files detected yet",
+        "file_tree_error": "Unable to read the torrent file.",
+        "file_tree_loading": "Parsing torrent metadata…",
+        "file_tree_title": "Contents",
+        "file_tree_waiting": "Waiting for torrent metadata…",
+        "magnet_label": "MAGNET LINK",
+        "magnet_placeholder": "magnet:?xt=urn:btih...",
+        "options": "OPTIONS",
+        "save_path": "SAVE PATH",
+        "start_now": "Start Immediately"
+    },
     "nav": {
         "filter_all": "All",
         "filter_downloading": "Downloading",
         "filter_seeding": "Seeding",
         "search_placeholder": "Filter torrents..."
     },
-    "toolbar": {
-        "add_torrent": "Add Torrent",
-        "settings": "Settings"
+    "settings": {
+        "buttons": {
+            "testPort": "Test"
+        },
+        "headers": {
+            "network": "Connectivity",
+            "peers": "Peer Limits",
+            "privacy": "Privacy",
+            "speed": "Speed Limits",
+            "storage": "Storage"
+        },
+        "labels": {
+            "altSpeedDays": "Scheduled Days",
+            "altSpeedDaysHelp": "Toggle the days Turtle Mode should obey",
+            "altSpeedDown": "Download (KB/s)",
+            "altSpeedEnd": "End Time",
+            "altSpeedStart": "Start Time",
+            "altSpeedUp": "Upload (KB/s)",
+            "blocklistToggle": "Enable Blocklist",
+            "blocklistUrl": "Blocklist URL",
+            "day_friday": "Fri",
+            "day_monday": "Mon",
+            "day_saturday": "Sat",
+            "day_sunday": "Sun",
+            "day_thursday": "Thu",
+            "day_tuesday": "Tue",
+            "day_wednesday": "Wed",
+            "dht": "DHT",
+            "downloadFolder": "Default Download Folder",
+            "downloadLimit": "Download Limit",
+            "encryption": "Encryption Level",
+            "globalPeers": "Global Peer Limit",
+            "idleSeedingLimit": "Minutes to Stop Seeding",
+            "idleSeedingToggle": "Idle Seeding Limit",
+            "incomingPort": "Incoming Port",
+            "incompleteFolder": "Incomplete Folder",
+            "lpd": "LPD",
+            "perTorrentPeers": "Peers Per Torrent",
+            "pex": "PEX",
+            "randomizePort": "Randomize Port on Start",
+            "refreshInterval": "Refresh Interval (ms)",
+            "renamePartial": "Rename Partial Files",
+            "requestTimeout": "Request Timeout (ms)",
+            "seedRatioLimit": "Seed Ratio Limit",
+            "seedRatioToggle": "Enforce Seed Ratio",
+            "startAdded": "Start Added Torrents",
+            "turtleMode": "Turtle Mode",
+            "uploadLimit": "Upload Limit",
+            "upnp": "Enable UPnP / NAT-PMP",
+            "useIncompleteFolder": "Use Incomplete Folder"
+        },
+        "modal": {
+            "footer": {
+                "cancel": "Cancel",
+                "reset": "Reset",
+                "reset_defaults": "Reset to Defaults",
+                "save": "Save Changes"
+            },
+            "title": "Settings"
+        },
+        "options": {
+            "encryption": {
+                "preferred": "Prefer Encryption",
+                "required": "Require Encryption",
+                "tolerated": "Allow Unencrypted"
+            }
+        },
+        "sections": {
+            "bandwidth": "Global Bandwidth",
+            "behavior": "Behavior",
+            "blocklist": "Blocklist",
+            "connectionLimits": "Connection Limits",
+            "encryption": "Encryption",
+            "listeningPort": "Listening Port",
+            "locations": "Locations",
+            "polling": "Polling & Timeout",
+            "protocol": "Protocol Features",
+            "seeding": "Seeding Behavior",
+            "turtle": "Turtle Mode (Scheduled)"
+        },
+        "tabs": {
+            "network": "Network",
+            "peers": "Peers",
+            "privacy": "Privacy",
+            "speed": "Speed",
+            "storage": "Storage"
+        },
+        "units": {
+            "kbps": "{{value}} KB/s"
+        }
+    },
+    "status_bar": {
+        "dht_nodes": "{{count}} Nodes",
+        "down": "DOWN",
+        "online": "Online",
+        "reconnect": "Reconnect",
+        "rpc_connected": "Connected",
+        "rpc_error": "Offline",
+        "rpc_idle": "Initializing",
+        "rpc_status": "RPC",
+        "up": "UP"
     },
     "table": {
-        "header_name": "NAME",
-        "header_progress": "PROGRESS",
-        "header_status": "STATUS",
-        "header_speed": "SPEED",
-        "header_peers": "PEERS",
-        "header_size": "SIZE",
-        "header_eta": "ETA",
-        "header_ratio": "RATIO",
-        "header_hash": "HASH",
-        "header_added": "ADDED",
-        "eta": "ETA: {{time}}",
-        "eta_unknown": "Unknown",
-        "column_picker_title": "Columns",
-        "column_picker_description": "Right click a header to change the visible columns.",
-        "column_picker_reset": "Reset Layout",
-        "column_picker_cancel": "Cancel",
-        "column_picker_apply": "Apply",
-        "column_selection": "Selection",
-        "column_actions": "Actions",
-        "column_desc_eta": "Estimated completion time",
-        "column_desc_speed": "Download / upload velocity",
-        "column_desc_ratio": "Upload / download ratio",
-        "column_desc_hash": "Torrent identifier",
-        "column_desc_added": "When the torrent was added",
         "actions": {
+            "confirm_delete_data": "Delete downloaded data?",
+            "confirm_delete_data": "Delete downloaded data?",
+            "copy_hash": "Copy Hash",
+            "copy_magnet": "Copy Magnet Link",
             "pause": "Pause",
-            "resume": "Resume",
             "recheck": "Force Recheck",
             "remove": "Remove",
             "remove_with_data": "Remove and Delete Files",
-            "copy_hash": "Copy Hash",
-            "copy_magnet": "Copy Magnet Link",
-            "confirm_delete_data": "Delete downloaded data?",
-            "confirm_delete_data": "Delete downloaded data?"
+            "resume": "Resume"
         },
-        "status_dl": "DL",
-        "status_seed": "SEED",
-        "status_pause": "PAUSE",
-        "select_all": "Select all",
-        "select_item": "Select {{name}}"
-    },
-    "status_bar": {
-        "down": "DOWN",
-        "up": "UP",
-        "dht_nodes": "{{count}} Nodes",
-        "rpc_status": "RPC",
-        "rpc_idle": "Initializing",
-        "rpc_connected": "Connected",
-        "rpc_error": "Offline",
-        "online": "Online",
-        "reconnect": "Reconnect"
-    },
-    "modals": {
-        "add_title": "Add Torrent",
-        "magnet_label": "MAGNET LINK",
-        "magnet_placeholder": "magnet:?xt=urn:btih...",
-        "file_label": "TORRENT FILE",
-        "file_placeholder": "Select a .torrent file",
-        "file_browse": "Choose File",
-        "file_remove": "Clear File",
-        "file_help": "Drop or select a .torrent to upload it to Transmission.",
-        "save_path": "SAVE PATH",
-        "options": "OPTIONS",
-        "start_now": "Start Immediately",
-        "cancel": "Cancel",
-        "download": "Download"
-    },
-    "torrent_modal": {
-        "title": "Torrent Details",
-        "actions": {
-            "close": "Close"
-        },
-        "tabs": {
-            "general": "General",
-            "trackers": "Trackers",
-            "peers": "Peers",
-            "https": "HTTPS Source",
-            "content": "Content",
-            "speed": "Speed"
-        },
-        "general": {
-            "hash": "Hash",
-            "size": "Total Size",
-            "progress": "Progress",
-            "peers": "Peers",
-            "eta": "ETA",
-            "status": "Status",
-            "download": "Download",
-            "upload": "Upload",
-            "eta_unknown": "Unknown"
-        },
+        "column_actions": "Actions",
+        "column_desc_added": "When the torrent was added",
+        "column_desc_eta": "Estimated completion time",
+        "column_desc_hash": "Torrent identifier",
+        "column_desc_queue": "Position in the download/upload queue",
+        "column_desc_ratio": "Upload / download ratio",
+        "column_desc_speed": "Download / upload velocity",
+        "column_picker_apply": "Apply",
+        "column_picker_cancel": "Cancel",
+        "column_picker_description": "Right click a header to change the visible columns.",
+        "column_picker_reset": "Reset Layout",
+        "column_picker_title": "Columns",
+        "column_selection": "Selection",
+        "eta": "ETA: {{time}}",
         "eta_unknown": "Unknown",
-        "trackers": {
-            "tier": "Tier",
-            "last_announce": "Last Announce",
-            "status_online": "Online",
-            "status_partial": "Partial"
+        "header_added": "ADDED",
+        "header_eta": "ETA",
+        "header_hash": "HASH",
+        "header_name": "NAME",
+        "header_peers": "PEERS",
+        "header_progress": "PROGRESS",
+        "header_queue": "QUEUE",
+        "header_ratio": "RATIO",
+        "header_size": "SIZE",
+        "header_speed": "SPEED",
+        "header_status": "STATUS",
+        "queue": {
+            "move_bottom": "Move to Bottom",
+            "move_down": "Move Down",
+            "move_top": "Move to Top",
+            "move_up": "Move Up",
+            "title": "Queue"
         },
-        "peers": {
-            "ip": "IP",
-            "progress": "Progress",
-            "download": "DL",
-            "upload": "UL"
-        },
-        "https": {
-            "label": "Secure Source",
-            "certificate": "Certificate",
-            "last_checked": "Checked"
-        },
-        "speed": {
-            "download": "Download Speed",
-            "upload": "Upload Speed",
-            "average": "Average",
-            "stable": "Steady Connection"
-        },
-        "statuses": {
-            "status_downloading": "Downloading",
-            "status_seeding": "Seeding",
-            "status_paused": "Paused",
-            "status_checking": "Checking",
-            "status_error": "Error"
-        }
-    },
-    "drop_overlay": {
-        "title": "Drop to Add",
-        "subtitle": "Supports .torrent and Magnets"
+        "select_all": "Select all",
+        "select_item": "Select {{name}}",
+        "status_dl": "DL",
+        "status_pause": "PAUSE",
+        "status_seed": "SEED"
     },
     "theme": {
         "dark": "Dark",
         "light": "Light",
         "toggle_label": "Theme: {{value}}"
     },
-    "language": {
-        "menu_label": "Language",
-        "english": "English",
-        "dutch": "Nederlands",
-        "spanish": "Español",
-        "chinese": "中文"
+    "toolbar": {
+        "add_torrent": "Add Torrent",
+        "settings": "Settings"
     },
-    "settings": {
-        "modal": {
-            "title": "Settings",
-            "footer": {
-                "reset": "Reset",
-                "reset_defaults": "Reset to Defaults",
-                "cancel": "Cancel",
-                "save": "Save Changes"
-            }
+    "torrent_modal": {
+        "actions": {
+            "close": "Close"
+        },
+        "eta_unknown": "Unknown",
+        "files_description": "Toggle files on/off to control what downloads.",
+        "files_empty": "No files are available.",
+        "files_title": "Contents",
+        "general": {
+            "download": "Download",
+            "eta": "ETA",
+            "eta_unknown": "Unknown",
+            "hash": "Hash",
+            "peers": "Peers",
+            "progress": "Progress",
+            "size": "Total Size",
+            "status": "Status",
+            "upload": "Upload"
+        },
+        "https": {
+            "certificate": "Certificate",
+            "label": "Secure Source",
+            "last_checked": "Checked"
+        },
+        "peers": {
+            "download": "DL",
+            "ip": "IP",
+            "progress": "Progress",
+            "upload": "UL"
+        },
+        "speed": {
+            "average": "Average",
+            "download": "Download Speed",
+            "stable": "Steady Connection",
+            "upload": "Upload Speed"
+        },
+        "statuses": {
+            "status_checking": "Checking",
+            "status_downloading": "Downloading",
+            "status_error": "Error",
+            "status_paused": "Paused",
+            "status_seeding": "Seeding"
         },
         "tabs": {
-            "speed": "Speed",
-            "network": "Network",
+            "content": "Content",
+            "general": "General",
+            "https": "HTTPS Source",
             "peers": "Peers",
-            "storage": "Storage",
-            "privacy": "Privacy"
+            "speed": "Speed",
+            "trackers": "Trackers"
         },
-        "headers": {
-            "speed": "Speed Limits",
-            "network": "Connectivity",
-            "peers": "Peer Limits",
-            "storage": "Storage",
-            "privacy": "Privacy"
-        },
-        "sections": {
-            "bandwidth": "Global Bandwidth",
-            "turtle": "Turtle Mode (Scheduled)",
-            "seeding": "Seeding Behavior",
-            "polling": "Polling & Timeout",
-            "listeningPort": "Listening Port",
-            "protocol": "Protocol Features",
-            "connectionLimits": "Connection Limits",
-            "locations": "Locations",
-            "behavior": "Behavior",
-            "encryption": "Encryption",
-            "blocklist": "Blocklist"
-        },
-        "labels": {
-            "downloadLimit": "Download Limit",
-            "uploadLimit": "Upload Limit",
-            "turtleMode": "Turtle Mode",
-            "altSpeedDown": "Download (KB/s)",
-            "altSpeedUp": "Upload (KB/s)",
-            "altSpeedStart": "Start Time",
-            "altSpeedEnd": "End Time",
-            "altSpeedDays": "Scheduled Days",
-            "altSpeedDaysHelp": "Toggle the days Turtle Mode should obey",
-            "refreshInterval": "Refresh Interval (ms)",
-            "requestTimeout": "Request Timeout (ms)",
-            "seedRatioToggle": "Enforce Seed Ratio",
-            "seedRatioLimit": "Seed Ratio Limit",
-            "idleSeedingToggle": "Idle Seeding Limit",
-            "idleSeedingLimit": "Minutes to Stop Seeding",
-            "incomingPort": "Incoming Port",
-            "randomizePort": "Randomize Port on Start",
-            "upnp": "Enable UPnP / NAT-PMP",
-            "dht": "DHT",
-            "lpd": "LPD",
-            "pex": "PEX",
-            "globalPeers": "Global Peer Limit",
-            "perTorrentPeers": "Peers Per Torrent",
-            "downloadFolder": "Default Download Folder",
-            "useIncompleteFolder": "Use Incomplete Folder",
-            "incompleteFolder": "Incomplete Folder",
-            "renamePartial": "Rename Partial Files",
-            "startAdded": "Start Added Torrents",
-            "day_sunday": "Sun",
-            "day_monday": "Mon",
-            "day_tuesday": "Tue",
-            "day_wednesday": "Wed",
-            "day_thursday": "Thu",
-            "day_friday": "Fri",
-            "day_saturday": "Sat",
-            "encryption": "Encryption Level",
-            "blocklistToggle": "Enable Blocklist",
-            "blocklistUrl": "Blocklist URL"
-        },
-        "buttons": {
-            "testPort": "Test"
-        },
-        "units": {
-            "kbps": "{{value}} KB/s"
-        },
-        "options": {
-            "encryption": {
-                "required": "Require Encryption",
-                "preferred": "Prefer Encryption",
-                "tolerated": "Allow Unencrypted"
-            }
+        "title": "Torrent Details",
+        "trackers": {
+            "last_announce": "Last Announce",
+            "status_online": "Online",
+            "status_partial": "Partial",
+            "tier": "Tier"
         }
     }
 }

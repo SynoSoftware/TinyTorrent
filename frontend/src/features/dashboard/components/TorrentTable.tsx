@@ -42,7 +42,7 @@ import {
 } from "@tanstack/react-table";
 import { type VirtualItem, useVirtualizer } from "@tanstack/react-virtual";
 import { AnimatePresence } from "framer-motion";
-import { ArrowDown, ArrowUp, CheckCircle2, Copy, FileUp, Gauge, Link, PauseCircle, PlayCircle, RotateCcw, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, CheckCircle2, ChevronRight, Copy, FileUp, Gauge, Link, PauseCircle, PlayCircle, RotateCcw, Trash2 } from "lucide-react";
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -56,7 +56,16 @@ const CELL_PADDING_CLASS = "pl-3 pr-4";
 const CELL_BASE_CLASSES = "flex items-center overflow-hidden h-full truncate box-border";
 
 // --- TYPES ---
-export type TorrentTableAction = "pause" | "resume" | "recheck" | "remove" | "remove-with-data";
+export type TorrentTableAction =
+  | "pause"
+  | "resume"
+  | "recheck"
+  | "remove"
+  | "remove-with-data"
+  | "queue-move-top"
+  | "queue-move-up"
+  | "queue-move-down"
+  | "queue-move-bottom";
 
 interface TorrentTableProps {
   torrents: Torrent[];
@@ -238,10 +247,74 @@ const VirtualRow = memo(
   }
 );
 
+type QueueMenuAction = { key: TorrentTableAction; label: string };
+
+const QueueSubmenu = memo(
+  ({
+    torrent,
+    actions,
+    title,
+    onAction,
+    closeMenu,
+  }: {
+    torrent: Torrent;
+    actions: QueueMenuAction[];
+    title: string;
+    onAction?: (action: TorrentTableAction, torrent: Torrent) => void;
+    closeMenu: () => void;
+  }) => {
+    const [isOpen, setIsOpen] = useState(false);
+
+    const handleAction = useCallback(
+      (action: TorrentTableAction) => {
+        onAction?.(action, torrent);
+        closeMenu();
+        setIsOpen(false);
+      },
+      [closeMenu, onAction, torrent]
+    );
+
+    const handleOpenChange = useCallback((next: boolean) => {
+      setIsOpen(next);
+    }, []);
+
+    return (
+      <Dropdown placement="right-start" isOpen={isOpen} onOpenChange={handleOpenChange} offset={6} shouldFlip>
+        <DropdownTrigger>
+          <button
+            type="button"
+            onMouseDown={(event) => event.stopPropagation()}
+            className="flex w-full items-center justify-between gap-2 px-4 py-2 text-xs font-bold uppercase tracking-[0.3em] text-foreground/40 hover:bg-content1/10 transition-colors rounded"
+          >
+            <span>{title}</span>
+            <ChevronRight size={14} className="text-foreground/60" />
+          </button>
+        </DropdownTrigger>
+        <DropdownMenu variant="flat" className="min-w-[170px] bg-content1/80 border border-content1/20">
+          {actions.map((action) => (
+            <DropdownItem key={action.key} className="pl-10 text-sm" onPress={() => handleAction(action.key)}>
+              {action.label}
+            </DropdownItem>
+          ))}
+        </DropdownMenu>
+      </Dropdown>
+    );
+  }
+);
+
 // --- MAIN COMPONENT ---
 export function TorrentTable({ torrents, filter, isLoading = false, onAction, onRequestDetails }: TorrentTableProps) {
   const { t } = useTranslation();
   const parentRef = useRef<HTMLDivElement>(null);
+  const queueMenuActions = useMemo<QueueMenuAction[]>(
+    () => [
+      { key: "queue-move-top", label: t("table.queue.move_top") },
+      { key: "queue-move-up", label: t("table.queue.move_up") },
+      { key: "queue-move-down", label: t("table.queue.move_down") },
+      { key: "queue-move-bottom", label: t("table.queue.move_bottom") },
+    ],
+    [t]
+  );
 
   // --- STATE ---
   const getInitialState = () => {
@@ -530,8 +603,15 @@ export function TorrentTable({ torrents, filter, isLoading = false, onAction, on
               <DropdownMenu
                 variant="flat"
                 onAction={(key) => {
-                  if (String(key).startsWith("action-")) onAction?.(String(key).replace("action-", "") as TorrentTableAction, contextMenu.torrent);
-                  else if (key === "cols") setIsColumnModalOpen(true);
+                  if (typeof key === "string") {
+                    if (key.startsWith("action-")) {
+                      onAction?.(key.replace("action-", "") as TorrentTableAction, contextMenu.torrent);
+                    } else if (key.startsWith("queue-")) {
+                      onAction?.(key as TorrentTableAction, contextMenu.torrent);
+                    } else if (key === "cols") {
+                      setIsColumnModalOpen(true);
+                    }
+                  }
                   setContextMenu(null);
                 }}
               >
@@ -540,6 +620,15 @@ export function TorrentTable({ torrents, filter, isLoading = false, onAction, on
                 <DropdownItem key="action-remove" color="danger">
                   {t("table.actions.remove")}
                 </DropdownItem>
+                <div className="border-t border-content1/20 mt-2 pt-2">
+                  <QueueSubmenu
+                    torrent={contextMenu.torrent}
+                    actions={queueMenuActions}
+                    title={t("table.queue.title")}
+                    onAction={onAction}
+                    closeMenu={() => setContextMenu(null)}
+                  />
+                </div>
                 <DropdownItem key="cols" showDivider>
                   {t("table.column_picker_title")}
                 </DropdownItem>

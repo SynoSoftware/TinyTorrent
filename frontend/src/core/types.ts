@@ -107,3 +107,42 @@ export interface TransmissionSessionSettings {
   version?: string;
   "rpc-version"?: number;
 }
+
+export interface TransmissionFreeSpace {
+  path: string;
+  sizeBytes: number;
+  totalSize: number;
+}
+
+export interface TransmissionSessionStatsTotals {
+  uploadedBytes: number;
+  downloadedBytes: number;
+  filesAdded: number;
+  secondsActive: number;
+  sessionCount: number;
+}
+
+export interface TransmissionSessionStats {
+  activeTorrentCount: number;
+  downloadSpeed: number;
+  pausedTorrentCount: number;
+  torrentCount: number;
+  uploadSpeed: number;
+  cumulativeStats: TransmissionSessionStatsTotals;
+  currentStats: TransmissionSessionStatsTotals;
+}
+
+export interface TransmissionBandwidthGroupOptions {
+  name: string;
+  honorsSessionLimits?: boolean;
+  speedLimitDown?: number;
+  speedLimitDownEnabled?: boolean;
+  speedLimitUp?: number;
+  speedLimitUpEnabled?: boolean;
+}
+
+export interface TransmissionTorrentRenameResult {
+  id: number;
+  name: string;
+  path: string;
+}

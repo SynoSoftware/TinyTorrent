@@ -5,7 +5,20 @@ import { formatBytes, formatDate, formatSpeed, formatTime } from "../../../share
 import type { Torrent } from "../types/torrent";
 import type { ReactNode } from "react";
 
-export type ColumnId = "selection" | "name" | "progress" | "status" | "eta" | "speed" | "peers" | "size" | "ratio" | "hash" | "added" | "actions";
+export type ColumnId =
+  | "selection"
+  | "name"
+  | "progress"
+  | "status"
+  | "queue"
+  | "eta"
+  | "speed"
+  | "peers"
+  | "size"
+  | "ratio"
+  | "hash"
+  | "added"
+  | "actions";
 
 export interface ColumnRendererProps {
   torrent: Torrent;
@@ -144,6 +157,21 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
         </div>
       );
     },
+  },
+  queue: {
+    id: "queue",
+    labelKey: "table.header_queue",
+    width: 80,
+    align: "center",
+    sortable: true,
+    rpcField: "queuePosition",
+    descriptionKey: "table.column_desc_queue",
+    sortAccessor: (torrent) => (torrent.queuePosition ?? Number.MAX_SAFE_INTEGER),
+    render: ({ torrent }) => (
+      <span className="font-mono text-xs text-foreground/60 tabular-nums min-w-0">
+        {torrent.queuePosition !== undefined ? torrent.queuePosition : "-"}
+      </span>
+    ),
   },
   eta: {
     id: "eta",
@@ -288,6 +316,7 @@ export const DEFAULT_COLUMN_ORDER: ColumnId[] = [
   "name",
   "progress",
   "status",
+  "queue",
   "eta",
   "speed",
   "peers",
@@ -298,7 +327,17 @@ export const DEFAULT_COLUMN_ORDER: ColumnId[] = [
   "actions",
 ];
 
-export const DEFAULT_VISIBLE_COLUMN_IDS: ColumnId[] = ["selection", "name", "progress", "status", "speed", "peers", "size", "actions"];
+export const DEFAULT_VISIBLE_COLUMN_IDS: ColumnId[] = [
+  "selection",
+  "name",
+  "progress",
+  "status",
+  "queue",
+  "speed",
+  "peers",
+  "size",
+  "actions",
+];
 
 export const REQUIRED_COLUMN_IDS: ColumnId[] = ["selection", "actions"];
 

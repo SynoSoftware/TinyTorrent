@@ -1,10 +1,12 @@
 import { Button, Chip, Divider, Modal, ModalBody, ModalContent, Progress, Tab, Tabs, cn, Tooltip } from "@heroui/react";
-import { Activity, Copy, FileText, Grid, HardDrive, Info, Lock, Network, Server, X, Zap } from "lucide-react";
+import { Activity, Copy, Grid, HardDrive, Info, Lock, Network, Server, X, Zap } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { GlassPanel } from "../../../shared/ui/layout/GlassPanel";
 import { formatBytes, formatSpeed, formatTime } from "../../../shared/utils/format";
+import { FileExplorerTree, type FileExplorerEntry } from "../../../shared/ui/workspace/FileExplorerTree";
+import constants from "../../../config/constants.json";
 import type { TorrentDetail } from "../types/torrent";
 
 // --- TYPES ---
@@ -14,6 +16,7 @@ interface TorrentDetailModalProps {
   torrent: TorrentDetail | null;
   isOpen: boolean;
   onClose: () => void;
+  onFilesToggle?: (indexes: number[], wanted: boolean) => Promise<void> | void;
 }
 
 type PieceStatus = "done" | "downloading" | "missing";
@@ -96,103 +99,59 @@ const PiecesMap = ({ percent, pieceStates, pieceCount, pieceSize }: PiecesMapPro
 };
 
 // --- SUB-COMPONENT: SPEED CHART (Custom SVG, Zero Bloat) ---
-const SpeedChart = ({ downSpeed, upSpeed }: { downSpeed: number; upSpeed: number }) => {
-  const [history, setHistory] = useState<{ down: number[]; up: number[] }>({ down: new Array(60).fill(0), up: new Array(60).fill(0) });
-  const [timeRange, setTimeRange] = useState("1m");
+const CHART_WIDTH = 180;
+const CHART_HEIGHT = 72;
 
-  // Simulation Tick
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setHistory((prev) => ({
-        down: [...prev.down.slice(1), downSpeed],
-        up: [...prev.up.slice(1), upSpeed],
-      }));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [downSpeed, upSpeed]);
-
-  // Draw Path
-  const getPath = (data: number[], color: string, maxY: number) => {
-    const width = 100; // viewBox units
-    const height = 50;
-    const points = data.map((val, i) => {
-      const x = (i / (data.length - 1)) * width;
-      const y = height - (val / (maxY || 1)) * height; // Invert Y
-      return `${x},${y}`;
-    });
-
-    return (
-      <>
-        {/* Fill Gradient */}
-        <path d={`M0,${height} ${points.map((p) => `L${p}`).join(" ")} L${width},${height} Z`} fill={`url(#grad-${color})`} className="opacity-20" />
-        {/* Line */}
-        <path
-          d={`M${points[0]} ${points.map((p) => `L${p}`).join(" ")}`}
-          fill="none"
-          stroke={`var(--color-${color})`}
-          strokeWidth="1.5"
-          vectorEffect="non-scaling-stroke"
-        />
-      </>
-    );
+const SpeedChart = ({ downHistory, upHistory }: { downHistory: number[]; upHistory: number[] }) => {
+  const maxValue = Math.max(...downHistory, ...upHistory, 1);
+  const latestDown = downHistory.at(-1) ?? 0;
+  const latestUp = upHistory.at(-1) ?? 0;
+  const buildPath = (values: number[]) => {
+    if (!values.length) return "";
+    return values
+      .map((value, index) => {
+        const x = ((index / (values.length - 1 || 1)) * CHART_WIDTH).toFixed(2);
+        const y = (CHART_HEIGHT - (value / maxValue) * CHART_HEIGHT).toFixed(2);
+        return `${index === 0 ? "M" : "L"}${x},${y}`;
+      })
+      .join(" ");
   };
 
-  const maxVal = Math.max(...history.down, ...history.up, 1024 * 1024); // Min 1MB scale
-
   return (
-    <div className="flex flex-col gap-4 h-full">
-      <div className="flex justify-between items-center z-10">
-        <div className="flex gap-4">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-success"></span>
-            <span className="text-xs font-mono text-foreground/70">DL: {formatSpeed(downSpeed)}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-primary"></span>
-            <span className="text-xs font-mono text-foreground/70">UL: {formatSpeed(upSpeed)}</span>
-          </div>
-        </div>
-        <select
-          className="bg-content1/30 border border-content1/20 rounded px-2 py-1 text-[10px] text-foreground/70 outline-none"
-          value={timeRange}
-          onChange={(e) => setTimeRange(e.target.value)}
-        >
-          <option value="1m">1 Minute</option>
-          <option value="5m">5 Minutes</option>
-          <option value="30m">30 Minutes</option>
-        </select>
+    <div className="flex flex-col gap-2">
+      <div className="flex justify-between items-center text-[11px] font-mono text-foreground/60">
+        <span className="text-success">↓ {formatSpeed(latestDown)}</span>
+        <span className="text-primary">↑ {formatSpeed(latestUp)}</span>
       </div>
-
-      <div className="flex-1 w-full relative bg-content1/20 rounded-xl border border-content1/20 overflow-hidden">
-        {/* CSS Grids for Background */}
-        <div className="absolute inset-0 grid grid-cols-6 grid-rows-4 opacity-10 pointer-events-none">
-          {[...Array(24)].map((_, i) => (
-            <div key={i} className="border-r border-b border-content1/30" />
-          ))}
-        </div>
-
-        <svg viewBox="0 0 100 50" preserveAspectRatio="none" className="w-full h-full absolute inset-0">
+      <div className="rounded-2xl border border-content1/20 bg-content1/20 p-3">
+        <svg viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`} preserveAspectRatio="none" className="w-full h-20">
           <defs>
-            <linearGradient id="grad-success" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#22c55e" stopOpacity="0.5" />
+            <linearGradient id="down-gradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#22c55e" stopOpacity="0.6" />
               <stop offset="100%" stopColor="#22c55e" stopOpacity="0" />
             </linearGradient>
-            <linearGradient id="grad-primary" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.5" />
-              <stop offset="100%" stopColor="#06b6d4" stopOpacity="0" />
+            <linearGradient id="up-gradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#6366f1" stopOpacity="0.6" />
+              <stop offset="100%" stopColor="#6366f1" stopOpacity="0" />
             </linearGradient>
-            <style>{`
-              :root { --color-success: #22c55e; --color-primary: #06b6d4; }
-            `}</style>
           </defs>
-          {getPath(history.down, "success", maxVal)}
-          {getPath(history.up, "primary", maxVal)}
+          <path
+            d={buildPath(downHistory)}
+            fill="none"
+            stroke="url(#down-gradient)"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <path
+            d={buildPath(upHistory)}
+            fill="none"
+            stroke="url(#up-gradient)"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </svg>
-
-        {/* Max Label */}
-        <div className="absolute top-2 left-2 text-[9px] font-mono text-foreground/40 bg-content1/40 px-1 rounded">
-          Peak: {formatSpeed(maxVal)}
-        </div>
       </div>
     </div>
   );
@@ -208,22 +167,28 @@ const STATUS_CONFIG = {
   error: { color: "danger", label: "Error" },
 } as const;
 
-const PRIORITY_LABELS: Record<number, string> = {
-  0: "Low",
-  1: "Normal",
-  2: "High",
-};
-
-const getPriorityLabel = (priority: number) => PRIORITY_LABELS[priority] ?? "Normal";
-
-export function TorrentDetailModal({ torrent, isOpen, onClose }: TorrentDetailModalProps) {
+export function TorrentDetailModal({ torrent, isOpen, onClose, onFilesToggle }: TorrentDetailModalProps) {
   const { t } = useTranslation();
+  const historyPoints = constants.performance.history_data_points;
+  const [downHistory, setDownHistory] = useState(() => new Array(historyPoints).fill(0));
+  const [upHistory, setUpHistory] = useState(() => new Array(historyPoints).fill(0));
   const [activeTab, setActiveTab] = useState<DetailTab>("general");
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (isOpen) setActiveTab("general");
   }, [isOpen]);
+
+  useEffect(() => {
+    setDownHistory(new Array(historyPoints).fill(0));
+    setUpHistory(new Array(historyPoints).fill(0));
+  }, [torrent?.id, historyPoints]);
+
+  useEffect(() => {
+    if (!torrent) return;
+    setDownHistory((prev) => [...prev.slice(1), torrent.rateDownload]);
+    setUpHistory((prev) => [...prev.slice(1), torrent.rateUpload]);
+  }, [torrent?.rateDownload, torrent?.rateUpload]);
 
   const handleCopyHash = () => {
     if (torrent) {
@@ -239,6 +204,15 @@ export function TorrentDetailModal({ torrent, isOpen, onClose }: TorrentDetailMo
   const peers = torrent.peers ?? [];
   const files = torrent.files ?? [];
   const downloadDir = torrent.downloadDir ?? "Unknown";
+  const fileEntries = useMemo<FileExplorerEntry[]>(() => {
+    return files.map((file, index) => ({
+      name: file.name,
+      index,
+      length: file.length,
+      percentDone: file.percentDone,
+      wanted: file.wanted,
+    }));
+  }, [files]);
 
   return (
     <Modal
@@ -450,31 +424,30 @@ export function TorrentDetailModal({ torrent, isOpen, onClose }: TorrentDetailMo
               {activeTab === "speed" && (
                 <div className="h-full flex flex-col">
                   <GlassPanel className="flex-1 p-6">
-                    <SpeedChart downSpeed={torrent.rateDownload} upSpeed={torrent.rateUpload} />
+                    <SpeedChart downHistory={downHistory} upHistory={upHistory} />
                   </GlassPanel>
                 </div>
               )}
 
               {/* --- TAB: CONTENT --- */}
               {activeTab === "content" && (
-                <div className="flex flex-col gap-2">
-                  {files.map((file, i) => (
-                    <GlassPanel key={i} className="p-3 flex items-center gap-4 hover:bg-content1/50 transition-colors group">
-                      <div className="w-8 h-8 rounded-lg bg-content1 flex items-center justify-center text-foreground/50 group-hover:text-foreground">
-                        <FileText size={16} />
+                <div className="flex flex-col gap-3">
+                  <GlassPanel className="p-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs font-semibold uppercase tracking-[0.3em] text-foreground/60">
+                        {t("torrent_modal.files_title")}
                       </div>
-                      <div className="flex-1 min-w-0 flex flex-col gap-1.5">
-                        <div className="flex justify-between items-center">
-                          <span className="text-xs font-medium truncate pr-4">{file.name}</span>
-                          <span className="text-[10px] font-mono text-foreground/50">{formatBytes(file.length)}</span>
-                        </div>
-                        <Progress size="sm" value={file.percentDone * 100} classNames={{ track: "h-0.5 bg-content1/10", indicator: "bg-foreground/50" }} />
-                      </div>
-                      <Chip size="sm" variant="flat" classNames={{ base: "h-5 bg-content1/20", content: "text-[9px]" }}>
-                        {getPriorityLabel(file.priority)}
-                      </Chip>
-                    </GlassPanel>
-                  ))}
+                      <span className="text-[11px] text-foreground/50">{files.length} file{files.length === 1 ? "" : "s"}</span>
+                    </div>
+                    <div className="text-[11px] text-foreground/50">{t("torrent_modal.files_description")}</div>
+                    <div className="max-h-[320px] overflow-y-auto">
+                      <FileExplorerTree
+                        files={fileEntries}
+                        emptyMessage={t("torrent_modal.files_empty")}
+                        onFilesToggle={(indexes: number[], wanted: boolean) => onFilesToggle?.(indexes, wanted)}
+                      />
+                    </div>
+                  </GlassPanel>
                 </div>
               )}
 
