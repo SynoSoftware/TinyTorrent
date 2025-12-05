@@ -154,7 +154,25 @@ export function AddTorrentModal({ isOpen, onClose, onAdd, isSubmitting, initialF
     };
   }, [downloadDir, getFreeSpace, t]);
 
+  const fileTreeEntries = useMemo<FileExplorerEntry[]>(() => {
+    if (!torrentMetadata) return [];
+    return torrentMetadata.files.map((file: TorrentMetadata["files"][number], index: number) => ({
+      name: file.path,
+      index,
+      length: file.length,
+      wanted: !filesUnwanted.has(index),
+    }));
+  }, [torrentMetadata, filesUnwanted]);
+
+  const torrentSize = useMemo(() => {
+    if (!torrentMetadata) return 0;
+    return torrentMetadata.files.reduce((acc, file) => acc + file.length, 0);
+  }, [torrentMetadata]);
+
   const canSubmit = useMemo(() => Boolean(magnetLink.trim() || selectedFile), [magnetLink, selectedFile]);
+  const hasTorrentSize = typeof torrentSize === "number" && torrentSize > 0;
+  const hasFreeSpace = typeof directorySpace?.sizeBytes === "number";
+  const isSpaceInsufficient = hasTorrentSize && hasFreeSpace && torrentSize > (directorySpace?.sizeBytes ?? 0);
 
   const handleSubmit = async () => {
     if (!canSubmit || isSubmitting) return;
@@ -187,21 +205,6 @@ export function AddTorrentModal({ isOpen, onClose, onAdd, isSubmitting, initialF
       // The caller will handle errors; keep the modal open for corrections.
     }
   };
-
-  const fileTreeEntries = useMemo<FileExplorerEntry[]>(() => {
-    if (!torrentMetadata) return [];
-    return torrentMetadata.files.map((file: TorrentMetadata["files"][number], index: number) => ({
-      name: file.path,
-      index,
-      length: file.length,
-      wanted: !filesUnwanted.has(index),
-    }));
-  }, [torrentMetadata, filesUnwanted]);
-
-  const torrentSize = useMemo(() => {
-    if (!torrentMetadata) return 0;
-    return torrentMetadata.files.reduce((acc, file) => acc + file.length, 0);
-  }, [torrentMetadata]);
 
   const handleFilesToggle = useCallback((indexes: number[], wanted: boolean) => {
     setFilesUnwanted((prev) => {
@@ -366,12 +369,15 @@ export function AddTorrentModal({ isOpen, onClose, onAdd, isSubmitting, initialF
                   onPress={handleSubmit}
                   startContent={<ArrowDown size={16} />}
                   isLoading={isSubmitting}
-                  isDisabled={!canSubmit || isSubmitting}
+                  isDisabled={!canSubmit || isSubmitting || isSpaceInsufficient}
                   className="flex-1"
                 >
                   {t("modals.download")}
                 </Button>
               </div>
+              {isSpaceInsufficient && (
+                <p className="text-[10px] text-warning">{t("modals.disk_gauge.insufficient")}</p>
+              )}
             </ModalFooter>
           </>
         )}

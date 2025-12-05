@@ -1,5 +1,5 @@
 export type RpcTorrentStatus = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
-export type TorrentStatus = "downloading" | "seeding" | "paused" | "checking" | "error";
+export type TorrentStatus = "downloading" | "seeding" | "paused" | "checking" | "error" | "queued";
 
 export interface TransmissionTorrent {
   id: number;
@@ -19,6 +19,15 @@ export interface TransmissionTorrent {
   uploadedEver: number;
   downloadedEver: number;
   downloadDir?: string;
+  leftUntilDone?: number;
+  sizeWhenDone?: number;
+  error?: number;
+  errorString?: string;
+  peersSendingToUs?: number;
+  peersGettingFromUs?: number;
+  isFinished?: boolean;
+  sequentialDownload?: boolean;
+  superSeeding?: boolean;
 }
 
 export interface TransmissionTorrentFile {
@@ -82,6 +91,7 @@ export interface TransmissionSessionSettings {
   "speed-limit-down-enabled"?: boolean;
   "speed-limit-up"?: number;
   "speed-limit-up-enabled"?: boolean;
+  "alt-speed-enabled"?: boolean;
   "alt-speed-down"?: number;
   "alt-speed-up"?: number;
   "alt-speed-time-enabled"?: boolean;

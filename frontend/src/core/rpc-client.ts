@@ -2,12 +2,27 @@ import type {
   TransmissionSessionSettings,
   TransmissionTorrent,
   TransmissionTorrentDetail,
+  TransmissionTorrentFile,
+  TransmissionTorrentTracker,
+  TransmissionTorrentPeer,
   TransmissionFreeSpace,
   TransmissionSessionStats,
   TransmissionBandwidthGroupOptions,
   TransmissionTorrentRenameResult,
 } from "./types";
 import constants from "../config/constants.json";
+import type { ITorrentClient } from "./domain/client.interface";
+import type {
+  TorrentEntity,
+  TorrentDetailEntity,
+  TorrentFileEntity,
+  TorrentTrackerEntity,
+  TorrentPeerEntity,
+  AddTorrentPayload,
+  SessionStats,
+  EngineInfo,
+  LibtorrentPriority,
+} from "./domain/entities";
 
 type RpcRequest<M extends string> = {
   method: M;
@@ -43,12 +58,21 @@ const SUMMARY_FIELDS: Array<keyof TransmissionTorrent> = [
   "rateUpload",
   "peersConnected",
   "seedsConnected",
+  "peersSendingToUs",
+  "peersGettingFromUs",
   "eta",
   "dateAdded",
   "queuePosition",
   "uploadRatio",
   "uploadedEver",
   "downloadedEver",
+  "leftUntilDone",
+  "sizeWhenDone",
+  "error",
+  "errorString",
+  "sequentialDownload",
+  "superSeeding",
+  "isFinished",
   "downloadDir",
 ];
 
@@ -63,12 +87,129 @@ const DETAIL_FIELDS = [
   "pieceAvailability",
 ];
 
-export class TransmissionClient {
+const STATUS_MAP: Record<number, TorrentEntity["state"]> = {
+  0: "paused",
+  1: "checking",
+  2: "checking",
+  3: "queued",
+  4: "downloading",
+  5: "queued",
+  6: "seeding",
+  7: "paused",
+};
+
+const normalizeStatus = (status: number | TorrentEntity["state"] | undefined): TorrentEntity["state"] => {
+  if (typeof status === "string") {
+    return status;
+  }
+  if (typeof status === "number") {
+    return STATUS_MAP[status] ?? "paused";
+  }
+  return "paused";
+};
+
+const mapPriority = (priority: number): LibtorrentPriority => {
+  if (priority <= -1) return 0;
+  if (priority === 0) return 4;
+  return 7;
+};
+
+const normalizeFile = (file: TransmissionTorrentFile, index: number): TorrentFileEntity => ({
+  name: file.name,
+  index,
+  length: file.length,
+  bytesCompleted: file.bytesCompleted,
+  progress: file.percentDone,
+  priority: mapPriority(file.priority),
+  wanted: file.wanted,
+});
+
+const normalizeTracker = (tracker: TransmissionTorrentTracker): TorrentTrackerEntity => ({
+  id: tracker.tier,
+  announce: tracker.announce,
+  tier: tracker.tier,
+  announceState: tracker.announceState,
+  lastAnnounceTime: tracker.lastAnnounceTime,
+  lastAnnounceResult: tracker.lastAnnounceResult,
+  lastAnnounceSucceeded: tracker.lastAnnounceSucceeded,
+  lastScrapeTime: tracker.lastScrapeTime,
+  lastScrapeResult: tracker.lastScrapeResult,
+  lastScrapeSucceeded: tracker.lastScrapeSucceeded,
+  seederCount: tracker.seederCount,
+  leecherCount: tracker.leecherCount,
+  scrapeState: tracker.scrapeState,
+});
+
+const normalizePeer = (peer: TransmissionTorrentPeer): TorrentPeerEntity => ({
+  address: peer.address,
+  clientIsChoking: peer.clientIsChoking,
+  clientIsInterested: peer.clientIsInterested,
+  peerIsChoking: peer.peerIsChoking,
+  peerIsInterested: peer.peerIsInterested,
+  clientName: peer.clientName,
+  rateToClient: peer.rateToClient,
+  rateToPeer: peer.rateToPeer,
+  progress: peer.progress,
+  flagStr: peer.flagStr,
+  country: peer.country,
+});
+
+const normalizeTorrent = (torrent: TransmissionTorrent): TorrentEntity => ({
+  id: torrent.hashString,
+  hash: torrent.hashString,
+  name: torrent.name,
+  progress: torrent.percentDone,
+  state: normalizeStatus(torrent.status),
+  speed: {
+    down: torrent.rateDownload,
+    up: torrent.rateUpload,
+  },
+  peerSummary: {
+    connected: torrent.peersConnected,
+    total: torrent.peersConnected,
+    sending: torrent.peersSendingToUs,
+    getting: torrent.peersGettingFromUs,
+    seeds: torrent.seedsConnected,
+  },
+  totalSize: torrent.totalSize,
+  eta: torrent.eta,
+  queuePosition: torrent.queuePosition,
+  ratio: torrent.uploadRatio,
+  uploaded: torrent.uploadedEver,
+  downloaded: torrent.downloadedEver,
+  leftUntilDone: torrent.leftUntilDone,
+  sizeWhenDone: torrent.sizeWhenDone,
+  error: torrent.error,
+  errorString: torrent.errorString,
+  isFinished: torrent.isFinished,
+  sequentialDownload: torrent.sequentialDownload,
+  superSeeding: torrent.superSeeding,
+  added: torrent.dateAdded,
+  savePath: torrent.downloadDir,
+  rpcId: torrent.id,
+});
+
+const normalizeTorrentDetail = (detail: TransmissionTorrentDetail): TorrentDetailEntity => ({
+  ...normalizeTorrent(detail),
+  files: detail.files?.map(normalizeFile),
+  trackers: detail.trackers?.map(normalizeTracker),
+  peers: detail.peers?.map(normalizePeer),
+  pieceCount: detail.pieceCount,
+  pieceSize: detail.pieceSize,
+  pieceStates: detail.pieceStates,
+  pieceAvailability: detail.pieceAvailability,
+  downloadDir: detail.downloadDir,
+});
+
+export class TransmissionAdapter implements ITorrentClient {
   private endpoint: string;
   private sessionId?: string;
   private username: string;
   private password: string;
   private requestTimeout?: number;
+  private sessionSettingsCache?: TransmissionSessionSettings;
+  private engineInfoCache?: EngineInfo;
+  private idMap = new Map<string, number>();
 
   constructor(options?: { endpoint?: string; username?: string; password?: string; requestTimeout?: number }) {
     this.endpoint = options?.endpoint ?? DEFAULT_ENDPOINT;
@@ -139,26 +280,97 @@ export class TransmissionClient {
     await this.send<void>({ method, arguments: args });
   }
 
-  private normalizeIds(ids: number | number[]): number[] {
-    return Array.isArray(ids) ? ids : [ids];
+  private syncIdMap(torrents: TransmissionTorrent[]) {
+    const seen = new Set<string>();
+    torrents.forEach((torrent) => {
+      this.idMap.set(torrent.hashString, torrent.id);
+      seen.add(torrent.hashString);
+    });
+    for (const key of Array.from(this.idMap.keys())) {
+      if (!seen.has(key)) {
+        this.idMap.delete(key);
+      }
+    }
   }
 
-  private async queueOperation(method: string, ids: number | number[]) {
-    await this.mutate(method, { ids: this.normalizeIds(ids) });
+  private async refreshIdMap() {
+    const torrents = await this.fetchTransmissionTorrents();
+    this.syncIdMap(torrents);
+  }
+
+  private async resolveRpcId(id: string) {
+    const mapped = this.idMap.get(id);
+    if (mapped !== undefined) return mapped;
+    const parsed = Number(id);
+    if (!Number.isNaN(parsed)) {
+      return parsed;
+    }
+    try {
+      const torrent = await this.fetchTransmissionTorrentSummaryByIdentifier(id);
+      this.idMap.set(torrent.hashString, torrent.id);
+      return torrent.id;
+    } catch (error) {
+      if (error instanceof Error && !error.message.includes("not found")) {
+        throw error;
+      }
+      await this.refreshIdMap();
+      const refreshed = this.idMap.get(id);
+      if (refreshed !== undefined) return refreshed;
+      throw error instanceof Error ? error : new Error(`Torrent ${id} not found`);
+    }
+  }
+
+  private async resolveIds(ids: string[]) {
+    const resolved: number[] = [];
+    for (const id of ids) {
+      resolved.push(await this.resolveRpcId(id));
+    }
+    return resolved;
+  }
+
+  private async queueOperation(method: string, ids: number[]) {
+    await this.mutate(method, { ids });
   }
 
   public async handshake(): Promise<TransmissionSessionSettings> {
     const result = await this.send<TransmissionSessionSettings>({ method: "session-get" });
+    this.sessionSettingsCache = result.arguments;
+    this.engineInfoCache = undefined;
     return result.arguments;
   }
 
   public async fetchSessionSettings(): Promise<TransmissionSessionSettings> {
     const result = await this.send<TransmissionSessionSettings>({ method: "session-get" });
+    this.sessionSettingsCache = result.arguments;
     return result.arguments;
+  }
+
+  public async detectEngine(): Promise<EngineInfo> {
+    if (this.engineInfoCache) {
+      return this.engineInfoCache;
+    }
+    const settings = this.sessionSettingsCache ?? (await this.fetchSessionSettings());
+    const version = settings.version ?? (settings["rpc-version"] ? String(settings["rpc-version"]) : undefined);
+    const info: EngineInfo = {
+      type: "transmission",
+      name: "Transmission",
+      version,
+      capabilities: {
+        sequentialDownload: false,
+        superSeeding: false,
+        trackerReannounce: true,
+      },
+    };
+    this.engineInfoCache = info;
+    return info;
   }
 
   public async updateSessionSettings(settings: Partial<TransmissionSessionSettings>): Promise<void> {
     await this.send<void>({ method: "session-set", arguments: settings });
+    this.sessionSettingsCache = {
+      ...(this.sessionSettingsCache ?? {}),
+      ...settings,
+    };
   }
 
   public async testPort(): Promise<boolean> {
@@ -171,6 +383,17 @@ export class TransmissionClient {
     return result.arguments;
   }
 
+  public async getSessionStats(): Promise<SessionStats> {
+    const stats = await this.fetchSessionStats();
+    return {
+      downloadSpeed: stats.downloadSpeed,
+      uploadSpeed: stats.uploadSpeed,
+      torrentCount: stats.torrentCount,
+      activeTorrentCount: stats.activeTorrentCount,
+      pausedTorrentCount: stats.pausedTorrentCount,
+    };
+  }
+
   public async closeSession(): Promise<void> {
     await this.mutate("session-close");
   }
@@ -180,7 +403,7 @@ export class TransmissionClient {
     return result.arguments;
   }
 
-  public async fetchTorrents(): Promise<TransmissionTorrent[]> {
+  private async fetchTransmissionTorrents(): Promise<TransmissionTorrent[]> {
     const result = await this.send<TorrentGetResponse<TransmissionTorrent>>({
       method: "torrent-get",
       arguments: {
@@ -190,7 +413,22 @@ export class TransmissionClient {
     return result.arguments.torrents;
   }
 
-  public async fetchTorrentDetails(id: number): Promise<TransmissionTorrentDetail> {
+  private async fetchTransmissionTorrentSummaryByIdentifier(identifier: string | number): Promise<TransmissionTorrent> {
+    const result = await this.send<TorrentGetResponse<TransmissionTorrent>>({
+      method: "torrent-get",
+      arguments: {
+        fields: ["id", "hashString"],
+        ids: [identifier],
+      },
+    });
+    const [torrent] = result.arguments.torrents;
+    if (!torrent) {
+      throw new Error(`Torrent ${identifier} not found`);
+    }
+    return torrent;
+  }
+
+  private async fetchTransmissionTorrentDetails(id: number): Promise<TransmissionTorrentDetail> {
     const result = await this.send<TorrentGetResponse<TransmissionTorrentDetail>>({
       method: "torrent-get",
       arguments: {
@@ -205,46 +443,20 @@ export class TransmissionClient {
     return torrent;
   }
 
-  public async startTorrents(ids: number[], now = false): Promise<void> {
-    const method = now ? "torrent-start-now" : "torrent-start";
-    await this.mutate(method, { ids });
+  public async getTorrents(): Promise<TorrentEntity[]> {
+    const torrents = await this.fetchTransmissionTorrents();
+    this.syncIdMap(torrents);
+    return torrents.map(normalizeTorrent);
   }
 
-  public async stopTorrents(ids: number[]): Promise<void> {
-    await this.mutate("torrent-stop", { ids });
+  public async getTorrentDetails(id: string): Promise<TorrentDetailEntity> {
+    const rpcId = await this.resolveRpcId(id);
+    const detail = await this.fetchTransmissionTorrentDetails(rpcId);
+    this.idMap.set(detail.hashString, detail.id);
+    return normalizeTorrentDetail(detail);
   }
 
-  public async verifyTorrents(ids: number[]): Promise<void> {
-    await this.mutate("torrent-verify", { ids });
-  }
-
-  public async moveTorrentsToTop(ids: number | number[]): Promise<void> {
-    await this.queueOperation("queue-move-top", ids);
-  }
-
-  public async moveTorrentsUp(ids: number | number[]): Promise<void> {
-    await this.queueOperation("queue-move-up", ids);
-  }
-
-  public async moveTorrentsDown(ids: number | number[]): Promise<void> {
-    await this.queueOperation("queue-move-down", ids);
-  }
-
-  public async moveTorrentsToBottom(ids: number | number[]): Promise<void> {
-    await this.queueOperation("queue-move-bottom", ids);
-  }
-
-  public async removeTorrents(ids: number[], deleteData = false): Promise<void> {
-    await this.mutate("torrent-remove", { ids, "delete-local-data": deleteData });
-  }
-
-  public async addTorrent(payload: {
-    magnetLink?: string;
-    metainfo?: string;
-    downloadDir?: string;
-    paused?: boolean;
-    filesUnwanted?: number[];
-  }): Promise<TransmissionTorrent | null> {
+  public async addTorrent(payload: AddTorrentPayload): Promise<void> {
     const args: Record<string, unknown> = {
       "download-dir": payload.downloadDir,
       paused: payload.paused,
@@ -256,20 +468,86 @@ export class TransmissionClient {
     } else {
       throw new Error("No torrent source provided");
     }
-    const result = await this.send<AddTorrentResponse>({
+    await this.send<AddTorrentResponse>({
       method: "torrent-add",
       arguments: args,
     });
-    return result.arguments["torrent-added"] ?? result.arguments["torrent-duplicate"] ?? null;
   }
 
-  public async updateFileSelection(torrentId: number, indexes: number[], wanted: boolean): Promise<void> {
+  public async pause(ids: string[]): Promise<void> {
+    const rpcIds = await this.resolveIds(ids);
+    await this.stopTorrents(rpcIds);
+  }
+
+  public async resume(ids: string[]): Promise<void> {
+    const rpcIds = await this.resolveIds(ids);
+    await this.startTorrents(rpcIds);
+  }
+
+  public async verify(ids: string[]): Promise<void> {
+    const rpcIds = await this.resolveIds(ids);
+    await this.verifyTorrents(rpcIds);
+  }
+
+  public async moveToTop(ids: string[]): Promise<void> {
+    const rpcIds = await this.resolveIds(ids);
+    await this.queueOperation("queue-move-top", rpcIds);
+  }
+
+  public async moveUp(ids: string[]): Promise<void> {
+    const rpcIds = await this.resolveIds(ids);
+    await this.queueOperation("queue-move-up", rpcIds);
+  }
+
+  public async moveDown(ids: string[]): Promise<void> {
+    const rpcIds = await this.resolveIds(ids);
+    await this.queueOperation("queue-move-down", rpcIds);
+  }
+
+  public async moveToBottom(ids: string[]): Promise<void> {
+    const rpcIds = await this.resolveIds(ids);
+    await this.queueOperation("queue-move-bottom", rpcIds);
+  }
+
+  public async remove(ids: string[], deleteData = false): Promise<void> {
+    const rpcIds = await this.resolveIds(ids);
+    await this.mutate("torrent-remove", { ids: rpcIds, "delete-local-data": deleteData });
+    ids.forEach((id) => {
+      this.idMap.delete(id);
+    });
+  }
+
+  public async updateFileSelection(id: string, indexes: number[], wanted: boolean): Promise<void> {
     if (!indexes.length) return;
     const key = wanted ? "files-wanted" : "files-unwanted";
+    const rpcId = await this.resolveRpcId(id);
     await this.mutate("torrent-set", {
-      ids: [torrentId],
+      ids: [rpcId],
       [key]: indexes,
     });
+  }
+
+  public async forceTrackerReannounce(id: string): Promise<void> {
+    const rpcId = await this.resolveRpcId(id);
+    await this.send<void>({
+      method: "torrent-reannounce",
+      arguments: {
+        ids: [rpcId],
+      },
+    });
+  }
+
+  public async startTorrents(ids: number[], now = false): Promise<void> {
+    const method = now ? "torrent-start-now" : "torrent-start";
+    await this.mutate(method, { ids });
+  }
+
+  public async stopTorrents(ids: number[]): Promise<void> {
+    await this.mutate("torrent-stop", { ids });
+  }
+
+  public async verifyTorrents(ids: number[]): Promise<void> {
+    await this.mutate("torrent-verify", { ids });
   }
 
   public async renameTorrentPath(id: number, path: string, name: string): Promise<TransmissionTorrentRenameResult> {
@@ -286,7 +564,7 @@ export class TransmissionClient {
 
   public async setTorrentLocation(ids: number | number[], location: string, moveData = true): Promise<void> {
     await this.mutate("torrent-set-location", {
-      ids: this.normalizeIds(ids),
+      ids: Array.isArray(ids) ? ids : [ids],
       location,
       move: moveData,
     });

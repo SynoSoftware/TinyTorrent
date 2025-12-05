@@ -8,17 +8,23 @@ import { Button } from "@heroui/react";
 import { useTransmissionSession, type RpcStatus } from "../core/hooks/useTransmissionSession";
 import { usePerformanceHistory } from "../core/hooks/usePerformanceHistory";
 import { useTorrentData } from "../features/dashboard/hooks/useTorrentData";
+import { useTorrentClient } from "../core/client-context";
 import { TorrentDetailModal } from "../features/dashboard/components/TorrentDetailModal";
 import { TorrentTable, type TorrentTableAction } from "../features/dashboard/components/TorrentTable";
 import { AddTorrentModal } from "../features/torrent-add/components/AddTorrentModal";
 import { SettingsModal } from "../features/settings/components/SettingsModal";
-import { normalizeTorrentDetail } from "../features/dashboard/types/torrent";
 import type { Torrent, TorrentDetail } from "../features/dashboard/types/torrent";
 import { DEFAULT_SETTINGS_CONFIG, type SettingsConfig } from "../features/settings/data/config";
+import { useTorrentDetail } from "../features/dashboard/hooks/useTorrentDetail";
+import { useDetailControls } from "../features/dashboard/hooks/useDetailControls";
+import { useTorrentActions } from "../features/dashboard/hooks/useTorrentActions";
 import constants from "../config/constants.json";
 import type { TransmissionSessionSettings } from "../core/types";
 import { Navbar } from "../shared/ui/layout/Navbar";
 import { StatusBar } from "../shared/ui/layout/StatusBar";
+import type { SessionStats } from "../core/domain/entities";
+import { useWorkspaceModals } from "./workspace-modal-context";
+import { useWorkspaceHeartbeat } from "./hooks/useWorkspaceHeartbeat";
 
 const padTime = (value: number) => String(value).padStart(2, "0");
 
@@ -138,45 +144,34 @@ const mapConfigToSession = (config: SettingsConfig): Partial<TransmissionSession
 
 export default function App() {
   const { t } = useTranslation();
-  const { client, rpcStatus, reconnect, refreshSessionSettings, reportRpcStatus, updateRequestTimeout } =
-    useTransmissionSession();
+  const torrentClient = useTorrentClient();
+  const {
+    rpcStatus,
+    reconnect,
+    refreshSessionSettings,
+    reportRpcStatus,
+    updateRequestTimeout,
+    engineInfo,
+    isDetectingEngine,
+  } = useTransmissionSession(torrentClient);
   const { downHistory, upHistory } = usePerformanceHistory();
 
   const [filter, setFilter] = useState("all");
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [detailData, setDetailData] = useState<TorrentDetail | null>(null);
-  const detailRequestRef = useRef(0);
+  const { isAddModalOpen, openAddModal, closeAddModal, isSettingsOpen, openSettings, closeSettings } =
+    useWorkspaceModals();
   const isMountedRef = useRef(false);
-  const loadDetail = useCallback(
-    async (torrentId: number, placeholder?: TorrentDetail) => {
-      const requestId = ++detailRequestRef.current;
-      if (placeholder) {
-        setDetailData(placeholder);
-      }
-      try {
-        const detail = normalizeTorrentDetail(await client.fetchTorrentDetails(torrentId));
-        if (detailRequestRef.current !== requestId) return;
-        setDetailData(detail);
-      } catch {
-        if (detailRequestRef.current !== requestId) return;
-        if (isMountedRef.current) {
-          reportRpcStatus("error");
-        }
-      }
-    },
-    [client, reportRpcStatus]
-  );
-  const refreshDetailData = useCallback(async () => {
-    if (!detailData) return;
-    await loadDetail(detailData.id);
-  }, [detailData, loadDetail]);
+  const { detailData, loadDetail, refreshDetailData, clearDetail, mutateDetail } = useTorrentDetail({
+    torrentClient,
+    reportRpcStatus,
+    isMountedRef,
+  });
   const [settingsConfig, setSettingsConfig] = useState<SettingsConfig>(() =>
     mergeWithUserPreferences({ ...DEFAULT_SETTINGS_CONFIG })
   );
   const [isSettingsSaving, setIsSettingsSaving] = useState(false);
   const [isAddingTorrent, setIsAddingTorrent] = useState(false);
   const [pendingTorrentFile, setPendingTorrentFile] = useState<File | null>(null);
+  const [sessionStats, setSessionStats] = useState<SessionStats | null>(null);
 
   const sessionReady = rpcStatus === "connected";
   const pollingIntervalMs = Math.max(1000, settingsConfig.refresh_interval_ms);
@@ -187,11 +182,54 @@ export default function App() {
     [reportRpcStatus]
   );
   const { torrents, isInitialLoadFinished, refresh: refreshTorrents, queueActions } = useTorrentData({
-    client,
+    client: torrentClient,
     sessionReady,
     pollingIntervalMs,
+    autoRefresh: false,
     onRpcStatusChange: handleRpcStatusChange,
   });
+
+  const refreshSessionStatsData = useCallback(async () => {
+    try {
+      const stats = await torrentClient.getSessionStats();
+      if (isMountedRef.current) {
+        setSessionStats(stats);
+      }
+    } catch {
+      if (isMountedRef.current) {
+        reportRpcStatus("error");
+      }
+    }
+  }, [reportRpcStatus, torrentClient]);
+
+  const {
+    handleFileSelectionChange,
+    handleSequentialToggle,
+    handleSuperSeedingToggle,
+    handleForceTrackerReannounce,
+  } = useDetailControls({
+    detailData,
+    torrentClient,
+    refreshTorrents,
+    refreshDetailData,
+    refreshSessionStatsData,
+    reportRpcStatus,
+    isMountedRef,
+    mutateDetail,
+  });
+
+  const sequentialMethodAvailable = Boolean(torrentClient.setSequentialDownload);
+  const superSeedingMethodAvailable = Boolean(torrentClient.setSuperSeeding);
+  const sequentialSupported =
+    engineInfo !== null
+      ? Boolean(engineInfo.capabilities.sequentialDownload) && sequentialMethodAvailable
+      : sequentialMethodAvailable;
+  const superSeedingSupported =
+    engineInfo !== null
+      ? Boolean(engineInfo.capabilities.superSeeding) && superSeedingMethodAvailable
+      : superSeedingMethodAvailable;
+  const sequentialToggleHandler = sequentialSupported ? handleSequentialToggle : undefined;
+  const superSeedingToggleHandler = superSeedingSupported ? handleSuperSeedingToggle : undefined;
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -204,54 +242,26 @@ export default function App() {
     reconnect();
   };
 
+  const { handleTorrentAction: executeTorrentAction } = useTorrentActions({
+    torrentClient,
+    queueActions,
+    refreshTorrents,
+    refreshDetailData,
+    refreshSessionStatsData,
+    reportRpcStatus,
+    isMountedRef,
+  });
+
   const handleTorrentAction = useCallback(
     async (action: TorrentTableAction, torrent: Torrent) => {
-      try {
-        if (action === "pause") {
-          await client.stopTorrents([torrent.id]);
-        } else if (action === "resume") {
-          await client.startTorrents([torrent.id]);
-        } else if (action === "recheck") {
-          await client.verifyTorrents([torrent.id]);
-        } else if (action === "remove") {
-          const deleteData = window.confirm(t("table.actions.confirm_delete_data"));
-          await client.removeTorrents([torrent.id], deleteData);
-        } else if (action === "remove-with-data") {
-          await client.removeTorrents([torrent.id], true);
-        } else if (action === "queue-move-top") {
-          await queueActions.moveToTop([torrent.id]);
-        } else if (action === "queue-move-up") {
-          await queueActions.moveUp([torrent.id]);
-        } else if (action === "queue-move-down") {
-          await queueActions.moveDown([torrent.id]);
-        } else if (action === "queue-move-bottom") {
-          await queueActions.moveToBottom([torrent.id]);
-        }
-        await refreshTorrents();
-        await refreshDetailData();
-      } catch {
-        if (isMountedRef.current) {
-          reportRpcStatus("error");
-        }
+      if (action === "remove") {
+        const deleteData = window.confirm(t("table.actions.confirm_delete_data"));
+        await executeTorrentAction(action, torrent, { deleteData });
+        return;
       }
+      await executeTorrentAction(action, torrent);
     },
-    [client, refreshTorrents, reportRpcStatus, t, refreshDetailData]
-  );
-
-  const handleFileSelectionChange = useCallback(
-    async (indexes: number[], wanted: boolean) => {
-      if (!detailData) return;
-      try {
-        await client.updateFileSelection(detailData.id, indexes, wanted);
-        await refreshTorrents();
-        await refreshDetailData();
-      } catch {
-        if (isMountedRef.current) {
-          reportRpcStatus("error");
-        }
-      }
-    },
-    [client, detailData, refreshTorrents, reportRpcStatus, refreshDetailData]
+    [executeTorrentAction, t]
   );
 
   const handleRequestDetails = useCallback(
@@ -265,8 +275,7 @@ export default function App() {
   );
 
   const closeDetail = () => {
-    detailRequestRef.current += 1;
-    setDetailData(null);
+    clearDetail();
   };
 
   const handleAddTorrent = useCallback(
@@ -279,7 +288,7 @@ export default function App() {
     }) => {
       setIsAddingTorrent(true);
       try {
-        await client.addTorrent({
+        await torrentClient.addTorrent({
           magnetLink: payload.magnetLink,
           metainfo: payload.metainfo,
           downloadDir: payload.downloadDir,
@@ -287,6 +296,7 @@ export default function App() {
           filesUnwanted: payload.filesUnwanted,
         });
         await refreshTorrents();
+        await refreshSessionStatsData();
       } catch {
         if (isMountedRef.current) {
           reportRpcStatus("error");
@@ -296,23 +306,27 @@ export default function App() {
         setIsAddingTorrent(false);
       }
     },
-    [client, refreshTorrents, reportRpcStatus]
+    [refreshSessionStatsData, torrentClient, refreshTorrents, reportRpcStatus]
   );
 
   const handleAddModalClose = useCallback(() => {
-    setIsAddModalOpen(false);
+    closeAddModal();
     setPendingTorrentFile(null);
-  }, []);
+  }, [closeAddModal]);
 
   const handleSaveSettings = useCallback(
     async (config: SettingsConfig) => {
       setIsSettingsSaving(true);
       try {
-        await client.updateSessionSettings(mapConfigToSession(config));
+        if (!torrentClient.updateSessionSettings) {
+          throw new Error("Session settings not supported by this client");
+        }
+        await torrentClient.updateSessionSettings(mapConfigToSession(config));
         if (isMountedRef.current) {
           setSettingsConfig(config);
           persistUserPreferences(config);
           await refreshTorrents();
+          await refreshSessionStatsData();
         }
       } catch {
         if (isMountedRef.current) {
@@ -325,18 +339,32 @@ export default function App() {
         }
       }
     },
-    [client, refreshTorrents, reportRpcStatus]
+    [refreshSessionStatsData, torrentClient, refreshTorrents, reportRpcStatus]
   );
+
+  const detailId = detailData?.id;
 
   const handleTestPort = useCallback(async () => {
     try {
-      await client.testPort();
+      if (!torrentClient.testPort) {
+        throw new Error("Port test not supported");
+      }
+      await torrentClient.testPort();
     } catch {
       if (isMountedRef.current) {
         reportRpcStatus("error");
       }
     }
-  }, [client, reportRpcStatus]);
+  }, [torrentClient, reportRpcStatus]);
+
+  useWorkspaceHeartbeat({
+    sessionReady,
+    pollingIntervalMs,
+    refreshTorrents,
+    refreshSessionStatsData,
+    refreshDetailData,
+    detailId,
+  });
 
   useEffect(() => {
     updateRequestTimeout(settingsConfig.request_timeout_ms);
@@ -363,16 +391,17 @@ export default function App() {
     };
   }, [isSettingsOpen, refreshSessionSettings, reportRpcStatus]);
 
-  const globalDown = downHistory[downHistory.length - 1] ?? 0;
-  const globalUp = upHistory[upHistory.length - 1] ?? 0;
   const isTableLoading = !isInitialLoadFinished;
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    if (acceptedFiles.length) {
-      setPendingTorrentFile(acceptedFiles[0]);
-    }
-    setIsAddModalOpen(true);
-  }, []);
+  const onDrop = useCallback(
+    (acceptedFiles: File[]) => {
+      if (acceptedFiles.length) {
+        setPendingTorrentFile(acceptedFiles[0]);
+      }
+      openAddModal();
+    },
+    [openAddModal]
+  );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -428,8 +457,8 @@ export default function App() {
       <Navbar
         filter={filter}
         setFilter={setFilter}
-        onAdd={() => setIsAddModalOpen(true)}
-        onSettings={() => setIsSettingsOpen(true)}
+        onAdd={() => openAddModal()}
+        onSettings={() => openSettings()}
       />
 
       <main className="flex-1 relative overflow-hidden flex flex-col z-10">
@@ -443,30 +472,36 @@ export default function App() {
       </main>
 
       <StatusBar
-        downSpeed={globalDown}
-        upSpeed={globalUp}
+        sessionStats={sessionStats}
         downHistory={downHistory}
         upHistory={upHistory}
         rpcStatus={rpcStatus}
+        engineInfo={engineInfo}
+        isDetectingEngine={isDetectingEngine}
       />
 
-      <TorrentDetailModal
-        torrent={detailData}
-        isOpen={Boolean(detailData)}
-        onClose={closeDetail}
-        onFilesToggle={handleFileSelectionChange}
-      />
+        <TorrentDetailModal
+          torrent={detailData}
+          isOpen={Boolean(detailData)}
+          onClose={closeDetail}
+          onFilesToggle={handleFileSelectionChange}
+          onSequentialToggle={sequentialToggleHandler}
+          onSuperSeedingToggle={superSeedingToggleHandler}
+          onForceTrackerReannounce={handleForceTrackerReannounce}
+          sequentialSupported={sequentialSupported}
+          superSeedingSupported={superSeedingSupported}
+        />
       <AddTorrentModal
         isOpen={isAddModalOpen}
         onClose={handleAddModalClose}
         initialFile={pendingTorrentFile}
         onAdd={handleAddTorrent}
         isSubmitting={isAddingTorrent}
-        getFreeSpace={client.checkFreeSpace}
+        getFreeSpace={torrentClient.checkFreeSpace}
       />
       <SettingsModal
         isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
+        onClose={closeSettings}
         initialConfig={settingsConfig}
         isSaving={isSettingsSaving}
         onSave={handleSaveSettings}

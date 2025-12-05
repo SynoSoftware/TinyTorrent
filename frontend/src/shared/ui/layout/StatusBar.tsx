@@ -2,25 +2,45 @@ import { ArrowDown, ArrowUp, Network } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { formatSpeed } from "../../utils/format";
 import { NetworkGraph } from "../graphs/NetworkGraph";
+import type { SessionStats, EngineInfo } from "../../../core/domain/entities";
 
 type RpcStatus = "idle" | "connected" | "error";
 
 interface StatusBarProps {
-  downSpeed: number;
-  upSpeed: number;
+  sessionStats: SessionStats | null;
   downHistory: number[];
   upHistory: number[];
   rpcStatus: RpcStatus;
+  engineInfo: EngineInfo | null;
+  isDetectingEngine: boolean;
 }
 
-export function StatusBar({ downSpeed, upSpeed, downHistory, upHistory, rpcStatus }: StatusBarProps) {
+export function StatusBar({
+  sessionStats,
+  downHistory,
+  upHistory,
+  rpcStatus,
+  engineInfo,
+  isDetectingEngine,
+}: StatusBarProps) {
   const { t } = useTranslation();
   const statusLabel = {
     idle: t("status_bar.rpc_idle"),
     connected: t("status_bar.rpc_connected"),
     error: t("status_bar.rpc_error"),
   }[rpcStatus];
+  const engineName = engineInfo ? engineInfo.name ?? engineInfo.type : null;
+  const engineLabel = engineName
+    ? `${engineName}${engineInfo?.version ? ` ${engineInfo.version}` : ""}`
+    : isDetectingEngine
+    ? t("status_bar.engine_detecting")
+    : t("status_bar.engine_unknown");
   const statusColor = rpcStatus === "connected" ? "text-success" : rpcStatus === "error" ? "text-danger" : "text-foreground/50";
+  const downSpeed = sessionStats?.downloadSpeed ?? 0;
+  const upSpeed = sessionStats?.uploadSpeed ?? 0;
+  const torrentSummary = sessionStats
+    ? `${sessionStats.activeTorrentCount}/${sessionStats.torrentCount} active`
+    : "Loading stats...";
 
   return (
     <footer className="z-20 flex flex-col border-t border-content1/20 bg-content1/70 backdrop-blur-xl text-[10px] font-mono select-none">
@@ -53,6 +73,7 @@ export function StatusBar({ downSpeed, upSpeed, downHistory, upHistory, rpcStatu
           </div>
         </div>
         <div className="hidden flex-col items-end gap-1 sm:flex">
+          <div className="text-xs text-foreground/50">{torrentSummary}</div>
           <div className="flex items-center gap-1.5 text-foreground/40">
             <Network size={12} />
             <span>{t("status_bar.dht_nodes", { count: 342 })}</span>
@@ -60,6 +81,10 @@ export function StatusBar({ downSpeed, upSpeed, downHistory, upHistory, rpcStatu
           <div className="flex items-center gap-1.5">
             <div className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
             <span className="text-[10px] uppercase tracking-[0.3em] text-foreground/60">{t("status_bar.online")}</span>
+          </div>
+          <div className="flex flex-col gap-0.5 items-end">
+            <span className="text-[10px] uppercase tracking-[0.3em] text-foreground/40">{t("status_bar.engine")}</span>
+            <span className="text-[11px] font-mono text-foreground/50">{engineLabel}</span>
           </div>
         </div>
       </div>

@@ -28,7 +28,6 @@ TinyTorrent = **modern µTorrent** × **glass UI** × **Apple/Linear polish**.
 - **Drag & Drop:** react-dropzone (full-window detection)
 - **Icons:** Lucide (tree-shaken)
 - **State:** React Hooks; Zustand only when necessary
-- **Backend:** Transmission RPC via Fetch
 - **Routing:** Only if strictly required
 
 ---
@@ -185,18 +184,49 @@ This matches the interaction model you demonstrated:
 
 ---
 
-# **6. RPC Layer (Abstract)**
+# **6. RPC Layer (Unified Engine Interface)**
 
-Rules only — **no fixed intervals, no fixed behaviour**.
+TinyTorrent operates on a **single abstract RPC interface** called `EngineAdapter`.
+This interface defines the **common protocol** used by the UI, hooks, and state layer — independent of the underlying torrent engine.
 
-- A proper handshake: handle Transmission’s CSRF token requirement gracefully.
-- A polling mechanism exists — internal frequency/config is up to your later implementation.
-- Request lightweight fields in the update loop; request heavy static fields only when needed.
-- Avoid unnecessary rerenders.
-- Strict typing for all RPC responses.
-- Errors must be silent, recoverable, and non-blocking.
+### **Design Rules**
 
-No magic numbers. No configuration decisions.
+- **Transmission = baseline canonical protocol.**
+  All mandatory fields, command semantics, and update flows are defined according to Transmission’s RPC model.
+
+- **Libtorrent = extension layer (future).**
+  Libtorrent support will implement the same `EngineAdapter` interface,
+  extending it only when libtorrent exposes capabilities beyond the Transmission baseline.
+
+- **No engine-specific logic in UI or features.**
+  Every component must consume **only the EngineAdapter interface**, never raw RPC shapes.
+
+- **One adapter active at runtime.**
+  Selection handled at startup or settings page.
+
+- **Typed reality.**
+  Transmission types define the canonical DTOs.
+  Libtorrent adapter must conform to them and provide extended structures through explicit extension models — never by mutating the baseline DTOs.
+
+### **EngineAdapter Responsibilities**
+
+These methods exist **abstractly**; their internal implementation depends on the engine:
+
+- handshake / session initialization
+- fetch session stats
+- fetch torrent list (delta-friendly)
+- fetch single torrent details (piece map, files, trackers, peers)
+- add torrent (magnet / file)
+- start / pause / delete
+- update subscription (polling)
+- error reporting (non-blocking, recoverable)
+
+### **Principles**
+
+- **UI never sees engine-specific fields.**
+- **Adapters must translate engine responses into canonical Transmission-shaped DTOs.**
+- **Extensions must be explicit, namespaced, and optional.**
+- **Adapters must be hot-swappable with zero UI changes.**
 
 ---
 
@@ -243,18 +273,34 @@ No magic numbers. No configuration decisions.
 
 ## **10. UX Excellence Directive (Highest Priority)**
 
-All Agents must operate as **world-class tool-UI designers**, not app designers.
-TinyTorrent must deliver:
+All Agents must operate as **world-class tool-UI designers**, capable of bridging two eras of design.
+TinyTorrent must deliver **Adaptive Excellence**:
 
-- **jaw-dropping visual polish**
-- **dense, professional, tooling-grade ergonomics**
-- **deeply interactive component choreography**
-- **workspace-style interactions everywhere they make sense**
-- **motion-driven clarity and responsiveness**
-- **zero friction and zero cognitive load**
+- **Dual-Mode Supremacy:**
 
-Simplicity of presentation —
-**not** simplicity of capability.
+  - **Modern Mode (Default):** Immersive, fluid, glass-morphism, modal-driven, "Apple/Linear" polish.
+  - **Classic Mode:** High-density, opaque, split-pane, rigid 1px borders, "Industrial/Pro" precision.
+
+- **Context-Aware Visuals:**
+
+  - Components must adapt their rendering style to the container.
+  - _Example:_ A Speed Graph renders as a smooth **Bezier curve** in Modern Mode, but as a precise **Stepped Line** in Classic Mode.
+  - _Example:_ Metadata renders as **Floating Cards** in Modern Mode, but as a **Dense Key-Value Grid** in Classic Mode.
+
+- **Interaction Choreography:**
+
+  - **Modern:** Motion-driven structure (smooth expands, floating transitions).
+  - **Classic:** Instant response (zero-latency switching, snap-to-grid, click-to-view).
+
+- **Tooling-Grade Ergonomics:**
+  - Regardless of mode, the tool must feel "heavy" and precise.
+  - No wasted space in Classic mode.
+  - No visual clutter in Modern mode.
+
+**Simplicity of presentation — not simplicity of capability.**
+**Respect the Muscle Memory of the veteran, but deliver the Fluidity of the future.**
+
+---
 
 ## **11. Architectural Principles (Mandatory)**
 

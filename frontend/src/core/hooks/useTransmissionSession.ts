@@ -1,11 +1,11 @@
-import { useMemo, useState, useEffect, useCallback, useRef } from "react";
-import { TransmissionClient } from "../rpc-client";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { TransmissionSessionSettings } from "../types";
-
-export type RpcStatus = "idle" | "connected" | "error";
+import type { EngineInfo } from "../domain/entities";
+import type { ITorrentClient } from "../domain/client.interface";
+import { useRpcConnection, type RpcStatus } from "./useRpcConnection";
 
 type UseTransmissionSessionResult = {
-  client: TransmissionClient;
+  client: ITorrentClient;
   rpcStatus: RpcStatus;
   isReady: boolean;
   reconnect: () => void;
@@ -13,56 +13,30 @@ type UseTransmissionSessionResult = {
   refreshSessionSettings: () => Promise<TransmissionSessionSettings>;
   reportRpcStatus: (status: RpcStatus) => void;
   updateRequestTimeout: (timeout: number) => void;
+  engineInfo: EngineInfo | null;
+  isDetectingEngine: boolean;
 };
 
-export function useTransmissionSession(): UseTransmissionSessionResult {
-  const client = useMemo(
-    () =>
-      new TransmissionClient({
-        username: import.meta.env.VITE_RPC_USERNAME ?? "",
-        password: import.meta.env.VITE_RPC_PASSWORD ?? "",
-      }),
-    []
-  );
-  const [rpcStatus, setRpcStatus] = useState<RpcStatus>("idle");
-  const [isReady, setIsReady] = useState(false);
+export { type RpcStatus } from "./useRpcConnection";
+
+export function useTransmissionSession(client: ITorrentClient): UseTransmissionSessionResult {
+  const { rpcStatus, isReady, reconnect, reportRpcStatus } = useRpcConnection(client);
   const [sessionSettings, setSessionSettings] = useState<TransmissionSessionSettings | null>(null);
+  const [engineInfo, setEngineInfo] = useState<EngineInfo | null>(null);
+  const [isDetectingEngine, setIsDetectingEngine] = useState(false);
   const isMountedRef = useRef(false);
-
-  const updateStatus = useCallback((next: RpcStatus) => {
-    if (isMountedRef.current) {
-      setRpcStatus(next);
-    }
-  }, []);
-
-  const handshake = useCallback(async () => {
-    setIsReady(false);
-    updateStatus("idle");
-    try {
-      await client.handshake();
-      updateStatus("connected");
-    } catch {
-      updateStatus("error");
-    } finally {
-      if (isMountedRef.current) {
-        setIsReady(true);
-      }
-    }
-  }, [client, updateStatus]);
 
   useEffect(() => {
     isMountedRef.current = true;
-    void handshake();
     return () => {
       isMountedRef.current = false;
     };
-  }, [handshake]);
-
-  const reconnect = useCallback(() => {
-    void handshake();
-  }, [handshake]);
+  }, []);
 
   const refreshSessionSettings = useCallback(async () => {
+    if (!client.fetchSessionSettings) {
+      throw new Error("Session settings not supported by the torrent client");
+    }
     try {
       const session = await client.fetchSessionSettings();
       if (isMountedRef.current) {
@@ -70,24 +44,46 @@ export function useTransmissionSession(): UseTransmissionSessionResult {
       }
       return session;
     } catch (error) {
-      updateStatus("error");
+      reportRpcStatus("error");
       throw error;
     }
-  }, [client, updateStatus]);
-
-  const reportRpcStatus = useCallback(
-    (status: RpcStatus) => {
-      updateStatus(status);
-    },
-    [updateStatus]
-  );
+  }, [client, reportRpcStatus]);
 
   const updateRequestTimeout = useCallback(
     (timeout: number) => {
-      client.updateRequestTimeout(timeout);
+      client.updateRequestTimeout?.(timeout);
     },
     [client]
   );
+
+  useEffect(() => {
+    let active = true;
+    if (!client.detectEngine || rpcStatus !== "connected") {
+      if (active) {
+        setEngineInfo(null);
+        setIsDetectingEngine(false);
+      }
+      return;
+    }
+    setIsDetectingEngine(true);
+    void client
+      .detectEngine()
+      .then((info) => {
+        if (!active) return;
+        setEngineInfo(info);
+      })
+      .catch(() => {
+        if (!active) return;
+        setEngineInfo(null);
+      })
+      .finally(() => {
+        if (!active) return;
+        setIsDetectingEngine(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [client, rpcStatus]);
 
   return {
     client,
@@ -98,5 +94,7 @@ export function useTransmissionSession(): UseTransmissionSessionResult {
     refreshSessionSettings,
     reportRpcStatus,
     updateRequestTimeout,
+    engineInfo,
+    isDetectingEngine,
   };
 }

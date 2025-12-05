@@ -23,7 +23,8 @@
             "title": "Disk Space",
             "torrent": "Torrent",
             "updating": "Refreshing...",
-            "used": "Used"
+            "used": "Used",
+            "insufficient": "Not enough disk space to download this torrent."
         },
         "disk_gauge_error": "Unable to refresh disk usage.",
         "download": "Download",
@@ -150,6 +151,9 @@
         "rpc_error": "Offline",
         "rpc_idle": "Initializing",
         "rpc_status": "RPC",
+        "engine": "Engine",
+        "engine_detecting": "Detecting engine...",
+        "engine_unknown": "Unknown engine",
         "up": "UP"
     },
     "table": {
@@ -201,7 +205,8 @@
         "select_item": "Select {{name}}",
         "status_dl": "DL",
         "status_pause": "PAUSE",
-        "status_seed": "SEED"
+        "status_seed": "SEED",
+        "status_queued": "WAIT"
     },
     "theme": {
         "dark": "Dark",
@@ -220,6 +225,16 @@
         "files_description": "Toggle files on/off to control what downloads.",
         "files_empty": "No files are available.",
         "files_title": "Contents",
+        "controls": {
+            "title": "Power User Modes",
+            "description": "Toggle advanced streaming and seeding behaviors when supported.",
+            "sequential": "Sequential Download",
+            "sequential_helper": "Download pieces in order for instant playback.",
+            "super_seeding": "Super Seeding",
+            "super_seeding_helper": "Upload rare pieces to seed the swarm.",
+            "force_reannounce": "Force Tracker Reannounce",
+            "not_supported": "Not supported by this client"
+        },
         "general": {
             "download": "Download",
             "eta": "ETA",
@@ -253,7 +268,8 @@
             "status_downloading": "Downloading",
             "status_error": "Error",
             "status_paused": "Paused",
-            "status_seeding": "Seeding"
+            "status_seeding": "Seeding",
+            "status_queued": "Queued"
         },
         "tabs": {
             "content": "Content",
@@ -264,6 +280,17 @@
             "trackers": "Trackers"
         },
         "title": "Torrent Details",
+        "availability": {
+            "label": "Piece Availability",
+            "legend_rare": "Rare",
+            "legend_common": "Common",
+            "tooltip": "Piece {{piece}} · {{peers}} peers",
+            "empty": "Availability data not available."
+        },
+        "peer_map": {
+            "title": "Peer Map",
+            "total": "{{count}} peers on swarm"
+        },
         "trackers": {
             "last_announce": "Last Announce",
             "status_online": "Online",

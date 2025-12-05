@@ -45,16 +45,17 @@ export interface ColumnDefinition {
 type StatusColor = "success" | "default" | "primary" | "secondary" | "warning" | "danger";
 
 const ratioValue = (torrent: Torrent) => {
-  if (typeof torrent.uploadRatio === "number") return torrent.uploadRatio;
-  if (torrent.downloadedEver > 0) return torrent.uploadedEver / torrent.downloadedEver;
-  return torrent.uploadedEver === 0 ? 0 : torrent.uploadedEver;
+  if (typeof torrent.ratio === "number") return torrent.ratio;
+  if (torrent.downloaded > 0) return torrent.uploaded / torrent.downloaded;
+  return torrent.uploaded === 0 ? 0 : torrent.uploaded;
 };
 
-const statusMap: Record<Torrent["status"], { color: StatusColor; icon: typeof ArrowDown | typeof ArrowUp | typeof Pause; labelKey: string }> = {
+const statusMap: Record<Torrent["state"], { color: StatusColor; icon: typeof ArrowDown | typeof ArrowUp | typeof Pause; labelKey: string }> = {
   downloading: { color: "success", icon: ArrowDown, labelKey: "table.status_dl" },
   seeding: { color: "primary", icon: ArrowUp, labelKey: "table.status_seed" },
   paused: { color: "warning", icon: Pause, labelKey: "table.status_pause" },
   checking: { color: "warning", icon: Pause, labelKey: "torrent_modal.statuses.status_checking" },
+  queued: { color: "warning", icon: Pause, labelKey: "table.status_queued" },
   error: { color: "danger", icon: Pause, labelKey: "torrent_modal.statuses.status_error" },
 };
 
@@ -81,12 +82,12 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
     sortAccessor: (torrent) => torrent.name,
     render: ({ torrent, t }) => (
       <div className="flex flex-col gap-0.5 min-w-0">
-        <span className={cn("font-medium text-sm truncate max-w-md transition-colors", torrent.status === "paused" && "text-foreground/50")}>
+        <span className={cn("font-medium text-sm truncate max-w-md transition-colors", torrent.state === "paused" && "text-foreground/50")}>
           {torrent.name}
         </span>
-        {torrent.status === "downloading" && (
+        {torrent.state === "downloading" && (
           <div className="flex items-center gap-2 text-[10px] font-mono text-foreground/50 tracking-tight">
-            <span className="text-success">{formatSpeed(torrent.rateDownload)}</span>
+            <span className="text-success">{formatSpeed(torrent.speed.down)}</span>
             <span className="w-0.5 h-0.5 rounded-full bg-foreground/30" />
             <span>{t("table.eta", { time: formatTime(torrent.eta) })}</span>
           </div>
@@ -100,26 +101,26 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
     width: 220,
     minSize: 110,
     sortable: true,
-    rpcField: "percentDone",
+    rpcField: "progress",
     defaultVisible: true,
-    sortAccessor: (torrent) => torrent.percentDone,
+    sortAccessor: (torrent) => torrent.progress,
     render: ({ torrent }) => (
       <div className="flex flex-col gap-1.5 w-full min-w-0">
         <div className="flex justify-between items-end text-[10px] font-mono font-medium opacity-80 tabular-nums">
-          <span>{(torrent.percentDone * 100).toFixed(1)}%</span>
-          <span className="text-foreground/40">{formatBytes(torrent.totalSize * torrent.percentDone)}</span>
+          <span>{(torrent.progress * 100).toFixed(1)}%</span>
+          <span className="text-foreground/40">{formatBytes(torrent.totalSize * torrent.progress)}</span>
         </div>
         <Progress
           size="sm"
           radius="full"
-          value={torrent.percentDone * 100}
+          value={torrent.progress * 100}
           classNames={{
             track: "h-1 bg-content1/20",
             indicator: cn(
               "h-1",
-              torrent.status === "paused"
+              torrent.state === "paused"
                 ? "bg-gradient-to-r from-warning/50 to-warning"
-                : torrent.status === "seeding"
+                : torrent.state === "seeding"
                 ? "bg-gradient-to-r from-primary/50 to-primary"
                 : "bg-gradient-to-r from-success/50 to-success"
             ),
@@ -134,11 +135,11 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
     width: 110,
     minSize: 95,
     sortable: true,
-    rpcField: "status",
+    rpcField: "state",
     defaultVisible: true,
-    sortAccessor: (torrent) => torrent.status,
+    sortAccessor: (torrent) => torrent.state,
     render: ({ torrent, t }) => {
-      const conf = statusMap[torrent.status] ?? { color: "default", icon: Pause, labelKey: "torrent_modal.statuses.status_error" };
+      const conf = statusMap[torrent.state] ?? { color: "default", icon: Pause, labelKey: "torrent_modal.statuses.status_error" };
       const Icon = conf.icon;
       return (
         <div className="min-w-0">
@@ -193,16 +194,15 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
     width: 120,
     align: "end",
     sortable: true,
-    rpcField: "rateDownload",
     defaultVisible: true,
     descriptionKey: "table.column_desc_speed",
-    sortAccessor: (torrent) => (torrent.status === "seeding" ? torrent.rateUpload : torrent.rateDownload),
+    sortAccessor: (torrent) => (torrent.state === "seeding" ? torrent.speed.up : torrent.speed.down),
     render: ({ torrent }) => (
       <div className="font-mono text-xs tabular-nums text-right min-w-0">
-        {torrent.status === "downloading" ? (
-          <span className="text-success font-medium">{formatSpeed(torrent.rateDownload)}</span>
-        ) : torrent.status === "seeding" ? (
-          <span className="text-primary font-medium">{formatSpeed(torrent.rateUpload)}</span>
+        {torrent.state === "downloading" ? (
+          <span className="text-success font-medium">{formatSpeed(torrent.speed.down)}</span>
+        ) : torrent.state === "seeding" ? (
+          <span className="text-primary font-medium">{formatSpeed(torrent.speed.up)}</span>
         ) : (
           <span className="text-foreground/30">-</span>
         )}
@@ -215,15 +215,14 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
     width: 100,
     align: "end",
     sortable: true,
-    rpcField: "peersConnected",
     defaultVisible: true,
-    sortAccessor: (torrent) => torrent.peersConnected,
+    sortAccessor: (torrent) => torrent.peerSummary.connected,
     render: ({ torrent }) => (
       <div className="flex items-center justify-end gap-1 font-mono text-xs text-foreground/60 tabular-nums min-w-0">
         <Users size={12} className="opacity-50" />
-        <span>{torrent.peersConnected}</span>
+        <span>{torrent.peerSummary.connected}</span>
         <span className="opacity-30">/</span>
-        <span className="opacity-50">{torrent.seedsConnected}</span>
+        <span className="opacity-50">{torrent.peerSummary.seeds}</span>
       </div>
     ),
   },
@@ -244,7 +243,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
     width: 90,
     align: "end",
     sortable: true,
-    rpcField: "uploadRatio",
+    rpcField: "ratio",
     descriptionKey: "table.column_desc_ratio",
     sortAccessor: (torrent) => ratioValue(torrent),
     render: ({ torrent }) => <span className="font-mono text-xs text-foreground/60 tabular-nums min-w-0">{ratioValue(torrent).toFixed(2)}</span>,
@@ -254,9 +253,9 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
     labelKey: "table.header_hash",
     width: 160,
     sortable: false,
-    rpcField: "hashString",
+    rpcField: "hash",
     descriptionKey: "table.column_desc_hash",
-    render: ({ torrent }) => <span className="text-xs font-mono text-foreground/50 tracking-tight min-w-0">{torrent.hashString.slice(0, 10)}</span>,
+    render: ({ torrent }) => <span className="text-xs font-mono text-foreground/50 tracking-tight min-w-0">{torrent.hash.slice(0, 10)}</span>,
   },
   added: {
     id: "added",
@@ -264,10 +263,10 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
     width: 100,
     align: "end",
     sortable: true,
-    rpcField: "dateAdded",
+    rpcField: "added",
     descriptionKey: "table.column_desc_added",
-    sortAccessor: (torrent) => torrent.dateAdded,
-    render: ({ torrent }) => <span className="text-xs font-mono text-foreground/50 min-w-0">{formatDate(torrent.dateAdded)}</span>,
+    sortAccessor: (torrent) => torrent.added,
+    render: ({ torrent }) => <span className="text-xs font-mono text-foreground/50 min-w-0">{formatDate(torrent.added)}</span>,
   },
   actions: {
     id: "actions",
