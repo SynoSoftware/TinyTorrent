@@ -1,4 +1,12 @@
-import type { TransmissionSessionSettings, TransmissionTorrent, TransmissionTorrentDetail } from "./types";
+import type {
+  TransmissionSessionSettings,
+  TransmissionTorrent,
+  TransmissionTorrentDetail,
+  TransmissionFreeSpace,
+  TransmissionSessionStats,
+  TransmissionBandwidthGroupOptions,
+  TransmissionTorrentRenameResult,
+} from "./types";
 import constants from "../config/constants.json";
 
 type RpcRequest<M extends string> = {
@@ -131,6 +139,14 @@ export class TransmissionClient {
     await this.send<void>({ method, arguments: args });
   }
 
+  private normalizeIds(ids: number | number[]): number[] {
+    return Array.isArray(ids) ? ids : [ids];
+  }
+
+  private async queueOperation(method: string, ids: number | number[]) {
+    await this.mutate(method, { ids: this.normalizeIds(ids) });
+  }
+
   public async handshake(): Promise<TransmissionSessionSettings> {
     const result = await this.send<TransmissionSessionSettings>({ method: "session-get" });
     return result.arguments;
@@ -148,6 +164,20 @@ export class TransmissionClient {
   public async testPort(): Promise<boolean> {
     const result = await this.send<{ portIsOpen?: boolean }>({ method: "session-test" });
     return Boolean(result.arguments?.portIsOpen);
+  }
+
+  public async fetchSessionStats(): Promise<TransmissionSessionStats> {
+    const result = await this.send<TransmissionSessionStats>({ method: "session-stats" });
+    return result.arguments;
+  }
+
+  public async closeSession(): Promise<void> {
+    await this.mutate("session-close");
+  }
+
+  public async checkFreeSpace(path: string): Promise<TransmissionFreeSpace> {
+    const result = await this.send<TransmissionFreeSpace>({ method: "free-space", arguments: { path } });
+    return result.arguments;
   }
 
   public async fetchTorrents(): Promise<TransmissionTorrent[]> {
@@ -188,6 +218,22 @@ export class TransmissionClient {
     await this.mutate("torrent-verify", { ids });
   }
 
+  public async moveTorrentsToTop(ids: number | number[]): Promise<void> {
+    await this.queueOperation("queue-move-top", ids);
+  }
+
+  public async moveTorrentsUp(ids: number | number[]): Promise<void> {
+    await this.queueOperation("queue-move-up", ids);
+  }
+
+  public async moveTorrentsDown(ids: number | number[]): Promise<void> {
+    await this.queueOperation("queue-move-down", ids);
+  }
+
+  public async moveTorrentsToBottom(ids: number | number[]): Promise<void> {
+    await this.queueOperation("queue-move-bottom", ids);
+  }
+
   public async removeTorrents(ids: number[], deleteData = false): Promise<void> {
     await this.mutate("torrent-remove", { ids, "delete-local-data": deleteData });
   }
@@ -197,6 +243,7 @@ export class TransmissionClient {
     metainfo?: string;
     downloadDir?: string;
     paused?: boolean;
+    filesUnwanted?: number[];
   }): Promise<TransmissionTorrent | null> {
     const args: Record<string, unknown> = {
       "download-dir": payload.downloadDir,
@@ -214,5 +261,54 @@ export class TransmissionClient {
       arguments: args,
     });
     return result.arguments["torrent-added"] ?? result.arguments["torrent-duplicate"] ?? null;
+  }
+
+  public async updateFileSelection(torrentId: number, indexes: number[], wanted: boolean): Promise<void> {
+    if (!indexes.length) return;
+    const key = wanted ? "files-wanted" : "files-unwanted";
+    await this.mutate("torrent-set", {
+      ids: [torrentId],
+      [key]: indexes,
+    });
+  }
+
+  public async renameTorrentPath(id: number, path: string, name: string): Promise<TransmissionTorrentRenameResult> {
+    const result = await this.send<TransmissionTorrentRenameResult>({
+      method: "torrent-rename-path",
+      arguments: {
+        ids: [id],
+        path,
+        name,
+      },
+    });
+    return result.arguments;
+  }
+
+  public async setTorrentLocation(ids: number | number[], location: string, moveData = true): Promise<void> {
+    await this.mutate("torrent-set-location", {
+      ids: this.normalizeIds(ids),
+      location,
+      move: moveData,
+    });
+  }
+
+  public async setBandwidthGroup(options: TransmissionBandwidthGroupOptions): Promise<void> {
+    const args: Record<string, unknown> = { name: options.name };
+    if (options.honorsSessionLimits !== undefined) {
+      args["honors-session-limits"] = options.honorsSessionLimits;
+    }
+    if (options.speedLimitDown !== undefined) {
+      args["speed-limit-down"] = options.speedLimitDown;
+    }
+    if (options.speedLimitDownEnabled !== undefined) {
+      args["speed-limit-down-enabled"] = options.speedLimitDownEnabled;
+    }
+    if (options.speedLimitUp !== undefined) {
+      args["speed-limit-up"] = options.speedLimitUp;
+    }
+    if (options.speedLimitUpEnabled !== undefined) {
+      args["speed-limit-up-enabled"] = options.speedLimitUpEnabled;
+    }
+    await this.mutate("group-set", args);
   }
 }

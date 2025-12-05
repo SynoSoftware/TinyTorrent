@@ -1,25 +1,24 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useDropzone } from "react-dropzone";
 import { AnimatePresence, motion } from "framer-motion";
 import { FileUp } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@heroui/react";
 
-import { TransmissionClient } from "../core/rpc-client";
-import constants from "../config/constants.json";
-import type { TransmissionSessionSettings } from "../core/types";
-import { DEFAULT_SETTINGS_CONFIG, type SettingsConfig } from "../features/settings/data/config";
+import { useTransmissionSession, type RpcStatus } from "../core/hooks/useTransmissionSession";
+import { usePerformanceHistory } from "../core/hooks/usePerformanceHistory";
+import { useTorrentData } from "../features/dashboard/hooks/useTorrentData";
 import { TorrentDetailModal } from "../features/dashboard/components/TorrentDetailModal";
-import { normalizeTorrent, normalizeTorrentDetail } from "../features/dashboard/types/torrent";
-import type { Torrent, TorrentDetail } from "../features/dashboard/types/torrent";
-
-// Components
-import { Navbar } from "../shared/ui/layout/Navbar";
-import { StatusBar } from "../shared/ui/layout/StatusBar";
-import { TorrentTable } from "../features/dashboard/components/TorrentTable";
-import type { TorrentTableAction } from "../features/dashboard/components/TorrentTable";
+import { TorrentTable, type TorrentTableAction } from "../features/dashboard/components/TorrentTable";
 import { AddTorrentModal } from "../features/torrent-add/components/AddTorrentModal";
 import { SettingsModal } from "../features/settings/components/SettingsModal";
+import { normalizeTorrentDetail } from "../features/dashboard/types/torrent";
+import type { Torrent, TorrentDetail } from "../features/dashboard/types/torrent";
+import { DEFAULT_SETTINGS_CONFIG, type SettingsConfig } from "../features/settings/data/config";
+import constants from "../config/constants.json";
+import type { TransmissionSessionSettings } from "../core/types";
+import { Navbar } from "../shared/ui/layout/Navbar";
+import { StatusBar } from "../shared/ui/layout/StatusBar";
 
 const padTime = (value: number) => String(value).padStart(2, "0");
 
@@ -38,7 +37,6 @@ const timeStringToMinutes = (time: string) => {
   return hours * 60 + minutes;
 };
 
-const HISTORY_DATA_POINTS = constants.performance.history_data_points;
 const USER_PREFERENCES_KEY = "tiny-torrent.user-preferences";
 const MOTION_DURATION_S = constants.ui.animation_duration_ms / 1000;
 
@@ -140,34 +138,60 @@ const mapConfigToSession = (config: SettingsConfig): Partial<TransmissionSession
 
 export default function App() {
   const { t } = useTranslation();
+  const { client, rpcStatus, reconnect, refreshSessionSettings, reportRpcStatus, updateRequestTimeout } =
+    useTransmissionSession();
+  const { downHistory, upHistory } = usePerformanceHistory();
 
-  const client = useMemo(
-    () =>
-      new TransmissionClient({
-        username: import.meta.env.VITE_RPC_USERNAME ?? "",
-        password: import.meta.env.VITE_RPC_PASSWORD ?? "",
-      }),
-    []
-  );
-  const [torrents, setTorrents] = useState<Torrent[]>([]);
   const [filter, setFilter] = useState("all");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [rpcStatus, setRpcStatus] = useState<"idle" | "connected" | "error">("idle");
-  const [hasInitialLoadFinished, setHasInitialLoadFinished] = useState(false);
-  const [downHistory, setDownHistory] = useState(new Array(HISTORY_DATA_POINTS).fill(0));
-  const [upHistory, setUpHistory] = useState(new Array(HISTORY_DATA_POINTS).fill(0));
-
   const [detailData, setDetailData] = useState<TorrentDetail | null>(null);
   const detailRequestRef = useRef(0);
+  const isMountedRef = useRef(false);
+  const loadDetail = useCallback(
+    async (torrentId: number, placeholder?: TorrentDetail) => {
+      const requestId = ++detailRequestRef.current;
+      if (placeholder) {
+        setDetailData(placeholder);
+      }
+      try {
+        const detail = normalizeTorrentDetail(await client.fetchTorrentDetails(torrentId));
+        if (detailRequestRef.current !== requestId) return;
+        setDetailData(detail);
+      } catch {
+        if (detailRequestRef.current !== requestId) return;
+        if (isMountedRef.current) {
+          reportRpcStatus("error");
+        }
+      }
+    },
+    [client, reportRpcStatus]
+  );
+  const refreshDetailData = useCallback(async () => {
+    if (!detailData) return;
+    await loadDetail(detailData.id);
+  }, [detailData, loadDetail]);
   const [settingsConfig, setSettingsConfig] = useState<SettingsConfig>(() =>
     mergeWithUserPreferences({ ...DEFAULT_SETTINGS_CONFIG })
   );
   const [isSettingsSaving, setIsSettingsSaving] = useState(false);
   const [isAddingTorrent, setIsAddingTorrent] = useState(false);
-  const isMountedRef = useRef(false);
   const [pendingTorrentFile, setPendingTorrentFile] = useState<File | null>(null);
-  const pollingIntervalRef = useRef<number | null>(null);
+
+  const sessionReady = rpcStatus === "connected";
+  const pollingIntervalMs = Math.max(1000, settingsConfig.refresh_interval_ms);
+  const handleRpcStatusChange = useCallback(
+    (status: Exclude<RpcStatus, "idle">) => {
+      reportRpcStatus(status);
+    },
+    [reportRpcStatus]
+  );
+  const { torrents, isInitialLoadFinished, refresh: refreshTorrents, queueActions } = useTorrentData({
+    client,
+    sessionReady,
+    pollingIntervalMs,
+    onRpcStatusChange: handleRpcStatusChange,
+  });
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -176,60 +200,8 @@ export default function App() {
     };
   }, []);
 
-  const refreshTorrents = useCallback(async () => {
-    try {
-      const data = await client.fetchTorrents();
-      if (!isMountedRef.current) return;
-      const normalized = data.map(normalizeTorrent);
-      setTorrents(normalized);
-      const totalDown = normalized.reduce((acc, torrent) => acc + (torrent.status === "downloading" ? torrent.rateDownload : 0), 0);
-      const totalUp = normalized.reduce((acc, torrent) => acc + torrent.rateUpload, 0);
-      setDownHistory((prev) => [...prev.slice(1), totalDown]);
-      setUpHistory((prev) => [...prev.slice(1), totalUp]);
-      setRpcStatus("connected");
-    } catch {
-      if (!isMountedRef.current) return;
-      setRpcStatus("error");
-    }
-  }, [client]);
-
-  const clearPolling = useCallback(() => {
-    if (pollingIntervalRef.current) {
-      window.clearInterval(pollingIntervalRef.current);
-      pollingIntervalRef.current = null;
-    }
-  }, []);
-
-  const initializeConnection = useCallback(async () => {
-    if (!isMountedRef.current) return;
-    clearPolling();
-    setHasInitialLoadFinished(false);
-    try {
-      await client.handshake();
-      await refreshTorrents();
-      if (!isMountedRef.current) return;
-      const intervalMs = Math.max(1000, settingsConfig.refresh_interval_ms);
-      pollingIntervalRef.current = window.setInterval(refreshTorrents, intervalMs);
-    } catch {
-      if (isMountedRef.current) {
-        setRpcStatus("error");
-      }
-    } finally {
-      if (isMountedRef.current) {
-        setHasInitialLoadFinished(true);
-      }
-    }
-  }, [client, refreshTorrents, settingsConfig.refresh_interval_ms, clearPolling]);
-
-  useEffect(() => {
-    void initializeConnection();
-    return () => {
-      clearPolling();
-    };
-  }, [initializeConnection, clearPolling]);
-
   const handleReconnect = () => {
-    void initializeConnection();
+    reconnect();
   };
 
   const handleTorrentAction = useCallback(
@@ -246,33 +218,50 @@ export default function App() {
           await client.removeTorrents([torrent.id], deleteData);
         } else if (action === "remove-with-data") {
           await client.removeTorrents([torrent.id], true);
+        } else if (action === "queue-move-top") {
+          await queueActions.moveToTop([torrent.id]);
+        } else if (action === "queue-move-up") {
+          await queueActions.moveUp([torrent.id]);
+        } else if (action === "queue-move-down") {
+          await queueActions.moveDown([torrent.id]);
+        } else if (action === "queue-move-bottom") {
+          await queueActions.moveToBottom([torrent.id]);
         }
         await refreshTorrents();
+        await refreshDetailData();
       } catch {
         if (isMountedRef.current) {
-          setRpcStatus("error");
+          reportRpcStatus("error");
         }
       }
     },
-    [client, refreshTorrents]
+    [client, refreshTorrents, reportRpcStatus, t, refreshDetailData]
+  );
+
+  const handleFileSelectionChange = useCallback(
+    async (indexes: number[], wanted: boolean) => {
+      if (!detailData) return;
+      try {
+        await client.updateFileSelection(detailData.id, indexes, wanted);
+        await refreshTorrents();
+        await refreshDetailData();
+      } catch {
+        if (isMountedRef.current) {
+          reportRpcStatus("error");
+        }
+      }
+    },
+    [client, detailData, refreshTorrents, reportRpcStatus, refreshDetailData]
   );
 
   const handleRequestDetails = useCallback(
     async (torrent: Torrent) => {
-      const requestId = ++detailRequestRef.current;
-      setDetailData({ ...torrent, trackers: [], files: [], peers: [] } as TorrentDetail);
-      try {
-      const detail = normalizeTorrentDetail(await client.fetchTorrentDetails(torrent.id));
-      if (detailRequestRef.current !== requestId) return;
-      setDetailData(detail);
-      } catch {
-        if (detailRequestRef.current !== requestId) return;
-        if (isMountedRef.current) {
-          setRpcStatus("error");
-        }
-      }
+      await loadDetail(
+        torrent.id,
+        { ...torrent, trackers: [], files: [], peers: [] } as TorrentDetail
+      );
     },
-    [client]
+    [loadDetail]
   );
 
   const closeDetail = () => {
@@ -281,7 +270,13 @@ export default function App() {
   };
 
   const handleAddTorrent = useCallback(
-    async (payload: { magnetLink?: string; metainfo?: string; downloadDir: string; startNow: boolean }) => {
+    async (payload: {
+      magnetLink?: string;
+      metainfo?: string;
+      downloadDir: string;
+      startNow: boolean;
+      filesUnwanted?: number[];
+    }) => {
       setIsAddingTorrent(true);
       try {
         await client.addTorrent({
@@ -289,18 +284,19 @@ export default function App() {
           metainfo: payload.metainfo,
           downloadDir: payload.downloadDir,
           paused: !payload.startNow,
+          filesUnwanted: payload.filesUnwanted,
         });
         await refreshTorrents();
       } catch {
         if (isMountedRef.current) {
-          setRpcStatus("error");
+          reportRpcStatus("error");
         }
         throw new Error("Failed to add torrent");
       } finally {
         setIsAddingTorrent(false);
       }
     },
-    [client, refreshTorrents]
+    [client, refreshTorrents, reportRpcStatus]
   );
 
   const handleAddModalClose = useCallback(() => {
@@ -320,7 +316,7 @@ export default function App() {
         }
       } catch {
         if (isMountedRef.current) {
-          setRpcStatus("error");
+          reportRpcStatus("error");
         }
         throw new Error("Unable to save settings");
       } finally {
@@ -329,48 +325,48 @@ export default function App() {
         }
       }
     },
-    [client, refreshTorrents]
+    [client, refreshTorrents, reportRpcStatus]
   );
 
-const handleTestPort = useCallback(async () => {
-  try {
-    await client.testPort();
-  } catch {
-    if (isMountedRef.current) {
-      setRpcStatus("error");
+  const handleTestPort = useCallback(async () => {
+    try {
+      await client.testPort();
+    } catch {
+      if (isMountedRef.current) {
+        reportRpcStatus("error");
+      }
     }
-  }
-}, [client]);
+  }, [client, reportRpcStatus]);
 
-useEffect(() => {
-  client.updateRequestTimeout(settingsConfig.request_timeout_ms);
-}, [client, settingsConfig.request_timeout_ms]);
+  useEffect(() => {
+    updateRequestTimeout(settingsConfig.request_timeout_ms);
+  }, [settingsConfig.request_timeout_ms, updateRequestTimeout]);
 
   useEffect(() => {
     if (!isSettingsOpen) return;
     let active = true;
-    client
-      .fetchSessionSettings()
-      .then((session) => {
+    const loadSettings = async () => {
+      try {
+        const session = await refreshSessionSettings();
         if (active) {
           setSettingsConfig(mergeWithUserPreferences(mapSessionToConfig(session)));
         }
-      })
-      .catch(() => {
+      } catch {
         if (active) {
-          setRpcStatus("error");
+          reportRpcStatus("error");
         }
-      });
+      }
+    };
+    void loadSettings();
     return () => {
       active = false;
     };
-  }, [client, isSettingsOpen]);
+  }, [isSettingsOpen, refreshSessionSettings, reportRpcStatus]);
 
-  const globalDown = downHistory[downHistory.length - 1];
-  const globalUp = upHistory[upHistory.length - 1];
-  const isTableLoading = !hasInitialLoadFinished;
+  const globalDown = downHistory[downHistory.length - 1] ?? 0;
+  const globalUp = upHistory[upHistory.length - 1] ?? 0;
+  const isTableLoading = !isInitialLoadFinished;
 
-  // --- Logic: Drag & Drop ---
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length) {
       setPendingTorrentFile(acceptedFiles[0]);
@@ -391,14 +387,12 @@ useEffect(() => {
     >
       <input {...getInputProps()} />
 
-      {/* 1. AMBIENT BACKGROUND LAYER */}
       <div className="fixed inset-0 z-0 pointer-events-none">
         <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20" />
         <div className="absolute top-[-10%] right-[-5%] h-[500px] w-[500px] rounded-full bg-primary/5 blur-[120px]" />
         <div className="absolute bottom-[-10%] left-[-5%] h-[500px] w-[500px] rounded-full bg-success/10 blur-[120px]" />
       </div>
 
-      {/* 2. OVERLAY LAYER */}
       <AnimatePresence>
         {isDragActive && (
           <motion.div
@@ -431,7 +425,6 @@ useEffect(() => {
         )}
       </AnimatePresence>
 
-      {/* 3. LAYOUT: Header */}
       <Navbar
         filter={filter}
         setFilter={setFilter}
@@ -439,7 +432,6 @@ useEffect(() => {
         onSettings={() => setIsSettingsOpen(true)}
       />
 
-      {/* 4. LAYOUT: Main Content */}
       <main className="flex-1 relative overflow-hidden flex flex-col z-10">
         <TorrentTable
           torrents={torrents}
@@ -450,7 +442,6 @@ useEffect(() => {
         />
       </main>
 
-      {/* 5. LAYOUT: Footer */}
       <StatusBar
         downSpeed={globalDown}
         upSpeed={globalUp}
@@ -459,14 +450,19 @@ useEffect(() => {
         rpcStatus={rpcStatus}
       />
 
-      {/* 6. MODALS */}
-      <TorrentDetailModal torrent={detailData} isOpen={Boolean(detailData)} onClose={closeDetail} />
+      <TorrentDetailModal
+        torrent={detailData}
+        isOpen={Boolean(detailData)}
+        onClose={closeDetail}
+        onFilesToggle={handleFileSelectionChange}
+      />
       <AddTorrentModal
         isOpen={isAddModalOpen}
         onClose={handleAddModalClose}
         initialFile={pendingTorrentFile}
         onAdd={handleAddTorrent}
         isSubmitting={isAddingTorrent}
+        getFreeSpace={client.checkFreeSpace}
       />
       <SettingsModal
         isOpen={isSettingsOpen}

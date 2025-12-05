@@ -1,25 +1,43 @@
 import { Button, Input, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader, Switch } from "@heroui/react";
 import { ArrowDown, FileText, FileUp, HardDrive, Zap } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback, type ChangeEvent } from "react";
 import { useTranslation } from "react-i18next";
+import { FileExplorerTree, type FileExplorerEntry } from "../../../shared/ui/workspace/FileExplorerTree";
+import { DiskSpaceGauge } from "../../../shared/ui/workspace/DiskSpaceGauge";
+import { parseTorrentFile, type TorrentMetadata } from "../../../shared/utils/torrent";
+import type { TransmissionFreeSpace } from "../../../core/types";
 
 interface AddTorrentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAdd: (payload: { magnetLink?: string; metainfo?: string; downloadDir: string; startNow: boolean }) => Promise<void>;
+  onAdd: (payload: {
+    magnetLink?: string;
+    metainfo?: string;
+    downloadDir: string;
+    startNow: boolean;
+    filesUnwanted?: number[];
+  }) => Promise<void>;
   isSubmitting: boolean;
   initialFile?: File | null;
+  getFreeSpace?: (path: string) => Promise<TransmissionFreeSpace>;
 }
 
 const DEFAULT_SAVE_PATH = "C:/Downloads/Torrents";
 
-export function AddTorrentModal({ isOpen, onClose, onAdd, isSubmitting, initialFile }: AddTorrentModalProps) {
+export function AddTorrentModal({ isOpen, onClose, onAdd, isSubmitting, initialFile, getFreeSpace }: AddTorrentModalProps) {
   const { t } = useTranslation();
   const [magnetLink, setMagnetLink] = useState("");
   const [downloadDir, setDownloadDir] = useState(DEFAULT_SAVE_PATH);
   const [startNow, setStartNow] = useState(true);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [directorySpace, setDirectorySpace] = useState<TransmissionFreeSpace | null>(null);
+  const [isSpaceLoading, setIsSpaceLoading] = useState(false);
+  const [spaceError, setSpaceError] = useState<string | null>(null);
+  const [torrentMetadata, setTorrentMetadata] = useState<TorrentMetadata | null>(null);
+  const [filesUnwanted, setFilesUnwanted] = useState<Set<number>>(() => new Set());
+  const [isParsingTorrent, setIsParsingTorrent] = useState(false);
+  const [parseError, setParseError] = useState<string | null>(null);
 
   const readFileAsBase64 = (file: File) =>
     new Promise<string>((resolve, reject) => {
@@ -72,13 +90,83 @@ export function AddTorrentModal({ isOpen, onClose, onAdd, isSubmitting, initialF
     }
   }, [initialFile, isOpen]);
 
+  useEffect(() => {
+    let active = true;
+    if (!selectedFile) {
+      setTorrentMetadata(null);
+      setFilesUnwanted(new Set());
+      setParseError(null);
+      setIsParsingTorrent(false);
+      return () => {
+        active = false;
+      };
+    }
+    setIsParsingTorrent(true);
+    setParseError(null);
+    parseTorrentFile(selectedFile)
+      .then((metadata: TorrentMetadata) => {
+        if (!active) return;
+        setTorrentMetadata(metadata);
+        setFilesUnwanted(new Set());
+      })
+      .catch(() => {
+        if (!active) return;
+        setTorrentMetadata(null);
+        setParseError(t("modals.file_tree_error"));
+      })
+      .finally(() => {
+        if (!active) return;
+        setIsParsingTorrent(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [selectedFile, t]);
+
+  useEffect(() => {
+    let active = true;
+    if (!getFreeSpace) {
+      setDirectorySpace(null);
+      setSpaceError(null);
+      setIsSpaceLoading(false);
+      return () => {
+        active = false;
+      };
+    }
+    setIsSpaceLoading(true);
+    setSpaceError(null);
+    getFreeSpace(downloadDir)
+      .then((space) => {
+        if (!active) return;
+        setDirectorySpace(space);
+      })
+      .catch(() => {
+        if (!active) return;
+        setDirectorySpace(null);
+        setSpaceError(t("modals.disk_gauge_error"));
+      })
+      .finally(() => {
+        if (!active) return;
+        setIsSpaceLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [downloadDir, getFreeSpace, t]);
+
   const canSubmit = useMemo(() => Boolean(magnetLink.trim() || selectedFile), [magnetLink, selectedFile]);
 
   const handleSubmit = async () => {
     if (!canSubmit || isSubmitting) return;
     const trimmedLink = magnetLink.trim();
     try {
-      const payload: { magnetLink?: string; metainfo?: string; downloadDir: string; startNow: boolean } = {
+      const payload: {
+        magnetLink?: string;
+        metainfo?: string;
+        downloadDir: string;
+        startNow: boolean;
+        filesUnwanted?: number[];
+      } = {
         downloadDir,
         startNow,
       };
@@ -87,12 +175,44 @@ export function AddTorrentModal({ isOpen, onClose, onAdd, isSubmitting, initialF
       } else if (trimmedLink) {
         payload.magnetLink = trimmedLink;
       }
+      if (torrentMetadata && filesUnwanted.size) {
+        const filtered = Array.from(filesUnwanted).sort((a, b) => a - b);
+        if (filtered.length) {
+          (payload as { filesUnwanted?: number[] }).filesUnwanted = filtered;
+        }
+      }
       await onAdd(payload);
       onClose();
     } catch {
       // The caller will handle errors; keep the modal open for corrections.
     }
   };
+
+  const fileTreeEntries = useMemo<FileExplorerEntry[]>(() => {
+    if (!torrentMetadata) return [];
+    return torrentMetadata.files.map((file: TorrentMetadata["files"][number], index: number) => ({
+      name: file.path,
+      index,
+      length: file.length,
+      wanted: !filesUnwanted.has(index),
+    }));
+  }, [torrentMetadata, filesUnwanted]);
+
+  const torrentSize = useMemo(() => {
+    if (!torrentMetadata) return 0;
+    return torrentMetadata.files.reduce((acc, file) => acc + file.length, 0);
+  }, [torrentMetadata]);
+
+  const handleFilesToggle = useCallback((indexes: number[], wanted: boolean) => {
+    setFilesUnwanted((prev) => {
+      const next = new Set(prev);
+      indexes.forEach((index) => {
+        if (wanted) next.delete(index);
+        else next.add(index);
+      });
+      return next;
+    });
+  }, []);
 
   return (
     <Modal
@@ -167,10 +287,31 @@ export function AddTorrentModal({ isOpen, onClose, onAdd, isSubmitting, initialF
                       className="hidden"
                     />
                   </div>
-                </div>
-                <p className="text-[11px] text-foreground/50">{t("modals.file_help")}</p>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <p className="text-[11px] text-foreground/50">{t("modals.file_help")}</p>
+            </div>
+            {torrentMetadata && (
+              <div className="rounded-xl border border-content1/20 bg-content1/15 px-4 py-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] uppercase tracking-[0.3em] text-foreground/60">{t("modals.file_tree_title")}</span>
+                  <span className="text-[11px] text-foreground/50">{torrentMetadata.files.length} file{torrentMetadata.files.length === 1 ? "" : "s"}</span>
+                </div>
+                <p className="text-[11px] text-foreground/50">{t("modals.file_tree_description")}</p>
+                <div className="max-h-[280px] overflow-y-auto">
+                  <FileExplorerTree
+                    files={fileTreeEntries}
+                    emptyMessage={t("modals.file_tree_empty")}
+                    onFilesToggle={handleFilesToggle}
+                  />
+                </div>
+              </div>
+            )}
+            {selectedFile && !torrentMetadata && (
+              <div className="rounded-xl border border-content1/20 bg-background/30 px-4 py-3 text-[11px] text-foreground/50">
+                {isParsingTorrent ? t("modals.file_tree_loading") : parseError ?? t("modals.file_tree_waiting")}
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-4">
                 <div className="rounded-xl border border-content1/20 bg-content1/15 px-4 py-3 space-y-2">
                   <div className="flex items-center gap-2 text-foreground/60">
                     <HardDrive size={16} />
@@ -204,20 +345,33 @@ export function AddTorrentModal({ isOpen, onClose, onAdd, isSubmitting, initialF
                 </div>
               </div>
             </ModalBody>
-            <ModalFooter className="justify-between items-center">
-              <Button variant="light" onPress={handleClose} className="text-foreground/50 hover:text-foreground">
-                {t("modals.cancel")}
-              </Button>
-              <Button
-                color="primary"
-                variant="shadow"
-                onPress={handleSubmit}
-                startContent={<ArrowDown size={16} />}
-                isLoading={isSubmitting}
-                isDisabled={!canSubmit || isSubmitting}
-              >
-                {t("modals.download")}
-              </Button>
+            <ModalFooter className="flex flex-col gap-3">
+              {getFreeSpace && (
+                <DiskSpaceGauge
+                  freeBytes={directorySpace?.sizeBytes}
+                  totalBytes={directorySpace?.totalSize}
+                  torrentSize={torrentSize}
+                  path={directorySpace?.path ?? downloadDir}
+                  isLoading={isSpaceLoading}
+                  error={spaceError}
+                />
+              )}
+              <div className="flex w-full items-center justify-between gap-3">
+                <Button variant="light" onPress={handleClose} className="text-foreground/50 hover:text-foreground flex-1">
+                  {t("modals.cancel")}
+                </Button>
+                <Button
+                  color="primary"
+                  variant="shadow"
+                  onPress={handleSubmit}
+                  startContent={<ArrowDown size={16} />}
+                  isLoading={isSubmitting}
+                  isDisabled={!canSubmit || isSubmitting}
+                  className="flex-1"
+                >
+                  {t("modals.download")}
+                </Button>
+              </div>
             </ModalFooter>
           </>
         )}
