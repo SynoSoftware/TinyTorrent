@@ -276,26 +276,16 @@ These methods exist **abstractly**; their internal implementation depends on the
 All Agents must operate as **world-class tool-UI designers**, capable of bridging two eras of design.
 TinyTorrent must deliver **Adaptive Excellence**:
 
-- **Dual-Mode Supremacy:**
+- **Unified Professional Interface:**
 
-  - **Modern Mode (Default):** Immersive, fluid, glass-morphism, modal-driven, "Apple/Linear" polish.
-  - **Classic Mode:** High-density, opaque, split-pane, rigid 1px borders, "Industrial/Pro" precision.
-
-- **Context-Aware Visuals:**
-
-  - Components must adapt their rendering style to the container.
-  - _Example:_ A Speed Graph renders as a smooth **Bezier curve** in Modern Mode, but as a precise **Stepped Line** in Classic Mode.
-  - _Example:_ Metadata renders as **Floating Cards** in Modern Mode, but as a **Dense Key-Value Grid** in Classic Mode.
-
-- **Interaction Choreography:**
-
-  - **Modern:** Motion-driven structure (smooth expands, floating transitions).
-  - **Classic:** Instant response (zero-latency switching, snap-to-grid, click-to-view).
+  - **Single Mode:** The UI operates exclusively in "Modern Mode" (Glass/Blur).
+  - **Tooling Precision:** While the aesthetic is modern, the functionality must remain dense and keyboard-friendly (e.g. arrow key navigation in the table).
+  - **No Split-Pane:** Details are accessed via double-click (Modal), preserving the clean "List View" focus.
 
 - **Tooling-Grade Ergonomics:**
-  - Regardless of mode, the tool must feel "heavy" and precise.
-  - No wasted space in Classic mode.
-  - No visual clutter in Modern mode.
+  - he tool must feel "heavy" and precise.
+  - High Density: Data-rich layouts with no wasted space.
+  - Clarity: Zero visual clutter; every pixel must serve a purpose.
 
 **Simplicity of presentation — not simplicity of capability.**
 **Respect the Muscle Memory of the veteran, but deliver the Fluidity of the future.**
