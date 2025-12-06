@@ -308,6 +308,7 @@ const QueueSubmenu = memo(
 export function TorrentTable({ torrents, filter, isLoading = false, onAction, onRequestDetails }: TorrentTableProps) {
   const { t } = useTranslation();
   const parentRef = useRef<HTMLDivElement>(null);
+  const tableContainerRef = useRef<HTMLDivElement>(null);
   const queueMenuActions = useMemo<QueueMenuAction[]>(
     () => [
       { key: "queue-move-top", label: t("table.queue.move_top") },
@@ -448,6 +449,119 @@ export function TorrentTable({ torrents, filter, isLoading = false, onAction, on
     overscan: 20,
   });
 
+  const handleKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      const allRows = table.getRowModel().rows;
+      if (!allRows.length) return;
+
+      const clampIndex = (value: number) => Math.max(0, Math.min(allRows.length - 1, value));
+
+      const focusSingleRow = (index: number) => {
+        const targetIndex = clampIndex(index);
+        const targetRow = allRows[targetIndex];
+        if (!targetRow) return;
+        setRowSelection({ [targetRow.id]: true });
+        setLastSelectedIndex(targetIndex);
+        rowVirtualizer.scrollToIndex(targetIndex);
+      };
+
+      const selectRange = (startIndex: number, endIndex: number) => {
+        const normalizedStart = clampIndex(startIndex);
+        const normalizedEnd = clampIndex(endIndex);
+        const [from, to] =
+          normalizedStart <= normalizedEnd
+            ? [normalizedStart, normalizedEnd]
+            : [normalizedEnd, normalizedStart];
+        const nextSelection: RowSelectionState = {};
+        for (let i = from; i <= to; i += 1) {
+          const row = allRows[i];
+          if (row) {
+            nextSelection[row.id] = true;
+          }
+        }
+        setRowSelection(nextSelection);
+        setLastSelectedIndex(normalizedEnd);
+        rowVirtualizer.scrollToIndex(normalizedEnd);
+      };
+
+      const selectAll = () => {
+        const nextSelection: RowSelectionState = {};
+        allRows.forEach((row) => {
+          nextSelection[row.id] = true;
+        });
+        setRowSelection(nextSelection);
+        if (allRows.length) {
+          const bottomIndex = allRows.length - 1;
+          setLastSelectedIndex(bottomIndex);
+          rowVirtualizer.scrollToIndex(bottomIndex);
+        }
+      };
+
+      const { key, shiftKey, ctrlKey, metaKey } = event;
+      const controlKey = ctrlKey || metaKey;
+      if (controlKey && key.toLowerCase() === "a") {
+        event.preventDefault();
+        selectAll();
+        return;
+      }
+
+      if (key === "ArrowDown" || key === "ArrowUp") {
+        event.preventDefault();
+        const delta = key === "ArrowDown" ? 1 : -1;
+        const baseIndex = lastSelectedIndex ?? (delta === 1 ? -1 : allRows.length);
+        const targetIndex = baseIndex + delta;
+        if (shiftKey) {
+          const anchor = lastSelectedIndex ?? clampIndex(baseIndex);
+          selectRange(anchor, targetIndex);
+        } else {
+          focusSingleRow(targetIndex);
+        }
+        return;
+      }
+
+      if (key === "Home") {
+        event.preventDefault();
+        const targetIndex = 0;
+        if (shiftKey) {
+          const anchor = lastSelectedIndex ?? targetIndex;
+          selectRange(anchor, targetIndex);
+        } else {
+          focusSingleRow(targetIndex);
+        }
+        return;
+      }
+
+      if (key === "End") {
+        event.preventDefault();
+        const targetIndex = allRows.length - 1;
+        if (shiftKey) {
+          const anchor = lastSelectedIndex ?? targetIndex;
+          selectRange(anchor, targetIndex);
+        } else {
+          focusSingleRow(targetIndex);
+        }
+        return;
+      }
+
+      if (key === "Enter") {
+        event.preventDefault();
+        const selectedRow = table.getSelectedRowModel().rows[0];
+        if (selectedRow) {
+          onRequestDetails?.(selectedRow.original);
+        }
+        return;
+      }
+
+      if (key === "Delete") {
+        event.preventDefault();
+        if (!onAction) return;
+        const selectedRows = table.getSelectedRowModel().rows;
+        selectedRows.forEach((row) => onAction("remove", row.original));
+      }
+    },
+    [lastSelectedIndex, onAction, onRequestDetails, rowVirtualizer, table]
+  );
+
   // --- SENSORS ---
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
@@ -516,9 +630,19 @@ export function TorrentTable({ torrents, filter, isLoading = false, onAction, on
     return table.getFlatHeaders().find((h) => h.id === activeDragHeaderId);
   }, [activeDragHeaderId, table]);
 
+  useEffect(() => {
+    tableContainerRef.current?.focus();
+  }, []);
+
   return (
-    <>
-      <div className="flex-1 flex flex-col h-full overflow-hidden bg-background/20 relative select-none" onClick={() => setContextMenu(null)}>
+      <>
+      <div
+        ref={tableContainerRef}
+        tabIndex={0}
+        onKeyDown={handleKeyDown}
+        className="flex-1 flex flex-col h-full overflow-hidden bg-background/20 relative select-none"
+        onClick={() => setContextMenu(null)}
+      >
         <style>{`
           .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
           .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
