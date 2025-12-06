@@ -12,12 +12,11 @@
 
 ---
 
-I got pissed when I realized that we no longer have a proper torrent client. I grew up when we had a torrent client that was a 160kb .exe—lightweight and fast.
-Back then the protocol was simpler and the world was smaller; today’s requirements demand more code, so we'll have to settle for 1-3 megabytes, but the philosophy is identical:
-**high efficiency + a UI that looks like it came from the future.**
+I grew up with torrent clients that were **160 KB** — small, fast, and engineered with real hardware limits in mind. That era is gone. Today even a simple tray application wastes memory it has no reason to touch, and I’m not fine with that. So I decided to do something about it.
 
-So I decided to go bare-metal. I wanted to write a pure C application for Windows 11 that uses no external libraries, just calling Windows API. I called it rawBit.
-However, I realized that would be ugly and nobody would use it. I can do better: I can write it to use even less memory, less code, and be more beautiful by using the browser that's already installed—a fully optimized, GPU-accelerated UI framework.
+My first ideea was a pure C, bare-metal Windows 11 client — no external libraries, just raw WinAPI. Because the UI was unacceptable, I abandoned it for a while. Later I realised that every modern system already ships with a fully optimized, GPU-accelerated engine: the internet browser. Using it delivers **better visuals, less code, and a lower memory footprint** than any hand-rolled native UI.
+
+This project exists to bring back what made the classics great: a lean core, a tiny binary, and a UI that feels like it came from the future — without abandoning engineering discipline.
 
 **This is how TinyTorrent was born.**
 
@@ -26,7 +25,7 @@ Instead of dragging C++/Win32/Qt/GTK toolkits into the binary, TinyTorrent split
 - **Native Shell:** A minimal executable that manages the window, lifecycle, and the torrent engine. It exposes a generic RPC interface.
 - **Frontend:** React + TypeScript + HeroUI, leveraging the browser’s rendering engine for layout, animation, and GPU composition.
 
-The result: a **single 2–3 MB `.exe`** that feels weightless.
+Modern torrent protocol and will push the torrent client toward **1–3 MB**, but the philosophy stays the same: **minimal memory and CPU used**.
 **Zero GUI memory footprint** unless you actively open the interface — exactly how it should be.
 
 ---

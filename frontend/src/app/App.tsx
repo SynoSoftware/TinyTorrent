@@ -9,8 +9,8 @@ import { useTransmissionSession, type RpcStatus } from "../core/hooks/useTransmi
 import { usePerformanceHistory } from "../core/hooks/usePerformanceHistory";
 import { useTorrentData } from "../features/dashboard/hooks/useTorrentData";
 import { useTorrentClient } from "../core/client-context";
-import { TorrentDetailModal } from "../features/dashboard/components/TorrentDetailModal";
-import { TorrentTable, type TorrentTableAction } from "../features/dashboard/components/TorrentTable";
+import { ModeLayout } from "../features/dashboard/components/ModeLayout";
+import { type TorrentTableAction } from "../features/dashboard/components/TorrentTable";
 import { AddTorrentModal } from "../features/torrent-add/components/AddTorrentModal";
 import { SettingsModal } from "../features/settings/components/SettingsModal";
 import type { Torrent, TorrentDetail } from "../features/dashboard/types/torrent";
@@ -461,15 +461,21 @@ export default function App() {
         onSettings={() => openSettings()}
       />
 
-      <main className="flex-1 relative overflow-hidden flex flex-col z-10">
-        <TorrentTable
-          torrents={torrents}
-          filter={filter}
-          isLoading={isTableLoading}
-          onAction={handleTorrentAction}
-          onRequestDetails={handleRequestDetails}
-        />
-      </main>
+      <ModeLayout
+        torrents={torrents}
+        filter={filter}
+        isTableLoading={isTableLoading}
+        onAction={handleTorrentAction}
+        onRequestDetails={handleRequestDetails}
+        detailData={detailData}
+        onCloseDetail={closeDetail}
+        onFilesToggle={handleFileSelectionChange}
+        onSequentialToggle={sequentialToggleHandler}
+        onSuperSeedingToggle={superSeedingToggleHandler}
+        onForceTrackerReannounce={handleForceTrackerReannounce}
+        sequentialSupported={sequentialSupported}
+        superSeedingSupported={superSeedingSupported}
+      />
 
       <StatusBar
         sessionStats={sessionStats}
@@ -479,18 +485,6 @@ export default function App() {
         engineInfo={engineInfo}
         isDetectingEngine={isDetectingEngine}
       />
-
-        <TorrentDetailModal
-          torrent={detailData}
-          isOpen={Boolean(detailData)}
-          onClose={closeDetail}
-          onFilesToggle={handleFileSelectionChange}
-          onSequentialToggle={sequentialToggleHandler}
-          onSuperSeedingToggle={superSeedingToggleHandler}
-          onForceTrackerReannounce={handleForceTrackerReannounce}
-          sequentialSupported={sequentialSupported}
-          superSeedingSupported={superSeedingSupported}
-        />
       <AddTorrentModal
         isOpen={isAddModalOpen}
         onClose={handleAddModalClose}
