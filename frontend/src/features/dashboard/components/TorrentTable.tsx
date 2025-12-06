@@ -48,10 +48,10 @@ import { useTranslation } from "react-i18next";
 
 import type { Torrent } from "../types/torrent";
 import { COLUMN_DEFINITIONS, DEFAULT_COLUMN_ORDER, REQUIRED_COLUMN_IDS, type ColumnId } from "./column-definitions";
+import { TABLE_LAYOUT } from "../config/layout";
 
 // --- CONSTANTS ---
 const STORAGE_KEY = "tiny-torrent.table-state.v2.6"; // Bumped version
-const ROW_HEIGHT = 36;
 const CELL_PADDING_CLASS = "pl-3 pr-4";
 const CELL_BASE_CLASSES = "flex items-center overflow-hidden h-full truncate box-border";
 
@@ -202,11 +202,11 @@ const VirtualRow = memo(
     onContextMenu: (e: React.MouseEvent, torrent: Torrent) => void;
   }) => {
     const rowStyle = useMemo<CSSProperties>(
-      () => ({
-        transform: `translateY(${virtualRow.start}px)`,
-        height: `${ROW_HEIGHT}px`,
-        boxSizing: "border-box",
-      }),
+    () => ({
+      transform: `translateY(${virtualRow.start}px)`,
+      height: `${TABLE_LAYOUT.rowHeight}px`,
+      boxSizing: "border-box",
+    }),
       [virtualRow.start]
     );
 
@@ -445,8 +445,8 @@ export function TorrentTable({ torrents, filter, isLoading = false, onAction, on
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => ROW_HEIGHT,
-    overscan: 20,
+    estimateSize: () => TABLE_LAYOUT.rowHeight,
+    overscan: TABLE_LAYOUT.overscan,
   });
 
   const handleKeyDown = useCallback(
@@ -679,7 +679,11 @@ export function TorrentTable({ torrents, filter, isLoading = false, onAction, on
             {isLoading && torrents.length === 0 ? (
               <div className="w-full">
                 {Array.from({ length: 15 }).map((_, i) => (
-                  <div key={i} className="flex items-center w-full border-b border-content1/5 px-4" style={{ height: ROW_HEIGHT }}>
+                  <div
+                    key={i}
+                    className="flex items-center w-full border-b border-content1/5 px-4"
+                    style={{ height: TABLE_LAYOUT.rowHeight }}
+                  >
                     <Skeleton className="h-4 w-full rounded-md bg-content1/10" />
                   </div>
                 ))}
