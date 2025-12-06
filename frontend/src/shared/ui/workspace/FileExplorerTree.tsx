@@ -197,7 +197,7 @@ export function FileExplorerTree({ files, emptyMessage, onFilesToggle }: FileExp
                       event.stopPropagation();
                       toggleExpanded(node.id);
                     }}
-                    className="flex items-center justify-center rounded-full p-1 text-foreground/60 hover:text-foreground"
+                    className="flex items-center justify-center rounded-full p-1 text-foreground/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
                   >
                     {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                   </button>
@@ -209,7 +209,16 @@ export function FileExplorerTree({ files, emptyMessage, onFilesToggle }: FileExp
                       classNames={{ wrapper: "m-0" }}
                     />
                   </div>
-                  <Folder size={16} className="text-foreground/50" />
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      toggleExpanded(node.id);
+                    }}
+                    className="flex items-center justify-center rounded-full p-1 text-foreground/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                  >
+                    <Folder size={16} />
+                  </button>
                   <div className="flex flex-col text-sm font-medium text-foreground leading-tight">
                     <span className="text-foreground">{node.name}</span>
                     <span className="text-[11px] text-foreground/50">{count} file{count === 1 ? "" : "s"}</span>
