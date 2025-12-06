@@ -120,17 +120,14 @@ type PieceHover = { gridIndex: number; pieceIndex: number; status: PieceStatus }
 
 const normalizePercent = (value: number) => Math.min(Math.max(value ?? 0, 0), 1);
 
-const buildGridRows = (pieceCount: number) =>
-  Math.min(PIECE_MAX_ROWS, Math.max(PIECE_BASE_ROWS, Math.ceil(pieceCount / PIECE_COLUMNS)));
+const buildGridRows = (pieceCount: number) => Math.min(PIECE_MAX_ROWS, Math.max(PIECE_BASE_ROWS, Math.ceil(pieceCount / PIECE_COLUMNS)));
 
 const samplePieceIndexes = (totalPieces: number, slots: number) => {
   const count = Math.min(Math.max(0, totalPieces), slots);
   if (count <= 0) return [];
   if (count === 1) return [0];
   const step = (totalPieces - 1) / (count - 1);
-  return Array.from({ length: count }, (_, index) =>
-    Math.min(totalPieces - 1, Math.round(index * step))
-  );
+  return Array.from({ length: count }, (_, index) => Math.min(totalPieces - 1, Math.round(index * step)));
 };
 
 const PiecesMap = ({ percent, pieceStates, pieceCount, pieceSize }: PiecesMapProps) => {
@@ -167,7 +164,7 @@ const PiecesMap = ({ percent, pieceStates, pieceCount, pieceSize }: PiecesMapPro
     return [...filled, ...placeholders];
   }, [sampleIndexes, cellsToDraw, determineStatus]);
 
-  const { doneCount, downloadingCount } = useMemo(
+  const { done: doneCount, downloading: downloadingCount } = useMemo(
     () =>
       cells.reduce(
         (acc, cell) => {
@@ -179,7 +176,6 @@ const PiecesMap = ({ percent, pieceStates, pieceCount, pieceSize }: PiecesMapPro
       ),
     [cells]
   );
-
   const pieceSizeLabel = pieceSize ? formatBytes(pieceSize) : "Unknown";
   const canvasWidth = PIECE_COLUMNS * PIECE_CANVAS_CELL_SIZE + (PIECE_COLUMNS - 1) * PIECE_CANVAS_CELL_GAP;
   const canvasHeight = gridRows * PIECE_CANVAS_CELL_SIZE + (gridRows - 1) * PIECE_CANVAS_CELL_GAP;
@@ -211,12 +207,7 @@ const PiecesMap = ({ percent, pieceStates, pieceCount, pieceSize }: PiecesMapPro
       const y = row * cellPitch;
       ctx.save();
       if (cell) {
-        const statusColor =
-          cell.status === "done"
-            ? palette.primary
-            : cell.status === "downloading"
-            ? palette.warning
-            : palette.missing;
+        const statusColor = cell.status === "done" ? palette.primary : cell.status === "downloading" ? palette.warning : palette.missing;
         ctx.fillStyle = statusColor;
         if (cell.status === "downloading") {
           ctx.shadowColor = palette.glowWarning;
@@ -274,9 +265,7 @@ const PiecesMap = ({ percent, pieceStates, pieceCount, pieceSize }: PiecesMapPro
     [canvasHeight, canvasWidth, cells, cellPitch, gridRows]
   );
 
-  const tooltipContent = hoveredPiece
-    ? `Piece #${hoveredPiece.pieceIndex + 1} - ${PIECE_STATUS_LABELS[hoveredPiece.status]}`
-    : undefined;
+  const tooltipContent = hoveredPiece ? `Piece #${hoveredPiece.pieceIndex + 1} - ${PIECE_STATUS_LABELS[hoveredPiece.status]}` : undefined;
 
   return (
     <div className="flex flex-col gap-4 h-full">
@@ -295,13 +284,7 @@ const PiecesMap = ({ percent, pieceStates, pieceCount, pieceSize }: PiecesMapPro
         </span>
       </div>
       <div className="rounded-2xl border border-content1/20 bg-content1/10 p-4">
-        <Tooltip
-          content={tooltipContent}
-          delay={0}
-          closeDelay={0}
-          classNames={GLASS_TOOLTIP_CLASSNAMES}
-          isDisabled={!hoveredPiece}
-        >
+        <Tooltip content={tooltipContent} delay={0} closeDelay={0} classNames={GLASS_TOOLTIP_CLASSNAMES} isDisabled={!hoveredPiece}>
           <canvas
             ref={canvasRef}
             width={canvasWidth}
@@ -327,24 +310,13 @@ interface AvailabilityHeatmapProps {
 
 type HeatmapHover = { gridIndex: number; pieceIndex: number; peers: number };
 
-const AvailabilityHeatmap = ({
-  pieceAvailability,
-  label,
-  legendRare,
-  legendCommon,
-  emptyLabel,
-  formatTooltip,
-}: AvailabilityHeatmapProps) => {
+const AvailabilityHeatmap = ({ pieceAvailability, label, legendRare, legendCommon, emptyLabel, formatTooltip }: AvailabilityHeatmapProps) => {
   const palette = useCanvasPalette();
   const [zoomIndex, setZoomIndex] = useState(0);
   const zoomLevel = HEATMAP_ZOOM_LEVELS[zoomIndex] ?? 1;
 
   if (!pieceAvailability?.length) {
-    return (
-      <div className="rounded-2xl border border-content1/20 bg-content1/10 p-4 text-[11px] text-foreground/50 text-center">
-        {emptyLabel}
-      </div>
-    );
+    return <div className="rounded-2xl border border-content1/20 bg-content1/10 p-4 text-[11px] text-foreground/50 text-center">{emptyLabel}</div>;
   }
 
   const sampleLimit = Math.round(HEATMAP_SAMPLE_LIMIT * zoomLevel);
@@ -363,15 +335,10 @@ const AvailabilityHeatmap = ({
   const maxPeers = pieceAvailability.reduce((max, count) => Math.max(max, count ?? 0), 0) || 1;
   const gridRows = Math.max(1, Math.ceil(sampledCells.length / PIECE_COLUMNS));
   const totalCells = gridRows * PIECE_COLUMNS;
-  const heatCells = useMemo(
-    () => Array.from({ length: totalCells }, (_, index) => sampledCells[index] ?? null),
-    [sampledCells, totalCells]
-  );
+  const heatCells = useMemo(() => Array.from({ length: totalCells }, (_, index) => sampledCells[index] ?? null), [sampledCells, totalCells]);
 
-  const canvasWidth =
-    PIECE_COLUMNS * HEATMAP_CANVAS_CELL_SIZE + (PIECE_COLUMNS - 1) * HEATMAP_CANVAS_CELL_GAP;
-  const canvasHeight =
-    gridRows * HEATMAP_CANVAS_CELL_SIZE + (gridRows - 1) * HEATMAP_CANVAS_CELL_GAP;
+  const canvasWidth = PIECE_COLUMNS * HEATMAP_CANVAS_CELL_SIZE + (PIECE_COLUMNS - 1) * HEATMAP_CANVAS_CELL_GAP;
+  const canvasHeight = gridRows * HEATMAP_CANVAS_CELL_SIZE + (gridRows - 1) * HEATMAP_CANVAS_CELL_GAP;
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [hoveredCell, setHoveredCell] = useState<HeatmapHover | null>(null);
   const cellPitch = HEATMAP_CANVAS_CELL_SIZE + HEATMAP_CANVAS_CELL_GAP;
@@ -416,17 +383,7 @@ const AvailabilityHeatmap = ({
       }
       ctx.restore();
     });
-  }, [
-    canvasHeight,
-    canvasWidth,
-    heatCells,
-    hoveredCell,
-    getHeatColor,
-    maxPeers,
-    palette.highlight,
-    palette.placeholder,
-    cellPitch,
-  ]);
+  }, [canvasHeight, canvasWidth, heatCells, hoveredCell, getHeatColor, maxPeers, palette.highlight, palette.placeholder, cellPitch]);
 
   useEffect(() => {
     drawHeatmap();
@@ -461,9 +418,7 @@ const AvailabilityHeatmap = ({
     [canvasHeight, canvasWidth, cellPitch, gridRows, heatCells]
   );
 
-  const tooltipContent = hoveredCell
-    ? formatTooltip(hoveredCell.pieceIndex + 1, hoveredCell.peers)
-    : undefined;
+  const tooltipContent = hoveredCell ? formatTooltip(hoveredCell.pieceIndex + 1, hoveredCell.peers) : undefined;
 
   return (
     <motion.div layout className="flex flex-col gap-3">
@@ -504,13 +459,7 @@ const AvailabilityHeatmap = ({
         </div>
       </div>
       <div className="rounded-2xl border border-content1/20 bg-content1/10 p-2">
-        <Tooltip
-          content={tooltipContent}
-          delay={0}
-          closeDelay={0}
-          classNames={GLASS_TOOLTIP_CLASSNAMES}
-          isDisabled={!hoveredCell}
-        >
+        <Tooltip content={tooltipContent} delay={0} closeDelay={0} classNames={GLASS_TOOLTIP_CLASSNAMES} isDisabled={!hoveredCell}>
           <canvas
             ref={canvasRef}
             width={canvasWidth}
@@ -539,10 +488,7 @@ const PeerMap = ({ peers }: PeerMapProps) => {
   const gradientId = useId();
   const radarSweepId = `peer-map-radar-${gradientId}`;
 
-  const maxRate = useMemo(
-    () => Math.max(...peers.map((peer) => peer.rateToClient + peer.rateToPeer), 1),
-    [peers]
-  );
+  const maxRate = useMemo(() => Math.max(...peers.map((peer) => peer.rateToClient + peer.rateToPeer), 1), [peers]);
   const nodes = useMemo(() => {
     if (!peers.length) return [];
     const radius = 70;
@@ -576,9 +522,7 @@ const PeerMap = ({ peers }: PeerMapProps) => {
     <motion.div layout className="rounded-2xl border border-content1/20 bg-content1/15 p-4 space-y-3">
       <div className="flex items-center justify-between">
         <div className="flex flex-col">
-          <span className="text-[11px] uppercase tracking-[0.3em] text-foreground/50">
-            {t("torrent_modal.peer_map.title")}
-          </span>
+          <span className="text-[11px] uppercase tracking-[0.3em] text-foreground/50">{t("torrent_modal.peer_map.title")}</span>
           <span className="text-[10px] font-mono text-foreground/50">{t("torrent_modal.peer_map.total", { count: peers.length })}</span>
         </div>
         <div className="flex items-center gap-1">
@@ -598,23 +542,15 @@ const PeerMap = ({ peers }: PeerMapProps) => {
           className="rounded-2xl bg-content1/10 border border-content1/20"
           style={{ transform: `scale(${scale})`, transformOrigin: "center" }}
         >
-        <defs>
-          <linearGradient id={radarSweepId} x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="var(--heroui-primary)" stopOpacity="0.35" />
-            <stop offset="20%" stopColor="var(--heroui-primary)" stopOpacity="0.25" />
-            <stop offset="70%" stopColor="var(--heroui-primary)" stopOpacity="0.05" />
-            <stop offset="100%" stopColor="transparent" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        <motion.circle
-          cx={90}
-          cy={90}
-          r={80}
-          stroke="var(--heroui-content1)"
-          strokeWidth={1}
-          fill="transparent"
-          className="opacity-25"
-        />
+          <defs>
+            <linearGradient id={radarSweepId} x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="var(--heroui-primary)" stopOpacity="0.35" />
+              <stop offset="20%" stopColor="var(--heroui-primary)" stopOpacity="0.25" />
+              <stop offset="70%" stopColor="var(--heroui-primary)" stopOpacity="0.05" />
+              <stop offset="100%" stopColor="transparent" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          <motion.circle cx={90} cy={90} r={80} stroke="var(--heroui-content1)" strokeWidth={1} fill="transparent" className="opacity-25" />
           <motion.g
             style={{ transformOrigin: "90px 90px" }}
             animate={{ rotate: 360 }}
@@ -772,20 +708,8 @@ const SpeedChart = ({ downHistory, upHistory }: { downHistory: number[]; upHisto
               <stop offset="100%" stopColor="#6366f1" stopOpacity="0" />
             </linearGradient>
           </defs>
-          <path
-            d={buildSplinePath(downHistory)}
-            fill="none"
-            stroke="url(#down-gradient)"
-            strokeWidth="3"
-            strokeLinecap="round"
-          />
-          <path
-            d={buildSplinePath(upHistory)}
-            fill="none"
-            stroke="url(#up-gradient)"
-            strokeWidth="3"
-            strokeLinecap="round"
-          />
+          <path d={buildSplinePath(downHistory)} fill="none" stroke="url(#down-gradient)" strokeWidth="3" strokeLinecap="round" />
+          <path d={buildSplinePath(upHistory)} fill="none" stroke="url(#up-gradient)" strokeWidth="3" strokeLinecap="round" />
         </svg>
       </div>
     </div>
@@ -902,42 +826,22 @@ export function TorrentDetailView({
                   {STATUS_CONFIG[torrent.state].label}
                 </Chip>
               </div>
-              <span className="text-[10px] uppercase tracking-widest text-foreground/40 font-bold">
-                Hash: {torrent.hash.substring(0, 8)}...
-              </span>
+              <span className="text-[10px] uppercase tracking-widest text-foreground/40 font-bold">Hash: {torrent.hash.substring(0, 8)}...</span>
             </div>
             <div className="flex items-center gap-2">
               {canPause && (
-                <Button
-                  size="sm"
-                  variant="shadow"
-                  color="warning"
-                  className="flex items-center gap-1"
-                  onPress={() => handleAction("pause")}
-                >
+                <Button size="sm" variant="shadow" color="warning" className="flex items-center gap-1" onPress={() => handleAction("pause")}>
                   <PauseCircle size={14} />
                   {t("table.actions.pause")}
                 </Button>
               )}
               {canResume && (
-                <Button
-                  size="sm"
-                  variant="shadow"
-                  color="success"
-                  className="flex items-center gap-1"
-                  onPress={() => handleAction("resume")}
-                >
+                <Button size="sm" variant="shadow" color="success" className="flex items-center gap-1" onPress={() => handleAction("resume")}>
                   <PlayCircle size={14} />
                   {t("table.actions.resume")}
                 </Button>
               )}
-              <Button
-                size="sm"
-                variant="flat"
-                color="danger"
-                className="flex items-center gap-1"
-                onPress={() => handleAction("remove")}
-              >
+              <Button size="sm" variant="flat" color="danger" className="flex items-center gap-1" onPress={() => handleAction("remove")}>
                 <Trash2 size={14} />
                 {t("table.actions.remove")}
               </Button>
@@ -1057,7 +961,7 @@ export function TorrentDetailView({
                 transition={{ duration: 0.15 }}
                 className="min-h-full overflow-y-auto pr-2 scrollbar-hide"
               >
-              {/* --- TAB: GENERAL --- */}
+                {/* --- TAB: GENERAL --- */}
                 {activeTab === "general" && (
                   <div className="space-y-6">
                     <GlassPanel className="p-4 space-y-4 bg-content1/30 border border-content1/20">
@@ -1155,133 +1059,128 @@ export function TorrentDetailView({
                   </div>
                 )}
 
-              {/* --- TAB: PIECES (New) --- */}
-              {activeTab === "pieces" && (
-                <div className="h-full flex flex-col gap-4">
-                  <GlassPanel className="flex-1 overflow-hidden p-4">
-                    <PiecesMap
-                      percent={torrent.progress}
-                      pieceCount={torrent.pieceCount}
-                      pieceSize={torrent.pieceSize}
-                      pieceStates={torrent.pieceStates}
-                    />
-                  </GlassPanel>
-                  <GlassPanel className="flex-1 overflow-hidden p-4">
-                    <AvailabilityHeatmap
-                      pieceAvailability={torrent.pieceAvailability}
-                      label={t("torrent_modal.availability.label")}
-                      legendRare={t("torrent_modal.availability.legend_rare")}
-                      legendCommon={t("torrent_modal.availability.legend_common")}
-                      emptyLabel={t("torrent_modal.availability.empty")}
-                      formatTooltip={(piece, peers) =>
-                        t("torrent_modal.availability.tooltip", { piece, peers })
-                      }
-                    />
-                  </GlassPanel>
-                </div>
-              )}
-              {/* --- TAB: SPEED (New) --- */}
-              {activeTab === "speed" && (
-                <div className="h-full flex flex-col">
-                  <GlassPanel className="flex-1 p-6">
-                    <SpeedChart downHistory={downHistory} upHistory={upHistory} />
-                  </GlassPanel>
-                </div>
-              )}
-
-              {/* --- TAB: CONTENT --- */}
-              {activeTab === "content" && (
-                <div className="flex flex-col gap-3">
-                  <GlassPanel className="p-4 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="text-xs font-semibold uppercase tracking-[0.3em] text-foreground/60">
-                        {t("torrent_modal.files_title")}
-                      </div>
-                      <span className="text-[11px] text-foreground/50">{files.length} file{files.length === 1 ? "" : "s"}</span>
-                    </div>
-                    <div className="text-[11px] text-foreground/50">{t("torrent_modal.files_description")}</div>
-                    <div className="max-h-[320px] overflow-y-auto">
-                      <FileExplorerTree
-                        files={fileEntries}
-                        emptyMessage={t("torrent_modal.files_empty")}
-                        onFilesToggle={(indexes: number[], wanted: boolean) => onFilesToggle?.(indexes, wanted)}
+                {/* --- TAB: PIECES (New) --- */}
+                {activeTab === "pieces" && (
+                  <div className="h-full flex flex-col gap-4">
+                    <GlassPanel className="flex-1 overflow-hidden p-4">
+                      <PiecesMap
+                        percent={torrent.progress}
+                        pieceCount={torrent.pieceCount}
+                        pieceSize={torrent.pieceSize}
+                        pieceStates={torrent.pieceStates}
                       />
-                    </div>
-                  </GlassPanel>
-                </div>
-              )}
+                    </GlassPanel>
+                    <GlassPanel className="flex-1 overflow-hidden p-4">
+                      <AvailabilityHeatmap
+                        pieceAvailability={torrent.pieceAvailability}
+                        label={t("torrent_modal.availability.label")}
+                        legendRare={t("torrent_modal.availability.legend_rare")}
+                        legendCommon={t("torrent_modal.availability.legend_common")}
+                        emptyLabel={t("torrent_modal.availability.empty")}
+                        formatTooltip={(piece, peers) => t("torrent_modal.availability.tooltip", { piece, peers })}
+                      />
+                    </GlassPanel>
+                  </div>
+                )}
+                {/* --- TAB: SPEED (New) --- */}
+                {activeTab === "speed" && (
+                  <div className="h-full flex flex-col">
+                    <GlassPanel className="flex-1 p-6">
+                      <SpeedChart downHistory={downHistory} upHistory={upHistory} />
+                    </GlassPanel>
+                  </div>
+                )}
 
-              {/* --- TAB: PEERS --- */}
-              {activeTab === "peers" && (
-                <div className="flex flex-col gap-4">
-                  <PeerMap peers={peerEntries} />
-                  <div className="flex flex-col gap-2">
-                    {peerEntries.map((peer, i) => (
-                      <GlassPanel key={i} className="p-3 grid grid-cols-12 items-center gap-4 hover:bg-content1/50 transition-colors">
-                        <div className="col-span-4 flex flex-col">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-mono">{peer.address}</span>
-                            {peer.country && (
-                              <Chip size="sm" variant="flat" classNames={{ base: "h-4 px-1", content: "text-[9px] font-bold" }}>
-                                {peer.country}
-                              </Chip>
-                            )}
+                {/* --- TAB: CONTENT --- */}
+                {activeTab === "content" && (
+                  <div className="flex flex-col gap-3">
+                    <GlassPanel className="p-4 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="text-xs font-semibold uppercase tracking-[0.3em] text-foreground/60">{t("torrent_modal.files_title")}</div>
+                        <span className="text-[11px] text-foreground/50">
+                          {files.length} file{files.length === 1 ? "" : "s"}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-foreground/50">{t("torrent_modal.files_description")}</div>
+                      <div className="max-h-[320px] overflow-y-auto">
+                        <FileExplorerTree
+                          files={fileEntries}
+                          emptyMessage={t("torrent_modal.files_empty")}
+                          onFilesToggle={(indexes: number[], wanted: boolean) => onFilesToggle?.(indexes, wanted)}
+                        />
+                      </div>
+                    </GlassPanel>
+                  </div>
+                )}
+
+                {/* --- TAB: PEERS --- */}
+                {activeTab === "peers" && (
+                  <div className="flex flex-col gap-4">
+                    <PeerMap peers={peerEntries} />
+                    <div className="flex flex-col gap-2">
+                      {peerEntries.map((peer, i) => (
+                        <GlassPanel key={i} className="p-3 grid grid-cols-12 items-center gap-4 hover:bg-content1/50 transition-colors">
+                          <div className="col-span-4 flex flex-col">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-mono">{peer.address}</span>
+                              {peer.country && (
+                                <Chip size="sm" variant="flat" classNames={{ base: "h-4 px-1", content: "text-[9px] font-bold" }}>
+                                  {peer.country}
+                                </Chip>
+                              )}
+                            </div>
+                            <span className="text-[10px] text-foreground/40 truncate">{peer.clientName}</span>
                           </div>
-                          <span className="text-[10px] text-foreground/40 truncate">{peer.clientName}</span>
+                          <div className="col-span-2 text-[10px] font-mono opacity-50">{peer.flagStr}</div>
+                          <div className="col-span-3 flex flex-col gap-1">
+                            <Progress size="sm" value={peer.progress * 100} classNames={{ track: "h-1 bg-content1/10", indicator: "bg-primary" }} />
+                          </div>
+                          <div className="col-span-3 flex flex-col items-end font-mono text-[10px]">
+                            <span className="text-success">{formatSpeed(peer.rateToClient)}</span>
+                            <span className="text-primary">{formatSpeed(peer.rateToPeer)}</span>
+                          </div>
+                        </GlassPanel>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {/* --- TAB: TRACKERS --- */}
+                {activeTab === "trackers" && (
+                  <div className="flex flex-col gap-2">
+                    {trackers.length === 0 && <div className="px-4 py-3 text-xs text-foreground/50">No tracker history available.</div>}
+                    {trackers.map((tracker) => (
+                      <GlassPanel
+                        key={`${tracker.announce}-${tracker.tier}`}
+                        className="p-3 flex items-center justify-between hover:bg-content1/50 transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={cn(
+                              "w-1.5 h-1.5 rounded-full",
+                              tracker.lastAnnounceSucceeded ? "bg-success shadow-[0_0_8px_rgba(34,197,94,0.4)]" : "bg-warning"
+                            )}
+                          />
+                          <div className="flex flex-col">
+                            <span className="text-xs font-mono text-foreground/80 truncate max-w-xs">{tracker.announce}</span>
+                            <span className="text-[10px] text-foreground/40">
+                              Tier {tracker.tier} - {tracker.lastAnnounceResult || "—"} -
+                              {tracker.lastAnnounceSucceeded ? t("torrent_modal.trackers.status_online") : t("torrent_modal.trackers.status_partial")}
+                            </span>
+                          </div>
                         </div>
-                        <div className="col-span-2 text-[10px] font-mono opacity-50">{peer.flagStr}</div>
-                        <div className="col-span-3 flex flex-col gap-1">
-                          <Progress size="sm" value={peer.progress * 100} classNames={{ track: "h-1 bg-content1/10", indicator: "bg-primary" }} />
-                        </div>
-                        <div className="col-span-3 flex flex-col items-end font-mono text-[10px]">
-                          <span className="text-success">{formatSpeed(peer.rateToClient)}</span>
-                          <span className="text-primary">{formatSpeed(peer.rateToPeer)}</span>
+                        <div className="text-right">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-foreground/30">Peers</span>
+                          <div className="font-mono text-xs">
+                            {tracker.seederCount} seeded / {tracker.leecherCount} leeching
+                          </div>
                         </div>
                       </GlassPanel>
                     ))}
                   </div>
-                </div>
-              )}
-              {/* --- TAB: TRACKERS --- */}
-              {activeTab === "trackers" && (
-                <div className="flex flex-col gap-2">
-                  {trackers.length === 0 && (
-                    <div className="px-4 py-3 text-xs text-foreground/50">No tracker history available.</div>
-                  )}
-                  {trackers.map((tracker) => (
-                    <GlassPanel
-                      key={`${tracker.announce}-${tracker.tier}`}
-                      className="p-3 flex items-center justify-between hover:bg-content1/50 transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={cn(
-                            "w-1.5 h-1.5 rounded-full",
-                            tracker.lastAnnounceSucceeded ? "bg-success shadow-[0_0_8px_rgba(34,197,94,0.4)]" : "bg-warning"
-                          )}
-                        />
-                        <div className="flex flex-col">
-                          <span className="text-xs font-mono text-foreground/80 truncate max-w-xs">{tracker.announce}</span>
-                          <span className="text-[10px] text-foreground/40">
-                            Tier {tracker.tier} - {tracker.lastAnnounceResult || "—"} -
-                            {tracker.lastAnnounceSucceeded
-                              ? t("torrent_modal.trackers.status_online")
-                              : t("torrent_modal.trackers.status_partial")}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-foreground/30">Peers</span>
-                        <div className="font-mono text-xs">
-                          {tracker.seederCount} seeded / {tracker.leecherCount} leeching
-                        </div>
-                      </div>
-                    </GlassPanel>
-                  ))}
-                </div>
-              )}
-            </motion.div>
-          </AnimatePresence>
+                )}
+              </motion.div>
+            </AnimatePresence>
+          </div>
         </div>
       </div>
     </div>

@@ -356,12 +356,24 @@ src/
 └── i18n/ # Localization
 └── en.json
 
+## ** 13. Internationalization **
+
+- **No hard-coded English anywhere in the codebase. **
+- **All visible UI text must be referenced through `t("…")`.**
+- Work with en.json only. Ignore all other translation files even if they exist. Never read, write, or reference them.
+- When a new UI string is needed:
+
+  1. Add a key/value to `en.json` only
+  2. Use `t("key")` in the component.
+
+- Agents must never output inline English text in JSX/TSX.
+- If a string appears inline, it must be moved to `en.json` automatically.
+
 ## Other
 
-1. To save tokens Only work with en.json, do not update any other translation files.
-2. before you report the task as completed, perform a review of the code and fix all important issues. repeat until fully happy.
-3. perform a npm run build and fix if possible
-4. Don't try to execute linux commands. The build machine is Windows environment
-5. The following extra windows .exe are available. you can use the,: rg, fd, bat
-6. For code search, never use Select-String. Always use ripgrep: rg -n -C 5 "<pattern>" <path>
-7. Never write complex or nested shell one-liners. If a command requires tricky quoting or multiple pipes, move it into a script file instead. All commands must be simple, cross-platform, and Windows-safe.
+1. before you report the task as completed, perform a review of the code and fix all important issues. repeat until fully happy.
+2. perform a npm run build and fix if possible
+3. Don't try to execute linux commands. The build machine is Windows environment
+4. The following extra windows .exe are available. you can use the,: rg, fd, bat
+5. For code search, never use Select-String. Always use ripgrep: rg -n -C 5 "<pattern>" <path>
+6. Never write complex or nested shell one-liners. If a command requires tricky quoting or multiple pipes, move it into a script file instead. All commands must be simple, cross-platform, and Windows-safe.
