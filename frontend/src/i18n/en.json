@@ -19,12 +19,12 @@
         "cancel": "Cancel",
         "disk_gauge": {
             "free": "Free",
+            "insufficient": "Not enough disk space to download this torrent.",
             "path_unknown": "Path",
             "title": "Disk Space",
             "torrent": "Torrent",
             "updating": "Refreshing...",
-            "used": "Used",
-            "insufficient": "Not enough disk space to download this torrent."
+            "used": "Used"
         },
         "disk_gauge_error": "Unable to refresh disk usage.",
         "download": "Download",
@@ -145,15 +145,15 @@
     "status_bar": {
         "dht_nodes": "{{count}} Nodes",
         "down": "DOWN",
+        "engine": "Engine",
+        "engine_detecting": "Detecting engine...",
+        "engine_unknown": "Unknown engine",
         "online": "Online",
         "reconnect": "Reconnect",
         "rpc_connected": "Connected",
         "rpc_error": "Offline",
         "rpc_idle": "Initializing",
         "rpc_status": "RPC",
-        "engine": "Engine",
-        "engine_detecting": "Detecting engine...",
-        "engine_unknown": "Unknown engine",
         "up": "UP"
     },
     "table": {
@@ -205,8 +205,8 @@
         "select_item": "Select {{name}}",
         "status_dl": "DL",
         "status_pause": "PAUSE",
-        "status_seed": "SEED",
-        "status_queued": "WAIT"
+        "status_queued": "WAIT",
+        "status_seed": "SEED"
     },
     "theme": {
         "dark": "Dark",
@@ -221,39 +221,31 @@
         "actions": {
             "close": "Close"
         },
-        "eta_unknown": "Unknown",
-        "files_description": "Toggle files on/off to control what downloads.",
-        "files_empty": "No files are available.",
-        "files_title": "Contents",
-        "file_counts": {
-            "count_single": "1 file",
-            "count_multiple": "{{count}} files"
+        "availability": {
+            "empty": "Availability data not available.",
+            "label": "Piece Availability",
+            "legend_common": "Common",
+            "legend_rare": "Rare",
+            "tooltip": "Piece {{piece}} · {{peers}} peers"
         },
         "controls": {
-            "title": "Power User Modes",
             "description": "Toggle advanced streaming and seeding behaviors when supported.",
+            "force_reannounce": "Force Tracker Reannounce",
+            "not_supported": "Not supported by this client",
             "sequential": "Sequential Download",
             "sequential_helper": "Download pieces in order for instant playback.",
             "super_seeding": "Super Seeding",
             "super_seeding_helper": "Upload rare pieces to seed the swarm.",
-            "force_reannounce": "Force Tracker Reannounce",
-            "not_supported": "Not supported by this client"
+            "title": "Power User Modes"
         },
-        "stats": {
-            "pieces": "Pieces",
-            "piece_size": "Piece Size",
-            "verified": "Verified",
-            "downloading": "Downloading",
-            "missing": "Missing",
-            "total_progress": "Total Progress",
-            "time_remaining": "Time Remaining",
-            "availability": "Availability (Swarm)",
-            "active": "Active",
-            "downloaded": "Downloaded",
-            "downloaded_helper": "Total data fetched from peers",
-            "uploaded": "Uploaded",
-            "ratio": "Ratio: {{ratio}}"
+        "eta_unknown": "Unknown",
+        "file_counts": {
+            "count_multiple": "{{count}} files",
+            "count_single": "1 file"
         },
+        "files_description": "Toggle files on/off to control what downloads.",
+        "files_empty": "No files are available.",
+        "files_title": "Contents",
         "general": {
             "download": "Download",
             "eta": "ETA",
@@ -270,11 +262,23 @@
             "label": "Secure Source",
             "last_checked": "Checked"
         },
+        "labels": {
+            "info_hash": "Info Hash",
+            "save_path": "Save Path",
+            "unknown": "Unknown"
+        },
+        "peer_map": {
+            "title": "Peer Map",
+            "total": "{{count}} peers on swarm"
+        },
         "peers": {
             "download": "DL",
             "ip": "IP",
             "progress": "Progress",
             "upload": "UL"
+        },
+        "piece_map": {
+            "tooltip": "Piece #{{piece}} – {{status}}"
         },
         "speed": {
             "average": "Average",
@@ -282,51 +286,47 @@
             "stable": "Steady Connection",
             "upload": "Upload Speed"
         },
+        "stats": {
+            "active": "Active",
+            "availability": "Availability (Swarm)",
+            "downloaded": "Downloaded",
+            "downloaded_helper": "Total data fetched from peers",
+            "downloading": "Downloading",
+            "missing": "Missing",
+            "piece_size": "Piece Size",
+            "pieces": "Pieces",
+            "ratio": "Ratio: {{ratio}}",
+            "time_remaining": "Time Remaining",
+            "total_progress": "Total Progress",
+            "uploaded": "Uploaded",
+            "verified": "Verified"
+        },
         "statuses": {
             "status_checking": "Checking",
             "status_downloading": "Downloading",
             "status_error": "Error",
             "status_paused": "Paused",
-            "status_seeding": "Seeding",
-            "status_queued": "Queued"
+            "status_queued": "Queued",
+            "status_seeding": "Seeding"
         },
         "tabs": {
             "content": "Content",
             "general": "General",
-            "pieces": "Pieces",
             "https": "HTTPS Source",
             "peers": "Peers",
+            "pieces": "Pieces",
             "speed": "Speed",
             "trackers": "Trackers"
         },
-        "labels": {
-            "save_path": "Save Path",
-            "info_hash": "Info Hash",
-            "unknown": "Unknown"
-        },
         "title": "Torrent Details",
-        "availability": {
-            "label": "Piece Availability",
-            "legend_rare": "Rare",
-            "legend_common": "Common",
-            "tooltip": "Piece {{piece}} · {{peers}} peers",
-            "empty": "Availability data not available."
-        },
-        "peer_map": {
-            "title": "Peer Map",
-            "total": "{{count}} peers on swarm"
-        },
-        "piece_map": {
-            "tooltip": "Piece #{{piece}} – {{status}}"
-        },
         "trackers": {
+            "empty": "No tracker history available.",
             "last_announce": "Last Announce",
+            "peer_summary": "{{seeded}} seeded / {{leeching}} leeching",
+            "peers_label": "Peers",
             "status_online": "Online",
             "status_partial": "Partial",
-            "tier": "Tier",
-            "empty": "No tracker history available.",
-            "peers_label": "Peers",
-            "peer_summary": "{{seeded}} seeded / {{leeching}} leeching"
+            "tier": "Tier"
         }
     }
 }
