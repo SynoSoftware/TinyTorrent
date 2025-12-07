@@ -225,6 +225,10 @@
         "files_description": "Toggle files on/off to control what downloads.",
         "files_empty": "No files are available.",
         "files_title": "Contents",
+        "file_counts": {
+            "count_single": "1 file",
+            "count_multiple": "{{count}} files"
+        },
         "controls": {
             "title": "Power User Modes",
             "description": "Toggle advanced streaming and seeding behaviors when supported.",
@@ -234,6 +238,21 @@
             "super_seeding_helper": "Upload rare pieces to seed the swarm.",
             "force_reannounce": "Force Tracker Reannounce",
             "not_supported": "Not supported by this client"
+        },
+        "stats": {
+            "pieces": "Pieces",
+            "piece_size": "Piece Size",
+            "verified": "Verified",
+            "downloading": "Downloading",
+            "missing": "Missing",
+            "total_progress": "Total Progress",
+            "time_remaining": "Time Remaining",
+            "availability": "Availability (Swarm)",
+            "active": "Active",
+            "downloaded": "Downloaded",
+            "downloaded_helper": "Total data fetched from peers",
+            "uploaded": "Uploaded",
+            "ratio": "Ratio: {{ratio}}"
         },
         "general": {
             "download": "Download",
@@ -274,10 +293,16 @@
         "tabs": {
             "content": "Content",
             "general": "General",
+            "pieces": "Pieces",
             "https": "HTTPS Source",
             "peers": "Peers",
             "speed": "Speed",
             "trackers": "Trackers"
+        },
+        "labels": {
+            "save_path": "Save Path",
+            "info_hash": "Info Hash",
+            "unknown": "Unknown"
         },
         "title": "Torrent Details",
         "availability": {
@@ -291,11 +316,17 @@
             "title": "Peer Map",
             "total": "{{count}} peers on swarm"
         },
+        "piece_map": {
+            "tooltip": "Piece #{{piece}} – {{status}}"
+        },
         "trackers": {
             "last_announce": "Last Announce",
             "status_online": "Online",
             "status_partial": "Partial",
-            "tier": "Tier"
+            "tier": "Tier",
+            "empty": "No tracker history available.",
+            "peers_label": "Peers",
+            "peer_summary": "{{seeded}} seeded / {{leeching}} leeching"
         }
     }
 }
