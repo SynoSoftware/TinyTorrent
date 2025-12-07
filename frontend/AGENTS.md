@@ -11,24 +11,24 @@ TinyTorrent = **modern µTorrent** × **glass UI** × **Apple/Linear polish**.
 
 ### Identity pillars:
 
-- **Speed:** No lag. No hesitation.
-- **Density:** Data-rich layout, zero wasted space.
-- **Stealth:** Dark-first visual identity (system mode respected automatically).
-- **Zero Bloat:** Extremely small executable.
-- **World-Class Visuals:** Premium, clean, and effortless.
-- **Native HUD Feel:** Glass, blur, depth, minimal chrome.
+-   **Speed:** No lag. No hesitation.
+-   **Density:** Data-rich layout, zero wasted space.
+-   **Stealth:** Dark-first visual identity (system mode respected automatically).
+-   **Zero Bloat:** Extremely small executable.
+-   **World-Class Visuals:** Premium, clean, and effortless.
+-   **Native HUD Feel:** Glass, blur, depth, minimal chrome.
 
 ---
 
 # **2. Architecture**
 
-- **Frontend:** React 19 + TypeScript + Vite
-- **Styling:** TailwindCSS v4 + HeroUI
-- **Motion:** Framer Motion — required for every interactive element. Complex components (lists, draggable rows, compare sliders, zoomable panes, split-views, progress animations) must use motion to express structure, state, and depth. Motion must feel physical, intentional, and consistent with system physics.
-- **Drag & Drop:** react-dropzone (full-window detection)
-- **Icons:** Lucide (tree-shaken)
-- **State:** React Hooks; Zustand only when necessary
-- **Routing:** Only if strictly required
+-   **Frontend:** React 19 + TypeScript + Vite
+-   **Styling:** TailwindCSS v4 + HeroUI
+-   **Motion:** Framer Motion — required for every interactive element. Complex components (lists, draggable rows, compare sliders, zoomable panes, split-views, progress animations) must use motion to express structure, state, and depth. Motion must feel physical, intentional, and consistent with system physics.
+-   **Drag & Drop:** react-dropzone (full-window detection)
+-   **Icons:** Lucide (tree-shaken)
+-   **State:** React Hooks; Zustand only when necessary
+-   **Routing:** Only if strictly required
 
 ---
 
@@ -50,13 +50,13 @@ No hard-coded hex colors or arbitrary Tailwind colors.
 
 ### Aesthetic
 
-- Detect system dark/light mode and use it automatically; fallback = Dark.
-- Detect system/browser language and use it; fallback = English.
-- Glass layers (backdrop-blur) for all UI surfaces that float or overlay (sidebar, modals, table headers, toolbars, workspace areas).
-- High-density professional layout — tooling-level, not consumer-level.
-- Minimal padding, tight alignment, compact controls.
-- Strong typography hierarchy (Swiss style).
-- Layered shadows used sparingly for depth — never decoration.
+-   Detect system dark/light mode and use it automatically; fallback = Dark.
+-   Detect system/browser language and use it; fallback = English.
+-   Glass layers (backdrop-blur) for all UI surfaces that float or overlay (sidebar, modals, table headers, toolbars, workspace areas).
+-   High-density professional layout — tooling-level, not consumer-level.
+-   Minimal padding, tight alignment, compact controls.
+-   Strong typography hierarchy (Swiss style).
+-   Layered shadows used sparingly for depth — never decoration.
 
 ---
 
@@ -67,38 +67,38 @@ No hard-coded hex colors or arbitrary Tailwind colors.
 Every interaction must be physically obvious, reversible, continuous, and feel like a professional tool — not a webpage.
 Complex widgets must behave like a workspace:
 
-- zoomable
-- pannable
-- resizable
-- draggable
-- comparable
-- reorderable
-- state-aware
-- motion-coherent
+-   zoomable
+-   pannable
+-   resizable
+-   draggable
+-   comparable
+-   reorderable
+-   state-aware
+-   motion-coherent
 
 Every gesture (drag, wheel, zoom, pan, resize, compare, reorder) must be smooth, predictable, and never block or jitter.
 
 ### **Interaction Principles**
 
-- **Full-window drop zone** with animated overlay.
-- **Auto-paste** for magnet links.
-- **Context menus everywhere.**
-- **Keyboard-first** for core actions.
-- **Continuous feedback** — no dead states.
-- **Minimal chrome, maximal clarity.**
-- **No click-hunting** — controls must appear where they are needed.
+-   **Full-window drop zone** with animated overlay.
+-   **Auto-paste** for magnet links.
+-   **Context menus everywhere.**
+-   **Keyboard-first** for core actions.
+-   **Continuous feedback** — no dead states.
+-   **Minimal chrome, maximal clarity.**
+-   **No click-hunting** — controls must appear where they are needed.
 
 ### **Motion**
 
 Kinetic micro-interactions must clarify structure:
 
-- Buttons: micro-scale + color shifts
-- Icons: task-specific motion (e.g., rotate, pulse, bounce subtly)
-- Rows: animate on reorder
-- Progress bars: smooth transitions
-- Modals: fade + slide + depth bloom
-- Overlays: opacity + blur transitions
-- Workspace zoom/pan: eased, continuous
+-   Buttons: micro-scale + color shifts
+-   Icons: task-specific motion (e.g., rotate, pulse, bounce subtly)
+-   Rows: animate on reorder
+-   Progress bars: smooth transitions
+-   Modals: fade + slide + depth bloom
+-   Overlays: opacity + blur transitions
+-   Workspace zoom/pan: eased, continuous
 
 Motion is part of the UX language, not decoration.
 
@@ -108,45 +108,45 @@ Motion is part of the UX language, not decoration.
 
 ### **Table (Core)**
 
-- HeroUI `<Table>`
-- **Compact, dense, tooling-level row height**
-- Sticky blurred header
-- Monospace for numbers/speeds
-- Sans-serif for names
-- Thin, minimal progress bars
-- Optional sparkline SVG allowed
-- No row flicker on updates
-- Row-level motion for selection, hover, reorder
+-   HeroUI `<Table>`
+-   **Compact, dense, tooling-level row height**
+-   Sticky blurred header
+-   Monospace for numbers/speeds
+-   Sans-serif for names
+-   Thin, minimal progress bars
+-   Optional sparkline SVG allowed
+-   No row flicker on updates
+-   Row-level motion for selection, hover, reorder
 
 ---
 
 ### **Modals**
 
-- Instant autofocus
-- Blur + depth shadow
-- Framer Motion transitions
-- Must feel like floating “panels” inside a HUD
-- No heavy chrome; no wasted margins
+-   Instant autofocus
+-   Blur + depth shadow
+-   Framer Motion transitions
+-   Must feel like floating “panels” inside a HUD
+-   No heavy chrome; no wasted margins
 
 ---
 
 ### **Buttons**
 
-- Primary = `shadow`
-- Secondary = `light` / `ghost`
-- Icon-only buttons for toolbars
-- Must animate on hover/press
-- Must keep density — no oversized UI
+-   Primary = `shadow`
+-   Secondary = `light` / `ghost`
+-   Icon-only buttons for toolbars
+-   Must animate on hover/press
+-   Must keep density — no oversized UI
 
 ---
 
 ### **Drag & Drop Overlay**
 
-- Full-window detection
-- Glass layer with kinetic fade-in
-- Bold “Drop to Add Torrent” text
-- Dims background but keeps context visible
-- Cancels instantly on drag-out
+-   Full-window detection
+-   Glass layer with kinetic fade-in
+-   Bold “Drop to Add Torrent” text
+-   Dims background but keeps context visible
+-   Cancels instantly on drag-out
 
 ---
 
@@ -155,15 +155,15 @@ Motion is part of the UX language, not decoration.
 Thin strokes (1.5).
 Use curated set only:
 
-- `Magnet` — add magnet
-- `ArrowDownCircle` — downloading
-- `CheckCircle2` — seeding
-- `PauseCircle` — paused
-- `Trash2` — delete
-- `Gauge` — speed/settings
-- `Zap` — connection/activity
+-   `Magnet` — add magnet
+-   `ArrowDownCircle` — downloading
+-   `CheckCircle2` — seeding
+-   `PauseCircle` — paused
+-   `Trash2` — delete
+-   `Gauge` — speed/settings
+-   `Zap` — connection/activity
 
-- Icons must always use semantic colors.
+-   Icons must always use semantic colors.
 
 ### **Workspace Components **
 
@@ -171,13 +171,13 @@ Any component that presents data visually (torrent details, file info, preview p
 
 Workspace capabilities:
 
-- Smooth zoom (wheel / pinch / +/- buttons)
-- Smooth pan (click-drag)
-- Reset view
-- Motion-driven transforms
-- Toolbars that float above content
-- Dynamic affordances (handles, sliders, overlays)
-- Split views or comparison views when appropriate
+-   Smooth zoom (wheel / pinch / +/- buttons)
+-   Smooth pan (click-drag)
+-   Reset view
+-   Motion-driven transforms
+-   Toolbars that float above content
+-   Dynamic affordances (handles, sliders, overlays)
+-   Split views or comparison views when appropriate
 
 This matches the interaction model you demonstrated:
 **professional tool UI, not a webpage UI.**
@@ -191,50 +191,50 @@ This interface defines the **common protocol** used by the UI, hooks, and state 
 
 ### **Design Rules**
 
-- **Transmission = baseline canonical protocol.**
-  All mandatory fields, command semantics, and update flows are defined according to Transmission’s RPC model.
+-   **Transmission = baseline canonical protocol.**
+    All mandatory fields, command semantics, and update flows are defined according to Transmission’s RPC model.
 
-- **Libtorrent = extension layer (future).**
-  Libtorrent support will implement the same `EngineAdapter` interface,
-  extending it only when libtorrent exposes capabilities beyond the Transmission baseline.
+-   **Libtorrent = extension layer (future).**
+    Libtorrent support will implement the same `EngineAdapter` interface,
+    extending it only when libtorrent exposes capabilities beyond the Transmission baseline.
 
-- **No engine-specific logic in UI or features.**
-  Every component must consume **only the EngineAdapter interface**, never raw RPC shapes.
+-   **No engine-specific logic in UI or features.**
+    Every component must consume **only the EngineAdapter interface**, never raw RPC shapes.
 
-- **One adapter active at runtime.**
-  Selection handled at startup or settings page.
+-   **One adapter active at runtime.**
+    Selection handled at startup or settings page.
 
-- **Typed reality.**
-  Transmission types define the canonical DTOs.
-  Libtorrent adapter must conform to them and provide extended structures through explicit extension models — never by mutating the baseline DTOs.
+-   **Typed reality.**
+    Transmission types define the canonical DTOs.
+    Libtorrent adapter must conform to them and provide extended structures through explicit extension models — never by mutating the baseline DTOs.
 
 ### **EngineAdapter Responsibilities**
 
 These methods exist **abstractly**; their internal implementation depends on the engine:
 
-- handshake / session initialization
-- fetch session stats
-- fetch torrent list (delta-friendly)
-- fetch single torrent details (piece map, files, trackers, peers)
-- add torrent (magnet / file)
-- start / pause / delete
-- update subscription (polling)
-- error reporting (non-blocking, recoverable)
+-   handshake / session initialization
+-   fetch session stats
+-   fetch torrent list (delta-friendly)
+-   fetch single torrent details (piece map, files, trackers, peers)
+-   add torrent (magnet / file)
+-   start / pause / delete
+-   update subscription (polling)
+-   error reporting (non-blocking, recoverable)
 
 ### **Principles**
 
-- **UI never sees engine-specific fields.**
-- **Adapters must translate engine responses into canonical Transmission-shaped DTOs.**
-- **Extensions must be explicit, namespaced, and optional.**
-- **Adapters must be hot-swappable with zero UI changes.**
+-   **UI never sees engine-specific fields.**
+-   **Adapters must translate engine responses into canonical Transmission-shaped DTOs.**
+-   **Extensions must be explicit, namespaced, and optional.**
+-   **Adapters must be hot-swappable with zero UI changes.**
 
 ---
 
 # **7. Internationalization**
 
-- i18next
-- Only `en.json` must be maintained for MVP
-- All visible UI text must go through `t("…")`
+-   i18next
+-   Only `en.json` must be maintained for MVP
+-   All visible UI text must go through `t("…")`
 
 ---
 
@@ -242,19 +242,19 @@ These methods exist **abstractly**; their internal implementation depends on the
 
 ### Requirements
 
-- No console noise
-- No unused imports
-- Strict TypeScript
-- Minimal bundle size
-- Clean build (`vite build` / `npm run build`)
-- Consistent commit quality
-- Visually consistent dark-mode-first UI
+-   No console noise
+-   No unused imports
+-   Strict TypeScript
+-   Minimal bundle size
+-   Clean build (`vite build` / `npm run build`)
+-   Consistent commit quality
+-   Visually consistent dark-mode-first UI
 
 ### Rendering
 
-- Efficient row-level updates
-- Minimal unnecessary React re-renders
-- No layout thrash
+-   Efficient row-level updates
+-   Minimal unnecessary React re-renders
+-   No layout thrash
 
 ---
 
@@ -271,66 +271,66 @@ These methods exist **abstractly**; their internal implementation depends on the
 
 ---
 
-## **10. UX Excellence Directive **
+# **10. UX Excellence Directive **
 
 All Agents must operate as **world-class tool-UI designers**, capable of bridging two eras of design.
 TinyTorrent must deliver **Adaptive Excellence**:
 
-- **Unified Professional Interface:**
+-   **Unified Professional Interface:**
 
-  - **Single Mode:** The UI operates exclusively in "Modern Mode" (Glass/Blur).
-  - **Tooling Precision:** While the aesthetic is modern, the functionality must remain dense and keyboard-friendly (e.g. arrow key navigation in the table).
-  - **No Split-Pane:** Details are accessed via double-click (Modal), preserving the clean "List View" focus.
+    -   **Single Mode:** The UI operates exclusively in "Modern Mode" (Glass/Blur).
+    -   **Tooling Precision:** While the aesthetic is modern, the functionality must remain dense and keyboard-friendly (e.g. arrow key navigation in the table).
+    -   **No Split-Pane:** Details are accessed via double-click (Modal), preserving the clean "List View" focus.
 
-- **Tooling-Grade Ergonomics:**
-  - he tool must feel "heavy" and precise.
-  - High Density: Data-rich layouts with no wasted space.
-  - Clarity: Zero visual clutter; every pixel must serve a purpose.
+-   **Tooling-Grade Ergonomics:**
+    -   he tool must feel "heavy" and precise.
+    -   High Density: Data-rich layouts with no wasted space.
+    -   Clarity: Zero visual clutter; every pixel must serve a purpose.
 
 **Simplicity of presentation — not simplicity of capability.**
 **Respect the Muscle Memory of the veteran, but deliver the Fluidity of the future.**
 
 ---
 
-## **11. Architectural Principles (Mandatory)**
+# **11. Architectural Principles (Mandatory)**
 
-- **Use HeroUI as the primary design system.**
-  HeroUI components and tokens are the default for every surface, layout, and control.
-  Custom UI exists only when HeroUI cannot express a required interaction.
-  No external UI kits. No custom CSS that replicates HeroUI features.
+-   **Use HeroUI as the primary design system.**
+    HeroUI components and tokens are the default for every surface, layout, and control.
+    Custom UI exists only when HeroUI cannot express a required interaction.
+    No external UI kits. No custom CSS that replicates HeroUI features.
 
-- **One responsibility per unit.**
-  Every component, hook, and module must do exactly one thing. No mixed concerns.
+-   **One responsibility per unit.**
+    Every component, hook, and module must do exactly one thing. No mixed concerns.
 
-- **Pure UI.**
-  Components render; they don’t fetch, store, transform, or decide business rules.
+-   **Pure UI.**
+    Components render; they don’t fetch, store, transform, or decide business rules.
 
-- **Hard layer boundaries.**
-  Data enters from RPC → flows through state/hooks → ends in components.
-  Never backwards, never sideways.
+-   **Hard layer boundaries.**
+    Data enters from RPC → flows through state/hooks → ends in components.
+    Never backwards, never sideways.
 
-- **Typed reality, not guesses.**
-  All data structures must match real RPC shapes exactly. No “maybe”, no loose models.
+-   **Typed reality, not guesses.**
+    All data structures must match real RPC shapes exactly. No “maybe”, no loose models.
 
-- **No magic.**
-  No hidden behaviors, no unexplained values, no silent side effects.
+-   **No magic.**
+    No hidden behaviors, no unexplained values, no silent side effects.
 
-- **Replaceable building blocks.**
-  Every piece of UI must be swappable without breaking unrelated parts.
+-   **Replaceable building blocks.**
+    Every piece of UI must be swappable without breaking unrelated parts.
 
-- **Local state first.**
-  Global state only when multiple distant parts truly need it.
+-   **Local state first.**
+    Global state only when multiple distant parts truly need it.
 
-- **Deterministic behavior.**
-  No randomness, no ambiguity, no implicit rules. Everything explicit and intentional.
+-   **Deterministic behavior.**
+    No randomness, no ambiguity, no implicit rules. Everything explicit and intentional.
 
-- **Code must age well.**
-  Every change should increase clarity, not decrease it. No hacks, no shortcuts, no debt.
+-   **Code must age well.**
+    Every change should increase clarity, not decrease it. No hacks, no shortcuts, no debt.
 
-- **Don’t reinvent solved problems.**
-  Use libraries with purpose — avoid bloat and avoid reinvention. Adopt modern, battle-tested libraries for non-core needs, but introduce nothing legacy and nothing that doesn’t earn its place.
+-   **Don’t reinvent solved problems.**
+    Use libraries with purpose — avoid bloat and avoid reinvention. Adopt modern, battle-tested libraries for non-core needs, but introduce nothing legacy and nothing that doesn’t earn its place.
 
-## **12. Project Structure (Blueprint)**
+# **12. Project Structure (Blueprint)**
 
 A shallow, predictable, human-readable structure.
 Features live in `modules/`; all external service integrations live in `services/`; shared reusable code lives in `shared/`; global configuration stays in `config/`.
@@ -389,14 +389,14 @@ src/
 
 #### **1. Features (`modules/`)**
 
-- One feature = one folder under `modules/`.
-- Each feature contains:
+-   One feature = one folder under `modules/`.
+-   Each feature contains:
 
-  - main UI component (`XxxView.tsx` or `XxxModal.tsx`)
-  - a local `hooks.ts` for feature-specific logic
-  - `parts/` only when the UI grows beyond a comfortable size.
+    -   main UI component (`XxxView.tsx` or `XxxModal.tsx`)
+    -   a local `hooks.ts` for feature-specific logic
+    -   `parts/` only when the UI grows beyond a comfortable size.
 
-- If `hooks.ts` becomes too large or contains unrelated hooks, convert it into a `hooks/` folder:
+-   If `hooks.ts` becomes too large or contains unrelated hooks, convert it into a `hooks/` folder:
 
 ```
 hooks/
@@ -408,14 +408,14 @@ hooks/
 
 #### **2. Services (`services/`)**
 
-- All external integrations MUST live under `services/<service-name>/`.
-- Torrent RPC lives under `services/rpc/`:
+-   All external integrations MUST live under `services/<service-name>/`.
+-   Torrent RPC lives under `services/rpc/`:
 
-  - `rpc-base.ts` -> Transmission-compatible RPC client (baseline)
-  - `rpc-extended.ts` -> extends the base with additional capabilities
-  - `types.ts` -> canonical DTOs (Transmission-shaped) + optional extensions
+    -   `rpc-base.ts` -> Transmission-compatible RPC client (baseline)
+    -   `rpc-extended.ts` -> extends the base with additional capabilities
+    -   `types.ts` -> canonical DTOs (Transmission-shaped) + optional extensions
 
-- Adding new services (auth, telemetry, storage, etc.) follows the same pattern:
+-   Adding new services (auth, telemetry, storage, etc.) follows the same pattern:
 
 ```
 services/auth/
@@ -423,29 +423,29 @@ services/storage/
 services/telemetry/
 ```
 
-- No service code may exist outside `services/`.
+-   No service code may exist outside `services/`.
 
 ---
 
 #### **3. Shared (`shared/`)**
 
-- Only place code here when two or more features need it.
-- `shared/hooks.ts` and `shared/utils.ts` begin as single files.
-- When either grows too large or mixes unrelated concerns, convert them into folders:
+-   Only place code here when two or more features need it.
+-   `shared/hooks.ts` and `shared/utils.ts` begin as single files.
+-   When either grows too large or mixes unrelated concerns, convert them into folders:
 
 ```
 shared/hooks/
 shared/utils/
 ```
 
-- Never store feature-specific logic here.
+-   Never store feature-specific logic here.
 
 ---
 
 #### **4. Config (`config/`)**
 
-- App-wide configuration begins in `config/app-config.ts`.
-- If config grows, it may be split into multiple files:
+-   App-wide configuration begins in `config/app-config.ts`.
+-   If config grows, it may be split into multiple files:
 
 ```
 config/ui.ts
@@ -453,39 +453,155 @@ config/network.ts
 config/session.ts
 ```
 
-- All config must stay under `config/`.
-- Feature-specific configuration belongs inside its feature folder.
+-   All config must stay under `config/`.
+-   Feature-specific configuration belongs inside its feature folder.
+-   A single config hub file (`config/config-hub.ts`) should import all feature-specific config files so that configuration is discoverable from one place.
 
 ---
 
 #### **5. Simplicity**
 
-- Do not create folders without real code.
-- Avoid deep nesting; maximum allowed depth is three levels.
-- Keep related logic physically close; no scattering across unrelated directories.
+-   Do not create folders without real code.
+-   Avoid deep nesting; maximum allowed depth is three levels.
+-   Keep related logic physically close; no scattering across unrelated directories.
 
 ---
 
 #### **6. No empty folders**
 
-- Folders may only exist if they contain meaningful code.
-- Do not create directories “for future use.”
-- Delete any folder that becomes empty.
+-   Folders may only exist if they contain meaningful code.
+-   Do not create directories “for future use.”
+-   Delete any folder that becomes empty.
 
-## ** 13. Internationalization **
+# **13. Coding Standards**
 
-- **No hard-coded English anywhere in the codebase. **
-- **All visible UI text must be referenced through `t("…")`.**
-- Work with en.json only. Ignore all other translation files even if they exist. Never read, write, or reference them.
-- When a new UI string is needed:
+These rules exist to guarantee consistency and prevent architectural drift.
+They apply to all generated code.
 
-  1. Add a key/value to `en.json` only
-  2. Use `t("key")` in the component.
+---
 
-- Agents must never output inline English text in JSX/TSX.
-- If a string appears inline, it must be moved to `en.json` automatically.
+## **1. File Naming Conventions**
 
-## Other
+**React components → PascalCase**
+
+```
+DashboardView.tsx
+SettingsModal.tsx
+AddTorrentModal.tsx
+Table.tsx
+FilesPanel.tsx
+```
+
+**Local feature hooks → camelCase and begin with “use” when split**
+
+```
+hooks.ts                          # only if small
+hooks/useTorrentList.ts
+hooks/useSpeedGraph.ts
+```
+
+**Service modules → kebab-case**
+
+```
+rpc-base.ts
+rpc-extended.ts
+auth-client.ts
+telemetry-client.ts
+storage-client.ts
+```
+
+**Utilities → kebab-case**
+
+```
+bytes-format.ts
+parse-magnet.ts
+debounce.ts
+```
+
+**Rules:**
+
+-   Do not mix naming styles in the same folder.
+-   Only hooks use camelCase; everything else is PascalCase or kebab-case.
+-   Never create generic filenames like `client.ts`, `helpers.ts`, or `index2.ts`.
+
+---
+
+## **2. Component Shape (Required Order)**
+
+Every `.tsx` file follows this structure:
+
+1. imports
+2. local types/interfaces
+3. hooks and derived state
+4. internal functions
+5. JSX return
+6. export
+
+No commented-out blocks or unused code.
+
+---
+
+## **3. Hooks & Data Flow**
+
+-   Hooks must start with `use`.
+-   Components must **never** contain RPC calls.
+-   RPC and network access live only in `services/<name>/`.
+-   Hooks may call services; components may not.
+
+---
+
+## **4. Services**
+
+-   Each service gets its own folder: `services/<service-name>/`.
+-   File names must be explicit:
+    `auth-client.ts`, `telemetry-client.ts`, `rpc-base.ts`, not `client.ts`.
+-   Services define their DTOs only in `types.ts`.
+
+---
+
+## **5. Imports**
+
+-   Prefer absolute imports (`@/modules/...`) when available.
+-   No deep relative imports like `../../../utils`.
+-   No circular imports.
+
+---
+
+## **6. Splitting Rules**
+
+**Components:**
+Split into `parts/` only when the main file exceeds ~250–300 lines.
+
+**Hooks:**
+Split into `hooks/` only when `hooks.ts` becomes large or contains multiple unrelated responsibilities.
+
+---
+
+## **7. No Empty Folders**
+
+Folders may only exist when they contain real code.
+Never create placeholder folders.
+Remove any folder that becomes empty.
+
+### **8. Indentation Rule**
+
+4 spaces per indentation level.
+Tabs are not allowed.
+
+# **14. Internationalization **
+
+-   **No hard-coded English anywhere in the codebase. **
+-   **All visible UI text must be referenced through `t("…")`.**
+-   Work with en.json only. Ignore all other translation files even if they exist. Never read, write, or reference them.
+-   When a new UI string is needed:
+
+    1. Add a key/value to `en.json` only
+    2. Use `t("key")` in the component.
+
+-   Agents must never output inline English text in JSX/TSX.
+-   If a string appears inline, it must be moved to `en.json` automatically.
+
+# Other
 
 1. before you report the task as completed, perform a review of the code and fix all important issues. repeat until fully happy.
 2. perform a npm run build and fix if possible
