@@ -271,7 +271,7 @@ These methods exist **abstractly**; their internal implementation depends on the
 
 ---
 
-## **10. UX Excellence Directive (Highest Priority)**
+## **10. UX Excellence Directive **
 
 All Agents must operate as **world-class tool-UI designers**, capable of bridging two eras of design.
 TinyTorrent must deliver **Adaptive Excellence**:
@@ -330,31 +330,147 @@ TinyTorrent must deliver **Adaptive Excellence**:
 - **Don’t reinvent solved problems.**
   Use libraries with purpose — avoid bloat and avoid reinvention. Adopt modern, battle-tested libraries for non-core needs, but introduce nothing legacy and nothing that doesn’t earn its place.
 
-## **12. Project Structure (Guiding Blueprint) **
+## **12. Project Structure (Blueprint)**
 
-A clean, layered, responsibility-driven structure is mandatory.
-This blueprint defines where code belongs; no cross-layer leakage.
+A shallow, predictable, human-readable structure.
+Features live in `modules/`; all external service integrations live in `services/`; shared reusable code lives in `shared/`; global configuration stays in `config/`.
+All logic must remain close to where it is used — no unnecessary layers, no scattered files.
 
+---
+
+### **Directory Map**
+
+```txt
 src/
-├── app/ # Application entry & shell (App, routing, providers)
-│ ├── App.tsx
-│ └── main.tsx
-├── features/ # Business logic (the “what”)
-│ ├── dashboard/ # Dashboard feature
-│ │ ├── components/ # Pure UI components (table, rows, cells)
-│ │ └── hooks/ # Data loading & feature-specific logic
-│ ├── settings/ # Settings feature
-│ └── torrent-add/ # Add torrent modal & logic
-├── shared/ # Reusable, generic building blocks (the “how”)
-│ ├── ui/ # Composed UI built from HeroUI (wrappers, layouts, skins)
-│ ├── assets/ # Icons, images
-│ ├── hooks/ # Generic hooks (theme, color mode, keyboard)
-│ └── utils/ # Pure functions (formatBytes, helpers)
-├── core/ # Engine layer (RPC + types)
-│ ├── rpc-client.ts # Transmission RPC wrapper
-│ └── types.ts # Strict TypeScript definitions
-└── i18n/ # Localization
-└── en.json
+|-- app/                      # App entry shell: App.tsx, main.tsx, router, providers, theming
+|
+|-- modules/                  # Feature folders (each screen, modal, or major UI unit)
+|   |-- dashboard/
+|   |   |-- DashboardView.tsx
+|   |   |-- hooks.ts                 # Local hooks and feature logic
+|   |   \-- parts/                   # Optional: split out UI subcomponents when large
+|   |
+|   |-- settings/
+|   |   |-- SettingsModal.tsx
+|   |   \-- hooks.ts
+|   |
+|   \-- torrent-add/
+|       |-- AddTorrentModal.tsx
+|       \-- hooks.ts
+|
+|-- services/                 # All external service integrations
+|   |-- rpc/                  # Torrent RPC layer (Transmission baseline + extensions)
+|   |   |-- rpc-base.ts            # Canonical RPC implementation (Transmission protocol)
+|   |   |-- rpc-extended.ts        # Extends rpc-base with libtorrent-capable features
+|   |   \-- types.ts               # Canonical Transmission-shaped DTOs (+ optional extensions)
+|   |
+|   \-- (other services as needed)
+|       \-- <service-name>/
+|           |-- <service-name>.ts
+|           \-- types.ts
+|
+|-- shared/                   # Reusable UI primitives, hooks, utilities, and assets
+|   |-- ui/
+|   |-- hooks.ts              # Can become shared/hooks/ if it grows large
+|   |-- utils.ts              # Can become shared/utils/ if it grows large
+|   \-- assets/
+|
+|-- config/                   # App-wide configuration
+|   |-- app-config.ts
+|   \-- (additional config files allowed when needed)
+|
+\-- i18n/
+    \-- en.json               # Localization source
+```
+
+---
+
+### **Rules**
+
+#### **1. Features (`modules/`)**
+
+- One feature = one folder under `modules/`.
+- Each feature contains:
+
+  - main UI component (`XxxView.tsx` or `XxxModal.tsx`)
+  - a local `hooks.ts` for feature-specific logic
+  - `parts/` only when the UI grows beyond a comfortable size.
+
+- If `hooks.ts` becomes too large or contains unrelated hooks, convert it into a `hooks/` folder:
+
+```
+hooks/
+    useTorrentList.ts
+    useSpeedGraph.ts
+```
+
+---
+
+#### **2. Services (`services/`)**
+
+- All external integrations MUST live under `services/<service-name>/`.
+- Torrent RPC lives under `services/rpc/`:
+
+  - `rpc-base.ts` -> Transmission-compatible RPC client (baseline)
+  - `rpc-extended.ts` -> extends the base with additional capabilities
+  - `types.ts` -> canonical DTOs (Transmission-shaped) + optional extensions
+
+- Adding new services (auth, telemetry, storage, etc.) follows the same pattern:
+
+```
+services/auth/
+services/storage/
+services/telemetry/
+```
+
+- No service code may exist outside `services/`.
+
+---
+
+#### **3. Shared (`shared/`)**
+
+- Only place code here when two or more features need it.
+- `shared/hooks.ts` and `shared/utils.ts` begin as single files.
+- When either grows too large or mixes unrelated concerns, convert them into folders:
+
+```
+shared/hooks/
+shared/utils/
+```
+
+- Never store feature-specific logic here.
+
+---
+
+#### **4. Config (`config/`)**
+
+- App-wide configuration begins in `config/app-config.ts`.
+- If config grows, it may be split into multiple files:
+
+```
+config/ui.ts
+config/network.ts
+config/session.ts
+```
+
+- All config must stay under `config/`.
+- Feature-specific configuration belongs inside its feature folder.
+
+---
+
+#### **5. Simplicity**
+
+- Do not create folders without real code.
+- Avoid deep nesting; maximum allowed depth is three levels.
+- Keep related logic physically close; no scattering across unrelated directories.
+
+---
+
+#### **6. No empty folders**
+
+- Folders may only exist if they contain meaningful code.
+- Do not create directories “for future use.”
+- Delete any folder that becomes empty.
 
 ## ** 13. Internationalization **
 
