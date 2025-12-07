@@ -1,4 +1,4 @@
-import { Progress } from "@heroui/react";
+import { Progress, cn } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 import { formatBytes } from "../../utils/format";
 
@@ -9,6 +9,7 @@ export interface DiskSpaceGaugeProps {
     path?: string;
     isLoading?: boolean;
     error?: string | null;
+    isInsufficient?: boolean;
 }
 
 export function DiskSpaceGauge({
@@ -18,6 +19,7 @@ export function DiskSpaceGauge({
     path,
     isLoading,
     error,
+    isInsufficient,
 }: DiskSpaceGaugeProps) {
     const usedBytes =
         typeof totalBytes === "number" && typeof freeBytes === "number"
@@ -32,13 +34,24 @@ export function DiskSpaceGauge({
     const torrentPercent = torrentSize
         ? Math.min((torrentSize / displayTotal) * 100, 100)
         : 0;
-    const freePercent = freeBytes
-        ? Math.min((freeBytes / displayTotal) * 100, 100)
-        : 0;
     const { t } = useTranslation();
 
+    const indicatorClasses = cn(
+        "rounded-full",
+        isInsufficient
+            ? "bg-gradient-to-r from-danger/80 via-danger/60 to-danger/90"
+            : "bg-gradient-to-r from-danger/70 via-warning/70 to-success/70"
+    );
+    const containerClasses = cn(
+        "space-y-2 rounded-xl border bg-content1/15 p-4",
+        {
+            "border-danger/40 bg-danger/5": isInsufficient,
+            "border-content1/20": !isInsufficient,
+        }
+    );
+
     return (
-        <div className="space-y-2 rounded-xl border border-content1/20 bg-content1/15 p-4">
+        <div className={containerClasses}>
             <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.3em] text-foreground/60">
                 <span>{t("modals.disk_gauge.title")}</span>
                 <span className="text-[10px] font-mono text-foreground/40">
@@ -50,8 +63,7 @@ export function DiskSpaceGauge({
                 size="sm"
                 classNames={{
                     track: "h-2 rounded-full bg-content1/20",
-                    indicator:
-                        "rounded-full bg-gradient-to-r from-danger/70 via-warning/70 to-success/70",
+                    indicator: indicatorClasses,
                 }}
             />
             <div className="flex justify-between text-[11px] font-mono text-foreground/60">
