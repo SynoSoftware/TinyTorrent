@@ -74,6 +74,7 @@ import React, {
 import { useTranslation } from "react-i18next";
 
 import { GLASS_MENU_SURFACE } from "../../../shared/ui/layout/glass-surface";
+import { useKeyboardScope } from "../../../shared/hooks/useKeyboardScope";
 
 import type { Torrent } from "../types/torrent";
 import {
@@ -83,6 +84,8 @@ import {
     type ColumnId,
 } from "./ColumnDefinitions";
 import { TABLE_LAYOUT } from "../config/layout";
+import { useTorrentShortcuts } from "../hooks/useTorrentShortcuts";
+import { KEY_SCOPE, KEYMAP, ShortcutIntent } from "../../../config/keymap";
 
 // --- CONSTANTS ---
 const STORAGE_KEY = "tiny-torrent.table-state.v2.6"; // Bumped version
@@ -103,6 +106,50 @@ export type TorrentTableAction =
     | "queue-move-bottom";
 
 type ContextMenuKey = TorrentTableAction | "cols";
+
+const SHORTCUT_KEY_LABELS: Record<string, string> = {
+    ctrl: "Ctrl",
+    meta: "Meta",
+    win: "Win",
+    cmd: "Cmd",
+    shift: "Shift",
+    alt: "Alt",
+    enter: "Enter",
+    escape: "Esc",
+    esc: "Esc",
+    delete: "Delete",
+    backspace: "Backspace",
+    space: "Space",
+    tab: "Tab",
+};
+
+const normalizeShortcutPart = (part: string) => {
+    const normalized = part.toLowerCase();
+    return SHORTCUT_KEY_LABELS[normalized] ?? part.toUpperCase();
+};
+
+const formatShortcutCombination = (combination: string) =>
+    combination
+        .split("+")
+        .map(normalizeShortcutPart)
+        .join(" + ");
+
+const formatShortcutLabel = (value?: string | string[]) => {
+    if (!value) return undefined;
+    const combos = Array.isArray(value) ? value : [value];
+    return combos.map(formatShortcutCombination).join(" / ");
+};
+
+const CONTEXT_MENU_SHORTCUTS: Partial<
+    Record<ContextMenuKey, string | string[]>
+> = {
+    pause: KEYMAP[ShortcutIntent.TogglePause],
+    resume: KEYMAP[ShortcutIntent.TogglePause],
+    remove: KEYMAP[ShortcutIntent.Delete],
+};
+
+const getContextMenuShortcut = (action: ContextMenuKey) =>
+    formatShortcutLabel(CONTEXT_MENU_SHORTCUTS[action]);
 
 interface TorrentTableProps {
     torrents: Torrent[];
@@ -586,6 +633,38 @@ export function TorrentTable({
         overscan: TABLE_LAYOUT.overscan,
     });
 
+    const selectAllRows = useCallback(() => {
+        const allRows = table.getRowModel().rows;
+        const nextSelection: RowSelectionState = {};
+        allRows.forEach((row) => {
+            nextSelection[row.id] = true;
+        });
+        setRowSelection(nextSelection);
+        if (allRows.length) {
+            const bottomIndex = allRows.length - 1;
+            setLastSelectedIndex(bottomIndex);
+            rowVirtualizer.scrollToIndex(bottomIndex);
+        }
+    }, [rowVirtualizer, table]);
+
+    const selectedTorrents = useMemo(
+        () => table.getSelectedRowModel().rows.map((row) => row.original),
+        [table]
+    );
+
+    const {
+        activate: activateDashboardScope,
+        deactivate: deactivateDashboardScope,
+    } = useKeyboardScope(KEY_SCOPE.Dashboard);
+
+    useTorrentShortcuts({
+        scope: KEY_SCOPE.Dashboard,
+        selectedTorrents,
+        selectAll: selectAllRows,
+        onAction,
+        onRequestDetails,
+    });
+
     const rowIds = useMemo(() => rows.map((row) => row.id), [rows]);
     const rowsById = useMemo(() => {
         const map = new Map<string, Row<Torrent>>();
@@ -703,27 +782,7 @@ export function TorrentTable({
                 rowVirtualizer.scrollToIndex(normalizedEnd);
             };
 
-            const selectAll = () => {
-                const nextSelection: RowSelectionState = {};
-                allRows.forEach((row) => {
-                    nextSelection[row.id] = true;
-                });
-                setRowSelection(nextSelection);
-                if (allRows.length) {
-                    const bottomIndex = allRows.length - 1;
-                    setLastSelectedIndex(bottomIndex);
-                    rowVirtualizer.scrollToIndex(bottomIndex);
-                }
-            };
-
-            const { key, shiftKey, ctrlKey, metaKey } = event;
-            const controlKey = ctrlKey || metaKey;
-            if (controlKey && key.toLowerCase() === "a") {
-                event.preventDefault();
-                selectAll();
-                return;
-            }
-
+            const { key, shiftKey } = event;
             if (key === "ArrowDown" || key === "ArrowUp") {
                 event.preventDefault();
                 const delta = key === "ArrowDown" ? 1 : -1;
@@ -762,24 +821,8 @@ export function TorrentTable({
                 }
                 return;
             }
-
-            if (key === "Enter") {
-                event.preventDefault();
-                const selectedRow = table.getSelectedRowModel().rows[0];
-                if (selectedRow) {
-                    onRequestDetails?.(selectedRow.original);
-                }
-                return;
-            }
-
-            if (key === "Delete") {
-                event.preventDefault();
-                if (!onAction) return;
-                const selectedRows = table.getSelectedRowModel().rows;
-                selectedRows.forEach((row) => onAction("remove", row.original));
-            }
         },
-        [lastSelectedIndex, onAction, onRequestDetails, rowVirtualizer, table]
+        [lastSelectedIndex, rowVirtualizer, table]
     );
 
     // --- SENSORS ---
@@ -881,6 +924,8 @@ export function TorrentTable({
                 ref={tableContainerRef}
                 tabIndex={0}
                 onKeyDown={handleKeyDown}
+                onFocus={activateDashboardScope}
+                onBlur={deactivateDashboardScope}
                 className="flex-1 min-h-0 flex flex-col h-full overflow-hidden bg-background/20 relative select-none"
                 onClick={() => setContextMenu(null)}
             >
@@ -1074,13 +1119,23 @@ export function TorrentTable({
                                     setContextMenu(null);
                                 }}
                             >
-                                <DropdownItem key="pause">
+                                <DropdownItem
+                                    key="pause"
+                                    shortcut={getContextMenuShortcut("pause")}
+                                >
                                     {t("table.actions.pause")}
                                 </DropdownItem>
-                                <DropdownItem key="resume">
+                                <DropdownItem
+                                    key="resume"
+                                    shortcut={getContextMenuShortcut("resume")}
+                                >
                                     {t("table.actions.resume")}
                                 </DropdownItem>
-                                <DropdownItem key="remove" color="danger">
+                                <DropdownItem
+                                    key="remove"
+                                    color="danger"
+                                    shortcut={getContextMenuShortcut("remove")}
+                                >
                                     {t("table.actions.remove")}
                                 </DropdownItem>
                                 <DropdownItem
@@ -1095,13 +1150,6 @@ export function TorrentTable({
                                         <DropdownItem
                                             key={action.key}
                                             className="pl-10 text-sm"
-                                            onPress={() => {
-                                                onAction?.(
-                                                    action.key,
-                                                    contextMenu.torrent
-                                                );
-                                                setContextMenu(null);
-                                            }}
                                         >
                                             {action.label}
                                         </DropdownItem>
