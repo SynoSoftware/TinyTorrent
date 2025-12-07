@@ -221,7 +221,26 @@
         "resume": "Resume",
         "pause": "Pause",
         "recheck": "Recheck",
-        "remove": "Remove"
+        "remove": "Remove",
+        "feedback": {
+            "resuming": "Resuming {{count}} torrents",
+            "resumed": "Resumed {{count}} torrents",
+            "pausing": "Pausing {{count}} torrents",
+            "paused": "Paused {{count}} torrents",
+            "rehashing": "Rehashing {{count}} torrents",
+            "rehashed": "Rehash complete",
+            "removing": "Removing {{count}} torrents",
+            "removed": "Removed {{count}} torrents"
+        },
+        "rehash_progress": {
+            "single": "Rehashing {{name}}",
+            "multiple": "Rehashing {{count}} torrents"
+        },
+        "delete_confirm": {
+            "title": "Confirm removal",
+            "description": "Remove {{count}} torrents from the list?",
+            "description_with_data": "Remove {{count}} torrents and delete downloaded files?"
+        }
     },
     "torrent_modal": {
         "actions": {

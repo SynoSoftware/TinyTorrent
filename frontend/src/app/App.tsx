@@ -3,7 +3,14 @@ import { useDropzone } from "react-dropzone";
 import { AnimatePresence, motion } from "framer-motion";
 import { FileUp } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Button } from "@heroui/react";
+import {
+    Button,
+    Modal,
+    ModalBody,
+    ModalContent,
+    ModalFooter,
+    ModalHeader,
+} from "@heroui/react";
 
 import { useTransmissionSession } from "./hooks/useTransmissionSession";
 import type { RpcStatus } from "../shared/types/rpc";
@@ -167,6 +174,56 @@ const mapSessionToConfig = (
     request_timeout_ms: DEFAULT_SETTINGS_CONFIG.request_timeout_ms,
 });
 
+type GlobalActionTone = "info" | "success" | "warning" | "danger";
+
+interface GlobalActionFeedback {
+    message: string;
+    tone: GlobalActionTone;
+}
+
+type RehashStatus = {
+    active: boolean;
+    value: number;
+    label: string;
+};
+
+type DeleteAction = Extract<
+    TorrentTableAction,
+    "remove" | "remove-with-data"
+>;
+
+type DeleteIntent = {
+    torrents: Torrent[];
+    action: DeleteAction;
+    deleteData: boolean;
+};
+
+const GLOBAL_ACTION_FEEDBACK_CONFIG = {
+    resume: {
+        start: { key: "toolbar.feedback.resuming", tone: "info" },
+        done: { key: "toolbar.feedback.resumed", tone: "success" },
+    },
+    pause: {
+        start: { key: "toolbar.feedback.pausing", tone: "warning" },
+        done: { key: "toolbar.feedback.paused", tone: "warning" },
+    },
+    recheck: {
+        start: { key: "toolbar.feedback.rehashing", tone: "info" },
+        done: { key: "toolbar.feedback.rehashed", tone: "success" },
+    },
+    remove: {
+        start: { key: "toolbar.feedback.removing", tone: "danger" },
+        done: { key: "toolbar.feedback.removed", tone: "danger" },
+    },
+    "remove-with-data": {
+        start: { key: "toolbar.feedback.removing", tone: "danger" },
+        done: { key: "toolbar.feedback.removed", tone: "danger" },
+    },
+} as const;
+
+type FeedbackAction = keyof typeof GLOBAL_ACTION_FEEDBACK_CONFIG;
+type FeedbackStage = "start" | "done";
+
 const mapConfigToSession = (
     config: SettingsConfig
 ): Partial<TransmissionSessionSettings> => ({
@@ -247,6 +304,12 @@ export default function App() {
     );
     const [sessionStats, setSessionStats] = useState<SessionStats | null>(null);
     const [selectedTorrents, setSelectedTorrents] = useState<Torrent[]>([]);
+    const [globalActionFeedback, setGlobalActionFeedback] =
+        useState<GlobalActionFeedback | null>(null);
+    const feedbackTimerRef = useRef<number | null>(null);
+    const [pendingDelete, setPendingDelete] = useState<DeleteIntent | null>(
+        null
+    );
 
     const handleSelectionChange = useCallback(
         (selection: Torrent[]) => {
@@ -254,6 +317,53 @@ export default function App() {
         },
         []
     );
+
+    const showFeedback = useCallback(
+        (message: string, tone: GlobalActionTone) => {
+            setGlobalActionFeedback({ message, tone });
+            if (feedbackTimerRef.current) {
+                window.clearTimeout(feedbackTimerRef.current);
+            }
+            feedbackTimerRef.current = window.setTimeout(() => {
+                setGlobalActionFeedback(null);
+                feedbackTimerRef.current = null;
+            }, 3000);
+        },
+        []
+    );
+
+    const announceAction = useCallback(
+        (action: FeedbackAction, stage: FeedbackStage, count: number) => {
+            const descriptor =
+                GLOBAL_ACTION_FEEDBACK_CONFIG[action][stage];
+            showFeedback(t(descriptor.key, { count }), descriptor.tone);
+        },
+        [showFeedback, t]
+    );
+
+    const requestDelete = useCallback(
+        (
+            torrentsToDelete: Torrent[],
+            action: DeleteIntent["action"],
+            deleteData: boolean
+        ) => {
+            if (!torrentsToDelete.length) return;
+            setPendingDelete({
+                torrents: torrentsToDelete.map((torrent) => torrent),
+                action,
+                deleteData,
+            });
+        },
+        []
+    );
+
+    useEffect(() => {
+        return () => {
+            if (feedbackTimerRef.current) {
+                window.clearTimeout(feedbackTimerRef.current);
+            }
+        };
+    }, []);
 
     const sessionReady = rpcStatus === "connected";
     const pollingIntervalMs = Math.max(
@@ -350,37 +460,113 @@ export default function App() {
         isMountedRef,
     });
 
+    const confirmDelete = useCallback(async () => {
+        if (!pendingDelete) return;
+        const { torrents: toDelete, action, deleteData } = pendingDelete;
+        setPendingDelete(null);
+        const count = toDelete.length;
+        const hasFeedback =
+            action in GLOBAL_ACTION_FEEDBACK_CONFIG;
+        const actionKey = action as FeedbackAction;
+        if (hasFeedback) {
+            announceAction(actionKey, "start", count);
+        }
+        for (const torrent of toDelete) {
+            const options =
+                action === "remove"
+                    ? { deleteData }
+                    : undefined;
+            await executeTorrentAction(action, torrent, options);
+        }
+        if (hasFeedback) {
+            announceAction(actionKey, "done", count);
+        }
+    }, [announceAction, executeTorrentAction, pendingDelete]);
+
     const handleTorrentAction = useCallback(
         async (action: TorrentTableAction, torrent: Torrent) => {
-            if (action === "remove") {
-                const deleteData = window.confirm(
-                    t("table.actions.confirm_delete_data")
+            if (action === "remove" || action === "remove-with-data") {
+                requestDelete(
+                    [torrent],
+                    action,
+                    action === "remove-with-data"
                 );
-                await executeTorrentAction(action, torrent, { deleteData });
                 return;
             }
+            if (!(action in GLOBAL_ACTION_FEEDBACK_CONFIG)) {
+                await executeTorrentAction(action, torrent);
+                return;
+            }
+            const actionKey = action as FeedbackAction;
+            announceAction(actionKey, "start", 1);
             await executeTorrentAction(action, torrent);
+            announceAction(actionKey, "done", 1);
         },
-        [executeTorrentAction, t]
+        [announceAction, executeTorrentAction, requestDelete]
     );
 
     const handleBulkAction = useCallback(
         async (action: TorrentTableAction) => {
             if (!selectedTorrents.length) return;
-            let deleteData: boolean | undefined;
-            if (action === "remove") {
-                deleteData = window.confirm(
-                    t("table.actions.confirm_delete_data")
+            if (action === "remove" || action === "remove-with-data") {
+                requestDelete(
+                    [...selectedTorrents],
+                    action,
+                    action === "remove-with-data"
                 );
-            } else if (action === "remove-with-data") {
-                deleteData = true;
+                return;
             }
+            if (!(action in GLOBAL_ACTION_FEEDBACK_CONFIG)) {
+                for (const torrent of selectedTorrents) {
+                    await executeTorrentAction(action, torrent);
+                }
+                return;
+            }
+            const actionKey = action as FeedbackAction;
+            const count = selectedTorrents.length;
+            announceAction(actionKey, "start", count);
             for (const torrent of selectedTorrents) {
-                await executeTorrentAction(action, torrent, { deleteData });
+                await executeTorrentAction(action, torrent);
             }
+            announceAction(actionKey, "done", count);
         },
-        [executeTorrentAction, selectedTorrents, t]
+        [
+            announceAction,
+            executeTorrentAction,
+            requestDelete,
+            selectedTorrents,
+        ]
     );
+
+    const verifyingTorrents = torrents.filter(
+        (torrent) => torrent.state === "checking"
+    );
+    const rehashStatus: RehashStatus | undefined =
+        verifyingTorrents.length > 0
+            ? {
+                  active: true,
+                  value:
+                      Math.min(
+                          Math.max(
+                              verifyingTorrents.reduce(
+                                  (acc, torrent) =>
+                                      acc + (torrent.progress ?? 0),
+                                  0
+                              ) / verifyingTorrents.length,
+                              0
+                          ),
+                          1
+                      ) * 100,
+                  label:
+                      verifyingTorrents.length === 1
+                          ? t("toolbar.rehash_progress.single", {
+                                name: verifyingTorrents[0].name,
+                            })
+                          : t("toolbar.rehash_progress.multiple", {
+                                count: verifyingTorrents.length,
+                            }),
+              }
+            : undefined;
 
     const handleRequestDetails = useCallback(
         async (torrent: Torrent) => {
@@ -655,7 +841,56 @@ export default function App() {
                 onRemoveSelection={() => {
                     void handleBulkAction("remove");
                 }}
+                actionFeedback={globalActionFeedback}
+                rehashStatus={rehashStatus}
             />
+
+            <Modal
+                isOpen={Boolean(pendingDelete)}
+                onOpenChange={(open) => {
+                    if (!open) setPendingDelete(null);
+                }}
+                size="sm"
+                backdrop="blur"
+                classNames={{
+                    base: "bg-content1/80 backdrop-blur-2xl border border-content1/20 shadow-xl rounded-2xl",
+                }}
+            >
+                <ModalContent>
+                    {() => (
+                        <>
+                            <ModalHeader>
+                                {t("toolbar.delete_confirm.title")}
+                            </ModalHeader>
+                            <ModalBody className="text-sm text-foreground/70">
+                                {t(
+                                    pendingDelete?.deleteData
+                                        ? "toolbar.delete_confirm.description_with_data"
+                                        : "toolbar.delete_confirm.description",
+                                    { count: pendingDelete?.torrents.length ?? 0 }
+                                )}
+                            </ModalBody>
+                            <ModalFooter className="flex justify-end gap-3">
+                                <Button
+                                    variant="light"
+                                    onPress={() => setPendingDelete(null)}
+                                >
+                                    {t("modals.cancel")}
+                                </Button>
+                                <Button
+                                    color="danger"
+                                    onPress={confirmDelete}
+                                    className="shadow-danger/30"
+                                >
+                                    {pendingDelete?.deleteData
+                                        ? t("table.actions.remove_with_data")
+                                        : t("table.actions.remove")}
+                                </Button>
+                            </ModalFooter>
+                        </>
+                    )}
+                </ModalContent>
+            </Modal>
 
             <main className="flex-1 min-h-0 flex flex-col">
                 <ModeLayout
