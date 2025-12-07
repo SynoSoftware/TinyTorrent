@@ -848,7 +848,7 @@ export function SettingsModal({
             size="5xl"
             hideCloseButton
             classNames={{
-                base: "bg-background/95 backdrop-blur-2xl border border-divider shadow-2xl h-[650px] max-h-[90vh] flex flex-row overflow-hidden rounded-2xl",
+                base: "bg-content1/80 backdrop-blur-2xl border border-content1/20 shadow-2xl h-[650px] max-h-[90vh] flex flex-row overflow-hidden rounded-2xl",
             }}
             motionProps={{
                 variants: {
@@ -866,8 +866,8 @@ export function SettingsModal({
             }}
         >
             <ModalContent>
-                <div className="w-56 shrink-0 bg-default-50/50 border-r border-divider flex flex-col">
-                    <div className="p-5 border-b border-divider/50">
+                <div className="w-56 shrink-0 border-r border-content1/20 bg-content1/10 backdrop-blur-xl flex flex-col">
+                    <div className="p-5 border-b border-content1/10">
                         <h2 className="text-lg font-bold tracking-tight text-foreground">
                             {t("settings.modal.title")}
                         </h2>
@@ -892,14 +892,14 @@ export function SettingsModal({
                             </button>
                         ))}
                     </div>
-                    <div className="p-4 border-t border-divider/50">
+                    <div className="p-4 border-t border-content1/10">
                         <div className="text-[10px] text-foreground/30 font-mono">
                             {t("brand.version")}
                         </div>
                     </div>
                 </div>
-                <div className="flex-1 flex flex-col min-w-0 bg-background relative">
-                    <div className="shrink-0 h-14 border-b border-divider/50 flex items-center justify-between px-6 bg-background/50 backdrop-blur-md z-10">
+                <div className="flex-1 flex flex-col min-w-0 bg-content1/10 backdrop-blur-lg relative">
+                    <div className="shrink-0 h-14 border-b border-content1/10 flex items-center justify-between px-6 bg-content1/15 backdrop-blur-md z-10">
                         <h1 className="text-sm font-bold text-foreground/80">
                             {t(activeTabDefinition.headerKey)}
                         </h1>
@@ -950,7 +950,7 @@ export function SettingsModal({
                             </motion.div>
                         </AnimatePresence>
                     </div>
-                    <div className="shrink-0 h-16 border-t border-divider bg-background/80 backdrop-blur-md px-6 flex items-center justify-between z-20 absolute bottom-0 left-0 right-0">
+                    <div className="shrink-0 h-16 border-t border-content1/20 px-6 flex items-center justify-between bg-content1/15 backdrop-blur-md z-20 absolute bottom-0 left-0 right-0">
                         <Button
                             size="sm"
                             variant="light"

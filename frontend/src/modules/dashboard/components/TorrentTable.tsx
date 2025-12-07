@@ -72,6 +72,8 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 
+import { GLASS_MENU_SURFACE } from "../../../shared/ui/layout/glass-surface";
+
 import type { Torrent } from "../types/torrent";
 import {
     COLUMN_DEFINITIONS,
@@ -310,75 +312,6 @@ const VirtualRow = memo(
 );
 
 type QueueMenuAction = { key: TorrentTableAction; label: string };
-
-const QueueSubmenu = memo(
-    ({
-        torrent,
-        actions,
-        title,
-        onAction,
-        closeMenu,
-    }: {
-        torrent: Torrent;
-        actions: QueueMenuAction[];
-        title: string;
-        onAction?: (action: TorrentTableAction, torrent: Torrent) => void;
-        closeMenu: () => void;
-    }) => {
-        const [isOpen, setIsOpen] = useState(false);
-
-        const handleAction = useCallback(
-            (action: TorrentTableAction) => {
-                onAction?.(action, torrent);
-                closeMenu();
-                setIsOpen(false);
-            },
-            [closeMenu, onAction, torrent]
-        );
-
-        const handleOpenChange = useCallback((next: boolean) => {
-            setIsOpen(next);
-        }, []);
-
-        return (
-            <Dropdown
-                placement="right-start"
-                isOpen={isOpen}
-                onOpenChange={handleOpenChange}
-                offset={6}
-                shouldFlip
-            >
-                <DropdownTrigger>
-                    <button
-                        type="button"
-                        onMouseDown={(event) => event.stopPropagation()}
-                        className="flex w-full items-center justify-between gap-2 px-4 py-2 text-xs font-bold uppercase tracking-[0.3em] text-foreground/40 hover:bg-content1/10 transition-colors rounded"
-                    >
-                        <span>{title}</span>
-                        <ChevronRight
-                            size={14}
-                            className="text-foreground/60"
-                        />
-                    </button>
-                </DropdownTrigger>
-                <DropdownMenu
-                    variant="flat"
-                    className="min-w-[170px] bg-content1/80 border border-content1/20"
-                >
-                    {actions.map((action) => (
-                        <DropdownItem
-                            key={action.key}
-                            className="pl-10 text-sm"
-                            onPress={() => handleAction(action.key)}
-                        >
-                            {action.label}
-                        </DropdownItem>
-                    ))}
-                </DropdownMenu>
-            </Dropdown>
-        );
-    }
-);
 
 // --- MAIN COMPONENT ---
 export function TorrentTable({
@@ -907,6 +840,7 @@ export function TorrentTable({
                             </DropdownTrigger>
                             <DropdownMenu
                                 variant="flat"
+                                className={GLASS_MENU_SURFACE}
                                 onAction={(key) => {
                                     const menuKey = key as
                                         | ContextMenuKey
@@ -931,15 +865,30 @@ export function TorrentTable({
                                 <DropdownItem key="remove" color="danger">
                                     {t("table.actions.remove")}
                                 </DropdownItem>
-                                <div className="border-t border-content1/20 mt-2 pt-2">
-                                    <QueueSubmenu
-                                        torrent={contextMenu.torrent}
-                                        actions={queueMenuActions}
-                                        title={t("table.queue.title")}
-                                        onAction={onAction}
-                                        closeMenu={() => setContextMenu(null)}
-                                    />
-                                </div>
+                                <DropdownItem
+                                    key="queue-title"
+                                    isDisabled
+                                    className="border-t border-content1/20 mt-2 pt-2 px-4 text-[10px] font-bold uppercase tracking-[0.4em] text-foreground/50"
+                                >
+                                    {t("table.queue.title")}
+                                </DropdownItem>
+                                <>
+                                    {queueMenuActions.map((action) => (
+                                        <DropdownItem
+                                            key={action.key}
+                                            className="pl-10 text-sm"
+                                            onPress={() => {
+                                                onAction?.(
+                                                    action.key,
+                                                    contextMenu.torrent
+                                                );
+                                                setContextMenu(null);
+                                            }}
+                                        >
+                                            {action.label}
+                                        </DropdownItem>
+                                    ))}
+                                </>
                                 <DropdownItem key="cols" showDivider>
                                     {t("table.column_picker_title")}
                                 </DropdownItem>
@@ -953,6 +902,10 @@ export function TorrentTable({
                 isOpen={isColumnModalOpen}
                 onOpenChange={setIsColumnModalOpen}
                 size="lg"
+                backdrop="blur"
+                classNames={{
+                    base: "bg-content1/80 backdrop-blur-2xl border border-content1/20 shadow-2xl rounded-2xl flex flex-col overflow-hidden",
+                }}
             >
                 <ModalContent>
                     {() => (

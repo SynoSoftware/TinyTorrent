@@ -30,6 +30,7 @@ import {
 import type { Torrent } from "../types/torrent";
 import type { ReactNode } from "react";
 import { TABLE_LAYOUT } from "../config/layout";
+import { GLASS_MENU_SURFACE } from "../../../shared/ui/layout/glass-surface";
 
 export type ColumnId =
     | "selection"
@@ -415,7 +416,11 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
                             <MoreVertical size={16} />
                         </Button>
                     </DropdownTrigger>
-                    <DropdownMenu aria-label="Actions" variant="faded">
+                    <DropdownMenu
+                        aria-label="Actions"
+                        variant="faded"
+                        className={GLASS_MENU_SURFACE}
+                    >
                         <DropdownItem
                             key="pause"
                             startContent={<PauseCircle size={14} />}
