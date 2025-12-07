@@ -34,7 +34,8 @@ export function StatusBar({
 }: StatusBarProps) {
     const { t } = useTranslation();
 
-    // Configuration for status states
+    // Semantic status configuration
+    // AGENTS.md: Use strict semantic tokens (success, danger, foreground)
     const statusConfig = {
         idle: {
             label: t("status_bar.rpc_idle"),
@@ -57,8 +58,15 @@ export function StatusBar({
         selectedTorrent?.speed.down ?? sessionStats?.downloadSpeed ?? 0;
     const upSpeed = selectedTorrent?.speed.up ?? sessionStats?.uploadSpeed ?? 0;
 
+    // Safely access DHT nodes if available on the extended stats object, else 0
+    // Cast to any to avoid strict TS errors if 'dhtNodes' isn't in the base interface yet
+    const dhtNodeCount = (sessionStats as any)?.dhtNodes ?? 0;
+
     const isSelection = !!selectedTorrent;
-    const summaryLabel = isSelection ? "SELECTION" : "ACTIVE";
+    const summaryLabel = isSelection
+        ? t("status_bar.selected_torrent")
+        : t("status_bar.active_torrents");
+
     const summaryValue = isSelection
         ? selectedTorrent.name
         : sessionStats
@@ -66,30 +74,29 @@ export function StatusBar({
         : "--";
 
     return (
-        <footer className="w-full shrink-0 border-t border-border/40 bg-background/80 backdrop-blur-xl select-none relative z-50">
-            <div className="flex h-[72px] items-center justify-between gap-8 px-6">
-                {/* --- LEFT: SPEED TICKERS --- */}
-                {/* We use flex-1 to take up all available space, split into two equal zones */}
-                <div className="flex flex-1 items-center gap-8 h-full py-3">
+        <footer className="w-full shrink-0 border-t border-content1/10 bg-background/80 backdrop-blur-2xl select-none relative z-50">
+            <div className="flex h-[76px] items-center justify-between gap-8 px-6">
+                {/* --- LEFT: SPEED TICKERS (Side-by-Side Layout) --- */}
+                <div className="flex flex-1 items-center gap-8 h-full py-2">
                     {/* DOWNLOAD ZONE */}
-                    <div className="flex flex-1 items-center gap-4 h-full min-w-0">
-                        {/* Text Group */}
-                        <div className="flex items-center gap-3 shrink-0">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-success/10 text-success">
-                                <ArrowDown size={20} strokeWidth={2.5} />
+                    <div className="flex flex-1 items-center gap-5 h-full min-w-0 group">
+                        {/* Icon & Label */}
+                        <div className="flex items-center gap-4 shrink-0">
+                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-success/10 text-success transition-colors group-hover:bg-success/20">
+                                <ArrowDown size={24} strokeWidth={2.5} />
                             </div>
-                            <div className="flex flex-col justify-center">
-                                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">
+                            <div className="flex flex-col justify-center gap-0.5">
+                                <span className="text-[10px] font-bold uppercase tracking-widest text-foreground/40">
                                     {t("status_bar.down")}
                                 </span>
-                                <span className="text-xl font-bold tracking-tight text-foreground tabular-nums leading-none">
+                                <span className="text-2xl font-bold tracking-tight text-foreground tabular-nums leading-none">
                                     {formatSpeed(downSpeed)}
                                 </span>
                             </div>
                         </div>
 
-                        {/* Graph - Fills remaining space next to text */}
-                        <div className="flex-1 h-full min-w-[100px] opacity-40 hover:opacity-100 transition-opacity">
+                        {/* Graph: Fills remaining space. No overlap. */}
+                        <div className="flex-1 h-full min-w-[100px] opacity-30 grayscale transition-all duration-500 group-hover:grayscale-0 group-hover:opacity-100">
                             <NetworkGraph
                                 data={downHistory}
                                 color="success"
@@ -98,28 +105,28 @@ export function StatusBar({
                         </div>
                     </div>
 
-                    {/* SEPARATOR (Optional visual break between Down/Up) */}
-                    <div className="h-8 w-px bg-border/40" />
+                    {/* SEPARATOR */}
+                    <div className="h-8 w-px bg-content1/20" />
 
                     {/* UPLOAD ZONE */}
-                    <div className="flex flex-1 items-center gap-4 h-full min-w-0">
-                        {/* Text Group */}
-                        <div className="flex items-center gap-3 shrink-0">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
-                                <ArrowUp size={20} strokeWidth={2.5} />
+                    <div className="flex flex-1 items-center gap-5 h-full min-w-0 group">
+                        {/* Icon & Label */}
+                        <div className="flex items-center gap-4 shrink-0">
+                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary transition-colors group-hover:bg-primary/20">
+                                <ArrowUp size={24} strokeWidth={2.5} />
                             </div>
-                            <div className="flex flex-col justify-center">
-                                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">
+                            <div className="flex flex-col justify-center gap-0.5">
+                                <span className="text-[10px] font-bold uppercase tracking-widest text-foreground/40">
                                     {t("status_bar.up")}
                                 </span>
-                                <span className="text-xl font-bold tracking-tight text-foreground tabular-nums leading-none">
+                                <span className="text-2xl font-bold tracking-tight text-foreground tabular-nums leading-none">
                                     {formatSpeed(upSpeed)}
                                 </span>
                             </div>
                         </div>
 
-                        {/* Graph - Fills remaining space next to text */}
-                        <div className="flex-1 h-full min-w-[100px] opacity-40 hover:opacity-100 transition-opacity">
+                        {/* Graph */}
+                        <div className="flex-1 h-full min-w-[100px] opacity-30 grayscale transition-all duration-500 group-hover:grayscale-0 group-hover:opacity-100">
                             <NetworkGraph
                                 data={upHistory}
                                 color="primary"
@@ -129,16 +136,16 @@ export function StatusBar({
                     </div>
                 </div>
 
-                {/* --- RIGHT: SYSTEM HUD (Unchanged per request) --- */}
-                <div className="flex shrink-0 items-center gap-6 text-[11px] pl-6 border-l border-border/40 h-10">
-                    {/* SECTION: TORRENT INFO */}
-                    <div className="flex flex-col items-end gap-0.5">
-                        <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/50">
+                {/* --- RIGHT: SYSTEM HUD (Dense, Rigid Structure) --- */}
+                <div className="flex shrink-0 items-center gap-6 text-[11px] pl-6 border-l border-content1/10 h-12">
+                    {/* SECTION: CONTEXT INFO */}
+                    <div className="flex flex-col items-end gap-1 min-w-[140px]">
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-foreground/30">
                             {summaryLabel}
                         </span>
                         <div className="flex items-center gap-2">
                             <span
-                                className="font-semibold text-foreground max-w-[200px] truncate"
+                                className="font-semibold text-foreground max-w-[200px] truncate text-right"
                                 title={summaryValue}
                             >
                                 {summaryValue}
@@ -146,38 +153,43 @@ export function StatusBar({
                             {!isSelection && (
                                 <Activity
                                     size={14}
-                                    className="text-muted-foreground/50"
+                                    className="text-foreground/30"
                                 />
                             )}
                             {isSelection && (
                                 <HardDrive
                                     size={14}
-                                    className="text-muted-foreground/50"
+                                    className="text-foreground/30"
                                 />
                             )}
                         </div>
                     </div>
 
-                    {/* SECTION: NETWORK STATUS */}
-                    <div className="flex flex-col items-end gap-0.5 border-l border-border/40 pl-6 h-full justify-center">
-                        <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/50">
-                            Network
+                    {/* DIVIDER */}
+                    <div className="h-8 w-px bg-content1/10" />
+
+                    {/* SECTION: NETWORK */}
+                    <div className="flex flex-col items-end gap-1 min-w-[80px]">
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-foreground/30">
+                            {t("status_bar.network")}
                         </span>
                         <div className="flex items-center gap-2">
-                            <span className="font-medium text-muted-foreground tabular-nums">
-                                {t("status_bar.dht_nodes", { count: 342 })}
+                            <span className="font-medium text-foreground/70 tabular-nums">
+                                {t("status_bar.dht_nodes", {
+                                    count: dhtNodeCount,
+                                })}
                             </span>
-                            <Network
-                                size={14}
-                                className="text-muted-foreground/50"
-                            />
+                            <Network size={14} className="text-foreground/30" />
                         </div>
                     </div>
 
-                    {/* SECTION: RPC CONNECTION */}
-                    <div className="flex flex-col items-end gap-0.5 min-w-[80px] border-l border-border/40 pl-6 h-full justify-center">
-                        <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/50">
-                            Engine
+                    {/* DIVIDER */}
+                    <div className="h-8 w-px bg-content1/10" />
+
+                    {/* SECTION: ENGINE STATUS */}
+                    <div className="flex flex-col items-end gap-1 min-w-[80px]">
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-foreground/30">
+                            {t("status_bar.engine")}
                         </span>
                         <div
                             className={`flex items-center gap-1.5 ${statusConfig.color}`}

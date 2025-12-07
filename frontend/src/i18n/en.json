@@ -143,25 +143,25 @@
         }
     },
     "status_bar": {
+        "active_torrents": "Active torrents",
         "dht_nodes": "{{count}} Nodes",
         "down": "DOWN",
-        "selected_torrent": "Selected torrent",
-        "active_torrents": "Active torrents",
         "engine": "Engine",
         "engine_detecting": "Detecting engine...",
         "engine_unknown": "Unknown engine",
-        "stats_loading": "Loading stats...",
+        "network": "Network",
         "online": "Online",
         "reconnect": "Reconnect",
         "rpc_connected": "Connected",
         "rpc_error": "Offline",
         "rpc_idle": "Initializing",
         "rpc_status": "RPC",
+        "selected_torrent": "Selected torrent",
+        "stats_loading": "Loading stats...",
         "up": "UP"
     },
     "table": {
         "actions": {
-            "confirm_delete_data": "Delete downloaded data?",
             "confirm_delete_data": "Delete downloaded data?",
             "copy_hash": "Copy Hash",
             "copy_magnet": "Copy Magnet Link",
@@ -304,12 +304,12 @@
             "verified": "Verified"
         },
         "statuses": {
-            "status_checking": "Checking",
-            "status_downloading": "Downloading",
-            "status_error": "Error",
-            "status_paused": "Paused",
-            "status_queued": "Queued",
-            "status_seeding": "Seeding"
+            "checking": "Checking",
+            "downloading": "Downloading",
+            "error": "Error",
+            "paused": "Paused",
+            "queued": "Queued",
+            "seeding": "Seeding"
         },
         "tabs": {
             "content": "Content",

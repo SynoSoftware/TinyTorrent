@@ -1173,25 +1173,25 @@ const STATUS_CONFIG: Record<
 > = {
     downloading: {
         color: "success",
-        labelKey: "torrent_modal.statuses.status_downloading",
+        labelKey: "torrent_modal.statuses.downloading",
     },
     seeding: {
         color: "primary",
-        labelKey: "torrent_modal.statuses.status_seeding",
+        labelKey: "torrent_modal.statuses.seeding",
     },
     paused: {
         color: "warning",
-        labelKey: "torrent_modal.statuses.status_paused",
+        labelKey: "torrent_modal.statuses.paused",
     },
     checking: {
         color: "warning",
-        labelKey: "torrent_modal.statuses.status_checking",
+        labelKey: "torrent_modal.statuses.checking",
     },
     queued: {
         color: "warning",
-        labelKey: "torrent_modal.statuses.status_queued",
+        labelKey: "torrent_modal.statuses.queued",
     },
-    error: { color: "danger", labelKey: "torrent_modal.statuses.status_error" },
+    error: { color: "danger", labelKey: "torrent_modal.statuses.error" },
 } as const;
 
 export function TorrentDetailView({
