@@ -114,13 +114,13 @@ const statusMap: Record<
     checking: {
         color: "warning",
         icon: Pause,
-        labelKey: "torrent_modal.statuses.status_checking",
+        labelKey: "torrent_modal.statuses.checking",
     },
     queued: { color: "warning", icon: Pause, labelKey: "table.status_queued" },
     error: {
         color: "danger",
         icon: Pause,
-        labelKey: "torrent_modal.statuses.status_error",
+        labelKey: "torrent_modal.statuses.error",
     },
 };
 
@@ -239,7 +239,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
             const conf = statusMap[torrent.state] ?? {
                 color: "default",
                 icon: Pause,
-                labelKey: "torrent_modal.statuses.status_error",
+                labelKey: "torrent_modal.statuses.error",
             };
             const Icon = conf.icon;
             return (
