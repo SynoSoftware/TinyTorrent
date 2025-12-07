@@ -23,6 +23,7 @@ import {
     type SettingsConfig,
 } from "../modules/settings/data/config";
 import constants from "../config/constants.json";
+import { ICON_STROKE_WIDTH } from "../config/iconography";
 import { useTorrentDetail } from "../modules/dashboard/hooks/useTorrentDetail";
 import { useDetailControls } from "../modules/dashboard/hooks/useDetailControls";
 import { useTorrentActions } from "../modules/dashboard/hooks/useTorrentActions";
@@ -567,6 +568,7 @@ export default function App() {
                         <div className="flex flex-col items-center gap-6">
                             <FileUp
                                 size={48}
+                                strokeWidth={ICON_STROKE_WIDTH}
                                 className="text-primary animate-bounce"
                             />
                             <h2 className="text-3xl font-bold">

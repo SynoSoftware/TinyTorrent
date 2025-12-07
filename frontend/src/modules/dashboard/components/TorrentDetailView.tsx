@@ -53,6 +53,7 @@ import {
     type FileExplorerEntry,
 } from "../../../shared/ui/workspace/FileExplorerTree";
 import constants from "../../../config/constants.json";
+import { ICON_STROKE_WIDTH } from "../../../config/iconography";
 import type { Torrent, TorrentDetail } from "../types/torrent";
 import type { TorrentTableAction } from "./TorrentTable";
 import type {
@@ -673,7 +674,11 @@ const AvailabilityHeatmap = ({
                         }
                         isDisabled={zoomIndex === 0}
                     >
-                        <ZoomOut size={12} />
+                        <ZoomOut
+                            size={12}
+                            strokeWidth={ICON_STROKE_WIDTH}
+                            className="text-current"
+                        />
                     </Button>
                     <span className="text-[10px] font-mono text-foreground/60">
                         x{zoomLevel.toFixed(1)}
@@ -695,7 +700,11 @@ const AvailabilityHeatmap = ({
                             zoomIndex === HEATMAP_ZOOM_LEVELS.length - 1
                         }
                     >
-                        <ZoomIn size={12} />
+                        <ZoomIn
+                            size={12}
+                            strokeWidth={ICON_STROKE_WIDTH}
+                            className="text-current"
+                        />
                     </Button>
                 </div>
             </div>
@@ -865,7 +874,11 @@ const PeerMap = ({ peers }: PeerMapProps) => {
                         className="h-7 w-7"
                         onPress={() => handleZoom("out")}
                     >
-                        <ZoomOut size={12} />
+                        <ZoomOut
+                            size={12}
+                            strokeWidth={ICON_STROKE_WIDTH}
+                            className="text-current"
+                        />
                     </Button>
                     <Button
                         size="sm"
@@ -874,7 +887,11 @@ const PeerMap = ({ peers }: PeerMapProps) => {
                         className="h-7 w-7"
                         onPress={() => handleZoom("in")}
                     >
-                        <ZoomIn size={12} />
+                        <ZoomIn
+                            size={12}
+                            strokeWidth={ICON_STROKE_WIDTH}
+                            className="text-current"
+                        />
                     </Button>
                 </div>
             </div>
@@ -1290,9 +1307,13 @@ const GeneralInfoCard = ({
 }: GeneralInfoCardProps) => (
     <GlassPanel className="p-4">
         <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-content1/20 bg-content1/30">
-                <Icon size={18} className="text-foreground/70" />
-            </div>
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-content1/20 bg-content1/30">
+                    <Icon
+                        size={18}
+                        strokeWidth={ICON_STROKE_WIDTH}
+                        className={accent ?? "text-foreground/70"}
+                    />
+                </div>
             <div className="flex-1 space-y-1">
                 <div className="text-[10px] uppercase tracking-[0.3em] text-foreground/40">
                     {label}
@@ -1454,7 +1475,11 @@ export function TorrentDetailView({
                                     className="flex items-center gap-1"
                                     onPress={() => handleAction("pause")}
                                 >
-                                    <PauseCircle size={14} />
+                                    <PauseCircle
+                                        size={14}
+                                        strokeWidth={ICON_STROKE_WIDTH}
+                                        className="text-current"
+                                    />
                                     {t("table.actions.pause")}
                                 </Button>
                             )}
@@ -1466,7 +1491,11 @@ export function TorrentDetailView({
                                     className="flex items-center gap-1"
                                     onPress={() => handleAction("resume")}
                                 >
-                                    <PlayCircle size={14} />
+                                    <PlayCircle
+                                        size={14}
+                                        strokeWidth={ICON_STROKE_WIDTH}
+                                        className="text-current"
+                                    />
                                     {t("table.actions.resume")}
                                 </Button>
                             )}
@@ -1477,7 +1506,11 @@ export function TorrentDetailView({
                                 className="flex items-center gap-1"
                                 onPress={() => handleAction("remove")}
                             >
-                                <Trash2 size={14} />
+                                <Trash2
+                                    size={14}
+                                    strokeWidth={ICON_STROKE_WIDTH}
+                                    className="text-current"
+                                />
                                 {t("table.actions.remove")}
                             </Button>
                             <Button
@@ -1488,7 +1521,11 @@ export function TorrentDetailView({
                                 className="text-foreground/40 hover:text-foreground"
                                 aria-label={t("torrent_modal.actions.close")}
                             >
-                                <X size={20} />
+                                <X
+                                    size={20}
+                                    strokeWidth={ICON_STROKE_WIDTH}
+                                    className="text-current"
+                                />
                             </Button>
                         </div>
                     </div>
@@ -1559,7 +1596,11 @@ export function TorrentDetailView({
                             key="general"
                             title={
                                 <div className="flex items-center gap-2">
-                                    <Info size={14} />{" "}
+                                    <Info
+                                        size={14}
+                                        strokeWidth={ICON_STROKE_WIDTH}
+                                        className="text-current"
+                                    />{" "}
                                     {t("torrent_modal.tabs.general")}
                                 </div>
                             }
@@ -1568,7 +1609,11 @@ export function TorrentDetailView({
                             key="content"
                             title={
                                 <div className="flex items-center gap-2">
-                                    <HardDrive size={14} />{" "}
+                                    <HardDrive
+                                        size={14}
+                                        strokeWidth={ICON_STROKE_WIDTH}
+                                        className="text-current"
+                                    />{" "}
                                     {t("torrent_modal.tabs.content")}
                                 </div>
                             }
@@ -1577,7 +1622,11 @@ export function TorrentDetailView({
                             key="pieces"
                             title={
                                 <div className="flex items-center gap-2">
-                                    <Grid size={14} />{" "}
+                                    <Grid
+                                        size={14}
+                                        strokeWidth={ICON_STROKE_WIDTH}
+                                        className="text-current"
+                                    />{" "}
                                     {t("torrent_modal.tabs.pieces")}
                                 </div>
                             }
@@ -1586,7 +1635,11 @@ export function TorrentDetailView({
                             key="trackers"
                             title={
                                 <div className="flex items-center gap-2">
-                                    <Server size={14} />{" "}
+                                    <Server
+                                        size={14}
+                                        strokeWidth={ICON_STROKE_WIDTH}
+                                        className="text-current"
+                                    />{" "}
                                     {t("torrent_modal.tabs.trackers")}
                                 </div>
                             }
@@ -1595,7 +1648,11 @@ export function TorrentDetailView({
                             key="peers"
                             title={
                                 <div className="flex items-center gap-2">
-                                    <Network size={14} />{" "}
+                                    <Network
+                                        size={14}
+                                        strokeWidth={ICON_STROKE_WIDTH}
+                                        className="text-current"
+                                    />{" "}
                                     {t("torrent_modal.tabs.peers")}
                                 </div>
                             }
@@ -1604,7 +1661,11 @@ export function TorrentDetailView({
                             key="speed"
                             title={
                                 <div className="flex items-center gap-2">
-                                    <Activity size={14} />{" "}
+                                    <Activity
+                                        size={14}
+                                        strokeWidth={ICON_STROKE_WIDTH}
+                                        className="text-current"
+                                    />{" "}
                                     {t("torrent_modal.tabs.speed")}
                                 </div>
                             }
@@ -1775,6 +1836,7 @@ export function TorrentDetailView({
                                                 <div className="flex items-center gap-2">
                                                     <Folder
                                                         size={16}
+                                                        strokeWidth={ICON_STROKE_WIDTH}
                                                         className="text-foreground/50"
                                                     />
                                                     <span className="text-[10px] uppercase tracking-[0.3em] text-foreground/40">
@@ -1792,6 +1854,7 @@ export function TorrentDetailView({
                                                     <div className="flex items-center gap-2">
                                                         <Hash
                                                             size={16}
+                                                            strokeWidth={ICON_STROKE_WIDTH}
                                                             className="text-foreground/50"
                                                         />
                                                         <span className="text-[10px] uppercase tracking-[0.3em] text-foreground/40">
@@ -1800,18 +1863,24 @@ export function TorrentDetailView({
                                                             )}
                                                         </span>
                                                     </div>
-                                                    <Button
-                                                        isIconOnly
-                                                        size="sm"
-                                                        variant="flat"
-                                                        onPress={handleCopyHash}
-                                                        aria-label={t(
-                                                            "table.actions.copy_hash"
-                                                        )}
-                                                        className="text-foreground/50 hover:text-foreground"
-                                                    >
-                                                        <Copy size={12} />
-                                                    </Button>
+                                            <Button
+                                                isIconOnly
+                                                size="sm"
+                                                variant="flat"
+                                                onPress={handleCopyHash}
+                                                aria-label={t(
+                                                    "table.actions.copy_hash"
+                                                )}
+                                                className="text-foreground/50 hover:text-foreground"
+                                            >
+                                                <Copy
+                                                    size={12}
+                                                    strokeWidth={
+                                                        ICON_STROKE_WIDTH
+                                                    }
+                                                    className="text-current"
+                                                />
+                                            </Button>
                                                 </div>
                                                 <code className="font-mono text-xs text-foreground/70 bg-content1/20 px-2 py-1 rounded break-words">
                                                     {torrent.hash}

@@ -2,6 +2,7 @@ import { Button } from "@heroui/react";
 import { Moon, Sun } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ICON_STROKE_WIDTH } from "../../../config/iconography";
 
 const STORAGE_KEY = "tiny-torrent-theme";
 
@@ -48,9 +49,17 @@ export function ThemeToggle() {
     const label = mode === "dark" ? t("theme.dark") : t("theme.light");
     const icon =
         mode === "dark" ? (
-            <Moon size={16} className="text-base" />
+            <Moon
+                size={16}
+                strokeWidth={ICON_STROKE_WIDTH}
+                className="text-base"
+            />
         ) : (
-            <Sun size={16} className="text-base" />
+            <Sun
+                size={16}
+                strokeWidth={ICON_STROKE_WIDTH}
+                className="text-base"
+            />
         );
 
     return (

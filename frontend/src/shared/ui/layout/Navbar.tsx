@@ -14,6 +14,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { ThemeToggle } from "../controls/ThemeToggle";
 import { LanguageMenu } from "../controls/LanguageMenu";
+import { ICON_STROKE_WIDTH } from "../../../config/iconography";
 
 interface NavbarProps {
     filter: string;
@@ -46,7 +47,11 @@ export function Navbar({
                 {/* Brand */}
                 <div className="flex items-center gap-3">
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-primary-600 text-white shadow-lg shadow-primary/20">
-                        <Zap size={18} fill="currentColor" />
+                        <Zap
+                            size={18}
+                            strokeWidth={ICON_STROKE_WIDTH}
+                            fill="currentColor"
+                        />
                     </div>
                     <div className="flex flex-col">
                         <span className="text-sm font-bold tracking-wide text-foreground/90">
@@ -75,7 +80,11 @@ export function Navbar({
                         key="all"
                         title={
                             <div className="flex items-center gap-1">
-                                <ListChecks size={12} />
+                                <ListChecks
+                                    size={12}
+                                    strokeWidth={ICON_STROKE_WIDTH}
+                                    className="text-current"
+                                />
                                 {t("nav.filter_all")}
                             </div>
                         }
@@ -84,7 +93,11 @@ export function Navbar({
                         key="downloading"
                         title={
                             <div className="flex items-center gap-1">
-                                <DownloadCloud size={12} />
+                                <DownloadCloud
+                                    size={12}
+                                    strokeWidth={ICON_STROKE_WIDTH}
+                                    className="text-current"
+                                />
                                 {t("nav.filter_downloading")}
                             </div>
                         }
@@ -93,7 +106,11 @@ export function Navbar({
                         key="seeding"
                         title={
                             <div className="flex items-center gap-1">
-                                <UploadCloud size={12} />
+                                <UploadCloud
+                                    size={12}
+                                    strokeWidth={ICON_STROKE_WIDTH}
+                                    className="text-current"
+                                />
                                 {t("nav.filter_seeding")}
                             </div>
                         }
@@ -114,7 +131,11 @@ export function Navbar({
                         aria-label={t("toolbar.resume")}
                         title={t("toolbar.resume")}
                     >
-                        <Play size={16} />
+                        <Play
+                            size={16}
+                            strokeWidth={ICON_STROKE_WIDTH}
+                            className="text-current"
+                        />
                     </Button>
                     <Button
                         isIconOnly
@@ -126,7 +147,11 @@ export function Navbar({
                         aria-label={t("toolbar.pause")}
                         title={t("toolbar.pause")}
                     >
-                        <Pause size={16} />
+                        <Pause
+                            size={16}
+                            strokeWidth={ICON_STROKE_WIDTH}
+                            className="text-current"
+                        />
                     </Button>
                     <Button
                         isIconOnly
@@ -138,7 +163,11 @@ export function Navbar({
                         aria-label={t("toolbar.recheck")}
                         title={t("toolbar.recheck")}
                     >
-                        <RotateCcw size={16} />
+                        <RotateCcw
+                            size={16}
+                            strokeWidth={ICON_STROKE_WIDTH}
+                            className="text-current"
+                        />
                     </Button>
                     <Button
                         isIconOnly
@@ -150,7 +179,11 @@ export function Navbar({
                         aria-label={t("toolbar.remove")}
                         title={t("toolbar.remove")}
                     >
-                        <Trash2 size={16} />
+                        <Trash2
+                            size={16}
+                            strokeWidth={ICON_STROKE_WIDTH}
+                            className="text-current"
+                        />
                     </Button>
                 </div>
                 <Input
@@ -163,7 +196,13 @@ export function Navbar({
                     }}
                     placeholder={t("nav.search_placeholder")}
                     size="sm"
-                    startContent={<Search size={14} />}
+                startContent={
+                    <Search
+                        size={14}
+                        strokeWidth={ICON_STROKE_WIDTH}
+                        className="text-current"
+                    />
+                }
                 />
                 <div className="h-6 w-px bg-content1/20 mx-1" />
                 <LanguageMenu />
@@ -177,13 +216,23 @@ export function Navbar({
                     aria-label={t("toolbar.settings")}
                     title={t("toolbar.settings")}
                 >
-                    <Settings2 size={20} />
+                    <Settings2
+                        size={20}
+                        strokeWidth={ICON_STROKE_WIDTH}
+                        className="text-current"
+                    />
                 </Button>
                 <Button
                     color="primary"
                     variant="shadow"
                     size="sm"
-                    startContent={<Zap size={14} fill="currentColor" />}
+                    startContent={
+                        <Zap
+                            size={14}
+                            strokeWidth={ICON_STROKE_WIDTH}
+                            fill="currentColor"
+                        />
+                    }
                     onPress={onAdd}
                     className="font-bold shadow-primary/20"
                 >

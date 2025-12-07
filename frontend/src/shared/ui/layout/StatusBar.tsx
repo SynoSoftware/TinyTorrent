@@ -17,6 +17,7 @@ import type {
     TorrentEntity,
 } from "../../../services/rpc/entities";
 import type { RpcStatus } from "../../../shared/types/rpc";
+import { ICON_STROKE_WIDTH } from "../../../config/iconography";
 
 interface StatusBarProps {
     sessionStats: SessionStats | null;
@@ -104,7 +105,11 @@ export function StatusBar({
                         {/* Icon & Label */}
                         <div className="flex items-center gap-4 shrink-0">
                             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-content1/10 text-foreground/50 transition-colors group-hover:bg-success/10 group-hover:text-success">
-                                <ArrowDown size={24} strokeWidth={2.5} />
+                                <ArrowDown
+                                    size={24}
+                                    strokeWidth={ICON_STROKE_WIDTH}
+                                    className="text-current"
+                                />
                             </div>
                             <div className="flex flex-col justify-center gap-0.5">
                                 <span className="text-[10px] font-bold uppercase tracking-widest text-foreground/40">
@@ -134,7 +139,11 @@ export function StatusBar({
                         {/* Icon & Label */}
                         <div className="flex items-center gap-4 shrink-0">
                             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-content1/10 text-foreground/50 transition-colors group-hover:bg-primary/10 group-hover:text-primary">
-                                <ArrowUp size={24} strokeWidth={2.5} />
+                                <ArrowUp
+                                    size={24}
+                                    strokeWidth={ICON_STROKE_WIDTH}
+                                    className="text-current"
+                                />
                             </div>
                             <div className="flex flex-col justify-center gap-0.5">
                                 <span className="text-[10px] font-bold uppercase tracking-widest text-foreground/40">
@@ -172,16 +181,18 @@ export function StatusBar({
                                 {summaryValue}
                             </span>
                             {!isSelection && (
-                                <Activity
-                                    size={14}
-                                    className="text-foreground/30"
-                                />
+                            <Activity
+                                size={14}
+                                strokeWidth={ICON_STROKE_WIDTH}
+                                className="text-foreground/30"
+                            />
                             )}
                             {isSelection && (
-                                <HardDrive
-                                    size={14}
-                                    className="text-foreground/30"
-                                />
+                            <HardDrive
+                                size={14}
+                                strokeWidth={ICON_STROKE_WIDTH}
+                                className="text-foreground/30"
+                            />
                             )}
                         </div>
                     </div>
@@ -200,7 +211,11 @@ export function StatusBar({
                                     count: dhtNodeCount,
                                 })}
                             </span>
-                            <Network size={14} className="text-foreground/30" />
+                            <Network
+                                size={14}
+                                strokeWidth={ICON_STROKE_WIDTH}
+                                className="text-foreground/30"
+                            />
                         </div>
                     </div>
 
@@ -224,12 +239,11 @@ export function StatusBar({
                             >
                                 <statusConfig.icon
                                     size={18}
-                                    strokeWidth={2.2}
-                                    className={
-                                        rpcStatus !== "connected"
-                                            ? "animate-pulse"
-                                            : ""
-                                    }
+                                    strokeWidth={ICON_STROKE_WIDTH}
+                                    className={cn(
+                                        "text-current",
+                                        rpcStatus !== "connected" && "animate-pulse"
+                                    )}
                                 />
                             </div>
                         </div>

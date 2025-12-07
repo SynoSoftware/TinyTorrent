@@ -42,6 +42,7 @@ import type { Torrent } from "../types/torrent";
 import type { ReactNode } from "react";
 import { TABLE_LAYOUT } from "../config/layout";
 import { GLASS_MENU_SURFACE } from "../../../shared/ui/layout/glass-surface";
+import { ICON_STROKE_WIDTH } from "../../../config/iconography";
 
 export type ColumnId =
     | "selection"
@@ -280,7 +281,13 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
                         size="sm"
                         variant="flat"
                         color={conf.color}
-                        startContent={<Icon size={TABLE_LAYOUT.iconSize} />}
+                        startContent={
+                            <Icon
+                                size={TABLE_LAYOUT.iconSize}
+                                strokeWidth={ICON_STROKE_WIDTH}
+                                className="text-current"
+                            />
+                        }
                         classNames={{
                             base: "h-5 px-2",
                             content:
@@ -365,19 +372,23 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
         sortAccessor: (torrent) => torrent.peerSummary.connected,
         headerIcon: Users,
         render: ({ torrent }) => (
-            <div
-                className={cn(
-                    "flex items-center justify-end gap-1 text-foreground/60 min-w-0",
-                    DENSE_NUMERIC
-                )}
-            >
-                <Users size={TABLE_LAYOUT.iconSize} className="opacity-50" />
-                <span>{torrent.peerSummary.connected}</span>
-                <span className="opacity-30">/</span>
-                <span className="opacity-50">
-                    {torrent.peerSummary.seeds ?? "-"}
-                </span>
-            </div>
+                <div
+                    className={cn(
+                        "flex items-center justify-end gap-1 text-foreground/60 min-w-0",
+                        DENSE_NUMERIC
+                    )}
+                >
+                    <Users
+                        size={TABLE_LAYOUT.iconSize}
+                        strokeWidth={ICON_STROKE_WIDTH}
+                        className="opacity-50 text-current"
+                    />
+                    <span>{torrent.peerSummary.connected}</span>
+                    <span className="opacity-30">/</span>
+                    <span className="opacity-50">
+                        {torrent.peerSummary.seeds ?? "-"}
+                    </span>
+                </div>
         ),
     },
     size: {
