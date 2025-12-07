@@ -37,7 +37,9 @@ import {
     useRef,
     useState,
     type MouseEvent,
+    type PointerEvent,
     type ReactNode,
+    type WheelEvent,
 } from "react";
 import { useTranslation } from "react-i18next";
 import { GlassPanel } from "../../../shared/ui/layout/GlassPanel";
@@ -132,6 +134,9 @@ const HEATMAP_ZOOM_LEVELS = heatmapConfig.zoom_levels;
 const HISTORY_POINTS = constants.performance.history_data_points;
 const HEATMAP_CANVAS_CELL_SIZE = heatmapConfig.cell_size;
 const HEATMAP_CANVAS_CELL_GAP = heatmapConfig.cell_gap;
+
+const clamp = (value: number, min: number, max: number) =>
+    Math.min(Math.max(value, min), max);
 
 type CanvasPalette = {
     primary: string;
@@ -435,7 +440,7 @@ const PiecesMap = ({
                         ref={canvasRef}
                         width={canvasWidth}
                         height={canvasHeight}
-                        className="w-full h-auto block rounded-2xl cursor-crosshair"
+                        className="w-full h-auto block rounded-2xl"
                         onMouseMove={handleCanvasMove}
                         onMouseLeave={() => setHoveredPiece(null)}
                     />
@@ -727,8 +732,16 @@ const PEER_DRIFT_DURATION_MAX = peerMapConfig.drift_duration.max;
 const PeerMap = ({ peers }: PeerMapProps) => {
     const { t } = useTranslation();
     const [scale, setScale] = useState(1);
+    const [translate, setTranslate] = useState({ x: 0, y: 0 });
+    const [isDragging, setIsDragging] = useState(false);
+    const dragRef = useRef(false);
+    const lastPointerRef = useRef<{ x: number; y: number } | null>(null);
     const gradientId = useId();
     const radarSweepId = `peer-map-radar-${gradientId}`;
+    const MIN_SCALE = 0.8;
+    const MAX_SCALE = 1.5;
+    const ZOOM_STEP = 0.08;
+    const MAX_PAN_OFFSET = 60;
 
     const maxRate = useMemo(
         () =>
@@ -775,19 +788,63 @@ const PeerMap = ({ peers }: PeerMapProps) => {
     }, [maxRate, peers]);
 
     const handleZoom = (direction: "in" | "out") => {
-        setScale((prev) => {
-            const next =
-                direction === "in"
-                    ? Math.min(1.5, prev + 0.2)
-                    : Math.max(0.8, prev - 0.2);
-            return next;
-        });
+        setScale((prev) =>
+            clamp(
+                prev + (direction === "in" ? ZOOM_STEP : -ZOOM_STEP),
+                MIN_SCALE,
+                MAX_SCALE
+            )
+        );
     };
+
+    const handlePointerDown = useCallback(
+        (event: PointerEvent<SVGSVGElement>) => {
+            event.preventDefault();
+            dragRef.current = true;
+            setIsDragging(true);
+            lastPointerRef.current = { x: event.clientX, y: event.clientY };
+        },
+        []
+    );
+
+    const handlePointerMove = useCallback(
+        (event: PointerEvent<SVGSVGElement>) => {
+            if (!dragRef.current || !lastPointerRef.current) return;
+            const dx = event.clientX - lastPointerRef.current.x;
+            const dy = event.clientY - lastPointerRef.current.y;
+            lastPointerRef.current = { x: event.clientX, y: event.clientY };
+            setTranslate((prev) => ({
+                x: clamp(prev.x + dx, -MAX_PAN_OFFSET, MAX_PAN_OFFSET),
+                y: clamp(prev.y + dy, -MAX_PAN_OFFSET, MAX_PAN_OFFSET),
+            }));
+        },
+        []
+    );
+
+    const handlePointerUp = useCallback(() => {
+        dragRef.current = false;
+        setIsDragging(false);
+        lastPointerRef.current = null;
+    }, []);
+
+    const handleWheel = useCallback(
+        (event: WheelEvent<SVGSVGElement>) => {
+            event.preventDefault();
+            setScale((prev) =>
+                clamp(
+                    prev + (event.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP),
+                    MIN_SCALE,
+                    MAX_SCALE
+                )
+            );
+        },
+        []
+    );
 
     return (
         <motion.div
             layout
-            className="rounded-2xl border border-content1/20 bg-content1/15 p-4 space-y-3"
+            className="flex flex-col flex-1 min-h-[320px] rounded-2xl border border-content1/20 bg-content1/15 p-4 space-y-3 overflow-hidden"
         >
             <div className="flex items-center justify-between">
                 <div className="flex flex-col">
@@ -821,16 +878,26 @@ const PeerMap = ({ peers }: PeerMapProps) => {
                     </Button>
                 </div>
             </div>
-            <div className="flex justify-center">
+
+            <div className="flex-1 min-h-0">
                 <motion.svg
-                    width={180}
-                    height={180}
                     viewBox="0 0 180 180"
-                    className="rounded-2xl bg-content1/10 border border-content1/20"
+                    preserveAspectRatio="xMidYMid meet"
+                    className={cn(
+                        "rounded-2xl bg-content1/10 border border-content1/20",
+                        "w-full h-full",
+                        isDragging ? "cursor-grabbing" : "cursor-grab"
+                    )}
                     style={{
+                        touchAction: "none",
                         transform: `scale(${scale})`,
                         transformOrigin: "center",
                     }}
+                    onWheel={handleWheel}
+                    onPointerDown={handlePointerDown}
+                    onPointerMove={handlePointerMove}
+                    onPointerUp={handlePointerUp}
+                    onPointerLeave={handlePointerUp}
                 >
                     <defs>
                         <linearGradient
@@ -862,97 +929,104 @@ const PeerMap = ({ peers }: PeerMapProps) => {
                             />
                         </linearGradient>
                     </defs>
-                    <motion.circle
-                        cx={90}
-                        cy={90}
-                        r={80}
-                        stroke="var(--heroui-content1)"
-                        strokeWidth={1}
-                        fill="transparent"
-                        className="opacity-25"
-                    />
                     <motion.g
-                        style={{ transformOrigin: "90px 90px" }}
-                        animate={{ rotate: 360 }}
-                        transition={{
-                            duration: 14,
-                            repeat: Infinity,
-                            ease: "linear",
+                        style={{
+                            transform: `translate(${translate.x}px, ${translate.y}px)`,
                         }}
                     >
-                        <circle
+                        <motion.circle
                             cx={90}
                             cy={90}
-                            r={70}
-                            fill="none"
-                            stroke={`url(#${radarSweepId})`}
-                            strokeWidth={14}
-                            strokeLinecap="round"
-                            strokeDasharray="50 360"
-                            className="opacity-60"
+                            r={80}
+                            stroke="var(--heroui-content1)"
+                            strokeWidth={1}
+                            fill="transparent"
+                            className="opacity-25"
                         />
+                        <motion.g
+                            style={{ transformOrigin: "90px 90px" }}
+                            animate={{ rotate: 360 }}
+                            transition={{
+                                duration: 14,
+                                repeat: Infinity,
+                                ease: "linear",
+                            }}
+                        >
+                            <circle
+                                cx={90}
+                                cy={90}
+                                r={70}
+                                fill="none"
+                                stroke={`url(#${radarSweepId})`}
+                                strokeWidth={14}
+                                strokeLinecap="round"
+                                strokeDasharray="50 360"
+                                className="opacity-60"
+                            />
+                        </motion.g>
+                        {nodes.map(
+                            ({
+                                peer,
+                                x,
+                                y,
+                                size,
+                                fill,
+                                driftX,
+                                driftY,
+                                duration,
+                                delay,
+                                delayY,
+                            }) => (
+                                <Tooltip
+                                    key={`${peer.address}-${x}-${y}`}
+                                    content={`${peer.address} � ${formatSpeed(
+                                        peer.rateToClient
+                                    )} DL / ${formatSpeed(peer.rateToPeer)} UL`}
+                                    delay={0}
+                                    closeDelay={0}
+                                    classNames={GLASS_TOOLTIP_CLASSNAMES}
+                                >
+                                    <motion.circle
+                                        cx={x}
+                                        cy={y}
+                                        r={size}
+                                        fill={fill}
+                                        stroke="var(--heroui-foreground)"
+                                        strokeWidth={peer.peerIsChoking ? 0.5 : 1}
+                                        animate={{
+                                            translateX: [0, driftX, -driftX, 0],
+                                            translateY: [0, driftY, -driftY, 0],
+                                        }}
+                                        transition={{
+                                            translateX: {
+                                                duration,
+                                                repeat: Infinity,
+                                                repeatType: "mirror",
+                                                ease: "easeInOut",
+                                                delay,
+                                            },
+                                            translateY: {
+                                                duration,
+                                                repeat: Infinity,
+                                                repeatType: "mirror",
+                                                ease: "easeInOut",
+                                                delay: delayY,
+                                            },
+                                            default: {
+                                                type: "spring",
+                                                stiffness: 300,
+                                                damping: 20,
+                                            },
+                                        }}
+                                        whileHover={{ scale: 1.2 }}
+                                    />
+                                </Tooltip>
+                            )
+                        )}
                     </motion.g>
-                    {nodes.map(
-                        ({
-                            peer,
-                            x,
-                            y,
-                            size,
-                            fill,
-                            driftX,
-                            driftY,
-                            duration,
-                            delay,
-                            delayY,
-                        }) => (
-                            <Tooltip
-                                key={`${peer.address}-${x}-${y}`}
-                                content={`${peer.address} · ${formatSpeed(
-                                    peer.rateToClient
-                                )} DL / ${formatSpeed(peer.rateToPeer)} UL`}
-                                delay={0}
-                                closeDelay={0}
-                                classNames={GLASS_TOOLTIP_CLASSNAMES}
-                            >
-                                <motion.circle
-                                    cx={x}
-                                    cy={y}
-                                    r={size}
-                                    fill={fill}
-                                    stroke="var(--heroui-foreground)"
-                                    strokeWidth={peer.peerIsChoking ? 0.5 : 1}
-                                    animate={{
-                                        translateX: [0, driftX, -driftX, 0],
-                                        translateY: [0, driftY, -driftY, 0],
-                                    }}
-                                    transition={{
-                                        translateX: {
-                                            duration,
-                                            repeat: Infinity,
-                                            repeatType: "mirror",
-                                            ease: "easeInOut",
-                                            delay,
-                                        },
-                                        translateY: {
-                                            duration,
-                                            repeat: Infinity,
-                                            repeatType: "mirror",
-                                            ease: "easeInOut",
-                                            delay: delayY,
-                                        },
-                                        default: {
-                                            type: "spring",
-                                            stiffness: 300,
-                                            damping: 20,
-                                        },
-                                    }}
-                                    whileHover={{ scale: 1.2 }}
-                                />
-                            </Tooltip>
-                        )
-                    )}
                 </motion.svg>
             </div>
+
         </motion.div>
     );
 };
@@ -1006,6 +1080,66 @@ const useTorrentDetailSpeedHistory = (torrent: TorrentDetail | null) => {
 const CHART_WIDTH = 180;
 const CHART_HEIGHT = 72;
 
+const SPEED_WINDOW_OPTIONS = [
+    { key: "1m", label: "1m", minutes: 1 },
+    { key: "5m", label: "5m", minutes: 5 },
+    { key: "30m", label: "30m", minutes: 30 },
+    { key: "1h", label: "1h", minutes: 60 },
+] as const;
+
+type SpeedWindowKey = (typeof SPEED_WINDOW_OPTIONS)[number]["key"];
+
+const resampleHistory = (values: number[], targetLength: number) => {
+    if (targetLength <= 0 || values.length === 0) return [];
+    if (values.length <= targetLength) return [...values];
+    const factor = values.length / targetLength;
+    return Array.from({ length: targetLength }, (_, index) => {
+        const start = Math.floor(index * factor);
+        const end = Math.min(
+            values.length,
+            Math.floor((index + 1) * factor)
+        );
+        const slice = values.slice(start, end || start + 1);
+        if (!slice.length) {
+            return values[start] ?? 0;
+        }
+        const total = slice.reduce((sum, value) => sum + value, 0);
+        return total / slice.length;
+    });
+};
+
+const buildSplinePath = (values: number[], valueMax: number) => {
+    if (!values.length) return "";
+    const points = values.map((value, index) => {
+        const x = (index / (values.length - 1 || 1)) * CHART_WIDTH;
+        const normalized = Math.min(Math.max(value / valueMax, 0), 1);
+        const y = CHART_HEIGHT - normalized * CHART_HEIGHT;
+        return { x, y };
+    });
+    if (points.length === 1) {
+        const point = points[0];
+        return `M${point.x.toFixed(2)},${point.y.toFixed(2)}`;
+    }
+    const tension = 0.4;
+    let path = `M${points[0].x.toFixed(2)},${points[0].y.toFixed(2)}`;
+    for (let i = 0; i < points.length - 1; i++) {
+        const p0 = points[i - 1] ?? points[i];
+        const p1 = points[i];
+        const p2 = points[i + 1];
+        const p3 = points[i + 2] ?? points[i + 1];
+        const cp1 = {
+            x: p1.x + (p2.x - p0.x) * tension,
+            y: p1.y + (p2.y - p0.y) * tension,
+        };
+        const cp2 = {
+            x: p2.x - (p3.x - p1.x) * tension,
+            y: p2.y - (p3.y - p1.y) * tension,
+        };
+        path += ` C${cp1.x.toFixed(2)},${cp1.y.toFixed(2)} ${cp2.x.toFixed(2)},${cp2.y.toFixed(2)} ${p2.x.toFixed(2)},${p2.y.toFixed(2)}`;
+    }
+    return path;
+};
+
 const SpeedChart = ({
     downHistory,
     upHistory,
@@ -1013,50 +1147,64 @@ const SpeedChart = ({
     downHistory: number[];
     upHistory: number[];
 }) => {
-    const maxValue = Math.max(...downHistory, ...upHistory, 1);
+    const [selectedWindow, setSelectedWindow] =
+        useState<SpeedWindowKey>("1m");
     const latestDown = downHistory.at(-1) ?? 0;
     const latestUp = upHistory.at(-1) ?? 0;
-    const buildSplinePath = (values: number[]) => {
-        if (!values.length) return "";
-        const points = values.map((value, index) => {
-            const x = (index / (values.length - 1 || 1)) * CHART_WIDTH;
-            const normalized = Math.min(Math.max(value / maxValue, 0), 1);
-            const y = CHART_HEIGHT - normalized * CHART_HEIGHT;
-            return { x, y };
-        });
-        if (points.length === 1) {
-            const point = points[0];
-            return `M${point.x.toFixed(2)},${point.y.toFixed(2)}`;
-        }
-        const tension = 0.4;
-        let path = `M${points[0].x.toFixed(2)},${points[0].y.toFixed(2)}`;
-        for (let i = 0; i < points.length - 1; i++) {
-            const p0 = points[i - 1] ?? points[i];
-            const p1 = points[i];
-            const p2 = points[i + 1];
-            const p3 = points[i + 2] ?? points[i + 1];
-            const cp1 = {
-                x: p1.x + (p2.x - p0.x) * tension,
-                y: p1.y + (p2.y - p0.y) * tension,
-            };
-            const cp2 = {
-                x: p2.x - (p3.x - p1.x) * tension,
-                y: p2.y - (p3.y - p1.y) * tension,
-            };
-            path += ` C${cp1.x.toFixed(2)},${cp1.y.toFixed(2)} ${cp2.x.toFixed(
-                2
-            )},${cp2.y.toFixed(2)} ${p2.x.toFixed(2)},${p2.y.toFixed(2)}`;
-        }
-        return path;
-    };
+
+    const windowOption =
+        SPEED_WINDOW_OPTIONS.find((option) => option.key === selectedWindow) ??
+        SPEED_WINDOW_OPTIONS[0];
+    const targetLength = Math.max(
+        3,
+        Math.round(HISTORY_POINTS / windowOption.minutes)
+    );
+
+    const downValues = useMemo(
+        () => resampleHistory(downHistory, targetLength),
+        [downHistory, targetLength]
+    );
+    const upValues = useMemo(
+        () => resampleHistory(upHistory, targetLength),
+        [upHistory, targetLength]
+    );
+
+    const maxValue = Math.max(...downValues, ...upValues, 1);
+    const downPath = buildSplinePath(downValues, maxValue);
+    const upPath = buildSplinePath(upValues, maxValue);
 
     return (
-        <div className="flex flex-col gap-2">
-            <div className="flex justify-between items-center text-[11px] font-mono text-foreground/60">
-                <span className="text-success">
-                    ↓ {formatSpeed(latestDown)}
-                </span>
-                <span className="text-primary">↑ {formatSpeed(latestUp)}</span>
+        <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between text-[11px] font-mono text-foreground/60">
+                <div className="flex items-center gap-4">
+                    <span className="flex items-center gap-1 text-success">
+                        ↓ {formatSpeed(latestDown)}
+                    </span>
+                    <span className="flex items-center gap-1 text-primary">
+                        ↑ {formatSpeed(latestUp)}
+                    </span>
+                </div>
+                <div className="flex items-center gap-1">
+                    {SPEED_WINDOW_OPTIONS.map((option) => (
+                        <Button
+                            key={option.key}
+                            size="xs"
+                            variant={
+                                selectedWindow === option.key ? "shadow" : "flat"
+                            }
+                            color={
+                                selectedWindow === option.key
+                                    ? "primary"
+                                    : "default"
+                            }
+                            className="rounded-full px-3 text-[11px]"
+                            onPress={() => setSelectedWindow(option.key)}
+                            aria-pressed={selectedWindow === option.key}
+                        >
+                            {option.label}
+                        </Button>
+                    ))}
+                </div>
             </div>
             <div className="rounded-2xl border border-content1/20 bg-content1/20 p-3">
                 <svg
@@ -1102,26 +1250,29 @@ const SpeedChart = ({
                             />
                         </linearGradient>
                     </defs>
-                    <path
-                        d={buildSplinePath(downHistory)}
+                    <motion.path
+                        d={downPath}
                         fill="none"
                         stroke="url(#down-gradient)"
                         strokeWidth="3"
                         strokeLinecap="round"
+                        animate={{ d: downPath }}
+                        transition={{ type: "spring", stiffness: 140, damping: 20 }}
                     />
-                    <path
-                        d={buildSplinePath(upHistory)}
+                    <motion.path
+                        d={upPath}
                         fill="none"
                         stroke="url(#up-gradient)"
                         strokeWidth="3"
                         strokeLinecap="round"
+                        animate={{ d: upPath }}
+                        transition={{ type: "spring", stiffness: 140, damping: 20 }}
                     />
                 </svg>
             </div>
         </div>
     );
 };
-
 interface GeneralInfoCardProps {
     icon: LucideIcon;
     label: string;
@@ -1249,6 +1400,10 @@ export function TorrentDetailView({
     const files = torrent.files ?? [];
     const downloadDir = torrent.savePath ?? t("torrent_modal.labels.unknown");
     const statusMeta = STATUS_CONFIG[torrent.state];
+    const tabContentClasses = cn(
+        "min-h-0 pr-2 scrollbar-hide pb-8",
+        activeTab === "peers" ? "overflow-y-hidden" : "overflow-y-auto"
+    );
     const fileEntries = useMemo<FileExplorerEntry[]>(() => {
         return files.map((file, index) => ({
             name: file.name,
@@ -1463,7 +1618,7 @@ export function TorrentDetailView({
                                 animate={{ opacity: 1, x: 0 }}
                                 exit={{ opacity: 0, x: -10 }}
                                 transition={{ duration: 0.15 }}
-                                className="min-h-0 overflow-y-auto pr-2 scrollbar-hide pb-8"
+                                className={tabContentClasses}
                             >
                                 {/* --- TAB: GENERAL --- */}
                                 {activeTab === "general" && (
