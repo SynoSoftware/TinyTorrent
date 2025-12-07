@@ -2,8 +2,12 @@ import { Button, Input, Tab, Tabs } from "@heroui/react";
 import {
     DownloadCloud,
     ListChecks,
+    Pause,
+    Play,
+    RotateCcw,
     Search,
     Settings2,
+    Trash2,
     UploadCloud,
     Zap,
 } from "lucide-react";
@@ -16,9 +20,24 @@ interface NavbarProps {
     setFilter: (key: string) => void;
     onAdd: () => void;
     onSettings: () => void;
+    hasSelection: boolean;
+    onResumeSelection: () => void;
+    onPauseSelection: () => void;
+    onRecheckSelection: () => void;
+    onRemoveSelection: () => void;
 }
 
-export function Navbar({ filter, setFilter, onAdd, onSettings }: NavbarProps) {
+export function Navbar({
+    filter,
+    setFilter,
+    onAdd,
+    onSettings,
+    hasSelection,
+    onResumeSelection,
+    onPauseSelection,
+    onRecheckSelection,
+    onRemoveSelection,
+}: NavbarProps) {
     const { t } = useTranslation();
 
     return (
@@ -84,6 +103,56 @@ export function Navbar({ filter, setFilter, onAdd, onSettings }: NavbarProps) {
 
             {/* Global Actions */}
             <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1">
+                    <Button
+                        isIconOnly
+                        variant="ghost"
+                        radius="full"
+                        className="text-foreground/50 transition-colors hover:text-success disabled:text-foreground/30"
+                        disabled={!hasSelection}
+                        onPress={onResumeSelection}
+                        aria-label={t("toolbar.resume")}
+                        title={t("toolbar.resume")}
+                    >
+                        <Play size={16} />
+                    </Button>
+                    <Button
+                        isIconOnly
+                        variant="ghost"
+                        radius="full"
+                        className="text-foreground/50 transition-colors hover:text-warning disabled:text-foreground/30"
+                        disabled={!hasSelection}
+                        onPress={onPauseSelection}
+                        aria-label={t("toolbar.pause")}
+                        title={t("toolbar.pause")}
+                    >
+                        <Pause size={16} />
+                    </Button>
+                    <Button
+                        isIconOnly
+                        variant="ghost"
+                        radius="full"
+                        className="text-foreground/50 transition-colors hover:text-primary disabled:text-foreground/30"
+                        disabled={!hasSelection}
+                        onPress={onRecheckSelection}
+                        aria-label={t("toolbar.recheck")}
+                        title={t("toolbar.recheck")}
+                    >
+                        <RotateCcw size={16} />
+                    </Button>
+                    <Button
+                        isIconOnly
+                        variant="ghost"
+                        radius="full"
+                        className="text-foreground/50 transition-colors hover:text-danger disabled:text-foreground/30"
+                        disabled={!hasSelection}
+                        onPress={onRemoveSelection}
+                        aria-label={t("toolbar.remove")}
+                        title={t("toolbar.remove")}
+                    >
+                        <Trash2 size={16} />
+                    </Button>
+                </div>
                 <Input
                     classNames={{
                         base: "w-48 h-8",

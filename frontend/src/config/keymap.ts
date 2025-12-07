@@ -3,6 +3,8 @@ export const ShortcutIntent = {
     Delete: "action.delete",
     ShowDetails: "action.show_details",
     TogglePause: "action.toggle_pause",
+    Recheck: "action.recheck",
+    RemoveWithData: "action.remove_with_data",
 } as const;
 
 export type ShortcutIntent =
@@ -19,4 +21,6 @@ export const KEYMAP: Record<ShortcutIntent, string | string[]> = {
     [ShortcutIntent.Delete]: ["delete", "backspace"],
     [ShortcutIntent.ShowDetails]: ["enter"],
     [ShortcutIntent.TogglePause]: ["space"],
+    [ShortcutIntent.Recheck]: "ctrl+r",
+    [ShortcutIntent.RemoveWithData]: "shift+delete",
 };

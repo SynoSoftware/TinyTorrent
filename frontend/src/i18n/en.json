@@ -217,7 +217,11 @@
     },
     "toolbar": {
         "add_torrent": "Add Torrent",
-        "settings": "Settings"
+        "settings": "Settings",
+        "resume": "Resume",
+        "pause": "Pause",
+        "recheck": "Recheck",
+        "remove": "Remove"
     },
     "torrent_modal": {
         "actions": {

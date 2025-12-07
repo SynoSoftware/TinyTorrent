@@ -9,6 +9,7 @@ interface ModeLayoutProps {
     isTableLoading: boolean;
     onAction?: (action: TorrentTableAction, torrent: Torrent) => void;
     onRequestDetails?: (torrent: Torrent) => void;
+    onSelectionChange?: (selection: Torrent[]) => void;
     detailData: TorrentDetail | null;
     onCloseDetail: () => void;
     onFilesToggle?: (
@@ -36,18 +37,20 @@ export function ModeLayout({
     onForceTrackerReannounce,
     sequentialSupported,
     superSeedingSupported,
+    onSelectionChange,
 }: ModeLayoutProps) {
     const isDetailOpen = Boolean(detailData);
 
     return (
         <>
-        <main className="flex-1 min-h-0 relative overflow-hidden flex flex-col z-10">
+            <main className="flex-1 min-h-0 relative overflow-hidden flex flex-col z-10">
                 <TorrentTable
                     torrents={torrents}
                     filter={filter}
                     isLoading={isTableLoading}
                     onAction={onAction}
                     onRequestDetails={onRequestDetails}
+                    onSelectionChange={onSelectionChange}
                 />
             </main>
             <Modal

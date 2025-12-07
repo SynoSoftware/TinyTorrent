@@ -73,4 +73,30 @@ export function useTorrentShortcuts({
         { scopes: scope, enabled: hasPrimaryTorrent && Boolean(onAction) },
         [primaryTorrent, isActiveTorrent, onAction]
     );
+
+    useHotkeys(
+        KEYMAP[ShortcutIntent.Recheck],
+        (event) => {
+            event.preventDefault();
+            if (!onAction || !hasSelection) return;
+            selectedTorrents.forEach((torrent) => {
+                onAction("recheck", torrent);
+            });
+        },
+        { scopes: scope, enabled: hasSelection && Boolean(onAction) },
+        [hasSelection, onAction, selectedTorrents]
+    );
+
+    useHotkeys(
+        KEYMAP[ShortcutIntent.RemoveWithData],
+        (event) => {
+            event.preventDefault();
+            if (!onAction || !hasSelection) return;
+            selectedTorrents.forEach((torrent) => {
+                onAction("remove-with-data", torrent);
+            });
+        },
+        { scopes: scope, enabled: hasSelection && Boolean(onAction) },
+        [hasSelection, onAction, selectedTorrents]
+    );
 }

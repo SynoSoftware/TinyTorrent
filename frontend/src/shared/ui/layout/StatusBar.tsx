@@ -8,6 +8,7 @@ import {
     HardDrive,
     Activity,
 } from "lucide-react";
+import { cn } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 import { formatSpeed } from "../../../shared/utils/format";
 import { NetworkGraph } from "../graphs/NetworkGraph";
@@ -53,6 +54,28 @@ export function StatusBar({
             icon: AlertCircle,
         },
     }[rpcStatus];
+
+    const STATUS_VISUALS: Record<
+        RpcStatus,
+        { bg: string; border: string; text: string }
+    > = {
+        idle: {
+            bg: "bg-content1/10",
+            border: "border-content1/20",
+            text: "text-foreground/50",
+        },
+        connected: {
+            bg: "bg-success/10",
+            border: "border-success/30",
+            text: "text-success",
+        },
+        error: {
+            bg: "bg-danger/10",
+            border: "border-danger/30",
+            text: "text-danger",
+        },
+    };
+    const statusVisual = STATUS_VISUALS[rpcStatus];
 
     const downSpeed =
         selectedTorrent?.speed.down ?? sessionStats?.downloadSpeed ?? 0;
@@ -189,21 +212,26 @@ export function StatusBar({
                         <span className="text-[9px] font-bold uppercase tracking-wider text-foreground/30">
                             {t("status_bar.engine")}
                         </span>
-                        <div
-                            className={`flex items-center gap-1.5 ${statusConfig.color}`}
-                        >
-                            <span className="font-bold tracking-wide uppercase text-[10px]">
-                                {statusConfig.label}
-                            </span>
-                            <statusConfig.icon
-                                size={14}
-                                strokeWidth={2.5}
-                                className={
-                                    rpcStatus !== "connected"
-                                        ? "animate-pulse"
-                                        : ""
-                                }
-                            />
+                        <div className="flex w-full justify-end">
+                            <div
+                                className={cn(
+                                    "flex h-10 w-10 items-center justify-center rounded-2xl border transition duration-200",
+                                    statusVisual.bg,
+                                    statusVisual.border,
+                                    statusVisual.text
+                                )}
+                                title={statusConfig.label}
+                            >
+                                <statusConfig.icon
+                                    size={18}
+                                    strokeWidth={2.2}
+                                    className={
+                                        rpcStatus !== "connected"
+                                            ? "animate-pulse"
+                                            : ""
+                                    }
+                                />
+                            </div>
                         </div>
                     </div>
                 </div>
