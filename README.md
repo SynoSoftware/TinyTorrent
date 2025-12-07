@@ -8,7 +8,9 @@
 
 **A modern µTorrent-style BitTorrent client with a browser-native UI and a micro-sized backend.**
 
-**NOTE THIS IS WORK IN PROGRESS - DON'T EXPECT IT TO WORK JUST YET**
+**NOTE THIS IS WORK IN PROGRESS: Bugs do exist, some features are unfinished, regressions can appear**
+
+**Status:** works if transmission-daemon is installed separatelly
 
 ---
 
