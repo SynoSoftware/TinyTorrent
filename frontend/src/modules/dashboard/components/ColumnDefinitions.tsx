@@ -96,6 +96,32 @@ const ratioValue = (torrent: Torrent) => {
 const DENSE_TEXT = `${TABLE_LAYOUT.fontSize} ${TABLE_LAYOUT.fontMono} leading-tight`;
 const DENSE_NUMERIC = `${DENSE_TEXT} tabular-nums`;
 
+const getOrdinalSuffix = (value: number) => {
+    const normalized = value % 100;
+    if (normalized >= 11 && normalized <= 13) {
+        return "th";
+    }
+
+    switch (value % 10) {
+        case 1:
+            return "st";
+        case 2:
+            return "nd";
+        case 3:
+            return "rd";
+        default:
+            return "th";
+    }
+};
+
+const formatQueueOrdinal = (queuePosition?: number) => {
+    if (queuePosition === undefined || queuePosition === null) {
+        return "-";
+    }
+    const displayValue = queuePosition + 1;
+    return `${displayValue}${getOrdinalSuffix(displayValue)}`;
+};
+
 const statusMap: Record<
     Torrent["state"],
     {
@@ -176,7 +202,12 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
                         </span>
                         <span className="w-0.5 h-0.5 rounded-full bg-foreground/30" />
                         <span>
-                            {t("table.eta", { time: formatTime(torrent.eta) })}
+                            {t("table.eta", {
+                                time:
+                                    torrent.eta < 0
+                                        ? t("table.eta_unknown")
+                                        : formatTime(torrent.eta),
+                            })}
                         </span>
                     </div>
                 )}
@@ -274,9 +305,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
         headerIcon: ArrowDownCircle,
         render: ({ torrent }) => (
             <span className={cn("text-foreground/60 min-w-0", DENSE_NUMERIC)}>
-                {torrent.queuePosition !== undefined
-                    ? torrent.queuePosition
-                    : "-"}
+                {formatQueueOrdinal(torrent.queuePosition)}
             </span>
         ),
     },
