@@ -56,6 +56,7 @@ export function ModeLayout({
         hideCloseButton
         classNames={{
           base: "bg-background/90 backdrop-blur-2xl border border-content1/20 shadow-2xl h-[650px] flex flex-col overflow-hidden",
+          backdrop: "transition-opacity duration-200 ease-out",
         }}
         motionProps={{
           variants: {

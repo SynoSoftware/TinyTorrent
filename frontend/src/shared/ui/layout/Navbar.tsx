@@ -15,7 +15,7 @@ export function Navbar({ filter, setFilter, onAdd, onSettings }: NavbarProps) {
   const { t } = useTranslation();
 
   return (
-    <header className="z-20 flex h-16 shrink-0 items-center justify-between gap-4 px-6 border-b border-content1/20 bg-background/40 backdrop-blur-xl sticky top-0 select-none">
+    <header className="z-20 flex h-16 shrink-0 items-center justify-between gap-4 px-6 border-t border-white/10 border-b border-content1/20 bg-background/40 backdrop-blur-xl sticky top-0 select-none">
       <div className="flex items-center gap-8">
         {/* Brand */}
         <div className="flex items-center gap-3">

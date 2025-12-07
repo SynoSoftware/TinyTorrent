@@ -28,7 +28,7 @@ import { FileExplorerTree, type FileExplorerEntry } from "../../../shared/ui/wor
 import constants from "../../../config/constants.json";
 import type { Torrent, TorrentDetail } from "../types/torrent";
 import type { TorrentTableAction } from "./TorrentTable";
-import type { TorrentPeerEntity } from "../../../core/domain/entities";
+import type { TorrentPeerEntity, TorrentStatus } from "../../../core/domain/entities";
 
 const GLASS_TOOLTIP_CLASSNAMES = {
   content:
@@ -60,18 +60,40 @@ interface PiecesMapProps {
   pieceSize?: number;
 }
 
-const PIECE_COLUMNS = 42;
-const PIECE_BASE_ROWS = 6;
-const PIECE_MAX_ROWS = 12;
-const PIECE_CANVAS_CELL_SIZE = 10;
-const PIECE_CANVAS_CELL_GAP = 2;
+const PIECE_MAP_DEFAULTS = {
+  columns: 42,
+  base_rows: 6,
+  max_rows: 12,
+  cell_size: 10,
+  cell_gap: 2,
+} as const;
+const HEATMAP_DEFAULTS = {
+  sample_limit_multiplier: 6,
+  zoom_levels: [1, 1.5, 2, 2.5],
+  cell_size: 6,
+  cell_gap: 3,
+} as const;
+const PEER_MAP_DEFAULTS = {
+  drift_amplitude: 5,
+  drift_duration: { min: 6, max: 10 },
+} as const;
+
+const pieceMapConfig = constants.layout?.piece_map ?? PIECE_MAP_DEFAULTS;
+const heatmapConfig = constants.layout?.heatmap ?? HEATMAP_DEFAULTS;
+const peerMapConfig = constants.layout?.peer_map ?? PEER_MAP_DEFAULTS;
+
+const PIECE_COLUMNS = pieceMapConfig.columns;
+const PIECE_BASE_ROWS = pieceMapConfig.base_rows;
+const PIECE_MAX_ROWS = pieceMapConfig.max_rows;
+const PIECE_CANVAS_CELL_SIZE = pieceMapConfig.cell_size;
+const PIECE_CANVAS_CELL_GAP = pieceMapConfig.cell_gap;
 const PIECE_BASE_CELL_COUNT = PIECE_COLUMNS * PIECE_BASE_ROWS;
 const PIECE_MAX_CELL_COUNT = PIECE_COLUMNS * PIECE_MAX_ROWS;
-const HEATMAP_SAMPLE_LIMIT = PIECE_COLUMNS * 6;
-const HEATMAP_ZOOM_LEVELS = [1, 1.5, 2, 2.5];
+const HEATMAP_SAMPLE_LIMIT = PIECE_COLUMNS * heatmapConfig.sample_limit_multiplier;
+const HEATMAP_ZOOM_LEVELS = heatmapConfig.zoom_levels;
 const HISTORY_POINTS = constants.performance.history_data_points;
-const HEATMAP_CANVAS_CELL_SIZE = 6;
-const HEATMAP_CANVAS_CELL_GAP = 3;
+const HEATMAP_CANVAS_CELL_SIZE = heatmapConfig.cell_size;
+const HEATMAP_CANVAS_CELL_GAP = heatmapConfig.cell_gap;
 
 type CanvasPalette = {
   primary: string;
@@ -109,10 +131,10 @@ const getAvailabilityColor = (value: number, maxPeers: number) => {
   return `hsl(${hue}, 75%, ${lightness}%)`;
 };
 
-const PIECE_STATUS_LABELS: Record<PieceStatus, string> = {
-  done: "Verified",
-  downloading: "Downloading",
-  missing: "Missing",
+const PIECE_STATUS_TRANSLATION_KEYS: Record<PieceStatus, string> = {
+  done: "torrent_modal.stats.verified",
+  downloading: "torrent_modal.stats.downloading",
+  missing: "torrent_modal.stats.missing",
 };
 
 type PieceCell = { pieceIndex: number; status: PieceStatus } | null;
@@ -131,6 +153,7 @@ const samplePieceIndexes = (totalPieces: number, slots: number) => {
 };
 
 const PiecesMap = ({ percent, pieceStates, pieceCount, pieceSize }: PiecesMapProps) => {
+  const { t } = useTranslation();
   const palette = useCanvasPalette();
   const normalizedPercent = normalizePercent(percent);
   const fallbackPieces = Math.max(64, pieceCount ?? Math.round(256 * Math.max(normalizedPercent, 0.1)));
@@ -176,7 +199,7 @@ const PiecesMap = ({ percent, pieceStates, pieceCount, pieceSize }: PiecesMapPro
       ),
     [cells]
   );
-  const pieceSizeLabel = pieceSize ? formatBytes(pieceSize) : "Unknown";
+  const pieceSizeLabel = pieceSize ? formatBytes(pieceSize) : t("torrent_modal.labels.unknown");
   const canvasWidth = PIECE_COLUMNS * PIECE_CANVAS_CELL_SIZE + (PIECE_COLUMNS - 1) * PIECE_CANVAS_CELL_GAP;
   const canvasHeight = gridRows * PIECE_CANVAS_CELL_SIZE + (gridRows - 1) * PIECE_CANVAS_CELL_GAP;
   const cellPitch = PIECE_CANVAS_CELL_SIZE + PIECE_CANVAS_CELL_GAP;
@@ -265,22 +288,27 @@ const PiecesMap = ({ percent, pieceStates, pieceCount, pieceSize }: PiecesMapPro
     [canvasHeight, canvasWidth, cells, cellPitch, gridRows]
   );
 
-  const tooltipContent = hoveredPiece ? `Piece #${hoveredPiece.pieceIndex + 1} - ${PIECE_STATUS_LABELS[hoveredPiece.status]}` : undefined;
+  const tooltipContent = hoveredPiece
+  ? t("torrent_modal.piece_map.tooltip", {
+      piece: hoveredPiece.pieceIndex + 1,
+      status: t(PIECE_STATUS_TRANSLATION_KEYS[hoveredPiece.status]),
+    })
+  : undefined;
 
   return (
     <div className="flex flex-col gap-4 h-full">
       <div className="flex flex-wrap justify-between text-[10px] uppercase tracking-[0.2em] text-foreground/50">
         <span>
-          Pieces: <span className="text-foreground font-mono">{pieceCount ?? fallbackPieces}</span>
+          {t("torrent_modal.stats.pieces")}: <span className="text-foreground font-mono">{pieceCount ?? fallbackPieces}</span>
         </span>
         <span>
-          Piece Size: <span className="text-foreground font-mono">{pieceSizeLabel}</span>
+          {t("torrent_modal.stats.piece_size")}: <span className="text-foreground font-mono">{pieceSizeLabel}</span>
         </span>
         <span>
-          Verified: <span className="text-foreground font-mono">{doneCount}</span>
+          {t("torrent_modal.stats.verified")}: <span className="text-foreground font-mono">{doneCount}</span>
         </span>
         <span>
-          Downloading: <span className="text-warning font-mono">{downloadingCount}</span>
+          {t("torrent_modal.stats.downloading")}: <span className="text-warning font-mono">{downloadingCount}</span>
         </span>
       </div>
       <div className="rounded-2xl border border-content1/20 bg-content1/10 p-4">
@@ -478,9 +506,9 @@ interface PeerMapProps {
   peers: TorrentPeerEntity[];
 }
 
-const PEER_DRIFT_AMPLITUDE = 5;
-const PEER_DRIFT_DURATION_MIN = 6;
-const PEER_DRIFT_DURATION_MAX = 10;
+const PEER_DRIFT_AMPLITUDE = peerMapConfig.drift_amplitude;
+const PEER_DRIFT_DURATION_MIN = peerMapConfig.drift_duration.min;
+const PEER_DRIFT_DURATION_MAX = peerMapConfig.drift_duration.max;
 
 const PeerMap = ({ peers }: PeerMapProps) => {
   const { t } = useTranslation();
@@ -739,15 +767,17 @@ const GeneralInfoCard = ({ icon: Icon, label, value, helper, accent }: GeneralIn
   </GlassPanel>
 );
 
+type StatusChipColor = "success" | "primary" | "warning" | "danger";
+
 // --- MAIN COMPONENT ---
 
-const STATUS_CONFIG = {
-  downloading: { color: "success", label: "Downloading" },
-  seeding: { color: "primary", label: "Seeding" },
-  paused: { color: "warning", label: "Paused" },
-  checking: { color: "warning", label: "Checking" },
-  queued: { color: "warning", label: "Queued" },
-  error: { color: "danger", label: "Error" },
+const STATUS_CONFIG: Record<TorrentStatus, { color: StatusChipColor; labelKey: string }> = {
+  downloading: { color: "success", labelKey: "torrent_modal.statuses.status_downloading" },
+  seeding: { color: "primary", labelKey: "torrent_modal.statuses.status_seeding" },
+  paused: { color: "warning", labelKey: "torrent_modal.statuses.status_paused" },
+  checking: { color: "warning", labelKey: "torrent_modal.statuses.status_checking" },
+  queued: { color: "warning", labelKey: "torrent_modal.statuses.status_queued" },
+  error: { color: "danger", labelKey: "torrent_modal.statuses.status_error" },
 } as const;
 
 export function TorrentDetailView({
@@ -795,7 +825,8 @@ export function TorrentDetailView({
   const trackers = torrent.trackers ?? [];
   const peerEntries = torrent.peers ?? [];
   const files = torrent.files ?? [];
-  const downloadDir = torrent.savePath ?? "Unknown";
+  const downloadDir = torrent.savePath ?? t("torrent_modal.labels.unknown");
+  const statusMeta = STATUS_CONFIG[torrent.state];
   const fileEntries = useMemo<FileExplorerEntry[]>(() => {
     return files.map((file, index) => ({
       name: file.name,
@@ -820,13 +851,15 @@ export function TorrentDetailView({
                 <Chip
                   size="sm"
                   variant="flat"
-                  color={STATUS_CONFIG[torrent.state].color}
+                  color={statusMeta.color}
                   classNames={{ base: "h-5 px-1", content: "text-[9px] font-bold uppercase tracking-wider" }}
                 >
-                  {STATUS_CONFIG[torrent.state].label}
+                  {t(statusMeta.labelKey)}
                 </Chip>
               </div>
-              <span className="text-[10px] uppercase tracking-widest text-foreground/40 font-bold">Hash: {torrent.hash.substring(0, 8)}...</span>
+              <span className="text-[10px] uppercase tracking-widest text-foreground/40 font-bold">
+                {t("torrent_modal.general.hash")}: {torrent.hash.substring(0, 8)}...
+              </span>
             </div>
             <div className="flex items-center gap-2">
               {canPause && (
@@ -859,16 +892,20 @@ export function TorrentDetailView({
           </div>
 
           <div className="rounded-2xl border border-content1/20 bg-content1/20 p-4 space-y-3">
-            <div className="flex items-end justify-between gap-4">
-              <div>
-                <div className="text-[10px] uppercase tracking-widest text-foreground/40 font-bold mb-1">Total Progress</div>
-                <div className="text-4xl font-mono font-medium tracking-tight">{progressPercent.toFixed(1)}%</div>
-              </div>
-              <div className="text-right">
-                <div className="text-[10px] uppercase tracking-widest text-foreground/40 font-bold">Time Remaining</div>
-                <div className="font-mono text-xl">{timeRemainingLabel}</div>
-              </div>
-            </div>
+                <div className="flex items-end justify-between gap-4">
+                  <div>
+                    <div className="text-[10px] uppercase tracking-widest text-foreground/40 font-bold mb-1">
+                      {t("torrent_modal.stats.total_progress")}
+                    </div>
+                    <div className="text-4xl font-mono font-medium tracking-tight">{progressPercent.toFixed(1)}%</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[10px] uppercase tracking-widest text-foreground/40 font-bold">
+                      {t("torrent_modal.stats.time_remaining")}
+                    </div>
+                    <div className="font-mono text-xl">{timeRemainingLabel}</div>
+                  </div>
+                </div>
 
             <Progress
               value={progressPercent}
@@ -876,11 +913,13 @@ export function TorrentDetailView({
               classNames={{ track: "h-3 bg-content1/20", indicator: "bg-gradient-to-r from-success/50 to-success" }}
             />
 
-            <div className="space-y-1.5">
-              <div className="flex justify-between text-[9px] uppercase tracking-wider font-bold text-foreground/40">
-                <span>Availability (Swarm)</span>
-                <span className="text-primary">{activePeers} Active</span>
-              </div>
+                <div className="space-y-1.5">
+                  <div className="flex justify-between text-[9px] uppercase tracking-wider font-bold text-foreground/40">
+                    <span>{t("torrent_modal.stats.availability")}</span>
+                    <span className="text-primary">
+                      {activePeers} {t("torrent_modal.stats.active")}
+                    </span>
+                  </div>
               <div className="h-1.5 w-full bg-content1/20 rounded-full overflow-hidden flex">
                 <div className="h-full bg-primary w-full opacity-80" /> {/* Full bar implies 100% available */}
               </div>
@@ -906,7 +945,7 @@ export function TorrentDetailView({
               key="general"
               title={
                 <div className="flex items-center gap-2">
-                  <Info size={14} /> General
+                  <Info size={14} /> {t("torrent_modal.tabs.general")}
                 </div>
               }
             />
@@ -914,7 +953,7 @@ export function TorrentDetailView({
               key="content"
               title={
                 <div className="flex items-center gap-2">
-                  <HardDrive size={14} /> Files
+                  <HardDrive size={14} /> {t("torrent_modal.tabs.content")}
                 </div>
               }
             />
@@ -922,7 +961,7 @@ export function TorrentDetailView({
               key="pieces"
               title={
                 <div className="flex items-center gap-2">
-                  <Grid size={14} /> Pieces
+                  <Grid size={14} /> {t("torrent_modal.tabs.pieces")}
                 </div>
               }
             />
@@ -930,7 +969,7 @@ export function TorrentDetailView({
               key="trackers"
               title={
                 <div className="flex items-center gap-2">
-                  <Server size={14} /> Trackers
+                  <Server size={14} /> {t("torrent_modal.tabs.trackers")}
                 </div>
               }
             />
@@ -938,7 +977,7 @@ export function TorrentDetailView({
               key="peers"
               title={
                 <div className="flex items-center gap-2">
-                  <Network size={14} /> Peers
+                  <Network size={14} /> {t("torrent_modal.tabs.peers")}
                 </div>
               }
             />
@@ -946,7 +985,7 @@ export function TorrentDetailView({
               key="speed"
               title={
                 <div className="flex items-center gap-2">
-                  <Activity size={14} /> Speed
+                  <Activity size={14} /> {t("torrent_modal.tabs.speed")}
                 </div>
               }
             />
@@ -1014,16 +1053,16 @@ export function TorrentDetailView({
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <GeneralInfoCard
                         icon={ArrowDownCircle}
-                        label="Downloaded"
+                        label={t("torrent_modal.stats.downloaded")}
                         value={<span className="font-mono text-sm">{formatBytes(torrent.downloaded)}</span>}
-                        helper="Total data fetched from peers"
+                        helper={t("torrent_modal.stats.downloaded_helper")}
                         accent="text-success"
                       />
                       <GeneralInfoCard
                         icon={ArrowUpCircle}
-                        label="Uploaded"
+                        label={t("torrent_modal.stats.uploaded")}
                         value={<span className="font-mono text-sm text-primary">{formatBytes(torrent.uploaded)}</span>}
-                        helper={`Ratio: ${torrent.ratio.toFixed(2)}`}
+                        helper={t("torrent_modal.stats.ratio", { ratio: torrent.ratio.toFixed(2) })}
                         accent="text-primary"
                       />
                     </div>
@@ -1032,7 +1071,9 @@ export function TorrentDetailView({
                       <GlassPanel className="p-4 space-y-3">
                         <div className="flex items-center gap-2">
                           <Folder size={16} className="text-foreground/50" />
-                          <span className="text-[10px] uppercase tracking-[0.3em] text-foreground/40">Save Path</span>
+                          <span className="text-[10px] uppercase tracking-[0.3em] text-foreground/40">
+                            {t("torrent_modal.labels.save_path")}
+                          </span>
                         </div>
                         <code className="font-mono text-xs text-foreground/70 bg-content1/20 px-2 py-1 rounded break-words">{downloadDir}</code>
                       </GlassPanel>
@@ -1040,7 +1081,9 @@ export function TorrentDetailView({
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2">
                             <Hash size={16} className="text-foreground/50" />
-                            <span className="text-[10px] uppercase tracking-[0.3em] text-foreground/40">Info Hash</span>
+                            <span className="text-[10px] uppercase tracking-[0.3em] text-foreground/40">
+                              {t("torrent_modal.labels.info_hash")}
+                            </span>
                           </div>
                           <Button
                             isIconOnly
@@ -1098,7 +1141,9 @@ export function TorrentDetailView({
                       <div className="flex items-center justify-between">
                         <div className="text-xs font-semibold uppercase tracking-[0.3em] text-foreground/60">{t("torrent_modal.files_title")}</div>
                         <span className="text-[11px] text-foreground/50">
-                          {files.length} file{files.length === 1 ? "" : "s"}
+                          {files.length === 1
+                            ? t("torrent_modal.file_counts.count_single")
+                            : t("torrent_modal.file_counts.count_multiple", { count: files.length })}
                         </span>
                       </div>
                       <div className="text-[11px] text-foreground/50">{t("torrent_modal.files_description")}</div>
@@ -1147,7 +1192,9 @@ export function TorrentDetailView({
                 {/* --- TAB: TRACKERS --- */}
                 {activeTab === "trackers" && (
                   <div className="flex flex-col gap-2">
-                    {trackers.length === 0 && <div className="px-4 py-3 text-xs text-foreground/50">No tracker history available.</div>}
+                    {trackers.length === 0 && (
+                      <div className="px-4 py-3 text-xs text-foreground/50">{t("torrent_modal.trackers.empty")}</div>
+                    )}
                     {trackers.map((tracker) => (
                       <GlassPanel
                         key={`${tracker.announce}-${tracker.tier}`}
@@ -1163,15 +1210,22 @@ export function TorrentDetailView({
                           <div className="flex flex-col">
                             <span className="text-xs font-mono text-foreground/80 truncate max-w-xs">{tracker.announce}</span>
                             <span className="text-[10px] text-foreground/40">
-                              Tier {tracker.tier} - {tracker.lastAnnounceResult || "—"} -
-                              {tracker.lastAnnounceSucceeded ? t("torrent_modal.trackers.status_online") : t("torrent_modal.trackers.status_partial")}
+                              {t("torrent_modal.trackers.tier")} {tracker.tier} - {tracker.lastAnnounceResult || "-"} -{" "}
+                              {tracker.lastAnnounceSucceeded
+                                ? t("torrent_modal.trackers.status_online")
+                                : t("torrent_modal.trackers.status_partial")}
                             </span>
                           </div>
                         </div>
                         <div className="text-right">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-foreground/30">Peers</span>
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-foreground/30">
+                            {t("torrent_modal.trackers.peers_label")}
+                          </span>
                           <div className="font-mono text-xs">
-                            {tracker.seederCount} seeded / {tracker.leecherCount} leeching
+                            {t("torrent_modal.trackers.peer_summary", {
+                              seeded: tracker.seederCount,
+                              leeching: tracker.leecherCount,
+                            })}
                           </div>
                         </div>
                       </GlassPanel>
