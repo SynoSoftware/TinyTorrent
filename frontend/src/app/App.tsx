@@ -24,6 +24,7 @@ import {
 } from "../modules/settings/data/config";
 import constants from "../config/constants.json";
 import { ICON_STROKE_WIDTH } from "../config/iconography";
+import { INTERACTION_CONFIG } from "../config/interaction";
 import { useTorrentDetail } from "../modules/dashboard/hooks/useTorrentDetail";
 import { useDetailControls } from "../modules/dashboard/hooks/useDetailControls";
 import { useTorrentActions } from "../modules/dashboard/hooks/useTorrentActions";
@@ -53,6 +54,7 @@ const timeStringToMinutes = (time: string) => {
 
 const USER_PREFERENCES_KEY = "tiny-torrent.user-preferences";
 const MOTION_DURATION_S = constants.ui.animation_duration_ms / 1000;
+const { dragOverlay } = INTERACTION_CONFIG;
 
 type PreferencePayload = Pick<
     SettingsConfig,
@@ -559,21 +561,57 @@ export default function App() {
             <AnimatePresence>
                 {isDragActive && (
                     <motion.div
-                        initial={{ opacity: 0, backdropFilter: "blur(0px)" }}
-                        animate={{ opacity: 1, backdropFilter: "blur(12px)" }}
-                        exit={{ opacity: 0, backdropFilter: "blur(0px)" }}
-                        className="absolute inset-0 z-50 flex items-center justify-center bg-background/60 border-[6px] border-primary/40 m-4 rounded-3xl"
-                        transition={{ duration: MOTION_DURATION_S }}
+                        initial={{
+                            opacity: 0,
+                            scale: dragOverlay.root.initialScale,
+                            backdropFilter: `blur(${dragOverlay.root.initialBlur}px)`,
+                        }}
+                        animate={{
+                            opacity: 1,
+                            scale: dragOverlay.root.activeScale,
+                            backdropFilter: `blur(${dragOverlay.root.activeBlur}px)`,
+                        }}
+                        exit={{
+                            opacity: 0,
+                            scale: dragOverlay.root.exitScale,
+                            backdropFilter: `blur(${dragOverlay.root.exitBlur}px)`,
+                        }}
+                        transition={dragOverlay.root.transition}
+                        className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center px-4"
                     >
-                        <div className="flex flex-col items-center gap-6">
-                            <FileUp
-                                size={48}
-                                strokeWidth={ICON_STROKE_WIDTH}
-                                className="text-primary animate-bounce"
+                        {dragOverlay.layers.map((layer) => (
+                            <motion.div
+                                key={layer.id}
+                                initial={layer.initial}
+                                animate={layer.animate}
+                                exit={layer.exit}
+                                transition={layer.transition}
+                                className={layer.className}
                             />
+                        ))}
+                        <div className="relative flex w-full max-w-lg flex-col items-center gap-4 rounded-[32px] border border-primary/30 bg-background/90 px-10 py-12 text-center shadow-[0_20px_110px_rgba(3,7,20,0.35)]">
+                            <motion.div
+                                initial={{
+                                    scale: dragOverlay.iconPulse.initialScale,
+                                }}
+                                animate={{
+                                    scale: dragOverlay.iconPulse.animateScale,
+                                }}
+                                transition={dragOverlay.iconPulse.transition}
+                                className="flex h-20 w-20 items-center justify-center rounded-full bg-primary/5 shadow-lg shadow-primary/40"
+                            >
+                                <FileUp
+                                    size={48}
+                                    strokeWidth={ICON_STROKE_WIDTH}
+                                    className="text-primary"
+                                />
+                            </motion.div>
                             <h2 className="text-3xl font-bold">
                                 {t("drop_overlay.title")}
                             </h2>
+                            <p className="text-xs uppercase tracking-[0.4em] text-foreground/60">
+                                {t("drop_overlay.subtitle")}
+                            </p>
                         </div>
                     </motion.div>
                 )}

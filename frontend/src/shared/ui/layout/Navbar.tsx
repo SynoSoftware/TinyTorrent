@@ -72,7 +72,7 @@ export function Navbar({
                     onSelectionChange={(k) => setFilter(k as string)}
                     classNames={{
                         cursor: "w-full bg-primary/20 shadow-none",
-                        tab: "h-8 px-3 text-tiny font-medium text-foreground/60 data-[selected=true]:text-primary",
+                        tab: "pressable-tab h-8 px-3 text-tiny font-medium text-foreground/60 data-[selected=true]:text-primary",
                         tabContent: "group-data-[selected=true]:font-bold",
                     }}
                 >

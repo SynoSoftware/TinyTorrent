@@ -406,6 +406,7 @@ const VirtualRow = memo(
             <div
                 ref={setNodeRef}
                 data-index={virtualRow.index}
+                data-torrent-row={row.original.id}
                 {...(attributes ?? {})}
                 {...(listeners ?? {})}
                 className={cn(
@@ -423,7 +424,7 @@ const VirtualRow = memo(
             >
                 <div
                     className={cn(
-                        "relative flex items-center w-full h-full",
+                        "pressable-row relative flex items-center w-full h-full",
                         isSelected
                             ? "bg-primary/10"
                             : "hover:bg-content1/10",

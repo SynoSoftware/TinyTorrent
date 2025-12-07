@@ -8,6 +8,7 @@
 // Global config
 import "./constants.json";
 import "./iconography";
+import "./interaction";
 
 // Feature configs
 import "../modules/dashboard/config/layout";
