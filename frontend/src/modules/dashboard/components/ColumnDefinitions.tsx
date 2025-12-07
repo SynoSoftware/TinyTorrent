@@ -373,7 +373,9 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
                 <Users size={TABLE_LAYOUT.iconSize} className="opacity-50" />
                 <span>{torrent.peerSummary.connected}</span>
                 <span className="opacity-30">/</span>
-                <span className="opacity-50">{torrent.peerSummary.seeds}</span>
+                <span className="opacity-50">
+                    {torrent.peerSummary.seeds ?? "-"}
+                </span>
             </div>
         ),
     },

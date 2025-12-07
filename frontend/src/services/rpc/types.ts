@@ -144,6 +144,7 @@ export interface TransmissionSessionStats {
     pausedTorrentCount: number;
     torrentCount: number;
     uploadSpeed: number;
+    dhtNodes?: number;
     cumulativeStats: TransmissionSessionStatsTotals;
     currentStats: TransmissionSessionStatsTotals;
 }

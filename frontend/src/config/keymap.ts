@@ -1,9 +1,12 @@
-export enum ShortcutIntent {
-    SelectAll = "action.select_all",
-    Delete = "action.delete",
-    ShowDetails = "action.show_details",
-    TogglePause = "action.toggle_pause",
-}
+export const ShortcutIntent = {
+    SelectAll: "action.select_all",
+    Delete: "action.delete",
+    ShowDetails: "action.show_details",
+    TogglePause: "action.toggle_pause",
+} as const;
+
+export type ShortcutIntent =
+    (typeof ShortcutIntent)[keyof typeof ShortcutIntent];
 
 export const KEY_SCOPE = {
     Dashboard: "dashboard",

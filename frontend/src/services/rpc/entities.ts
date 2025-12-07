@@ -113,6 +113,7 @@ export interface SessionStats {
     torrentCount: number;
     activeTorrentCount: number;
     pausedTorrentCount: number;
+    dhtNodes?: number;
 }
 
 export type EngineType = "transmission" | "libtorrent" | "unknown";

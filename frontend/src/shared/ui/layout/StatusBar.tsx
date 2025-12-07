@@ -58,9 +58,7 @@ export function StatusBar({
         selectedTorrent?.speed.down ?? sessionStats?.downloadSpeed ?? 0;
     const upSpeed = selectedTorrent?.speed.up ?? sessionStats?.uploadSpeed ?? 0;
 
-    // Safely access DHT nodes if available on the extended stats object, else 0
-    // Cast to any to avoid strict TS errors if 'dhtNodes' isn't in the base interface yet
-    const dhtNodeCount = (sessionStats as any)?.dhtNodes ?? 0;
+    const dhtNodeCount = sessionStats?.dhtNodes ?? 0;
 
     const isSelection = !!selectedTorrent;
     const summaryLabel = isSelection
@@ -82,7 +80,7 @@ export function StatusBar({
                     <div className="flex flex-1 items-center gap-5 h-full min-w-0 group">
                         {/* Icon & Label */}
                         <div className="flex items-center gap-4 shrink-0">
-                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-success/10 text-success transition-colors group-hover:bg-success/20">
+                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-content1/10 text-foreground/50 transition-colors group-hover:bg-success/10 group-hover:text-success">
                                 <ArrowDown size={24} strokeWidth={2.5} />
                             </div>
                             <div className="flex flex-col justify-center gap-0.5">
@@ -112,7 +110,7 @@ export function StatusBar({
                     <div className="flex flex-1 items-center gap-5 h-full min-w-0 group">
                         {/* Icon & Label */}
                         <div className="flex items-center gap-4 shrink-0">
-                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary transition-colors group-hover:bg-primary/20">
+                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-content1/10 text-foreground/50 transition-colors group-hover:bg-primary/10 group-hover:text-primary">
                                 <ArrowUp size={24} strokeWidth={2.5} />
                             </div>
                             <div className="flex flex-col justify-center gap-0.5">

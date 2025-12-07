@@ -435,6 +435,7 @@ export class TransmissionAdapter implements EngineAdapter {
             torrentCount: stats.torrentCount,
             activeTorrentCount: stats.activeTorrentCount,
             pausedTorrentCount: stats.pausedTorrentCount,
+            dhtNodes: stats.dhtNodes ?? 0,
         };
     }
 

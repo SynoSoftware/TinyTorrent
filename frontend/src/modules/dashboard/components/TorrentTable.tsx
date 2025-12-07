@@ -571,37 +571,44 @@ export function TorrentTable({
                     ),
                 } as ColumnDef<Torrent>;
             }
-                return {
-                    id,
-                    accessorKey: def.rpcField,
-                    header: () => {
-                        const label = def.labelKey ? t(def.labelKey) : "";
-                        const HeaderIcon = def.headerIcon;
-                        return HeaderIcon ? (
-                            <div className="flex items-center gap-1 text-[9px] font-semibold uppercase tracking-[0.3em] text-foreground/60">
-                                <HeaderIcon
-                                    size={12}
-                                    className="text-foreground/50 animate-pulse"
-                                />
-                                <span>{label}</span>
-                            </div>
-                        ) : (
-                            label
-                        );
-                    },
-                    size: def.width ?? 150,
-                minSize: def.minSize ?? 80,
-                meta: { align: def.align },
-                cell: ({ row }) =>
-                    def.render({
-                        torrent: row.original,
-                        t,
-                        isSelected: row.getIsSelected(),
-                        toggleSelection: row.getToggleSelectedHandler(),
-                    }),
-            } as ColumnDef<Torrent>;
-        });
-    }, [t]);
+        const sortAccessor = def.sortAccessor;
+        const accessorKey = sortAccessor ? undefined : def.rpcField;
+        const accessorFn = sortAccessor
+            ? (torrent: Torrent) => sortAccessor(torrent)
+            : undefined;
+        return {
+            id,
+            accessorKey,
+            accessorFn,
+            enableSorting: Boolean(def.sortable),
+            header: () => {
+                const label = def.labelKey ? t(def.labelKey) : "";
+                const HeaderIcon = def.headerIcon;
+                return HeaderIcon ? (
+                    <div className="flex items-center gap-1 text-[9px] font-semibold uppercase tracking-[0.3em] text-foreground/60">
+                        <HeaderIcon
+                            size={12}
+                            className="text-foreground/50 animate-pulse"
+                        />
+                        <span>{label}</span>
+                    </div>
+                ) : (
+                    label
+                );
+            },
+            size: def.width ?? 150,
+            minSize: def.minSize ?? 80,
+            meta: { align: def.align },
+            cell: ({ row }) =>
+                def.render({
+                    torrent: row.original,
+                    t,
+                    isSelected: row.getIsSelected(),
+                    toggleSelection: row.getToggleSelectedHandler(),
+                }),
+        } as ColumnDef<Torrent>;
+    });
+}, [t]);
 
     const table = useReactTable({
         data,
