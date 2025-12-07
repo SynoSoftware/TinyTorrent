@@ -470,9 +470,10 @@ export function AddTorrentModal({
                                     freeBytes={directorySpace?.sizeBytes}
                                     totalBytes={directorySpace?.totalSize}
                                     torrentSize={torrentSize}
-                                    path={directorySpace?.path ?? downloadDir}
+                                    path={downloadDir}
                                     isLoading={isSpaceLoading}
                                     error={spaceError}
+                                    isInsufficient={isSpaceInsufficient}
                                 />
                             )}
                             <div className="flex w-full items-center justify-between gap-3">

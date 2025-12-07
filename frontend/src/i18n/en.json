@@ -303,7 +303,9 @@
             "upload": "UL"
         },
         "piece_map": {
-            "tooltip": "Piece #{{piece}} – {{status}}"
+            "tooltip": "Piece #{{piece}} - {{status}}",
+            "tooltip_size": "Piece size: {{size}}",
+            "tooltip_progress": "Torrent progress: {{percent}}%"
         },
         "speed": {
             "average": "Average",

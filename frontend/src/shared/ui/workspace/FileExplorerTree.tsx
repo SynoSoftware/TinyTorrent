@@ -167,6 +167,7 @@ export function FileExplorerTree({
         getScrollElement: () => containerRef.current,
         estimateSize: () => ROW_HEIGHT,
         overscan: 6,
+        getItemKey: (index) => visibleNodes[index]?.id ?? index,
     });
 
     if (!files.length) {

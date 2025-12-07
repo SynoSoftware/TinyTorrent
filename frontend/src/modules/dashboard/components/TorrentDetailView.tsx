@@ -141,6 +141,22 @@ const HEATMAP_CANVAS_CELL_GAP = heatmapConfig.cell_gap;
 const clamp = (value: number, min: number, max: number) =>
     Math.min(Math.max(value, min), max);
 
+type FrameHandle = number | ReturnType<typeof setTimeout>;
+
+const scheduleFrame = (callback: FrameRequestCallback): FrameHandle =>
+    typeof window !== "undefined"
+        ? window.requestAnimationFrame(callback)
+        : setTimeout(() => callback(Date.now()), 16);
+
+const cancelScheduledFrame = (handle: FrameHandle | null) => {
+    if (handle == null) return;
+    if (typeof window !== "undefined") {
+        window.cancelAnimationFrame?.(handle as number);
+    } else {
+        clearTimeout(handle);
+    }
+};
+
 type CanvasPalette = {
     primary: string;
     warning: string;
@@ -191,6 +207,13 @@ type PieceHover = {
     gridIndex: number;
     pieceIndex: number;
     status: PieceStatus;
+};
+
+type HoverPosition = {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
 };
 
 const normalizePercent = (value: number) =>
@@ -285,91 +308,119 @@ const PiecesMap = ({
     const cellPitch = PIECE_CANVAS_CELL_SIZE + PIECE_CANVAS_CELL_GAP;
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const [hoveredPiece, setHoveredPiece] = useState<PieceHover | null>(null);
-    const renderKey = useMemo(() => {
-        const statusList = cells
-            .map((cell) =>
-                cell ? `${cell.pieceIndex}:${cell.status}` : "empty"
-            )
-            .join(",");
-        return `${pieceCount ?? "auto"}|${
-            pieceSize ?? "unknown"
-        }|${normalizedPercent.toFixed(4)}|${statusList}`;
-    }, [cells, pieceCount, pieceSize, normalizedPercent]);
-    const renderCacheRef = useRef<string>("");
-
+    const [hoverPosition, setHoverPosition] = useState<HoverPosition | null>(
+        null
+    );
+    const frameRef = useRef<FrameHandle | null>(null);
+    const normalizedPercentLabel = useMemo(
+        () => (normalizedPercent * 100).toFixed(1),
+        [normalizedPercent]
+    );
     const drawPieces = useCallback(() => {
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return;
-        const dpr =
-            typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
-        canvas.width = canvasWidth * dpr;
-        canvas.height = canvasHeight * dpr;
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        if (frameRef.current) {
+            cancelScheduledFrame(frameRef.current);
+        }
+        frameRef.current = scheduleFrame(() => {
+            const canvas = canvasRef.current;
+            if (!canvas) {
+                frameRef.current = null;
+                return;
+            }
+            const ctx = canvas.getContext("2d");
+            if (!ctx) {
+                frameRef.current = null;
+                return;
+            }
+            const dpr =
+                typeof window !== "undefined"
+                    ? window.devicePixelRatio || 1
+                    : 1;
+            canvas.width = canvasWidth * dpr;
+            canvas.height = canvasHeight * dpr;
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-        cells.forEach((cell, index) => {
-            const column = index % PIECE_COLUMNS;
-            const row = Math.floor(index / PIECE_COLUMNS);
-            const x = column * cellPitch;
-            const y = row * cellPitch;
-            ctx.save();
-            if (cell) {
-                const statusColor =
-                    cell.status === "done"
-                        ? palette.primary
-                        : cell.status === "downloading"
-                        ? palette.warning
-                        : palette.missing;
-                ctx.fillStyle = statusColor;
-                if (cell.status === "downloading") {
-                    ctx.shadowColor = palette.glowWarning;
-                    ctx.shadowBlur = 12;
-                } else if (cell.status === "done") {
-                    ctx.shadowColor = palette.glowPrimary;
-                    ctx.shadowBlur = 6;
+            cells.forEach((cell, index) => {
+                const column = index % PIECE_COLUMNS;
+                const row = Math.floor(index / PIECE_COLUMNS);
+                const x = column * cellPitch;
+                const y = row * cellPitch;
+                ctx.save();
+                if (cell) {
+                    const statusColor =
+                        cell.status === "done"
+                            ? palette.primary
+                            : cell.status === "downloading"
+                            ? palette.warning
+                            : palette.missing;
+                    ctx.fillStyle = statusColor;
+                    if (cell.status === "downloading") {
+                        ctx.shadowColor = palette.glowWarning;
+                        ctx.shadowBlur = 12;
+                    } else if (cell.status === "done") {
+                        ctx.shadowColor = palette.glowPrimary;
+                        ctx.shadowBlur = 6;
+                    }
+                } else {
+                    ctx.fillStyle = palette.missing;
+                    ctx.shadowBlur = 0;
                 }
-            } else {
-                ctx.fillStyle = palette.missing;
-                ctx.shadowBlur = 0;
-            }
-            ctx.fillRect(x, y, PIECE_CANVAS_CELL_SIZE, PIECE_CANVAS_CELL_SIZE);
-            if (hoveredPiece?.gridIndex === index) {
-                ctx.strokeStyle = palette.highlight;
-                ctx.lineWidth = 1.4;
-                ctx.strokeRect(
-                    x + 0.6,
-                    y + 0.6,
-                    PIECE_CANVAS_CELL_SIZE - 1.2,
-                    PIECE_CANVAS_CELL_SIZE - 1.2
+                ctx.fillRect(
+                    x,
+                    y,
+                    PIECE_CANVAS_CELL_SIZE,
+                    PIECE_CANVAS_CELL_SIZE
                 );
-            }
-            ctx.restore();
+                if (hoveredPiece?.gridIndex === index) {
+                    ctx.strokeStyle = palette.highlight;
+                    ctx.lineWidth = 1.4;
+                    ctx.strokeRect(
+                        x + 0.6,
+                        y + 0.6,
+                        PIECE_CANVAS_CELL_SIZE - 1.2,
+                        PIECE_CANVAS_CELL_SIZE - 1.2
+                    );
+                }
+                ctx.restore();
+            });
+            frameRef.current = null;
         });
     }, [canvasHeight, canvasWidth, cellPitch, cells, hoveredPiece, palette]);
 
     useEffect(() => {
-        if (renderCacheRef.current === renderKey) return;
         drawPieces();
-        renderCacheRef.current = renderKey;
-    }, [drawPieces, renderKey]);
+    }, [drawPieces]);
 
     useEffect(() => {
         setHoveredPiece(null);
+        setHoverPosition(null);
     }, [cells]);
+
+    useEffect(() => {
+        return () => cancelScheduledFrame(frameRef.current);
+    }, []);
 
     const handleCanvasMove = useCallback(
         (event: MouseEvent<HTMLCanvasElement>) => {
             const canvas = canvasRef.current;
             if (!canvas) return;
             const rect = canvas.getBoundingClientRect();
-            if (!rect.width || !rect.height) return;
-            const intrinsicX =
-                ((event.clientX - rect.left) / rect.width) * canvasWidth;
-            const intrinsicY =
-                ((event.clientY - rect.top) / rect.height) * canvasHeight;
+            if (!rect.width || !rect.height) {
+                setHoveredPiece(null);
+                setHoverPosition(null);
+                return;
+            }
+            const pointerX = Math.min(
+                Math.max(0, event.clientX - rect.left),
+                rect.width
+            );
+            const pointerY = Math.min(
+                Math.max(0, event.clientY - rect.top),
+                rect.height
+            );
+            const intrinsicX = (pointerX / rect.width) * canvasWidth;
+            const intrinsicY = (pointerY / rect.height) * canvasHeight;
             const column = Math.floor(intrinsicX / cellPitch);
             const row = Math.floor(intrinsicY / cellPitch);
             if (
@@ -379,29 +430,80 @@ const PiecesMap = ({
                 row >= gridRows
             ) {
                 setHoveredPiece(null);
+                setHoverPosition(null);
                 return;
             }
             const cellIndex = row * PIECE_COLUMNS + column;
             const cell = cells[cellIndex];
             if (!cell) {
                 setHoveredPiece(null);
+                setHoverPosition(null);
                 return;
             }
-            setHoveredPiece({
+            const nextHover: PieceHover = {
                 gridIndex: cellIndex,
                 pieceIndex: cell.pieceIndex,
                 status: cell.status,
+            };
+            setHoverPosition({
+                x: pointerX,
+                y: pointerY,
+                width: rect.width,
+                height: rect.height,
             });
+            setHoveredPiece((prev) =>
+                prev &&
+                prev.gridIndex === cellIndex &&
+                prev.status === cell.status
+                    ? prev
+                    : nextHover
+            );
         },
         [canvasHeight, canvasWidth, cells, cellPitch, gridRows]
     );
 
-    const tooltipContent = hoveredPiece
-        ? t("torrent_modal.piece_map.tooltip", {
-              piece: hoveredPiece.pieceIndex + 1,
-              status: t(PIECE_STATUS_TRANSLATION_KEYS[hoveredPiece.status]),
-          })
-        : undefined;
+    const tooltipLines = useMemo(() => {
+        if (!hoveredPiece) return [];
+        return [
+            t("torrent_modal.piece_map.tooltip", {
+                piece: hoveredPiece.pieceIndex + 1,
+                status: t(
+                    PIECE_STATUS_TRANSLATION_KEYS[hoveredPiece.status]
+                ),
+            }),
+            t("torrent_modal.piece_map.tooltip_size", {
+                size: pieceSizeLabel,
+            }),
+            t("torrent_modal.piece_map.tooltip_progress", {
+                percent: normalizedPercentLabel,
+            }),
+        ];
+    }, [hoveredPiece, pieceSizeLabel, normalizedPercentLabel, t]);
+
+    const tooltipStyle = useMemo(() => {
+        if (!hoveredPiece || !hoverPosition) return undefined;
+        const tooltipWidth = 210;
+        const tooltipHeight = 66;
+        const offsetX = 12;
+        const offsetY = 8;
+        const horizontalLimit = Math.max(
+            hoverPosition.width - tooltipWidth - 12,
+            12
+        );
+        const left = Math.min(
+            Math.max(hoverPosition.x + offsetX, 12),
+            horizontalLimit
+        );
+        const verticalLimit = Math.max(
+            hoverPosition.height - tooltipHeight - 12,
+            12
+        );
+        const top = Math.min(
+            Math.max(hoverPosition.y - tooltipHeight - offsetY, 12),
+            verticalLimit
+        );
+        return { left, top };
+    }, [hoverPosition, hoveredPiece]);
 
     return (
         <div className="flex flex-col gap-4 h-full">
@@ -432,22 +534,39 @@ const PiecesMap = ({
                 </span>
             </div>
             <div className="rounded-2xl border border-content1/20 bg-content1/10 p-4">
-                <Tooltip
-                    content={tooltipContent}
-                    delay={0}
-                    closeDelay={0}
-                    classNames={GLASS_TOOLTIP_CLASSNAMES}
-                    isDisabled={!hoveredPiece}
-                >
+                <div className="relative">
                     <canvas
                         ref={canvasRef}
                         width={canvasWidth}
                         height={canvasHeight}
                         className="w-full h-auto block rounded-2xl"
                         onMouseMove={handleCanvasMove}
-                        onMouseLeave={() => setHoveredPiece(null)}
+                        onMouseLeave={() => {
+                            setHoveredPiece(null);
+                            setHoverPosition(null);
+                        }}
                     />
-                </Tooltip>
+                    {tooltipLines.length > 0 && tooltipStyle && (
+                        <div
+                            className="pointer-events-none absolute z-10 max-w-[230px] rounded-2xl border border-content1/30 bg-content1/90 px-3 py-2 text-[11px] text-foreground/90 shadow-[0_20px_45px_rgba(0,0,0,0.35)] backdrop-blur-xl"
+                            style={tooltipStyle}
+                        >
+                            {tooltipLines.map((line, index) => (
+                                <span
+                                    key={`piece-tooltip-${index}`}
+                                    className={cn(
+                                        "block whitespace-normal",
+                                        index === 0
+                                            ? "font-semibold"
+                                            : "text-[10px] text-foreground/70"
+                                    )}
+                                >
+                                    {line}
+                                </span>
+                            ))}
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     );
@@ -474,37 +593,76 @@ const AvailabilityHeatmap = ({
 }: AvailabilityHeatmapProps) => {
     const palette = useCanvasPalette();
     const [zoomIndex, setZoomIndex] = useState(0);
+    const [isZooming, setIsZooming] = useState(false);
     const zoomLevel = HEATMAP_ZOOM_LEVELS[zoomIndex] ?? 1;
+    const heatmapFrameRef = useRef<FrameHandle | null>(null);
+    const zoomPulseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+        null
+    );
+    const availabilityList = useMemo(
+        () => pieceAvailability ?? [],
+        [pieceAvailability]
+    );
+    const hasAvailability = availabilityList.length > 0;
 
-    if (!pieceAvailability?.length) {
-        return (
-            <div className="rounded-2xl border border-content1/20 bg-content1/10 p-4 text-[11px] text-foreground/50 text-center">
-                {emptyLabel}
-            </div>
-        );
-    }
+    const startZoomPulse = useCallback(() => {
+        setIsZooming(true);
+        if (zoomPulseTimeoutRef.current) {
+            clearTimeout(zoomPulseTimeoutRef.current);
+        }
+        zoomPulseTimeoutRef.current = setTimeout(() => {
+            setIsZooming(false);
+            zoomPulseTimeoutRef.current = null;
+        }, 220);
+    }, []);
+    useEffect(() => {
+        return () => {
+            if (zoomPulseTimeoutRef.current) {
+                clearTimeout(zoomPulseTimeoutRef.current);
+            }
+        };
+    }, []);
+    const handleZoom = useCallback(
+        (direction: "in" | "out") => {
+            setZoomIndex((prev) => {
+                const next =
+                    direction === "in"
+                        ? Math.min(
+                              HEATMAP_ZOOM_LEVELS.length - 1,
+                              prev + 1
+                          )
+                        : Math.max(0, prev - 1);
+                if (next === prev) {
+                    return prev;
+                }
+                startZoomPulse();
+                return next;
+            });
+        },
+        [startZoomPulse]
+    );
 
     const sampleLimit = Math.round(HEATMAP_SAMPLE_LIMIT * zoomLevel);
-    const sampleCount = Math.min(pieceAvailability.length, sampleLimit);
+    const sampleCount = Math.min(availabilityList.length, sampleLimit);
     const sampledCells = useMemo(() => {
         const step =
             sampleCount > 1
-                ? (pieceAvailability.length - 1) / (sampleCount - 1)
+                ? (availabilityList.length - 1) / (sampleCount - 1)
                 : 1;
         return Array.from({ length: sampleCount }, (_, index) => {
             const pieceIndex = Math.min(
-                pieceAvailability.length - 1,
+                availabilityList.length - 1,
                 Math.round(index * step)
             );
             return {
                 pieceIndex,
-                value: pieceAvailability[pieceIndex] ?? 0,
+                value: availabilityList[pieceIndex] ?? 0,
             };
         });
-    }, [pieceAvailability, sampleCount]);
+    }, [availabilityList, sampleCount]);
 
     const maxPeers =
-        pieceAvailability.reduce(
+        availabilityList.reduce(
             (max, count) => Math.max(max, count ?? 0),
             0
         ) || 1;
@@ -538,56 +696,70 @@ const AvailabilityHeatmap = ({
     );
 
     const drawHeatmap = useCallback(() => {
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return;
-        const dpr =
-            typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
-        canvas.width = canvasWidth * dpr;
-        canvas.height = canvasHeight * dpr;
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        const pitch = cellPitch;
+        if (heatmapFrameRef.current) {
+            cancelScheduledFrame(heatmapFrameRef.current);
+        }
+        heatmapFrameRef.current = scheduleFrame(() => {
+            const canvas = canvasRef.current;
+            if (!canvas) {
+                heatmapFrameRef.current = null;
+                return;
+            }
+            const ctx = canvas.getContext("2d");
+            if (!ctx) {
+                heatmapFrameRef.current = null;
+                return;
+            }
+            const dpr =
+                typeof window !== "undefined"
+                    ? window.devicePixelRatio || 1
+                    : 1;
+            canvas.width = canvasWidth * dpr;
+            canvas.height = canvasHeight * dpr;
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            const pitch = cellPitch;
 
-        heatCells.forEach((cell, index) => {
-            const column = index % PIECE_COLUMNS;
-            const row = Math.floor(index / PIECE_COLUMNS);
-            const x = column * pitch;
-            const y = row * pitch;
-            ctx.save();
-            if (cell) {
-                const color = getHeatColor(cell.value);
-                ctx.fillStyle = color;
-                if (cell.value > 0) {
-                    ctx.shadowColor = color;
-                    ctx.shadowBlur = Math.min(
-                        16,
-                        (cell.value / maxPeers) * 16 + 1
+            heatCells.forEach((cell, index) => {
+                const column = index % PIECE_COLUMNS;
+                const row = Math.floor(index / PIECE_COLUMNS);
+                const x = column * pitch;
+                const y = row * pitch;
+                ctx.save();
+                if (cell) {
+                    const color = getHeatColor(cell.value);
+                    ctx.fillStyle = color;
+                    if (cell.value > 0) {
+                        ctx.shadowColor = color;
+                        ctx.shadowBlur = Math.min(
+                            16,
+                            (cell.value / maxPeers) * 16 + 1
+                        );
+                    }
+                } else {
+                    ctx.fillStyle = palette.placeholder;
+                    ctx.shadowBlur = 0;
+                }
+                ctx.fillRect(
+                    x,
+                    y,
+                    HEATMAP_CANVAS_CELL_SIZE,
+                    HEATMAP_CANVAS_CELL_SIZE
+                );
+                if (hoveredCell?.gridIndex === index) {
+                    ctx.strokeStyle = palette.highlight;
+                    ctx.lineWidth = 1.1;
+                    ctx.strokeRect(
+                        x + 0.6,
+                        y + 0.6,
+                        HEATMAP_CANVAS_CELL_SIZE - 1.2,
+                        HEATMAP_CANVAS_CELL_SIZE - 1.2
                     );
                 }
-            } else {
-                ctx.fillStyle = palette.placeholder;
-                ctx.shadowBlur = 0;
-            }
-            ctx.fillRect(
-                x,
-                y,
-                HEATMAP_CANVAS_CELL_SIZE,
-                HEATMAP_CANVAS_CELL_SIZE
-            );
-            if (hoveredCell?.gridIndex === index) {
-                ctx.strokeStyle = palette.highlight;
-                ctx.lineWidth = 1.1;
-                ctx.strokeRect(
-                    x + 0.6,
-                    y + 0.6,
-                    HEATMAP_CANVAS_CELL_SIZE - 1.2,
-                    HEATMAP_CANVAS_CELL_SIZE - 1.2
-                );
-            }
-            ctx.restore();
+                ctx.restore();
+            });
+            heatmapFrameRef.current = null;
         });
     }, [
         canvasHeight,
@@ -604,6 +776,10 @@ const AvailabilityHeatmap = ({
     useEffect(() => {
         drawHeatmap();
     }, [drawHeatmap]);
+
+    useEffect(() => {
+        return () => cancelScheduledFrame(heatmapFrameRef.current);
+    }, []);
 
     useEffect(() => {
         setHoveredCell(null);
@@ -649,6 +825,14 @@ const AvailabilityHeatmap = ({
         ? formatTooltip(hoveredCell.pieceIndex + 1, hoveredCell.peers)
         : undefined;
 
+    if (!hasAvailability) {
+        return (
+            <div className="rounded-2xl border border-content1/20 bg-content1/10 p-4 text-[11px] text-foreground/50 text-center">
+                {emptyLabel}
+            </div>
+        );
+    }
+
     return (
         <motion.div layout className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
@@ -671,9 +855,7 @@ const AvailabilityHeatmap = ({
                         variant="flat"
                         color="default"
                         className="h-7 w-7 rounded-full"
-                        onPress={() =>
-                            setZoomIndex((prev) => Math.max(0, prev - 1))
-                        }
+                        onPress={() => handleZoom("out")}
                         isDisabled={zoomIndex === 0}
                     >
                         <ZoomOut
@@ -690,14 +872,7 @@ const AvailabilityHeatmap = ({
                         variant="flat"
                         color="default"
                         className="h-7 w-7 rounded-full"
-                        onPress={() =>
-                            setZoomIndex((prev) =>
-                                Math.min(
-                                    HEATMAP_ZOOM_LEVELS.length - 1,
-                                    prev + 1
-                                )
-                            )
-                        }
+                        onPress={() => handleZoom("in")}
                         isDisabled={
                             zoomIndex === HEATMAP_ZOOM_LEVELS.length - 1
                         }
@@ -710,7 +885,15 @@ const AvailabilityHeatmap = ({
                     </Button>
                 </div>
             </div>
-            <div className="rounded-2xl border border-content1/20 bg-content1/10 p-2">
+            <div
+                className={cn(
+                    "rounded-2xl border border-content1/20 bg-content1/10 p-2 transition-all duration-200",
+                    {
+                        "opacity-70 shadow-[0_0_25px_rgba(14,165,233,0.25)] ring-1 ring-primary/40":
+                            isZooming,
+                    }
+                )}
+            >
                 <Tooltip
                     content={tooltipContent}
                     delay={0}
