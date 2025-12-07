@@ -31,7 +31,7 @@ export function useTorrentShortcuts({
             event.preventDefault();
             selectAll();
         },
-        { scope },
+        { scopes: scope },
         [selectAll]
     );
 
@@ -44,7 +44,7 @@ export function useTorrentShortcuts({
                 onAction("remove", torrent);
             });
         },
-        { scope, enabled: hasSelection && Boolean(onAction) },
+        { scopes: scope, enabled: hasSelection && Boolean(onAction) },
         [hasSelection, onAction, selectedTorrents]
     );
 
@@ -56,7 +56,7 @@ export function useTorrentShortcuts({
                 onRequestDetails(primaryTorrent);
             }
         },
-        { scope, enabled: hasPrimaryTorrent && Boolean(onRequestDetails) },
+        { scopes: scope, enabled: hasPrimaryTorrent && Boolean(onRequestDetails) },
         [primaryTorrent, onRequestDetails]
     );
 
@@ -70,7 +70,7 @@ export function useTorrentShortcuts({
                 : "resume";
             onAction(nextAction, primaryTorrent);
         },
-        { scope, enabled: hasPrimaryTorrent && Boolean(onAction) },
+        { scopes: scope, enabled: hasPrimaryTorrent && Boolean(onAction) },
         [primaryTorrent, isActiveTorrent, onAction]
     );
 }

@@ -11,15 +11,28 @@ export const NetworkGraph = ({
     color,
     className,
 }: NetworkGraphProps) => {
-    const max = Math.max(...data, 1);
-    const points = data
-        .map((val, i) => {
-            // scale to viewBox 64x24
-            const x = (i / (data.length - 1)) * 64;
-            const y = 24 - (val / max) * 24;
-            return `${x},${y}`;
-        })
-        .join(" ");
+    const normalizedData = data.length ? data : [0];
+    const max = Math.max(...normalizedData, 1);
+    const span = Math.max(1, normalizedData.length - 1);
+    const points = normalizedData.map((val, i) => {
+        const factor = normalizedData.length > 1 ? i / span : 0;
+        const x = factor * 64;
+        const y = 24 - (val / max) * 24;
+        return { x, y };
+    });
+    const buildLine = () =>
+        points
+            .map((point, index) =>
+                index === 0
+                    ? `M${point.x},${point.y}`
+                    : `L${point.x},${point.y}`
+            )
+            .join(" ");
+    const linePath = buildLine();
+    const areaPath =
+        points.length > 0
+            ? `${linePath} L${points[points.length - 1].x},24 L${points[0].x},24 Z`
+            : "";
 
     return (
         <svg
@@ -86,22 +99,21 @@ export const NetworkGraph = ({
                     />
                 </linearGradient>
             </defs>
+            {areaPath && (
+                <path
+                    d={areaPath}
+                    className={cn(
+                        "opacity-20",
+                        color === "success" ? "text-success" : "text-primary"
+                    )}
+                    fill={`url(#grad-${color})`}
+                />
+            )}
             <path
-                d={`M0,24 ${points
-                    .split(" ")
-                    .map((p) => `L${p}`)
-                    .join(" ")} L64,24 Z`}
-                className={cn(
-                    "opacity-20",
-                    color === "success" ? "text-success" : "text-primary"
-                )}
-                fill={`url(#grad-${color})`}
-            />
-            <path
-                d={`M0,24 L0,24 ${points
-                    .split(" ")
-                    .map((p) => `L${p}`)
-                    .join(" ")}`}
+                d={
+                    linePath ||
+                    "M0,24 L64,24"
+                }
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="1.5"
