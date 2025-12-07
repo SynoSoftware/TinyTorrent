@@ -1,4 +1,4 @@
-import { Button, Input, Tab, Tabs } from "@heroui/react";
+import { Button, Input, Tab, Tabs, Progress, cn } from "@heroui/react";
 import {
     DownloadCloud,
     ListChecks,
@@ -16,6 +16,8 @@ import { ThemeToggle } from "../controls/ThemeToggle";
 import { LanguageMenu } from "../controls/LanguageMenu";
 import { ICON_STROKE_WIDTH } from "../../../config/iconography";
 
+type FeedbackTone = "info" | "success" | "warning" | "danger";
+
 interface NavbarProps {
     filter: string;
     setFilter: (key: string) => void;
@@ -26,7 +28,23 @@ interface NavbarProps {
     onPauseSelection: () => void;
     onRecheckSelection: () => void;
     onRemoveSelection: () => void;
+    actionFeedback?: {
+        message: string;
+        tone: FeedbackTone;
+    } | null;
+    rehashStatus?: {
+        active: boolean;
+        value: number;
+        label: string;
+    };
 }
+
+const FEEDBACK_TONE_CLASSES: Record<FeedbackTone, string> = {
+    info: "text-primary",
+    success: "text-success",
+    warning: "text-warning",
+    danger: "text-danger",
+};
 
 export function Navbar({
     filter,
@@ -38,6 +56,8 @@ export function Navbar({
     onPauseSelection,
     onRecheckSelection,
     onRemoveSelection,
+    actionFeedback,
+    rehashStatus,
 }: NavbarProps) {
     const { t } = useTranslation();
 
@@ -119,125 +139,176 @@ export function Navbar({
             </div>
 
             {/* Global Actions */}
-            <div className="flex items-center gap-3">
-                <div className="flex items-center gap-1">
+            <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1">
+                        <Button
+                            isIconOnly
+                            variant="ghost"
+                            radius="full"
+                            className="text-foreground/50 transition-colors hover:text-success disabled:text-foreground/30"
+                            disabled={!hasSelection}
+                            onPress={onResumeSelection}
+                            aria-label={t("toolbar.resume")}
+                            title={t("toolbar.resume")}
+                        >
+                            <Play
+                                size={16}
+                                strokeWidth={ICON_STROKE_WIDTH}
+                                className="text-current"
+                            />
+                        </Button>
+                        <Button
+                            isIconOnly
+                            variant="ghost"
+                            radius="full"
+                            className="text-foreground/50 transition-colors hover:text-warning disabled:text-foreground/30"
+                            disabled={!hasSelection}
+                            onPress={onPauseSelection}
+                            aria-label={t("toolbar.pause")}
+                            title={t("toolbar.pause")}
+                        >
+                            <Pause
+                                size={16}
+                                strokeWidth={ICON_STROKE_WIDTH}
+                                className="text-current"
+                            />
+                        </Button>
+                        <Button
+                            isIconOnly
+                            variant="ghost"
+                            radius="full"
+                            className="text-foreground/50 transition-colors hover:text-primary disabled:text-foreground/30"
+                            disabled={!hasSelection}
+                            onPress={onRecheckSelection}
+                            aria-label={t("toolbar.recheck")}
+                            title={t("toolbar.recheck")}
+                        >
+                            <RotateCcw
+                                size={16}
+                                strokeWidth={ICON_STROKE_WIDTH}
+                                className="text-current"
+                            />
+                        </Button>
+                        <Button
+                            isIconOnly
+                            variant="ghost"
+                            radius="full"
+                            className="text-foreground/50 transition-colors hover:text-danger disabled:text-foreground/30"
+                            disabled={!hasSelection}
+                            onPress={onRemoveSelection}
+                            aria-label={t("toolbar.remove")}
+                            title={t("toolbar.remove")}
+                        >
+                            <Trash2
+                                size={16}
+                                strokeWidth={ICON_STROKE_WIDTH}
+                                className="text-current"
+                            />
+                        </Button>
+                    </div>
+                    <Input
+                        classNames={{
+                            base: "w-48 h-8",
+                            mainWrapper: "h-full",
+                            input: "text-small",
+                            inputWrapper:
+                                "h-full font-normal text-default-500 bg-default-400/20 dark:bg-default-500/20 border-content1/20",
+                        }}
+                        placeholder={t("nav.search_placeholder")}
+                        size="sm"
+                        startContent={
+                            <Search
+                                size={14}
+                                strokeWidth={ICON_STROKE_WIDTH}
+                                className="text-current"
+                            />
+                        }
+                    />
+                    <div className="h-6 w-px bg-content1/20 mx-1" />
+                    <LanguageMenu />
+                    <ThemeToggle />
                     <Button
                         isIconOnly
                         variant="ghost"
                         radius="full"
-                        className="text-foreground/50 transition-colors hover:text-success disabled:text-foreground/30"
-                        disabled={!hasSelection}
-                        onPress={onResumeSelection}
-                        aria-label={t("toolbar.resume")}
-                        title={t("toolbar.resume")}
+                        className="text-foreground/70"
+                        onPress={onSettings}
+                        aria-label={t("toolbar.settings")}
+                        title={t("toolbar.settings")}
                     >
-                        <Play
-                            size={16}
+                        <Settings2
+                            size={20}
                             strokeWidth={ICON_STROKE_WIDTH}
                             className="text-current"
                         />
                     </Button>
                     <Button
-                        isIconOnly
-                        variant="ghost"
-                        radius="full"
-                        className="text-foreground/50 transition-colors hover:text-warning disabled:text-foreground/30"
-                        disabled={!hasSelection}
-                        onPress={onPauseSelection}
-                        aria-label={t("toolbar.pause")}
-                        title={t("toolbar.pause")}
+                        color="primary"
+                        variant="shadow"
+                        size="sm"
+                        startContent={
+                            <Zap
+                                size={14}
+                                strokeWidth={ICON_STROKE_WIDTH}
+                                fill="currentColor"
+                            />
+                        }
+                        onPress={onAdd}
+                        className="font-bold shadow-primary/20"
                     >
-                        <Pause
-                            size={16}
-                            strokeWidth={ICON_STROKE_WIDTH}
-                            className="text-current"
-                        />
-                    </Button>
-                    <Button
-                        isIconOnly
-                        variant="ghost"
-                        radius="full"
-                        className="text-foreground/50 transition-colors hover:text-primary disabled:text-foreground/30"
-                        disabled={!hasSelection}
-                        onPress={onRecheckSelection}
-                        aria-label={t("toolbar.recheck")}
-                        title={t("toolbar.recheck")}
-                    >
-                        <RotateCcw
-                            size={16}
-                            strokeWidth={ICON_STROKE_WIDTH}
-                            className="text-current"
-                        />
-                    </Button>
-                    <Button
-                        isIconOnly
-                        variant="ghost"
-                        radius="full"
-                        className="text-foreground/50 transition-colors hover:text-danger disabled:text-foreground/30"
-                        disabled={!hasSelection}
-                        onPress={onRemoveSelection}
-                        aria-label={t("toolbar.remove")}
-                        title={t("toolbar.remove")}
-                    >
-                        <Trash2
-                            size={16}
-                            strokeWidth={ICON_STROKE_WIDTH}
-                            className="text-current"
-                        />
+                        {t("toolbar.add_torrent")}
                     </Button>
                 </div>
-                <Input
-                    classNames={{
-                        base: "w-48 h-8",
-                        mainWrapper: "h-full",
-                        input: "text-small",
-                        inputWrapper:
-                            "h-full font-normal text-default-500 bg-default-400/20 dark:bg-default-500/20 border-content1/20",
-                    }}
-                    placeholder={t("nav.search_placeholder")}
-                    size="sm"
-                startContent={
-                    <Search
-                        size={14}
-                        strokeWidth={ICON_STROKE_WIDTH}
-                        className="text-current"
-                    />
-                }
-                />
-                <div className="h-6 w-px bg-content1/20 mx-1" />
-                <LanguageMenu />
-                <ThemeToggle />
-                <Button
-                    isIconOnly
-                    variant="ghost"
-                    radius="full"
-                    className="text-foreground/70"
-                    onPress={onSettings}
-                    aria-label={t("toolbar.settings")}
-                    title={t("toolbar.settings")}
-                >
-                    <Settings2
-                        size={20}
-                        strokeWidth={ICON_STROKE_WIDTH}
-                        className="text-current"
-                    />
-                </Button>
-                <Button
-                    color="primary"
-                    variant="shadow"
-                    size="sm"
-                    startContent={
-                        <Zap
-                            size={14}
-                            strokeWidth={ICON_STROKE_WIDTH}
-                            fill="currentColor"
-                        />
-                    }
-                    onPress={onAdd}
-                    className="font-bold shadow-primary/20"
-                >
-                    {t("toolbar.add_torrent")}
-                </Button>
+                {(actionFeedback || rehashStatus?.active) && (
+                    <div className="flex flex-col gap-1">
+                        {actionFeedback && (
+                            <span
+                                className={cn(
+                                    "text-[10px] font-semibold uppercase tracking-[0.3em]",
+                                    FEEDBACK_TONE_CLASSES[actionFeedback.tone]
+                                )}
+                                aria-live="polite"
+                            >
+                                {actionFeedback.message}
+                            </span>
+                        )}
+                        {rehashStatus?.active && (
+                            <div className="flex flex-col gap-1">
+                                <div className="flex items-center justify-between text-[11px] text-foreground/50">
+                                    <span className="truncate">
+                                        {rehashStatus.label}
+                                    </span>
+                                    <span className="font-semibold tabular-nums">
+                                        {Math.round(
+                                            Math.min(
+                                                Math.max(
+                                                    rehashStatus.value,
+                                                    0
+                                                ),
+                                                100
+                                            )
+                                        )}
+                                        %
+                                    </span>
+                                </div>
+                                <Progress
+                                    size="sm"
+                                    radius="full"
+                                    value={Math.min(
+                                        Math.max(rehashStatus.value, 0),
+                                        100
+                                    )}
+                                    classNames={{
+                                        track: "h-1 rounded-full bg-content1/10",
+                                        indicator:
+                                            "rounded-full bg-gradient-to-r from-primary/70 to-primary",
+                                    }}
+                                />
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
         </header>
     );

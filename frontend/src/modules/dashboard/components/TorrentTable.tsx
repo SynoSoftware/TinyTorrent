@@ -93,6 +93,7 @@ const STORAGE_KEY = "tiny-torrent.table-state.v2.6"; // Bumped version
 const CELL_PADDING_CLASS = "pl-2 pr-3";
 const CELL_BASE_CLASSES =
     "flex items-center overflow-hidden h-full truncate box-border leading-tight";
+const CONTEXT_MENU_MARGIN = 16;
 
 // --- TYPES ---
 export type TorrentTableAction =
@@ -168,19 +169,34 @@ interface TorrentTableProps {
 }
 
 // --- HELPERS ---
-const createVirtualElement = (x: number, y: number) => ({
-    getBoundingClientRect: () => ({
-        width: 0,
-        height: 0,
-        top: y,
-        right: x,
-        bottom: y,
-        left: x,
-        x: x,
-        y: y,
-        toJSON: () => {},
-    }),
-});
+const clampContextMenuPoint = (x: number, y: number) => {
+    if (typeof window === "undefined") {
+        return { x, y };
+    }
+    const maxX = Math.max(CONTEXT_MENU_MARGIN, window.innerWidth - CONTEXT_MENU_MARGIN);
+    const maxY = Math.max(CONTEXT_MENU_MARGIN, window.innerHeight - CONTEXT_MENU_MARGIN);
+    return {
+        x: Math.min(Math.max(x, CONTEXT_MENU_MARGIN), maxX),
+        y: Math.min(Math.max(y, CONTEXT_MENU_MARGIN), maxY),
+    };
+};
+
+const createVirtualElement = (x: number, y: number) => {
+    const { x: boundedX, y: boundedY } = clampContextMenuPoint(x, y);
+    return {
+        getBoundingClientRect: () => ({
+            width: 0,
+            height: 0,
+            top: boundedY,
+            right: boundedX,
+            bottom: boundedY,
+            left: boundedX,
+            x: boundedX,
+            y: boundedY,
+            toJSON: () => {},
+        }),
+    };
+};
 
 // --- SUB-COMPONENT: DRAGGABLE HEADER ---
 const DraggableHeader = memo(
@@ -222,6 +238,8 @@ const DraggableHeader = memo(
                 style={style}
                 {...attributes}
                 {...listeners}
+                role="columnheader"
+                tabIndex={-1}
                 onClick={canSort ? column.getToggleSortingHandler() : undefined}
                 onContextMenu={onContextMenu}
                 className={cn(
@@ -374,8 +392,10 @@ const VirtualRow = memo(
             if (transition) {
                 style.transition = transition;
             }
+            style.opacity = isDragging ? 0 : 1;
             if (isDragging) {
                 style.zIndex = 40;
+                style.pointerEvents = "none";
             }
             return style;
         }, [virtualRow.start, transform, transition, isDragging]);
@@ -409,6 +429,8 @@ const VirtualRow = memo(
                 data-torrent-row={row.original.id}
                 {...(attributes ?? {})}
                 {...(listeners ?? {})}
+                role="row"
+                aria-selected={isSelected}
                 className={cn(
                     "absolute top-0 left-0 border-b border-content1/5 transition-colors",
                     "box-border",
@@ -455,6 +477,7 @@ export function TorrentTable({
     const { t } = useTranslation();
     const parentRef = useRef<HTMLDivElement>(null);
     const tableContainerRef = useRef<HTMLDivElement>(null);
+    const focusReturnRef = useRef<HTMLElement | null>(null);
     const queueMenuActions = useMemo<QueueMenuAction[]>(
         () => [
             { key: "queue-move-top", label: t("table.queue.move_top") },
@@ -532,6 +555,37 @@ export function TorrentTable({
     } | null>(null);
     const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(
         null
+    );
+
+    const findRowElement = useCallback((torrentId?: string) => {
+        if (!torrentId || typeof document === "undefined") return null;
+        return document.querySelector<HTMLElement>(`[data-torrent-row="${torrentId}"]`);
+    }, []);
+
+    const openColumnModal = useCallback(
+        (triggerElement?: HTMLElement | null) => {
+            const fallback =
+                triggerElement ??
+                (typeof document !== "undefined"
+                    ? (document.activeElement as HTMLElement | null)
+                    : null) ??
+                tableContainerRef.current;
+            focusReturnRef.current = fallback ?? null;
+            setIsColumnModalOpen(true);
+        },
+        [tableContainerRef]
+    );
+
+    const handleColumnModalOpenChange = useCallback(
+        (isOpen: boolean) => {
+            setIsColumnModalOpen(isOpen);
+            if (!isOpen) {
+                const target = focusReturnRef.current ?? tableContainerRef.current;
+                focusReturnRef.current = null;
+                target?.focus();
+            }
+        },
+        [tableContainerRef]
     );
 
     useEffect(() => {
@@ -809,7 +863,12 @@ export function TorrentTable({
                 rowVirtualizer.scrollToIndex(normalizedEnd);
             };
 
-            const { key, shiftKey } = event;
+            const { key, shiftKey, ctrlKey, metaKey } = event;
+            if ((ctrlKey || metaKey) && key.toLowerCase() === "a") {
+                event.preventDefault();
+                selectAllRows();
+                return;
+            }
             if (key === "ArrowDown" || key === "ArrowUp") {
                 event.preventDefault();
                 const delta = key === "ArrowDown" ? 1 : -1;
@@ -849,7 +908,7 @@ export function TorrentTable({
                 return;
             }
         },
-        [lastSelectedIndex, rowVirtualizer, table]
+        [lastSelectedIndex, rowVirtualizer, selectAllRows, table]
     );
 
     // --- SENSORS ---
@@ -986,7 +1045,9 @@ export function TorrentTable({
                                             header={header}
                                             onContextMenu={(e) => {
                                                 e.preventDefault();
-                                                setIsColumnModalOpen(true);
+                                                openColumnModal(
+                                                    e.currentTarget as HTMLElement
+                                                );
                                             }}
                                         />
                                     ))}
@@ -1137,7 +1198,10 @@ export function TorrentTable({
                                         | ContextMenuKey
                                         | undefined;
                                     if (menuKey === "cols") {
-                                        setIsColumnModalOpen(true);
+                                        const rowElement = findRowElement(
+                                            contextMenu?.torrent.id
+                                        );
+                                        openColumnModal(rowElement ?? null);
                                     } else if (menuKey) {
                                         onAction?.(
                                             menuKey,
@@ -1210,7 +1274,7 @@ export function TorrentTable({
 
             <Modal
                 isOpen={isColumnModalOpen}
-                onOpenChange={setIsColumnModalOpen}
+                onOpenChange={handleColumnModalOpenChange}
                 size="lg"
                 backdrop="blur"
                 classNames={{
