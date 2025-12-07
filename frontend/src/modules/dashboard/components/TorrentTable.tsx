@@ -145,7 +145,13 @@ const CONTEXT_MENU_SHORTCUTS: Partial<
 > = {
     pause: KEYMAP[ShortcutIntent.TogglePause],
     resume: KEYMAP[ShortcutIntent.TogglePause],
+    recheck: KEYMAP[ShortcutIntent.Recheck],
     remove: KEYMAP[ShortcutIntent.Delete],
+    "remove-with-data": KEYMAP[ShortcutIntent.RemoveWithData],
+    "queue-move-top": "ctrl+home",
+    "queue-move-up": "ctrl+up",
+    "queue-move-down": "ctrl+down",
+    "queue-move-bottom": "ctrl+end",
 };
 
 const getContextMenuShortcut = (action: ContextMenuKey) =>
@@ -157,6 +163,7 @@ interface TorrentTableProps {
     isLoading?: boolean;
     onAction?: (action: TorrentTableAction, torrent: Torrent) => void;
     onRequestDetails?: (torrent: Torrent) => void;
+    onSelectionChange?: (selection: Torrent[]) => void;
 }
 
 // --- HELPERS ---
@@ -436,6 +443,7 @@ export function TorrentTable({
     isLoading = false,
     onAction,
     onRequestDetails,
+    onSelectionChange,
 }: TorrentTableProps) {
     const { t } = useTranslation();
     const parentRef = useRef<HTMLDivElement>(null);
@@ -658,6 +666,10 @@ export function TorrentTable({
         () => table.getSelectedRowModel().rows.map((row) => row.original),
         [table]
     );
+
+    useEffect(() => {
+        onSelectionChange?.(selectedTorrents);
+    }, [onSelectionChange, selectedTorrents]);
 
     const {
         activate: activateDashboardScope,
@@ -1139,11 +1151,24 @@ export function TorrentTable({
                                     {t("table.actions.resume")}
                                 </DropdownItem>
                                 <DropdownItem
+                                    key="recheck"
+                                    shortcut={getContextMenuShortcut("recheck")}
+                                >
+                                    {t("table.actions.recheck")}
+                                </DropdownItem>
+                                <DropdownItem
                                     key="remove"
                                     color="danger"
                                     shortcut={getContextMenuShortcut("remove")}
                                 >
                                     {t("table.actions.remove")}
+                                </DropdownItem>
+                                <DropdownItem
+                                    key="remove-with-data"
+                                    color="danger"
+                                    shortcut={getContextMenuShortcut("remove-with-data")}
+                                >
+                                    {t("table.actions.remove_with_data")}
                                 </DropdownItem>
                                 <DropdownItem
                                     key="queue-title"
@@ -1157,6 +1182,9 @@ export function TorrentTable({
                                         <DropdownItem
                                             key={action.key}
                                             className="pl-10 text-sm"
+                                            shortcut={getContextMenuShortcut(
+                                                action.key as ContextMenuKey
+                                            )}
                                         >
                                             {action.label}
                                         </DropdownItem>

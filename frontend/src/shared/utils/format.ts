@@ -23,3 +23,31 @@ export const formatDate = (timestamp: number) => {
         year: "2-digit",
     }).format(new Date(timestamp * 1000));
 };
+
+const relativeFormatter = new Intl.RelativeTimeFormat(undefined, {
+    numeric: "auto",
+});
+
+const RELATIVE_UNITS: Array<{
+    limit: number;
+    value: number;
+    unit: Intl.RelativeTimeFormatUnit;
+}> = [
+    { limit: 60, value: 1, unit: "second" },
+    { limit: 3600, value: 60, unit: "minute" },
+    { limit: 86400, value: 3600, unit: "hour" },
+    { limit: 604800, value: 86400, unit: "day" },
+    { limit: Number.POSITIVE_INFINITY, value: 604800, unit: "week" },
+];
+
+export const formatRelativeTime = (timestamp?: number) => {
+    if (!timestamp || timestamp <= 0) return "-";
+    const now = Math.floor(Date.now() / 1000);
+    const delta = timestamp - now;
+    const absDelta = Math.abs(delta);
+    const unit =
+        RELATIVE_UNITS.find((entry) => absDelta < entry.limit) ??
+        RELATIVE_UNITS[RELATIVE_UNITS.length - 1];
+    const amount = Math.round(delta / unit.value);
+    return relativeFormatter.format(amount, unit.unit);
+};

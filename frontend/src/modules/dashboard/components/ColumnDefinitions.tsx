@@ -34,6 +34,7 @@ import { type TFunction } from "i18next";
 import {
     formatBytes,
     formatDate,
+    formatRelativeTime,
     formatSpeed,
     formatTime,
 } from "../../../shared/utils/format";
@@ -441,8 +442,11 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
         sortAccessor: (torrent) => torrent.added,
         headerIcon: CalendarClock,
         render: ({ torrent }) => (
-            <span className={cn("text-foreground/50 min-w-0", DENSE_NUMERIC)}>
-                {formatDate(torrent.added)}
+            <span
+                className={cn("text-foreground/50 min-w-0", DENSE_NUMERIC)}
+                title={formatDate(torrent.added)}
+            >
+                {formatRelativeTime(torrent.added)}
             </span>
         ),
     },

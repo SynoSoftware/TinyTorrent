@@ -243,6 +243,14 @@ export default function App() {
         null
     );
     const [sessionStats, setSessionStats] = useState<SessionStats | null>(null);
+    const [selectedTorrents, setSelectedTorrents] = useState<Torrent[]>([]);
+
+    const handleSelectionChange = useCallback(
+        (selection: Torrent[]) => {
+            setSelectedTorrents(selection);
+        },
+        []
+    );
 
     const sessionReady = rpcStatus === "connected";
     const pollingIntervalMs = Math.max(
@@ -351,6 +359,24 @@ export default function App() {
             await executeTorrentAction(action, torrent);
         },
         [executeTorrentAction, t]
+    );
+
+    const handleBulkAction = useCallback(
+        async (action: TorrentTableAction) => {
+            if (!selectedTorrents.length) return;
+            let deleteData: boolean | undefined;
+            if (action === "remove") {
+                deleteData = window.confirm(
+                    t("table.actions.confirm_delete_data")
+                );
+            } else if (action === "remove-with-data") {
+                deleteData = true;
+            }
+            for (const torrent of selectedTorrents) {
+                await executeTorrentAction(action, torrent, { deleteData });
+            }
+        },
+        [executeTorrentAction, selectedTorrents, t]
     );
 
     const handleRequestDetails = useCallback(
@@ -576,6 +602,19 @@ export default function App() {
                 setFilter={setFilter}
                 onAdd={() => openAddModal()}
                 onSettings={() => openSettings()}
+                hasSelection={selectedTorrents.length > 0}
+                onResumeSelection={() => {
+                    void handleBulkAction("resume");
+                }}
+                onPauseSelection={() => {
+                    void handleBulkAction("pause");
+                }}
+                onRecheckSelection={() => {
+                    void handleBulkAction("recheck");
+                }}
+                onRemoveSelection={() => {
+                    void handleBulkAction("remove");
+                }}
             />
 
             <main className="flex-1 min-h-0 flex flex-col">
@@ -593,6 +632,7 @@ export default function App() {
                     onForceTrackerReannounce={handleForceTrackerReannounce}
                     sequentialSupported={sequentialSupported}
                     superSeedingSupported={superSeedingSupported}
+                    onSelectionChange={handleSelectionChange}
                 />
             <StatusBar
                 sessionStats={sessionStats}
