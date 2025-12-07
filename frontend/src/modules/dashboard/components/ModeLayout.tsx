@@ -41,7 +41,7 @@ export function ModeLayout({
 
     return (
         <>
-            <main className="flex-1 relative overflow-hidden flex flex-col z-10">
+        <main className="flex-1 min-h-0 relative overflow-hidden flex flex-col z-10">
                 <TorrentTable
                     torrents={torrents}
                     filter={filter}
@@ -58,7 +58,7 @@ export function ModeLayout({
                 size="4xl"
                 hideCloseButton
                 classNames={{
-                    base: "bg-content1/80 backdrop-blur-2xl border border-content1/20 shadow-2xl rounded-2xl h-[650px] flex flex-col overflow-hidden",
+                    base: "bg-content1/80 backdrop-blur-2xl border border-content1/20 shadow-2xl rounded-2xl flex flex-col overflow-hidden h-auto max-h-[85vh] min-h-[450px]",
                     backdrop: "transition-opacity duration-200 ease-out",
                 }}
                 motionProps={{
@@ -76,7 +76,7 @@ export function ModeLayout({
                     },
                 }}
             >
-                <ModalContent>
+                <ModalContent className="h-full">
                     <TorrentDetailView
                         torrent={detailData}
                         onClose={onCloseDetail}

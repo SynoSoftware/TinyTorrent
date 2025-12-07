@@ -1263,7 +1263,7 @@ export function TorrentDetailView({
     const reannounceSupported = Boolean(onForceTrackerReannounce);
 
     return (
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col h-full min-h-0">
             <div className="sticky top-0 z-30 border-b border-content1/20 bg-background/90 backdrop-blur-2xl">
                 <div className="px-6 pt-6 pb-4 space-y-4">
                     <div className="flex items-start justify-between gap-4">
@@ -1388,8 +1388,8 @@ export function TorrentDetailView({
             </div>
 
             {/* --- BODY --- */}
-            <div className="flex-1 bg-content1/20 border-t border-content1/10">
-                <div className="flex-1 h-full overflow-y-auto px-6 pb-6 pt-6">
+            <div className="flex-1 min-h-0 bg-content1/20 border-t border-content1/10">
+                <div className="flex-1 min-h-0 h-full overflow-y-auto px-6 pb-6 pt-6">
                     <Tabs
                         variant="underlined"
                         selectedKey={activeTab}
@@ -1463,7 +1463,7 @@ export function TorrentDetailView({
                                 animate={{ opacity: 1, x: 0 }}
                                 exit={{ opacity: 0, x: -10 }}
                                 transition={{ duration: 0.15 }}
-                                className="min-h-full overflow-y-auto pr-2 scrollbar-hide"
+                                className="min-h-0 overflow-y-auto pr-2 scrollbar-hide pb-8"
                             >
                                 {/* --- TAB: GENERAL --- */}
                                 {activeTab === "general" && (

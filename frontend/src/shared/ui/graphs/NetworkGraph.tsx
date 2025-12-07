@@ -3,9 +3,14 @@ import { cn } from "@heroui/react";
 interface NetworkGraphProps {
     data: number[];
     color: string;
+    className?: string;
 }
 
-export const NetworkGraph = ({ data, color }: NetworkGraphProps) => {
+export const NetworkGraph = ({
+    data,
+    color,
+    className,
+}: NetworkGraphProps) => {
     const max = Math.max(...data, 1);
     const points = data
         .map((val, i) => {
@@ -18,11 +23,35 @@ export const NetworkGraph = ({ data, color }: NetworkGraphProps) => {
 
     return (
         <svg
-            width="64"
-            height="24"
+            width="100%"
+            height="100%"
             viewBox="0 0 64 24"
-            className="overflow-visible"
+            preserveAspectRatio="none"
+            className={cn("overflow-visible", className)}
         >
+            <line
+                x1={0}
+                y1={23.5}
+                x2={64}
+                y2={23.5}
+                stroke="currentColor"
+                strokeWidth={1}
+                className="opacity-10"
+            />
+            {data.every((value) => value === 0) && (
+                <line
+                    x1={0}
+                    y1={23.5}
+                    x2={64}
+                    y2={23.5}
+                    stroke="currentColor"
+                    strokeWidth={2}
+                    className={cn(
+                        "opacity-60",
+                        color === "success" ? "text-success" : "text-primary"
+                    )}
+                />
+            )}
             <defs>
                 <filter
                     id={`glow-${color}`}

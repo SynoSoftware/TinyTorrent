@@ -145,9 +145,12 @@
     "status_bar": {
         "dht_nodes": "{{count}} Nodes",
         "down": "DOWN",
+        "selected_torrent": "Selected torrent",
+        "active_torrents": "Active torrents",
         "engine": "Engine",
         "engine_detecting": "Detecting engine...",
         "engine_unknown": "Unknown engine",
+        "stats_loading": "Loading stats...",
         "online": "Online",
         "reconnect": "Reconnect",
         "rpc_connected": "Connected",
@@ -168,7 +171,6 @@
             "remove_with_data": "Remove and Delete Files",
             "resume": "Resume"
         },
-        "column_actions": "Actions",
         "column_desc_added": "When the torrent was added",
         "column_desc_eta": "Estimated completion time",
         "column_desc_hash": "Torrent identifier",
