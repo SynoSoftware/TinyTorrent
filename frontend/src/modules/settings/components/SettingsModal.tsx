@@ -30,6 +30,7 @@ import {
     type ConfigKey,
     type SettingsConfig,
 } from "../data/config";
+import { ICON_STROKE_WIDTH } from "../../../config/iconography";
 
 type SettingsTab = "speed" | "network" | "peers" | "storage" | "privacy";
 
@@ -587,7 +588,11 @@ export function SettingsModal({
                 isDisabled={!!isDisabled}
                 endContent={
                     block.endIcon ? (
-                        <block.endIcon size={14} className="text-default-400" />
+                        <block.endIcon
+                            size={14}
+                            strokeWidth={ICON_STROKE_WIDTH}
+                            className="text-default-400"
+                        />
                     ) : undefined
                 }
                 onChange={(event) => {
@@ -885,7 +890,11 @@ export function SettingsModal({
                                             : "text-foreground/60 hover:text-foreground hover:bg-default-100"
                                     )}
                                 >
-                                    <tab.icon size={16} />
+                                    <tab.icon
+                                        size={16}
+                                        strokeWidth={ICON_STROKE_WIDTH}
+                                        className="text-current"
+                                    />
                                     <span>{t(tab.labelKey)}</span>
                                     {activeTab === tab.id && (
                                         <div className="absolute left-0 top-2 bottom-2 w-0.5 bg-primary rounded-r-full" />
@@ -913,7 +922,11 @@ export function SettingsModal({
                                 className="text-foreground/40 hover:text-foreground"
                                 aria-label={t("settings.modal.footer.cancel")}
                             >
-                                <X size={18} />
+                                <X
+                                    size={18}
+                                    strokeWidth={ICON_STROKE_WIDTH}
+                                    className="text-current"
+                                />
                             </Button>
                         </div>
                         <div className="flex-1 min-h-0 overflow-y-auto px-6 py-6 scrollbar-hide">
@@ -956,7 +969,13 @@ export function SettingsModal({
                                 size="sm"
                                 variant="light"
                                 color="danger"
-                                startContent={<RotateCcw size={14} />}
+                                startContent={
+                                    <RotateCcw
+                                        size={14}
+                                        strokeWidth={ICON_STROKE_WIDTH}
+                                        className="text-current"
+                                    />
+                                }
                                 onPress={handleReset}
                             >
                                 {t("settings.modal.footer.reset_defaults")}
@@ -971,7 +990,15 @@ export function SettingsModal({
                                     variant="shadow"
                                     onPress={handleSave}
                                     isLoading={isSaving}
-                                    startContent={!isSaving && <Save size={16} />}
+                                    startContent={
+                                        !isSaving && (
+                                            <Save
+                                                size={16}
+                                                strokeWidth={ICON_STROKE_WIDTH}
+                                                className="text-current"
+                                            />
+                                        )
+                                    }
                                 >
                                     {t("settings.modal.footer.save")}
                                 </Button>

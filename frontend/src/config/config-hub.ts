@@ -7,6 +7,7 @@
 
 // Global config
 import "./constants.json";
+import "./iconography";
 
 // Feature configs
 import "../modules/dashboard/config/layout";

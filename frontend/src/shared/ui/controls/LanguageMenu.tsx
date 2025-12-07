@@ -9,6 +9,7 @@ import {
 import { Check, Globe } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ICON_STROKE_WIDTH } from "../../../config/iconography";
 
 type LanguageOption = {
     code: "en" | "nl" | "es" | "zh";
@@ -77,7 +78,11 @@ export function LanguageMenu() {
                     className="text-foreground/60 hover:text-foreground gap-2 px-3 bg-content1/10 border border-content1/20 backdrop-blur-lg shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]"
                     aria-label={t("language.menu_label")}
                 >
-                    <Globe size={16} />
+                    <Globe
+                        size={16}
+                        strokeWidth={ICON_STROKE_WIDTH}
+                        className="text-current"
+                    />
                     <span className="text-[12px] font-semibold tracking-[0.3em] hidden sm:inline">
                         {t(activeOption.labelKey)}
                     </span>
@@ -112,7 +117,11 @@ export function LanguageMenu() {
                                 <span>{t(option.labelKey)}</span>
                             </div>
                             {selection === option.code && (
-                                <Check size={14} className="text-primary" />
+                                <Check
+                                    size={14}
+                                    strokeWidth={ICON_STROKE_WIDTH}
+                                    className="text-primary"
+                                />
                             )}
                         </div>
                     </DropdownItem>

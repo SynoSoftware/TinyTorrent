@@ -4,6 +4,7 @@ import { useMemo, useState, useCallback, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { formatBytes } from "../../utils/format";
 import type { LibtorrentPriority } from "../../../services/rpc/entities";
+import { ICON_STROKE_WIDTH } from "../../../config/iconography";
 
 export interface FileExplorerEntry {
     name: string;
@@ -238,9 +239,17 @@ export function FileExplorerTree({
                                         className="flex items-center justify-center rounded-full p-1 text-foreground/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
                                     >
                                         {isExpanded ? (
-                                            <ChevronDown size={16} />
+                                            <ChevronDown
+                                                size={16}
+                                                strokeWidth={ICON_STROKE_WIDTH}
+                                                className="text-current"
+                                            />
                                         ) : (
-                                            <ChevronRight size={16} />
+                                            <ChevronRight
+                                                size={16}
+                                                strokeWidth={ICON_STROKE_WIDTH}
+                                                className="text-current"
+                                            />
                                         )}
                                     </button>
                                     <div
@@ -259,16 +268,20 @@ export function FileExplorerTree({
                                             classNames={{ wrapper: "m-0" }}
                                         />
                                     </div>
-                                    <button
-                                        type="button"
-                                        onClick={(event) => {
-                                            event.stopPropagation();
-                                            toggleExpanded(node.id);
-                                        }}
-                                        className="flex items-center justify-center rounded-full p-1 text-foreground/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
-                                    >
-                                        <Folder size={16} />
-                                    </button>
+                                        <button
+                                            type="button"
+                                            onClick={(event) => {
+                                                event.stopPropagation();
+                                                toggleExpanded(node.id);
+                                            }}
+                                            className="flex items-center justify-center rounded-full p-1 text-foreground/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                                        >
+                                            <Folder
+                                                size={16}
+                                                strokeWidth={ICON_STROKE_WIDTH}
+                                                className="text-current"
+                                            />
+                                        </button>
                                     <div className="flex flex-col text-sm font-medium text-foreground leading-tight">
                                         <span className="text-foreground">
                                             {node.name}
@@ -329,6 +342,7 @@ export function FileExplorerTree({
                                 </div>
                                 <FileText
                                     size={16}
+                                    strokeWidth={ICON_STROKE_WIDTH}
                                     className="text-foreground/50"
                                 />
                                 <div className="flex-1 min-w-0 flex flex-col gap-1">

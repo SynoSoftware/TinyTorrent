@@ -86,6 +86,7 @@ import {
 import { TABLE_LAYOUT } from "../config/layout";
 import { useTorrentShortcuts } from "../hooks/useTorrentShortcuts";
 import { KEY_SCOPE, KEYMAP, ShortcutIntent } from "../../../config/keymap";
+import { ICON_STROKE_WIDTH } from "../../../config/iconography";
 
 // --- CONSTANTS ---
 const STORAGE_KEY = "tiny-torrent.table-state.v2.6"; // Bumped version
@@ -252,11 +253,16 @@ const DraggableHeader = memo(
                 >
                     {flexRender(column.columnDef.header, header.getContext())}
                     {sortState === "asc" && (
-                        <ArrowUp size={12} className="text-primary shrink-0" />
+                        <ArrowUp
+                            size={12}
+                            strokeWidth={ICON_STROKE_WIDTH}
+                            className="text-primary shrink-0"
+                        />
                     )}
                     {sortState === "desc" && (
                         <ArrowDown
                             size={12}
+                            strokeWidth={ICON_STROKE_WIDTH}
                             className="text-primary shrink-0"
                         />
                     )}
@@ -596,6 +602,7 @@ export function TorrentTable({
                     <div className="flex items-center gap-1 text-[9px] font-semibold uppercase tracking-[0.3em] text-foreground/60">
                         <HeaderIcon
                             size={12}
+                            strokeWidth={ICON_STROKE_WIDTH}
                             className="text-foreground/50 animate-pulse"
                         />
                         <span>{label}</span>
@@ -1016,6 +1023,7 @@ export function TorrentTable({
                                 {/* Empty state content */}
                                 <FileUp
                                     size={40}
+                                    strokeWidth={ICON_STROKE_WIDTH}
                                     className="text-foreground/60"
                                 />
                                 <p className="text-sm text-foreground/50">
