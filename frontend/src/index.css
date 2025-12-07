@@ -13,8 +13,45 @@
     }
 }
 
+@layer components {
+    button:not(:disabled) {
+        transition: transform 0.16s ease, filter 0.16s ease;
+        transform-origin: center center;
+        will-change: transform, filter;
+        touch-action: manipulation;
+    }
+
+    button:not(:disabled):active {
+        transform: scale(0.96);
+        filter: brightness(1.08);
+    }
+}
+
 @layer utilities {
-    /* LIGHT – emerald paper */
+    .pressable-row {
+        cursor: pointer;
+        transition: transform 0.15s ease, filter 0.15s ease;
+        transform-origin: center center;
+        will-change: transform, filter;
+    }
+
+    .pressable-row:active {
+        transform: translateY(1px) scale(0.98);
+        filter: brightness(1.08);
+    }
+
+    .pressable-tab {
+        transition: transform 0.12s ease, filter 0.12s ease;
+        transform-origin: center center;
+        will-change: transform, filter;
+    }
+
+    .pressable-tab:active {
+        transform: scale(0.92);
+        filter: brightness(1.1);
+    }
+
+    /* LIGHT - emerald paper */
     .texture-emerald {
         /* base from HeroUI theme */
         background-color: hsl(var(--heroui-background)) !important;

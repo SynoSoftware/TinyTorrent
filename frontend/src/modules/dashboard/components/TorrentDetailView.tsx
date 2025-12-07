@@ -48,12 +48,14 @@ import {
     formatSpeed,
     formatTime,
 } from "../../../shared/utils/format";
+import { buildSplinePath } from "../../../shared/utils/spline";
 import {
     FileExplorerTree,
     type FileExplorerEntry,
 } from "../../../shared/ui/workspace/FileExplorerTree";
 import constants from "../../../config/constants.json";
 import { ICON_STROKE_WIDTH } from "../../../config/iconography";
+import { INTERACTION_CONFIG } from "../../../config/interaction";
 import type { Torrent, TorrentDetail } from "../types/torrent";
 import type { TorrentTableAction } from "./TorrentTable";
 import type {
@@ -1094,8 +1096,9 @@ const useTorrentDetailSpeedHistory = (torrent: TorrentDetail | null) => {
 };
 
 // --- SUB-COMPONENT: SPEED CHART (Custom SVG, Zero Bloat) ---
-const CHART_WIDTH = 180;
-const CHART_HEIGHT = 72;
+const { speedChart } = INTERACTION_CONFIG;
+const CHART_WIDTH = speedChart.width;
+const CHART_HEIGHT = speedChart.height;
 
 const SPEED_WINDOW_OPTIONS = [
     { key: "1m", label: "1m", minutes: 1 },
@@ -1123,38 +1126,6 @@ const resampleHistory = (values: number[], targetLength: number) => {
         const total = slice.reduce((sum, value) => sum + value, 0);
         return total / slice.length;
     });
-};
-
-const buildSplinePath = (values: number[], valueMax: number) => {
-    if (!values.length) return "";
-    const points = values.map((value, index) => {
-        const x = (index / (values.length - 1 || 1)) * CHART_WIDTH;
-        const normalized = Math.min(Math.max(value / valueMax, 0), 1);
-        const y = CHART_HEIGHT - normalized * CHART_HEIGHT;
-        return { x, y };
-    });
-    if (points.length === 1) {
-        const point = points[0];
-        return `M${point.x.toFixed(2)},${point.y.toFixed(2)}`;
-    }
-    const tension = 0.4;
-    let path = `M${points[0].x.toFixed(2)},${points[0].y.toFixed(2)}`;
-    for (let i = 0; i < points.length - 1; i++) {
-        const p0 = points[i - 1] ?? points[i];
-        const p1 = points[i];
-        const p2 = points[i + 1];
-        const p3 = points[i + 2] ?? points[i + 1];
-        const cp1 = {
-            x: p1.x + (p2.x - p0.x) * tension,
-            y: p1.y + (p2.y - p0.y) * tension,
-        };
-        const cp2 = {
-            x: p2.x - (p3.x - p1.x) * tension,
-            y: p2.y - (p3.y - p1.y) * tension,
-        };
-        path += ` C${cp1.x.toFixed(2)},${cp1.y.toFixed(2)} ${cp2.x.toFixed(2)},${cp2.y.toFixed(2)} ${p2.x.toFixed(2)},${p2.y.toFixed(2)}`;
-    }
-    return path;
 };
 
 const SpeedChart = ({
@@ -1187,8 +1158,18 @@ const SpeedChart = ({
     );
 
     const maxValue = Math.max(...downValues, ...upValues, 1);
-    const downPath = buildSplinePath(downValues, maxValue);
-    const upPath = buildSplinePath(upValues, maxValue);
+    const downPath = buildSplinePath(
+        downValues,
+        CHART_WIDTH,
+        CHART_HEIGHT,
+        maxValue
+    );
+    const upPath = buildSplinePath(
+        upValues,
+        CHART_WIDTH,
+        CHART_HEIGHT,
+        maxValue
+    );
 
     return (
         <div className="flex flex-col gap-3">
@@ -1227,7 +1208,8 @@ const SpeedChart = ({
                 <svg
                     viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
                     preserveAspectRatio="none"
-                    className="w-full h-20"
+                    className="w-full"
+                    style={{ height: `${CHART_HEIGHT}px` }}
                 >
                     <defs>
                         <linearGradient

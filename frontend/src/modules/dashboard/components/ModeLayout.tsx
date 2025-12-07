@@ -1,7 +1,11 @@
 import { Modal, ModalContent } from "@heroui/react";
+import { useLayoutEffect, useState } from "react";
 import { TorrentTable, type TorrentTableAction } from "./TorrentTable";
 import { TorrentDetailView } from "./TorrentDetailView";
 import type { Torrent, TorrentDetail } from "../types/torrent";
+import { INTERACTION_CONFIG } from "../../../config/interaction";
+
+const { modalBloom } = INTERACTION_CONFIG;
 
 interface ModeLayoutProps {
     torrents: Torrent[];
@@ -40,6 +44,83 @@ export function ModeLayout({
     onSelectionChange,
 }: ModeLayoutProps) {
     const isDetailOpen = Boolean(detailData);
+    const [detailOrigin, setDetailOrigin] = useState<{
+        x: number;
+        y: number;
+    } | null>(null);
+
+    useLayoutEffect(() => {
+        if (
+            typeof window === "undefined" ||
+            !isDetailOpen ||
+            !detailData
+        ) {
+            setDetailOrigin(null);
+            return;
+        }
+
+        const selector = `[data-torrent-row="${detailData.id}"]`;
+        const rowElement = document.querySelector<HTMLElement>(selector);
+        if (!rowElement) {
+            setDetailOrigin(null);
+            return;
+        }
+
+        const updateOrigin = () => {
+            const rect = rowElement.getBoundingClientRect();
+            setDetailOrigin({
+                x: rect.left + rect.width / 2,
+                y: rect.top + rect.height / 2,
+            });
+        };
+
+        updateOrigin();
+        const ObserverCtor =
+            typeof ResizeObserver === "undefined" ? undefined : ResizeObserver;
+        if (!ObserverCtor) {
+            return;
+        }
+        const observer = new ObserverCtor(() => {
+            updateOrigin();
+        });
+        observer.observe(rowElement);
+
+        return () => {
+            observer.disconnect();
+        };
+    }, [detailData?.id, isDetailOpen]);
+
+    const hasOrigin = Boolean(detailOrigin);
+    const viewportOffset =
+        hasOrigin &&
+        typeof window !== "undefined" &&
+        detailOrigin !== null
+            ? {
+                  x: detailOrigin.x - window.innerWidth / 2,
+                  y: detailOrigin.y - window.innerHeight / 2,
+              }
+            : { x: 0, y: 20 };
+    const bloomInitial = hasOrigin
+        ? {
+              opacity: 0,
+              scale: modalBloom.originScale,
+              x: viewportOffset.x,
+              y: viewportOffset.y,
+          }
+        : {
+              opacity: 0,
+              scale: modalBloom.fallbackScale,
+              x: 0,
+              y: modalBloom.fallbackOffsetY,
+          };
+    const bloomAnimate = { opacity: 1, scale: 1, x: 0, y: 0 };
+    const bloomExit = {
+        opacity: 0,
+        scale: modalBloom.exitScale,
+        x: 0,
+        y: modalBloom.exitOffsetY,
+    };
+    const bloomTransition = modalBloom.transition;
 
     return (
         <>
@@ -65,18 +146,10 @@ export function ModeLayout({
                     backdrop: "transition-opacity duration-200 ease-out",
                 }}
                 motionProps={{
-                    variants: {
-                        enter: {
-                            scale: 1,
-                            opacity: 1,
-                            transition: { duration: 0.2, ease: "easeOut" },
-                        },
-                        exit: {
-                            scale: 0.95,
-                            opacity: 0,
-                            transition: { duration: 0.15 },
-                        },
-                    },
+                    initial: bloomInitial,
+                    animate: bloomAnimate,
+                    exit: bloomExit,
+                    transition: bloomTransition,
                 }}
             >
                 <ModalContent className="h-full">
