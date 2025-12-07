@@ -498,7 +498,7 @@ const SectionCard = ({
 }) => (
     <Card
         className={cn(
-            "p-5 rounded-xl border border-divider bg-content1/50",
+            "p-4 rounded-2xl border border-content1/20 bg-content1/10",
             className
         )}
     >
@@ -508,7 +508,7 @@ const SectionCard = ({
 
 function SectionTitle({ title }: SectionTitleProps) {
     return (
-        <h3 className="text-[10px] font-bold uppercase tracking-widest text-foreground/40 mb-3 mt-1">
+        <h3 className="text-[9px] font-semibold uppercase tracking-[0.35em] text-foreground/40 mb-2 mt-0 leading-tight">
             {title}
         </h3>
     );
@@ -628,7 +628,7 @@ export function SettingsModal({
                 return (
                     <div
                         key={`section-${sectionIndex}-block-${blockIndex}`}
-                        className="space-y-3"
+                        className="space-y-2"
                     >
                         <div className="flex justify-between items-center">
                             <Switch
@@ -642,11 +642,11 @@ export function SettingsModal({
                                     )
                                 }
                             >
-                                <span className="text-sm font-medium">
+                                <span className="text-xs font-semibold leading-tight tracking-[0.12em]">
                                     {t(block.labelKey)}
                                 </span>
                             </Switch>
-                            <div className="text-xs font-mono font-bold text-foreground/70 bg-foreground/5 px-2 py-1 rounded-full">
+                            <div className="text-[10px] font-mono font-semibold text-foreground/70 bg-foreground/5 px-1.5 py-0.5 rounded-full leading-tight">
                                 {block.valueSuffixKey
                                     ? t(block.valueSuffixKey, { value })
                                     : value}
@@ -848,7 +848,7 @@ export function SettingsModal({
             size="5xl"
             hideCloseButton
             classNames={{
-                base: "bg-content1/80 backdrop-blur-2xl border border-content1/20 shadow-2xl h-[650px] max-h-[90vh] flex flex-row overflow-hidden rounded-2xl",
+                base: "bg-content1/80 backdrop-blur-2xl border border-content1/20 shadow-2xl flex flex-row h-auto max-h-[85vh] min-h-[520px] overflow-hidden rounded-2xl",
             }}
             motionProps={{
                 variants: {
@@ -865,115 +865,117 @@ export function SettingsModal({
                 },
             }}
         >
-            <ModalContent>
-                <div className="w-56 shrink-0 border-r border-content1/20 bg-content1/10 backdrop-blur-xl flex flex-col">
-                    <div className="p-5 border-b border-content1/10">
-                        <h2 className="text-lg font-bold tracking-tight text-foreground">
-                            {t("settings.modal.title")}
-                        </h2>
-                    </div>
-                    <div className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
-                        {SETTINGS_TABS.map((tab) => (
-                            <button
-                                key={tab.id}
-                                onClick={() => setActiveTab(tab.id)}
-                                className={cn(
-                                    "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 group relative",
-                                    activeTab === tab.id
-                                        ? "bg-primary/10 text-primary"
-                                        : "text-foreground/60 hover:text-foreground hover:bg-default-100"
-                                )}
-                            >
-                                <tab.icon size={16} />
-                                <span>{t(tab.labelKey)}</span>
-                                {activeTab === tab.id && (
-                                    <div className="absolute left-0 top-2 bottom-2 w-0.5 bg-primary rounded-r-full" />
-                                )}
-                            </button>
-                        ))}
-                    </div>
-                    <div className="p-4 border-t border-content1/10">
-                        <div className="text-[10px] text-foreground/30 font-mono">
-                            {t("brand.version")}
+            <ModalContent className="h-full">
+                <div className="flex h-full min-h-[520px] max-h-[85vh] overflow-hidden rounded-2xl">
+                    <div className="w-56 shrink-0 border-r border-content1/20 bg-content1/10 backdrop-blur-xl flex flex-col">
+                        <div className="p-5 border-b border-content1/10">
+                            <h2 className="text-lg font-bold tracking-tight text-foreground">
+                                {t("settings.modal.title")}
+                            </h2>
+                        </div>
+                        <div className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
+                            {SETTINGS_TABS.map((tab) => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setActiveTab(tab.id)}
+                                    className={cn(
+                                        "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 group relative",
+                                        activeTab === tab.id
+                                            ? "bg-primary/10 text-primary"
+                                            : "text-foreground/60 hover:text-foreground hover:bg-default-100"
+                                    )}
+                                >
+                                    <tab.icon size={16} />
+                                    <span>{t(tab.labelKey)}</span>
+                                    {activeTab === tab.id && (
+                                        <div className="absolute left-0 top-2 bottom-2 w-0.5 bg-primary rounded-r-full" />
+                                    )}
+                                </button>
+                            ))}
+                        </div>
+                        <div className="p-4 border-t border-content1/10">
+                            <div className="text-[10px] text-foreground/30 font-mono">
+                                {t("brand.version")}
+                            </div>
                         </div>
                     </div>
-                </div>
-                <div className="flex-1 flex flex-col min-w-0 bg-content1/10 backdrop-blur-lg relative">
-                    <div className="shrink-0 h-14 border-b border-content1/10 flex items-center justify-between px-6 bg-content1/15 backdrop-blur-md z-10">
-                        <h1 className="text-sm font-bold text-foreground/80">
-                            {t(activeTabDefinition.headerKey)}
-                        </h1>
-                        <Button
-                            isIconOnly
-                            radius="full"
-                            size="sm"
-                            variant="light"
-                            onPress={onClose}
-                            className="text-foreground/40 hover:text-foreground"
-                            aria-label={t("settings.modal.footer.cancel")}
-                        >
-                            <X size={18} />
-                        </Button>
-                    </div>
-                    <div className="flex-1 overflow-y-auto px-6 py-6 scrollbar-hide">
-                        <AnimatePresence mode="wait">
-                            <motion.div
-                                key={activeTabDefinition.id}
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                                transition={{ duration: 0.15 }}
-                                className="space-y-6 pb-20"
+                    <div className="flex-1 min-h-0 flex flex-col bg-content1/10 backdrop-blur-lg">
+                        <div className="sticky top-0 z-10 shrink-0 h-14 border-b border-content1/10 flex items-center justify-between px-6 bg-content1/15 backdrop-blur-md">
+                            <h1 className="text-sm font-bold text-foreground/80">
+                                {t(activeTabDefinition.headerKey)}
+                            </h1>
+                            <Button
+                                isIconOnly
+                                radius="full"
+                                size="sm"
+                                variant="light"
+                                onPress={onClose}
+                                className="text-foreground/40 hover:text-foreground"
+                                aria-label={t("settings.modal.footer.cancel")}
                             >
-                                {activeTabDefinition.sections.map(
-                                    (section, sectionIndex) => (
-                                        <SectionCard
-                                            key={`${section.titleKey}-${sectionIndex}`}
-                                            className={section.cardClass}
-                                        >
-                                            <SectionTitle
-                                                title={t(section.titleKey)}
-                                            />
-                                            <div className="space-y-5">
-                                                {section.blocks.map(
-                                                    (block, blockIndex) =>
-                                                        renderBlock(
-                                                            block,
-                                                            sectionIndex,
-                                                            blockIndex
-                                                        )
-                                                )}
-                                            </div>
-                                        </SectionCard>
-                                    )
-                                )}
-                            </motion.div>
-                        </AnimatePresence>
-                    </div>
-                    <div className="shrink-0 h-16 border-t border-content1/20 px-6 flex items-center justify-between bg-content1/15 backdrop-blur-md z-20 absolute bottom-0 left-0 right-0">
-                        <Button
-                            size="sm"
-                            variant="light"
-                            color="danger"
-                            startContent={<RotateCcw size={14} />}
-                            onPress={handleReset}
-                        >
-                            {t("settings.modal.footer.reset_defaults")}
-                        </Button>
-                        <div className="flex gap-2">
-                            <Button size="sm" variant="flat" onPress={onClose}>
-                                {t("settings.modal.footer.cancel")}
+                                <X size={18} />
                             </Button>
+                        </div>
+                        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-6 scrollbar-hide">
+                            <AnimatePresence mode="wait">
+                                <motion.div
+                                    key={activeTabDefinition.id}
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    transition={{ duration: 0.15 }}
+                                    className="space-y-6 pb-20 min-h-0"
+                                >
+                                    {activeTabDefinition.sections.map(
+                                        (section, sectionIndex) => (
+                                            <SectionCard
+                                                key={`${section.titleKey}-${sectionIndex}`}
+                                                className={section.cardClass}
+                                            >
+                                                <SectionTitle
+                                                    title={t(section.titleKey)}
+                                                />
+                                                <div className="space-y-5">
+                                                    {section.blocks.map(
+                                                        (block, blockIndex) =>
+                                                            renderBlock(
+                                                                block,
+                                                                sectionIndex,
+                                                                blockIndex
+                                                            )
+                                                    )}
+                                                </div>
+                                            </SectionCard>
+                                        )
+                                    )}
+                                </motion.div>
+                            </AnimatePresence>
+                        </div>
+                        <div className="sticky bottom-0 z-10 shrink-0 border-t border-content1/20 bg-content1/15 px-6 py-4 flex items-center justify-between gap-2">
                             <Button
                                 size="sm"
-                                color="primary"
-                                variant="shadow"
-                                onPress={handleSave}
-                                isLoading={isSaving}
-                                startContent={!isSaving && <Save size={16} />}
+                                variant="light"
+                                color="danger"
+                                startContent={<RotateCcw size={14} />}
+                                onPress={handleReset}
                             >
-                                {t("settings.modal.footer.save")}
+                                {t("settings.modal.footer.reset_defaults")}
                             </Button>
+                            <div className="flex gap-2">
+                                <Button size="sm" variant="flat" onPress={onClose}>
+                                    {t("settings.modal.footer.cancel")}
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    color="primary"
+                                    variant="shadow"
+                                    onPress={handleSave}
+                                    isLoading={isSaving}
+                                    startContent={!isSaving && <Save size={16} />}
+                                >
+                                    {t("settings.modal.footer.save")}
+                                </Button>
+                            </div>
                         </div>
                     </div>
                 </div>

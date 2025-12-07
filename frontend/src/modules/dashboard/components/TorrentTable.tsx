@@ -85,9 +85,9 @@ import { TABLE_LAYOUT } from "../config/layout";
 
 // --- CONSTANTS ---
 const STORAGE_KEY = "tiny-torrent.table-state.v2.6"; // Bumped version
-const CELL_PADDING_CLASS = "pl-3 pr-4";
+const CELL_PADDING_CLASS = "pl-2 pr-3";
 const CELL_BASE_CLASSES =
-    "flex items-center overflow-hidden h-full truncate box-border";
+    "flex items-center overflow-hidden h-full truncate box-border leading-tight";
 
 // --- TYPES ---
 export type TorrentTableAction =
@@ -449,11 +449,25 @@ export function TorrentTable({
                     ),
                 } as ColumnDef<Torrent>;
             }
-            return {
-                id,
-                accessorKey: def.rpcField,
-                header: () => (def.labelKey ? t(def.labelKey) : ""),
-                size: def.width ?? 150,
+                return {
+                    id,
+                    accessorKey: def.rpcField,
+                    header: () => {
+                        const label = def.labelKey ? t(def.labelKey) : "";
+                        const HeaderIcon = def.headerIcon;
+                        return HeaderIcon ? (
+                            <div className="flex items-center gap-1 text-[9px] font-semibold uppercase tracking-[0.3em] text-foreground/60">
+                                <HeaderIcon
+                                    size={12}
+                                    className="text-foreground/50 animate-pulse"
+                                />
+                                <span>{label}</span>
+                            </div>
+                        ) : (
+                            label
+                        );
+                    },
+                    size: def.width ?? 150,
                 minSize: def.minSize ?? 80,
                 meta: { align: def.align },
                 cell: ({ row }) =>
@@ -703,7 +717,7 @@ export function TorrentTable({
                 ref={tableContainerRef}
                 tabIndex={0}
                 onKeyDown={handleKeyDown}
-                className="flex-1 flex flex-col h-full overflow-hidden bg-background/20 relative select-none"
+                className="flex-1 min-h-0 flex flex-col h-full overflow-hidden bg-background/20 relative select-none"
                 onClick={() => setContextMenu(null)}
             >
                 <style>{`
@@ -753,7 +767,7 @@ export function TorrentTable({
 
                     <div
                         ref={parentRef}
-                        className="flex-1 overflow-y-auto w-full custom-scrollbar"
+                        className="flex-1 min-h-0 overflow-y-auto w-full custom-scrollbar"
                     >
                         {isLoading && torrents.length === 0 ? (
                             <div className="w-full">

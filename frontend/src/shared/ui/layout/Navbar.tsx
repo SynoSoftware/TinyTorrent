@@ -1,5 +1,12 @@
 import { Button, Input, Tab, Tabs } from "@heroui/react";
-import { Search, Settings2, Zap } from "lucide-react";
+import {
+    DownloadCloud,
+    ListChecks,
+    Search,
+    Settings2,
+    UploadCloud,
+    Zap,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ThemeToggle } from "../controls/ThemeToggle";
 import { LanguageMenu } from "../controls/LanguageMenu";
@@ -45,12 +52,33 @@ export function Navbar({ filter, setFilter, onAdd, onSettings }: NavbarProps) {
                         tabContent: "group-data-[selected=true]:font-bold",
                     }}
                 >
-                    <Tab key="all" title={t("nav.filter_all")} />
+                    <Tab
+                        key="all"
+                        title={
+                            <div className="flex items-center gap-1">
+                                <ListChecks size={12} />
+                                {t("nav.filter_all")}
+                            </div>
+                        }
+                    />
                     <Tab
                         key="downloading"
-                        title={t("nav.filter_downloading")}
+                        title={
+                            <div className="flex items-center gap-1">
+                                <DownloadCloud size={12} />
+                                {t("nav.filter_downloading")}
+                            </div>
+                        }
                     />
-                    <Tab key="seeding" title={t("nav.filter_seeding")} />
+                    <Tab
+                        key="seeding"
+                        title={
+                            <div className="flex items-center gap-1">
+                                <UploadCloud size={12} />
+                                {t("nav.filter_seeding")}
+                            </div>
+                        }
+                    />
                 </Tabs>
             </div>
 

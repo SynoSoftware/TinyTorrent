@@ -9,14 +9,24 @@ import {
     Progress,
     cn,
 } from "@heroui/react";
+import type { LucideIcon } from "lucide-react";
 import {
     ArrowDown,
+    ArrowDownCircle,
     ArrowUp,
+    ArrowUpCircle,
+    Box,
+    CalendarClock,
     CheckCircle2,
+    Clock3,
+    Gauge,
+    Hash,
+    ListChecks,
     MoreVertical,
     Pause,
     PauseCircle,
     PlayCircle,
+    Scale,
     Trash2,
     Users,
 } from "lucide-react";
@@ -44,8 +54,7 @@ export type ColumnId =
     | "size"
     | "ratio"
     | "hash"
-    | "added"
-    | "actions";
+    | "added";
 
 export interface ColumnRendererProps {
     torrent: Torrent;
@@ -67,6 +76,7 @@ export interface ColumnDefinition {
     defaultVisible?: boolean;
     isRequired?: boolean;
     render: (ctx: ColumnRendererProps) => ReactNode;
+    headerIcon?: LucideIcon;
 }
 
 type StatusColor =
@@ -83,7 +93,7 @@ const ratioValue = (torrent: Torrent) => {
     return torrent.uploaded === 0 ? 0 : torrent.uploaded;
 };
 
-const DENSE_TEXT = `${TABLE_LAYOUT.fontSize} ${TABLE_LAYOUT.fontMono}`;
+const DENSE_TEXT = `${TABLE_LAYOUT.fontSize} ${TABLE_LAYOUT.fontMono} leading-tight`;
 const DENSE_NUMERIC = `${DENSE_TEXT} tabular-nums`;
 
 const statusMap: Record<
@@ -142,6 +152,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
         rpcField: "name",
         defaultVisible: true,
         sortAccessor: (torrent) => torrent.name,
+        headerIcon: ListChecks,
         render: ({ torrent, t }) => (
             <div className="flex flex-col gap-0.5 min-w-0">
                 <span
@@ -181,6 +192,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
         rpcField: "progress",
         defaultVisible: true,
         sortAccessor: (torrent) => torrent.progress,
+        headerIcon: Gauge,
         render: ({ torrent }) => (
             <div className="flex flex-col gap-1.5 w-full min-w-0">
                 <div
@@ -222,6 +234,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
         rpcField: "state",
         defaultVisible: true,
         sortAccessor: (torrent) => torrent.state,
+        headerIcon: PauseCircle,
         render: ({ torrent, t }) => {
             const conf = statusMap[torrent.state] ?? {
                 color: "default",
@@ -258,6 +271,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
         descriptionKey: "table.column_desc_queue",
         sortAccessor: (torrent) =>
             torrent.queuePosition ?? Number.MAX_SAFE_INTEGER,
+        headerIcon: ArrowDownCircle,
         render: ({ torrent }) => (
             <span className={cn("text-foreground/60 min-w-0", DENSE_NUMERIC)}>
                 {torrent.queuePosition !== undefined
@@ -275,6 +289,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
         descriptionKey: "table.column_desc_eta",
         sortAccessor: (torrent) =>
             torrent.eta < 0 ? Number.MAX_SAFE_INTEGER : torrent.eta,
+        headerIcon: Clock3,
         render: ({ torrent, t }) => (
             <span className={cn("text-foreground/70 min-w-0", DENSE_NUMERIC)}>
                 {torrent.eta < 0
@@ -293,6 +308,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
         descriptionKey: "table.column_desc_speed",
         sortAccessor: (torrent) =>
             torrent.state === "seeding" ? torrent.speed.up : torrent.speed.down,
+        headerIcon: ArrowUpCircle,
         render: ({ torrent }) => (
             <div className={cn("text-right min-w-0", DENSE_NUMERIC)}>
                 {torrent.state === "downloading" ? (
@@ -317,6 +333,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
         sortable: true,
         defaultVisible: true,
         sortAccessor: (torrent) => torrent.peerSummary.connected,
+        headerIcon: Users,
         render: ({ torrent }) => (
             <div
                 className={cn(
@@ -340,6 +357,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
         rpcField: "totalSize",
         defaultVisible: true,
         sortAccessor: (torrent) => torrent.totalSize,
+        headerIcon: Box,
         render: ({ torrent }) => (
             <span className={cn("text-foreground/50 min-w-0", DENSE_NUMERIC)}>
                 {formatBytes(torrent.totalSize)}
@@ -355,6 +373,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
         rpcField: "ratio",
         descriptionKey: "table.column_desc_ratio",
         sortAccessor: (torrent) => ratioValue(torrent),
+        headerIcon: Scale,
         render: ({ torrent }) => (
             <span className={cn("text-foreground/60 min-w-0", DENSE_NUMERIC)}>
                 {ratioValue(torrent).toFixed(2)}
@@ -368,6 +387,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
         sortable: false,
         rpcField: "hash",
         descriptionKey: "table.column_desc_hash",
+        headerIcon: Hash,
         render: ({ torrent }) => (
             <span
                 className={cn(
@@ -388,69 +408,11 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
         rpcField: "added",
         descriptionKey: "table.column_desc_added",
         sortAccessor: (torrent) => torrent.added,
+        headerIcon: CalendarClock,
         render: ({ torrent }) => (
             <span className={cn("text-foreground/50 min-w-0", DENSE_NUMERIC)}>
                 {formatDate(torrent.added)}
             </span>
-        ),
-    },
-    actions: {
-        id: "actions",
-        width: 50,
-        align: "end",
-        labelKey: "table.column_actions",
-        isRequired: true,
-        render: ({ t }) => (
-            <div onClick={(e) => e.stopPropagation()}>
-                <Dropdown placement="bottom-end">
-                    <DropdownTrigger>
-                        <Button
-                            isIconOnly
-                            size="sm"
-                            variant="light"
-                            radius="full"
-                            className="text-foreground/30 hover:text-foreground min-w-0"
-                            aria-label={t("table.column_actions")}
-                            title={t("table.column_actions")}
-                        >
-                            <MoreVertical size={16} />
-                        </Button>
-                    </DropdownTrigger>
-                    <DropdownMenu
-                        aria-label="Actions"
-                        variant="faded"
-                        className={GLASS_MENU_SURFACE}
-                    >
-                        <DropdownItem
-                            key="pause"
-                            startContent={<PauseCircle size={14} />}
-                        >
-                            {t("table.actions.pause")}
-                        </DropdownItem>
-                        <DropdownItem
-                            key="resume"
-                            startContent={<PlayCircle size={14} />}
-                        >
-                            {t("table.actions.resume")}
-                        </DropdownItem>
-                        <DropdownItem
-                            key="recheck"
-                            showDivider
-                            startContent={<CheckCircle2 size={14} />}
-                        >
-                            {t("table.actions.recheck")}
-                        </DropdownItem>
-                        <DropdownItem
-                            key="delete"
-                            className="text-danger"
-                            color="danger"
-                            startContent={<Trash2 size={14} />}
-                        >
-                            {t("table.actions.remove")}
-                        </DropdownItem>
-                    </DropdownMenu>
-                </Dropdown>
-            </div>
         ),
     },
 };
@@ -468,7 +430,6 @@ export const DEFAULT_COLUMN_ORDER: ColumnId[] = [
     "ratio",
     "hash",
     "added",
-    "actions",
 ];
 
 export const DEFAULT_VISIBLE_COLUMN_IDS: ColumnId[] = [
@@ -480,10 +441,9 @@ export const DEFAULT_VISIBLE_COLUMN_IDS: ColumnId[] = [
     "speed",
     "peers",
     "size",
-    "actions",
 ];
 
-export const REQUIRED_COLUMN_IDS: ColumnId[] = ["selection", "actions"];
+export const REQUIRED_COLUMN_IDS: ColumnId[] = ["selection"];
 
 export const ALL_COLUMN_IDS: ColumnId[] = Object.keys(
     COLUMN_DEFINITIONS

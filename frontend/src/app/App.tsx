@@ -578,30 +578,30 @@ export default function App() {
                 onSettings={() => openSettings()}
             />
 
-            <ModeLayout
-                torrents={torrents}
-                filter={filter}
-                isTableLoading={isTableLoading}
-                onAction={handleTorrentAction}
-                onRequestDetails={handleRequestDetails}
-                detailData={detailData}
-                onCloseDetail={closeDetail}
-                onFilesToggle={handleFileSelectionChange}
-                onSequentialToggle={sequentialToggleHandler}
-                onSuperSeedingToggle={superSeedingToggleHandler}
-                onForceTrackerReannounce={handleForceTrackerReannounce}
-                sequentialSupported={sequentialSupported}
-                superSeedingSupported={superSeedingSupported}
-            />
-
+            <main className="flex-1 min-h-0 flex flex-col">
+                <ModeLayout
+                    torrents={torrents}
+                    filter={filter}
+                    isTableLoading={isTableLoading}
+                    onAction={handleTorrentAction}
+                    onRequestDetails={handleRequestDetails}
+                    detailData={detailData}
+                    onCloseDetail={closeDetail}
+                    onFilesToggle={handleFileSelectionChange}
+                    onSequentialToggle={sequentialToggleHandler}
+                    onSuperSeedingToggle={superSeedingToggleHandler}
+                    onForceTrackerReannounce={handleForceTrackerReannounce}
+                    sequentialSupported={sequentialSupported}
+                    superSeedingSupported={superSeedingSupported}
+                />
             <StatusBar
                 sessionStats={sessionStats}
                 downHistory={downHistory}
                 upHistory={upHistory}
                 rpcStatus={rpcStatus}
-                engineInfo={engineInfo}
-                isDetectingEngine={isDetectingEngine}
+                selectedTorrent={detailData ?? undefined}
             />
+            </main>
             <AddTorrentModal
                 isOpen={isAddModalOpen}
                 onClose={handleAddModalClose}

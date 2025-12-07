@@ -1,8 +1,20 @@
-import { ArrowDown, ArrowUp, Network } from "lucide-react";
+import {
+    ArrowDown,
+    ArrowUp,
+    CheckCircle2,
+    AlertCircle,
+    Network,
+    Zap,
+    HardDrive,
+    Activity,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { formatSpeed } from "../../utils/format";
+import { formatSpeed } from "../../../shared/utils/format";
 import { NetworkGraph } from "../graphs/NetworkGraph";
-import type { SessionStats, EngineInfo } from "../../../services/rpc/entities";
+import type {
+    SessionStats,
+    TorrentEntity,
+} from "../../../services/rpc/entities";
 import type { RpcStatus } from "../../../shared/types/rpc";
 
 interface StatusBarProps {
@@ -10,8 +22,7 @@ interface StatusBarProps {
     downHistory: number[];
     upHistory: number[];
     rpcStatus: RpcStatus;
-    engineInfo: EngineInfo | null;
-    isDetectingEngine: boolean;
+    selectedTorrent?: TorrentEntity | null;
 }
 
 export function StatusBar({
@@ -19,104 +30,173 @@ export function StatusBar({
     downHistory,
     upHistory,
     rpcStatus,
-    engineInfo,
-    isDetectingEngine,
+    selectedTorrent,
 }: StatusBarProps) {
     const { t } = useTranslation();
-    const statusLabel = {
-        idle: t("status_bar.rpc_idle"),
-        connected: t("status_bar.rpc_connected"),
-        error: t("status_bar.rpc_error"),
+
+    // Configuration for status states
+    const statusConfig = {
+        idle: {
+            label: t("status_bar.rpc_idle"),
+            color: "text-foreground/40",
+            icon: Zap,
+        },
+        connected: {
+            label: t("status_bar.rpc_connected"),
+            color: "text-success",
+            icon: CheckCircle2,
+        },
+        error: {
+            label: t("status_bar.rpc_error"),
+            color: "text-danger",
+            icon: AlertCircle,
+        },
     }[rpcStatus];
-    const engineName = engineInfo ? engineInfo.name ?? engineInfo.type : null;
-    const engineLabel = engineName
-        ? `${engineName}${engineInfo?.version ? ` ${engineInfo.version}` : ""}`
-        : isDetectingEngine
-        ? t("status_bar.engine_detecting")
-        : t("status_bar.engine_unknown");
-    const statusColor =
-        rpcStatus === "connected"
-            ? "text-success"
-            : rpcStatus === "error"
-            ? "text-danger"
-            : "text-foreground/50";
-    const downSpeed = sessionStats?.downloadSpeed ?? 0;
-    const upSpeed = sessionStats?.uploadSpeed ?? 0;
-    const torrentSummary = sessionStats
-        ? `${sessionStats.activeTorrentCount}/${sessionStats.torrentCount} active`
-        : "Loading stats...";
+
+    const downSpeed =
+        selectedTorrent?.speed.down ?? sessionStats?.downloadSpeed ?? 0;
+    const upSpeed = selectedTorrent?.speed.up ?? sessionStats?.uploadSpeed ?? 0;
+
+    const isSelection = !!selectedTorrent;
+    const summaryLabel = isSelection ? "SELECTION" : "ACTIVE";
+    const summaryValue = isSelection
+        ? selectedTorrent.name
+        : sessionStats
+        ? `${sessionStats.activeTorrentCount} / ${sessionStats.torrentCount}`
+        : "--";
 
     return (
-        <footer className="z-20 flex flex-col border-t border-content1/20 bg-content1/70 backdrop-blur-xl text-[10px] font-mono select-none">
-            <div className="flex h-9 items-center justify-between px-4">
-                <div className="flex items-center gap-6">
-                    {/* Download Section */}
-                    <div className="flex items-center gap-3 opacity-90 hover:opacity-100 transition-opacity">
-                        <div className="flex items-center gap-1.5 text-success">
-                            <ArrowDown size={12} />
-                            <span className="font-bold tracking-wider">
-                                {t("status_bar.down")}
-                            </span>
+        <footer className="w-full shrink-0 border-t border-border/40 bg-background/80 backdrop-blur-xl select-none relative z-50">
+            <div className="flex h-[72px] items-center justify-between gap-8 px-6">
+                {/* --- LEFT: SPEED TICKERS --- */}
+                {/* We use flex-1 to take up all available space, split into two equal zones */}
+                <div className="flex flex-1 items-center gap-8 h-full py-3">
+                    {/* DOWNLOAD ZONE */}
+                    <div className="flex flex-1 items-center gap-4 h-full min-w-0">
+                        {/* Text Group */}
+                        <div className="flex items-center gap-3 shrink-0">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-success/10 text-success">
+                                <ArrowDown size={20} strokeWidth={2.5} />
+                            </div>
+                            <div className="flex flex-col justify-center">
+                                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">
+                                    {t("status_bar.down")}
+                                </span>
+                                <span className="text-xl font-bold tracking-tight text-foreground tabular-nums leading-none">
+                                    {formatSpeed(downSpeed)}
+                                </span>
+                            </div>
                         </div>
-                        <span className="text-foreground min-w-[60px]">
-                            {formatSpeed(downSpeed)}
-                        </span>
-                        <div className="w-16 h-6">
-                            <NetworkGraph data={downHistory} color="success" />
+
+                        {/* Graph - Fills remaining space next to text */}
+                        <div className="flex-1 h-full min-w-[100px] opacity-40 hover:opacity-100 transition-opacity">
+                            <NetworkGraph
+                                data={downHistory}
+                                color="success"
+                                className="h-full w-full"
+                            />
                         </div>
                     </div>
 
-                    <div className="h-4 w-px bg-content1/30" />
+                    {/* SEPARATOR (Optional visual break between Down/Up) */}
+                    <div className="h-8 w-px bg-border/40" />
 
-                    {/* Upload Section */}
-                    <div className="flex items-center gap-3 opacity-90 hover:opacity-100 transition-opacity">
-                        <div className="flex items-center gap-1.5 text-primary">
-                            <ArrowUp size={12} />
-                            <span className="font-bold tracking-wider">
-                                {t("status_bar.up")}
+                    {/* UPLOAD ZONE */}
+                    <div className="flex flex-1 items-center gap-4 h-full min-w-0">
+                        {/* Text Group */}
+                        <div className="flex items-center gap-3 shrink-0">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+                                <ArrowUp size={20} strokeWidth={2.5} />
+                            </div>
+                            <div className="flex flex-col justify-center">
+                                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">
+                                    {t("status_bar.up")}
+                                </span>
+                                <span className="text-xl font-bold tracking-tight text-foreground tabular-nums leading-none">
+                                    {formatSpeed(upSpeed)}
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Graph - Fills remaining space next to text */}
+                        <div className="flex-1 h-full min-w-[100px] opacity-40 hover:opacity-100 transition-opacity">
+                            <NetworkGraph
+                                data={upHistory}
+                                color="primary"
+                                className="h-full w-full"
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                {/* --- RIGHT: SYSTEM HUD (Unchanged per request) --- */}
+                <div className="flex shrink-0 items-center gap-6 text-[11px] pl-6 border-l border-border/40 h-10">
+                    {/* SECTION: TORRENT INFO */}
+                    <div className="flex flex-col items-end gap-0.5">
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/50">
+                            {summaryLabel}
+                        </span>
+                        <div className="flex items-center gap-2">
+                            <span
+                                className="font-semibold text-foreground max-w-[200px] truncate"
+                                title={summaryValue}
+                            >
+                                {summaryValue}
                             </span>
+                            {!isSelection && (
+                                <Activity
+                                    size={14}
+                                    className="text-muted-foreground/50"
+                                />
+                            )}
+                            {isSelection && (
+                                <HardDrive
+                                    size={14}
+                                    className="text-muted-foreground/50"
+                                />
+                            )}
                         </div>
-                        <span className="text-foreground min-w-[60px]">
-                            {formatSpeed(upSpeed)}
+                    </div>
+
+                    {/* SECTION: NETWORK STATUS */}
+                    <div className="flex flex-col items-end gap-0.5 border-l border-border/40 pl-6 h-full justify-center">
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/50">
+                            Network
                         </span>
-                        <div className="w-16 h-6">
-                            <NetworkGraph data={upHistory} color="primary" />
+                        <div className="flex items-center gap-2">
+                            <span className="font-medium text-muted-foreground tabular-nums">
+                                {t("status_bar.dht_nodes", { count: 342 })}
+                            </span>
+                            <Network
+                                size={14}
+                                className="text-muted-foreground/50"
+                            />
+                        </div>
+                    </div>
+
+                    {/* SECTION: RPC CONNECTION */}
+                    <div className="flex flex-col items-end gap-0.5 min-w-[80px] border-l border-border/40 pl-6 h-full justify-center">
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/50">
+                            Engine
+                        </span>
+                        <div
+                            className={`flex items-center gap-1.5 ${statusConfig.color}`}
+                        >
+                            <span className="font-bold tracking-wide uppercase text-[10px]">
+                                {statusConfig.label}
+                            </span>
+                            <statusConfig.icon
+                                size={14}
+                                strokeWidth={2.5}
+                                className={
+                                    rpcStatus !== "connected"
+                                        ? "animate-pulse"
+                                        : ""
+                                }
+                            />
                         </div>
                     </div>
                 </div>
-                <div className="hidden flex-col items-end gap-1 sm:flex">
-                    <div className="text-xs text-foreground/50">
-                        {torrentSummary}
-                    </div>
-                    <div className="flex items-center gap-1.5 text-foreground/40">
-                        <Network size={12} />
-                        <span>{t("status_bar.dht_nodes", { count: 342 })}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                        <div className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
-                        <span className="text-[10px] uppercase tracking-[0.3em] text-foreground/60">
-                            {t("status_bar.online")}
-                        </span>
-                    </div>
-                    <div className="flex flex-col gap-0.5 items-end">
-                        <span className="text-[10px] uppercase tracking-[0.3em] text-foreground/40">
-                            {t("status_bar.engine")}
-                        </span>
-                        <span className="text-[11px] font-mono text-foreground/50">
-                            {engineLabel}
-                        </span>
-                    </div>
-                </div>
-            </div>
-            <div className="flex h-5 items-center justify-between px-4 text-foreground/50">
-                <span className="text-[10px] uppercase tracking-[0.3em] text-foreground/40">
-                    {t("status_bar.rpc_status")}
-                </span>
-                <span
-                    className={`text-[10px] font-semibold uppercase tracking-[0.3em] ${statusColor}`}
-                >
-                    {statusLabel}
-                </span>
             </div>
         </footer>
     );
