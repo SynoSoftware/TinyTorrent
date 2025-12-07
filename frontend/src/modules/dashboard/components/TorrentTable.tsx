@@ -15,6 +15,7 @@ import {
     SortableContext,
     arrayMove,
     horizontalListSortingStrategy,
+    verticalListSortingStrategy,
     useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -235,6 +236,29 @@ const DraggableHeader = memo(
     }
 );
 
+const renderVisibleCells = (row: Row<Torrent>) =>
+    row.getVisibleCells().map((cell) => {
+        const align = cell.column.columnDef.meta?.align || "start";
+        return (
+            <div
+                key={cell.id}
+                style={{
+                    width: cell.column.getSize(),
+                    boxSizing: "border-box",
+                }}
+                className={cn(
+                    CELL_BASE_CLASSES,
+                    CELL_PADDING_CLASS,
+                    align === "center" && "justify-center",
+                    align === "end" && "justify-end",
+                    cell.column.id === "selection" && "justify-center px-0"
+                )}
+            >
+                {flexRender(cell.column.columnDef.cell, cell.getContext())}
+            </div>
+        );
+    });
+
 // --- SUB-COMPONENT: VIRTUAL ROW ---
 const VirtualRow = memo(
     ({
@@ -245,6 +269,10 @@ const VirtualRow = memo(
         onClick,
         onDoubleClick,
         onContextMenu,
+        isQueueSortActive,
+        dropTargetRowId,
+        activeRowId,
+        onDropTargetChange,
     }: {
         row: Row<Torrent>;
         virtualRow: VirtualItem;
@@ -253,59 +281,100 @@ const VirtualRow = memo(
         onClick: (e: React.MouseEvent, rowId: string, index: number) => void;
         onDoubleClick: (torrent: Torrent) => void;
         onContextMenu: (e: React.MouseEvent, torrent: Torrent) => void;
+        isQueueSortActive: boolean;
+        dropTargetRowId: string | null;
+        activeRowId: string | null;
+        onDropTargetChange?: (id: string | null) => void;
     }) => {
-        const rowStyle = useMemo<CSSProperties>(
-            () => ({
-                transform: `translateY(${virtualRow.start}px)`,
+        const {
+            setNodeRef,
+            attributes,
+            listeners,
+            transform,
+            transition,
+            isDragging,
+            isOver,
+        } = useSortable({
+            id: row.id,
+            disabled: !isQueueSortActive,
+        });
+
+        const rowStyle = useMemo<CSSProperties>(() => {
+            const style: CSSProperties = {
+                position: "absolute",
+                top: `${virtualRow.start}px`,
+                left: 0,
+                width: "100%",
                 height: `${TABLE_LAYOUT.rowHeight}px`,
                 boxSizing: "border-box",
-            }),
-            [virtualRow.start]
-        );
+            };
+            if (transform) {
+                style.transform = CSS.Translate.toString(transform);
+            }
+            if (transition) {
+                style.transition = transition;
+            }
+            if (isDragging) {
+                style.zIndex = 40;
+            }
+            return style;
+        }, [virtualRow.start, transform, transition, isDragging]);
+
+        const isDropTarget =
+            dropTargetRowId === row.id && activeRowId !== row.id;
+
+        useEffect(() => {
+            if (!isQueueSortActive || !onDropTargetChange) return;
+            if (row.id === activeRowId) return;
+            if (isOver) {
+                onDropTargetChange(row.id);
+                return;
+            }
+            if (dropTargetRowId === row.id) {
+                onDropTargetChange(null);
+            }
+        }, [
+            isOver,
+            row.id,
+            isQueueSortActive,
+            onDropTargetChange,
+            dropTargetRowId,
+            activeRowId,
+        ]);
 
         return (
             <div
+                ref={setNodeRef}
                 data-index={virtualRow.index}
+                {...(attributes ?? {})}
+                {...(listeners ?? {})}
                 className={cn(
-                    "absolute top-0 left-0 flex items-center w-full border-b border-content1/5 transition-colors cursor-default",
+                    "absolute top-0 left-0 border-b border-content1/5 transition-colors",
                     "box-border",
-                    // STABILITY FIX: Always have border-l-2. Use transparent when not selected.
                     "border-l-2",
-                    isSelected
-                        ? "bg-primary/10 border-l-primary"
-                        : "border-l-transparent hover:bg-content1/10",
-                    isContext && !isSelected && "bg-content1/20"
+                    isSelected ? "border-l-primary" : "border-l-transparent",
+                    isQueueSortActive ? "cursor-grab" : "cursor-default",
+                    isDragging && "cursor-grabbing"
                 )}
                 style={rowStyle}
                 onClick={(e) => onClick(e, row.id, virtualRow.index)}
                 onDoubleClick={() => onDoubleClick(row.original)}
                 onContextMenu={(e) => onContextMenu(e, row.original)}
             >
-                {row.getVisibleCells().map((cell) => {
-                    const align = cell.column.columnDef.meta?.align || "start";
-                    return (
-                        <div
-                            key={cell.id}
-                            style={{
-                                width: cell.column.getSize(),
-                                boxSizing: "border-box",
-                            }}
-                            className={cn(
-                                CELL_BASE_CLASSES,
-                                CELL_PADDING_CLASS,
-                                align === "center" && "justify-center",
-                                align === "end" && "justify-end",
-                                cell.column.id === "selection" &&
-                                    "justify-center px-0"
-                            )}
-                        >
-                            {flexRender(
-                                cell.column.columnDef.cell,
-                                cell.getContext()
-                            )}
-                        </div>
-                    );
-                })}
+                <div
+                    className={cn(
+                        "relative flex items-center w-full h-full",
+                        isSelected
+                            ? "bg-primary/10"
+                            : "hover:bg-content1/10",
+                        isContext && !isSelected && "bg-content1/20"
+                    )}
+                >
+                    {renderVisibleCells(row)}
+                    {isDropTarget && (
+                        <div className="pointer-events-none absolute left-0 right-0 top-0 h-1 bg-primary/70" />
+                    )}
+                </div>
             </div>
         );
     }
@@ -386,6 +455,12 @@ export function TorrentTable({
     const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
     const [activeDragHeaderId, setActiveDragHeaderId] = useState<string | null>(
+        null
+    );
+    const [activeRowId, setActiveRowId] = useState<string | null>(
+        null
+    );
+    const [dropTargetRowId, setDropTargetRowId] = useState<string | null>(
         null
     );
     const [isColumnModalOpen, setIsColumnModalOpen] = useState(false);
@@ -511,6 +586,87 @@ export function TorrentTable({
         overscan: TABLE_LAYOUT.overscan,
     });
 
+    const rowIds = useMemo(() => rows.map((row) => row.id), [rows]);
+    const rowsById = useMemo(() => {
+        const map = new Map<string, Row<Torrent>>();
+        rows.forEach((row) => {
+            map.set(row.id, row);
+        });
+        return map;
+    }, [rows]);
+    const queueColumn = table.getColumn("queue");
+    const queueSortDirection = queueColumn?.getIsSorted() ?? false;
+    const canReorderQueue = Boolean(queueSortDirection) && Boolean(onAction);
+
+    useEffect(() => {
+        if (!canReorderQueue) {
+            setActiveRowId(null);
+            setDropTargetRowId(null);
+        }
+    }, [canReorderQueue]);
+
+    const handleDropTargetChange = useCallback((id: string | null) => {
+        setDropTargetRowId(id);
+    }, []);
+
+    const handleRowDragStart = useCallback(
+        (event: DragStartEvent) => {
+            if (!canReorderQueue) return;
+            setActiveRowId(event.active.id as string);
+        },
+        [canReorderQueue]
+    );
+
+    const handleRowDragEnd = useCallback(
+        async (event: DragEndEvent) => {
+            setActiveRowId(null);
+            setDropTargetRowId(null);
+            if (!canReorderQueue) return;
+            const { active, over } = event;
+            if (!active || !over || active.id === over.id) return;
+            const draggedIndex = rowIds.indexOf(active.id as string);
+            const targetIndex = rowIds.indexOf(over.id as string);
+            if (draggedIndex === -1 || targetIndex === -1) return;
+            const draggedRow = rowsById.get(active.id as string);
+            if (!draggedRow || !onAction) return;
+
+            const normalizedFrom =
+                queueSortDirection === "desc"
+                    ? rows.length - 1 - draggedIndex
+                    : draggedIndex;
+            const normalizedTo =
+                queueSortDirection === "desc"
+                    ? rows.length - 1 - targetIndex
+                    : targetIndex;
+            const delta = normalizedTo - normalizedFrom;
+            if (delta === 0) return;
+
+            const actionKey =
+                delta > 0 ? "queue-move-down" : "queue-move-up";
+            const steps = Math.abs(delta);
+            for (let i = 0; i < steps; i++) {
+                await onAction(actionKey, draggedRow.original);
+            }
+        },
+        [
+            canReorderQueue,
+            onAction,
+            queueSortDirection,
+            rowIds,
+            rowsById,
+            rows.length,
+        ]
+    );
+
+    const handleRowDragCancel = useCallback(() => {
+        setActiveRowId(null);
+        setDropTargetRowId(null);
+    }, []);
+
+    const activeDragRow = activeRowId
+        ? rowsById.get(activeRowId) ?? null
+        : null;
+
     const handleKeyDown = useCallback(
         (event: React.KeyboardEvent<HTMLDivElement>) => {
             const allRows = table.getRowModel().rows;
@@ -628,6 +784,14 @@ export function TorrentTable({
 
     // --- SENSORS ---
     const sensors = useSensors(
+        useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
+        useSensor(TouchSensor, {
+            activationConstraint: { delay: 250, tolerance: 5 },
+        }),
+        useSensor(KeyboardSensor)
+    );
+
+    const rowSensors = useSensors(
         useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
         useSensor(TouchSensor, {
             activationConstraint: { delay: 250, tolerance: 5 },
@@ -794,7 +958,18 @@ export function TorrentTable({
                                     {t("table.empty_desc")}
                                 </p>
                             </div>
-                        ) : (
+                ) : (
+                    <DndContext
+                        collisionDetection={closestCenter}
+                        sensors={canReorderQueue ? rowSensors : undefined}
+                        onDragStart={handleRowDragStart}
+                        onDragEnd={handleRowDragEnd}
+                        onDragCancel={handleRowDragCancel}
+                    >
+                        <SortableContext
+                            items={rowIds}
+                            strategy={verticalListSortingStrategy}
+                        >
                             <div
                                 className="relative w-full min-w-max"
                                 style={{
@@ -811,7 +986,9 @@ export function TorrentTable({
                                                 key={row.id}
                                                 row={row}
                                                 virtualRow={virtualRow}
-                                                isSelected={row.getIsSelected()}
+                                                isSelected={
+                                                    row.getIsSelected()
+                                                }
                                                 isContext={
                                                     contextMenu?.torrent.id ===
                                                     row.original.id
@@ -823,11 +1000,38 @@ export function TorrentTable({
                                                 onContextMenu={
                                                     handleContextMenu
                                                 }
+                                                isQueueSortActive={
+                                                    canReorderQueue
+                                                }
+                                                dropTargetRowId={
+                                                    dropTargetRowId
+                                                }
+                                                activeRowId={activeRowId}
+                                                onDropTargetChange={
+                                                    handleDropTargetChange
+                                                }
                                             />
                                         );
                                     })}
                             </div>
-                        )}
+                        </SortableContext>
+                        <DragOverlay adjustScale={false} dropAnimation={null}>
+                            {activeDragRow ? (
+                                <div
+                                    style={{
+                                        width: table.getTotalSize(),
+                                        height: TABLE_LAYOUT.rowHeight,
+                                    }}
+                                    className="pointer-events-none border border-content1/20 bg-background/90 shadow-2xl backdrop-blur-3xl"
+                                >
+                                    <div className="flex h-full w-full items-center">
+                                        {renderVisibleCells(activeDragRow)}
+                                    </div>
+                                </div>
+                            ) : null}
+                        </DragOverlay>
+                    </DndContext>
+                )}
                     </div>
                 </DndContext>
 
