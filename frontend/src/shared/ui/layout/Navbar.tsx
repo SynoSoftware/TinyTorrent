@@ -16,8 +16,14 @@ import { ThemeToggle } from "../controls/ThemeToggle";
 import { LanguageMenu } from "../controls/LanguageMenu";
 import { ICON_STROKE_WIDTH } from "../../../config/iconography";
 import { SmoothProgressBar } from "../components/SmoothProgressBar";
+import type { FeedbackMessage, FeedbackTone } from "../../types/feedback";
 
-type FeedbackTone = "info" | "success" | "warning" | "danger";
+const FEEDBACK_TONE_CLASSES: Record<FeedbackTone, string> = {
+    info: "text-primary",
+    success: "text-success",
+    warning: "text-warning",
+    danger: "text-danger",
+};
 
 interface NavbarProps {
     filter: string;
@@ -29,23 +35,13 @@ interface NavbarProps {
     onPauseSelection: () => void;
     onRecheckSelection: () => void;
     onRemoveSelection: () => void;
-    actionFeedback?: {
-        message: string;
-        tone: FeedbackTone;
-    } | null;
+    actionFeedback?: FeedbackMessage | null;
     rehashStatus?: {
         active: boolean;
         value: number;
         label: string;
     };
 }
-
-const FEEDBACK_TONE_CLASSES: Record<FeedbackTone, string> = {
-    info: "text-primary",
-    success: "text-success",
-    warning: "text-warning",
-    danger: "text-danger",
-};
 
 export function Navbar({
     filter,
@@ -63,7 +59,20 @@ export function Navbar({
     const { t } = useTranslation();
 
     return (
-        <header className="app-titlebar z-20 flex h-16 shrink-0 items-center justify-between gap-4 px-6 sticky top-0 select-none">
+        <header className="app-titlebar z-20 flex h-16 shrink-0 items-center justify-between gap-4 px-6 sticky top-0 select-none relative overflow-visible">
+            {actionFeedback && (
+                <div className="pointer-events-none absolute bottom-[-14px] right-6 z-10">
+                    <div
+                        className={cn(
+                            "rounded-full border border-content1/20 bg-content1/90 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] shadow-lg shadow-black/20 backdrop-blur-md",
+                            FEEDBACK_TONE_CLASSES[actionFeedback.tone]
+                        )}
+                        aria-live="polite"
+                    >
+                        {actionFeedback.message}
+                    </div>
+                </div>
+            )}
             <div className="flex items-center gap-8">
                 {/* Brand */}
                 <div className="flex items-center gap-3">
@@ -261,48 +270,30 @@ export function Navbar({
                         {t("toolbar.add_torrent")}
                     </Button>
                 </div>
-                {(actionFeedback || rehashStatus?.active) && (
-                    <div className="flex flex-col gap-1">
-                        {actionFeedback && (
-                            <span
-                                className={cn(
-                                    "text-[10px] font-semibold uppercase tracking-[0.3em]",
-                                    FEEDBACK_TONE_CLASSES[actionFeedback.tone]
-                                )}
-                                aria-live="polite"
-                            >
-                                {actionFeedback.message}
-                            </span>
-                        )}
-                        {rehashStatus?.active && (
-                            <div className="flex flex-col gap-1">
-                                <div className="flex items-center justify-between text-[11px] text-foreground/50">
-                                    <span className="truncate">
-                                        {rehashStatus.label}
-                                    </span>
-                                    <span className="font-semibold tabular-nums">
-                                        {Math.round(
-                                            Math.min(
-                                                Math.max(
-                                                    rehashStatus.value,
-                                                    0
-                                                ),
-                                                100
-                                            )
-                                        )}
-                                        %
-                                    </span>
-                                </div>
-                                <SmoothProgressBar
-                                    value={Math.min(
-                                        Math.max(rehashStatus.value, 0),
-                                        100
+                {rehashStatus?.active && (
+                    <div className="pointer-events-none absolute inset-x-0 bottom-0 px-6">
+                        <div className="flex flex-col gap-1">
+                            <div className="flex items-center justify-between text-[11px] text-foreground/50">
+                                <span className="truncate">{rehashStatus.label}</span>
+                                <span className="font-semibold tabular-nums">
+                                    {Math.round(
+                                        Math.min(
+                                            Math.max(rehashStatus.value, 0),
+                                            100
+                                        )
                                     )}
-                                    trackClassName="h-1 bg-content1/10"
-                                    indicatorClassName="h-full rounded-full bg-gradient-to-r from-primary/70 to-primary"
-                                />
+                                    %
+                                </span>
                             </div>
-                        )}
+                            <SmoothProgressBar
+                                value={Math.min(
+                                    Math.max(rehashStatus.value, 0),
+                                    100
+                                )}
+                                trackClassName="h-1 bg-content1/10"
+                                indicatorClassName="h-full rounded-full bg-gradient-to-r from-primary/70 to-primary"
+                            />
+                        </div>
                     </div>
                 )}
             </div>

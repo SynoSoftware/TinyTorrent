@@ -29,21 +29,31 @@ export function useTorrentDetail({
 }: UseTorrentDetailParams): UseTorrentDetailResult {
     const [detailData, setDetailData] = useState<TorrentDetail | null>(null);
     const detailRequestRef = useRef(0);
+    const activeDetailIdRef = useRef<string | null>(null);
 
     const loadDetail = useCallback(
         async (torrentId: string, placeholder?: TorrentDetail) => {
             const requestId = ++detailRequestRef.current;
+            activeDetailIdRef.current = torrentId;
             if (placeholder) {
                 setDetailData(placeholder);
             }
             try {
                 const detail = await torrentClient.getTorrentDetails(torrentId);
-                if (detailRequestRef.current !== requestId) return;
+                if (
+                    detailRequestRef.current !== requestId ||
+                    activeDetailIdRef.current !== torrentId
+                )
+                    return;
                 if (isMountedRef.current) {
                     setDetailData(detail);
                 }
             } catch {
-                if (detailRequestRef.current !== requestId) return;
+                if (
+                    detailRequestRef.current !== requestId ||
+                    activeDetailIdRef.current !== torrentId
+                )
+                    return;
                 if (isMountedRef.current) {
                     reportRpcStatus("error");
                 }
@@ -70,6 +80,7 @@ export function useTorrentDetail({
 
     const clearDetail = useCallback(() => {
         detailRequestRef.current += 1;
+        activeDetailIdRef.current = null;
         setDetailData(null);
     }, []);
 

@@ -1,0 +1,1 @@
+export const DETAIL_REFRESH_INTERVAL_MS = 1000;
