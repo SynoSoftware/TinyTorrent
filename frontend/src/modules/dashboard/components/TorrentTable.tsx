@@ -16,6 +16,7 @@ import {
     horizontalListSortingStrategy,
     verticalListSortingStrategy,
     useSortable,
+    defaultAnimateLayoutChanges,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
@@ -288,7 +289,7 @@ const DraggableHeader = memo(
                 </div>
 
                 {!isOverlay && header.column.getCanResize() && (
-                    <div
+                        <div
                         onMouseDown={(e) => {
                             header.getResizeHandler()(e);
                             e.stopPropagation();
@@ -308,12 +309,56 @@ const DraggableHeader = memo(
                                     "bg-primary w-[2px] h-6"
                             )}
                         />
-                    </div>
+                        </div>
                 )}
             </div>
         );
     }
 );
+
+const ColumnHeaderPreview = ({
+    header,
+}: {
+    header: Header<Torrent, unknown>;
+}) => {
+    const { column } = header;
+    const align = column.columnDef.meta?.align || "start";
+    const isSelection = header.id === "selection";
+    const sortState = column.getIsSorted();
+    return (
+        <div
+            className="relative flex h-10 items-center border-r border-content1/10 bg-content1/90 px-2 shadow-xl transition-all"
+            style={{ width: column.getSize(), boxSizing: "border-box" }}
+        >
+            <div
+                className={cn(
+                    CELL_BASE_CLASSES,
+                    "flex-1 gap-2 text-[10px] font-bold uppercase tracking-[0.15em] text-foreground/70",
+                    CELL_PADDING_CLASS,
+                    align === "center" && "justify-center",
+                    align === "end" && "justify-end",
+                    isSelection && "justify-center px-0"
+                )}
+            >
+                {flexRender(column.columnDef.header, header.getContext())}
+                {sortState === "asc" && (
+                    <ArrowUp
+                        size={12}
+                        strokeWidth={ICON_STROKE_WIDTH_DENSE}
+                        className="text-primary shrink-0"
+                    />
+                )}
+                {sortState === "desc" && (
+                    <ArrowDown
+                        size={12}
+                        strokeWidth={ICON_STROKE_WIDTH_DENSE}
+                        className="text-primary shrink-0"
+                    />
+                )}
+            </div>
+        </div>
+    );
+};
 
 const renderVisibleCells = (row: Row<Torrent>) =>
     row.getVisibleCells().map((cell) => {
@@ -369,6 +414,7 @@ const VirtualRow = memo(
         isHighlighted: boolean;
         onDropTargetChange?: (id: string | null) => void;
     }) => {
+        // Inside VirtualRow component
         const {
             setNodeRef,
             attributes,
@@ -380,6 +426,15 @@ const VirtualRow = memo(
         } = useSortable({
             id: row.id,
             disabled: !isQueueSortActive,
+            // FIX: Disable animation when the drag ends (wasDragging) to prevent
+            // the row from animating "back" while the virtualizer moves it "to".
+            animateLayoutChanges: (args) => {
+                const { wasDragging } = args;
+                if (wasDragging) {
+                    return false;
+                }
+                return defaultAnimateLayoutChanges(args);
+            },
         });
 
         const rowStyle = useMemo<CSSProperties>(() => {
@@ -466,9 +521,6 @@ const VirtualRow = memo(
                     )}
                 >
                     {renderVisibleCells(row)}
-                    {isDropTarget && (
-                        <div className="pointer-events-none absolute left-0 right-0 top-0 h-0.5 bg-primary shadow-[0_0_8px_rgba(var(--heroui-primary),0.8)] z-50" />
-                    )}
                 </div>
             </div>
         );
@@ -769,8 +821,7 @@ export function TorrentTable({
         onColumnSizingChange: setColumnSizing,
         onRowSelectionChange: setRowSelection,
         enableRowSelection: true,
-        // CRITICAL FIX: Prevent selection clearing on poll
-        autoResetRowSelection: false,
+        autoResetAll: false,
     });
 
     const { rows } = table.getRowModel();
@@ -780,46 +831,6 @@ export function TorrentTable({
         estimateSize: () => TABLE_LAYOUT.rowHeight,
         overscan: TABLE_LAYOUT.overscan,
     });
-
-    const totalVirtualHeight = rowVirtualizer.getTotalSize();
-    const markerHeightPercent =
-        totalVirtualHeight > 0
-            ? (TABLE_LAYOUT.rowHeight / totalVirtualHeight) * 100
-            : 0;
-    const heatmapMarkers = useMemo(
-        () =>
-            rows
-                .map((row, index) => {
-                    // Use optimistic status if present
-                    const displayState = row.original.state;
-                    const color =
-                        displayState === "error" || row.original.error
-                            ? "bg-danger/70"
-                            : displayState === "seeding" ||
-                              row.original.isFinished
-                            ? "bg-success/70"
-                            : null;
-                    if (!color || totalVirtualHeight === 0) {
-                        return null;
-                    }
-                    const topPercent =
-                        (index * TABLE_LAYOUT.rowHeight) / totalVirtualHeight;
-                    return {
-                        key: row.id,
-                        color,
-                        topPercent: Math.min(
-                            Math.max(topPercent * 100, 0),
-                            100
-                        ),
-                    };
-                })
-                .filter(Boolean) as {
-                key: string;
-                color: string;
-                topPercent: number;
-            }[],
-        [rows, totalVirtualHeight]
-    );
 
     const selectAllRows = useCallback(() => {
         const allRows = table.getRowModel().rows;
@@ -1142,6 +1153,13 @@ export function TorrentTable({
         }
     }, [contextMenu, torrents]);
 
+    const headerContainerClass = cn(
+        "flex w-full sticky top-0 z-20 rounded-t-[28px] border-b border-content1/20 bg-content1/10 backdrop-blur-sm px-0"
+    );
+    const tableShellClass = cn(
+        "relative flex-1 min-h-0 flex flex-col overflow-hidden rounded-[32px] border border-content1/20 bg-content1/10 shadow-[0_20px_60px_rgba(0,0,0,0.25)]"
+    );
+
     return (
         <>
             <div
@@ -1153,66 +1171,50 @@ export function TorrentTable({
                 className="flex-1 min-h-0 flex flex-col h-full overflow-hidden bg-background/20 relative select-none outline-none"
                 onClick={() => setContextMenu(null)}
             >
-                {heatmapMarkers.length > 0 && (
-                    <div className="pointer-events-none absolute top-0 right-1 h-full w-1 z-20">
-                        {heatmapMarkers.map((marker) => (
-                            <div
-                                key={marker.key}
-                                className={cn(
-                                    "absolute right-0 w-full rounded-full shadow-[0_0_12px_rgba(0,0,0,0.3)]",
-                                    marker.color
-                                )}
-                                style={{
-                                    top: `${marker.topPercent}%`,
-                                    height: `${markerHeightPercent}%`,
-                                }}
-                            />
-                        ))}
-                    </div>
-                )}
                 <DndContext
                     collisionDetection={closestCenter}
                     sensors={sensors}
                     onDragStart={handleDragStart}
                     onDragEnd={handleDragEnd}
                 >
-                    <div className="flex w-full sticky top-0 z-30 border-b border-content1/20 shadow-sm bg-background/40 backdrop-blur-md">
-                        <SortableContext
-                            items={columnOrder}
-                            strategy={horizontalListSortingStrategy}
+                    <div className={tableShellClass}>
+                        <div className={headerContainerClass}>
+                            <SortableContext
+                                items={columnOrder}
+                                strategy={horizontalListSortingStrategy}
+                            >
+                                {table.getHeaderGroups().map((headerGroup) => (
+                                    <div
+                                        key={headerGroup.id}
+                                        className="flex w-full min-w-max"
+                                    >
+                                        {headerGroup.headers.map((header) => (
+                                            <DraggableHeader
+                                                key={header.id}
+                                                header={header}
+                                                onContextMenu={(e) => {
+                                                    e.preventDefault();
+                                                    openColumnModal(
+                                                        e.currentTarget as HTMLElement
+                                                    );
+                                                }}
+                                            />
+                                        ))}
+                                    </div>
+                                ))}
+                            </SortableContext>
+                        </div>
+
+                        <DragOverlay adjustScale={false} dropAnimation={null}>
+                            {activeHeader ? (
+                                <ColumnHeaderPreview header={activeHeader} />
+                            ) : null}
+                        </DragOverlay>
+
+                        <div
+                            ref={parentRef}
+                            className="flex-1 min-h-0 overflow-y-auto w-full overlay-scrollbar"
                         >
-                            {table.getHeaderGroups().map((headerGroup) => (
-                                <div
-                                    key={headerGroup.id}
-                                    className="flex w-full min-w-max"
-                                >
-                                    {headerGroup.headers.map((header) => (
-                                        <DraggableHeader
-                                            key={header.id}
-                                            header={header}
-                                            onContextMenu={(e) => {
-                                                e.preventDefault();
-                                                openColumnModal(
-                                                    e.currentTarget as HTMLElement
-                                                );
-                                            }}
-                                        />
-                                    ))}
-                                </div>
-                            ))}
-                        </SortableContext>
-                    </div>
-
-                    <DragOverlay adjustScale={false} dropAnimation={null}>
-                        {activeHeader ? (
-                            <DraggableHeader header={activeHeader} isOverlay />
-                        ) : null}
-                    </DragOverlay>
-
-                    <div
-                        ref={parentRef}
-                        className="flex-1 min-h-0 overflow-y-auto w-full overlay-scrollbar"
-                    >
                         {isLoading && torrents.length === 0 ? (
                             <div className="w-full">
                                 {Array.from({ length: 15 }).map((_, i) => (
@@ -1353,7 +1355,8 @@ export function TorrentTable({
                             </DndContext>
                         )}
                     </div>
-                </DndContext>
+                </div>
+            </DndContext>
 
                 <AnimatePresence>
                     {contextMenu && (

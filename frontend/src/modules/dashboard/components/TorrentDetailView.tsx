@@ -30,19 +30,14 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import { GlassPanel } from "../../../shared/ui/layout/GlassPanel";
-import {
-    formatBytes,
-    formatTime,
-} from "../../../shared/utils/format";
+import { formatBytes, formatTime } from "../../../shared/utils/format";
 import constants from "../../../config/constants.json";
 import { ICON_STROKE_WIDTH } from "../../../config/iconography";
 import { INTERACTION_CONFIG } from "../../../config/interaction";
 import type { Torrent, TorrentDetail } from "../types/torrent";
 import { SmoothProgressBar } from "../../../shared/ui/components/SmoothProgressBar";
 import type { TorrentTableAction } from "./TorrentTable";
-import type {
-    TorrentStatus,
-} from "../../../services/rpc/entities";
+import type { TorrentStatus } from "../../../services/rpc/entities";
 import { ContentTab } from "./details/tabs/ContentTab";
 import { GeneralTab } from "./details/tabs/GeneralTab";
 import { PeersTab } from "./details/tabs/PeersTab";
@@ -459,10 +454,16 @@ export function TorrentDetailView({
                                     <GeneralTab
                                         torrent={torrent}
                                         downloadDir={downloadDir}
-                                        sequentialSupported={sequentialSupported}
-                                        superSeedingSupported={superSeedingSupported}
+                                        sequentialSupported={
+                                            sequentialSupported
+                                        }
+                                        superSeedingSupported={
+                                            superSeedingSupported
+                                        }
                                         onSequentialToggle={onSequentialToggle}
-                                        onSuperSeedingToggle={onSuperSeedingToggle}
+                                        onSuperSeedingToggle={
+                                            onSuperSeedingToggle
+                                        }
                                         onForceTrackerReannounce={
                                             onForceTrackerReannounce
                                         }

@@ -45,22 +45,37 @@
         "save_path": "SAVE PATH",
         "start_now": "Start Immediately"
     },
+    "directory_browser": {
+        "title": "Choose Folder",
+        "root_label": "File System",
+        "up": "Up one level",
+        "open": "Open",
+        "empty": "No folders found.",
+        "select": "Use this folder",
+        "error": "Unable to inspect that path.",
+        "drive_label": "Drive"
+    },
     "nav": {
         "filter_all": "All",
         "filter_downloading": "Downloading",
         "filter_seeding": "Seeding",
         "search_placeholder": "Filter torrents..."
     },
-    "settings": {
+        "settings": {
         "buttons": {
-            "testPort": "Test"
+            "testPort": "Test",
+            "restore_hud": "Restore insights"
         },
-        "headers": {
+        "button": {
+            "browse": "Browse"
+        },
+            "headers": {
             "network": "Connectivity",
             "peers": "Peer Limits",
             "privacy": "Privacy",
             "speed": "Speed Limits",
-            "storage": "Storage"
+            "storage": "Storage",
+            "gui": "Interface"
         },
         "labels": {
             "altSpeedDays": "Scheduled Days",
@@ -102,6 +117,11 @@
             "upnp": "Enable UPnP / NAT-PMP",
             "useIncompleteFolder": "Use Incomplete Folder"
         },
+        "descriptions": {
+            "download_folder": "Completed torrents land here by default.",
+            "incomplete_folder": "Files remain in this directory until the download completes.",
+            "restore_hud": "Bring back the dismissed HUD cards for instant insights."
+        },
         "modal": {
             "footer": {
                 "cancel": "Cancel",
@@ -111,6 +131,7 @@
             },
             "title": "Settings"
         },
+        "unsaved_changes": "Unsaved changes",
         "options": {
             "encryption": {
                 "preferred": "Prefer Encryption",
@@ -121,6 +142,7 @@
         "sections": {
             "bandwidth": "Global Bandwidth",
             "behavior": "Behavior",
+            "dashboard": "Dashboard",
             "blocklist": "Blocklist",
             "connectionLimits": "Connection Limits",
             "encryption": "Encryption",
@@ -136,7 +158,8 @@
             "peers": "Peers",
             "privacy": "Privacy",
             "speed": "Speed",
-            "storage": "Storage"
+            "storage": "Storage",
+            "gui": "Interface"
         },
         "units": {
             "kbps": "{{value}} KB/s"
@@ -359,6 +382,17 @@
             "status_online": "Online",
             "status_partial": "Partial",
             "tier": "Tier"
+        }
+    },
+    "workspace": {
+        "stage": {
+            "restore_hud": "Restore insights",
+            "hud_dismissed": "Insights hidden. Restore to view connection, drag, and deep-link helpers.",
+            "dismiss_card": "Dismiss card"
+        },
+        "shell": {
+            "toggle_classic": "Switch to classic shell",
+            "toggle_immersive": "Switch to immersive shell"
         }
     }
 }

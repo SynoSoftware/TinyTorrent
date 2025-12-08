@@ -3,6 +3,7 @@ import { Moon, Sun } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ICON_STROKE_WIDTH } from "../../../config/iconography";
+import { TOOLBAR_ICON_BUTTON_CLASSES } from "../layout/toolbar-button";
 
 const STORAGE_KEY = "tiny-torrent-theme";
 
@@ -50,13 +51,13 @@ export function ThemeToggle() {
     const icon =
         mode === "dark" ? (
             <Moon
-                size={16}
+                size={22}
                 strokeWidth={ICON_STROKE_WIDTH}
                 className="text-base"
             />
         ) : (
             <Sun
-                size={16}
+                size={22}
                 strokeWidth={ICON_STROKE_WIDTH}
                 className="text-base"
             />
@@ -64,11 +65,10 @@ export function ThemeToggle() {
 
     return (
         <Button
-            variant="ghost"
-            radius="full"
-            size="sm"
             isIconOnly
-            className="text-foreground/70 hover:text-foreground"
+            variant="light"
+            radius="full"
+            className={TOOLBAR_ICON_BUTTON_CLASSES}
             aria-label={t("theme.toggle_label", { value: label })}
             onPress={toggleMode}
         >

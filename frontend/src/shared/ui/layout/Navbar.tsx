@@ -6,15 +6,19 @@ import {
     Play,
     RotateCcw,
     Search,
-    Settings2,
+    Settings,
+    Plus,
     Trash2,
     UploadCloud,
     Zap,
+    Monitor,
+    PanelsTopLeft,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ThemeToggle } from "../controls/ThemeToggle";
 import { LanguageMenu } from "../controls/LanguageMenu";
 import { ICON_STROKE_WIDTH } from "../../../config/iconography";
+import { ToolbarIconButton } from "../layout/toolbar-button";
 import { SmoothProgressBar } from "../components/SmoothProgressBar";
 import type { FeedbackMessage, FeedbackTone } from "../../types/feedback";
 
@@ -41,6 +45,9 @@ interface NavbarProps {
         value: number;
         label: string;
     };
+    workspaceStyle: "classic" | "immersive";
+    onWorkspaceToggle: () => void;
+    workspaceToggleLabel: string;
 }
 
 export function Navbar({
@@ -55,11 +62,16 @@ export function Navbar({
     onRemoveSelection,
     actionFeedback,
     rehashStatus,
+    workspaceStyle,
+    onWorkspaceToggle,
+    workspaceToggleLabel,
 }: NavbarProps) {
     const { t } = useTranslation();
+    const WorkspaceIcon =
+        workspaceStyle === "immersive" ? PanelsTopLeft : Monitor;
 
     return (
-        <header className="app-titlebar z-20 flex h-16 shrink-0 items-center justify-between gap-4 px-6 sticky top-0 select-none relative overflow-visible">
+        <header className="app-titlebar sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between gap-4 px-5 select-none rounded-[24px] border border-content1/15 bg-background/80 shadow-[0_15px_70px_rgba(0,0,0,0.45)] backdrop-blur-2xl relative overflow-visible">
             {actionFeedback && (
                 <div className="pointer-events-none absolute bottom-[-14px] right-6 z-10">
                     <div
@@ -149,79 +161,49 @@ export function Navbar({
             </div>
 
             {/* Global Actions */}
-            <div className="flex flex-col gap-2">
-                <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-1">
-                        <Button
-                            isIconOnly
-                            variant="ghost"
-                            radius="full"
-                            className="text-foreground/50 transition-colors hover:text-success disabled:text-foreground/30"
-                            disabled={!hasSelection}
-                            onPress={onResumeSelection}
-                            aria-label={t("toolbar.resume")}
+            <div className="flex flex-col gap-1.5">
+                <div className="flex items-center gap-2.5">
+                    <div className="flex items-center gap-1.5">
+                        <ToolbarIconButton
+                            Icon={Plus}
+                            ariaLabel={t("toolbar.add_torrent")}
+                            title={t("toolbar.add_torrent")}
+                            onPress={onAdd}
+                        />
+                        <ToolbarIconButton
+                            Icon={Play}
+                            ariaLabel={t("toolbar.resume")}
                             title={t("toolbar.resume")}
-                        >
-                            <Play
-                                size={16}
-                                strokeWidth={ICON_STROKE_WIDTH}
-                                className="text-current"
-                            />
-                        </Button>
-                        <Button
-                            isIconOnly
-                            variant="ghost"
-                            radius="full"
-                            className="text-foreground/50 transition-colors hover:text-warning disabled:text-foreground/30"
+                            onPress={onResumeSelection}
                             disabled={!hasSelection}
-                            onPress={onPauseSelection}
-                            aria-label={t("toolbar.pause")}
+                        />
+                        <ToolbarIconButton
+                            Icon={Pause}
+                            ariaLabel={t("toolbar.pause")}
                             title={t("toolbar.pause")}
-                        >
-                            <Pause
-                                size={16}
-                                strokeWidth={ICON_STROKE_WIDTH}
-                                className="text-current"
-                            />
-                        </Button>
-                        <Button
-                            isIconOnly
-                            variant="ghost"
-                            radius="full"
-                            className="text-foreground/50 transition-colors hover:text-primary disabled:text-foreground/30"
+                            onPress={onPauseSelection}
                             disabled={!hasSelection}
-                            onPress={onRecheckSelection}
-                            aria-label={t("toolbar.recheck")}
+                        />
+                        <ToolbarIconButton
+                            Icon={RotateCcw}
+                            ariaLabel={t("toolbar.recheck")}
                             title={t("toolbar.recheck")}
-                        >
-                            <RotateCcw
-                                size={16}
-                                strokeWidth={ICON_STROKE_WIDTH}
-                                className="text-current"
-                            />
-                        </Button>
-                        <Button
-                            isIconOnly
-                            variant="ghost"
-                            radius="full"
-                            className="text-foreground/50 transition-colors hover:text-danger disabled:text-foreground/30"
+                            onPress={onRecheckSelection}
                             disabled={!hasSelection}
-                            onPress={onRemoveSelection}
-                            aria-label={t("toolbar.remove")}
+                        />
+                        <ToolbarIconButton
+                            Icon={Trash2}
+                            ariaLabel={t("toolbar.remove")}
                             title={t("toolbar.remove")}
-                        >
-                            <Trash2
-                                size={16}
-                                strokeWidth={ICON_STROKE_WIDTH}
-                                className="text-current"
-                            />
-                        </Button>
+                            onPress={onRemoveSelection}
+                            disabled={!hasSelection}
+                        />
                     </div>
                     <Input
                         classNames={{
-                            base: "w-48 h-8",
+                            base: "w-44 h-8",
                             mainWrapper: "h-full",
-                            input: "text-small",
+                            input: "text-tiny",
                             inputWrapper:
                                 "h-full font-normal text-default-500 bg-default-400/20 dark:bg-default-500/20 border-content1/20",
                         }}
@@ -236,45 +218,32 @@ export function Navbar({
                         }
                     />
                     <div className="h-6 w-px bg-content1/20 mx-1" />
-                    <LanguageMenu />
-                    <ThemeToggle />
-                    <Button
-                        isIconOnly
-                        variant="ghost"
-                        radius="full"
-                        className="text-foreground/70"
-                        onPress={onSettings}
-                        aria-label={t("toolbar.settings")}
+                    <ToolbarIconButton
+                        Icon={Settings}
+                        ariaLabel={t("toolbar.settings")}
                         title={t("toolbar.settings")}
-                    >
-                        <Settings2
-                            size={20}
-                            strokeWidth={ICON_STROKE_WIDTH}
-                            className="text-current"
-                        />
-                    </Button>
-                    <Button
-                        color="primary"
-                        variant="shadow"
-                        size="sm"
-                        startContent={
-                            <Zap
-                                size={14}
-                                strokeWidth={ICON_STROKE_WIDTH}
-                                fill="currentColor"
-                            />
+                        onPress={onSettings}
+                    />
+                    <ToolbarIconButton
+                        Icon={
+                            workspaceStyle === "immersive"
+                                ? PanelsTopLeft
+                                : Monitor
                         }
-                        onPress={onAdd}
-                        className="font-bold shadow-primary/20"
-                    >
-                        {t("toolbar.add_torrent")}
-                    </Button>
+                        ariaLabel={workspaceToggleLabel}
+                        title={workspaceToggleLabel}
+                        onPress={onWorkspaceToggle}
+                    />
+                    <LanguageMenu />
+                    <ThemeToggle />{" "}
                 </div>
                 {rehashStatus?.active && (
                     <div className="pointer-events-none absolute inset-x-0 bottom-0 px-6">
                         <div className="flex flex-col gap-1">
                             <div className="flex items-center justify-between text-[11px] text-foreground/50">
-                                <span className="truncate">{rehashStatus.label}</span>
+                                <span className="truncate">
+                                    {rehashStatus.label}
+                                </span>
                                 <span className="font-semibold tabular-nums">
                                     {Math.round(
                                         Math.min(
