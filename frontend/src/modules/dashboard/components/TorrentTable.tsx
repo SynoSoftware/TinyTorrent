@@ -1,4 +1,4 @@
-// TorrentTable.tsx v2.6
+// TorrentTable.tsx v2.7
 import {
     DndContext,
     DragOverlay,
@@ -29,7 +29,6 @@ import {
     Modal,
     ModalBody,
     ModalContent,
-    ModalFooter,
     ModalHeader,
     Skeleton,
     cn,
@@ -48,20 +47,7 @@ import {
 } from "@tanstack/react-table";
 import { type VirtualItem, useVirtualizer } from "@tanstack/react-virtual";
 import { AnimatePresence } from "framer-motion";
-import {
-    ArrowDown,
-    ArrowUp,
-    CheckCircle2,
-    ChevronRight,
-    Copy,
-    FileUp,
-    Gauge,
-    Link,
-    PauseCircle,
-    PlayCircle,
-    RotateCcw,
-    Trash2,
-} from "lucide-react";
+import { ArrowDown, ArrowUp, FileUp } from "lucide-react";
 import React, {
     memo,
     useCallback,
@@ -81,7 +67,6 @@ import type { Torrent } from "../types/torrent";
 import {
     COLUMN_DEFINITIONS,
     DEFAULT_COLUMN_ORDER,
-    REQUIRED_COLUMN_IDS,
     type ColumnId,
 } from "./ColumnDefinitions";
 import { TABLE_LAYOUT } from "../config/layout";
@@ -94,7 +79,7 @@ import {
 } from "../../../config/iconography";
 
 // --- CONSTANTS ---
-const STORAGE_KEY = "tiny-torrent.table-state.v2.6"; // Bumped version
+const STORAGE_KEY = "tiny-torrent.table-state.v2.7";
 const CELL_PADDING_CLASS = "pl-2 pr-3";
 const CELL_BASE_CLASSES =
     "flex items-center overflow-hidden h-full truncate box-border leading-none";
@@ -137,10 +122,7 @@ const normalizeShortcutPart = (part: string) => {
 };
 
 const formatShortcutCombination = (combination: string) =>
-    combination
-        .split("+")
-        .map(normalizeShortcutPart)
-        .join(" + ");
+    combination.split("+").map(normalizeShortcutPart).join(" + ");
 
 const formatShortcutLabel = (value?: string | string[]) => {
     if (!value) return undefined;
@@ -167,6 +149,12 @@ const CONTEXT_MENU_SHORTCUTS: Partial<
 const getContextMenuShortcut = (action: ContextMenuKey) =>
     formatShortcutLabel(CONTEXT_MENU_SHORTCUTS[action]);
 
+export type OptimisticStatusEntry = {
+    state: TorrentStatus;
+    expiresAt: number;
+};
+export type OptimisticStatusMap = Record<string, OptimisticStatusEntry>;
+
 interface TorrentTableProps {
     torrents: Torrent[];
     filter: string;
@@ -174,7 +162,8 @@ interface TorrentTableProps {
     onAction?: (action: TorrentTableAction, torrent: Torrent) => void;
     onRequestDetails?: (torrent: Torrent) => void;
     onSelectionChange?: (selection: Torrent[]) => void;
-    optimisticStatuses?: Record<string, TorrentStatus>;
+    optimisticStatuses?: OptimisticStatusMap;
+    disableDetailOpen?: boolean;
 }
 
 // --- HELPERS ---
@@ -182,8 +171,14 @@ const clampContextMenuPoint = (x: number, y: number) => {
     if (typeof window === "undefined") {
         return { x, y };
     }
-    const maxX = Math.max(CONTEXT_MENU_MARGIN, window.innerWidth - CONTEXT_MENU_MARGIN);
-    const maxY = Math.max(CONTEXT_MENU_MARGIN, window.innerHeight - CONTEXT_MENU_MARGIN);
+    const maxX = Math.max(
+        CONTEXT_MENU_MARGIN,
+        window.innerWidth - CONTEXT_MENU_MARGIN
+    );
+    const maxY = Math.max(
+        CONTEXT_MENU_MARGIN,
+        window.innerHeight - CONTEXT_MENU_MARGIN
+    );
     return {
         x: Math.min(Math.max(x, CONTEXT_MENU_MARGIN), maxX),
         y: Math.min(Math.max(y, CONTEXT_MENU_MARGIN), maxY),
@@ -254,7 +249,6 @@ const DraggableHeader = memo(
                 className={cn(
                     "relative flex items-center h-10 border-r border-content1/10 transition-colors group select-none overflow-hidden",
                     "box-border",
-                    // STABILITY FIX: Always add a transparent left border so it aligns with rows that have a colored left border
                     "border-l-2 border-l-transparent",
                     canSort
                         ? "cursor-pointer hover:bg-content1/10"
@@ -271,7 +265,6 @@ const DraggableHeader = memo(
                         "flex-1 gap-2",
                         "text-[10px] font-bold uppercase tracking-[0.15em] text-foreground/60",
                         isOverlay && "text-foreground",
-                        // STANDARD PADDING: Not fancy math; pl-3 pr-4 keeps text away from handles.
                         CELL_PADDING_CLASS,
                         align === "center" && "justify-center",
                         align === "end" && "justify-end",
@@ -326,6 +319,7 @@ const DraggableHeader = memo(
 const renderVisibleCells = (row: Row<Torrent>) =>
     row.getVisibleCells().map((cell) => {
         const align = cell.column.columnDef.meta?.align || "start";
+        const isSelectionColumn = cell.column.id === "selection";
         return (
             <div
                 key={cell.id}
@@ -333,12 +327,13 @@ const renderVisibleCells = (row: Row<Torrent>) =>
                     width: cell.column.getSize(),
                     boxSizing: "border-box",
                 }}
+                data-selection-cell={isSelectionColumn ? "true" : undefined}
                 className={cn(
                     CELL_BASE_CLASSES,
                     CELL_PADDING_CLASS,
                     align === "center" && "justify-center",
                     align === "end" && "justify-end",
-                    cell.column.id === "selection" && "justify-center px-0"
+                    isSelectionColumn && "justify-center px-0"
                 )}
             >
                 {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -359,6 +354,7 @@ const VirtualRow = memo(
         isQueueSortActive,
         dropTargetRowId,
         activeRowId,
+        isHighlighted,
         onDropTargetChange,
     }: {
         row: Row<Torrent>;
@@ -371,6 +367,7 @@ const VirtualRow = memo(
         isQueueSortActive: boolean;
         dropTargetRowId: string | null;
         activeRowId: string | null;
+        isHighlighted: boolean;
         onDropTargetChange?: (id: string | null) => void;
     }) => {
         const {
@@ -455,13 +452,14 @@ const VirtualRow = memo(
                 onContextMenu={(e) => onContextMenu(e, row.original)}
             >
                 <div
-                    className={cn(
-                        "pressable-row relative flex items-center w-full h-full",
-                        isSelected
-                            ? "bg-primary/10"
-                            : "hover:bg-content1/10",
-                        isContext && !isSelected && "bg-content1/20"
-                    )}
+                className={cn(
+                    "pressable-row relative flex items-center w-full h-full transition-colors duration-75",
+                    isSelected ? "bg-primary/15" : "hover:bg-content1/5",
+                    isContext && !isSelected && "bg-content1/20",
+                    isHighlighted &&
+                        !isSelected &&
+                        "ring-2 ring-primary/50 bg-primary/5"
+                )}
                 >
                     {renderVisibleCells(row)}
                     {isDropTarget && (
@@ -484,14 +482,20 @@ export function TorrentTable({
     onRequestDetails,
     onSelectionChange,
     optimisticStatuses = {},
+    disableDetailOpen = false,
 }: TorrentTableProps) {
     const { t } = useTranslation();
-    const [speedHistory, setSpeedHistory] = useState<Record<string, number[]>>({});
+    const [highlightedRowId, setHighlightedRowId] = useState<string | null>(
+        null
+    );
+    const [speedHistory, setSpeedHistory] = useState<Record<string, number[]>>(
+        {}
+    );
 
     const getDisplayTorrent = useCallback(
         (torrent: Torrent) => {
             const override = optimisticStatuses[torrent.id];
-            return override ? { ...torrent, state: override } : torrent;
+            return override ? { ...torrent, state: override.state } : torrent;
         },
         [optimisticStatuses]
     );
@@ -582,12 +586,8 @@ export function TorrentTable({
     const [activeDragHeaderId, setActiveDragHeaderId] = useState<string | null>(
         null
     );
-    const [activeRowId, setActiveRowId] = useState<string | null>(
-        null
-    );
-    const [dropTargetRowId, setDropTargetRowId] = useState<string | null>(
-        null
-    );
+    const [activeRowId, setActiveRowId] = useState<string | null>(null);
+    const [dropTargetRowId, setDropTargetRowId] = useState<string | null>(null);
     const [isColumnModalOpen, setIsColumnModalOpen] = useState(false);
     const [contextMenu, setContextMenu] = useState<{
         virtualElement: ReturnType<typeof createVirtualElement>;
@@ -599,7 +599,9 @@ export function TorrentTable({
 
     const findRowElement = useCallback((torrentId?: string) => {
         if (!torrentId || typeof document === "undefined") return null;
-        return document.querySelector<HTMLElement>(`[data-torrent-row="${torrentId}"]`);
+        return document.querySelector<HTMLElement>(
+            `[data-torrent-row="${torrentId}"]`
+        );
     }, []);
 
     const openColumnModal = useCallback(
@@ -620,7 +622,8 @@ export function TorrentTable({
         (isOpen: boolean) => {
             setIsColumnModalOpen(isOpen);
             if (!isOpen) {
-                const target = focusReturnRef.current ?? tableContainerRef.current;
+                const target =
+                    focusReturnRef.current ?? tableContainerRef.current;
                 focusReturnRef.current = null;
                 target?.focus();
             }
@@ -680,56 +683,58 @@ export function TorrentTable({
                     ),
                 } as ColumnDef<Torrent>;
             }
-        const sortAccessor = def.sortAccessor;
-        const accessorKey = sortAccessor ? undefined : def.rpcField;
-        const accessorFn = sortAccessor
-            ? (torrent: Torrent) => sortAccessor(torrent)
-            : undefined;
-        return {
-            id,
-            accessorKey,
-            accessorFn,
-            enableSorting: Boolean(def.sortable),
-            header: () => {
-                const label = def.labelKey ? t(def.labelKey) : "";
-                const HeaderIcon = def.headerIcon;
-                return HeaderIcon ? (
-                    <div className="flex items-center gap-1 text-[9px] font-semibold uppercase tracking-[0.3em] text-foreground/60">
-                        <HeaderIcon
-                            size={12}
-                            strokeWidth={ICON_STROKE_WIDTH_DENSE}
-                            className="text-foreground/50 animate-pulse"
-                        />
-                        <span>{label}</span>
-                    </div>
-                ) : (
-                    label
-                );
-            },
-            size: def.width ?? 150,
-            minSize: def.minSize ?? 80,
-            meta: { align: def.align },
-            cell: ({ row }) => {
-                const displayTorrent = getDisplayTorrent(row.original);
-                const sparklineHistory = speedHistory[row.original.id] ?? [];
-                return def.render({
-                    torrent: displayTorrent,
-                    t,
-                    isSelected: row.getIsSelected(),
-                    toggleSelection: row.getToggleSelectedHandler(),
-                    sparkline: {
-                        history: sparklineHistory,
-                        state: displayTorrent.state,
-                    },
-                });
-            },
+            const sortAccessor = def.sortAccessor;
+            const accessorKey = sortAccessor ? undefined : def.rpcField;
+            const accessorFn = sortAccessor
+                ? (torrent: Torrent) => sortAccessor(torrent)
+                : undefined;
+            return {
+                id,
+                accessorKey,
+                accessorFn,
+                enableSorting: Boolean(def.sortable),
+                header: () => {
+                    const label = def.labelKey ? t(def.labelKey) : "";
+                    const HeaderIcon = def.headerIcon;
+                    return HeaderIcon ? (
+                        <div className="flex items-center gap-1 text-[9px] font-semibold uppercase tracking-[0.3em] text-foreground/60">
+                            <HeaderIcon
+                                size={12}
+                                strokeWidth={ICON_STROKE_WIDTH_DENSE}
+                                className="text-foreground/50 animate-pulse"
+                            />
+                            <span>{label}</span>
+                        </div>
+                    ) : (
+                        label
+                    );
+                },
+                size: def.width ?? 150,
+                minSize: def.minSize ?? 80,
+                meta: { align: def.align },
+                cell: ({ row }) => {
+                    const displayTorrent = getDisplayTorrent(row.original);
+                    const sparklineHistory =
+                        speedHistory[row.original.id] ?? [];
+                    return def.render({
+                        torrent: displayTorrent,
+                        t,
+                        isSelected: row.getIsSelected(),
+                        toggleSelection: row.getToggleSelectedHandler(),
+                        sparkline: {
+                            history: sparklineHistory,
+                            state: displayTorrent.state,
+                        },
+                    });
+                },
             } as ColumnDef<Torrent>;
         });
-}, [t, speedHistory, getDisplayTorrent]);
+    }, [t, speedHistory, getDisplayTorrent]);
 
     const table = useReactTable({
         data,
         columns,
+        getRowId: (torrent) => torrent.id,
         state: {
             sorting,
             columnOrder,
@@ -747,6 +752,8 @@ export function TorrentTable({
         onColumnSizingChange: setColumnSizing,
         onRowSelectionChange: setRowSelection,
         enableRowSelection: true,
+        // CRITICAL FIX: Prevent selection clearing on poll
+        autoResetRowSelection: false,
     });
 
     const { rows } = table.getRowModel();
@@ -765,7 +772,8 @@ export function TorrentTable({
     const heatmapMarkers = rows
         .map((row, index) => {
             const displayState =
-                optimisticStatuses[row.original.id] ?? row.original.state;
+                optimisticStatuses[row.original.id]?.state ??
+                row.original.state;
             const color =
                 displayState === "error" || row.original.error
                     ? "bg-danger/70"
@@ -780,14 +788,13 @@ export function TorrentTable({
             return {
                 key: row.id,
                 color,
-                topPercent: Math.min(
-                    Math.max(topPercent * 100, 0),
-                    100
-                ),
+                topPercent: Math.min(Math.max(topPercent * 100, 0), 100),
             };
         })
         .filter(
-            (marker): marker is {
+            (
+                marker
+            ): marker is {
                 key: string;
                 color: string;
                 topPercent: number;
@@ -885,8 +892,7 @@ export function TorrentTable({
             const delta = normalizedTo - normalizedFrom;
             if (delta === 0) return;
 
-            const actionKey =
-                delta > 0 ? "queue-move-down" : "queue-move-up";
+            const actionKey = delta > 0 ? "queue-move-down" : "queue-move-up";
             const steps = Math.abs(delta);
             for (let i = 0; i < steps; i++) {
                 await onAction(actionKey, draggedRow.original);
@@ -1039,9 +1045,20 @@ export function TorrentTable({
             )
                 return;
 
-            if (e.ctrlKey || e.metaKey) {
+            const selectionTarget = target.closest(
+                "[data-selection-cell='true']"
+            );
+            const isMultiSelect = e.ctrlKey || e.metaKey;
+            const isRangeSelect = e.shiftKey;
+
+            if (selectionTarget || isMultiSelect) {
                 table.getRow(rowId).toggleSelected();
-            } else if (e.shiftKey && lastSelectedIndex !== null) {
+                setLastSelectedIndex(originalIndex);
+                setHighlightedRowId(rowId);
+                return;
+            }
+
+            if (isRangeSelect && lastSelectedIndex !== null) {
                 const allRows = table.getRowModel().rows;
                 const actualLastIndex = Math.max(
                     0,
@@ -1057,12 +1074,23 @@ export function TorrentTable({
                     if (currentRow) newSel[currentRow.id] = true;
                 }
                 setRowSelection(newSel);
-            } else {
-                setRowSelection({ [rowId]: true });
+                setLastSelectedIndex(originalIndex);
+                setHighlightedRowId(rowId);
+                return;
             }
+
+            setHighlightedRowId(rowId);
             setLastSelectedIndex(originalIndex);
         },
         [lastSelectedIndex, table]
+    );
+
+    const handleRowDoubleClick = useCallback(
+        (torrent: Torrent) => {
+            if (disableDetailOpen) return;
+            onRequestDetails?.(torrent);
+        },
+        [disableDetailOpen, onRequestDetails]
     );
 
     const handleContextMenu = useCallback(
@@ -1196,92 +1224,108 @@ export function TorrentTable({
                                         <span>{t("table.header_name")}</span>
                                         <span>{t("table.header_speed")}</span>
                                     </div>
-                                    {Array.from({ length: 3 }).map((_, index) => (
-                                        <div
-                                            key={index}
-                                            className="grid grid-cols-[48px_minmax(0,1fr)_120px] gap-3 rounded-2xl bg-content1/10 px-3 py-2"
-                                        >
-                                            <span className="h-3 w-full rounded-full bg-content1/20" />
-                                            <span className="h-3 w-full rounded-full bg-content1/20" />
-                                            <span className="h-3 w-full rounded-full bg-content1/20" />
-                                        </div>
-                                    ))}
+                                    {Array.from({ length: 3 }).map(
+                                        (_, index) => (
+                                            <div
+                                                key={index}
+                                                className="grid grid-cols-[48px_minmax(0,1fr)_120px] gap-3 rounded-2xl bg-content1/10 px-3 py-2"
+                                            >
+                                                <span className="h-3 w-full rounded-full bg-content1/20" />
+                                                <span className="h-3 w-full rounded-full bg-content1/20" />
+                                                <span className="h-3 w-full rounded-full bg-content1/20" />
+                                            </div>
+                                        )
+                                    )}
                                 </div>
                             </div>
-                ) : (
-                    <DndContext
-                        collisionDetection={closestCenter}
-                        sensors={canReorderQueue ? rowSensors : undefined}
-                        onDragStart={handleRowDragStart}
-                        onDragEnd={handleRowDragEnd}
-                        onDragCancel={handleRowDragCancel}
-                    >
-                        <SortableContext
-                            items={rowIds}
-                            strategy={verticalListSortingStrategy}
-                        >
-                            <div
-                                className="relative w-full min-w-max"
-                                style={{
-                                    height: `${rowVirtualizer.getTotalSize()}px`,
-                                    width: table.getTotalSize(),
-                                }}
+                        ) : (
+                            <DndContext
+                                collisionDetection={closestCenter}
+                                sensors={
+                                    canReorderQueue ? rowSensors : undefined
+                                }
+                                onDragStart={handleRowDragStart}
+                                onDragEnd={handleRowDragEnd}
+                                onDragCancel={handleRowDragCancel}
                             >
-                                {rowVirtualizer
-                                    .getVirtualItems()
-                                    .map((virtualRow) => {
-                                        const row = rows[virtualRow.index];
-                                        return (
-                                            <VirtualRow
-                                                key={row.id}
-                                                row={row}
-                                                virtualRow={virtualRow}
-                                                isSelected={
-                                                    row.getIsSelected()
-                                                }
-                                                isContext={
-                                                    contextMenu?.torrent.id ===
-                                                    row.original.id
-                                                }
-                                                onClick={handleRowClick}
-                                                onDoubleClick={(t) =>
-                                                    onRequestDetails?.(t)
-                                                }
-                                                onContextMenu={
-                                                    handleContextMenu
-                                                }
-                                                isQueueSortActive={
-                                                    canReorderQueue
-                                                }
-                                                dropTargetRowId={
-                                                    dropTargetRowId
-                                                }
-                                                activeRowId={activeRowId}
-                                                onDropTargetChange={
-                                                    handleDropTargetChange
-                                                }
-                                            />
-                                        );
-                                    })}
-                            </div>
-                        </SortableContext>
-                        <DragOverlay adjustScale={false} dropAnimation={null}>
-                            {activeDragRow ? (
-                                <div
-                                    style={{
-                                        width: table.getTotalSize(),
-                                        height: TABLE_LAYOUT.rowHeight,
-                                    }}
-                                    className="pointer-events-none border border-content1/20 bg-background/90 shadow-2xl backdrop-blur-3xl"
+                                <SortableContext
+                                    items={rowIds}
+                                    strategy={verticalListSortingStrategy}
                                 >
-                                    <div className="flex h-full w-full items-center">
-                                        {renderVisibleCells(activeDragRow)}
+                                    <div
+                                        className="relative w-full min-w-max"
+                                        style={{
+                                            height: `${rowVirtualizer.getTotalSize()}px`,
+                                            width: table.getTotalSize(),
+                                        }}
+                                    >
+                                        {rowVirtualizer
+                                            .getVirtualItems()
+                                            .map((virtualRow) => {
+                                                const row =
+                                                    rows[virtualRow.index];
+                                                return (
+                                                    <VirtualRow
+                                                        key={row.id}
+                                                        row={row}
+                                                        virtualRow={virtualRow}
+                                                        isSelected={row.getIsSelected()}
+                                                        isContext={
+                                                            contextMenu?.torrent
+                                                                .id ===
+                                                            row.original.id
+                                                        }
+                                                        onClick={handleRowClick}
+                                                        onDoubleClick={
+                                                            handleRowDoubleClick
+                                                        }
+                                                        onContextMenu={
+                                                            handleContextMenu
+                                                        }
+                                                        isQueueSortActive={
+                                                            canReorderQueue
+                                                        }
+                                                        dropTargetRowId={
+                                                            dropTargetRowId
+                                                        }
+                                                        activeRowId={
+                                                            activeRowId
+                                                        }
+                                                        isHighlighted={
+                                                            highlightedRowId ===
+                                                                row.id &&
+                                                            !row.getIsSelected()
+                                                        }
+                                                        onDropTargetChange={
+                                                            handleDropTargetChange
+                                                        }
+                                                    />
+                                                );
+                                            })}
                                     </div>
-                                </div>
-                            ) : null}
-                        </DragOverlay>
-                    </DndContext>
-                )}
+                                </SortableContext>
+                                <DragOverlay
+                                    adjustScale={false}
+                                    dropAnimation={null}
+                                >
+                                    {activeDragRow ? (
+                                        <div
+                                            style={{
+                                                width: table.getTotalSize(),
+                                                height: TABLE_LAYOUT.rowHeight,
+                                            }}
+                                            className="pointer-events-none border border-content1/20 bg-background/90 shadow-2xl backdrop-blur-3xl"
+                                        >
+                                            <div className="flex h-full w-full items-center">
+                                                {renderVisibleCells(
+                                                    activeDragRow
+                                                )}
+                                            </div>
+                                        </div>
+                                    ) : null}
+                                </DragOverlay>
+                            </DndContext>
+                        )}
                     </div>
                 </DndContext>
 
@@ -1355,7 +1399,9 @@ export function TorrentTable({
                                 <DropdownItem
                                     key="remove-with-data"
                                     color="danger"
-                                    shortcut={getContextMenuShortcut("remove-with-data")}
+                                    shortcut={getContextMenuShortcut(
+                                        "remove-with-data"
+                                    )}
                                 >
                                     {t("table.actions.remove_with_data")}
                                 </DropdownItem>

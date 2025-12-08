@@ -2,7 +2,11 @@ import { AnimatePresence, motion, type Transition } from "framer-motion";
 import { FileUp } from "lucide-react";
 import { Modal, ModalContent } from "@heroui/react";
 import { useLayoutEffect, useState, useCallback, useEffect, useRef } from "react";
-import { TorrentTable, type TorrentTableAction } from "./TorrentTable";
+import {
+    TorrentTable,
+    type TorrentTableAction,
+    type OptimisticStatusMap,
+} from "./TorrentTable";
 import { TorrentDetailView } from "./TorrentDetailView";
 import type { Torrent, TorrentDetail } from "../types/torrent";
 import { INTERACTION_CONFIG } from "../../../config/interaction";
@@ -37,7 +41,7 @@ interface ModeLayoutProps {
     onForceTrackerReannounce?: () => Promise<void> | void;
     sequentialSupported?: boolean;
     superSeedingSupported?: boolean;
-    optimisticStatuses?: Record<string, TorrentStatus>;
+    optimisticStatuses?: OptimisticStatusMap;
     isDropActive?: boolean;
 }
 
@@ -202,6 +206,7 @@ export function ModeLayout({
                             onRequestDetails={handleDetailRequest}
                             onSelectionChange={onSelectionChange}
                             optimisticStatuses={optimisticStatuses}
+                            disableDetailOpen={Boolean(detailData && !isDetailPinned)}
                         />
                         <AnimatePresence>
                             {isDropActive && (

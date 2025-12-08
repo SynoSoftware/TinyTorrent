@@ -1,0 +1,50 @@
+import { GlassPanel } from "../../../../../shared/ui/layout/GlassPanel";
+import { useTranslation } from "react-i18next";
+import { AvailabilityHeatmap } from "../../../../../shared/ui/visualizations/AvailabilityHeatmap";
+import { PiecesMap } from "../../../../../shared/ui/visualizations/PiecesMap";
+
+interface PiecesTabProps {
+    piecePercent: number;
+    pieceCount?: number;
+    pieceSize?: number;
+    pieceStates?: number[];
+    pieceAvailability?: number[];
+}
+
+export const PiecesTab = ({
+    piecePercent,
+    pieceCount,
+    pieceSize,
+    pieceStates,
+    pieceAvailability,
+}: PiecesTabProps) => {
+    const { t } = useTranslation();
+
+    return (
+        <div className="h-full flex flex-col gap-4">
+            <GlassPanel className="flex-1 overflow-hidden p-4">
+                <PiecesMap
+                    percent={piecePercent}
+                    pieceCount={pieceCount}
+                    pieceSize={pieceSize}
+                    pieceStates={pieceStates}
+                />
+            </GlassPanel>
+            <GlassPanel className="flex-1 overflow-hidden p-4">
+                <AvailabilityHeatmap
+                    pieceAvailability={pieceAvailability}
+                    label={t("torrent_modal.availability.label")}
+                    legendRare={t("torrent_modal.availability.legend_rare")}
+                    legendCommon={t("torrent_modal.availability.legend_common")}
+                    emptyLabel={t("torrent_modal.availability.empty")}
+                    formatTooltip={(piece, peers) =>
+                        t("torrent_modal.availability.tooltip", {
+                            piece,
+                            peers,
+                        })
+                    }
+                />
+            </GlassPanel>
+        </div>
+    );
+};

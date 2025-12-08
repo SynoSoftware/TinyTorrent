@@ -31,6 +31,7 @@ import {
 import constants from "../config/constants.json";
 import { ICON_STROKE_WIDTH } from "../config/iconography";
 import { INTERACTION_CONFIG } from "../config/interaction";
+import { DETAIL_REFRESH_INTERVAL_MS } from "../config/detail";
 import { useTorrentDetail } from "../modules/dashboard/hooks/useTorrentDetail";
 import { useDetailControls } from "../modules/dashboard/hooks/useDetailControls";
 import { useTorrentActions } from "../modules/dashboard/hooks/useTorrentActions";
@@ -40,6 +41,10 @@ import { StatusBar } from "../shared/ui/layout/StatusBar";
 import type { SessionStats, TorrentStatus } from "../services/rpc/entities";
 import { useWorkspaceModals } from "./WorkspaceModalContext";
 import { useWorkspaceHeartbeat } from "./hooks/useWorkspaceHeartbeat";
+import type {
+    FeedbackMessage,
+    FeedbackTone,
+} from "../shared/types/feedback";
 
 const padTime = (value: number) => String(value).padStart(2, "0");
 
@@ -177,12 +182,7 @@ const mapSessionToConfig = (
     request_timeout_ms: DEFAULT_SETTINGS_CONFIG.request_timeout_ms,
 });
 
-type GlobalActionTone = "info" | "success" | "warning" | "danger";
-
-interface GlobalActionFeedback {
-    message: string;
-    tone: GlobalActionTone;
-}
+type GlobalActionFeedback = FeedbackMessage;
 
 type RehashStatus = {
     active: boolean;
@@ -313,8 +313,9 @@ export default function App() {
     const [pendingDelete, setPendingDelete] = useState<DeleteIntent | null>(
         null
     );
-    const [optimisticStatuses, setOptimisticStatuses] =
-        useState<Record<string, TorrentStatus>>({});
+const [optimisticStatuses, setOptimisticStatuses] = useState<
+        Record<string, { state: TorrentStatus; expiresAt: number }>
+    >({});
 
     const handleSelectionChange = useCallback(
         (selection: Torrent[]) => {
@@ -324,7 +325,7 @@ export default function App() {
     );
 
     const showFeedback = useCallback(
-        (message: string, tone: GlobalActionTone) => {
+        (message: string, tone: FeedbackTone) => {
             setGlobalActionFeedback({ message, tone });
             if (feedbackTimerRef.current) {
                 window.clearTimeout(feedbackTimerRef.current);
@@ -343,7 +344,10 @@ export default function App() {
                 const next = { ...prev };
                 updates.forEach(({ id, state }) => {
                     if (state) {
-                        next[id] = state;
+                        next[id] = {
+                            state,
+                            expiresAt: Date.now() + 3000,
+                        };
                     } else {
                         delete next[id];
                     }
@@ -353,6 +357,22 @@ export default function App() {
         },
         []
     );
+
+    useEffect(() => {
+        const interval = window.setInterval(() => {
+            setOptimisticStatuses((prev) => {
+                const next = { ...prev };
+                const now = Date.now();
+                Object.entries(prev).forEach(([id, entry]) => {
+                    if (entry.expiresAt <= now) {
+                        delete next[id];
+                    }
+                });
+                return next;
+            });
+        }, 500);
+        return () => window.clearInterval(interval);
+    }, []);
 
     const announceAction = useCallback(
         (action: FeedbackAction, stage: FeedbackStage, count: number) => {
@@ -525,12 +545,12 @@ export default function App() {
                 succeeded = true;
             } catch {
                 showFeedback(t("toolbar.feedback.failed"), "danger");
-            } finally {
                 if (optimisticTargets.length) {
                     updateOptimisticStatuses(
                         optimisticTargets.map(({ id }) => ({ id }))
                     );
                 }
+            } finally {
             }
 
             return succeeded;
@@ -764,6 +784,31 @@ export default function App() {
     });
 
     useEffect(() => {
+        if (!sessionReady || !detailId) return;
+        void refreshDetailData();
+        const intervalId = window.setInterval(() => {
+            void refreshDetailData();
+        }, DETAIL_REFRESH_INTERVAL_MS);
+        return () => {
+            window.clearInterval(intervalId);
+        };
+    }, [detailId, refreshDetailData, sessionReady]);
+
+    useEffect(() => {
+        setOptimisticStatuses((prev) => {
+            const next = { ...prev };
+            torrents.forEach((torrent) => {
+                const optimisticState = prev[torrent.id];
+                if (!optimisticState) return;
+                if (torrent.state === optimisticState.state) {
+                    delete next[torrent.id];
+                }
+            });
+            return next;
+        });
+    }, [torrents]);
+
+    useEffect(() => {
         updateRequestTimeout(settingsConfig.request_timeout_ms);
     }, [settingsConfig.request_timeout_ms, updateRequestTimeout]);
 
@@ -942,6 +987,7 @@ export default function App() {
                 upHistory={upHistory}
                 rpcStatus={rpcStatus}
                 selectedTorrent={detailData ?? undefined}
+                actionFeedback={globalActionFeedback}
             />
             </main>
             <AddTorrentModal

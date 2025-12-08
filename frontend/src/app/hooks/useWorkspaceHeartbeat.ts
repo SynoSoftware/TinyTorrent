@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 interface UseWorkspaceHeartbeatParams {
     sessionReady: boolean;
@@ -17,11 +17,17 @@ export function useWorkspaceHeartbeat({
     refreshDetailData,
     detailId,
 }: UseWorkspaceHeartbeatParams) {
+    const detailIdRef = useRef<string | undefined>(detailId);
+
+    useEffect(() => {
+        detailIdRef.current = detailId;
+    }, [detailId]);
+
     const runHeartbeat = useCallback(async () => {
         if (!sessionReady) return;
         try {
             const tasks = [refreshTorrents(), refreshSessionStatsData()];
-            if (detailId) {
+            if (detailIdRef.current) {
                 tasks.push(refreshDetailData());
             }
             await Promise.all(tasks);
@@ -33,7 +39,6 @@ export function useWorkspaceHeartbeat({
         refreshTorrents,
         refreshSessionStatsData,
         refreshDetailData,
-        detailId,
     ]);
 
     useEffect(() => {
@@ -46,7 +51,7 @@ export function useWorkspaceHeartbeat({
         return () => {
             window.clearInterval(intervalId);
         };
-    }, [pollingIntervalMs, runHeartbeat, sessionReady]);
+    }, [pollingIntervalMs, runHeartbeat, sessionReady, detailId]);
 
     return {
         runHeartbeat,

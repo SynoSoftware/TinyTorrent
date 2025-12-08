@@ -18,6 +18,14 @@ import type {
 } from "../../../services/rpc/entities";
 import type { RpcStatus } from "../../../shared/types/rpc";
 import { ICON_STROKE_WIDTH } from "../../../config/iconography";
+import type { FeedbackMessage, FeedbackTone } from "../../types/feedback";
+
+const FEEDBACK_TONE_CLASSES: Record<FeedbackTone, string> = {
+    info: "text-primary",
+    success: "text-success",
+    warning: "text-warning",
+    danger: "text-danger",
+};
 
 interface StatusBarProps {
     sessionStats: SessionStats | null;
@@ -25,6 +33,7 @@ interface StatusBarProps {
     upHistory: number[];
     rpcStatus: RpcStatus;
     selectedTorrent?: TorrentEntity | null;
+    actionFeedback?: FeedbackMessage | null;
 }
 
 export function StatusBar({
@@ -33,6 +42,7 @@ export function StatusBar({
     upHistory,
     rpcStatus,
     selectedTorrent,
+    actionFeedback,
 }: StatusBarProps) {
     const { t } = useTranslation();
 
@@ -96,7 +106,20 @@ export function StatusBar({
         : "--";
 
     return (
-        <footer className="w-full shrink-0 border-t border-content1/10 bg-background/80 backdrop-blur-2xl select-none relative z-50">
+        <footer className="w-full shrink-0 border-t border-content1/10 bg-background/80 backdrop-blur-2xl select-none relative z-50 overflow-visible">
+            {actionFeedback && (
+                <div className="pointer-events-none absolute inset-x-6 -top-5 flex justify-end">
+                    <div
+                        className={cn(
+                            "rounded-full border border-content1/20 bg-content1/90 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] shadow-lg shadow-black/20 backdrop-blur-md",
+                            FEEDBACK_TONE_CLASSES[actionFeedback.tone]
+                        )}
+                        aria-live="polite"
+                    >
+                        {actionFeedback.message}
+                    </div>
+                </div>
+            )}
             <div className="flex h-[76px] items-center justify-between gap-8 px-6">
                 {/* --- LEFT: SPEED TICKERS (Side-by-Side Layout) --- */}
                 <div className="flex flex-1 items-center gap-8 h-full py-2">
