@@ -101,6 +101,108 @@ const persistUserPreferences = (config: SettingsConfig) => {
     window.localStorage.setItem(USER_PREFERENCES_KEY, JSON.stringify(payload));
 };
 
+// --- DEEP LINK HELPERS ---
+const MAGNET_SCHEME = "magnet:";
+const MAGNET_QUERY_KEYS = ["magnet", "magnetLink", "url", "link"];
+
+const safeDecode = (value: string) => {
+    try {
+        return decodeURIComponent(value);
+    } catch {
+        return value;
+    }
+};
+
+const normalizeMagnetLink = (value?: string | null) => {
+    if (!value) return undefined;
+    const trimmed = value.trim();
+    if (!trimmed) return undefined;
+    if (trimmed.toLowerCase().startsWith(MAGNET_SCHEME)) {
+        return trimmed;
+    }
+    const decoded = safeDecode(trimmed);
+    if (decoded.toLowerCase().startsWith(MAGNET_SCHEME)) {
+        return decoded;
+    }
+    return undefined;
+};
+
+const findMagnetInString = (value: string) => {
+    const lower = value.toLowerCase();
+    const index = lower.indexOf(MAGNET_SCHEME);
+    if (index === -1) return undefined;
+    let candidate = value.slice(index);
+    const separators = ["&", "#"];
+    separators.forEach((separator) => {
+        const separatorIndex = candidate.indexOf(separator);
+        if (separatorIndex > 0) {
+            candidate = candidate.slice(0, separatorIndex);
+        }
+    });
+    return candidate;
+};
+
+const tryExtractMagnetFromSearch = () => {
+    if (typeof window === "undefined") return undefined;
+    const params = new URLSearchParams(window.location.search);
+    for (const key of MAGNET_QUERY_KEYS) {
+        const normalized = normalizeMagnetLink(params.get(key));
+        if (normalized) {
+            return normalized;
+        }
+    }
+    const looseMatch = findMagnetInString(window.location.search);
+    return normalizeMagnetLink(looseMatch);
+};
+
+const tryExtractMagnetFromHash = () => {
+    if (typeof window === "undefined") return undefined;
+    const hashBody = window.location.hash.replace(/^#\/?/, "");
+    const match = findMagnetInString(hashBody);
+    return normalizeMagnetLink(match ?? hashBody);
+};
+
+const tryExtractMagnetFromPath = () => {
+    if (typeof window === "undefined") return undefined;
+    const match = findMagnetInString(window.location.pathname);
+    return normalizeMagnetLink(match ?? window.location.pathname);
+};
+
+const tryExtractMagnetFromProtocol = () => {
+    if (typeof window === "undefined") return undefined;
+    if (window.location.protocol === "magnet:") {
+        return window.location.href;
+    }
+    return undefined;
+};
+
+const tryExtractMagnetFromArgs = () => {
+    const nodeProcess = (globalThis as typeof globalThis & {
+        process?: { argv?: string[] };
+    }).process;
+    const args = nodeProcess?.argv;
+    if (!args?.length) return undefined;
+    for (const arg of args) {
+        const direct = normalizeMagnetLink(arg);
+        if (direct) {
+            return direct;
+        }
+        const loose = findMagnetInString(arg);
+        const normalized = normalizeMagnetLink(loose);
+        if (normalized) {
+            return normalized;
+        }
+    }
+    return undefined;
+};
+
+const resolveDeepLinkMagnet = () =>
+    tryExtractMagnetFromProtocol() ??
+    tryExtractMagnetFromSearch() ??
+    tryExtractMagnetFromHash() ??
+    tryExtractMagnetFromPath() ??
+    tryExtractMagnetFromArgs();
+
 const mapSessionToConfig = (
     session: TransmissionSessionSettings
 ): SettingsConfig => ({
@@ -286,6 +388,7 @@ export default function App() {
         closeSettings,
     } = useWorkspaceModals();
     const isMountedRef = useRef(false);
+    const deepLinkHandledRef = useRef(false);
     const {
         detailData,
         loadDetail,
@@ -303,6 +406,9 @@ export default function App() {
     const [isSettingsSaving, setIsSettingsSaving] = useState(false);
     const [isAddingTorrent, setIsAddingTorrent] = useState(false);
     const [pendingTorrentFile, setPendingTorrentFile] = useState<File | null>(
+        null
+    );
+    const [incomingMagnetLink, setIncomingMagnetLink] = useState<string | null>(
         null
     );
     const [sessionStats, setSessionStats] = useState<SessionStats | null>(null);
@@ -487,6 +593,16 @@ const [optimisticStatuses, setOptimisticStatuses] = useState<
             isMountedRef.current = false;
         };
     }, []);
+
+    useEffect(() => {
+        if (deepLinkHandledRef.current) return;
+        const magnet = resolveDeepLinkMagnet();
+        if (!magnet) return;
+        deepLinkHandledRef.current = true;
+        setPendingTorrentFile(null);
+        setIncomingMagnetLink(magnet);
+        openAddModal();
+    }, [openAddModal, setPendingTorrentFile, setIncomingMagnetLink]);
 
     const handleReconnect = () => {
         reconnect();
@@ -720,7 +836,8 @@ const [optimisticStatuses, setOptimisticStatuses] = useState<
     const handleAddModalClose = useCallback(() => {
         closeAddModal();
         setPendingTorrentFile(null);
-    }, [closeAddModal]);
+        setIncomingMagnetLink(null);
+    }, [closeAddModal, setPendingTorrentFile, setIncomingMagnetLink]);
 
     const handleSaveSettings = useCallback(
         async (config: SettingsConfig) => {
@@ -994,6 +1111,7 @@ const [optimisticStatuses, setOptimisticStatuses] = useState<
                 isOpen={isAddModalOpen}
                 onClose={handleAddModalClose}
                 initialFile={pendingTorrentFile}
+                initialMagnetLink={incomingMagnetLink ?? undefined}
                 onAdd={handleAddTorrent}
                 isSubmitting={isAddingTorrent}
                 getFreeSpace={torrentClient.checkFreeSpace}
