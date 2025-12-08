@@ -205,6 +205,8 @@
         },
         "select_all": "Select all",
         "select_item": "Select {{name}}",
+        "empty_hint": "Press {{shortcut}} to add a torrent",
+        "empty_hint_subtext": "Drop a .torrent, paste a magnet link, or use the toolbar to begin.",
         "status_dl": "DL",
         "status_pause": "PAUSE",
         "status_queued": "WAIT",
@@ -230,7 +232,8 @@
             "rehashing": "Rehashing {{count}} torrents",
             "rehashed": "Rehash complete",
             "removing": "Removing {{count}} torrents",
-            "removed": "Removed {{count}} torrents"
+            "removed": "Removed {{count}} torrents",
+            "failed": "Action failed"
         },
         "rehash_progress": {
             "single": "Rehashing {{name}}",
@@ -244,7 +247,9 @@
     },
     "torrent_modal": {
         "actions": {
-            "close": "Close"
+            "close": "Close",
+            "pin_panel": "Pin workspace",
+            "popout_panel": "Return to modal view"
         },
         "availability": {
             "empty": "Availability data not available.",

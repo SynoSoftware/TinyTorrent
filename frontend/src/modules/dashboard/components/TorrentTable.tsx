@@ -75,6 +75,7 @@ import { useTranslation } from "react-i18next";
 
 import { GLASS_MENU_SURFACE } from "../../../shared/ui/layout/glass-surface";
 import { useKeyboardScope } from "../../../shared/hooks/useKeyboardScope";
+import type { TorrentStatus } from "../../../services/rpc/entities";
 
 import type { Torrent } from "../types/torrent";
 import {
@@ -84,16 +85,21 @@ import {
     type ColumnId,
 } from "./ColumnDefinitions";
 import { TABLE_LAYOUT } from "../config/layout";
+import { INTERACTION_CONFIG } from "../../../config/interaction";
 import { useTorrentShortcuts } from "../hooks/useTorrentShortcuts";
 import { KEY_SCOPE, KEYMAP, ShortcutIntent } from "../../../config/keymap";
-import { ICON_STROKE_WIDTH } from "../../../config/iconography";
+import {
+    ICON_STROKE_WIDTH,
+    ICON_STROKE_WIDTH_DENSE,
+} from "../../../config/iconography";
 
 // --- CONSTANTS ---
 const STORAGE_KEY = "tiny-torrent.table-state.v2.6"; // Bumped version
 const CELL_PADDING_CLASS = "pl-2 pr-3";
 const CELL_BASE_CLASSES =
-    "flex items-center overflow-hidden h-full truncate box-border leading-tight";
+    "flex items-center overflow-hidden h-full truncate box-border leading-none";
 const CONTEXT_MENU_MARGIN = 16;
+const SPEED_HISTORY_LIMIT = 30;
 
 // --- TYPES ---
 export type TorrentTableAction =
@@ -142,6 +148,8 @@ const formatShortcutLabel = (value?: string | string[]) => {
     return combos.map(formatShortcutCombination).join(" / ");
 };
 
+const ADD_TORRENT_SHORTCUT = formatShortcutLabel(["ctrl+o", "meta+o"]);
+
 const CONTEXT_MENU_SHORTCUTS: Partial<
     Record<ContextMenuKey, string | string[]>
 > = {
@@ -166,6 +174,7 @@ interface TorrentTableProps {
     onAction?: (action: TorrentTableAction, torrent: Torrent) => void;
     onRequestDetails?: (torrent: Torrent) => void;
     onSelectionChange?: (selection: Torrent[]) => void;
+    optimisticStatuses?: Record<string, TorrentStatus>;
 }
 
 // --- HELPERS ---
@@ -273,14 +282,14 @@ const DraggableHeader = memo(
                     {sortState === "asc" && (
                         <ArrowUp
                             size={12}
-                            strokeWidth={ICON_STROKE_WIDTH}
+                            strokeWidth={ICON_STROKE_WIDTH_DENSE}
                             className="text-primary shrink-0"
                         />
                     )}
                     {sortState === "desc" && (
                         <ArrowDown
                             size={12}
-                            strokeWidth={ICON_STROKE_WIDTH}
+                            strokeWidth={ICON_STROKE_WIDTH_DENSE}
                             className="text-primary shrink-0"
                         />
                     )}
@@ -431,6 +440,7 @@ const VirtualRow = memo(
                 {...(listeners ?? {})}
                 role="row"
                 aria-selected={isSelected}
+                tabIndex={-1}
                 className={cn(
                     "absolute top-0 left-0 border-b border-content1/5 transition-colors",
                     "box-border",
@@ -473,8 +483,18 @@ export function TorrentTable({
     onAction,
     onRequestDetails,
     onSelectionChange,
+    optimisticStatuses = {},
 }: TorrentTableProps) {
     const { t } = useTranslation();
+    const [speedHistory, setSpeedHistory] = useState<Record<string, number[]>>({});
+
+    const getDisplayTorrent = useCallback(
+        (torrent: Torrent) => {
+            const override = optimisticStatuses[torrent.id];
+            return override ? { ...torrent, state: override } : torrent;
+        },
+        [optimisticStatuses]
+    );
     const parentRef = useRef<HTMLDivElement>(null);
     const tableContainerRef = useRef<HTMLDivElement>(null);
     const focusReturnRef = useRef<HTMLElement | null>(null);
@@ -487,6 +507,26 @@ export function TorrentTable({
         ],
         [t]
     );
+
+    useEffect(() => {
+        setSpeedHistory((prev) => {
+            const next: Record<string, number[]> = {};
+            torrents.forEach((torrent) => {
+                const history = prev[torrent.id] ?? [];
+                const currentSpeed =
+                    torrent.state === "downloading"
+                        ? torrent.speed.down
+                        : torrent.state === "seeding"
+                        ? torrent.speed.up
+                        : 0;
+                const updated = [...history, currentSpeed].slice(
+                    -SPEED_HISTORY_LIMIT
+                );
+                next[torrent.id] = updated;
+            });
+            return next;
+        });
+    }, [torrents]);
 
     // --- STATE ---
     const getInitialState = () => {
@@ -657,7 +697,7 @@ export function TorrentTable({
                     <div className="flex items-center gap-1 text-[9px] font-semibold uppercase tracking-[0.3em] text-foreground/60">
                         <HeaderIcon
                             size={12}
-                            strokeWidth={ICON_STROKE_WIDTH}
+                            strokeWidth={ICON_STROKE_WIDTH_DENSE}
                             className="text-foreground/50 animate-pulse"
                         />
                         <span>{label}</span>
@@ -669,16 +709,23 @@ export function TorrentTable({
             size: def.width ?? 150,
             minSize: def.minSize ?? 80,
             meta: { align: def.align },
-            cell: ({ row }) =>
-                def.render({
-                    torrent: row.original,
+            cell: ({ row }) => {
+                const displayTorrent = getDisplayTorrent(row.original);
+                const sparklineHistory = speedHistory[row.original.id] ?? [];
+                return def.render({
+                    torrent: displayTorrent,
                     t,
                     isSelected: row.getIsSelected(),
                     toggleSelection: row.getToggleSelectedHandler(),
-                }),
-        } as ColumnDef<Torrent>;
-    });
-}, [t]);
+                    sparkline: {
+                        history: sparklineHistory,
+                        state: displayTorrent.state,
+                    },
+                });
+            },
+            } as ColumnDef<Torrent>;
+        });
+}, [t, speedHistory, getDisplayTorrent]);
 
     const table = useReactTable({
         data,
@@ -709,6 +756,43 @@ export function TorrentTable({
         estimateSize: () => TABLE_LAYOUT.rowHeight,
         overscan: TABLE_LAYOUT.overscan,
     });
+
+    const totalVirtualHeight = rowVirtualizer.getTotalSize();
+    const markerHeightPercent =
+        totalVirtualHeight > 0
+            ? (TABLE_LAYOUT.rowHeight / totalVirtualHeight) * 100
+            : 0;
+    const heatmapMarkers = rows
+        .map((row, index) => {
+            const displayState =
+                optimisticStatuses[row.original.id] ?? row.original.state;
+            const color =
+                displayState === "error" || row.original.error
+                    ? "bg-danger/70"
+                    : displayState === "seeding" || row.original.isFinished
+                    ? "bg-success/70"
+                    : null;
+            if (!color || totalVirtualHeight === 0) {
+                return null;
+            }
+            const topPercent =
+                (index * TABLE_LAYOUT.rowHeight) / totalVirtualHeight;
+            return {
+                key: row.id,
+                color,
+                topPercent: Math.min(
+                    Math.max(topPercent * 100, 0),
+                    100
+                ),
+            };
+        })
+        .filter(
+            (marker): marker is {
+                key: string;
+                color: string;
+                topPercent: number;
+            } => Boolean(marker)
+        );
 
     const selectAllRows = useCallback(() => {
         const allRows = table.getRowModel().rows;
@@ -1015,14 +1099,23 @@ export function TorrentTable({
                 className="flex-1 min-h-0 flex flex-col h-full overflow-hidden bg-background/20 relative select-none"
                 onClick={() => setContextMenu(null)}
             >
-                <style>{`
-          .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
-          .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-          .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(120, 120, 120, 0.2); border-radius: 4px; backdrop-filter: blur(4px); }
-          .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(120, 120, 120, 0.4); }
-          .custom-scrollbar::-webkit-scrollbar-corner { background: transparent; }
-        `}</style>
-
+                {heatmapMarkers.length > 0 && (
+                    <div className="pointer-events-none absolute top-0 right-1 h-full w-1">
+                        {heatmapMarkers.map((marker) => (
+                            <div
+                                key={marker.key}
+                                className={cn(
+                                    "absolute right-0 w-full rounded-full shadow-[0_0_12px_rgba(0,0,0,0.3)]",
+                                    marker.color
+                                )}
+                                style={{
+                                    top: `${marker.topPercent}%`,
+                                    height: `${markerHeightPercent}%`,
+                                }}
+                            />
+                        ))}
+                    </div>
+                )}
                 <DndContext
                     collisionDetection={closestCenter}
                     sensors={sensors}
@@ -1064,7 +1157,7 @@ export function TorrentTable({
 
                     <div
                         ref={parentRef}
-                        className="flex-1 min-h-0 overflow-y-auto w-full custom-scrollbar"
+                        className="flex-1 min-h-0 overflow-y-auto w-full overlay-scrollbar"
                     >
                         {isLoading && torrents.length === 0 ? (
                             <div className="w-full">
@@ -1081,16 +1174,39 @@ export function TorrentTable({
                                 ))}
                             </div>
                         ) : torrents.length === 0 ? (
-                            <div className="h-full flex flex-col items-center justify-center text-foreground/40 gap-6">
-                                {/* Empty state content */}
-                                <FileUp
-                                    size={40}
-                                    strokeWidth={ICON_STROKE_WIDTH}
-                                    className="text-foreground/60"
-                                />
-                                <p className="text-sm text-foreground/50">
-                                    {t("table.empty_desc")}
+                            <div className="h-full flex flex-col items-center justify-center gap-6 px-6 text-foreground/60">
+                                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.4em] text-foreground/60">
+                                    <FileUp
+                                        size={20}
+                                        strokeWidth={ICON_STROKE_WIDTH}
+                                        className="text-primary"
+                                    />
+                                    <span>
+                                        {t("table.empty_hint", {
+                                            shortcut: ADD_TORRENT_SHORTCUT,
+                                        })}
+                                    </span>
+                                </div>
+                                <p className="text-[10px] uppercase tracking-[0.25em] text-foreground/40">
+                                    {t("table.empty_hint_subtext")}
                                 </p>
+                                <div className="w-full max-w-3xl space-y-2">
+                                    <div className="grid grid-cols-[48px_minmax(0,1fr)_120px] gap-3 rounded-2xl border border-content1/20 bg-background/40 px-3 py-2 text-[10px] uppercase tracking-[0.4em] text-foreground/50">
+                                        <span className="h-3 w-full rounded-full bg-content1/20" />
+                                        <span>{t("table.header_name")}</span>
+                                        <span>{t("table.header_speed")}</span>
+                                    </div>
+                                    {Array.from({ length: 3 }).map((_, index) => (
+                                        <div
+                                            key={index}
+                                            className="grid grid-cols-[48px_minmax(0,1fr)_120px] gap-3 rounded-2xl bg-content1/10 px-3 py-2"
+                                        >
+                                            <span className="h-3 w-full rounded-full bg-content1/20" />
+                                            <span className="h-3 w-full rounded-full bg-content1/20" />
+                                            <span className="h-3 w-full rounded-full bg-content1/20" />
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
                 ) : (
                     <DndContext
@@ -1277,8 +1393,14 @@ export function TorrentTable({
                 onOpenChange={handleColumnModalOpenChange}
                 size="lg"
                 backdrop="blur"
+                motionProps={{
+                    initial: { opacity: 0, scale: 0.98, y: 10 },
+                    animate: { opacity: 1, scale: 1, y: 0 },
+                    exit: { opacity: 0, scale: 0.98, y: 10 },
+                    transition: INTERACTION_CONFIG.modalBloom.transition,
+                }}
                 classNames={{
-                    base: "bg-content1/80 backdrop-blur-2xl border border-content1/20 shadow-2xl rounded-2xl flex flex-col overflow-hidden",
+                    base: "glass-panel bg-content1/80 backdrop-blur-2xl border border-content1/20 shadow-2xl rounded-2xl flex flex-col overflow-hidden",
                 }}
             >
                 <ModalContent>

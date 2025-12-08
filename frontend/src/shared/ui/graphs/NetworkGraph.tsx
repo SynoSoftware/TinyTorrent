@@ -40,14 +40,10 @@ export const NetworkGraph = ({
             : `${safeLinePath} L${GRAPH_WIDTH},${GRAPH_HEIGHT} L0,${GRAPH_HEIGHT} Z`;
 
     const areaTransition: Transition = {
-        type: "spring",
-        stiffness: 160,
-        damping: 30,
+        d: { duration: 0 },
     };
     const lineTransition: Transition = {
-        type: "spring",
-        stiffness: 190,
-        damping: 26,
+        d: { duration: 0 },
     };
 
     return (
