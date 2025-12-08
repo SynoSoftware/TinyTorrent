@@ -1,4 +1,3 @@
-// TorrentTable.tsx v2.7
 import {
     DndContext,
     DragOverlay,
@@ -20,7 +19,6 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
-    Button,
     Checkbox,
     Dropdown,
     DropdownItem,
@@ -68,6 +66,7 @@ import {
     COLUMN_DEFINITIONS,
     DEFAULT_COLUMN_ORDER,
     type ColumnId,
+    type DashboardTableMeta,
 } from "./ColumnDefinitions";
 import { TABLE_LAYOUT } from "../config/layout";
 import { INTERACTION_CONFIG } from "../../../config/interaction";
@@ -79,7 +78,7 @@ import {
 } from "../../../config/iconography";
 
 // --- CONSTANTS ---
-const STORAGE_KEY = "tiny-torrent.table-state.v2.7";
+const STORAGE_KEY = "tiny-torrent.table-state.v2.8";
 const CELL_PADDING_CLASS = "pl-2 pr-3";
 const CELL_BASE_CLASSES =
     "flex items-center overflow-hidden h-full truncate box-border leading-none";
@@ -395,6 +394,7 @@ const VirtualRow = memo(
             if (transform) {
                 style.transform = CSS.Translate.toString(transform);
             }
+            // Retain drag transition, BUT we will remove highlight transition
             if (transition) {
                 style.transition = transition;
             }
@@ -439,31 +439,35 @@ const VirtualRow = memo(
                 aria-selected={isSelected}
                 tabIndex={-1}
                 className={cn(
-                    "absolute top-0 left-0 border-b border-content1/5 transition-colors",
+                    "absolute top-0 left-0 border-b border-content1/5",
                     "box-border",
-                    "border-l-2",
-                    isSelected ? "border-l-primary" : "border-l-transparent",
+                    // Dragging overrides
                     isQueueSortActive ? "cursor-grab" : "cursor-default",
-                    isDragging && "cursor-grabbing"
+                    isDragging &&
+                        "opacity-50 grayscale scale-[0.98] z-50 cursor-grabbing"
                 )}
                 style={rowStyle}
                 onClick={(e) => onClick(e, row.id, virtualRow.index)}
                 onDoubleClick={() => onDoubleClick(row.original)}
                 onContextMenu={(e) => onContextMenu(e, row.original)}
             >
+                {/* INNER DIV: Handles all visuals. Separating layout from paint prevents glitching. */}
                 <div
-                className={cn(
-                    "pressable-row relative flex items-center w-full h-full transition-colors duration-75",
-                    isSelected ? "bg-primary/15" : "hover:bg-content1/5",
-                    isContext && !isSelected && "bg-content1/20",
-                    isHighlighted &&
-                        !isSelected &&
-                        "ring-2 ring-primary/50 bg-primary/5"
-                )}
+                    className={cn(
+                        "relative flex items-center w-full h-full px-0",
+                        // SELECTION STATE: Stronger contrast, no border, NO TRANSITION
+                        isSelected ? "bg-primary/20" : "hover:bg-content1/10",
+
+                        // Context Menu Highlight
+                        isContext && !isSelected && "bg-content1/20",
+
+                        // Keyboard Highlight (Focus)
+                        isHighlighted && !isSelected && "bg-foreground/10"
+                    )}
                 >
                     {renderVisibleCells(row)}
                     {isDropTarget && (
-                        <div className="pointer-events-none absolute left-0 right-0 top-0 h-1 bg-primary/70" />
+                        <div className="pointer-events-none absolute left-0 right-0 top-0 h-0.5 bg-primary shadow-[0_0_8px_rgba(var(--heroui-primary),0.8)] z-50" />
                     )}
                 </div>
             </div>
@@ -499,6 +503,15 @@ export function TorrentTable({
         },
         [optimisticStatuses]
     );
+
+    // Prepare data for the table - memoized to prevent re-processing
+    const data = useMemo(() => {
+        // Map original torrents to display versions (handling optimistic updates)
+        const displayTorrents = torrents.map(getDisplayTorrent);
+        if (filter === "all") return displayTorrents;
+        return displayTorrents.filter((t) => t.state === filter);
+    }, [torrents, filter, getDisplayTorrent]);
+
     const parentRef = useRef<HTMLDivElement>(null);
     const tableContainerRef = useRef<HTMLDivElement>(null);
     const focusReturnRef = useRef<HTMLElement | null>(null);
@@ -515,6 +528,7 @@ export function TorrentTable({
     useEffect(() => {
         setSpeedHistory((prev) => {
             const next: Record<string, number[]> = {};
+            // We iterate over the raw torrents to maintain history
             torrents.forEach((torrent) => {
                 const history = prev[torrent.id] ?? [];
                 const currentSpeed =
@@ -523,6 +537,8 @@ export function TorrentTable({
                         : torrent.state === "seeding"
                         ? torrent.speed.up
                         : 0;
+                // Avoid updates if speed hasn't changed to save renders?
+                // No, sparklines need the time progression.
                 const updated = [...history, currentSpeed].slice(
                     -SPEED_HISTORY_LIMIT
                 );
@@ -643,12 +659,9 @@ export function TorrentTable({
         );
     }, [columnOrder, columnVisibility, columnSizing, sorting]);
 
-    // --- DATA ---
-    const data = useMemo(() => {
-        if (filter === "all") return torrents;
-        return torrents.filter((t) => t.state === filter);
-    }, [torrents, filter]);
-
+    // --- COLUMNS ---
+    // Memoized columns based ONLY on translation and stable definitions.
+    // Dynamic data (sparklines) is accessed via meta.
     const columns = useMemo<ColumnDef<Torrent>[]>(() => {
         return Object.keys(COLUMN_DEFINITIONS).map((colId) => {
             const id = colId as ColumnId;
@@ -712,24 +725,27 @@ export function TorrentTable({
                 size: def.width ?? 150,
                 minSize: def.minSize ?? 80,
                 meta: { align: def.align },
-                cell: ({ row }) => {
-                    const displayTorrent = getDisplayTorrent(row.original);
-                    const sparklineHistory =
-                        speedHistory[row.original.id] ?? [];
+                cell: ({ row, table }) => {
                     return def.render({
-                        torrent: displayTorrent,
+                        torrent: row.original,
                         t,
                         isSelected: row.getIsSelected(),
                         toggleSelection: row.getToggleSelectedHandler(),
-                        sparkline: {
-                            history: sparklineHistory,
-                            state: displayTorrent.state,
-                        },
+                        table, // Pass table to allow access to meta
                     });
                 },
             } as ColumnDef<Torrent>;
         });
-    }, [t, speedHistory, getDisplayTorrent]);
+    }, [t]);
+
+    // We pass dynamic data through meta to avoid column regeneration
+    const tableMeta = useMemo<DashboardTableMeta>(
+        () => ({
+            speedHistory,
+            optimisticStatuses,
+        }),
+        [speedHistory, optimisticStatuses]
+    );
 
     const table = useReactTable({
         data,
@@ -742,6 +758,7 @@ export function TorrentTable({
             rowSelection,
             columnSizing,
         },
+        meta: tableMeta,
         columnResizeMode: "onChange",
         enableSortingRemoval: true,
         getCoreRowModel: getCoreRowModel(),
@@ -769,37 +786,40 @@ export function TorrentTable({
         totalVirtualHeight > 0
             ? (TABLE_LAYOUT.rowHeight / totalVirtualHeight) * 100
             : 0;
-    const heatmapMarkers = rows
-        .map((row, index) => {
-            const displayState =
-                optimisticStatuses[row.original.id]?.state ??
-                row.original.state;
-            const color =
-                displayState === "error" || row.original.error
-                    ? "bg-danger/70"
-                    : displayState === "seeding" || row.original.isFinished
-                    ? "bg-success/70"
-                    : null;
-            if (!color || totalVirtualHeight === 0) {
-                return null;
-            }
-            const topPercent =
-                (index * TABLE_LAYOUT.rowHeight) / totalVirtualHeight;
-            return {
-                key: row.id,
-                color,
-                topPercent: Math.min(Math.max(topPercent * 100, 0), 100),
-            };
-        })
-        .filter(
-            (
-                marker
-            ): marker is {
+    const heatmapMarkers = useMemo(
+        () =>
+            rows
+                .map((row, index) => {
+                    // Use optimistic status if present
+                    const displayState = row.original.state;
+                    const color =
+                        displayState === "error" || row.original.error
+                            ? "bg-danger/70"
+                            : displayState === "seeding" ||
+                              row.original.isFinished
+                            ? "bg-success/70"
+                            : null;
+                    if (!color || totalVirtualHeight === 0) {
+                        return null;
+                    }
+                    const topPercent =
+                        (index * TABLE_LAYOUT.rowHeight) / totalVirtualHeight;
+                    return {
+                        key: row.id,
+                        color,
+                        topPercent: Math.min(
+                            Math.max(topPercent * 100, 0),
+                            100
+                        ),
+                    };
+                })
+                .filter(Boolean) as {
                 key: string;
                 color: string;
                 topPercent: number;
-            } => Boolean(marker)
-        );
+            }[],
+        [rows, totalVirtualHeight]
+    );
 
     const selectAllRows = useCallback(() => {
         const allRows = table.getRowModel().rows;
@@ -845,9 +865,11 @@ export function TorrentTable({
         });
         return map;
     }, [rows]);
-    const queueColumn = table.getColumn("queue");
-    const queueSortDirection = queueColumn?.getIsSorted() ?? false;
-    const canReorderQueue = Boolean(queueSortDirection) && Boolean(onAction);
+
+    // Check if we are sorting by queue position
+    // If we are, we can enable Drag & Drop reordering
+    const isQueueSort = sorting.some((s) => s.id === "queue");
+    const canReorderQueue = isQueueSort && Boolean(onAction);
 
     useEffect(() => {
         if (!canReorderQueue) {
@@ -881,14 +903,16 @@ export function TorrentTable({
             const draggedRow = rowsById.get(active.id as string);
             if (!draggedRow || !onAction) return;
 
-            const normalizedFrom =
-                queueSortDirection === "desc"
-                    ? rows.length - 1 - draggedIndex
-                    : draggedIndex;
-            const normalizedTo =
-                queueSortDirection === "desc"
-                    ? rows.length - 1 - targetIndex
-                    : targetIndex;
+            // Determine if ascending or descending
+            const queueSort = sorting.find((s) => s.id === "queue");
+            const isDesc = queueSort?.desc;
+
+            const normalizedFrom = isDesc
+                ? rows.length - 1 - draggedIndex
+                : draggedIndex;
+            const normalizedTo = isDesc
+                ? rows.length - 1 - targetIndex
+                : targetIndex;
             const delta = normalizedTo - normalizedFrom;
             if (delta === 0) return;
 
@@ -898,14 +922,7 @@ export function TorrentTable({
                 await onAction(actionKey, draggedRow.original);
             }
         },
-        [
-            canReorderQueue,
-            onAction,
-            queueSortDirection,
-            rowIds,
-            rowsById,
-            rows.length,
-        ]
+        [canReorderQueue, onAction, sorting, rowIds, rowsById, rows.length]
     );
 
     const handleRowDragCancel = useCallback(() => {
@@ -1116,6 +1133,15 @@ export function TorrentTable({
         tableContainerRef.current?.focus();
     }, []);
 
+    // Cleanup context menu if torrent is removed
+    useEffect(() => {
+        if (!contextMenu) return;
+        const exists = torrents.some((t) => t.id === contextMenu.torrent.id);
+        if (!exists) {
+            setContextMenu(null);
+        }
+    }, [contextMenu, torrents]);
+
     return (
         <>
             <div
@@ -1124,11 +1150,11 @@ export function TorrentTable({
                 onKeyDown={handleKeyDown}
                 onFocus={activateDashboardScope}
                 onBlur={deactivateDashboardScope}
-                className="flex-1 min-h-0 flex flex-col h-full overflow-hidden bg-background/20 relative select-none"
+                className="flex-1 min-h-0 flex flex-col h-full overflow-hidden bg-background/20 relative select-none outline-none"
                 onClick={() => setContextMenu(null)}
             >
                 {heatmapMarkers.length > 0 && (
-                    <div className="pointer-events-none absolute top-0 right-1 h-full w-1">
+                    <div className="pointer-events-none absolute top-0 right-1 h-full w-1 z-20">
                         {heatmapMarkers.map((marker) => (
                             <div
                                 key={marker.key}
