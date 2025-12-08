@@ -9,10 +9,19 @@ export const formatBytes = (bytes: number) => {
 export const formatSpeed = (bytes: number) => `${formatBytes(bytes)}/s`;
 
 export const formatTime = (seconds: number) => {
-    if (seconds < 0) return "�";
+    if (seconds < 0) return "?";
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
     return h > 0 ? `${h}h ${m}m` : `${m}m ${seconds % 60}s`;
+};
+
+export const formatEtaAbsolute = (seconds: number) => {
+    if (!Number.isFinite(seconds) || seconds < 0) return "-";
+    const date = new Date(Date.now() + seconds * 1000);
+    return new Intl.DateTimeFormat(undefined, {
+        hour: "2-digit",
+        minute: "2-digit",
+    }).format(date);
 };
 
 export const formatDate = (timestamp: number) => {

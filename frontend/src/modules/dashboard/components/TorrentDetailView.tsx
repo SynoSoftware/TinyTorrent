@@ -1,7 +1,6 @@
 import {
     Button,
     Chip,
-    Progress,
     Switch,
     Tab,
     Tabs,
@@ -26,6 +25,8 @@ import {
     X,
     ZoomIn,
     ZoomOut,
+    Pin,
+    PinOff,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -62,6 +63,7 @@ import type {
     TorrentPeerEntity,
     TorrentStatus,
 } from "../../../services/rpc/entities";
+import { SmoothProgressBar } from "../../../shared/ui/components/SmoothProgressBar";
 
 const GLASS_TOOLTIP_CLASSNAMES = {
     content:
@@ -91,6 +93,8 @@ interface TorrentDetailViewProps {
     sequentialSupported?: boolean;
     superSeedingSupported?: boolean;
     onAction?: (action: TorrentTableAction, torrent: Torrent) => void;
+    isPinned?: boolean;
+    onTogglePin?: () => void;
 }
 
 type PieceStatus = "done" | "downloading" | "missing";
@@ -1439,7 +1443,7 @@ const SpeedChart = ({
                         strokeWidth="3"
                         strokeLinecap="round"
                         animate={{ d: downPath }}
-                        transition={{ type: "spring", stiffness: 140, damping: 20 }}
+                        transition={{ d: { duration: 0 } }}
                     />
                     <motion.path
                         d={upPath}
@@ -1448,7 +1452,7 @@ const SpeedChart = ({
                         strokeWidth="3"
                         strokeLinecap="round"
                         animate={{ d: upPath }}
-                        transition={{ type: "spring", stiffness: 140, damping: 20 }}
+                        transition={{ d: { duration: 0 } }}
                     />
                 </svg>
             </div>
@@ -1541,6 +1545,8 @@ export function TorrentDetailView({
     sequentialSupported: sequentialSupportedProp,
     superSeedingSupported: superSeedingSupportedProp,
     onAction,
+    isPinned = false,
+    onTogglePin,
 }: TorrentDetailViewProps) {
     const { t } = useTranslation();
     const { downHistory, upHistory } = useTorrentDetailSpeedHistory(torrent);
@@ -1678,6 +1684,47 @@ export function TorrentDetailView({
                                 />
                                 {t("table.actions.remove")}
                             </Button>
+                            {onTogglePin && (
+                                <Button
+                                    isIconOnly
+                                    size="sm"
+                                    variant="light"
+                                    onPress={onTogglePin}
+                                    aria-label={
+                                        isPinned
+                                            ? t(
+                                                  "torrent_modal.actions.popout_panel"
+                                              )
+                                            : t(
+                                                  "torrent_modal.actions.pin_panel"
+                                              )
+                                    }
+                                    title={
+                                        isPinned
+                                            ? t(
+                                                  "torrent_modal.actions.popout_panel"
+                                              )
+                                            : t(
+                                                  "torrent_modal.actions.pin_panel"
+                                              )
+                                    }
+                                    className="text-foreground/40 hover:text-foreground"
+                                >
+                                    {isPinned ? (
+                                        <PinOff
+                                            size={16}
+                                            strokeWidth={ICON_STROKE_WIDTH}
+                                            className="text-current"
+                                        />
+                                    ) : (
+                                        <Pin
+                                            size={16}
+                                            strokeWidth={ICON_STROKE_WIDTH}
+                                            className="text-current"
+                                        />
+                                    )}
+                                </Button>
+                            )}
                             <Button
                                 isIconOnly
                                 size="sm"
@@ -1715,15 +1762,13 @@ export function TorrentDetailView({
                             </div>
                         </div>
 
-                        <Progress
-                            value={progressPercent}
-                            size="lg"
-                            classNames={{
-                                track: "h-3 bg-content1/20",
-                                indicator:
-                                    "bg-gradient-to-r from-success/50 to-success",
-                            }}
-                        />
+                        <div className="h-3">
+                            <SmoothProgressBar
+                                value={progressPercent}
+                                trackClassName="h-full bg-content1/20"
+                                indicatorClassName="h-full bg-gradient-to-r from-success/50 to-success"
+                            />
+                        </div>
 
                         <div className="space-y-1.5">
                             <div className="flex justify-between text-[9px] uppercase tracking-wider font-bold text-foreground/40">
@@ -2195,18 +2240,16 @@ export function TorrentDetailView({
                                                         {peer.flagStr}
                                                     </div>
                                                     <div className="col-span-3 flex flex-col gap-1">
-                                                        <Progress
-                                                            size="sm"
-                                                            value={
-                                                                peer.progress *
-                                                                100
-                                                            }
-                                                            classNames={{
-                                                                track: "h-1 bg-content1/10",
-                                                                indicator:
-                                                                    "bg-primary",
-                                                            }}
-                                                        />
+                                                        <div className="h-1">
+                                                            <SmoothProgressBar
+                                                                value={
+                                                                    peer.progress *
+                                                                    100
+                                                                }
+                                                                trackClassName="h-full bg-content1/10"
+                                                                indicatorClassName="h-full bg-primary"
+                                                            />
+                                                        </div>
                                                     </div>
                                                     <div className="col-span-3 flex flex-col items-end font-mono text-[10px]">
                                                         <span className="text-success">

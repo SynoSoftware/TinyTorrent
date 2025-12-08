@@ -6,7 +6,6 @@ import {
     DropdownItem,
     DropdownMenu,
     DropdownTrigger,
-    Progress,
     cn,
 } from "@heroui/react";
 import type { LucideIcon } from "lucide-react";
@@ -34,15 +33,18 @@ import { type TFunction } from "i18next";
 import {
     formatBytes,
     formatDate,
+    formatEtaAbsolute,
     formatRelativeTime,
     formatSpeed,
     formatTime,
 } from "../../../shared/utils/format";
+import { buildSplinePath } from "../../../shared/utils/spline";
 import type { Torrent } from "../types/torrent";
 import type { ReactNode } from "react";
 import { TABLE_LAYOUT } from "../config/layout";
 import { GLASS_MENU_SURFACE } from "../../../shared/ui/layout/glass-surface";
-import { ICON_STROKE_WIDTH } from "../../../config/iconography";
+import { ICON_STROKE_WIDTH_DENSE } from "../../../config/iconography";
+import { SmoothProgressBar } from "../../../shared/ui/components/SmoothProgressBar";
 
 export type ColumnId =
     | "selection"
@@ -63,6 +65,10 @@ export interface ColumnRendererProps {
     t: TFunction;
     isSelected: boolean;
     toggleSelection: (value?: unknown) => void;
+    sparkline?: {
+        history: number[];
+        state: Torrent["state"];
+    };
 }
 
 export interface ColumnDefinition {
@@ -95,8 +101,10 @@ const ratioValue = (torrent: Torrent) => {
     return torrent.uploaded === 0 ? 0 : torrent.uploaded;
 };
 
-const DENSE_TEXT = `${TABLE_LAYOUT.fontSize} ${TABLE_LAYOUT.fontMono} leading-tight`;
+const DENSE_TEXT = `${TABLE_LAYOUT.fontSize} ${TABLE_LAYOUT.fontMono} leading-none cap-height-text`;
 const DENSE_NUMERIC = `${DENSE_TEXT} tabular-nums`;
+const SPARKLINE_WIDTH = 64;
+const SPARKLINE_HEIGHT = 12;
 
 const getOrdinalSuffix = (value: number) => {
     const normalized = value % 100;
@@ -183,13 +191,13 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
         headerIcon: ListChecks,
         render: ({ torrent, t }) => (
             <div className="flex flex-col gap-0.5 min-w-0">
-                <span
-                    className={cn(
-                        "font-medium truncate max-w-md transition-colors",
-                        TABLE_LAYOUT.fontSize,
-                        torrent.state === "paused" && "text-foreground/50"
-                    )}
-                >
+                    <span
+                        className={cn(
+                            "font-medium truncate max-w-md transition-colors cap-height-text",
+                            TABLE_LAYOUT.fontSize,
+                            torrent.state === "paused" && "text-foreground/50"
+                        )}
+                    >
                     {torrent.name}
                 </span>
                 {torrent.state === "downloading" && (
@@ -239,21 +247,18 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
                         {formatBytes(torrent.totalSize * torrent.progress)}
                     </span>
                 </div>
-                <Progress
-                    size="sm"
-                    radius="full"
+                <SmoothProgressBar
                     value={torrent.progress * 100}
-                    classNames={{
-                        track: "h-1 bg-content1/20",
-                        indicator: cn(
-                            "h-1",
-                            torrent.state === "paused"
-                                ? "bg-gradient-to-r from-warning/50 to-warning"
-                                : torrent.state === "seeding"
-                                ? "bg-gradient-to-r from-primary/50 to-primary"
-                                : "bg-gradient-to-r from-success/50 to-success"
-                        ),
-                    }}
+                    className="h-1"
+                    trackClassName="h-1 bg-content1/20"
+                    indicatorClassName={cn(
+                        "h-full",
+                        torrent.state === "paused"
+                            ? "bg-gradient-to-r from-warning/50 to-warning"
+                            : torrent.state === "seeding"
+                            ? "bg-gradient-to-r from-primary/50 to-primary"
+                            : "bg-gradient-to-r from-success/50 to-success"
+                    )}
                 />
             </div>
         ),
@@ -284,7 +289,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
                         startContent={
                             <Icon
                                 size={TABLE_LAYOUT.iconSize}
-                                strokeWidth={ICON_STROKE_WIDTH}
+                                strokeWidth={ICON_STROKE_WIDTH_DENSE}
                                 className="text-current"
                             />
                         }
@@ -327,13 +332,26 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
         sortAccessor: (torrent) =>
             torrent.eta < 0 ? Number.MAX_SAFE_INTEGER : torrent.eta,
         headerIcon: Clock3,
-        render: ({ torrent, t }) => (
-            <span className={cn("text-foreground/70 min-w-0", DENSE_NUMERIC)}>
-                {torrent.eta < 0
+        render: ({ torrent, t }) => {
+            const relativeLabel =
+                torrent.eta < 0
                     ? t("table.eta_unknown")
-                    : formatTime(torrent.eta)}
-            </span>
-        ),
+                    : formatTime(torrent.eta);
+            const absoluteLabel =
+                torrent.eta < 0 ? "-" : formatEtaAbsolute(torrent.eta);
+            const tooltip =
+                torrent.eta < 0
+                    ? relativeLabel
+                    : t("table.eta", { time: relativeLabel });
+            return (
+                <span
+                    className={cn("text-foreground/70 min-w-0", DENSE_NUMERIC)}
+                    title={tooltip}
+                >
+                    {absoluteLabel}
+                </span>
+            );
+        },
     },
     speed: {
         id: "speed",
@@ -346,21 +364,71 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
         sortAccessor: (torrent) =>
             torrent.state === "seeding" ? torrent.speed.up : torrent.speed.down,
         headerIcon: ArrowUpCircle,
-        render: ({ torrent }) => (
-            <div className={cn("text-right min-w-0", DENSE_NUMERIC)}>
-                {torrent.state === "downloading" ? (
-                    <span className="text-success font-medium">
-                        {formatSpeed(torrent.speed.down)}
-                    </span>
-                ) : torrent.state === "seeding" ? (
-                    <span className="text-primary font-medium">
-                        {formatSpeed(torrent.speed.up)}
-                    </span>
-                ) : (
-                    <span className="text-foreground/30">-</span>
-                )}
-            </div>
-        ),
+        render: ({ torrent, sparkline }) => {
+            const isDownloading = torrent.state === "downloading";
+            const isSeeding = torrent.state === "seeding";
+            const speedValue = isDownloading
+                ? torrent.speed.down
+                : isSeeding
+                ? torrent.speed.up
+                : null;
+            const history = sparkline?.history ?? [];
+            const maxHistorySpeed =
+                history.length > 0 ? Math.max(...history) : 0;
+            const maxSpeed = Math.max(speedValue ?? 0, maxHistorySpeed, 1);
+            const path =
+                history.length > 0
+                    ? buildSplinePath(
+                          history,
+                          SPARKLINE_WIDTH,
+                          SPARKLINE_HEIGHT,
+                          maxSpeed
+                      )
+                    : "";
+            return (
+                <div className="flex flex-col gap-1">
+                    <div className={cn("text-right min-w-0", DENSE_NUMERIC)}>
+                        {speedValue !== null ? (
+                            <span
+                                className={cn(
+                                    "font-medium",
+                                    isDownloading
+                                        ? "text-success"
+                                        : isSeeding
+                                        ? "text-primary"
+                                        : "text-foreground/30"
+                                )}
+                            >
+                                {formatSpeed(speedValue)}
+                            </span>
+                        ) : (
+                            <span className="text-foreground/30">-</span>
+                        )}
+                    </div>
+                    {path && (
+                        <svg
+                            viewBox={`0 0 ${SPARKLINE_WIDTH} ${SPARKLINE_HEIGHT}`}
+                            className={cn(
+                                "h-3 w-full overflow-visible",
+                                isDownloading
+                                    ? "text-success"
+                                    : isSeeding
+                                    ? "text-primary"
+                                    : "text-foreground/40"
+                            )}
+                        >
+                            <path
+                                d={path}
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.4"
+                                strokeLinecap="round"
+                            />
+                        </svg>
+                    )}
+                </div>
+            );
+        },
     },
     peers: {
         id: "peers",
@@ -380,7 +448,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
                 >
                     <Users
                         size={TABLE_LAYOUT.iconSize}
-                        strokeWidth={ICON_STROKE_WIDTH}
+                        strokeWidth={ICON_STROKE_WIDTH_DENSE}
                         className="opacity-50 text-current"
                     />
                     <span>{torrent.peerSummary.connected}</span>

@@ -1,3 +1,5 @@
+import type { Transition } from "framer-motion";
+
 export interface DragOverlayRootConfig {
     initialScale: number;
     activeScale: number;
@@ -19,23 +21,13 @@ export interface DragOverlayLayerConfig {
     initial: Record<string, number>;
     animate: Record<string, number>;
     exit: Record<string, number>;
-    transition: {
-        duration: number;
-        ease: [number, number, number, number];
-        repeat?: number;
-        repeatType?: "reverse" | "loop";
-    };
+    transition: Transition;
 }
 
 export interface DragOverlayIconConfig {
     initialScale: number;
     animateScale: number[];
-    transition: {
-        repeat: number;
-        repeatType: "reverse" | "loop";
-        duration: number;
-        ease: [number, number, number, number];
-    };
+    transition: Transition;
 }
 
 export interface DragOverlayConfig {
@@ -94,8 +86,9 @@ export const INTERACTION_CONFIG: InteractionConfig = {
                 animate: { scale: 1, opacity: 0.55 },
                 exit: { opacity: 0 },
                 transition: {
-                    duration: 0.3,
-                    ease: [0.25, 0.1, 0.25, 1],
+                    type: "spring",
+                    stiffness: 280,
+                    damping: 32,
                 },
             },
             {
@@ -106,8 +99,9 @@ export const INTERACTION_CONFIG: InteractionConfig = {
                 animate: { scale: 1, opacity: 0.4 },
                 exit: { opacity: 0 },
                 transition: {
-                    duration: 1.2,
-                    ease: [0.42, 0, 0.58, 1],
+                    type: "spring",
+                    stiffness: 240,
+                    damping: 28,
                     repeat: Infinity,
                     repeatType: "reverse",
                 },
@@ -120,8 +114,9 @@ export const INTERACTION_CONFIG: InteractionConfig = {
                 animate: { scale: 1.02, opacity: 0.35 },
                 exit: { opacity: 0 },
                 transition: {
-                    duration: 1.4,
-                    ease: [0.42, 0, 0.58, 1],
+                    type: "spring",
+                    stiffness: 220,
+                    damping: 26,
                     repeat: Infinity,
                     repeatType: "reverse",
                 },
@@ -131,10 +126,11 @@ export const INTERACTION_CONFIG: InteractionConfig = {
             initialScale: 0.9,
             animateScale: [1, 1.08, 1],
             transition: {
+                type: "spring",
+                stiffness: 260,
+                damping: 22,
                 repeat: Infinity,
                 repeatType: "reverse",
-                duration: 0.8,
-                ease: [0.42, 0, 0.58, 1],
             },
         },
     },

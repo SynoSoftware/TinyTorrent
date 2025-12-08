@@ -122,7 +122,7 @@ export function StatusBar({
                         </div>
 
                         {/* Graph: Fills remaining space. No overlap. */}
-                        <div className="flex-1 h-full min-w-[100px] opacity-30 grayscale transition-all duration-500 group-hover:grayscale-0 group-hover:opacity-100">
+                        <div className="flex-1 h-full min-w-[100px] py-2 opacity-30 grayscale transition-all duration-500 group-hover:grayscale-0 group-hover:opacity-100">
                             <NetworkGraph
                                 data={downHistory}
                                 color="success"
@@ -181,18 +181,18 @@ export function StatusBar({
                                 {summaryValue}
                             </span>
                             {!isSelection && (
-                            <Activity
-                                size={14}
-                                strokeWidth={ICON_STROKE_WIDTH}
-                                className="text-foreground/30"
-                            />
+                                <Activity
+                                    size={14}
+                                    strokeWidth={ICON_STROKE_WIDTH}
+                                    className="text-foreground/30"
+                                />
                             )}
                             {isSelection && (
-                            <HardDrive
-                                size={14}
-                                strokeWidth={ICON_STROKE_WIDTH}
-                                className="text-foreground/30"
-                            />
+                                <HardDrive
+                                    size={14}
+                                    strokeWidth={ICON_STROKE_WIDTH}
+                                    className="text-foreground/30"
+                                />
                             )}
                         </div>
                     </div>
@@ -242,7 +242,8 @@ export function StatusBar({
                                     strokeWidth={ICON_STROKE_WIDTH}
                                     className={cn(
                                         "text-current",
-                                        rpcStatus !== "connected" && "animate-pulse"
+                                        rpcStatus !== "connected" &&
+                                            "animate-pulse"
                                     )}
                                 />
                             </div>

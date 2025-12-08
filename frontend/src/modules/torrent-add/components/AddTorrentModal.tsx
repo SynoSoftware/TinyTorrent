@@ -29,6 +29,7 @@ import {
 } from "../../../shared/utils/torrent";
 import type { TransmissionFreeSpace } from "../../../services/rpc/types";
 import { ICON_STROKE_WIDTH } from "../../../config/iconography";
+import { INTERACTION_CONFIG } from "../../../config/interaction";
 
 interface AddTorrentModalProps {
     isOpen: boolean;
@@ -276,26 +277,16 @@ export function AddTorrentModal({
             backdrop="blur"
             size="2xl"
             classNames={{
-                base: "bg-content1/80 backdrop-blur-xl border border-content1/20 shadow-2xl",
+                base: "glass-panel bg-content1/80 backdrop-blur-xl border border-content1/20 shadow-2xl",
                 header: "border-b border-content1/30 py-4",
                 footer: "border-t border-content1/30 py-4",
                 closeButton: "hover:bg-content1/10 active:bg-content1/20",
             }}
             motionProps={{
-                variants: {
-                    enter: {
-                        y: 0,
-                        opacity: 1,
-                        scale: 1,
-                        transition: { duration: 0.3, ease: [0.32, 0.72, 0, 1] },
-                    },
-                    exit: {
-                        y: 10,
-                        opacity: 0,
-                        scale: 0.95,
-                        transition: { duration: 0.2 },
-                    },
-                },
+                initial: { y: 12, opacity: 0, scale: 0.98 },
+                animate: { y: 0, opacity: 1, scale: 1 },
+                exit: { y: 12, opacity: 0, scale: 0.98 },
+                transition: INTERACTION_CONFIG.modalBloom.transition,
             }}
         >
             <ModalContent>

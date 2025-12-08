@@ -1,4 +1,4 @@
-import { Button, Input, Tab, Tabs, Progress, cn } from "@heroui/react";
+import { Button, Input, Tab, Tabs, cn } from "@heroui/react";
 import {
     DownloadCloud,
     ListChecks,
@@ -15,6 +15,7 @@ import { useTranslation } from "react-i18next";
 import { ThemeToggle } from "../controls/ThemeToggle";
 import { LanguageMenu } from "../controls/LanguageMenu";
 import { ICON_STROKE_WIDTH } from "../../../config/iconography";
+import { SmoothProgressBar } from "../components/SmoothProgressBar";
 
 type FeedbackTone = "info" | "success" | "warning" | "danger";
 
@@ -62,7 +63,7 @@ export function Navbar({
     const { t } = useTranslation();
 
     return (
-        <header className="z-20 flex h-16 shrink-0 items-center justify-between gap-4 px-6 border-t border-white/10 border-b border-content1/20 bg-background/40 backdrop-blur-xl sticky top-0 select-none">
+        <header className="app-titlebar z-20 flex h-16 shrink-0 items-center justify-between gap-4 px-6 sticky top-0 select-none">
             <div className="flex items-center gap-8">
                 {/* Brand */}
                 <div className="flex items-center gap-3">
@@ -292,18 +293,13 @@ export function Navbar({
                                         %
                                     </span>
                                 </div>
-                                <Progress
-                                    size="sm"
-                                    radius="full"
+                                <SmoothProgressBar
                                     value={Math.min(
                                         Math.max(rehashStatus.value, 0),
                                         100
                                     )}
-                                    classNames={{
-                                        track: "h-1 rounded-full bg-content1/10",
-                                        indicator:
-                                            "rounded-full bg-gradient-to-r from-primary/70 to-primary",
-                                    }}
+                                    trackClassName="h-1 bg-content1/10"
+                                    indicatorClassName="h-full rounded-full bg-gradient-to-r from-primary/70 to-primary"
                                 />
                             </div>
                         )}

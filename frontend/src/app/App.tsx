@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useDropzone } from "react-dropzone";
-import { AnimatePresence, motion } from "framer-motion";
-import { FileUp } from "lucide-react";
+import { AnimatePresence, motion, type Transition } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import {
     Button,
@@ -38,7 +37,7 @@ import { useTorrentActions } from "../modules/dashboard/hooks/useTorrentActions"
 import type { TransmissionSessionSettings } from "../services/rpc/types";
 import { Navbar } from "../shared/ui/layout/Navbar";
 import { StatusBar } from "../shared/ui/layout/StatusBar";
-import type { SessionStats } from "../services/rpc/entities";
+import type { SessionStats, TorrentStatus } from "../services/rpc/entities";
 import { useWorkspaceModals } from "./WorkspaceModalContext";
 import { useWorkspaceHeartbeat } from "./hooks/useWorkspaceHeartbeat";
 
@@ -60,8 +59,12 @@ const timeStringToMinutes = (time: string) => {
 };
 
 const USER_PREFERENCES_KEY = "tiny-torrent.user-preferences";
-const MOTION_DURATION_S = constants.ui.animation_duration_ms / 1000;
-const { dragOverlay } = INTERACTION_CONFIG;
+const MODAL_SPRING_TRANSITION = INTERACTION_CONFIG.modalBloom.transition;
+const TOAST_SPRING_TRANSITION: Transition = {
+    type: "spring",
+    stiffness: 300,
+    damping: 28,
+};
 
 type PreferencePayload = Pick<
     SettingsConfig,
@@ -310,6 +313,8 @@ export default function App() {
     const [pendingDelete, setPendingDelete] = useState<DeleteIntent | null>(
         null
     );
+    const [optimisticStatuses, setOptimisticStatuses] =
+        useState<Record<string, TorrentStatus>>({});
 
     const handleSelectionChange = useCallback(
         (selection: Torrent[]) => {
@@ -328,6 +333,23 @@ export default function App() {
                 setGlobalActionFeedback(null);
                 feedbackTimerRef.current = null;
             }, 3000);
+        },
+        []
+    );
+
+    const updateOptimisticStatuses = useCallback(
+        (updates: Array<{ id: string; state?: TorrentStatus }>) => {
+            setOptimisticStatuses((prev) => {
+                const next = { ...prev };
+                updates.forEach(({ id, state }) => {
+                    if (state) {
+                        next[id] = state;
+                    } else {
+                        delete next[id];
+                    }
+                });
+                return next;
+            });
         },
         []
     );
@@ -460,6 +482,68 @@ export default function App() {
         isMountedRef,
     });
 
+    const getOptimisticStateForAction = useCallback(
+        (action: TorrentTableAction, torrent: Torrent): TorrentStatus | undefined => {
+            if (action === "pause") {
+                return "paused";
+            }
+            if (action === "resume") {
+                return torrent.state === "seeding" ? "seeding" : "downloading";
+            }
+            if (action === "recheck") {
+                return "checking";
+            }
+            return undefined;
+        },
+        []
+    );
+
+    const runActionsWithOptimism = useCallback(
+        async (action: TorrentTableAction, torrentsToUpdate: Torrent[]) => {
+            const optimisticTargets = torrentsToUpdate
+                .map((torrent) => {
+                    const state = getOptimisticStateForAction(
+                        action,
+                        torrent
+                    );
+                    return state
+                        ? ({ id: torrent.id, state } as const)
+                        : null;
+                })
+                .filter((update): update is { id: string; state: TorrentStatus } =>
+                    Boolean(update)
+                );
+            if (optimisticTargets.length) {
+                updateOptimisticStatuses(optimisticTargets);
+            }
+
+            let succeeded = false;
+            try {
+                for (const torrent of torrentsToUpdate) {
+                    await executeTorrentAction(action, torrent);
+                }
+                succeeded = true;
+            } catch {
+                showFeedback(t("toolbar.feedback.failed"), "danger");
+            } finally {
+                if (optimisticTargets.length) {
+                    updateOptimisticStatuses(
+                        optimisticTargets.map(({ id }) => ({ id }))
+                    );
+                }
+            }
+
+            return succeeded;
+        },
+        [
+            executeTorrentAction,
+            getOptimisticStateForAction,
+            showFeedback,
+            t,
+            updateOptimisticStatuses,
+        ]
+    );
+
     const confirmDelete = useCallback(async () => {
         if (!pendingDelete) return;
         const { torrents: toDelete, action, deleteData } = pendingDelete;
@@ -493,49 +577,42 @@ export default function App() {
                 );
                 return;
             }
-            if (!(action in GLOBAL_ACTION_FEEDBACK_CONFIG)) {
-                await executeTorrentAction(action, torrent);
-                return;
-            }
+            const hasFeedback = action in GLOBAL_ACTION_FEEDBACK_CONFIG;
             const actionKey = action as FeedbackAction;
-            announceAction(actionKey, "start", 1);
-            await executeTorrentAction(action, torrent);
-            announceAction(actionKey, "done", 1);
+            if (hasFeedback) {
+                announceAction(actionKey, "start", 1);
+            }
+            const success = await runActionsWithOptimism(action, [torrent]);
+            if (hasFeedback && success) {
+                announceAction(actionKey, "done", 1);
+            }
         },
-        [announceAction, executeTorrentAction, requestDelete]
+        [announceAction, requestDelete, runActionsWithOptimism]
     );
 
     const handleBulkAction = useCallback(
         async (action: TorrentTableAction) => {
             if (!selectedTorrents.length) return;
+            const targets = [...selectedTorrents];
             if (action === "remove" || action === "remove-with-data") {
                 requestDelete(
-                    [...selectedTorrents],
+                    targets,
                     action,
                     action === "remove-with-data"
                 );
                 return;
             }
-            if (!(action in GLOBAL_ACTION_FEEDBACK_CONFIG)) {
-                for (const torrent of selectedTorrents) {
-                    await executeTorrentAction(action, torrent);
-                }
-                return;
-            }
+            const hasFeedback = action in GLOBAL_ACTION_FEEDBACK_CONFIG;
             const actionKey = action as FeedbackAction;
-            const count = selectedTorrents.length;
-            announceAction(actionKey, "start", count);
-            for (const torrent of selectedTorrents) {
-                await executeTorrentAction(action, torrent);
+            if (hasFeedback) {
+                announceAction(actionKey, "start", targets.length);
             }
-            announceAction(actionKey, "done", count);
+            const success = await runActionsWithOptimism(action, targets);
+            if (hasFeedback && success) {
+                announceAction(actionKey, "done", targets.length);
+            }
         },
-        [
-            announceAction,
-            executeTorrentAction,
-            requestDelete,
-            selectedTorrents,
-        ]
+        [announceAction, requestDelete, runActionsWithOptimism, selectedTorrents]
     );
 
     const verifyingTorrents = torrents.filter(
@@ -739,76 +816,18 @@ export default function App() {
             <input {...getInputProps()} />
 
             <div className="fixed inset-0 z-0 pointer-events-none">
-                <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20" />
-                <div className="absolute top-[-10%] right-[-5%] h-[500px] w-[500px] rounded-full bg-primary/5 blur-[120px]" />
-                <div className="absolute bottom-[-10%] left-[-5%] h-[500px] w-[500px] rounded-full bg-success/10 blur-[120px]" />
+                <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] bg-fixed opacity-20" />
+                <div className="absolute top-[-10%] right-[-5%] h-[500px] w-[500px] rounded-full bg-foreground/15 blur-[120px] opacity-80" />
+                <div className="absolute bottom-[-10%] left-[-5%] h-[500px] w-[500px] rounded-full bg-foreground/10 blur-[120px] opacity-60" />
             </div>
 
-            <AnimatePresence>
-                {isDragActive && (
-                    <motion.div
-                        initial={{
-                            opacity: 0,
-                            scale: dragOverlay.root.initialScale,
-                            backdropFilter: `blur(${dragOverlay.root.initialBlur}px)`,
-                        }}
-                        animate={{
-                            opacity: 1,
-                            scale: dragOverlay.root.activeScale,
-                            backdropFilter: `blur(${dragOverlay.root.activeBlur}px)`,
-                        }}
-                        exit={{
-                            opacity: 0,
-                            scale: dragOverlay.root.exitScale,
-                            backdropFilter: `blur(${dragOverlay.root.exitBlur}px)`,
-                        }}
-                        transition={dragOverlay.root.transition}
-                        className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center px-4"
-                    >
-                        {dragOverlay.layers.map((layer) => (
-                            <motion.div
-                                key={layer.id}
-                                initial={layer.initial}
-                                animate={layer.animate}
-                                exit={layer.exit}
-                                transition={layer.transition}
-                                className={layer.className}
-                            />
-                        ))}
-                        <div className="relative flex w-full max-w-lg flex-col items-center gap-4 rounded-[32px] border border-primary/30 bg-background/90 px-10 py-12 text-center shadow-[0_20px_110px_rgba(3,7,20,0.35)]">
-                            <motion.div
-                                initial={{
-                                    scale: dragOverlay.iconPulse.initialScale,
-                                }}
-                                animate={{
-                                    scale: dragOverlay.iconPulse.animateScale,
-                                }}
-                                transition={dragOverlay.iconPulse.transition}
-                                className="flex h-20 w-20 items-center justify-center rounded-full bg-primary/5 shadow-lg shadow-primary/40"
-                            >
-                                <FileUp
-                                    size={48}
-                                    strokeWidth={ICON_STROKE_WIDTH}
-                                    className="text-primary"
-                                />
-                            </motion.div>
-                            <h2 className="text-3xl font-bold">
-                                {t("drop_overlay.title")}
-                            </h2>
-                            <p className="text-xs uppercase tracking-[0.4em] text-foreground/60">
-                                {t("drop_overlay.subtitle")}
-                            </p>
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
             <AnimatePresence>
                 {rpcStatus === "error" && (
                     <motion.div
                         initial={{ opacity: 0, y: 6 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: 6 }}
-                        transition={{ duration: MOTION_DURATION_S }}
+                        transition={TOAST_SPRING_TRANSITION}
                         className="fixed bottom-6 right-6 z-40"
                     >
                         <Button
@@ -852,8 +871,14 @@ export default function App() {
                 }}
                 size="sm"
                 backdrop="blur"
+                motionProps={{
+                    initial: { opacity: 0, scale: 0.96, y: 8 },
+                    animate: { opacity: 1, scale: 1, y: 0 },
+                    exit: { opacity: 0, scale: 0.96, y: 8 },
+                    transition: MODAL_SPRING_TRANSITION,
+                }}
                 classNames={{
-                    base: "bg-content1/80 backdrop-blur-2xl border border-content1/20 shadow-xl rounded-2xl",
+                    base: "glass-panel bg-content1/80 backdrop-blur-2xl border border-content1/20 shadow-xl rounded-2xl",
                 }}
             >
                 <ModalContent>
@@ -893,22 +918,24 @@ export default function App() {
             </Modal>
 
             <main className="flex-1 min-h-0 flex flex-col">
-                <ModeLayout
-                    torrents={torrents}
-                    filter={filter}
-                    isTableLoading={isTableLoading}
-                    onAction={handleTorrentAction}
-                    onRequestDetails={handleRequestDetails}
-                    detailData={detailData}
-                    onCloseDetail={closeDetail}
-                    onFilesToggle={handleFileSelectionChange}
-                    onSequentialToggle={sequentialToggleHandler}
-                    onSuperSeedingToggle={superSeedingToggleHandler}
-                    onForceTrackerReannounce={handleForceTrackerReannounce}
-                    sequentialSupported={sequentialSupported}
-                    superSeedingSupported={superSeedingSupported}
-                    onSelectionChange={handleSelectionChange}
-                />
+            <ModeLayout
+                torrents={torrents}
+                filter={filter}
+                isTableLoading={isTableLoading}
+                onAction={handleTorrentAction}
+                onRequestDetails={handleRequestDetails}
+                detailData={detailData}
+                onCloseDetail={closeDetail}
+                onFilesToggle={handleFileSelectionChange}
+                onSequentialToggle={sequentialToggleHandler}
+                onSuperSeedingToggle={superSeedingToggleHandler}
+                onForceTrackerReannounce={handleForceTrackerReannounce}
+                sequentialSupported={sequentialSupported}
+                superSeedingSupported={superSeedingSupported}
+                optimisticStatuses={optimisticStatuses}
+                isDropActive={isDragActive}
+                onSelectionChange={handleSelectionChange}
+            />
             <StatusBar
                 sessionStats={sessionStats}
                 downHistory={downHistory}

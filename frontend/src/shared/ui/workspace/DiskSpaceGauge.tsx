@@ -1,6 +1,7 @@
-import { Progress, cn } from "@heroui/react";
+import { cn } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 import { formatBytes } from "../../utils/format";
+import { SmoothProgressBar } from "../components/SmoothProgressBar";
 
 export interface DiskSpaceGaugeProps {
     freeBytes?: number;
@@ -37,7 +38,7 @@ export function DiskSpaceGauge({
     const { t } = useTranslation();
 
     const indicatorClasses = cn(
-        "rounded-full",
+        "h-full rounded-full",
         isInsufficient
             ? "bg-gradient-to-r from-danger/80 via-danger/60 to-danger/90"
             : "bg-gradient-to-r from-danger/70 via-warning/70 to-success/70"
@@ -58,14 +59,13 @@ export function DiskSpaceGauge({
                     {path ?? t("modals.disk_gauge.path_unknown")}
                 </span>
             </div>
-            <Progress
-                value={Math.min(usedPercent + torrentPercent, 100)}
-                size="sm"
-                classNames={{
-                    track: "h-2 rounded-full bg-content1/20",
-                    indicator: indicatorClasses,
-                }}
-            />
+            <div className="h-2">
+                <SmoothProgressBar
+                    value={Math.min(usedPercent + torrentPercent, 100)}
+                    trackClassName="h-full bg-content1/20"
+                    indicatorClassName={indicatorClasses}
+                />
+            </div>
             <div className="flex justify-between text-[11px] font-mono text-foreground/60">
                 <span>
                     {t("modals.disk_gauge.used")}{" "}

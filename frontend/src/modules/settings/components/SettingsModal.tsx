@@ -31,6 +31,7 @@ import {
     type SettingsConfig,
 } from "../data/config";
 import { ICON_STROKE_WIDTH } from "../../../config/iconography";
+import { INTERACTION_CONFIG } from "../../../config/interaction";
 
 type SettingsTab = "speed" | "network" | "peers" | "storage" | "privacy";
 
@@ -853,21 +854,13 @@ export function SettingsModal({
             size="5xl"
             hideCloseButton
             classNames={{
-                base: "bg-content1/80 backdrop-blur-2xl border border-content1/20 shadow-2xl flex flex-row h-auto max-h-[85vh] min-h-[520px] overflow-hidden rounded-2xl",
+                base: "glass-panel bg-content1/80 backdrop-blur-2xl border border-content1/20 shadow-2xl flex flex-row h-auto max-h-[85vh] min-h-[520px] overflow-hidden rounded-2xl",
             }}
             motionProps={{
-                variants: {
-                    enter: {
-                        scale: 1,
-                        opacity: 1,
-                        transition: { duration: 0.2 },
-                    },
-                    exit: {
-                        scale: 0.98,
-                        opacity: 0,
-                        transition: { duration: 0.1 },
-                    },
-                },
+                initial: { opacity: 0, scale: 0.98, y: 10 },
+                animate: { opacity: 1, scale: 1, y: 0 },
+                exit: { opacity: 0, scale: 0.98, y: 10 },
+                transition: INTERACTION_CONFIG.modalBloom.transition,
             }}
         >
             <ModalContent className="h-full">
