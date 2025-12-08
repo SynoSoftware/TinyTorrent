@@ -43,6 +43,7 @@ interface AddTorrentModalProps {
     }) => Promise<void>;
     isSubmitting: boolean;
     initialFile?: File | null;
+    initialMagnetLink?: string | null;
     getFreeSpace?: (path: string) => Promise<TransmissionFreeSpace>;
 }
 
@@ -54,6 +55,7 @@ export function AddTorrentModal({
     onAdd,
     isSubmitting,
     initialFile,
+    initialMagnetLink,
     getFreeSpace,
 }: AddTorrentModalProps) {
     const { t } = useTranslation();
@@ -124,6 +126,11 @@ export function AddTorrentModal({
             setSelectedFile(initialFile);
         }
     }, [initialFile, isOpen]);
+
+    useEffect(() => {
+        if (!isOpen || !initialMagnetLink) return;
+        setMagnetLink(initialMagnetLink);
+    }, [initialMagnetLink, isOpen]);
 
     useEffect(() => {
         let active = true;
