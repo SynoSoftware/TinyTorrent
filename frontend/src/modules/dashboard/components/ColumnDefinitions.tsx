@@ -1,3 +1,5 @@
+// FILE: src/modules/dashboard/components/ColumnDefinitions.tsx
+
 import {
     Button,
     Checkbox,
@@ -45,6 +47,10 @@ import { TABLE_LAYOUT } from "../config/layout";
 import { GLASS_MENU_SURFACE } from "../../../shared/ui/layout/glass-surface";
 import { ICON_STROKE_WIDTH_DENSE } from "../../../config/iconography";
 import { SmoothProgressBar } from "../../../shared/ui/components/SmoothProgressBar";
+import type { Table } from "@tanstack/react-table";
+import type { OptimisticStatusMap } from "./TorrentTable";
+
+// --- TYPES ---
 
 export type ColumnId =
     | "selection"
@@ -60,15 +66,18 @@ export type ColumnId =
     | "hash"
     | "added";
 
+// We define what we expect in table.options.meta
+export interface DashboardTableMeta {
+    speedHistory: Record<string, number[]>;
+    optimisticStatuses: OptimisticStatusMap;
+}
+
 export interface ColumnRendererProps {
     torrent: Torrent;
     t: TFunction;
     isSelected: boolean;
     toggleSelection: (value?: unknown) => void;
-    sparkline?: {
-        history: number[];
-        state: Torrent["state"];
-    };
+    table: Table<Torrent>; // Added table instance access
 }
 
 export interface ColumnDefinition {
@@ -191,13 +200,13 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
         headerIcon: ListChecks,
         render: ({ torrent, t }) => (
             <div className="flex flex-col gap-0.5 min-w-0">
-                    <span
-                        className={cn(
-                            "font-medium truncate max-w-md transition-colors cap-height-text",
-                            TABLE_LAYOUT.fontSize,
-                            torrent.state === "paused" && "text-foreground/50"
-                        )}
-                    >
+                <span
+                    className={cn(
+                        "font-medium truncate max-w-md transition-colors cap-height-text",
+                        TABLE_LAYOUT.fontSize,
+                        torrent.state === "paused" && "text-foreground/50"
+                    )}
+                >
                     {torrent.name}
                 </span>
                 {torrent.state === "downloading" && (
@@ -364,7 +373,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
         sortAccessor: (torrent) =>
             torrent.state === "seeding" ? torrent.speed.up : torrent.speed.down,
         headerIcon: ArrowUpCircle,
-        render: ({ torrent, sparkline }) => {
+        render: ({ torrent, table }) => {
             const isDownloading = torrent.state === "downloading";
             const isSeeding = torrent.state === "seeding";
             const speedValue = isDownloading
@@ -372,7 +381,11 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
                 : isSeeding
                 ? torrent.speed.up
                 : null;
-            const history = sparkline?.history ?? [];
+
+            // Access meta safely
+            const meta = table.options.meta as DashboardTableMeta | undefined;
+            const history = meta?.speedHistory?.[torrent.id] ?? [];
+
             const maxHistorySpeed =
                 history.length > 0 ? Math.max(...history) : 0;
             const maxSpeed = Math.max(speedValue ?? 0, maxHistorySpeed, 1);
@@ -440,23 +453,23 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
         sortAccessor: (torrent) => torrent.peerSummary.connected,
         headerIcon: Users,
         render: ({ torrent }) => (
-                <div
-                    className={cn(
-                        "flex items-center justify-end gap-1 text-foreground/60 min-w-0",
-                        DENSE_NUMERIC
-                    )}
-                >
-                    <Users
-                        size={TABLE_LAYOUT.iconSize}
-                        strokeWidth={ICON_STROKE_WIDTH_DENSE}
-                        className="opacity-50 text-current"
-                    />
-                    <span>{torrent.peerSummary.connected}</span>
-                    <span className="opacity-30">/</span>
-                    <span className="opacity-50">
-                        {torrent.peerSummary.seeds ?? "-"}
-                    </span>
-                </div>
+            <div
+                className={cn(
+                    "flex items-center justify-end gap-1 text-foreground/60 min-w-0",
+                    DENSE_NUMERIC
+                )}
+            >
+                <Users
+                    size={TABLE_LAYOUT.iconSize}
+                    strokeWidth={ICON_STROKE_WIDTH_DENSE}
+                    className="opacity-50 text-current"
+                />
+                <span>{torrent.peerSummary.connected}</span>
+                <span className="opacity-30">/</span>
+                <span className="opacity-50">
+                    {torrent.peerSummary.seeds ?? "-"}
+                </span>
+            </div>
         ),
     },
     size: {
