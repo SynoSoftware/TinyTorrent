@@ -13,17 +13,19 @@ import {
 } from "@heroui/react";
 import type { LucideIcon } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
     FolderOpen,
     Globe,
+    Monitor,
     Network,
     Save,
     Shield,
     RotateCcw,
     Zap,
     X,
+    ChevronLeft,
 } from "lucide-react";
 import {
     DEFAULT_SETTINGS_CONFIG,
@@ -32,8 +34,17 @@ import {
 } from "../data/config";
 import { ICON_STROKE_WIDTH } from "../../../config/iconography";
 import { INTERACTION_CONFIG } from "../../../config/interaction";
+import { DirectoryPicker } from "../../../shared/ui/workspace/DirectoryPicker";
 
-type SettingsTab = "speed" | "network" | "peers" | "storage" | "privacy";
+// --- Types ---
+
+type SettingsTab =
+    | "speed"
+    | "network"
+    | "peers"
+    | "storage"
+    | "privacy"
+    | "gui";
 
 type VisibilityCheck = (config: SettingsConfig) => boolean;
 
@@ -48,6 +59,8 @@ interface BlockBase {
     className?: string;
     dependsOn?: ConfigKey;
 }
+
+type ButtonActionKey = "testPort" | "restoreHud";
 
 type SwitchSliderBlock = {
     type: "switch-slider";
@@ -75,16 +88,22 @@ type InputBlock = {
     variant?: "bordered" | "flat";
     size?: "sm" | "md";
     endIcon?: LucideIcon;
+
+    // Unified Side Action (Browse or Custom)
+    sideAction?: {
+        type: "browse" | "button";
+        labelKey: string;
+        actionKey?: ButtonActionKey; // Required if type is button
+        targetConfigKey?: ConfigKey; // Required if type is browse (usually same as stateKey)
+    };
+
+    // Legacy support (optional, can be mapped to sideAction internally)
+    browseAction?: ConfigKey;
 } & BlockBase;
 
 type InputPairBlock = {
     type: "input-pair";
-    inputs: Array<{
-        labelKey: string;
-        stateKey: ConfigKey;
-        inputType?: string;
-        variant?: "bordered" | "flat";
-    }>;
+    inputs: Array<InputBlock>;
 } & BlockBase;
 
 type SelectBlock = {
@@ -103,8 +122,6 @@ type DaySelectorBlock = {
     type: "day-selector";
     labelKey: string;
 } & BlockBase;
-
-type ButtonActionKey = "testPort";
 
 type ButtonRowBlock = {
     type: "button-row";
@@ -131,6 +148,7 @@ type SectionBlock =
 interface SectionDefinition {
     titleKey: string;
     cardClass?: string;
+    descriptionKey?: string;
     blocks: SectionBlock[];
 }
 
@@ -141,6 +159,8 @@ interface TabDefinition {
     headerKey: string;
     sections: SectionDefinition[];
 }
+
+// --- Configuration ---
 
 const SETTINGS_TABS: TabDefinition[] = [
     {
@@ -186,12 +206,14 @@ const SETTINGS_TABS: TabDefinition[] = [
                         type: "input-pair",
                         inputs: [
                             {
+                                type: "input",
                                 labelKey: "settings.labels.altSpeedDown",
                                 stateKey: "alt_speed_down",
                                 inputType: "number",
                                 variant: "bordered",
                             },
                             {
+                                type: "input",
                                 labelKey: "settings.labels.altSpeedUp",
                                 stateKey: "alt_speed_up",
                                 inputType: "number",
@@ -204,12 +226,14 @@ const SETTINGS_TABS: TabDefinition[] = [
                         visible: (config) => config.alt_speed_time_enabled,
                         inputs: [
                             {
+                                type: "input",
                                 labelKey: "settings.labels.altSpeedStart",
                                 stateKey: "alt_speed_begin",
                                 inputType: "time",
                                 variant: "flat",
                             },
                             {
+                                type: "input",
                                 labelKey: "settings.labels.altSpeedEnd",
                                 stateKey: "alt_speed_end",
                                 inputType: "time",
@@ -293,19 +317,12 @@ const SETTINGS_TABS: TabDefinition[] = [
                         stateKey: "peer_port",
                         inputType: "number",
                         variant: "bordered",
-                    },
-                    {
-                        type: "button-row",
-                        buttons: [
-                            {
-                                labelKey: "settings.buttons.testPort",
-                                action: "testPort",
-                                variant: "flat",
-                                color: "primary",
-                                size: "lg",
-                                className: "h-12",
-                            },
-                        ],
+                        // Fix: Merged Button into Input
+                        sideAction: {
+                            type: "button",
+                            labelKey: "settings.buttons.testPort",
+                            actionKey: "testPort",
+                        },
                     },
                     {
                         type: "switch",
@@ -354,12 +371,14 @@ const SETTINGS_TABS: TabDefinition[] = [
                         type: "input-pair",
                         inputs: [
                             {
+                                type: "input",
                                 labelKey: "settings.labels.globalPeers",
                                 stateKey: "peer_limit_global",
                                 inputType: "number",
                                 variant: "bordered",
                             },
                             {
+                                type: "input",
                                 labelKey: "settings.labels.perTorrentPeers",
                                 stateKey: "peer_limit_per_torrent",
                                 inputType: "number",
@@ -384,8 +403,12 @@ const SETTINGS_TABS: TabDefinition[] = [
                         labelKey: "settings.labels.downloadFolder",
                         stateKey: "download_dir",
                         type: "input",
-                        endIcon: FolderOpen,
                         variant: "bordered",
+                        sideAction: {
+                            type: "browse",
+                            labelKey: "settings.button.browse",
+                            targetConfigKey: "download_dir",
+                        },
                     },
                     {
                         type: "switch",
@@ -398,6 +421,11 @@ const SETTINGS_TABS: TabDefinition[] = [
                         stateKey: "incomplete_dir",
                         variant: "flat",
                         dependsOn: "incomplete_dir_enabled",
+                        sideAction: {
+                            type: "browse",
+                            labelKey: "settings.button.browse",
+                            targetConfigKey: "incomplete_dir",
+                        },
                     },
                 ],
             },
@@ -471,6 +499,32 @@ const SETTINGS_TABS: TabDefinition[] = [
             },
         ],
     },
+    {
+        id: "gui",
+        labelKey: "settings.tabs.gui",
+        icon: Monitor,
+        headerKey: "settings.headers.gui",
+        sections: [
+            {
+                titleKey: "settings.sections.dashboard",
+                descriptionKey: "settings.descriptions.restore_hud",
+                blocks: [
+                    {
+                        type: "button-row",
+                        buttons: [
+                            {
+                                labelKey: "settings.buttons.restore_hud",
+                                action: "restoreHud",
+                                variant: "flat",
+                                color: "primary",
+                                size: "md",
+                            },
+                        ],
+                    },
+                ],
+            },
+        ],
+    },
 ];
 
 const ALT_SPEED_DAY_OPTIONS: ReadonlyArray<{
@@ -500,7 +554,7 @@ const SectionCard = ({
 }) => (
     <Card
         className={cn(
-            "p-4 rounded-2xl border border-content1/20 bg-content1/10",
+            "p-5 rounded-2xl border border-content1/20 bg-content1/10",
             className
         )}
     >
@@ -510,9 +564,17 @@ const SectionCard = ({
 
 function SectionTitle({ title }: SectionTitleProps) {
     return (
-        <h3 className="text-[9px] font-semibold uppercase tracking-[0.35em] text-foreground/40 mb-2 mt-0 leading-tight">
+        <h3 className="text-[10px] font-bold uppercase tracking-[0.3em] text-foreground/40 mb-3 mt-0 leading-tight">
             {title}
         </h3>
+    );
+}
+
+function SectionDescription({ description }: { description: string }) {
+    return (
+        <p className="mb-4 text-[11px] uppercase tracking-[0.25em] text-foreground/50">
+            {description}
+        </p>
     );
 }
 
@@ -523,6 +585,7 @@ interface SettingsModalProps {
     isSaving: boolean;
     onSave: (config: SettingsConfig) => Promise<void>;
     onTestPort?: () => void;
+    onRestoreInsights?: () => void;
 }
 
 export function SettingsModal({
@@ -532,18 +595,39 @@ export function SettingsModal({
     isSaving,
     onSave,
     onTestPort,
+    onRestoreInsights,
 }: SettingsModalProps) {
     const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState<SettingsTab>("speed");
+
+    // Responsive State
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(true);
+
     const [config, setConfig] = useState<SettingsConfig>(() => ({
         ...initialConfig,
     }));
 
+    // Local input state for fixing decimal/typing issues
+    const [localInputs, setLocalInputs] = useState<Record<string, string>>({});
+
+    const [activeBrowseKey, setActiveBrowseKey] = useState<ConfigKey | null>(
+        null
+    );
+
     useEffect(() => {
         if (isOpen) {
             setConfig(initialConfig);
+            setLocalInputs({});
+            setIsMobileMenuOpen(true);
         }
     }, [initialConfig, isOpen]);
+
+    useEffect(() => {
+        if (!isOpen) {
+            setActiveBrowseKey(null);
+            setLocalInputs({});
+        }
+    }, [isOpen]);
 
     const handleSave = async () => {
         try {
@@ -555,6 +639,7 @@ export function SettingsModal({
 
     const handleReset = () => {
         setConfig({ ...DEFAULT_SETTINGS_CONFIG });
+        setLocalInputs({});
     };
 
     const updateConfig = <K extends ConfigKey>(
@@ -565,50 +650,173 @@ export function SettingsModal({
     };
 
     const buttonActions: Record<ButtonActionKey, () => void> = {
-        testPort: () => {
-            void onTestPort?.();
-        },
+        testPort: () => void onTestPort?.(),
+        restoreHud: () => onRestoreInsights?.(),
     };
+
+    const openDirectoryPicker = (key: ConfigKey) => {
+        setActiveBrowseKey(key);
+    };
+    const closeDirectoryPicker = () => {
+        setActiveBrowseKey(null);
+    };
+    const pickDirectory = (path: string) => {
+        if (!activeBrowseKey) return;
+        updateConfig(activeBrowseKey, path as SettingsConfig[ConfigKey]);
+        closeDirectoryPicker();
+    };
+
+    const pickerInitialPath =
+        activeBrowseKey && (config[activeBrowseKey] as string)
+            ? (config[activeBrowseKey] as string)
+            : "";
+
+    const hasUnsavedChanges = useMemo(() => {
+        const configKeys = Object.keys(DEFAULT_SETTINGS_CONFIG) as ConfigKey[];
+        return configKeys.some((key) => config[key] !== initialConfig[key]);
+    }, [config, initialConfig]);
 
     const activeTabDefinition =
         SETTINGS_TABS.find((tab) => tab.id === activeTab) ?? SETTINGS_TABS[0];
 
+    // --- Renderers ---
+
     const renderInput = (block: InputBlock, index: number) => {
         const dependsOn = block.dependsOn;
         const isDisabled = dependsOn && !(config[dependsOn] as boolean);
-        const value = String(config[block.stateKey] ?? "");
 
-        return (
+        // Value Logic: Prefer local input while typing to allow "10."
+        const configValue = config[block.stateKey];
+        const localValue = localInputs[block.stateKey];
+        const displayValue =
+            localValue !== undefined ? localValue : String(configValue ?? "");
+
+        const isMono =
+            block.inputType === "number" ||
+            (typeof displayValue === "string" &&
+                (displayValue.includes("/") || displayValue.includes("\\")));
+
+        // Determine Action
+        const sideAction = block.sideAction
+            ? block.sideAction
+            : block.browseAction
+            ? {
+                  type: "browse" as const,
+                  labelKey: "settings.button.browse",
+                  targetConfigKey: block.browseAction,
+              }
+            : undefined;
+
+        const handleSideAction = () => {
+            if (!sideAction) return;
+            if (sideAction.type === "browse" && sideAction.targetConfigKey) {
+                openDirectoryPicker(sideAction.targetConfigKey);
+            } else if (sideAction.type === "button" && sideAction.actionKey) {
+                buttonActions[sideAction.actionKey]();
+            }
+        };
+
+        const inputNode = (
             <Input
-                key={`${block.stateKey}-${index}`}
+                key={`input-${block.stateKey}`}
                 label={t(block.labelKey)}
+                labelPlacement="outside" // <--- MOVES LABEL TO TOP
+                placeholder=" " // <--- KEEPS LAYOUT STABLE
                 size={block.size ?? "sm"}
                 variant={block.variant ?? "bordered"}
-                value={value}
+                value={displayValue}
                 type={block.inputType}
                 isDisabled={!!isDisabled}
+                onBlur={() => {
+                    setLocalInputs((prev) => {
+                        const { [block.stateKey]: _, ...rest } = prev;
+                        return rest;
+                    });
+                }}
+                onChange={(event) => {
+                    const rawValue = event.target.value;
+                    setLocalInputs((prev) => ({
+                        ...prev,
+                        [block.stateKey]: rawValue,
+                    }));
+
+                    if (block.inputType === "number") {
+                        if (rawValue !== "") {
+                            const num = Number(rawValue);
+                            if (!isNaN(num)) {
+                                updateConfig(
+                                    block.stateKey,
+                                    num as SettingsConfig[ConfigKey]
+                                );
+                            }
+                        }
+                    } else {
+                        updateConfig(
+                            block.stateKey,
+                            rawValue as SettingsConfig[ConfigKey]
+                        );
+                    }
+                }}
+                classNames={{
+                    // inputWrapper styles the BOX itself
+                    inputWrapper: cn(
+                        "h-[42px] transition-colors",
+                        isDisabled
+                            ? "opacity-50"
+                            : "group-hover:border-primary/50"
+                    ),
+                    // input styles the TEXT inside the box
+                    input: cn(
+                        "text-foreground/90",
+                        isMono
+                            ? "font-mono text-[13px] tracking-tight"
+                            : "font-medium text-sm"
+                    ),
+                    // label styles the TEXT ABOVE the box
+                    label: "text-foreground/60 font-medium text-xs uppercase tracking-wider mb-1",
+                }}
                 endContent={
                     block.endIcon ? (
                         <block.endIcon
-                            size={14}
+                            size={18}
                             strokeWidth={ICON_STROKE_WIDTH}
-                            className="text-default-400"
+                            className="text-foreground/40"
                         />
                     ) : undefined
                 }
-                onChange={(event) => {
-                    const rawValue = event.target.value;
-                    const parsedValue =
-                        block.inputType === "number"
-                            ? Number(rawValue)
-                            : rawValue;
-                    updateConfig(
-                        block.stateKey,
-                        parsedValue as SettingsConfig[ConfigKey]
-                    );
-                }}
                 className={block.className}
             />
+        );
+
+        if (!sideAction) {
+            return (
+                <div key={`${block.stateKey}-${index}`} className="group">
+                    {inputNode}
+                </div>
+            );
+        }
+
+        return (
+            <div
+                key={`${block.stateKey}-${index}`}
+                className="flex w-full items-end gap-3 group"
+            >
+                <div className="flex-1 min-w-0">{inputNode}</div>
+                <Button
+                    size="sm"
+                    variant="flat"
+                    color="primary"
+                    onPress={handleSideAction}
+                    className={cn(
+                        "h-[42px] px-5 shrink-0",
+                        "font-semibold text-xs tracking-wider uppercase",
+                        "bg-primary/10 hover:bg-primary/20 text-primary transition-colors",
+                        "data-[pressed=true]:scale-95"
+                    )}
+                >
+                    {t(sideAction.labelKey)}
+                </Button>
+            </div>
         );
     };
 
@@ -634,7 +842,7 @@ export function SettingsModal({
                 return (
                     <div
                         key={`section-${sectionIndex}-block-${blockIndex}`}
-                        className="space-y-2"
+                        className="space-y-3"
                     >
                         <div className="flex justify-between items-center">
                             <Switch
@@ -648,11 +856,11 @@ export function SettingsModal({
                                     )
                                 }
                             >
-                                <span className="text-xs font-semibold leading-tight tracking-[0.12em]">
+                                <span className="text-sm font-medium text-foreground/90">
                                     {t(block.labelKey)}
                                 </span>
                             </Switch>
-                            <div className="text-[10px] font-mono font-semibold text-foreground/70 bg-foreground/5 px-1.5 py-0.5 rounded-full leading-tight">
+                            <div className="text-[11px] font-mono font-medium text-foreground/80 bg-content2 px-2 py-1 rounded-md min-w-[60px] text-center">
                                 {block.valueSuffixKey
                                     ? t(block.valueSuffixKey, { value })
                                     : value}
@@ -672,6 +880,9 @@ export function SettingsModal({
                             }
                             isDisabled={sliderDisabled}
                             color={block.color}
+                            classNames={{
+                                thumb: "shadow-small",
+                            }}
                             className="opacity-90"
                         />
                     </div>
@@ -682,7 +893,7 @@ export function SettingsModal({
                 return (
                     <div
                         key={`section-${sectionIndex}-block-${blockIndex}`}
-                        className="flex justify-between items-center"
+                        className="flex justify-between items-center h-10"
                     >
                         <span
                             className={cn(
@@ -721,7 +932,7 @@ export function SettingsModal({
                     >
                         {block.inputs.map((inputBlock, inputIndex) =>
                             renderInput(
-                                { ...inputBlock, type: "input" } as InputBlock,
+                                inputBlock, // Already an InputBlock
                                 inputIndex
                             )
                         )}
@@ -741,14 +952,11 @@ export function SettingsModal({
                 return (
                     <div
                         key={`section-${sectionIndex}-block-${blockIndex}`}
-                        className="space-y-2"
+                        className="space-y-3"
                     >
                         <div className="flex items-center justify-between">
                             <span className="text-xs font-semibold uppercase tracking-[0.2em] text-foreground/70">
                                 {t(block.labelKey)}
-                            </span>
-                            <span className="text-[9px] uppercase tracking-[0.4em] text-foreground/40">
-                                {t("settings.labels.altSpeedDaysHelp")}
                             </span>
                         </div>
                         <div className="flex flex-wrap gap-2">
@@ -767,9 +975,14 @@ export function SettingsModal({
                                             isSelected ? "primary" : undefined
                                         }
                                         onPress={() => toggleDay(day.mask)}
-                                        className="uppercase tracking-[0.3em] px-3 py-1"
+                                        className={cn(
+                                            "uppercase tracking-[0.2em] text-[10px] h-8 px-3 min-w-0",
+                                            isSelected
+                                                ? "font-bold"
+                                                : "text-foreground/60"
+                                        )}
                                     >
-                                        {t(day.labelKey)}
+                                        {t(day.labelKey).substring(0, 3)}
                                     </Button>
                                 );
                             })}
@@ -790,6 +1003,10 @@ export function SettingsModal({
                                 ? [String(config[block.stateKey])]
                                 : []
                         }
+                        classNames={{
+                            trigger: "h-[42px]",
+                            value: "text-sm font-medium",
+                        }}
                         onSelectionChange={(keys) => {
                             const [next] = [...keys];
                             if (next) {
@@ -835,7 +1052,7 @@ export function SettingsModal({
                 return (
                     <Divider
                         key={`section-${sectionIndex}-block-${blockIndex}`}
-                        className="my-3"
+                        className="my-3 opacity-50"
                     />
                 );
             }
@@ -854,100 +1071,147 @@ export function SettingsModal({
             size="5xl"
             hideCloseButton
             classNames={{
-                base: "glass-panel bg-content1/80 backdrop-blur-2xl border border-content1/20 shadow-2xl flex flex-row h-auto max-h-[85vh] min-h-[520px] overflow-hidden rounded-2xl",
+                base: "glass-panel bg-content1/80 backdrop-blur-2xl border border-white/5 shadow-2xl flex flex-row h-[85vh] max-h-[800px] min-h-[500px] overflow-hidden rounded-2xl",
+                wrapper: "overflow-hidden",
             }}
-            motionProps={{
-                initial: { opacity: 0, scale: 0.98, y: 10 },
-                animate: { opacity: 1, scale: 1, y: 0 },
-                exit: { opacity: 0, scale: 0.98, y: 10 },
-                transition: INTERACTION_CONFIG.modalBloom.transition,
-            }}
+            motionProps={INTERACTION_CONFIG.modalBloom}
         >
-            <ModalContent className="h-full">
-                <div className="flex h-full min-h-[520px] max-h-[85vh] overflow-hidden rounded-2xl">
-                    <div className="w-56 shrink-0 border-r border-content1/20 bg-content1/10 backdrop-blur-xl flex flex-col">
-                        <div className="p-5 border-b border-content1/10">
+            <ModalContent className="h-full flex flex-col p-0">
+                <div className="flex flex-row flex-1 min-h-0 overflow-hidden relative">
+                    {/* SIDEBAR - Responsive: Collapsible on mobile */}
+                    <div
+                        className={cn(
+                            "flex flex-col border-r border-content1/20 bg-content1/50 backdrop-blur-xl transition-transform duration-300 absolute inset-y-0 left-0 z-20 w-full sm:w-64 sm:relative sm:translate-x-0",
+                            !isMobileMenuOpen
+                                ? "-translate-x-full"
+                                : "translate-x-0"
+                        )}
+                    >
+                        <div className="p-6 border-b border-content1/10 flex justify-between items-center h-16 shrink-0">
                             <h2 className="text-lg font-bold tracking-tight text-foreground">
                                 {t("settings.modal.title")}
                             </h2>
+                            <Button
+                                isIconOnly
+                                variant="light"
+                                size="sm"
+                                className="sm:hidden text-foreground/50"
+                                onPress={onClose}
+                            >
+                                <X size={20} />
+                            </Button>
                         </div>
-                        <div className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
+
+                        <div className="flex-1 px-3 py-4 space-y-1 overflow-y-auto scrollbar-hide">
                             {SETTINGS_TABS.map((tab) => (
                                 <button
                                     key={tab.id}
-                                    onClick={() => setActiveTab(tab.id)}
+                                    onClick={() => {
+                                        setActiveTab(tab.id);
+                                        setIsMobileMenuOpen(false);
+                                    }}
                                     className={cn(
-                                        "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 group relative",
+                                        "w-full flex items-center gap-4 px-4 py-3 rounded-xl text-sm transition-all duration-200 group relative",
                                         activeTab === tab.id
-                                            ? "bg-primary/10 text-primary"
-                                            : "text-foreground/60 hover:text-foreground hover:bg-default-100"
+                                            ? "bg-primary/10 text-primary font-semibold"
+                                            : "text-foreground/60 hover:text-foreground hover:bg-content2/50 font-medium"
                                     )}
                                 >
                                     <tab.icon
-                                        size={16}
+                                        size={20}
                                         strokeWidth={ICON_STROKE_WIDTH}
-                                        className="text-current"
+                                        className={cn(
+                                            "shrink-0",
+                                            activeTab === tab.id
+                                                ? "text-primary"
+                                                : "text-foreground/50"
+                                        )}
                                     />
                                     <span>{t(tab.labelKey)}</span>
                                     {activeTab === tab.id && (
-                                        <div className="absolute left-0 top-2 bottom-2 w-0.5 bg-primary rounded-r-full" />
+                                        <motion.div
+                                            layoutId="activeTabIndicator"
+                                            className="absolute left-0 top-3 bottom-3 w-1 bg-primary rounded-r-full"
+                                        />
                                     )}
                                 </button>
                             ))}
                         </div>
-                        <div className="p-4 border-t border-content1/10">
-                            <div className="text-[10px] text-foreground/30 font-mono">
+                        <div className="p-6 border-t border-content1/10 shrink-0">
+                            <div className="text-[10px] text-foreground/30 font-mono tracking-widest">
                                 {t("brand.version")}
                             </div>
                         </div>
                     </div>
-                    <div className="flex-1 min-h-0 flex flex-col bg-content1/10 backdrop-blur-lg">
-                        <div className="sticky top-0 z-10 shrink-0 h-14 border-b border-content1/10 flex items-center justify-between px-6 bg-content1/15 backdrop-blur-md">
-                            <h1 className="text-sm font-bold text-foreground/80">
-                                {t(activeTabDefinition.headerKey)}
-                            </h1>
+
+                    {/* CONTENT AREA */}
+                    <div className="flex-1 min-h-0 flex flex-col bg-content1/10 backdrop-blur-lg relative w-full">
+                        {/* Header */}
+                        <div className="sticky top-0 z-10 shrink-0 h-16 border-b border-content1/10 flex items-center justify-between px-6 bg-content1/30 backdrop-blur-xl">
+                            <div className="flex items-center gap-3">
+                                <Button
+                                    isIconOnly
+                                    variant="light"
+                                    size="sm"
+                                    className="sm:hidden -ml-2 text-foreground/50"
+                                    onPress={() => setIsMobileMenuOpen(true)}
+                                >
+                                    <ChevronLeft size={22} />
+                                </Button>
+                                <div className="flex flex-col">
+                                    <h1 className="text-base font-bold text-foreground">
+                                        {t(activeTabDefinition.headerKey)}
+                                    </h1>
+                                    {hasUnsavedChanges && (
+                                        <span className="text-[9px] uppercase tracking-[0.2em] font-bold text-warning animate-pulse">
+                                            {t("settings.unsaved_changes")}
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
                             <Button
                                 isIconOnly
                                 radius="full"
                                 size="sm"
                                 variant="light"
                                 onPress={onClose}
-                                className="text-foreground/40 hover:text-foreground"
-                                aria-label={t("settings.modal.footer.cancel")}
+                                className="text-foreground/40 hover:text-foreground hidden sm:flex"
                             >
-                                <X
-                                    size={18}
-                                    strokeWidth={ICON_STROKE_WIDTH}
-                                    className="text-current"
-                                />
+                                <X size={20} />
                             </Button>
                         </div>
-                        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-6 scrollbar-hide">
+
+                        {/* Scrollable Content */}
+                        <div className="flex-1 min-h-0 overflow-y-auto w-full p-4 sm:p-8 scrollbar-hide">
                             <AnimatePresence mode="wait">
                                 <motion.div
                                     key={activeTabDefinition.id}
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    exit={{ opacity: 0 }}
-                                    transition={{ duration: 0.15 }}
-                                    className="space-y-6 pb-20 min-h-0"
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -10 }}
+                                    transition={{ duration: 0.2 }}
+                                    className="flex flex-col space-y-6 sm:space-y-8 pb-20"
                                 >
                                     {activeTabDefinition.sections.map(
-                                        (section, sectionIndex) => (
-                                            <SectionCard
-                                                key={`${section.titleKey}-${sectionIndex}`}
-                                                className={section.cardClass}
-                                            >
+                                        (section, idx) => (
+                                            <SectionCard key={idx}>
                                                 <SectionTitle
                                                     title={t(section.titleKey)}
                                                 />
-                                                <div className="space-y-5">
+                                                {section.descriptionKey && (
+                                                    <SectionDescription
+                                                        description={t(
+                                                            section.descriptionKey
+                                                        )}
+                                                    />
+                                                )}
+                                                <div className="space-y-6 mt-4">
                                                     {section.blocks.map(
-                                                        (block, blockIndex) =>
+                                                        (block, bIdx) =>
                                                             renderBlock(
                                                                 block,
-                                                                sectionIndex,
-                                                                blockIndex
+                                                                idx,
+                                                                bIdx
                                                             )
                                                     )}
                                                 </div>
@@ -957,41 +1221,37 @@ export function SettingsModal({
                                 </motion.div>
                             </AnimatePresence>
                         </div>
-                        <div className="sticky bottom-0 z-10 shrink-0 border-t border-content1/20 bg-content1/15 px-6 py-4 flex items-center justify-between gap-2">
+
+                        {/* Footer Actions */}
+                        <div className="sticky bottom-0 z-10 shrink-0 border-t border-content1/10 bg-content1/40 backdrop-blur-xl px-6 py-4 flex items-center justify-between">
                             <Button
                                 size="sm"
                                 variant="light"
                                 color="danger"
-                                startContent={
-                                    <RotateCcw
-                                        size={14}
-                                        strokeWidth={ICON_STROKE_WIDTH}
-                                        className="text-current"
-                                    />
-                                }
+                                className="opacity-70 hover:opacity-100 hidden sm:flex"
                                 onPress={handleReset}
+                                startContent={<RotateCcw size={16} />}
                             >
                                 {t("settings.modal.footer.reset_defaults")}
                             </Button>
-                            <div className="flex gap-2">
-                                <Button size="sm" variant="flat" onPress={onClose}>
+                            <div className="flex gap-3 ml-auto">
+                                <Button
+                                    size="md"
+                                    variant="light"
+                                    onPress={onClose}
+                                >
                                     {t("settings.modal.footer.cancel")}
                                 </Button>
                                 <Button
-                                    size="sm"
+                                    size="md"
                                     color="primary"
                                     variant="shadow"
                                     onPress={handleSave}
                                     isLoading={isSaving}
                                     startContent={
-                                        !isSaving && (
-                                            <Save
-                                                size={16}
-                                                strokeWidth={ICON_STROKE_WIDTH}
-                                                className="text-current"
-                                            />
-                                        )
+                                        !isSaving && <Save size={18} />
                                     }
+                                    className="font-semibold shadow-lg shadow-primary/20"
                                 >
                                     {t("settings.modal.footer.save")}
                                 </Button>
@@ -1000,6 +1260,13 @@ export function SettingsModal({
                     </div>
                 </div>
             </ModalContent>
+
+            <DirectoryPicker
+                isOpen={Boolean(activeBrowseKey)}
+                initialPath={pickerInitialPath}
+                onClose={closeDirectoryPicker}
+                onSelect={pickDirectory}
+            />
         </Modal>
     );
 }

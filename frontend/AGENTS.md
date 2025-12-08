@@ -12,11 +12,11 @@ TinyTorrent = **modern µTorrent** × **glass UI** × **Apple/Linear polish**.
 ### Identity pillars:
 
 -   **Speed:** No lag. No hesitation.
--   **Density:** Data-rich layout, zero wasted space.
 -   **Stealth:** Dark-first visual identity (system mode respected automatically).
 -   **Zero Bloat:** Extremely small executable.
 -   **World-Class Visuals:** Premium, clean, and effortless.
 -   **Native HUD Feel:** Glass, blur, depth, minimal chrome.
+-   **Accessibility:** Controls must be visually clear, easy to target, and comfortable for less-technical users without compromising professional data density.
 
 ---
 
@@ -29,6 +29,11 @@ TinyTorrent = **modern µTorrent** × **glass UI** × **Apple/Linear polish**.
 -   **Icons:** Lucide (tree-shaken)
 -   **State:** React Hooks; Zustand only when necessary
 -   **Routing:** Only if strictly required
+
+## UI Scale System:
+
+-   All interactive element sizes (icons, hit areas, paddings) are derived from a central scale value in config. This drives responsive sizing without hard-coded pixels.
+-   Do not use Tailwind pixel-based sizing classes (w-5, h-6, text-[14px]). All sizing must reference scale tokens or semantic utility classes derived from config.
 
 ---
 
@@ -48,13 +53,15 @@ No hard-coded hex colors or arbitrary Tailwind colors.
 | `warning`    | Paused, Checking       |
 | `danger`     | Deletes, Errors        |
 
+No magic numbers: All spacing, sizing, radius, and scale values must come from configuration tokens and not from inline constants or ad-hoc Tailwind values.
+
 ### Aesthetic
 
 -   Detect system dark/light mode and use it automatically; fallback = Dark.
 -   Detect system/browser language and use it; fallback = English.
 -   Glass layers (backdrop-blur) for all UI surfaces that float or overlay (sidebar, modals, table headers, toolbars, workspace areas).
--   High-density professional layout — tooling-level, not consumer-level.
--   Minimal padding, tight alignment, compact controls.
+-   Controls (buttons, icons, chips) use enlarged visual size and comfortable hit areas to improve usability without inflating layouts.
+-   Minimal padding, tight alignment, but controls may use larger icons and generous hit areas as long as layout density is preserved.
 -   Strong typography hierarchy (Swiss style).
 -   Layered shadows used sparingly for depth — never decoration.
 
@@ -77,6 +84,7 @@ Complex widgets must behave like a workspace:
 -   motion-coherent
 
 Every gesture (drag, wheel, zoom, pan, resize, compare, reorder) must be smooth, predictable, and never block or jitter.
+Clarity and recognizability take priority over maximal density; controls must remain visually expressive and easy to target.
 
 ### **Interaction Principles**
 
@@ -87,6 +95,7 @@ Every gesture (drag, wheel, zoom, pan, resize, compare, reorder) must be smooth,
 -   **Continuous feedback** — no dead states.
 -   **Minimal chrome, maximal clarity.**
 -   **No click-hunting** — controls must appear where they are needed.
+-   Size increases must improve readability, not introduce visual bloat
 
 ### **Motion**
 
@@ -106,10 +115,9 @@ Motion is part of the UX language, not decoration.
 
 # **5. Component System**
 
-### **Table (Core)**
+### **Core**
 
--   HeroUI `<Table>`
--   **Compact, dense, tooling-level row height**
+-   HeroUI
 -   Sticky blurred header
 -   Monospace for numbers/speeds
 -   Sans-serif for names
@@ -136,7 +144,7 @@ Motion is part of the UX language, not decoration.
 -   Secondary = `light` / `ghost`
 -   Icon-only buttons for toolbars
 -   Must animate on hover/press
--   Must keep density — no oversized UI
+-   Must preserve clean layout and avoid bloated chrome, but icons and interactive elements may be visually larger as long as alignment remains tight.
 
 ---
 
@@ -152,18 +160,16 @@ Motion is part of the UX language, not decoration.
 
 ### **Iconography (Lucide)**
 
-Thin strokes (1.5).
-Use curated set only:
-
--   `Magnet` — add magnet
--   `ArrowDownCircle` — downloading
--   `CheckCircle2` — seeding
--   `PauseCircle` — paused
--   `Trash2` — delete
--   `Gauge` — speed/settings
--   `Zap` — connection/activity
-
 -   Icons must always use semantic colors.
+-   People should be able to use the tool using icons. Use them everywhere it makes sense. Make them larger than text so the function of the feature can be understood without reading the text.
+
+Icon Size Principles (Scalable)
+
+-   Icon size is responsive, derived from the global UI scale configuration.
+-   Icons must always remain visually dominant in interactive contexts, but never dictate row or layout height.
+-   Controls scale relatively, not with hard-coded pixels.
+-   Icons inside tables scale proportionally but must not increase row height.
+-   No magic numbers: all scale values originate from a configuration token, not inline values.
 
 ### **Workspace Components **
 
@@ -280,12 +286,11 @@ TinyTorrent must deliver **Adaptive Excellence**:
 
     -   **Single Mode:** The UI operates exclusively in "Modern Mode" (Glass/Blur).
     -   **Tooling Precision:** While the aesthetic is modern, the functionality must remain dense and keyboard-friendly (e.g. arrow key navigation in the table).
+        Precision refers to behavior and feedback, not microscopic UI elements. A modern tool may use larger controls without sacrificing professional workflows.
     -   **No Split-Pane:** Details are accessed via double-click (Modal), preserving the clean "List View" focus.
 
 -   **Tooling-Grade Ergonomics:**
-    -   he tool must feel "heavy" and precise.
-    -   High Density: Data-rich layouts with no wasted space.
-    -   Clarity: Zero visual clutter; every pixel must serve a purpose.
+    -   the tool must feel precise.
 
 **Simplicity of presentation — not simplicity of capability.**
 **Respect the Muscle Memory of the veteran, but deliver the Fluidity of the future.**

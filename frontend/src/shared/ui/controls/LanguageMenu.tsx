@@ -1,5 +1,4 @@
 import {
-    Button,
     Dropdown,
     DropdownTrigger,
     DropdownMenu,
@@ -7,53 +6,68 @@ import {
     cn,
 } from "@heroui/react";
 import { Check, Globe } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ICON_STROKE_WIDTH } from "../../../config/iconography";
+import { UsFlagIcon, NlFlagIcon, EsFlagIcon, ZhFlagIcon } from "../flags/Flags";
+import { ToolbarIconButton } from "../layout/toolbar-button";
+
+type LanguageCode = "en" | "nl" | "es" | "zh";
 
 type LanguageOption = {
-    code: "en" | "nl" | "es" | "zh";
+    code: LanguageCode;
     labelKey: string;
-    flag: string;
+    /**
+     * Prefer a ReactNode so you can swap emoji for real SVG flags later.
+     * For now we use emoji so this stays drop-in.
+     */
+    flagIcon: ReactNode;
 };
+
 const STORAGE_KEY = "tiny-torrent-language";
 
 const languages: LanguageOption[] = [
-    { code: "en", labelKey: "language.english", flag: "🇺🇸" },
-    { code: "nl", labelKey: "language.dutch", flag: "🇳🇱" },
-    { code: "es", labelKey: "language.spanish", flag: "🇪🇸" },
-    { code: "zh", labelKey: "language.chinese", flag: "🇨🇳" },
+    { code: "en", labelKey: "language.english", flagIcon: <UsFlagIcon /> },
+    { code: "nl", labelKey: "language.dutch", flagIcon: <NlFlagIcon /> },
+    { code: "es", labelKey: "language.spanish", flagIcon: <EsFlagIcon /> },
+    { code: "zh", labelKey: "language.chinese", flagIcon: <ZhFlagIcon /> },
 ];
 
-const SUPPORTED_CODES = languages.map((option) => option.code);
+const SUPPORTED_CODES: LanguageCode[] = languages.map((option) => option.code);
 
-const normalizeLocale = (value: string) => value.split("-")[0].toLowerCase();
+const normalizeLocale = (value: string) => value.split("-")[0]?.toLowerCase();
 
-const getNavigatorLanguage = (): LanguageOption["code"] => {
+const getNavigatorLanguage = (): LanguageCode => {
     if (typeof navigator === "undefined") return "en";
+
     const locale = navigator.language ?? navigator.languages?.[0] ?? "en";
-    const normalized = normalizeLocale(locale);
-    return (
-        SUPPORTED_CODES.includes(normalized as LanguageOption["code"])
-            ? normalized
-            : "en"
-    ) as LanguageOption["code"];
+    const normalized = normalizeLocale(locale) as LanguageCode | undefined;
+
+    return SUPPORTED_CODES.includes(normalized ?? "en") ? normalized! : "en";
 };
 
-const getStoredLanguage = (): LanguageOption["code"] => {
+const getStoredLanguage = (): LanguageCode => {
     if (typeof window === "undefined") return getNavigatorLanguage();
-    const stored = window.localStorage.getItem(STORAGE_KEY)?.toLowerCase();
-    if (stored && SUPPORTED_CODES.includes(stored as LanguageOption["code"])) {
-        return stored as LanguageOption["code"];
+
+    const stored = window.localStorage.getItem(STORAGE_KEY)?.toLowerCase() as
+        | LanguageCode
+        | null
+        | undefined;
+
+    if (stored && SUPPORTED_CODES.includes(stored)) {
+        return stored;
     }
+
     return getNavigatorLanguage();
 };
 
 export function LanguageMenu() {
     const { t, i18n } = useTranslation();
-    const [selection, setSelection] = useState<LanguageOption["code"]>(() =>
+
+    const [selection, setSelection] = useState<LanguageCode>(() =>
         getStoredLanguage()
     );
+
     const activeOption = useMemo(
         () =>
             languages.find((option) => option.code === selection) ??
@@ -63,6 +77,7 @@ export function LanguageMenu() {
 
     useEffect(() => {
         i18n.changeLanguage(selection).catch(() => null);
+
         if (typeof window !== "undefined") {
             window.localStorage.setItem(STORAGE_KEY, selection);
         }
@@ -71,61 +86,65 @@ export function LanguageMenu() {
     return (
         <Dropdown placement="bottom-end" backdrop="transparent">
             <DropdownTrigger>
-                <Button
-                    variant="ghost"
-                    radius="full"
-                    size="sm"
-                    className="text-foreground/60 hover:text-foreground gap-2 px-3 bg-content1/10 border border-content1/20 backdrop-blur-lg shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]"
-                    aria-label={t("language.menu_label")}
-                >
-                    <Globe
-                        size={16}
-                        strokeWidth={ICON_STROKE_WIDTH}
-                        className="text-current"
-                    />
-                    <span className="text-[12px] font-semibold tracking-[0.3em] hidden sm:inline">
-                        {t(activeOption.labelKey)}
-                    </span>
-                    <span className="text-[16px] leading-none">
-                        {activeOption.flag}
-                    </span>
-                </Button>
+                <ToolbarIconButton
+                    Icon={Globe}
+                    ariaLabel={t("language.menu_label")}
+                />
             </DropdownTrigger>
+
             <DropdownMenu
                 aria-label={t("language.menu_label")}
-                className="p-0 bg-content1/10 border border-content1/30 backdrop-blur-3xl shadow-[0_30px_80px_rgba(0,0,0,0.45)] rounded-2xl overflow-hidden"
+                variant="light"
+                className={cn(
+                    "min-w-[12rem]",
+                    "bg-content1/80 border border-content1/40",
+                    "backdrop-blur-3xl",
+                    "shadow-[0_18px_60px_rgba(0,0,0,0.55)]",
+                    "rounded-2xl",
+                    "p-1"
+                )}
+                itemClasses={{
+                    base: cn(
+                        "px-3 py-2",
+                        "text-sm font-medium",
+                        "flex items-center justify-between",
+                        "rounded-xl",
+                        "transition-colors",
+                        "data-[hover=true]:bg-content2/70",
+                        "data-[hover=true]:text-foreground",
+                        "data-[pressed=true]:bg-content2/80",
+                        "data-[selected=true]:bg-primary/15",
+                        "data-[selected=true]:text-primary"
+                    ),
+                }}
             >
-                {languages.map((option, index) => (
-                    <DropdownItem
-                        key={option.code}
-                        onPress={() => setSelection(option.code)}
-                        className="p-0"
-                    >
-                        <div
-                            className={cn(
-                                "flex items-center justify-between gap-3 px-4 py-2 text-[13px] font-semibold transition-colors",
-                                index > 0 ? "border-t border-content1/10" : "",
-                                selection === option.code
-                                    ? "bg-primary/10 border border-primary/60 text-primary"
-                                    : "text-foreground/70 hover:text-foreground hover:bg-content2/40"
-                            )}
-                        >
-                            <div className="flex items-center gap-3">
-                                <span className="text-[18px] leading-none">
-                                    {option.flag}
+                {languages.map((option) => {
+                    const isActive = selection === option.code;
+
+                        return (
+                            <DropdownItem
+                                key={option.code}
+                                onPress={() => setSelection(option.code)}
+                                isSelected={isActive}
+                                startContent={
+                                    <span className="text-lg leading-none">
+                                        {option.flagIcon}
                                 </span>
-                                <span>{t(option.labelKey)}</span>
-                            </div>
-                            {selection === option.code && (
-                                <Check
-                                    size={14}
-                                    strokeWidth={ICON_STROKE_WIDTH}
-                                    className="text-primary"
-                                />
-                            )}
-                        </div>
-                    </DropdownItem>
-                ))}
+                            }
+                            endContent={
+                                isActive ? (
+                                    <Check
+                                        size={22}
+                                        strokeWidth={ICON_STROKE_WIDTH}
+                                        className="text-primary"
+                                    />
+                                ) : null
+                            }
+                        >
+                            {t(option.labelKey)}
+                        </DropdownItem>
+                    );
+                })}
             </DropdownMenu>
         </Dropdown>
     );

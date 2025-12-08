@@ -1,5 +1,5 @@
 import { Button, Tooltip, cn } from "@heroui/react";
-import type { PointerEvent } from "react";
+import type { PointerEvent, WheelEvent } from "react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { useTranslation } from "react-i18next";

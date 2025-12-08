@@ -1,6 +1,6 @@
 import type { MouseEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { TorrentPeerEntity } from "../../services/rpc/entities";
+import type { TorrentPeerEntity } from "../../../services/rpc/entities";
 import { formatSpeed } from "../../utils/format";
 
 interface PeerScatterProps {
@@ -96,7 +96,7 @@ export const PeerScatter = ({
             const width = rect.width;
             let closest: TorrentPeerEntity | null = null;
             let distance = Infinity;
-            peers.forEach((peer) => {
+            for (const peer of peers) {
                 const point = getPoint(peer, width);
                 const dx = point.x - x;
                 const dy = point.y - y;
@@ -105,7 +105,7 @@ export const PeerScatter = ({
                     distance = d;
                     closest = peer;
                 }
-            });
+            }
             if (closest) {
                 const point = getPoint(closest, width);
                 setTooltip({

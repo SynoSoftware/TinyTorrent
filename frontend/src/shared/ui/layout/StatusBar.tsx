@@ -20,6 +20,23 @@ import type { RpcStatus } from "../../../shared/types/rpc";
 import { ICON_STROKE_WIDTH } from "../../../config/iconography";
 import type { FeedbackMessage, FeedbackTone } from "../../types/feedback";
 
+// --- LAYOUT CONFIGURATION ---
+// Adjust these variables to control spacing and symmetry
+const LAYOUT_CONFIG = {
+    // Spacing between the icon and the text/graph inside the speed modules
+    gapInternal: "gap-2",
+    // Spacing between major sections (Down vs Up, Context vs Network)
+    gapSection: "gap-2",
+    // Minimum widths to ensure right-side HUD elements align symmetrically
+    hudWidths: {
+        context: "min-w-[140px]",
+        network: "min-w-[90px]",
+        engine: "min-w-[90px]",
+    },
+    // Height of the status bar content area
+    height: "h-[76px]",
+};
+
 const FEEDBACK_TONE_CLASSES: Record<FeedbackTone, string> = {
     info: "text-primary",
     success: "text-success",
@@ -34,6 +51,7 @@ interface StatusBarProps {
     rpcStatus: RpcStatus;
     selectedTorrent?: TorrentEntity | null;
     actionFeedback?: FeedbackMessage | null;
+    onEngineClick?: () => void;
 }
 
 export function StatusBar({
@@ -43,11 +61,10 @@ export function StatusBar({
     rpcStatus,
     selectedTorrent,
     actionFeedback,
+    onEngineClick,
 }: StatusBarProps) {
     const { t } = useTranslation();
 
-    // Semantic status configuration
-    // AGENTS.md: Use strict semantic tokens (success, danger, foreground)
     const statusConfig = {
         idle: {
             label: t("status_bar.rpc_idle"),
@@ -106,7 +123,7 @@ export function StatusBar({
         : "--";
 
     return (
-        <footer className="w-full shrink-0 border-t border-content1/10 bg-background/80 backdrop-blur-2xl select-none relative z-50 overflow-visible">
+        <footer className="w-full shrink-0 rounded-[28px] border border-content1/15 bg-background/85 backdrop-blur-2xl shadow-[0_20px_70px_rgba(0,0,0,0.45)] select-none relative z-30 overflow-visible px-4 py-3">
             {actionFeedback && (
                 <div className="pointer-events-none absolute inset-x-6 -top-5 flex justify-end">
                     <div
@@ -120,13 +137,34 @@ export function StatusBar({
                     </div>
                 </div>
             )}
-            <div className="flex h-[76px] items-center justify-between gap-8 px-6">
-                {/* --- LEFT: SPEED TICKERS (Side-by-Side Layout) --- */}
-                <div className="flex flex-1 items-center gap-8 h-full py-2">
+            <div
+                className={cn(
+                    "flex items-center justify-between px-6",
+                    LAYOUT_CONFIG.height,
+                    LAYOUT_CONFIG.gapSection
+                )}
+            >
+                {/* --- LEFT: SPEED TICKERS --- */}
+                <div
+                    className={cn(
+                        "flex flex-1 items-center h-full py-2",
+                        LAYOUT_CONFIG.gapSection
+                    )}
+                >
                     {/* DOWNLOAD ZONE */}
-                    <div className="flex flex-1 items-center gap-5 h-full min-w-0 group">
+                    <div
+                        className={cn(
+                            "flex flex-1 items-center h-full min-w-0 group",
+                            LAYOUT_CONFIG.gapInternal
+                        )}
+                    >
                         {/* Icon & Label */}
-                        <div className="flex items-center gap-4 shrink-0">
+                        <div
+                            className={cn(
+                                "flex items-center shrink-0",
+                                LAYOUT_CONFIG.gapInternal
+                            )}
+                        >
                             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-content1/10 text-foreground/50 transition-colors group-hover:bg-success/10 group-hover:text-success">
                                 <ArrowDown
                                     size={24}
@@ -144,7 +182,7 @@ export function StatusBar({
                             </div>
                         </div>
 
-                        {/* Graph: Fills remaining space. No overlap. */}
+                        {/* Graph */}
                         <div className="flex-1 h-full min-w-[100px] py-2 opacity-30 grayscale transition-all duration-500 group-hover:grayscale-0 group-hover:opacity-100">
                             <NetworkGraph
                                 data={downHistory}
@@ -158,9 +196,19 @@ export function StatusBar({
                     <div className="h-8 w-px bg-content1/20" />
 
                     {/* UPLOAD ZONE */}
-                    <div className="flex flex-1 items-center gap-5 h-full min-w-0 group">
+                    <div
+                        className={cn(
+                            "flex flex-1 items-center h-full min-w-0 group",
+                            LAYOUT_CONFIG.gapInternal
+                        )}
+                    >
                         {/* Icon & Label */}
-                        <div className="flex items-center gap-4 shrink-0">
+                        <div
+                            className={cn(
+                                "flex items-center shrink-0",
+                                LAYOUT_CONFIG.gapInternal
+                            )}
+                        >
                             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-content1/10 text-foreground/50 transition-colors group-hover:bg-primary/10 group-hover:text-primary">
                                 <ArrowUp
                                     size={24}
@@ -189,10 +237,20 @@ export function StatusBar({
                     </div>
                 </div>
 
-                {/* --- RIGHT: SYSTEM HUD (Dense, Rigid Structure) --- */}
-                <div className="flex shrink-0 items-center gap-6 text-[11px] pl-6 border-l border-content1/10 h-12">
+                {/* --- RIGHT: SYSTEM HUD --- */}
+                <div
+                    className={cn(
+                        "flex shrink-0 items-center text-[11px] pl-6 border-l border-content1/10 h-12",
+                        LAYOUT_CONFIG.gapSection
+                    )}
+                >
                     {/* SECTION: CONTEXT INFO */}
-                    <div className="flex flex-col items-end gap-1 min-w-[140px]">
+                    <div
+                        className={cn(
+                            "flex flex-col items-end gap-1",
+                            LAYOUT_CONFIG.hudWidths.context
+                        )}
+                    >
                         <span className="text-[9px] font-bold uppercase tracking-wider text-foreground/30">
                             {summaryLabel}
                         </span>
@@ -224,7 +282,12 @@ export function StatusBar({
                     <div className="h-8 w-px bg-content1/10" />
 
                     {/* SECTION: NETWORK */}
-                    <div className="flex flex-col items-end gap-1 min-w-[80px]">
+                    <div
+                        className={cn(
+                            "flex flex-col items-end gap-1",
+                            LAYOUT_CONFIG.hudWidths.network
+                        )}
+                    >
                         <span className="text-[9px] font-bold uppercase tracking-wider text-foreground/30">
                             {t("status_bar.network")}
                         </span>
@@ -246,14 +309,21 @@ export function StatusBar({
                     <div className="h-8 w-px bg-content1/10" />
 
                     {/* SECTION: ENGINE STATUS */}
-                    <div className="flex flex-col items-end gap-1 min-w-[80px]">
+                    <div
+                        className={cn(
+                            "flex flex-col items-end gap-1",
+                            LAYOUT_CONFIG.hudWidths.engine
+                        )}
+                    >
                         <span className="text-[9px] font-bold uppercase tracking-wider text-foreground/30">
                             {t("status_bar.engine")}
                         </span>
                         <div className="flex w-full justify-end">
-                            <div
+                            <button
+                                type="button"
+                                onClick={onEngineClick}
                                 className={cn(
-                                    "flex h-10 w-10 items-center justify-center rounded-2xl border transition duration-200",
+                                    "flex h-10 w-10 items-center justify-center rounded-2xl border transition duration-200 focus-visible:outline-none focus-visible:ring focus-visible:ring-primary/60",
                                     statusVisual.bg,
                                     statusVisual.border,
                                     statusVisual.text
@@ -269,7 +339,7 @@ export function StatusBar({
                                             "animate-pulse"
                                     )}
                                 />
-                            </div>
+                            </button>
                         </div>
                     </div>
                 </div>

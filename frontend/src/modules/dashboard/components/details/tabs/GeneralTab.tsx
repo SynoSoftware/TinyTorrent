@@ -1,5 +1,6 @@
 import { Button, Switch } from "@heroui/react";
 import { ArrowDownCircle, ArrowUpCircle, Copy, Folder, Hash } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { TorrentDetail } from "../../../types/torrent";
@@ -18,7 +19,7 @@ interface GeneralTabProps {
 }
 
 interface GeneralInfoCardProps {
-    icon: React.ComponentType<{ size?: number; strokeWidth?: number }>;
+    icon: LucideIcon;
     label: string;
     value: ReactNode;
     helper: string;

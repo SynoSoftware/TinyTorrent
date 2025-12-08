@@ -19,6 +19,9 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import {
+    DirectoryPicker,
+} from "../../../shared/ui/workspace/DirectoryPicker";
+import {
     FileExplorerTree,
     type FileExplorerEntry,
 } from "../../../shared/ui/workspace/FileExplorerTree";
@@ -28,6 +31,7 @@ import {
     type TorrentMetadata,
 } from "../../../shared/utils/torrent";
 import type { TransmissionFreeSpace } from "../../../services/rpc/types";
+import { getDriveSpace } from "../../../services/rpc/rpc-extended";
 import { ICON_STROKE_WIDTH } from "../../../config/iconography";
 import { INTERACTION_CONFIG } from "../../../config/interaction";
 
@@ -62,6 +66,7 @@ export function AddTorrentModal({
     const [magnetLink, setMagnetLink] = useState("");
     const [downloadDir, setDownloadDir] = useState(DEFAULT_SAVE_PATH);
     const [startNow, setStartNow] = useState(true);
+    const [isDirectoryPickerOpen, setDirectoryPickerOpen] = useState(false);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
     const [directorySpace, setDirectorySpace] =
@@ -110,6 +115,13 @@ export function AddTorrentModal({
         }
     };
 
+    const openDirectoryPicker = () => setDirectoryPickerOpen(true);
+    const closeDirectoryPicker = () => setDirectoryPickerOpen(false);
+    const handleDirectorySelect = (path: string) => {
+        setDownloadDir(path);
+        closeDirectoryPicker();
+    };
+
     useEffect(() => {
         if (!isOpen) {
             setMagnetLink("");
@@ -118,6 +130,7 @@ export function AddTorrentModal({
             if (fileInputRef.current) {
                 fileInputRef.current.value = "";
             }
+            setDirectoryPickerOpen(false);
         }
     }, [isOpen]);
 
@@ -182,10 +195,18 @@ export function AddTorrentModal({
                 if (!active) return;
                 setDirectorySpace(space);
             })
-            .catch(() => {
+            .catch(async () => {
                 if (!active) return;
-                setDirectorySpace(null);
-                setSpaceError(t("modals.disk_gauge_error"));
+                try {
+                    const fallback = await getDriveSpace(downloadDir);
+                    if (!active) return;
+                    setDirectorySpace(fallback);
+                    setSpaceError(null);
+                } catch {
+                    if (!active) return;
+                    setDirectorySpace(null);
+                    setSpaceError(t("modals.disk_gauge_error"));
+                }
             })
             .finally(() => {
                 if (!active) return;
@@ -422,20 +443,31 @@ export function AddTorrentModal({
                                             {t("modals.save_path")}
                                         </span>
                                     </div>
-                                    <Input
-                                        value={downloadDir}
-                                        onChange={(event) =>
-                                            setDownloadDir(event.target.value)
-                                        }
+                            <Input
+                                value={downloadDir}
+                                onChange={(event) =>
+                                    setDownloadDir(event.target.value)
+                                }
+                                variant="flat"
+                                size="sm"
+                                classNames={{
+                                    input: "font-mono text-xs",
+                                    inputWrapper:
+                                        "bg-content1/10 border-content1/20",
+                                }}
+                                endContent={
+                                <Button
+                                    size="sm"
                                         variant="flat"
-                                        size="sm"
-                                        classNames={{
-                                            input: "font-mono text-xs",
-                                            inputWrapper:
-                                                "bg-content1/10 border-content1/20",
-                                        }}
-                                    />
-                                </div>
+                                        color="primary"
+                                        onPress={openDirectoryPicker}
+                                        className="text-[10px] font-semibold uppercase tracking-[0.3em] px-3 py-1"
+                                    >
+                                        {t("settings.button.browse")}
+                                    </Button>
+                                }
+                            />
+                        </div>
                                 <div className="rounded-xl border border-content1/20 bg-content1/15 px-4 py-3 space-y-2 flex flex-col">
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-2 text-foreground/60">
@@ -512,6 +544,12 @@ export function AddTorrentModal({
                     </>
                 )}
             </ModalContent>
+            <DirectoryPicker
+                isOpen={isDirectoryPickerOpen}
+                initialPath={downloadDir}
+                onClose={closeDirectoryPicker}
+                onSelect={handleDirectorySelect}
+            />
         </Modal>
     );
 }
