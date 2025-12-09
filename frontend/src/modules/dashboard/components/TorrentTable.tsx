@@ -55,7 +55,9 @@ import React, {
     useRef,
     useState,
     type CSSProperties,
+    type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
 import { GLASS_MENU_SURFACE } from "../../../shared/ui/layout/glass-surface";
@@ -594,6 +596,21 @@ export function TorrentTable({
         typeof window.setTimeout
     > | null>(null);
     const [marqueeRect, setMarqueeRect] = useState<MarqueeRect | null>(null);
+
+    const overlayPortalHost = useMemo(
+        () =>
+            typeof document !== "undefined" && document.body
+                ? document.body
+                : null,
+        []
+    );
+    const renderOverlayPortal = useCallback(
+        (overlay: ReactNode) => {
+            if (!overlayPortalHost) return null;
+            return createPortal(overlay, overlayPortalHost);
+        },
+        [overlayPortalHost]
+    );
 
     const queueMenuActions = useMemo<QueueMenuAction[]>(
         () => [
@@ -1441,16 +1458,6 @@ export function TorrentTable({
                             </SortableContext>
                         </div>
 
-                        <DragOverlay
-                            adjustScale={false}
-                            dropAnimation={null}
-                            className={DND_OVERLAY_CLASSES}
-                        >
-                            {activeHeader ? (
-                                <ColumnHeaderPreview header={activeHeader} />
-                            ) : null}
-                        </DragOverlay>
-
                         <div
                             ref={parentRef}
                             className="relative flex-1 h-full min-h-0 overflow-y-auto w-full overlay-scrollbar"
@@ -1581,30 +1588,33 @@ export function TorrentTable({
                                                 })}
                                         </div>
                                     </SortableContext>
-                                    <DragOverlay
-                                        adjustScale={false}
-                                        dropAnimation={null}
-                                        className={DND_OVERLAY_CLASSES}
-                                    >
-                                        {activeDragRow ? (
-                                            <div
-                                                style={{
-                                                    width: table.getTotalSize(),
-                                                    height: TABLE_LAYOUT.rowHeight,
-                                                }}
-                                                className={cn(
-                                                    "pointer-events-none border border-content1/20 bg-background/90 backdrop-blur-3xl",
-                                                    PANEL_SHADOW
-                                                )}
-                                            >
-                                                <div className="flex h-full w-full items-center">
-                                                    {renderVisibleCells(
-                                                        activeDragRow
+                                    {renderOverlayPortal(
+                                        <DragOverlay
+                                            adjustScale={false}
+                                            dropAnimation={null}
+                                            className={DND_OVERLAY_CLASSES}
+                                        >
+                                            {activeDragRow ? (
+                                                <div
+                                                    style={{
+                                                        width: table.getTotalSize(),
+                                                        height:
+                                                            TABLE_LAYOUT.rowHeight,
+                                                    }}
+                                                    className={cn(
+                                                        "pointer-events-none border border-content1/20 bg-background/90 backdrop-blur-3xl",
+                                                        PANEL_SHADOW
                                                     )}
+                                                >
+                                                    <div className="flex h-full w-full items-center">
+                                                        {renderVisibleCells(
+                                                            activeDragRow
+                                                        )}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        ) : null}
-                                    </DragOverlay>
+                                            ) : null}
+                                        </DragOverlay>
+                                    )}
                                 </DndContext>
                             )}
                             {marqueeRect && (
@@ -1621,6 +1631,17 @@ export function TorrentTable({
                             )}
                         </div>
                     </div>
+                    {renderOverlayPortal(
+                        <DragOverlay
+                            adjustScale={false}
+                            dropAnimation={null}
+                            className={DND_OVERLAY_CLASSES}
+                        >
+                            {activeHeader ? (
+                                <ColumnHeaderPreview header={activeHeader} />
+                            ) : null}
+                        </DragOverlay>
+                    )}
                 </DndContext>
 
                 <AnimatePresence>
