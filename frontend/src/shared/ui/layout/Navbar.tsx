@@ -10,7 +10,6 @@ import {
     Plus,
     Trash2,
     UploadCloud,
-    Zap,
     Monitor,
     PanelsTopLeft,
 } from "lucide-react";
@@ -21,11 +20,7 @@ import { ICON_STROKE_WIDTH } from "../../../config/iconography";
 import { ToolbarIconButton } from "../layout/toolbar-button";
 import { SmoothProgressBar } from "../components/SmoothProgressBar";
 import type { FeedbackMessage, FeedbackTone } from "../../types/feedback";
-import {
-    BLOCK_SHADOW,
-    GLASS_BLOCK_SURFACE,
-    PANEL_SHADOW,
-} from "./shadows";
+import { BLOCK_SHADOW, GLASS_BLOCK_SURFACE, PANEL_SHADOW } from "./shadows";
 
 const FEEDBACK_TONE_CLASSES: Record<FeedbackTone, string> = {
     info: "text-primary",
@@ -101,10 +96,10 @@ export function Navbar({
                 {/* Brand */}
                 <div className="flex items-center gap-3">
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-primary-600 text-white shadow-lg shadow-primary/20">
-                        <Zap
-                            size={18}
-                            strokeWidth={ICON_STROKE_WIDTH}
-                            fill="currentColor"
+                        <img
+                            src="/tinyTorrent.svg"
+                            alt={t("brand.name")}
+                            className="h-9 w-9 object-contain"
                         />
                     </div>
                     <div className="flex flex-col">
