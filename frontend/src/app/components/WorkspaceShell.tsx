@@ -10,13 +10,7 @@ import {
     ModalHeader,
     cn,
 } from "@heroui/react";
-import {
-    AlertTriangle,
-    Link2,
-    MousePointer,
-    PlugZap,
-    X,
-} from "lucide-react";
+import { AlertTriangle, Link2, MousePointer, PlugZap, X } from "lucide-react";
 
 import type { EngineAdapter } from "../../services/rpc/engine-adapter";
 import { ModeLayout } from "../../modules/dashboard/components/ModeLayout";
@@ -33,8 +27,14 @@ import type {
     GlobalActionFeedback,
     RehashStatus,
 } from "../types/workspace";
-import type { Torrent, TorrentDetail } from "../../modules/dashboard/types/torrent";
-import type { OptimisticStatusMap, TorrentTableAction } from "../../modules/dashboard/components/TorrentTable";
+import type {
+    Torrent,
+    TorrentDetail,
+} from "../../modules/dashboard/types/torrent";
+import type {
+    OptimisticStatusMap,
+    TorrentTableAction,
+} from "../../modules/dashboard/components/TorrentTable";
 import type { SessionStats } from "../../services/rpc/entities";
 import type { RpcStatus } from "../../shared/types/rpc";
 import type { WorkspaceStyle } from "../hooks/useWorkspaceShell";
@@ -70,11 +70,17 @@ interface WorkspaceShellProps {
     toggleWorkspaceStyle: () => void;
     torrents: Torrent[];
     isTableLoading: boolean;
-    handleTorrentAction: (action: TorrentTableAction, torrent: Torrent) => Promise<void>;
+    handleTorrentAction: (
+        action: TorrentTableAction,
+        torrent: Torrent
+    ) => Promise<void>;
     handleRequestDetails: (torrent: Torrent) => Promise<void>;
     detailData: TorrentDetail | null;
     closeDetail: () => void;
-    handleFileSelectionChange: (indexes: number[], wanted: boolean) => Promise<void>;
+    handleFileSelectionChange: (
+        indexes: number[],
+        wanted: boolean
+    ) => Promise<void>;
     sequentialToggleHandler?: (enabled: boolean) => Promise<void>;
     superSeedingToggleHandler?: (enabled: boolean) => Promise<void>;
     handleForceTrackerReannounce: () => Promise<void>;
@@ -201,11 +207,11 @@ export function WorkspaceShell({
     );
 
     const renderModeLayoutSection = () => (
-            <ModeLayout
-                torrents={torrents}
-                filter={filter}
-                isTableLoading={isTableLoading}
-                onAction={handleTorrentAction}
+        <ModeLayout
+            torrents={torrents}
+            filter={filter}
+            isTableLoading={isTableLoading}
+            onAction={handleTorrentAction}
             onRequestDetails={handleRequestDetails}
             detailData={detailData}
             onCloseDetail={closeDetail}
@@ -217,8 +223,8 @@ export function WorkspaceShell({
             superSeedingSupported={superSeedingSupported}
             optimisticStatuses={optimisticStatuses}
             isDropActive={isDragActive}
-                onSelectionChange={handleSelectionChange}
-            />
+            onSelectionChange={handleSelectionChange}
+        />
     );
 
     const renderStatusBarSection = () => (
@@ -333,7 +339,7 @@ export function WorkspaceShell({
                         "mx-auto flex w-full flex-1 flex-col",
                         isImmersiveShell
                             ? "max-w-[1400px] gap-6 px-4 py-6 sm:px-6 lg:px-10"
-                            : "gap-4 px-4 py-4"
+                            : "gap-2 px-4 py-4"
                     )}
                 >
                     {isImmersiveShell ? (
@@ -402,13 +408,13 @@ export function WorkspaceShell({
                                                             }
                                                         )}
                                                     >
-                                                            <X
-                                                                size={12}
-                                                                strokeWidth={
-                                                                    ICON_STROKE_WIDTH
-                                                                }
-                                                                className="text-current"
-                                                            />
+                                                        <X
+                                                            size={12}
+                                                            strokeWidth={
+                                                                ICON_STROKE_WIDTH
+                                                            }
+                                                            className="text-current"
+                                                        />
                                                     </button>
                                                     <div className="flex items-start justify-between gap-3">
                                                         <div>
