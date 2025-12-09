@@ -190,14 +190,14 @@ export function ModeLayout({
     const bloomTransition = modalBloom.transition;
 
     const workspaceClass = isDetailPinned
-        ? "flex-1 min-h-0 relative flex flex-col lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(360px,440px)] lg:gap-4"
-        : "flex-1 min-h-0 relative flex flex-col";
+        ? "flex-1 min-h-0 h-full relative flex flex-col lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(360px,440px)] lg:gap-4"
+        : "flex-1 min-h-0 h-full relative flex flex-col";
 
     return (
         <>
             <div className={workspaceClass}>
-                <main className="flex-1 min-h-0 relative overflow-hidden flex flex-col">
-                    <div className="relative flex-1 min-h-0">
+                <main className="flex-1 min-h-0 h-full relative overflow-hidden flex flex-col">
+                    <div className="relative flex-1 min-h-0 h-full">
                         <TorrentTable
                             torrents={torrents}
                             filter={filter}

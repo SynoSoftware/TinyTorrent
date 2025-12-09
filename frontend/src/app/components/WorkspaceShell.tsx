@@ -346,8 +346,8 @@ export function WorkspaceShell({
 
                     {isImmersiveShell ? (
                         <>
-                            <div className="glass-panel flex-1 min-h-0 rounded-[36px] border border-content1/10 bg-background/65 p-2 shadow-[0_35px_140px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
-                                <main className="flex-1 min-h-0 overflow-hidden rounded-[32px] border border-content1/10 bg-background/80 px-4 py-4 shadow-inner shadow-black/30">
+                            <div className="glass-panel flex-1 min-h-0 h-full rounded-[36px] border border-content1/10 bg-background/65 p-2 shadow-[0_35px_140px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
+                                <main className="flex-1 min-h-0 h-full overflow-hidden rounded-[32px] border border-content1/10 bg-background/80 px-4 py-4 shadow-inner shadow-black/30">
                                     {renderModeLayoutSection()}
                                 </main>
                             </div>
@@ -451,8 +451,8 @@ export function WorkspaceShell({
                             </div>
                         </>
                     ) : (
-                        <div className="flex-1 min-h-0 flex flex-col gap-4">
-                            <div className="flex-1 min-h-0">
+                        <div className="flex-1 min-h-0 h-full flex flex-col gap-4">
+                            <div className="flex-1 min-h-0 h-full">
                                 {renderModeLayoutSection()}
                             </div>
                             {renderStatusBarSection()}
