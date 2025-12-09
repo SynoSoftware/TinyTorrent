@@ -1,5 +1,6 @@
 import { Button, cn } from "@heroui/react";
 import { ICON_STROKE_WIDTH } from "../../../config/iconography";
+import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 
 export const TOOLBAR_ICON_CLASSES =
@@ -9,7 +10,8 @@ export const TOOLBAR_ICON_BUTTON_CLASSES =
     `${TOOLBAR_ICON_CLASSES} bg-content1/10 border border-content1/20`;
 
 export type ToolbarIconButtonProps = {
-    Icon: LucideIcon;
+    Icon?: LucideIcon;
+    icon?: ReactNode;
     ariaLabel: string;
     title?: string;
     onPress?: () => void;
@@ -19,12 +21,23 @@ export type ToolbarIconButtonProps = {
 
 export function ToolbarIconButton({
     Icon,
+    icon,
     ariaLabel,
     title,
     onPress,
     disabled,
     className,
 }: ToolbarIconButtonProps) {
+    const content = icon ?? (
+        Icon ? (
+            <Icon
+                size={22}
+                strokeWidth={ICON_STROKE_WIDTH}
+                className="text-current"
+            />
+        ) : null
+    );
+
     return (
         <Button
             isIconOnly
@@ -40,11 +53,7 @@ export function ToolbarIconButton({
             onPress={onPress}
             disabled={disabled}
         >
-            <Icon
-                size={22}
-                strokeWidth={ICON_STROKE_WIDTH}
-                className="text-current"
-            />
+            {content}
         </Button>
     );
 }

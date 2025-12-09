@@ -1,9 +1,8 @@
-import { Button } from "@heroui/react";
 import { Moon, Sun } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ICON_STROKE_WIDTH } from "../../../config/iconography";
-import { TOOLBAR_ICON_BUTTON_CLASSES } from "../layout/toolbar-button";
+import { ToolbarIconButton } from "../layout/toolbar-button";
 
 const STORAGE_KEY = "tiny-torrent-theme";
 
@@ -64,15 +63,10 @@ export function ThemeToggle() {
         );
 
     return (
-        <Button
-            isIconOnly
-            variant="light"
-            radius="full"
-            className={TOOLBAR_ICON_BUTTON_CLASSES}
-            aria-label={t("theme.toggle_label", { value: label })}
+        <ToolbarIconButton
+            icon={icon}
+            ariaLabel={t("theme.toggle_label", { value: label })}
             onPress={toggleMode}
-        >
-            {icon}
-        </Button>
+        />
     );
 }

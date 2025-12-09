@@ -83,12 +83,22 @@ export function LanguageMenu() {
         }
     }, [selection, i18n]);
 
+    const activeLabel = t(activeOption.labelKey);
+    const icon = (
+        <Globe
+            size={18}
+            strokeWidth={ICON_STROKE_WIDTH}
+            className="text-current"
+        />
+    );
+
     return (
         <Dropdown placement="bottom-end" backdrop="transparent">
             <DropdownTrigger>
                 <ToolbarIconButton
-                    Icon={Globe}
-                    ariaLabel={t("language.menu_label")}
+                    icon={icon}
+                    ariaLabel={`${t("language.menu_label")}: ${activeLabel}`}
+                    title={activeLabel}
                 />
             </DropdownTrigger>
 
@@ -121,14 +131,14 @@ export function LanguageMenu() {
                 {languages.map((option) => {
                     const isActive = selection === option.code;
 
-                        return (
-                            <DropdownItem
-                                key={option.code}
-                                onPress={() => setSelection(option.code)}
-                                isSelected={isActive}
-                                startContent={
-                                    <span className="text-lg leading-none">
-                                        {option.flagIcon}
+                    return (
+                        <DropdownItem
+                            key={option.code}
+                            onPress={() => setSelection(option.code)}
+                            isSelected={isActive}
+                            startContent={
+                                <span className="text-lg leading-none">
+                                    {option.flagIcon}
                                 </span>
                             }
                             endContent={

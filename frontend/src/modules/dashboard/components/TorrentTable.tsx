@@ -86,6 +86,8 @@ const CELL_BASE_CLASSES =
     "flex items-center overflow-hidden h-full truncate box-border leading-none";
 const CONTEXT_MENU_MARGIN = 16;
 const SPEED_HISTORY_LIMIT = 30;
+const DND_OVERLAY_CLASSES =
+    "pointer-events-none fixed inset-0 z-40 flex items-start justify-start";
 
 // --- TYPES ---
 export type TorrentTableAction =
@@ -704,17 +706,61 @@ export function TorrentTable({
         [tableContainerRef]
     );
 
+    type SavedTableState = {
+        columnOrder: string[];
+        columnVisibility: VisibilityState;
+        columnSizing: Record<string, number>;
+        sorting: SortingState;
+    };
+
+    const latestStateRef = useRef<SavedTableState>({
+        columnOrder: initialState.columnOrder,
+        columnVisibility: initialState.columnVisibility,
+        columnSizing: initialState.columnSizing,
+        sorting: initialState.sorting,
+    });
+    const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
     useEffect(() => {
-        localStorage.setItem(
-            STORAGE_KEY,
-            JSON.stringify({
-                columnOrder,
-                columnVisibility,
-                columnSizing,
-                sorting,
-            })
-        );
+        if (typeof window === "undefined") {
+            return;
+        }
+
+        latestStateRef.current = {
+            columnOrder,
+            columnVisibility,
+            columnSizing,
+            sorting,
+        };
+
+        if (saveTimeoutRef.current) {
+            window.clearTimeout(saveTimeoutRef.current);
+        }
+
+        saveTimeoutRef.current = window.setTimeout(() => {
+            localStorage.setItem(
+                STORAGE_KEY,
+                JSON.stringify(latestStateRef.current)
+            );
+            saveTimeoutRef.current = null;
+        }, 250);
     }, [columnOrder, columnVisibility, columnSizing, sorting]);
+
+    useEffect(() => {
+        return () => {
+            if (typeof window === "undefined") {
+                return;
+            }
+            if (saveTimeoutRef.current) {
+                window.clearTimeout(saveTimeoutRef.current);
+                saveTimeoutRef.current = null;
+            }
+            localStorage.setItem(
+                STORAGE_KEY,
+                JSON.stringify(latestStateRef.current)
+            );
+        };
+    }, []);
 
     // --- COLUMNS ---
     // Memoized columns based ONLY on translation and stable definitions.
@@ -731,7 +777,7 @@ export function TorrentTable({
                     enableResizing: false,
                     enableSorting: false,
                     header: ({ table }) => (
-                        <div className="flex justify-center items-center h-full w-full">
+                        <div className="flex justify-center items-center h-full w-full ml-4">
                             <Checkbox
                                 size="sm"
                                 isSelected={table.getIsAllPageRowsSelected()}
@@ -1162,7 +1208,7 @@ export function TorrentTable({
         "flex w-full sticky top-0 z-20 rounded-t-[28px] border-b border-content1/20 bg-content1/10 backdrop-blur-sm px-0 "
     );
     const tableShellClass = cn(
-        "relative flex-1 min-h-0 flex flex-col overflow-hidden rounded-[32px] border border-content1/20 bg-content1/10 m-4",
+    "relative flex-1 h-full min-h-0 flex flex-col overflow-hidden rounded-[32px] border border-content1/20 bg-content1/10 m-1",
         BLOCK_SHADOW
     );
 
@@ -1175,7 +1221,7 @@ export function TorrentTable({
                 onFocus={activateDashboardScope}
                 onBlur={deactivateDashboardScope}
                 className={cn(
-                    "flex-1 min-h-0 flex flex-col h-full overflow-hidden bg-background/20 relative select-none outline-none ",
+                    "flex-1 min-h-0 flex flex-col h-full overflow-hidden bg-background/20 relative select-none outline-none",
                     BLOCK_SHADOW
                 )}
                 onClick={() => setContextMenu(null)}
@@ -1214,7 +1260,11 @@ export function TorrentTable({
                             </SortableContext>
                         </div>
 
-                        <DragOverlay adjustScale={false} dropAnimation={null}>
+                        <DragOverlay
+                            adjustScale={false}
+                            dropAnimation={null}
+                            className={DND_OVERLAY_CLASSES}
+                        >
                             {activeHeader ? (
                                 <ColumnHeaderPreview header={activeHeader} />
                             ) : null}
@@ -1222,7 +1272,7 @@ export function TorrentTable({
 
                         <div
                             ref={parentRef}
-                            className="flex-1 min-h-0 overflow-y-auto w-full overlay-scrollbar"
+                            className="flex-1 h-full min-h-0 overflow-y-auto w-full overlay-scrollbar"
                         >
                             {isLoading && torrents.length === 0 ? (
                                 <div className="w-full">
@@ -1353,6 +1403,7 @@ export function TorrentTable({
                                     <DragOverlay
                                         adjustScale={false}
                                         dropAnimation={null}
+                                        className={DND_OVERLAY_CLASSES}
                                     >
                                         {activeDragRow ? (
                                             <div
