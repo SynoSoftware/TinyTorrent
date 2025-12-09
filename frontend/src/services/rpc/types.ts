@@ -13,6 +13,7 @@ export interface TransmissionTorrent {
     name: string;
     totalSize: number;
     percentDone: number;
+    recheckProgress?: number;
     status: RpcTorrentStatus;
     rateDownload: number;
     rateUpload: number;

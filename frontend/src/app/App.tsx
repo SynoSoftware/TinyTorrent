@@ -165,6 +165,7 @@ export default function App() {
     });
 
     const [filter, setFilter] = useState("all");
+    const [searchQuery, setSearchQuery] = useState("");
     const [selectedTorrents, setSelectedTorrents] = useState<Torrent[]>([]);
 
     const {
@@ -250,7 +251,9 @@ export default function App() {
         if (!verifyingTorrents.length) return undefined;
         const value =
             (verifyingTorrents.reduce(
-                (acc, torrent) => acc + (torrent.progress ?? 0),
+                (acc, torrent) =>
+                    acc +
+                    (torrent.verificationProgress ?? torrent.progress ?? 0),
                 0
             ) /
                 verifyingTorrents.length) *
@@ -308,6 +311,8 @@ export default function App() {
             getInputProps={getInputProps}
             isDragActive={isDragActive}
             filter={filter}
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
             setFilter={setFilter}
             openAddModal={openAddModal}
             openSettings={openSettings}

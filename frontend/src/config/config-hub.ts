@@ -15,6 +15,7 @@ import "./detail";
 // Feature configs
 import "../modules/dashboard/config/layout";
 import "../modules/settings/data/config";
+import "../modules/settings/data/settings-tabs";
 import "../shared/ui/visualizations/config";
 import "../shared/ui/visualizations/speedConfig";
 

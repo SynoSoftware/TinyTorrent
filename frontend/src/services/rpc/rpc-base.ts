@@ -54,6 +54,7 @@ const SUMMARY_FIELDS: Array<keyof TransmissionTorrent> = [
     "name",
     "totalSize",
     "percentDone",
+    "recheckProgress",
     "status",
     "rateDownload",
     "rateUpload",
@@ -162,40 +163,49 @@ const normalizePeer = (peer: TransmissionTorrentPeer): TorrentPeerEntity => ({
     country: peer.country,
 });
 
-const normalizeTorrent = (torrent: TransmissionTorrent): TorrentEntity => ({
-    id: torrent.hashString,
-    hash: torrent.hashString,
-    name: torrent.name,
-    progress: torrent.percentDone,
-    state: normalizeStatus(torrent.status),
-    speed: {
-        down: torrent.rateDownload,
-        up: torrent.rateUpload,
-    },
-    peerSummary: {
-        connected: torrent.peersConnected,
-        total: torrent.peersConnected,
-        sending: torrent.peersSendingToUs,
-        getting: torrent.peersGettingFromUs,
-        seeds: torrent.seedsConnected,
-    },
-    totalSize: torrent.totalSize,
-    eta: torrent.eta,
-    queuePosition: torrent.queuePosition,
-    ratio: torrent.uploadRatio,
-    uploaded: torrent.uploadedEver,
-    downloaded: torrent.downloadedEver,
-    leftUntilDone: torrent.leftUntilDone,
-    sizeWhenDone: torrent.sizeWhenDone,
-    error: torrent.error,
-    errorString: torrent.errorString,
-    isFinished: torrent.isFinished,
-    sequentialDownload: torrent.sequentialDownload,
-    superSeeding: torrent.superSeeding,
-    added: torrent.dateAdded,
-    savePath: torrent.downloadDir,
-    rpcId: torrent.id,
-});
+const normalizeTorrent = (torrent: TransmissionTorrent): TorrentEntity => {
+    const state = normalizeStatus(torrent.status);
+    const verificationProgress =
+        state === "checking"
+            ? torrent.recheckProgress ?? torrent.percentDone
+            : undefined;
+
+    return {
+        id: torrent.hashString,
+        hash: torrent.hashString,
+        name: torrent.name,
+        progress: torrent.percentDone,
+        state,
+        verificationProgress,
+        speed: {
+            down: torrent.rateDownload,
+            up: torrent.rateUpload,
+        },
+        peerSummary: {
+            connected: torrent.peersConnected,
+            total: torrent.peersConnected,
+            sending: torrent.peersSendingToUs,
+            getting: torrent.peersGettingFromUs,
+            seeds: torrent.seedsConnected,
+        },
+        totalSize: torrent.totalSize,
+        eta: torrent.eta,
+        queuePosition: torrent.queuePosition,
+        ratio: torrent.uploadRatio,
+        uploaded: torrent.uploadedEver,
+        downloaded: torrent.downloadedEver,
+        leftUntilDone: torrent.leftUntilDone,
+        sizeWhenDone: torrent.sizeWhenDone,
+        error: torrent.error,
+        errorString: torrent.errorString,
+        isFinished: torrent.isFinished,
+        sequentialDownload: torrent.sequentialDownload,
+        superSeeding: torrent.superSeeding,
+        added: torrent.dateAdded,
+        savePath: torrent.downloadDir,
+        rpcId: torrent.id,
+    };
+};
 
 const normalizeTorrentDetail = (
     detail: TransmissionTorrentDetail

@@ -59,6 +59,8 @@ interface WorkspaceShellProps {
     getInputProps: () => InputHTMLAttributes<HTMLInputElement>;
     isDragActive: boolean;
     filter: string;
+    searchQuery: string;
+    setSearchQuery: (value: string) => void;
     setFilter: (key: string) => void;
     openAddModal: () => void;
     openSettings: () => void;
@@ -119,6 +121,8 @@ export function WorkspaceShell({
     getInputProps,
     isDragActive,
     filter,
+    searchQuery,
+    setSearchQuery,
     setFilter,
     openAddModal,
     openSettings,
@@ -183,6 +187,8 @@ export function WorkspaceShell({
         <Navbar
             filter={filter}
             setFilter={setFilter}
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
             onAdd={() => openAddModal()}
             onSettings={() => openSettings()}
             hasSelection={selectedTorrents.length > 0}
@@ -210,6 +216,7 @@ export function WorkspaceShell({
         <ModeLayout
             torrents={torrents}
             filter={filter}
+            searchQuery={searchQuery}
             isTableLoading={isTableLoading}
             onAction={handleTorrentAction}
             onRequestDetails={handleRequestDetails}
@@ -457,7 +464,7 @@ export function WorkspaceShell({
                             </div>
                         </>
                     ) : (
-                        <div className="flex-1 min-h-0 h-full flex flex-col gap-4">
+                        <div className="flex-1 min-h-0 h-full flex flex-col gap-2">
                             <div className="flex-1 min-h-0 h-full">
                                 {renderModeLayoutSection()}
                             </div>
