@@ -1,33 +1,44 @@
 # TinyTorrent
 
-**A modern BitTorrent client. No frameworks needed. ~2Mb binary. Fully capable**
+**A modern BitTorrent client. No frameworks needed. ~2–3 MB native daemon. Fully capable.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue)](https://www.typescriptlang.org/)
+[![C++](https://img.shields.io/badge/C++-17-blue)](https://en.cppreference.com/w/cpp/17)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-19-cyan)](https://react.dev/)
-[![Architecture](https://img.shields.io/badge/Architecture-Hexagonal%2FAdapter-purple)]()
-[![Size](https://img.shields.io/badge/Binary_Target-<3MB-success)]()
+[![UI](https://img.shields.io/badge/UI-HeroUI%20%2B%20TailwindCSS-8b5cf6)](https://www.heroui.com/)
+[![Motion](https://img.shields.io/badge/Motion-Framer%20Motion-pink)](https://www.framer.com/motion/)
+[![Build](https://img.shields.io/badge/Build-Vite-646cff)](https://vitejs.dev/)
+[![UI Runtime](https://img.shields.io/badge/UI-Browser%20On--Demand-success)]()
+[![Engine](https://img.shields.io/badge/Engine-Transmission%20%2F%20libtorrent-darkgreen)]()
+[![Architecture](https://img.shields.io/badge/Architecture-Hexagonal%20%2F%20Adapter-purple)]()
+[![Binary Size](https://img.shields.io/badge/Binary_Target-<3MB-success)]()
 
-**Status:** works with the transmission-daemon installed separatelly
-**NOTE THIS IS WORK IN PROGRESS: Bugs do exist, some features are unfinished, regressions can appear**
+**Status:** Work in progress.  
+Frontend runs against a standard `transmission-daemon`. Bugs exist; some features are unfinished and regressions may occur.  
+Custom single-binary backend is under active development.
 
 ---
 
-I grew up with torrent clients that were **160 KB** — small, fast, and engineered with real hardware limits in mind. That era is gone. Today even a simple tray application wastes memory it has no reason to touch, and I’m not fine with that. So I decided to do something about it.
+I grew up with torrent clients that were **~160 KB** — small, fast, and engineered with real hardware limits in mind. That era is gone. Today even a simple tray application wastes memory it has no reason to touch, and I’m not fine with that. So I decided to do something about it.
 
-My first ideea was a pure C, bare-metal Windows 11 client — no external libraries, just raw WinAPI. Because the UI was unacceptable, I abandoned it for a while. Later I realised that every modern system already ships with a fully optimized, GPU-accelerated engine: the internet browser. Using it delivers **better visuals, less code, and a lower memory footprint** than any hand-rolled native UI.
+My first idea was a pure C, bare-metal Windows client — no external libraries, just raw WinAPI. The UI was unacceptable, so I abandoned that approach. Later I realized that every modern system already ships with a fully optimized, GPU-accelerated rendering engine: the web browser. Used _on demand_, it delivers better visuals, less UI code, and zero idle UI memory.
 
-This project exists to bring back what made the classics great: a lean core, a tiny binary, and a UI that feels like it came from the future — without abandoning engineering discipline.
+This project exists to bring back what made the classics great: a lean core, a tiny binary, and a UI that feels modern — without abandoning engineering discipline.
 
 **This is how TinyTorrent was born.**
 
-Instead of dragging C++/Win32/Qt/GTK toolkits into the binary, TinyTorrent splits:
+Instead of dragging UI toolkits into the binary, TinyTorrent is split cleanly:
 
-- **Native Shell:** A minimal executable that manages the window, lifecycle, and the torrent engine. It exposes a generic RPC interface.
-- **Frontend:** React + TypeScript + HeroUI, leveraging the browser’s rendering engine for layout, animation, and GPU composition.
+- **Native Tray Daemon:**  
+  A minimal C/C++ executable responsible for lifecycle, tray controls (pause/resume/open GUI), and the torrent engine. Always running. No UI.
 
-Modern torrent protocol and will push the torrent client toward **1–3 MB**, but the philosophy stays the same: **minimal memory and CPU used**.
-**Zero GUI memory footprint** unless you actively open the interface — exactly how it should be.
+- **On-Demand GUI:**  
+  A browser-based UI launched only when requested (Chrome, Edge, Firefox, etc.).  
+  When closed, **no UI process exists**.
+
+**Zero GUI memory when unused.**  
+Exactly how it should be.
 
 ---
 
@@ -37,39 +48,39 @@ Modern torrent protocol and will push the torrent client toward **1–3 MB**, bu
 
 ### Browser-Native HUD (frontend/)
 
-- **Zero GUI RAM when unused** — The UI runs in the browser/WebView only when opened.
-- **Glass Monolith UI** — Tailwind v4 + HeroUI + blur + depth for a "Stealth" aesthetic.
-- **Workspace Components** — Not just tables, but functional tools:
+- **Zero GUI memory when unused** — the interface is launched on demand in an external browser.
+- **Glass Monolith UI** — Tailwind v4 + HeroUI + blur + depth for a stealth aesthetic.
+- **Workspace Components**
   - **File Explorer Tree:** Nested, accordion-style file selection with priority toggling.
-  - **Visualizers:** Real-time speed graphs, Disk Space Gauge, and Peer Maps.
-- **Kinetic Motion** — Framer Motion used for structural changes, not just decoration.
+  - **Visualizers:** Real-time speed graphs, Disk Space Gauge, and peer maps.
+- **Kinetic Motion** — Framer Motion used for structural transitions, not decoration.
 
-### Backend Agnostic Architecture
+### Backend-Agnostic Architecture
 
-TinyTorrent is no longer tied to a single engine.
+TinyTorrent is not tied to a single engine.
 
-- **Domain-Driven Design:** The UI interacts with a API interface
-- **Adapter Pattern:** We support multiple backends
-  - **Transmission Adapter:** Connects to standard Transmission RPC.
-  - **Libtorrent Adapter:** Connects to a custom C++ wrapper around `libtorrent-rasterbar`. (to be developed in the future)
+- **Strict RPC boundary:** The UI talks to a well-defined API.
+- **Adapter Pattern:**
+  - **Transmission Adapter:** Uses standard Transmission RPC.
+  - **Libtorrent Adapter:** Planned C++ wrapper around `libtorrent-rasterbar`.
 
-### Professional Mechanics
+### Interaction Model
 
-- **Queue Management:** Reorder torrents, move to top/bottom, drag-and-drop ordering.
+- **Queue Management:** Reorder torrents, move to top/bottom, drag-and-drop.
 - **Deep Interaction:** Shift-click ranges, Ctrl-click toggles, full keyboard navigation.
-- **Exact Typing:** No "any" types. The RPC schema is strictly typed and normalized.
+- **Exact Typing:** No `any`. RPC schema is strictly typed and normalized.
 
 ---
 
 ## 🏗 Repository Structure
 
-This README is in the **root** of the project.
-
 ```
+
 TinyTorrent/
-├── frontend/   # React 19 HUD, Vite build, Tailwind v4, HeroUI, Framer Motion
-├── backend/    # C/C++ daemon (libtransmission + embedded Mongoose server)
-└── README.md   # You are here
+├── frontend/ # React 19 HUD, Vite build, Tailwind v4, HeroUI, Framer Motion
+├── backend/ # C/C++ tray daemon + torrent engine
+└── README.md # You are here
+
 ```
 
 ### Frontend Tech
@@ -86,7 +97,7 @@ TinyTorrent/
 - C / C++17 (no exceptions, no RTTI)
 - libtransmission
 - Mongoose (embedded web server)
-- Static asset bundler for shipping UI inside a single binary
+- Static asset bundling for optional embedded UI in the future
 
 ---
 
@@ -94,12 +105,10 @@ TinyTorrent/
 
 ### Prerequisites
 
-- Node.js 20+ (for the frontend)
-- **Development:** You can run the frontend against a standard `transmission-daemon` (port 9091) to test the UI.
+- Node.js 20+
+- **Development:** You can run the frontend against a standard `transmission-daemon` (port 9091).
 
 ### Development (frontend)
-
-Runs the HUD with the Transmission Adapter active.
 
 ```bash
 cd frontend
@@ -109,15 +118,14 @@ npm run dev
 
 ### Backend
 
-Currently you can use a regular Transmission Daemon during development.
-
-Custom TinyTorrent backend (single-binary build) will replace it.
+Currently uses a regular Transmission daemon during development.
+The TinyTorrent native daemon will replace it.
 
 ---
 
 ## 🎨 Design Philosophy
 
-The entire stack follows **AGENTS.md**:
+Defined in **AGENTS.md**:
 
 1. Speed
 2. Density
@@ -131,20 +139,20 @@ The entire stack follows **AGENTS.md**:
 
 Pull requests must follow the **Visual Excellence Directive**:
 
-- Beautiful and consistent components
-- Transitions via Framer Motion
+- Modern and consistent components
+- Framer Motion for structural transitions
 - Strict TypeScript
-- No regressions in density or performance
+- No regressions in performance
 
 ---
 
 ## Backend Note
 
-The real TinyTorrent backend will be a **minimal, modified Transmission daemon** that embeds and serves the compiled frontend.
-For now, use the standard `transmission-daemon`.
+The final TinyTorrent backend will be a **minimal, modified Transmission daemon**
+running as a tray application and serving the UI only when requested.
 
 ---
 
-**TinyTorrent** — _Simple. Fast. Beautiful. Browser-Native._
+**TinyTorrent** — _Simple. Fast. Beautiful. On-Demand._
 
 ![UI preview](docs/dashboard-dark.png)
