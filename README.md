@@ -6,7 +6,7 @@
 [![Architecture](https://img.shields.io/badge/Architecture-Hexagonal%2FAdapter-purple)]()
 [![Size](https://img.shields.io/badge/Binary_Target-<3MB-success)]()
 
-**A modern µTorrent-style BitTorrent client with a browser-native UI and a micro-sized backend.**
+**A modern BitTorrent client. No frameworks needed. ~2Mb binary. Fully capable **
 
 ![UI preview](docs/dashboard-dark.png)
 ![UI preview](docs/dashboard-light.png)
