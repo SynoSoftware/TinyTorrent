@@ -20,6 +20,8 @@ Custom single-binary backend is under active development.
 
 ---
 
+## 🧠 Motivation
+
 I grew up with torrent clients that were **~160 KB** — small, fast, and engineered with real hardware limits in mind. That era is gone. Today even a simple tray application wastes memory it has no reason to touch, and I’m not fine with that. So I decided to do something about it.
 
 My first idea was a pure C, bare-metal Windows client — no external libraries, just raw WinAPI. The UI was unacceptable, so I abandoned that approach. Later I realized that every modern system already ships with a fully optimized, GPU-accelerated rendering engine: the web browser. Used _on demand_, it delivers better visuals, less UI code, and zero idle UI memory.
@@ -153,6 +155,6 @@ running as a tray application and serving the UI only when requested.
 
 ---
 
-**TinyTorrent** — _Simple. Fast. Beautiful. On-Demand._
-
 ![UI preview](docs/dashboard-dark.png)
+
+**TinyTorrent** — _Simple. Fast. Beautiful. On-Demand._
