@@ -66,6 +66,7 @@ export interface TorrentEntity {
     hash: string;
     name: string;
     progress: number;
+    verificationProgress?: number;
     state: TorrentStatus;
     speed: TorrentSpeed;
     peerSummary: TorrentPeers;

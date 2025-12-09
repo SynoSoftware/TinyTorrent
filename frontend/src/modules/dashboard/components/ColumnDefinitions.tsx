@@ -106,6 +106,14 @@ const ratioValue = (torrent: Torrent) => {
     if (torrent.downloaded > 0) return torrent.uploaded / torrent.downloaded;
     return torrent.uploaded === 0 ? 0 : torrent.uploaded;
 };
+const getEffectiveProgress = (torrent: Torrent) => {
+    const rawProgress =
+        torrent.state === "checking"
+            ? torrent.verificationProgress ?? torrent.progress
+            : torrent.progress;
+    const normalized = rawProgress ?? 0;
+    return Math.max(Math.min(normalized, 1), 0);
+};
 
 const DENSE_TEXT = `${TABLE_LAYOUT.fontSize} ${TABLE_LAYOUT.fontMono} leading-none cap-height-text`;
 const DENSE_NUMERIC = `${DENSE_TEXT} tabular-nums`;
@@ -219,36 +227,41 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
         sortable: true,
         rpcField: "progress",
         defaultVisible: true,
-        sortAccessor: (torrent) => torrent.progress,
+        sortAccessor: getEffectiveProgress,
         headerIcon: Gauge,
-        render: ({ torrent }) => (
-            <div className="flex flex-col gap-1.5 w-full min-w-0">
-                <div
-                    className={cn(
-                        "flex justify-between items-end font-medium opacity-80",
-                        DENSE_NUMERIC
-                    )}
-                >
-                    <span>{(torrent.progress * 100).toFixed(1)}%</span>
-                    <span className="text-foreground/40">
-                        {formatBytes(torrent.totalSize * torrent.progress)}
-                    </span>
+        render: ({ torrent }) => {
+            const displayProgress = getEffectiveProgress(torrent);
+            return (
+                <div className="flex flex-col gap-1.5 w-full min-w-0">
+                    <div
+                        className={cn(
+                            "flex justify-between items-end font-medium opacity-80",
+                            DENSE_NUMERIC
+                        )}
+                    >
+                        <span>{(displayProgress * 100).toFixed(1)}%</span>
+                        <span className="text-foreground/40">
+                            {formatBytes(
+                                torrent.totalSize * displayProgress
+                            )}
+                        </span>
+                    </div>
+                    <SmoothProgressBar
+                        value={displayProgress * 100}
+                        className="h-1"
+                        trackClassName="h-1 bg-content1/20"
+                        indicatorClassName={cn(
+                            "h-full",
+                            torrent.state === "paused"
+                                ? "bg-gradient-to-r from-warning/50 to-warning"
+                                : torrent.state === "seeding"
+                                ? "bg-gradient-to-r from-primary/50 to-primary"
+                                : "bg-gradient-to-r from-success/50 to-success"
+                        )}
+                    />
                 </div>
-                <SmoothProgressBar
-                    value={torrent.progress * 100}
-                    className="h-1"
-                    trackClassName="h-1 bg-content1/20"
-                    indicatorClassName={cn(
-                        "h-full",
-                        torrent.state === "paused"
-                            ? "bg-gradient-to-r from-warning/50 to-warning"
-                            : torrent.state === "seeding"
-                            ? "bg-gradient-to-r from-primary/50 to-primary"
-                            : "bg-gradient-to-r from-success/50 to-success"
-                    )}
-                />
-            </div>
-        ),
+            );
+        },
     },
     status: {
         id: "status",

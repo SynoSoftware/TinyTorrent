@@ -180,6 +180,7 @@ export type OptimisticStatusMap = Record<string, OptimisticStatusEntry>;
 interface TorrentTableProps {
     torrents: Torrent[];
     filter: string;
+    searchQuery: string;
     isLoading?: boolean;
     onAction?: (action: TorrentTableAction, torrent: Torrent) => void;
     onRequestDetails?: (torrent: Torrent) => void;
@@ -556,6 +557,7 @@ type QueueMenuAction = { key: TorrentTableAction; label: string };
 export function TorrentTable({
     torrents,
     filter,
+    searchQuery,
     isLoading = false,
     onAction,
     onRequestDetails,
@@ -583,9 +585,16 @@ export function TorrentTable({
     const data = useMemo(() => {
         // Map original torrents to display versions (handling optimistic updates)
         const displayTorrents = torrents.map(getDisplayTorrent);
-        if (filter === "all") return displayTorrents;
-        return displayTorrents.filter((t) => t.state === filter);
-    }, [torrents, filter, getDisplayTorrent]);
+        const filteredByState =
+            filter === "all"
+                ? displayTorrents
+                : displayTorrents.filter((t) => t.state === filter);
+        const normalizedQuery = searchQuery.trim().toLowerCase();
+        if (!normalizedQuery) return filteredByState;
+        return filteredByState.filter((torrent) =>
+            torrent.name.toLowerCase().includes(normalizedQuery)
+        );
+    }, [torrents, filter, searchQuery, getDisplayTorrent]);
 
     const parentRef = useRef<HTMLDivElement>(null);
     const tableContainerRef = useRef<HTMLDivElement>(null);
@@ -1598,8 +1607,7 @@ export function TorrentTable({
                                                 <div
                                                     style={{
                                                         width: table.getTotalSize(),
-                                                        height:
-                                                            TABLE_LAYOUT.rowHeight,
+                                                        height: TABLE_LAYOUT.rowHeight,
                                                     }}
                                                     className={cn(
                                                         "pointer-events-none border border-content1/20 bg-background/90 backdrop-blur-3xl",

@@ -1,6 +1,6 @@
 import { AnimatePresence, motion, type Transition } from "framer-motion";
 import { FileUp } from "lucide-react";
-import { Modal, ModalContent } from "@heroui/react";
+import { Modal, ModalContent, cn } from "@heroui/react";
 import {
     useLayoutEffect,
     useState,
@@ -16,7 +16,6 @@ import {
 import { TorrentDetailView } from "./TorrentDetailView";
 import type { Torrent, TorrentDetail } from "../types/torrent";
 import { INTERACTION_CONFIG } from "../../../config/interaction";
-import type { TorrentStatus } from "../../../services/rpc/entities";
 import { ICON_STROKE_WIDTH } from "../../../config/iconography";
 import { useTranslation } from "react-i18next";
 
@@ -32,7 +31,9 @@ const DROP_BORDER_TRANSITION: Transition = {
 interface ModeLayoutProps {
     torrents: Torrent[];
     filter: string;
+    searchQuery: string;
     isTableLoading: boolean;
+    detailSplitDirection?: "horizontal" | "vertical";
     onAction?: (action: TorrentTableAction, torrent: Torrent) => void;
     onRequestDetails?: (torrent: Torrent) => void;
     onSelectionChange?: (selection: Torrent[]) => void;
@@ -54,6 +55,7 @@ interface ModeLayoutProps {
 export function ModeLayout({
     torrents,
     filter,
+    searchQuery,
     isTableLoading,
     onAction,
     onRequestDetails,
@@ -68,6 +70,7 @@ export function ModeLayout({
     optimisticStatuses,
     onSelectionChange,
     isDropActive = false,
+    detailSplitDirection = "vertical",
 }: ModeLayoutProps) {
     const { t } = useTranslation();
     const isDetailOpen = Boolean(detailData);
@@ -188,19 +191,40 @@ export function ModeLayout({
         y: modalBloom.exitOffsetY,
     };
     const bloomTransition = modalBloom.transition;
+    const splitDirection = detailSplitDirection ?? "vertical";
+    const isHorizontalSplit = splitDirection === "horizontal";
 
-    const workspaceClass = isDetailPinned
-        ? "flex-1 min-h-0 h-full relative flex flex-col lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(360px,440px)] lg:gap-4"
-        : "flex-1 min-h-0 h-full relative flex flex-col";
+    const detailMotionProps = isHorizontalSplit
+        ? { initial: { opacity: 0, x: 32 }, exit: { opacity: 0, x: 32 } }
+        : { initial: { opacity: 0, y: 32 }, exit: { opacity: 0, y: 32 } };
+
+    const workspaceClass = cn(
+        "flex-1 min-h-0 h-full relative flex overflow-hidden",
+        isDetailPinned && isHorizontalSplit ? "lg:flex-row" : "flex-col"
+    );
+
+    const detailPanelClasses = cn(
+        "glass-panel hidden flex-col overflow-hidden rounded-2xl border border-content1/20 bg-content1/80 shadow-2xl backdrop-blur-2xl lg:flex z-20",
+        {
+            "lg:w-[360px] lg:max-w-[440px] h-full": isHorizontalSplit,
+            "lg:h-[360px] lg:max-h-[440px] w-full": !isHorizontalSplit,
+        }
+    );
 
     return (
         <>
             <div className={workspaceClass}>
-                <main className="flex-1 min-h-0 h-full relative flex flex-col overflow-visible">
-                    <div className="relative flex-1 min-h-0 h-full">
+                <main className="flex-1 min-h-0 min-w-0 relative flex flex-col overflow-hidden">
+                    {/* 
+                        FIX: Using 'absolute inset-0' forces this container to fit exactly 
+                        into the space left by the flex parent, ignoring the table's natural height.
+                        This allows the scrollbar to appear on the table, rather than the window.
+                    */}
+                    <div className="absolute inset-0 pb-2">
                         <TorrentTable
                             torrents={torrents}
                             filter={filter}
+                            searchQuery={searchQuery}
                             isLoading={isTableLoading}
                             onAction={onAction}
                             onRequestDetails={handleDetailRequest}
@@ -213,7 +237,7 @@ export function ModeLayout({
                         <AnimatePresence>
                             {isDropActive && (
                                 <motion.div
-                                    className="pointer-events-none absolute inset-0 flex items-center justify-center"
+                                    className="pointer-events-none absolute inset-0 flex items-center justify-center z-50"
                                     initial={{ opacity: 0 }}
                                     animate={{ opacity: 1 }}
                                     exit={{ opacity: 0 }}
@@ -254,19 +278,19 @@ export function ModeLayout({
                         </AnimatePresence>
                     </div>
                 </main>
-                <AnimatePresence>
+                <AnimatePresence mode="wait">
                     {detailData && isDetailPinned && (
                         <motion.aside
                             key={detailData.id}
-                            initial={{ opacity: 0, x: 32 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: 32 }}
+                            initial={detailMotionProps.initial}
+                            animate={{ opacity: 1, x: 0, y: 0 }}
+                            exit={detailMotionProps.exit}
                             transition={{
                                 type: "spring",
                                 stiffness: 220,
                                 damping: 24,
                             }}
-                            className="glass-panel hidden h-full min-h-0 w-full flex-col overflow-hidden rounded-2xl border border-content1/20 bg-content1/80 shadow-2xl backdrop-blur-2xl lg:flex"
+                            className={detailPanelClasses}
                         >
                             <TorrentDetailView
                                 torrent={detailData}

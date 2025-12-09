@@ -30,6 +30,8 @@ const FEEDBACK_TONE_CLASSES: Record<FeedbackTone, string> = {
 
 interface NavbarProps {
     filter: string;
+    searchQuery: string;
+    setSearchQuery: (value: string) => void;
     setFilter: (key: string) => void;
     onAdd: () => void;
     onSettings: () => void;
@@ -51,6 +53,8 @@ interface NavbarProps {
 
 export function Navbar({
     filter,
+    searchQuery,
+    setSearchQuery,
     setFilter,
     onAdd,
     onSettings,
@@ -215,6 +219,10 @@ export function Navbar({
                         }}
                         placeholder={t("nav.search_placeholder")}
                         size="sm"
+                        value={searchQuery}
+                        onChange={(event) =>
+                            setSearchQuery(event.currentTarget.value)
+                        }
                         startContent={
                             <Search
                                 size={14}

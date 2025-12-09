@@ -53,6 +53,26 @@ export function useWorkspaceHeartbeat({
         };
     }, [pollingIntervalMs, runHeartbeat, sessionReady, detailId]);
 
+    const runHealthCheck = useCallback(async () => {
+        try {
+            await refreshTorrents();
+        } catch {
+            // swallow failures to keep retrying
+        }
+    }, [refreshTorrents]);
+
+    useEffect(() => {
+        if (sessionReady) return;
+        void runHealthCheck();
+        const intervalMs = Math.max(1000, pollingIntervalMs);
+        const intervalId = window.setInterval(() => {
+            void runHealthCheck();
+        }, intervalMs);
+        return () => {
+            window.clearInterval(intervalId);
+        };
+    }, [sessionReady, pollingIntervalMs, runHealthCheck]);
+
     return {
         runHeartbeat,
     };
