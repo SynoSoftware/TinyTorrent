@@ -15,7 +15,6 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ThemeToggle } from "../controls/ThemeToggle";
-import { LanguageMenu } from "../controls/LanguageMenu";
 import { ICON_STROKE_WIDTH } from "../../../config/iconography";
 import { ToolbarIconButton } from "../layout/toolbar-button";
 import { SmoothProgressBar } from "../components/SmoothProgressBar";
@@ -178,17 +177,17 @@ export function Navbar({
                             onPress={onAdd}
                         />
                         <ToolbarIconButton
-                            Icon={Play}
-                            ariaLabel={t("toolbar.resume")}
-                            title={t("toolbar.resume")}
-                            onPress={onResumeSelection}
-                            disabled={!hasSelection}
-                        />
-                        <ToolbarIconButton
                             Icon={Pause}
                             ariaLabel={t("toolbar.pause")}
                             title={t("toolbar.pause")}
                             onPress={onPauseSelection}
+                            disabled={!hasSelection}
+                        />
+                        <ToolbarIconButton
+                            Icon={Play}
+                            ariaLabel={t("toolbar.resume")}
+                            title={t("toolbar.resume")}
+                            onPress={onResumeSelection}
                             disabled={!hasSelection}
                         />
                         <ToolbarIconButton
@@ -241,8 +240,7 @@ export function Navbar({
                         title={workspaceToggleLabel}
                         onPress={onWorkspaceToggle}
                     />
-                    <LanguageMenu />
-                    <ThemeToggle />{" "}
+                    <ThemeToggle />
                 </div>
                 {rehashStatus?.active && (
                     <div className="pointer-events-none absolute inset-x-0 bottom-0 px-6">

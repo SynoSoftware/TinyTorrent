@@ -90,8 +90,7 @@ const CELL_BASE_CLASSES =
     "flex items-center overflow-hidden h-full truncate box-border leading-none";
 const CONTEXT_MENU_MARGIN = 16;
 const SPEED_HISTORY_LIMIT = 30;
-const DND_OVERLAY_CLASSES =
-    "pointer-events-none fixed inset-0 z-40 flex items-start justify-start";
+const DND_OVERLAY_CLASSES = "pointer-events-none fixed inset-0 z-40";
 
 // --- TYPES ---
 export type TorrentTableAction =
@@ -255,7 +254,7 @@ const DraggableHeader = memo(
         const sortState = column.getIsSorted();
         const canSort = column.getCanSort();
         const align = column.columnDef.meta?.align || "start";
-        const isSelection = header.id === "selection";
+        const isSelection = header.id.toString() === "selection";
 
         return (
             <div
@@ -345,7 +344,7 @@ const ColumnHeaderPreview = ({
 }) => {
     const { column } = header;
     const align = column.columnDef.meta?.align || "start";
-    const isSelection = header.id === "selection";
+    const isSelection = header.id.toString() === "selection";
     const sortState = column.getIsSorted();
     return (
         <div
@@ -1067,9 +1066,10 @@ export function TorrentTable({
         }
     }, [rowVirtualizer, table]);
 
+    const rowSelectionState = table.getState().rowSelection;
     const selectedTorrents = useMemo(
         () => table.getSelectedRowModel().rows.map((row) => row.original),
-        [table]
+        [table, rowSelectionState]
     );
 
     useEffect(() => {
@@ -1754,8 +1754,9 @@ export function TorrentTable({
                             </ModalHeader>
                             <ModalBody>
                                 {table.getAllLeafColumns().map((column) => {
-                                    const id = column.id as ColumnId;
-                                    if (id === "selection") return null;
+                                    const rawId = column.id;
+                                    if (rawId === "selection") return null;
+                                    const id = rawId as ColumnId;
                                     return (
                                         <div
                                             key={column.id}
