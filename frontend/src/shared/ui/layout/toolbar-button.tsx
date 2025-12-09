@@ -1,6 +1,10 @@
 import { Button, cn } from "@heroui/react";
 import { ICON_STROKE_WIDTH } from "../../../config/iconography";
-import type { ReactNode } from "react";
+import {
+    forwardRef,
+    type ComponentPropsWithoutRef,
+    type ReactNode,
+} from "react";
 import type { LucideIcon } from "lucide-react";
 
 export const TOOLBAR_ICON_CLASSES =
@@ -9,25 +13,20 @@ export const TOOLBAR_ICON_CLASSES =
 export const TOOLBAR_ICON_BUTTON_CLASSES =
     `${TOOLBAR_ICON_CLASSES} bg-content1/10 border border-content1/20`;
 
-export type ToolbarIconButtonProps = {
+export type ToolbarIconButtonProps = ComponentPropsWithoutRef<typeof Button> & {
     Icon?: LucideIcon;
     icon?: ReactNode;
     ariaLabel: string;
-    title?: string;
-    onPress?: () => void;
-    disabled?: boolean;
-    className?: string;
 };
 
-export function ToolbarIconButton({
-    Icon,
-    icon,
-    ariaLabel,
-    title,
-    onPress,
-    disabled,
-    className,
-}: ToolbarIconButtonProps) {
+export const ToolbarIconButton = forwardRef<
+    HTMLButtonElement,
+    ToolbarIconButtonProps
+>(function ToolbarIconButton(
+    { Icon, icon, ariaLabel, className, ...restProps },
+    ref
+) {
+    const { disabled, ...buttonProps } = restProps;
     const content = icon ?? (
         Icon ? (
             <Icon
@@ -40,6 +39,7 @@ export function ToolbarIconButton({
 
     return (
         <Button
+            ref={ref}
             isIconOnly
             variant="light"
             radius="full"
@@ -49,11 +49,10 @@ export function ToolbarIconButton({
                 disabled && "pointer-events-none opacity-40"
             )}
             aria-label={ariaLabel}
-            title={title}
-            onPress={onPress}
             disabled={disabled}
+            {...buttonProps}
         >
             {content}
         </Button>
     );
-}
+});
