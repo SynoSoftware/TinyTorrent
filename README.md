@@ -1,19 +1,15 @@
 # TinyTorrent
 
+**A modern BitTorrent client. No frameworks needed. ~2Mb binary. Fully capable**
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-19-cyan)](https://react.dev/)
 [![Architecture](https://img.shields.io/badge/Architecture-Hexagonal%2FAdapter-purple)]()
 [![Size](https://img.shields.io/badge/Binary_Target-<3MB-success)]()
 
-**A modern BitTorrent client. No frameworks needed. ~2Mb binary. Fully capable **
-
-![UI preview](docs/dashboard-dark.png)
-![UI preview](docs/dashboard-light.png)
-
+**Status:** works with the transmission-daemon installed separatelly
 **NOTE THIS IS WORK IN PROGRESS: Bugs do exist, some features are unfinished, regressions can appear**
-
-**Status:** works if transmission-daemon is installed separatelly
 
 ---
 
@@ -34,6 +30,8 @@ Modern torrent protocol and will push the torrent client toward **1–3 MB**, bu
 **Zero GUI memory footprint** unless you actively open the interface — exactly how it should be.
 
 ---
+
+![UI preview](docs/dashboard-light.png)
 
 ## 💎 Key Features
 
@@ -148,3 +146,5 @@ For now, use the standard `transmission-daemon`.
 ---
 
 **TinyTorrent** — _Simple. Fast. Beautiful. Browser-Native._
+
+![UI preview](docs/dashboard-dark.png)
