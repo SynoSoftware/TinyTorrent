@@ -46,7 +46,7 @@ import { SpeedTab } from "./details/tabs/SpeedTab";
 
 const GLASS_TOOLTIP_CLASSNAMES = {
     content:
-        "bg-content1/80 border border-content1/20 backdrop-blur-3xl shadow-[0_25px_75px_rgba(0,0,0,0.35)] rounded-2xl px-3 py-1.5 text-[11px] leading-tight text-foreground/90",
+        "bg-content1/80 border border-content1/20 backdrop-blur-3xl shadow-small rounded-2xl px-3 py-1.5 text-[11px] leading-tight text-foreground/90",
     arrow: "bg-content1/80",
 } as const;
 
@@ -522,7 +522,7 @@ export function TorrentDetailView({
                                                         className={cn(
                                                             "w-1.5 h-1.5 rounded-full",
                                                             tracker.lastAnnounceSucceeded
-                                                                ? "bg-success shadow-[0_0_8px_rgba(34,197,94,0.4)]"
+                                                                ? "bg-success shadow-small"
                                                                 : "bg-warning"
                                                         )}
                                                     />

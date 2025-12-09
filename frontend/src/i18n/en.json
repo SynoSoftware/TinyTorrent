@@ -3,6 +3,16 @@
         "name": "TINY TORRENT",
         "version": "v0.1"
     },
+    "directory_browser": {
+        "drive_label": "Drive",
+        "empty": "No folders found.",
+        "error": "Unable to inspect that path.",
+        "open": "Open",
+        "root_label": "File System",
+        "select": "Use this folder",
+        "title": "Choose Folder",
+        "up": "Up one level"
+    },
     "drop_overlay": {
         "subtitle": "Supports .torrent and Magnets",
         "title": "Drop to Add"
@@ -29,6 +39,8 @@
         "disk_gauge_error": "Unable to refresh disk usage.",
         "download": "Download",
         "file_browse": "Choose File",
+        "file_count": "{{count}} file",
+        "file_count_plural": "{{count}} files",
         "file_help": "Drop or select a .torrent to upload it to Transmission.",
         "file_label": "TORRENT FILE",
         "file_placeholder": "Select a .torrent file",
@@ -45,37 +57,32 @@
         "save_path": "SAVE PATH",
         "start_now": "Start Immediately"
     },
-    "directory_browser": {
-        "title": "Choose Folder",
-        "root_label": "File System",
-        "up": "Up one level",
-        "open": "Open",
-        "empty": "No folders found.",
-        "select": "Use this folder",
-        "error": "Unable to inspect that path.",
-        "drive_label": "Drive"
-    },
     "nav": {
         "filter_all": "All",
         "filter_downloading": "Downloading",
         "filter_seeding": "Seeding",
         "search_placeholder": "Filter torrents..."
     },
-        "settings": {
-        "buttons": {
-            "testPort": "Test",
-            "restore_hud": "Restore insights"
-        },
+    "settings": {
         "button": {
             "browse": "Browse"
         },
-            "headers": {
+        "buttons": {
+            "restore_hud": "Restore insights",
+            "testPort": "Test"
+        },
+        "descriptions": {
+            "download_folder": "Completed torrents land here by default.",
+            "incomplete_folder": "Files remain in this directory until the download completes.",
+            "restore_hud": "Bring back the dismissed HUD cards for instant insights."
+        },
+        "headers": {
+            "gui": "Interface",
             "network": "Connectivity",
             "peers": "Peer Limits",
             "privacy": "Privacy",
             "speed": "Speed Limits",
-            "storage": "Storage",
-            "gui": "Interface"
+            "storage": "Storage"
         },
         "labels": {
             "altSpeedDays": "Scheduled Days",
@@ -117,11 +124,6 @@
             "upnp": "Enable UPnP / NAT-PMP",
             "useIncompleteFolder": "Use Incomplete Folder"
         },
-        "descriptions": {
-            "download_folder": "Completed torrents land here by default.",
-            "incomplete_folder": "Files remain in this directory until the download completes.",
-            "restore_hud": "Bring back the dismissed HUD cards for instant insights."
-        },
         "modal": {
             "footer": {
                 "cancel": "Cancel",
@@ -131,7 +133,6 @@
             },
             "title": "Settings"
         },
-        "unsaved_changes": "Unsaved changes",
         "options": {
             "encryption": {
                 "preferred": "Prefer Encryption",
@@ -142,9 +143,9 @@
         "sections": {
             "bandwidth": "Global Bandwidth",
             "behavior": "Behavior",
-            "dashboard": "Dashboard",
             "blocklist": "Blocklist",
             "connectionLimits": "Connection Limits",
+            "dashboard": "Dashboard",
             "encryption": "Encryption",
             "listeningPort": "Listening Port",
             "locations": "Locations",
@@ -154,16 +155,17 @@
             "turtle": "Turtle Mode (Scheduled)"
         },
         "tabs": {
+            "gui": "Interface",
             "network": "Network",
             "peers": "Peers",
             "privacy": "Privacy",
             "speed": "Speed",
-            "storage": "Storage",
-            "gui": "Interface"
+            "storage": "Storage"
         },
         "units": {
             "kbps": "{{value}} KB/s"
-        }
+        },
+        "unsaved_changes": "Unsaved changes"
     },
     "status_bar": {
         "active_torrents": "Active torrents",
@@ -206,6 +208,8 @@
         "column_picker_reset": "Reset Layout",
         "column_picker_title": "Columns",
         "column_selection": "Selection",
+        "empty_hint": "Press {{shortcut}} to add a torrent",
+        "empty_hint_subtext": "Drop a .torrent, paste a magnet link, or use the toolbar to begin.",
         "eta": "ETA: {{time}}",
         "eta_unknown": "Unknown",
         "header_added": "ADDED",
@@ -228,8 +232,6 @@
         },
         "select_all": "Select all",
         "select_item": "Select {{name}}",
-        "empty_hint": "Press {{shortcut}} to add a torrent",
-        "empty_hint_subtext": "Drop a .torrent, paste a magnet link, or use the toolbar to begin.",
         "status_dl": "DL",
         "status_pause": "PAUSE",
         "status_queued": "WAIT",
@@ -242,31 +244,31 @@
     },
     "toolbar": {
         "add_torrent": "Add Torrent",
-        "settings": "Settings",
-        "resume": "Resume",
+        "delete_confirm": {
+            "description": "Remove {{count}} torrents from the list?",
+            "description_with_data": "Remove {{count}} torrents and delete downloaded files?",
+            "title": "Confirm removal"
+        },
+        "feedback": {
+            "failed": "Action failed",
+            "paused": "Paused {{count}} torrents",
+            "pausing": "Pausing {{count}} torrents",
+            "rehashed": "Rehash complete",
+            "rehashing": "Rehashing {{count}} torrents",
+            "removed": "Removed {{count}} torrents",
+            "removing": "Removing {{count}} torrents",
+            "resumed": "Resumed {{count}} torrents",
+            "resuming": "Resuming {{count}} torrents"
+        },
         "pause": "Pause",
         "recheck": "Recheck",
-        "remove": "Remove",
-        "feedback": {
-            "resuming": "Resuming {{count}} torrents",
-            "resumed": "Resumed {{count}} torrents",
-            "pausing": "Pausing {{count}} torrents",
-            "paused": "Paused {{count}} torrents",
-            "rehashing": "Rehashing {{count}} torrents",
-            "rehashed": "Rehash complete",
-            "removing": "Removing {{count}} torrents",
-            "removed": "Removed {{count}} torrents",
-            "failed": "Action failed"
-        },
         "rehash_progress": {
-            "single": "Rehashing {{name}}",
-            "multiple": "Rehashing {{count}} torrents"
+            "multiple": "Rehashing {{count}} torrents",
+            "single": "Rehashing {{name}}"
         },
-        "delete_confirm": {
-            "title": "Confirm removal",
-            "description": "Remove {{count}} torrents from the list?",
-            "description_with_data": "Remove {{count}} torrents and delete downloaded files?"
-        }
+        "remove": "Remove",
+        "resume": "Resume",
+        "settings": "Settings"
     },
     "torrent_modal": {
         "actions": {
@@ -332,8 +334,8 @@
         },
         "piece_map": {
             "tooltip": "Piece #{{piece}} - {{status}}",
-            "tooltip_size": "Piece size: {{size}}",
-            "tooltip_progress": "Torrent progress: {{percent}}%"
+            "tooltip_progress": "Torrent progress: {{percent}}%",
+            "tooltip_size": "Piece size: {{size}}"
         },
         "speed": {
             "average": "Average",
@@ -385,14 +387,14 @@
         }
     },
     "workspace": {
-        "stage": {
-            "restore_hud": "Restore insights",
-            "hud_dismissed": "Insights hidden. Restore to view connection, drag, and deep-link helpers.",
-            "dismiss_card": "Dismiss card"
-        },
         "shell": {
             "toggle_classic": "Switch to classic shell",
             "toggle_immersive": "Switch to immersive shell"
+        },
+        "stage": {
+            "dismiss_card": "Dismiss card",
+            "hud_dismissed": "Insights hidden. Restore to view connection, drag, and deep-link helpers.",
+            "restore_hud": "Restore insights"
         }
     }
 }

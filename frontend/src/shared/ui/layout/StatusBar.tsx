@@ -19,6 +19,7 @@ import type {
 import type { RpcStatus } from "../../../shared/types/rpc";
 import { ICON_STROKE_WIDTH } from "../../../config/iconography";
 import type { FeedbackMessage, FeedbackTone } from "../../types/feedback";
+import { BLOCK_SHADOW, PANEL_SHADOW } from "./shadows";
 
 // --- LAYOUT CONFIGURATION ---
 // Adjust these variables to control spacing and symmetry
@@ -123,12 +124,18 @@ export function StatusBar({
         : "--";
 
     return (
-        <footer className="w-full shrink-0 rounded-[28px] border border-content1/15 bg-background/85 backdrop-blur-2xl shadow-[0_20px_70px_rgba(0,0,0,0.45)] select-none relative z-30 overflow-visible px-4 py-3">
+        <footer
+            className={cn(
+                "w-full shrink-0 rounded-[28px] border border-content1/15 bg-background/85 backdrop-blur-2xl select-none relative z-30 overflow-visible px-4 py-3",
+                BLOCK_SHADOW
+            )}
+        >
             {actionFeedback && (
                 <div className="pointer-events-none absolute inset-x-6 -top-5 flex justify-end">
                     <div
                         className={cn(
-                            "rounded-full border border-content1/20 bg-content1/90 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] shadow-lg shadow-black/20 backdrop-blur-md",
+                            "rounded-full border border-content1/20 bg-content1/90 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] backdrop-blur-md",
+                            PANEL_SHADOW,
                             FEEDBACK_TONE_CLASSES[actionFeedback.tone]
                         )}
                         aria-live="polite"

@@ -404,10 +404,9 @@ export function AddTorrentModal({
                                             {t("modals.file_tree_title")}
                                         </span>
                                         <span className="text-[11px] text-foreground/50">
-                                            {torrentMetadata.files.length} file
-                                            {torrentMetadata.files.length === 1
-                                                ? ""
-                                                : "s"}
+                                            {t("modals.file_count", {
+                                                count: torrentMetadata.files.length,
+                                            })}
                                         </span>
                                     </div>
                                     <p className="text-[11px] text-foreground/50">
