@@ -21,6 +21,7 @@ import { ICON_STROKE_WIDTH } from "../../../config/iconography";
 import { ToolbarIconButton } from "../layout/toolbar-button";
 import { SmoothProgressBar } from "../components/SmoothProgressBar";
 import type { FeedbackMessage, FeedbackTone } from "../../types/feedback";
+import { BLOCK_SHADOW, PANEL_SHADOW } from "./shadows";
 
 const FEEDBACK_TONE_CLASSES: Record<FeedbackTone, string> = {
     info: "text-primary",
@@ -71,12 +72,18 @@ export function Navbar({
         workspaceStyle === "immersive" ? PanelsTopLeft : Monitor;
 
     return (
-        <header className="app-titlebar sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between gap-4 px-5 select-none rounded-[24px] border border-content1/15 bg-background/80 shadow-[0_15px_70px_rgba(0,0,0,0.45)] backdrop-blur-2xl relative overflow-visible">
+        <header
+            className={cn(
+                "app-titlebar sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between gap-4 px-5 select-none rounded-[24px] border border-content1/15 bg-background/80 backdrop-blur-2xl relative overflow-visible",
+                BLOCK_SHADOW
+            )}
+        >
             {actionFeedback && (
                 <div className="pointer-events-none absolute bottom-[-14px] right-6 z-10">
                     <div
                         className={cn(
-                            "rounded-full border border-content1/20 bg-content1/90 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] shadow-lg shadow-black/20 backdrop-blur-md",
+                            "rounded-full border border-content1/20 bg-content1/90 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] backdrop-blur-md",
+                            PANEL_SHADOW,
                             FEEDBACK_TONE_CLASSES[actionFeedback.tone]
                         )}
                         aria-live="polite"

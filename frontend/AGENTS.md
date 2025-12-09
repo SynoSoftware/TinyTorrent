@@ -53,7 +53,37 @@ No hard-coded hex colors or arbitrary Tailwind colors.
 | `warning`    | Paused, Checking       |
 | `danger`     | Deletes, Errors        |
 
-No magic numbers: All spacing, sizing, radius, and scale values must come from configuration tokens and not from inline constants or ad-hoc Tailwind values.
+Here is the **shortest possible rule** that still enforces everything you want **without treating the agent as stupid** and without ambiguity:
+
+## **Color Rules**
+
+I want light/dark mode to work flawlessly. For this, use HeroUI’s semantic color tokens for everything — text, backgrounds, borders, shadows, glows.
+Do **not** specify your own literal colors. HeroUI already solves dark/light mode; using its tokens ensures the UI stays correct in both themes automatically.
+
+**Use:**
+
+-   `var(--heroui-background)`
+-   `var(--heroui-content1)`
+-   `var(--heroui-foreground)`
+-   `var(--heroui-primary)`
+    (and the other semantic tokens)
+-   HeroUI’s built-in semantic shadow utilities (shadow-small, shadow-medium, etc.). Do not define custom shadow RGBA strings unless they’re required for a specific effect.
+
+**Avoid:**
+
+-   Custom hex/rgb colors
+-   Tailwind named colors
+-   Hard-coded shadow colors (`shadow-black`, `rgba(0,0,0,0.3)`, etc.)
+
+If you need opacity, wrap the token:
+
+```
+rgba(var(--heroui-foreground), 0.25)
+```
+
+## No magic numbers
+
+All spacing, sizing, radius, and scale values must come from configuration tokens and not from inline constants or ad-hoc Tailwind values.
 
 ### Aesthetic
 

@@ -59,6 +59,7 @@ import React, {
 import { useTranslation } from "react-i18next";
 
 import { GLASS_MENU_SURFACE } from "../../../shared/ui/layout/glass-surface";
+import { BLOCK_SHADOW, PANEL_SHADOW } from "../../../shared/ui/layout/shadows";
 import { useKeyboardScope } from "../../../shared/hooks/useKeyboardScope";
 import type { TorrentStatus } from "../../../services/rpc/entities";
 
@@ -254,8 +255,9 @@ const DraggableHeader = memo(
                         ? "cursor-pointer hover:bg-content1/10"
                         : "cursor-default",
                     isOverlay
-                        ? "bg-content1/90 shadow-xl cursor-grabbing"
+                        ? "bg-content1/90 cursor-grabbing"
                         : "bg-transparent",
+                    isOverlay && PANEL_SHADOW,
                     isDragging && !isOverlay ? "opacity-30" : "opacity-100"
                 )}
             >
@@ -289,7 +291,7 @@ const DraggableHeader = memo(
                 </div>
 
                 {!isOverlay && header.column.getCanResize() && (
-                        <div
+                    <div
                         onMouseDown={(e) => {
                             header.getResizeHandler()(e);
                             e.stopPropagation();
@@ -309,7 +311,7 @@ const DraggableHeader = memo(
                                     "bg-primary w-[2px] h-6"
                             )}
                         />
-                        </div>
+                    </div>
                 )}
             </div>
         );
@@ -327,7 +329,10 @@ const ColumnHeaderPreview = ({
     const sortState = column.getIsSorted();
     return (
         <div
-            className="relative flex h-10 items-center border-r border-content1/10 bg-content1/90 px-2 shadow-xl transition-all"
+            className={cn(
+                "relative flex h-10 items-center border-r border-content1/10 bg-content1/90 px-2 transition-all",
+                PANEL_SHADOW
+            )}
             style={{ width: column.getSize(), boxSizing: "border-box" }}
         >
             <div
@@ -1154,10 +1159,11 @@ export function TorrentTable({
     }, [contextMenu, torrents]);
 
     const headerContainerClass = cn(
-        "flex w-full sticky top-0 z-20 rounded-t-[28px] border-b border-content1/20 bg-content1/10 backdrop-blur-sm px-0"
+        "flex w-full sticky top-0 z-20 rounded-t-[28px] border-b border-content1/20 bg-content1/10 backdrop-blur-sm px-0 "
     );
     const tableShellClass = cn(
-        "relative flex-1 min-h-0 flex flex-col overflow-hidden rounded-[32px] border border-content1/20 bg-content1/10 shadow-[0_20px_60px_rgba(0,0,0,0.25)]"
+        "relative flex-1 min-h-0 flex flex-col overflow-hidden rounded-[32px] border border-content1/20 bg-content1/10 m-4",
+        BLOCK_SHADOW
     );
 
     return (
@@ -1168,7 +1174,10 @@ export function TorrentTable({
                 onKeyDown={handleKeyDown}
                 onFocus={activateDashboardScope}
                 onBlur={deactivateDashboardScope}
-                className="flex-1 min-h-0 flex flex-col h-full overflow-hidden bg-background/20 relative select-none outline-none"
+                className={cn(
+                    "flex-1 min-h-0 flex flex-col h-full overflow-hidden bg-background/20 relative select-none outline-none ",
+                    BLOCK_SHADOW
+                )}
                 onClick={() => setContextMenu(null)}
             >
                 <DndContext
@@ -1215,148 +1224,160 @@ export function TorrentTable({
                             ref={parentRef}
                             className="flex-1 min-h-0 overflow-y-auto w-full overlay-scrollbar"
                         >
-                        {isLoading && torrents.length === 0 ? (
-                            <div className="w-full">
-                                {Array.from({ length: 15 }).map((_, i) => (
-                                    <div
-                                        key={i}
-                                        className="flex items-center w-full border-b border-content1/5 px-4"
-                                        style={{
-                                            height: TABLE_LAYOUT.rowHeight,
-                                        }}
-                                    >
-                                        <Skeleton className="h-4 w-full rounded-md bg-content1/10" />
-                                    </div>
-                                ))}
-                            </div>
-                        ) : torrents.length === 0 ? (
-                            <div className="h-full flex flex-col items-center justify-center gap-6 px-6 text-foreground/60">
-                                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.4em] text-foreground/60">
-                                    <FileUp
-                                        size={20}
-                                        strokeWidth={ICON_STROKE_WIDTH}
-                                        className="text-primary"
-                                    />
-                                    <span>
-                                        {t("table.empty_hint", {
-                                            shortcut: ADD_TORRENT_SHORTCUT,
-                                        })}
-                                    </span>
-                                </div>
-                                <p className="text-[10px] uppercase tracking-[0.25em] text-foreground/40">
-                                    {t("table.empty_hint_subtext")}
-                                </p>
-                                <div className="w-full max-w-3xl space-y-2">
-                                    <div className="grid grid-cols-[48px_minmax(0,1fr)_120px] gap-3 rounded-2xl border border-content1/20 bg-background/40 px-3 py-2 text-[10px] uppercase tracking-[0.4em] text-foreground/50">
-                                        <span className="h-3 w-full rounded-full bg-content1/20" />
-                                        <span>{t("table.header_name")}</span>
-                                        <span>{t("table.header_speed")}</span>
-                                    </div>
-                                    {Array.from({ length: 3 }).map(
-                                        (_, index) => (
-                                            <div
-                                                key={index}
-                                                className="grid grid-cols-[48px_minmax(0,1fr)_120px] gap-3 rounded-2xl bg-content1/10 px-3 py-2"
-                                            >
-                                                <span className="h-3 w-full rounded-full bg-content1/20" />
-                                                <span className="h-3 w-full rounded-full bg-content1/20" />
-                                                <span className="h-3 w-full rounded-full bg-content1/20" />
-                                            </div>
-                                        )
-                                    )}
-                                </div>
-                            </div>
-                        ) : (
-                            <DndContext
-                                collisionDetection={closestCenter}
-                                sensors={
-                                    canReorderQueue ? rowSensors : undefined
-                                }
-                                onDragStart={handleRowDragStart}
-                                onDragEnd={handleRowDragEnd}
-                                onDragCancel={handleRowDragCancel}
-                            >
-                                <SortableContext
-                                    items={rowIds}
-                                    strategy={verticalListSortingStrategy}
-                                >
-                                    <div
-                                        className="relative w-full min-w-max"
-                                        style={{
-                                            height: `${rowVirtualizer.getTotalSize()}px`,
-                                            width: table.getTotalSize(),
-                                        }}
-                                    >
-                                        {rowVirtualizer
-                                            .getVirtualItems()
-                                            .map((virtualRow) => {
-                                                const row =
-                                                    rows[virtualRow.index];
-                                                return (
-                                                    <VirtualRow
-                                                        key={row.id}
-                                                        row={row}
-                                                        virtualRow={virtualRow}
-                                                        isSelected={row.getIsSelected()}
-                                                        isContext={
-                                                            contextMenu?.torrent
-                                                                .id ===
-                                                            row.original.id
-                                                        }
-                                                        onClick={handleRowClick}
-                                                        onDoubleClick={
-                                                            handleRowDoubleClick
-                                                        }
-                                                        onContextMenu={
-                                                            handleContextMenu
-                                                        }
-                                                        isQueueSortActive={
-                                                            canReorderQueue
-                                                        }
-                                                        dropTargetRowId={
-                                                            dropTargetRowId
-                                                        }
-                                                        activeRowId={
-                                                            activeRowId
-                                                        }
-                                                        isHighlighted={
-                                                            highlightedRowId ===
-                                                                row.id &&
-                                                            !row.getIsSelected()
-                                                        }
-                                                        onDropTargetChange={
-                                                            handleDropTargetChange
-                                                        }
-                                                    />
-                                                );
-                                            })}
-                                    </div>
-                                </SortableContext>
-                                <DragOverlay
-                                    adjustScale={false}
-                                    dropAnimation={null}
-                                >
-                                    {activeDragRow ? (
+                            {isLoading && torrents.length === 0 ? (
+                                <div className="w-full">
+                                    {Array.from({ length: 15 }).map((_, i) => (
                                         <div
+                                            key={i}
+                                            className="flex items-center w-full border-b border-content1/5 px-4"
                                             style={{
-                                                width: table.getTotalSize(),
                                                 height: TABLE_LAYOUT.rowHeight,
                                             }}
-                                            className="pointer-events-none border border-content1/20 bg-background/90 shadow-2xl backdrop-blur-3xl"
                                         >
-                                            <div className="flex h-full w-full items-center">
-                                                {renderVisibleCells(
-                                                    activeDragRow
-                                                )}
-                                            </div>
+                                            <Skeleton className="h-4 w-full rounded-md bg-content1/10" />
                                         </div>
-                                    ) : null}
-                                </DragOverlay>
-                            </DndContext>
-                        )}
+                                    ))}
+                                </div>
+                            ) : torrents.length === 0 ? (
+                                <div className="h-full flex flex-col items-center justify-center gap-6 px-6 text-foreground/60">
+                                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.4em] text-foreground/60">
+                                        <FileUp
+                                            size={20}
+                                            strokeWidth={ICON_STROKE_WIDTH}
+                                            className="text-primary"
+                                        />
+                                        <span>
+                                            {t("table.empty_hint", {
+                                                shortcut: ADD_TORRENT_SHORTCUT,
+                                            })}
+                                        </span>
+                                    </div>
+                                    <p className="text-[10px] uppercase tracking-[0.25em] text-foreground/40">
+                                        {t("table.empty_hint_subtext")}
+                                    </p>
+                                    <div className="w-full max-w-3xl space-y-2">
+                                        <div className="grid grid-cols-[48px_minmax(0,1fr)_120px] gap-3 rounded-2xl border border-content1/20 bg-background/40 px-3 py-2 text-[10px] uppercase tracking-[0.4em] text-foreground/50">
+                                            <span className="h-3 w-full rounded-full bg-content1/20" />
+                                            <span>
+                                                {t("table.header_name")}
+                                            </span>
+                                            <span>
+                                                {t("table.header_speed")}
+                                            </span>
+                                        </div>
+                                        {Array.from({ length: 3 }).map(
+                                            (_, index) => (
+                                                <div
+                                                    key={index}
+                                                    className="grid grid-cols-[48px_minmax(0,1fr)_120px] gap-3 rounded-2xl bg-content1/10 px-3 py-2"
+                                                >
+                                                    <span className="h-3 w-full rounded-full bg-content1/20" />
+                                                    <span className="h-3 w-full rounded-full bg-content1/20" />
+                                                    <span className="h-3 w-full rounded-full bg-content1/20" />
+                                                </div>
+                                            )
+                                        )}
+                                    </div>
+                                </div>
+                            ) : (
+                                <DndContext
+                                    collisionDetection={closestCenter}
+                                    sensors={
+                                        canReorderQueue ? rowSensors : undefined
+                                    }
+                                    onDragStart={handleRowDragStart}
+                                    onDragEnd={handleRowDragEnd}
+                                    onDragCancel={handleRowDragCancel}
+                                >
+                                    <SortableContext
+                                        items={rowIds}
+                                        strategy={verticalListSortingStrategy}
+                                    >
+                                        <div
+                                            className="relative w-full min-w-max"
+                                            style={{
+                                                height: `${rowVirtualizer.getTotalSize()}px`,
+                                                width: table.getTotalSize(),
+                                            }}
+                                        >
+                                            {rowVirtualizer
+                                                .getVirtualItems()
+                                                .map((virtualRow) => {
+                                                    const row =
+                                                        rows[virtualRow.index];
+                                                    return (
+                                                        <VirtualRow
+                                                            key={row.id}
+                                                            row={row}
+                                                            virtualRow={
+                                                                virtualRow
+                                                            }
+                                                            isSelected={row.getIsSelected()}
+                                                            isContext={
+                                                                contextMenu
+                                                                    ?.torrent
+                                                                    .id ===
+                                                                row.original.id
+                                                            }
+                                                            onClick={
+                                                                handleRowClick
+                                                            }
+                                                            onDoubleClick={
+                                                                handleRowDoubleClick
+                                                            }
+                                                            onContextMenu={
+                                                                handleContextMenu
+                                                            }
+                                                            isQueueSortActive={
+                                                                canReorderQueue
+                                                            }
+                                                            dropTargetRowId={
+                                                                dropTargetRowId
+                                                            }
+                                                            activeRowId={
+                                                                activeRowId
+                                                            }
+                                                            isHighlighted={
+                                                                highlightedRowId ===
+                                                                    row.id &&
+                                                                !row.getIsSelected()
+                                                            }
+                                                            onDropTargetChange={
+                                                                handleDropTargetChange
+                                                            }
+                                                        />
+                                                    );
+                                                })}
+                                        </div>
+                                    </SortableContext>
+                                    <DragOverlay
+                                        adjustScale={false}
+                                        dropAnimation={null}
+                                    >
+                                        {activeDragRow ? (
+                                            <div
+                                                style={{
+                                                    width: table.getTotalSize(),
+                                                    height: TABLE_LAYOUT.rowHeight,
+                                                }}
+                                                className={cn(
+                                                    "pointer-events-none border border-content1/20 bg-background/90 backdrop-blur-3xl",
+                                                    PANEL_SHADOW
+                                                )}
+                                            >
+                                                <div className="flex h-full w-full items-center">
+                                                    {renderVisibleCells(
+                                                        activeDragRow
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ) : null}
+                                    </DragOverlay>
+                                </DndContext>
+                            )}
+                        </div>
                     </div>
-                </div>
-            </DndContext>
+                </DndContext>
 
                 <AnimatePresence>
                     {contextMenu && (
@@ -1475,7 +1496,10 @@ export function TorrentTable({
                     transition: INTERACTION_CONFIG.modalBloom.transition,
                 }}
                 classNames={{
-                    base: "glass-panel bg-content1/80 backdrop-blur-2xl border border-content1/20 shadow-2xl rounded-2xl flex flex-col overflow-hidden",
+                    base: cn(
+                        "glass-panel bg-content1/80 backdrop-blur-2xl border border-content1/20 rounded-2xl flex flex-col overflow-hidden",
+                        PANEL_SHADOW
+                    ),
                 }}
             >
                 <ModalContent>
