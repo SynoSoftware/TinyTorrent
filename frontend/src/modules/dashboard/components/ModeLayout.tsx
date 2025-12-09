@@ -1,7 +1,13 @@
 import { AnimatePresence, motion, type Transition } from "framer-motion";
 import { FileUp } from "lucide-react";
 import { Modal, ModalContent } from "@heroui/react";
-import { useLayoutEffect, useState, useCallback, useEffect, useRef } from "react";
+import {
+    useLayoutEffect,
+    useState,
+    useCallback,
+    useEffect,
+    useRef,
+} from "react";
 import {
     TorrentTable,
     type TorrentTableAction,
@@ -117,11 +123,7 @@ export function ModeLayout({
     }, [isDetailOpen]);
 
     useLayoutEffect(() => {
-        if (
-            typeof window === "undefined" ||
-            !isDetailOpen ||
-            !detailData
-        ) {
+        if (typeof window === "undefined" || !isDetailOpen || !detailData) {
             setDetailOrigin(null);
             return;
         }
@@ -159,9 +161,7 @@ export function ModeLayout({
 
     const hasOrigin = Boolean(detailOrigin);
     const viewportOffset =
-        hasOrigin &&
-        typeof window !== "undefined" &&
-        detailOrigin !== null
+        hasOrigin && typeof window !== "undefined" && detailOrigin !== null
             ? {
                   x: detailOrigin.x - window.innerWidth / 2,
                   y: detailOrigin.y - window.innerHeight / 2,
@@ -196,7 +196,7 @@ export function ModeLayout({
     return (
         <>
             <div className={workspaceClass}>
-                <main className="flex-1 min-h-0 h-full relative overflow-hidden flex flex-col">
+                <main className="flex-1 min-h-0 h-full relative flex flex-col overflow-visible">
                     <div className="relative flex-1 min-h-0 h-full">
                         <TorrentTable
                             torrents={torrents}
@@ -206,7 +206,9 @@ export function ModeLayout({
                             onRequestDetails={handleDetailRequest}
                             onSelectionChange={onSelectionChange}
                             optimisticStatuses={optimisticStatuses}
-                            disableDetailOpen={Boolean(detailData && !isDetailPinned)}
+                            disableDetailOpen={Boolean(
+                                detailData && !isDetailPinned
+                            )}
                         />
                         <AnimatePresence>
                             {isDropActive && (

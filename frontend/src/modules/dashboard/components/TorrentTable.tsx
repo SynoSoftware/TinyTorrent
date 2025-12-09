@@ -59,7 +59,11 @@ import React, {
 import { useTranslation } from "react-i18next";
 
 import { GLASS_MENU_SURFACE } from "../../../shared/ui/layout/glass-surface";
-import { BLOCK_SHADOW, PANEL_SHADOW } from "../../../shared/ui/layout/shadows";
+import {
+    BLOCK_SHADOW,
+    GLASS_BLOCK_SURFACE,
+    PANEL_SHADOW,
+} from "../../../shared/ui/layout/shadows";
 import { useKeyboardScope } from "../../../shared/hooks/useKeyboardScope";
 import type { TorrentStatus } from "../../../services/rpc/entities";
 
@@ -586,6 +590,10 @@ export function TorrentTable({
     const tableContainerRef = useRef<HTMLDivElement>(null);
     const focusReturnRef = useRef<HTMLElement | null>(null);
     const marqueeStateRef = useRef<MarqueeState | null>(null);
+    const marqueeClickBlockRef = useRef(false);
+    const marqueeBlockResetRef = useRef<ReturnType<
+        typeof window.setTimeout
+    > | null>(null);
     const [marqueeRect, setMarqueeRect] = useState<MarqueeRect | null>(null);
 
     const queueMenuActions = useMemo<QueueMenuAction[]>(
@@ -947,6 +955,7 @@ export function TorrentTable({
             if (!availableRows.length) {
                 if (!state.isAdditive) {
                     setRowSelection({});
+                    // Also clear anchors/focus if clicking empty space without modifiers
                     setAnchorIndex(null);
                     setFocusIndex(null);
                     setHighlightedRowId(null);
@@ -955,14 +964,16 @@ export function TorrentTable({
             }
 
             const totalHeight = availableRows.length * TABLE_LAYOUT.rowHeight;
-            const topContent = Math.max(
-                0,
-                Math.min(state.startContentY, endContentY)
-            );
-            const bottomContent = Math.max(
-                0,
-                Math.min(endContentY, totalHeight)
-            );
+
+            // CORRECTED MATH: Calculate absolute Top and Bottom regardless of drag direction
+            const minY = Math.min(state.startContentY, endContentY);
+            const maxY = Math.max(state.startContentY, endContentY);
+
+            // Clamp to content bounds
+            const topContent = Math.max(0, minY);
+            const bottomContent = Math.max(0, Math.min(maxY, totalHeight));
+
+            // If the selection height is 0 (just a click), perform a clearing click logic
             if (bottomContent <= topContent) {
                 if (!state.isAdditive) {
                     setRowSelection({});
@@ -973,33 +984,21 @@ export function TorrentTable({
                 return;
             }
 
-            const firstIndex = Math.max(
-                0,
-                Math.min(
-                    availableRows.length - 1,
-                    Math.floor(topContent / TABLE_LAYOUT.rowHeight)
-                )
-            );
-            const lastIndex = Math.max(
-                0,
-                Math.min(
-                    availableRows.length - 1,
-                    Math.floor((bottomContent - 1) / TABLE_LAYOUT.rowHeight)
-                )
-            );
-            if (firstIndex > lastIndex) {
-                if (!state.isAdditive) {
-                    setRowSelection({});
-                    setAnchorIndex(null);
-                    setFocusIndex(null);
-                    setHighlightedRowId(null);
-                }
-                return;
-            }
+            // Map Y-coordinates to Row Indices
+            const firstIndex = Math.floor(topContent / TABLE_LAYOUT.rowHeight);
+            const lastIndex = Math.floor(
+                (bottomContent - 1) / TABLE_LAYOUT.rowHeight
+            ); // -1 to avoid selecting next row if exactly on border
 
-            const nextSelection: RowSelectionState = state.isAdditive
+            if (firstIndex > lastIndex) return; // Should not happen with corrected math, but safety check
+
+            // CORRECTED MODIFIER LOGIC: Include Shift for additive selection
+            const isAdditive = state.isAdditive || event.shiftKey;
+
+            const nextSelection: RowSelectionState = isAdditive
                 ? { ...rowSelectionRef.current }
                 : {};
+
             for (let i = firstIndex; i <= lastIndex; i += 1) {
                 const row = availableRows[i];
                 if (row) {
@@ -1008,6 +1007,7 @@ export function TorrentTable({
             }
             setRowSelection(nextSelection);
 
+            // Update Focus/Anchor to the item under the mouse release
             const focusIndexValue = Math.max(
                 0,
                 Math.min(
@@ -1015,13 +1015,27 @@ export function TorrentTable({
                     Math.floor(endContentY / TABLE_LAYOUT.rowHeight)
                 )
             );
+
+            // Only update Anchor if this wasn't an additive operation,
+            // OR if it's a fresh drag. Windows behavior varies, but resetting anchor on Box Select is standard.
             setAnchorIndex(focusIndexValue);
             setFocusIndex(focusIndexValue);
+
             const focusRow = availableRows[focusIndexValue];
             if (focusRow) {
                 setHighlightedRowId(focusRow.id);
-                rowVirtualizer.scrollToIndex(focusIndexValue);
+                // Optional: Don't scroll to it on drag release, it can be jarring
+                // rowVirtualizer.scrollToIndex(focusIndexValue);
             }
+            marqueeClickBlockRef.current = true;
+            if (marqueeBlockResetRef.current) {
+                window.clearTimeout(marqueeBlockResetRef.current);
+                marqueeBlockResetRef.current = null;
+            }
+            marqueeBlockResetRef.current = window.setTimeout(() => {
+                marqueeClickBlockRef.current = false;
+                marqueeBlockResetRef.current = null;
+            }, 0);
         };
 
         window.addEventListener("mousemove", handleMouseMove);
@@ -1029,6 +1043,10 @@ export function TorrentTable({
         return () => {
             window.removeEventListener("mousemove", handleMouseMove);
             window.removeEventListener("mouseup", handleMouseUp);
+            if (marqueeBlockResetRef.current) {
+                window.clearTimeout(marqueeBlockResetRef.current);
+                marqueeBlockResetRef.current = null;
+            }
         };
     }, [rowVirtualizer]);
 
@@ -1153,88 +1171,88 @@ export function TorrentTable({
             const allRows = table.getRowModel().rows;
             if (!allRows.length) return;
 
-        const clampIndex = (value: number) =>
-            Math.max(0, Math.min(allRows.length - 1, value));
+            const clampIndex = (value: number) =>
+                Math.max(0, Math.min(allRows.length - 1, value));
 
-        const focusSingleRow = (index: number) => {
-            const targetIndex = clampIndex(index);
-            const targetRow = allRows[targetIndex];
-            if (!targetRow) return;
-            setRowSelection({ [targetRow.id]: true });
-            setAnchorIndex(targetIndex);
-            setFocusIndex(targetIndex);
-            setHighlightedRowId(targetRow.id);
-            rowVirtualizer.scrollToIndex(targetIndex);
-        };
-
-        const selectRange = (startIndex: number, endIndex: number) => {
-            const normalizedStart = clampIndex(startIndex);
-            const normalizedEnd = clampIndex(endIndex);
-            const [from, to] =
-                normalizedStart <= normalizedEnd
-                    ? [normalizedStart, normalizedEnd]
-                    : [normalizedEnd, normalizedStart];
-            const nextSelection: RowSelectionState = {};
-            for (let i = from; i <= to; i += 1) {
-                const row = allRows[i];
-                if (row) {
-                    nextSelection[row.id] = true;
-                }
-            }
-            setRowSelection(nextSelection);
-            setFocusIndex(normalizedEnd);
-            const targetRow = allRows[normalizedEnd];
-            if (targetRow) {
+            const focusSingleRow = (index: number) => {
+                const targetIndex = clampIndex(index);
+                const targetRow = allRows[targetIndex];
+                if (!targetRow) return;
+                setRowSelection({ [targetRow.id]: true });
+                setAnchorIndex(targetIndex);
+                setFocusIndex(targetIndex);
                 setHighlightedRowId(targetRow.id);
-            }
-            rowVirtualizer.scrollToIndex(normalizedEnd);
-        };
+                rowVirtualizer.scrollToIndex(targetIndex);
+            };
 
-        const { key, shiftKey, ctrlKey, metaKey } = event;
-        if ((ctrlKey || metaKey) && key.toLowerCase() === "a") {
-            event.preventDefault();
-            selectAllRows();
-            return;
-        }
-        if (key === "ArrowDown" || key === "ArrowUp") {
-            event.preventDefault();
-            const delta = key === "ArrowDown" ? 1 : -1;
-            const baseIndex =
-                focusIndex ?? (delta === 1 ? -1 : allRows.length);
-            const targetIndex = baseIndex + delta;
-            if (shiftKey) {
-                const anchor = anchorIndex ?? clampIndex(baseIndex);
-                selectRange(anchor, targetIndex);
-            } else {
-                focusSingleRow(targetIndex);
-            }
-            return;
-        }
+            const selectRange = (startIndex: number, endIndex: number) => {
+                const normalizedStart = clampIndex(startIndex);
+                const normalizedEnd = clampIndex(endIndex);
+                const [from, to] =
+                    normalizedStart <= normalizedEnd
+                        ? [normalizedStart, normalizedEnd]
+                        : [normalizedEnd, normalizedStart];
+                const nextSelection: RowSelectionState = {};
+                for (let i = from; i <= to; i += 1) {
+                    const row = allRows[i];
+                    if (row) {
+                        nextSelection[row.id] = true;
+                    }
+                }
+                setRowSelection(nextSelection);
+                setFocusIndex(normalizedEnd);
+                const targetRow = allRows[normalizedEnd];
+                if (targetRow) {
+                    setHighlightedRowId(targetRow.id);
+                }
+                rowVirtualizer.scrollToIndex(normalizedEnd);
+            };
 
-        if (key === "Home") {
-            event.preventDefault();
-            const targetIndex = 0;
-            if (shiftKey) {
-                const anchor = anchorIndex ?? targetIndex;
-                selectRange(anchor, targetIndex);
-            } else {
-                focusSingleRow(targetIndex);
+            const { key, shiftKey, ctrlKey, metaKey } = event;
+            if ((ctrlKey || metaKey) && key.toLowerCase() === "a") {
+                event.preventDefault();
+                selectAllRows();
+                return;
             }
-            return;
-        }
+            if (key === "ArrowDown" || key === "ArrowUp") {
+                event.preventDefault();
+                const delta = key === "ArrowDown" ? 1 : -1;
+                const baseIndex =
+                    focusIndex ?? (delta === 1 ? -1 : allRows.length);
+                const targetIndex = baseIndex + delta;
+                if (shiftKey) {
+                    const anchor = anchorIndex ?? clampIndex(baseIndex);
+                    selectRange(anchor, targetIndex);
+                } else {
+                    focusSingleRow(targetIndex);
+                }
+                return;
+            }
 
-        if (key === "End") {
-            event.preventDefault();
-            const targetIndex = allRows.length - 1;
-            if (shiftKey) {
-                const anchor = anchorIndex ?? targetIndex;
-                selectRange(anchor, targetIndex);
-            } else {
-                focusSingleRow(targetIndex);
+            if (key === "Home") {
+                event.preventDefault();
+                const targetIndex = 0;
+                if (shiftKey) {
+                    const anchor = anchorIndex ?? targetIndex;
+                    selectRange(anchor, targetIndex);
+                } else {
+                    focusSingleRow(targetIndex);
+                }
+                return;
             }
-            return;
-        }
-    },
+
+            if (key === "End") {
+                event.preventDefault();
+                const targetIndex = allRows.length - 1;
+                if (shiftKey) {
+                    const anchor = anchorIndex ?? targetIndex;
+                    selectRange(anchor, targetIndex);
+                } else {
+                    focusSingleRow(targetIndex);
+                }
+                return;
+            }
+        },
         [anchorIndex, focusIndex, rowVirtualizer, selectAllRows, table]
     );
 
@@ -1275,6 +1293,10 @@ export function TorrentTable({
     const handleRowClick = useCallback(
         (e: React.MouseEvent, rowId: string, originalIndex: number) => {
             const target = e.target as HTMLElement;
+            if (marqueeClickBlockRef.current) {
+                marqueeClickBlockRef.current = false;
+                return;
+            }
             if (
                 target.closest("button") ||
                 target.closest("label") ||
@@ -1367,8 +1389,7 @@ export function TorrentTable({
         "flex w-full sticky top-0 z-20 rounded-t-[28px] border-b border-content1/20 bg-content1/10 backdrop-blur-sm px-0 "
     );
     const tableShellClass = cn(
-    "relative flex-1 h-full min-h-0 flex flex-col overflow-hidden rounded-[32px] border border-content1/20 bg-content1/10 m-1",
-        BLOCK_SHADOW
+        "relative flex-1 h-full min-h-0 flex flex-col overflow-hidden"
     );
 
     return (
@@ -1380,7 +1401,8 @@ export function TorrentTable({
                 onFocus={activateDashboardScope}
                 onBlur={deactivateDashboardScope}
                 className={cn(
-                    "flex-1 min-h-0 flex flex-col h-full overflow-hidden bg-background/20 relative select-none outline-none",
+                    "flex-1 min-h-0 flex flex-col h-full overflow-hidden relative select-none outline-none rounded-[32px] m-1",
+                    GLASS_BLOCK_SURFACE,
                     BLOCK_SHADOW
                 )}
                 onClick={() => setContextMenu(null)}

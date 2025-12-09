@@ -19,7 +19,7 @@ import type {
 import type { RpcStatus } from "../../../shared/types/rpc";
 import { ICON_STROKE_WIDTH } from "../../../config/iconography";
 import type { FeedbackMessage, FeedbackTone } from "../../types/feedback";
-import { BLOCK_SHADOW, PANEL_SHADOW } from "./shadows";
+import { BLOCK_SHADOW, GLASS_BLOCK_SURFACE, PANEL_SHADOW } from "./shadows";
 
 // --- LAYOUT CONFIGURATION ---
 // Adjust these variables to control spacing and symmetry
@@ -126,7 +126,8 @@ export function StatusBar({
     return (
         <footer
             className={cn(
-                "w-full shrink-0 rounded-[28px] border border-content1/15 bg-background/85 backdrop-blur-2xl select-none relative z-30 overflow-visible px-4 py-3",
+                "w-full shrink-0 rounded-[28px] select-none relative z-30 overflow-visible",
+                GLASS_BLOCK_SURFACE,
                 BLOCK_SHADOW
             )}
         >

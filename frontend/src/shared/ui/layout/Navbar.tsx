@@ -21,7 +21,11 @@ import { ICON_STROKE_WIDTH } from "../../../config/iconography";
 import { ToolbarIconButton } from "../layout/toolbar-button";
 import { SmoothProgressBar } from "../components/SmoothProgressBar";
 import type { FeedbackMessage, FeedbackTone } from "../../types/feedback";
-import { BLOCK_SHADOW, PANEL_SHADOW } from "./shadows";
+import {
+    BLOCK_SHADOW,
+    GLASS_BLOCK_SURFACE,
+    PANEL_SHADOW,
+} from "./shadows";
 
 const FEEDBACK_TONE_CLASSES: Record<FeedbackTone, string> = {
     info: "text-primary",
@@ -74,7 +78,8 @@ export function Navbar({
     return (
         <header
             className={cn(
-                "app-titlebar sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between gap-4 px-5 select-none rounded-[24px] border border-content1/15 bg-background/80 backdrop-blur-2xl relative overflow-visible",
+                "app-titlebar sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between gap-4 px-5 select-none rounded-[24px] relative overflow-visible",
+                GLASS_BLOCK_SURFACE,
                 BLOCK_SHADOW
             )}
         >
