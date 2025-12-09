@@ -103,6 +103,20 @@ export type TorrentTableAction =
 
 type ContextMenuKey = TorrentTableAction | "cols";
 
+type MarqueeRect = {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+};
+
+interface MarqueeState {
+    startClientX: number;
+    startClientY: number;
+    startContentY: number;
+    isAdditive: boolean;
+}
+
 const SHORTCUT_KEY_LABELS: Record<string, string> = {
     ctrl: "Ctrl",
     meta: "Meta",
@@ -370,7 +384,6 @@ const ColumnHeaderPreview = ({
 const renderVisibleCells = (row: Row<Torrent>) =>
     row.getVisibleCells().map((cell) => {
         const align = cell.column.columnDef.meta?.align || "start";
-        const isSelectionColumn = cell.column.id === "selection";
         return (
             <div
                 key={cell.id}
@@ -378,13 +391,11 @@ const renderVisibleCells = (row: Row<Torrent>) =>
                     width: cell.column.getSize(),
                     boxSizing: "border-box",
                 }}
-                data-selection-cell={isSelectionColumn ? "true" : undefined}
                 className={cn(
                     CELL_BASE_CLASSES,
                     CELL_PADDING_CLASS,
                     align === "center" && "justify-center",
-                    align === "end" && "justify-end",
-                    isSelectionColumn && "justify-center px-0"
+                    align === "end" && "justify-end"
                 )}
             >
                 {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -574,6 +585,9 @@ export function TorrentTable({
     const parentRef = useRef<HTMLDivElement>(null);
     const tableContainerRef = useRef<HTMLDivElement>(null);
     const focusReturnRef = useRef<HTMLElement | null>(null);
+    const marqueeStateRef = useRef<MarqueeState | null>(null);
+    const [marqueeRect, setMarqueeRect] = useState<MarqueeRect | null>(null);
+
     const queueMenuActions = useMemo<QueueMenuAction[]>(
         () => [
             { key: "queue-move-top", label: t("table.queue.move_top") },
@@ -583,6 +597,45 @@ export function TorrentTable({
         ],
         [t]
     );
+
+    useEffect(() => {
+        const container = parentRef.current;
+        if (!container) return;
+
+        const handleMouseDown = (event: MouseEvent) => {
+            if (event.button !== 0) return;
+            const target = event.target as Element | null;
+            if (
+                target?.closest("[data-torrent-row]") ||
+                target?.closest('[role="row"]')
+            ) {
+                return;
+            }
+            const rect = container.getBoundingClientRect();
+            const startClientX = event.clientX - rect.left;
+            const startClientY = event.clientY - rect.top;
+            const startContentY = startClientY + container.scrollTop;
+
+            marqueeStateRef.current = {
+                startClientX,
+                startClientY,
+                startContentY,
+                isAdditive: event.ctrlKey || event.metaKey,
+            };
+            setMarqueeRect({
+                left: startClientX,
+                top: startClientY,
+                width: 0,
+                height: 0,
+            });
+            event.preventDefault();
+        };
+
+        container.addEventListener("mousedown", handleMouseDown);
+        return () => {
+            container.removeEventListener("mousedown", handleMouseDown);
+        };
+    }, []);
 
     useEffect(() => {
         setSpeedHistory((prev) => {
@@ -623,9 +676,7 @@ export function TorrentTable({
             const allDefKeys = Object.keys(COLUMN_DEFINITIONS);
             const validOrder = (
                 parsed.columnOrder || DEFAULT_COLUMN_ORDER
-            ).filter(
-                (id: string) => id === "selection" || allDefKeys.includes(id)
-            );
+            ).filter((id: string) => allDefKeys.includes(id));
 
             allDefKeys.forEach((id) => {
                 if (!validOrder.includes(id)) validOrder.push(id);
@@ -657,6 +708,11 @@ export function TorrentTable({
     );
     const [columnSizing, setColumnSizing] = useState(initialState.columnSizing);
     const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+    const rowSelectionRef = useRef<RowSelectionState>(rowSelection);
+    useEffect(() => {
+        rowSelectionRef.current = rowSelection;
+    }, [rowSelection]);
+    const rowsRef = useRef<Row<Torrent>[]>([]);
 
     const [activeDragHeaderId, setActiveDragHeaderId] = useState<string | null>(
         null
@@ -668,9 +724,8 @@ export function TorrentTable({
         virtualElement: ReturnType<typeof createVirtualElement>;
         torrent: Torrent;
     } | null>(null);
-    const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(
-        null
-    );
+    const [anchorIndex, setAnchorIndex] = useState<number | null>(null);
+    const [focusIndex, setFocusIndex] = useState<number | null>(null);
 
     const findRowElement = useCallback((torrentId?: string) => {
         if (!torrentId || typeof document === "undefined") return null;
@@ -769,36 +824,6 @@ export function TorrentTable({
         return Object.keys(COLUMN_DEFINITIONS).map((colId) => {
             const id = colId as ColumnId;
             const def = COLUMN_DEFINITIONS[id];
-
-            if (id === "selection") {
-                return {
-                    id: "selection",
-                    size: 40,
-                    enableResizing: false,
-                    enableSorting: false,
-                    header: ({ table }) => (
-                        <div className="flex justify-center items-center h-full w-full ml-4">
-                            <Checkbox
-                                size="sm"
-                                isSelected={table.getIsAllPageRowsSelected()}
-                                isIndeterminate={table.getIsSomePageRowsSelected()}
-                                onValueChange={(val) =>
-                                    table.toggleAllPageRowsSelected(!!val)
-                                }
-                                classNames={{ wrapper: "m-0" }}
-                            />
-                        </div>
-                    ),
-                    cell: ({ row }) => (
-                        <Checkbox
-                            size="sm"
-                            isSelected={row.getIsSelected()}
-                            onValueChange={(val) => row.toggleSelected(!!val)}
-                            classNames={{ wrapper: "m-0" }}
-                        />
-                    ),
-                } as ColumnDef<Torrent>;
-            }
             const sortAccessor = def.sortAccessor;
             const accessorKey = sortAccessor ? undefined : def.rpcField;
             const accessorFn = sortAccessor
@@ -833,7 +858,6 @@ export function TorrentTable({
                         torrent: row.original,
                         t,
                         isSelected: row.getIsSelected(),
-                        toggleSelection: row.getToggleSelectedHandler(),
                         table, // Pass table to allow access to meta
                     });
                 },
@@ -883,6 +907,131 @@ export function TorrentTable({
         overscan: TABLE_LAYOUT.overscan,
     });
 
+    useEffect(() => {
+        rowsRef.current = rows;
+    }, [rows]);
+
+    useEffect(() => {
+        const handleMouseMove = (event: MouseEvent) => {
+            const state = marqueeStateRef.current;
+            const container = parentRef.current;
+            if (!state || !container) return;
+            const rect = container.getBoundingClientRect();
+            const currentClientX = event.clientX - rect.left;
+            const currentClientY = event.clientY - rect.top;
+            const left = Math.min(state.startClientX, currentClientX);
+            const top = Math.min(state.startClientY, currentClientY);
+            setMarqueeRect({
+                left,
+                top,
+                width: Math.abs(currentClientX - state.startClientX),
+                height: Math.abs(currentClientY - state.startClientY),
+            });
+        };
+
+        const handleMouseUp = (event: MouseEvent) => {
+            const state = marqueeStateRef.current;
+            const container = parentRef.current;
+            if (!state || !container) {
+                setMarqueeRect(null);
+                return;
+            }
+            const rect = container.getBoundingClientRect();
+            const endClientY = event.clientY - rect.top;
+            const endContentY = endClientY + container.scrollTop;
+
+            marqueeStateRef.current = null;
+            setMarqueeRect(null);
+
+            const availableRows = rowsRef.current;
+            if (!availableRows.length) {
+                if (!state.isAdditive) {
+                    setRowSelection({});
+                    setAnchorIndex(null);
+                    setFocusIndex(null);
+                    setHighlightedRowId(null);
+                }
+                return;
+            }
+
+            const totalHeight = availableRows.length * TABLE_LAYOUT.rowHeight;
+            const topContent = Math.max(
+                0,
+                Math.min(state.startContentY, endContentY)
+            );
+            const bottomContent = Math.max(
+                0,
+                Math.min(endContentY, totalHeight)
+            );
+            if (bottomContent <= topContent) {
+                if (!state.isAdditive) {
+                    setRowSelection({});
+                    setAnchorIndex(null);
+                    setFocusIndex(null);
+                    setHighlightedRowId(null);
+                }
+                return;
+            }
+
+            const firstIndex = Math.max(
+                0,
+                Math.min(
+                    availableRows.length - 1,
+                    Math.floor(topContent / TABLE_LAYOUT.rowHeight)
+                )
+            );
+            const lastIndex = Math.max(
+                0,
+                Math.min(
+                    availableRows.length - 1,
+                    Math.floor((bottomContent - 1) / TABLE_LAYOUT.rowHeight)
+                )
+            );
+            if (firstIndex > lastIndex) {
+                if (!state.isAdditive) {
+                    setRowSelection({});
+                    setAnchorIndex(null);
+                    setFocusIndex(null);
+                    setHighlightedRowId(null);
+                }
+                return;
+            }
+
+            const nextSelection: RowSelectionState = state.isAdditive
+                ? { ...rowSelectionRef.current }
+                : {};
+            for (let i = firstIndex; i <= lastIndex; i += 1) {
+                const row = availableRows[i];
+                if (row) {
+                    nextSelection[row.id] = true;
+                }
+            }
+            setRowSelection(nextSelection);
+
+            const focusIndexValue = Math.max(
+                0,
+                Math.min(
+                    availableRows.length - 1,
+                    Math.floor(endContentY / TABLE_LAYOUT.rowHeight)
+                )
+            );
+            setAnchorIndex(focusIndexValue);
+            setFocusIndex(focusIndexValue);
+            const focusRow = availableRows[focusIndexValue];
+            if (focusRow) {
+                setHighlightedRowId(focusRow.id);
+                rowVirtualizer.scrollToIndex(focusIndexValue);
+            }
+        };
+
+        window.addEventListener("mousemove", handleMouseMove);
+        window.addEventListener("mouseup", handleMouseUp);
+        return () => {
+            window.removeEventListener("mousemove", handleMouseMove);
+            window.removeEventListener("mouseup", handleMouseUp);
+        };
+    }, [rowVirtualizer]);
+
     const selectAllRows = useCallback(() => {
         const allRows = table.getRowModel().rows;
         const nextSelection: RowSelectionState = {};
@@ -892,7 +1041,10 @@ export function TorrentTable({
         setRowSelection(nextSelection);
         if (allRows.length) {
             const bottomIndex = allRows.length - 1;
-            setLastSelectedIndex(bottomIndex);
+            const bottomRow = allRows[bottomIndex];
+            setAnchorIndex(bottomIndex);
+            setFocusIndex(bottomIndex);
+            setHighlightedRowId(bottomRow?.id ?? null);
             rowVirtualizer.scrollToIndex(bottomIndex);
         }
     }, [rowVirtualizer, table]);
@@ -1001,83 +1153,89 @@ export function TorrentTable({
             const allRows = table.getRowModel().rows;
             if (!allRows.length) return;
 
-            const clampIndex = (value: number) =>
-                Math.max(0, Math.min(allRows.length - 1, value));
+        const clampIndex = (value: number) =>
+            Math.max(0, Math.min(allRows.length - 1, value));
 
-            const focusSingleRow = (index: number) => {
-                const targetIndex = clampIndex(index);
-                const targetRow = allRows[targetIndex];
-                if (!targetRow) return;
-                setRowSelection({ [targetRow.id]: true });
-                setLastSelectedIndex(targetIndex);
-                rowVirtualizer.scrollToIndex(targetIndex);
-            };
+        const focusSingleRow = (index: number) => {
+            const targetIndex = clampIndex(index);
+            const targetRow = allRows[targetIndex];
+            if (!targetRow) return;
+            setRowSelection({ [targetRow.id]: true });
+            setAnchorIndex(targetIndex);
+            setFocusIndex(targetIndex);
+            setHighlightedRowId(targetRow.id);
+            rowVirtualizer.scrollToIndex(targetIndex);
+        };
 
-            const selectRange = (startIndex: number, endIndex: number) => {
-                const normalizedStart = clampIndex(startIndex);
-                const normalizedEnd = clampIndex(endIndex);
-                const [from, to] =
-                    normalizedStart <= normalizedEnd
-                        ? [normalizedStart, normalizedEnd]
-                        : [normalizedEnd, normalizedStart];
-                const nextSelection: RowSelectionState = {};
-                for (let i = from; i <= to; i += 1) {
-                    const row = allRows[i];
-                    if (row) {
-                        nextSelection[row.id] = true;
-                    }
+        const selectRange = (startIndex: number, endIndex: number) => {
+            const normalizedStart = clampIndex(startIndex);
+            const normalizedEnd = clampIndex(endIndex);
+            const [from, to] =
+                normalizedStart <= normalizedEnd
+                    ? [normalizedStart, normalizedEnd]
+                    : [normalizedEnd, normalizedStart];
+            const nextSelection: RowSelectionState = {};
+            for (let i = from; i <= to; i += 1) {
+                const row = allRows[i];
+                if (row) {
+                    nextSelection[row.id] = true;
                 }
-                setRowSelection(nextSelection);
-                setLastSelectedIndex(normalizedEnd);
-                rowVirtualizer.scrollToIndex(normalizedEnd);
-            };
+            }
+            setRowSelection(nextSelection);
+            setFocusIndex(normalizedEnd);
+            const targetRow = allRows[normalizedEnd];
+            if (targetRow) {
+                setHighlightedRowId(targetRow.id);
+            }
+            rowVirtualizer.scrollToIndex(normalizedEnd);
+        };
 
-            const { key, shiftKey, ctrlKey, metaKey } = event;
-            if ((ctrlKey || metaKey) && key.toLowerCase() === "a") {
-                event.preventDefault();
-                selectAllRows();
-                return;
+        const { key, shiftKey, ctrlKey, metaKey } = event;
+        if ((ctrlKey || metaKey) && key.toLowerCase() === "a") {
+            event.preventDefault();
+            selectAllRows();
+            return;
+        }
+        if (key === "ArrowDown" || key === "ArrowUp") {
+            event.preventDefault();
+            const delta = key === "ArrowDown" ? 1 : -1;
+            const baseIndex =
+                focusIndex ?? (delta === 1 ? -1 : allRows.length);
+            const targetIndex = baseIndex + delta;
+            if (shiftKey) {
+                const anchor = anchorIndex ?? clampIndex(baseIndex);
+                selectRange(anchor, targetIndex);
+            } else {
+                focusSingleRow(targetIndex);
             }
-            if (key === "ArrowDown" || key === "ArrowUp") {
-                event.preventDefault();
-                const delta = key === "ArrowDown" ? 1 : -1;
-                const baseIndex =
-                    lastSelectedIndex ?? (delta === 1 ? -1 : allRows.length);
-                const targetIndex = baseIndex + delta;
-                if (shiftKey) {
-                    const anchor = lastSelectedIndex ?? clampIndex(baseIndex);
-                    selectRange(anchor, targetIndex);
-                } else {
-                    focusSingleRow(targetIndex);
-                }
-                return;
-            }
+            return;
+        }
 
-            if (key === "Home") {
-                event.preventDefault();
-                const targetIndex = 0;
-                if (shiftKey) {
-                    const anchor = lastSelectedIndex ?? targetIndex;
-                    selectRange(anchor, targetIndex);
-                } else {
-                    focusSingleRow(targetIndex);
-                }
-                return;
+        if (key === "Home") {
+            event.preventDefault();
+            const targetIndex = 0;
+            if (shiftKey) {
+                const anchor = anchorIndex ?? targetIndex;
+                selectRange(anchor, targetIndex);
+            } else {
+                focusSingleRow(targetIndex);
             }
+            return;
+        }
 
-            if (key === "End") {
-                event.preventDefault();
-                const targetIndex = allRows.length - 1;
-                if (shiftKey) {
-                    const anchor = lastSelectedIndex ?? targetIndex;
-                    selectRange(anchor, targetIndex);
-                } else {
-                    focusSingleRow(targetIndex);
-                }
-                return;
+        if (key === "End") {
+            event.preventDefault();
+            const targetIndex = allRows.length - 1;
+            if (shiftKey) {
+                const anchor = anchorIndex ?? targetIndex;
+                selectRange(anchor, targetIndex);
+            } else {
+                focusSingleRow(targetIndex);
             }
-        },
-        [lastSelectedIndex, rowVirtualizer, selectAllRows, table]
+            return;
+        }
+    },
+        [anchorIndex, focusIndex, rowVirtualizer, selectAllRows, table]
     );
 
     // --- SENSORS ---
@@ -1124,44 +1282,41 @@ export function TorrentTable({
             )
                 return;
 
-            const selectionTarget = target.closest(
-                "[data-selection-cell='true']"
-            );
             const isMultiSelect = e.ctrlKey || e.metaKey;
             const isRangeSelect = e.shiftKey;
 
-            if (selectionTarget || isMultiSelect) {
-                table.getRow(rowId).toggleSelected();
-                setLastSelectedIndex(originalIndex);
-                setHighlightedRowId(rowId);
-                return;
-            }
-
-            if (isRangeSelect && lastSelectedIndex !== null) {
+            if (isRangeSelect && anchorIndex !== null) {
                 const allRows = table.getRowModel().rows;
-                const actualLastIndex = Math.max(
+                const actualAnchorIndex = Math.max(
                     0,
-                    Math.min(allRows.length - 1, lastSelectedIndex)
+                    Math.min(allRows.length - 1, anchorIndex)
                 );
                 const [start, end] =
-                    actualLastIndex < originalIndex
-                        ? [actualLastIndex, originalIndex]
-                        : [originalIndex, actualLastIndex];
+                    actualAnchorIndex < originalIndex
+                        ? [actualAnchorIndex, originalIndex]
+                        : [originalIndex, actualAnchorIndex];
                 const newSel: RowSelectionState = {};
                 for (let i = start; i <= end; i++) {
                     const currentRow = allRows[i];
                     if (currentRow) newSel[currentRow.id] = true;
                 }
                 setRowSelection(newSel);
-                setLastSelectedIndex(originalIndex);
+                setFocusIndex(originalIndex);
                 setHighlightedRowId(rowId);
                 return;
             }
 
+            if (isMultiSelect) {
+                table.getRow(rowId).toggleSelected();
+            } else {
+                setRowSelection({ [rowId]: true });
+            }
+
+            setAnchorIndex(originalIndex);
+            setFocusIndex(originalIndex);
             setHighlightedRowId(rowId);
-            setLastSelectedIndex(originalIndex);
         },
-        [lastSelectedIndex, table]
+        [anchorIndex, table]
     );
 
     const handleRowDoubleClick = useCallback(
@@ -1180,9 +1335,13 @@ export function TorrentTable({
 
             const allRows = table.getRowModel().rows;
             const row = allRows.find((r) => r.original.id === torrent.id);
-            if (row && !rowSelection[row.id]) {
+            if (!row) return;
+            if (!rowSelection[row.id]) {
                 setRowSelection({ [row.id]: true });
             }
+            setHighlightedRowId(row.id);
+            setAnchorIndex(row.index);
+            setFocusIndex(row.index);
         },
         [rowSelection, table]
     );
@@ -1272,7 +1431,7 @@ export function TorrentTable({
 
                         <div
                             ref={parentRef}
-                            className="flex-1 h-full min-h-0 overflow-y-auto w-full overlay-scrollbar"
+                            className="relative flex-1 h-full min-h-0 overflow-y-auto w-full overlay-scrollbar"
                         >
                             {isLoading && torrents.length === 0 ? (
                                 <div className="w-full">
@@ -1425,6 +1584,18 @@ export function TorrentTable({
                                         ) : null}
                                     </DragOverlay>
                                 </DndContext>
+                            )}
+                            {marqueeRect && (
+                                <div
+                                    aria-hidden="true"
+                                    className="pointer-events-none absolute rounded-[8px] border border-primary/60 bg-primary/20"
+                                    style={{
+                                        left: marqueeRect.left,
+                                        top: marqueeRect.top,
+                                        width: marqueeRect.width,
+                                        height: marqueeRect.height,
+                                    }}
+                                />
                             )}
                         </div>
                     </div>

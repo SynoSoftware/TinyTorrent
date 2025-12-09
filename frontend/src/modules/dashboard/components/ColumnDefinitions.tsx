@@ -2,7 +2,6 @@
 
 import {
     Button,
-    Checkbox,
     Chip,
     Dropdown,
     DropdownItem,
@@ -53,7 +52,6 @@ import type { OptimisticStatusMap } from "./TorrentTable";
 // --- TYPES ---
 
 export type ColumnId =
-    | "selection"
     | "name"
     | "progress"
     | "status"
@@ -76,7 +74,6 @@ export interface ColumnRendererProps {
     torrent: Torrent;
     t: TFunction;
     isSelected: boolean;
-    toggleSelection: (value?: unknown) => void;
     table: Table<Torrent>; // Added table instance access
 }
 
@@ -170,25 +167,6 @@ const statusMap: Record<
 };
 
 export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
-    selection: {
-        id: "selection",
-        width: 40,
-        align: "center",
-        labelKey: "table.column_selection",
-        isRequired: true,
-        render: ({ isSelected, toggleSelection }) => (
-            <div
-                onClick={(e) => e.stopPropagation()}
-                className="flex justify-center"
-            >
-                <Checkbox
-                    isSelected={isSelected}
-                    onValueChange={toggleSelection}
-                    classNames={{ wrapper: "m-0" }}
-                />
-            </div>
-        ),
-    },
     name: {
         id: "name",
         labelKey: "table.header_name",
@@ -545,7 +523,6 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
 };
 
 export const DEFAULT_COLUMN_ORDER: ColumnId[] = [
-    "selection",
     "name",
     "progress",
     "status",
@@ -560,7 +537,6 @@ export const DEFAULT_COLUMN_ORDER: ColumnId[] = [
 ];
 
 export const DEFAULT_VISIBLE_COLUMN_IDS: ColumnId[] = [
-    "selection",
     "name",
     "progress",
     "status",
@@ -569,8 +545,6 @@ export const DEFAULT_VISIBLE_COLUMN_IDS: ColumnId[] = [
     "peers",
     "size",
 ];
-
-export const REQUIRED_COLUMN_IDS: ColumnId[] = ["selection"];
 
 export const ALL_COLUMN_IDS: ColumnId[] = Object.keys(
     COLUMN_DEFINITIONS
