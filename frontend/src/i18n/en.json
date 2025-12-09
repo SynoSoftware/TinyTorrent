@@ -68,13 +68,19 @@
             "browse": "Browse"
         },
         "buttons": {
+            "copy_config": "Copy JSON",
+            "copy_config_copied": "Copied!",
             "restore_hud": "Restore insights",
             "testPort": "Test"
         },
         "descriptions": {
             "download_folder": "Completed torrents land here by default.",
             "incomplete_folder": "Files remain in this directory until the download completes.",
-            "restore_hud": "Bring back the dismissed HUD cards for instant insights."
+            "restore_hud": "Bring back the dismissed HUD cards for instant insights.",
+            "language": "Pick the interface language you prefer.",
+            "language_helper": "The HUD updates immediately after you change it.",
+            "config_export": "Copy the raw settings JSON for backups or automation.",
+            "config_details": "Includes both engine telemetry and UI preferences in a single snapshot."
         },
         "headers": {
             "gui": "Interface",
@@ -122,7 +128,9 @@
             "turtleMode": "Turtle Mode",
             "uploadLimit": "Upload Limit",
             "upnp": "Enable UPnP / NAT-PMP",
-            "useIncompleteFolder": "Use Incomplete Folder"
+            "useIncompleteFolder": "Use Incomplete Folder",
+            "language": "Language",
+            "raw_config": "Settings JSON"
         },
         "modal": {
             "footer": {
@@ -146,6 +154,8 @@
             "blocklist": "Blocklist",
             "connectionLimits": "Connection Limits",
             "dashboard": "Dashboard",
+            "localization": "Localization",
+            "advanced": "Advanced",
             "encryption": "Encryption",
             "listeningPort": "Listening Port",
             "locations": "Locations",
