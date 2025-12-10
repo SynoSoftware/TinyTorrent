@@ -1,7 +1,7 @@
 import { Button } from "@heroui/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { formatSpeed } from "../../utils/format";
-import type { TorrentDetail } from "../../../modules/dashboard/types/torrent";
+import { formatSpeed } from "../../../../../shared/utils/format";
+import type { TorrentDetail } from "../../../../../modules/dashboard/types/torrent";
 import {
     CHART_HEIGHT,
     CHART_WIDTH,

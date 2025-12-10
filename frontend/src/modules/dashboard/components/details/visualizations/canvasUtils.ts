@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import constants from "../../../config/constants.json";
+import constants from "../../../../../config/constants.json";
 
 export const clamp = (value: number, min: number, max: number) =>
     Math.min(Math.max(value, min), max);
@@ -22,12 +22,18 @@ export const cancelScheduledFrame = (handle: FrameHandle | null) => {
 
 type CanvasPalette = {
     primary: string;
+    success: string;
     warning: string;
+    downloading: string;
     missing: string;
+    foreground: string;
+    content1: string;
     highlight: string;
-    glowPrimary: string;
+    glowSuccess: string;
+    glowDownloading: string;
     glowWarning: string;
     placeholder: string;
+    danger: string;
 };
 
 const buildCanvasPalette = (): CanvasPalette => {
@@ -39,14 +45,25 @@ const buildCanvasPalette = (): CanvasPalette => {
         const value = computedStyles?.getPropertyValue(name)?.trim();
         return value || fallback;
     };
+    const primary = readVar("--heroui-primary", "#06b6d4");
+    const success = readVar("--heroui-success", "#22c55e");
+    const downloading = readVar("--heroui-primary", "#06b6d4");
+    const warning = readVar("--heroui-warning", "#f97316");
+    const missing = readVar("--heroui-content1", "rgba(255,255,255,0.12)");
     return {
-        primary: readVar("--heroui-primary", "#06b6d4"),
-        warning: readVar("--heroui-warning", "#f97316"),
-        missing: readVar("--heroui-content1", "rgba(15,23,42,0.3)"),
+        primary,
+        success,
+        warning,
+        downloading,
+        missing,
+        foreground: readVar("--heroui-foreground", "#f8fafc"),
+        content1: readVar("--heroui-content1", "#111827"),
         highlight: "rgba(255,255,255,0.65)",
-        glowPrimary: "rgba(14,165,233,0.45)",
+        glowSuccess: "rgba(34,197,94,0.45)",
+        glowDownloading: "rgba(6,182,212,0.45)",
         glowWarning: "rgba(245,158,11,0.55)",
         placeholder: "rgba(255,255,255,0.08)",
+        danger: readVar("--heroui-danger", "#ef4444"),
     };
 };
 

@@ -18,9 +18,8 @@ export interface TransmissionTorrent {
     rateDownload: number;
     rateUpload: number;
     peersConnected: number;
-    seedsConnected: number;
     eta: number;
-    dateAdded: number;
+    addedDate: number;
     queuePosition: number;
     uploadRatio: number;
     uploadedEver: number;

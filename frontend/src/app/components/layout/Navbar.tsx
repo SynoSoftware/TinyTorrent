@@ -14,12 +14,16 @@ import {
     PanelsTopLeft,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { ThemeToggle } from "../controls/ThemeToggle";
+import { ThemeToggle } from "../../../shared/ui/controls/ThemeToggle";
 import { ICON_STROKE_WIDTH } from "../../../config/iconography";
-import { ToolbarIconButton } from "../layout/toolbar-button";
-import { SmoothProgressBar } from "../components/SmoothProgressBar";
-import type { FeedbackMessage, FeedbackTone } from "../../types/feedback";
-import { BLOCK_SHADOW, GLASS_BLOCK_SURFACE, PANEL_SHADOW } from "./shadows";
+import { ToolbarIconButton } from "../../../shared/ui/layout/toolbar-button";
+import { SmoothProgressBar } from "../../../shared/ui/components/SmoothProgressBar";
+import type { FeedbackMessage, FeedbackTone } from "../../../shared/types/feedback";
+import {
+    BLOCK_SHADOW,
+    GLASS_BLOCK_SURFACE,
+    PANEL_SHADOW,
+} from "../../../shared/ui/layout/shadows";
 
 const FEEDBACK_TONE_CLASSES: Record<FeedbackTone, string> = {
     info: "text-primary",

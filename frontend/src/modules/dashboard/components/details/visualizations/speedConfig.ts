@@ -1,4 +1,4 @@
-import { INTERACTION_CONFIG } from "../../../config/interaction";
+import { INTERACTION_CONFIG } from "../../../../../config/interaction";
 
 export const SPEED_WINDOW_OPTIONS = [
     { key: "1m", label: "1m", minutes: 1 },

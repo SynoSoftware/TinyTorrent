@@ -3,7 +3,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { GlassPanel } from "../../../../../shared/ui/layout/GlassPanel";
 import { formatSpeed } from "../../../../../shared/utils/format";
 import type { TorrentPeerEntity } from "../../../../../services/rpc/entities";
-import { PeerScatter } from "../../../../../shared/ui/visualizations/PeerScatter";
+import { PeerScatter } from "../visualizations/PeerScatter";
 import { usePeerHover } from "../../../../../shared/hooks/usePeerHover";
 
 const ROW_HEIGHT = 34;

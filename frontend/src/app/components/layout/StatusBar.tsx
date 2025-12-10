@@ -11,15 +11,19 @@ import {
 import { cn } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 import { formatSpeed } from "../../../shared/utils/format";
-import { NetworkGraph } from "../graphs/NetworkGraph";
+import { NetworkGraph } from "../../../shared/ui/graphs/NetworkGraph";
 import type {
     SessionStats,
     TorrentEntity,
 } from "../../../services/rpc/entities";
 import type { RpcStatus } from "../../../shared/types/rpc";
 import { ICON_STROKE_WIDTH } from "../../../config/iconography";
-import type { FeedbackMessage, FeedbackTone } from "../../types/feedback";
-import { BLOCK_SHADOW, GLASS_BLOCK_SURFACE, PANEL_SHADOW } from "./shadows";
+import type { FeedbackMessage, FeedbackTone } from "../../../shared/types/feedback";
+import {
+    BLOCK_SHADOW,
+    GLASS_BLOCK_SURFACE,
+    PANEL_SHADOW,
+} from "../../../shared/ui/layout/shadows";
 
 // --- LAYOUT CONFIGURATION ---
 // Adjust these variables to control spacing and symmetry
