@@ -18,12 +18,15 @@ import type {
 } from "../../../services/rpc/entities";
 import type { RpcStatus } from "../../../shared/types/rpc";
 import { ICON_STROKE_WIDTH } from "../../../config/iconography";
-import type { FeedbackMessage, FeedbackTone } from "../../../shared/types/feedback";
+import type {
+    FeedbackMessage,
+    FeedbackTone,
+} from "../../../shared/types/feedback";
 import {
     BLOCK_SHADOW,
     GLASS_BLOCK_SURFACE,
     PANEL_SHADOW,
-} from "../../../shared/ui/layout/shadows";
+} from "../../../shared/ui/layout/glass-surface";
 
 // --- LAYOUT CONFIGURATION ---
 // Adjust these variables to control spacing and symmetry

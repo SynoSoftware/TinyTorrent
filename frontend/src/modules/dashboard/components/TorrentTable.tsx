@@ -65,7 +65,7 @@ import {
     BLOCK_SHADOW,
     GLASS_BLOCK_SURFACE,
     PANEL_SHADOW,
-} from "../../../shared/ui/layout/shadows";
+} from "../../../shared/ui/layout/glass-surface";
 import { useKeyboardScope } from "../../../shared/hooks/useKeyboardScope";
 import type { TorrentStatus } from "../../../services/rpc/entities";
 
