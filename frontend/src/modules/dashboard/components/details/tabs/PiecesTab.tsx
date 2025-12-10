@@ -1,7 +1,7 @@
 import { GlassPanel } from "../../../../../shared/ui/layout/GlassPanel";
 import { useTranslation } from "react-i18next";
-import { AvailabilityHeatmap } from "../../../../../shared/ui/visualizations/AvailabilityHeatmap";
-import { PiecesMap } from "../../../../../shared/ui/visualizations/PiecesMap";
+import { AvailabilityHeatmap } from "../visualizations/AvailabilityHeatmap";
+import { PiecesMap } from "../visualizations/PiecesMap";
 
 interface PiecesTabProps {
     piecePercent: number;

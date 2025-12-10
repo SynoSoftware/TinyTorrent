@@ -1,13 +1,8 @@
-import { Button, Chip, Switch, Tab, Tabs, cn } from "@heroui/react";
+import { Button, Chip, Tab, Tabs, cn } from "@heroui/react";
 import {
     Activity,
-    ArrowDownCircle,
-    ArrowUpCircle,
-    Copy,
     Grid,
     HardDrive,
-    Folder,
-    Hash,
     Info,
     Network,
     PauseCircle,
@@ -18,22 +13,12 @@ import {
     Pin,
     PinOff,
 } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
-import {
-    useCallback,
-    useEffect,
-    useMemo,
-    useRef,
-    useState,
-    type ReactNode,
-} from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { GlassPanel } from "../../../shared/ui/layout/GlassPanel";
-import { formatBytes, formatTime } from "../../../shared/utils/format";
-import constants from "../../../config/constants.json";
+import { formatTime } from "../../../shared/utils/format";
 import { ICON_STROKE_WIDTH } from "../../../config/iconography";
-import { INTERACTION_CONFIG } from "../../../config/interaction";
 import type { Torrent, TorrentDetail } from "../types/torrent";
 import { SmoothProgressBar } from "../../../shared/ui/components/SmoothProgressBar";
 import type { TorrentTableAction } from "./TorrentTable";
@@ -44,13 +29,6 @@ import { PeersTab } from "./details/tabs/PeersTab";
 import { PiecesTab } from "./details/tabs/PiecesTab";
 import { SpeedTab } from "./details/tabs/SpeedTab";
 
-const GLASS_TOOLTIP_CLASSNAMES = {
-    content:
-        "bg-content1/80 border border-content1/20 backdrop-blur-3xl shadow-small rounded-2xl px-3 py-1.5 text-[11px] leading-tight text-foreground/90",
-    arrow: "bg-content1/80",
-} as const;
-
-// --- TYPES ---
 type DetailTab =
     | "general"
     | "content"
@@ -78,8 +56,6 @@ interface TorrentDetailViewProps {
 
 type StatusChipColor = "success" | "primary" | "warning" | "danger";
 
-// --- MAIN COMPONENT ---
-
 const STATUS_CONFIG: Record<
     TorrentStatus,
     { color: StatusChipColor; labelKey: string }
@@ -88,22 +64,10 @@ const STATUS_CONFIG: Record<
         color: "success",
         labelKey: "torrent_modal.statuses.downloading",
     },
-    seeding: {
-        color: "primary",
-        labelKey: "torrent_modal.statuses.seeding",
-    },
-    paused: {
-        color: "warning",
-        labelKey: "torrent_modal.statuses.paused",
-    },
-    checking: {
-        color: "warning",
-        labelKey: "torrent_modal.statuses.checking",
-    },
-    queued: {
-        color: "warning",
-        labelKey: "torrent_modal.statuses.queued",
-    },
+    seeding: { color: "primary", labelKey: "torrent_modal.statuses.seeding" },
+    paused: { color: "warning", labelKey: "torrent_modal.statuses.paused" },
+    checking: { color: "warning", labelKey: "torrent_modal.statuses.checking" },
+    queued: { color: "warning", labelKey: "torrent_modal.statuses.queued" },
     error: { color: "danger", labelKey: "torrent_modal.statuses.error" },
 } as const;
 
@@ -139,11 +103,6 @@ export function TorrentDetailView({
         [onAction, torrent]
     );
 
-    const handleCopyHash = () => {
-        if (!torrent) return;
-        navigator.clipboard.writeText(torrent.hash);
-    };
-
     if (!torrent) return null;
 
     const progressPercent = torrent.progress * 100;
@@ -167,6 +126,7 @@ export function TorrentDetailView({
         "min-h-0 pr-2 scrollbar-hide pb-8",
         activeTab === "peers" ? "overflow-y-hidden" : "overflow-y-auto"
     );
+
     return (
         <div className="flex flex-col h-full min-h-0">
             <div className="sticky top-0 z-30 border-b border-content1/20 bg-background/90 backdrop-blur-2xl">
@@ -248,15 +208,6 @@ export function TorrentDetailView({
                                     size="sm"
                                     variant="light"
                                     onPress={onTogglePin}
-                                    aria-label={
-                                        isPinned
-                                            ? t(
-                                                  "torrent_modal.actions.popout_panel"
-                                              )
-                                            : t(
-                                                  "torrent_modal.actions.pin_panel"
-                                              )
-                                    }
                                     title={
                                         isPinned
                                             ? t(
@@ -339,15 +290,13 @@ export function TorrentDetailView({
                                 </span>
                             </div>
                             <div className="h-1.5 w-full bg-content1/20 rounded-full overflow-hidden flex">
-                                <div className="h-full bg-primary w-full opacity-80" />{" "}
-                                {/* Full bar implies 100% available */}
+                                <div className="h-full bg-primary w-full opacity-80" />
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            {/* --- BODY --- */}
             <div className="flex-1 min-h-0 bg-content1/20 border-t border-content1/10">
                 <div className="flex-1 min-h-0 h-full overflow-y-auto px-6 pb-6 pt-6">
                     <Tabs
@@ -368,7 +317,7 @@ export function TorrentDetailView({
                                         size={14}
                                         strokeWidth={ICON_STROKE_WIDTH}
                                         className="text-current"
-                                    />{" "}
+                                    />
                                     {t("torrent_modal.tabs.general")}
                                 </div>
                             }
@@ -381,7 +330,7 @@ export function TorrentDetailView({
                                         size={14}
                                         strokeWidth={ICON_STROKE_WIDTH}
                                         className="text-current"
-                                    />{" "}
+                                    />
                                     {t("torrent_modal.tabs.content")}
                                 </div>
                             }
@@ -394,7 +343,7 @@ export function TorrentDetailView({
                                         size={14}
                                         strokeWidth={ICON_STROKE_WIDTH}
                                         className="text-current"
-                                    />{" "}
+                                    />
                                     {t("torrent_modal.tabs.pieces")}
                                 </div>
                             }
@@ -407,7 +356,7 @@ export function TorrentDetailView({
                                         size={14}
                                         strokeWidth={ICON_STROKE_WIDTH}
                                         className="text-current"
-                                    />{" "}
+                                    />
                                     {t("torrent_modal.tabs.trackers")}
                                 </div>
                             }
@@ -420,7 +369,7 @@ export function TorrentDetailView({
                                         size={14}
                                         strokeWidth={ICON_STROKE_WIDTH}
                                         className="text-current"
-                                    />{" "}
+                                    />
                                     {t("torrent_modal.tabs.peers")}
                                 </div>
                             }
@@ -433,7 +382,7 @@ export function TorrentDetailView({
                                         size={14}
                                         strokeWidth={ICON_STROKE_WIDTH}
                                         className="text-current"
-                                    />{" "}
+                                    />
                                     {t("torrent_modal.tabs.speed")}
                                 </div>
                             }
@@ -449,7 +398,6 @@ export function TorrentDetailView({
                                 transition={{ duration: 0.15 }}
                                 className={tabContentClasses}
                             >
-                                {/* --- TAB: GENERAL --- */}
                                 {activeTab === "general" && (
                                     <GeneralTab
                                         torrent={torrent}
@@ -470,7 +418,6 @@ export function TorrentDetailView({
                                     />
                                 )}
 
-                                {/* --- TAB: PIECES --- */}
                                 {activeTab === "pieces" && (
                                     <PiecesTab
                                         piecePercent={torrent.progress}
@@ -482,12 +429,9 @@ export function TorrentDetailView({
                                         }
                                     />
                                 )}
-                                {/* --- TAB: SPEED --- */}
                                 {activeTab === "speed" && (
                                     <SpeedTab torrent={torrent} />
                                 )}
-
-                                {/* --- TAB: CONTENT --- */}
                                 {activeTab === "content" && (
                                     <ContentTab
                                         files={files}
@@ -497,12 +441,9 @@ export function TorrentDetailView({
                                         onFilesToggle={onFilesToggle}
                                     />
                                 )}
-
-                                {/* --- TAB: PEERS --- */}
                                 {activeTab === "peers" && (
                                     <PeersTab peers={peerEntries} />
                                 )}
-                                {/* --- TAB: TRACKERS --- */}
                                 {activeTab === "trackers" && (
                                     <div className="flex flex-col gap-2">
                                         {trackers.length === 0 && (

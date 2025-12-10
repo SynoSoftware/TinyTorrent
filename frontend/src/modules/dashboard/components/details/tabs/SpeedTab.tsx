@@ -1,5 +1,5 @@
 import { GlassPanel } from "../../../../../shared/ui/layout/GlassPanel";
-import { SpeedChart, useTorrentDetailSpeedHistory } from "../../../../../shared/ui/visualizations/SpeedChart";
+import { SpeedChart, useTorrentDetailSpeedHistory } from "../visualizations/SpeedChart";
 import type { TorrentDetail } from "../../../../../modules/dashboard/types/torrent";
 
 interface SpeedTabProps {

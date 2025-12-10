@@ -26,7 +26,7 @@ import { WorkspaceShell } from "./components/WorkspaceShell";
 import { useTorrentClient } from "./providers/TorrentClientProvider";
 import type { Torrent, TorrentDetail } from "../modules/dashboard/types/torrent";
 import type { RehashStatus } from "./types/workspace";
-import { DETAIL_REFRESH_INTERVAL_MS } from "../config/detail";
+import { HEARTBEAT_INTERVALS } from "../config/heartbeats";
 
 export default function App() {
     const { t } = useTranslation();
@@ -288,7 +288,7 @@ export default function App() {
         void refreshDetailData();
         const intervalId = window.setInterval(() => {
             void refreshDetailData();
-        }, DETAIL_REFRESH_INTERVAL_MS);
+        }, HEARTBEAT_INTERVALS.detail);
         return () => {
             window.clearInterval(intervalId);
         };

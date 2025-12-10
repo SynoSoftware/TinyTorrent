@@ -5,10 +5,10 @@ import { motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import { ZoomIn, ZoomOut } from "lucide-react";
 import { GLASS_TOOLTIP_CLASSNAMES } from "./constants";
-import { clamp, useCanvasPalette } from "./canvasUtils";
+import { clamp } from "./canvasUtils";
 import { PEER_MAP_CONFIG } from "./config";
-import { formatSpeed } from "../../utils/format";
-import type { TorrentPeerEntity } from "../../../services/rpc/entities";
+import { formatSpeed } from "../../../../../shared/utils/format";
+import type { TorrentPeerEntity } from "../../../../../services/rpc/entities";
 
 const PEER_DRIFT_AMPLITUDE = PEER_MAP_CONFIG.drift_amplitude;
 const PEER_DRIFT_DURATION_MIN = PEER_MAP_CONFIG.drift_duration.min;
@@ -20,7 +20,6 @@ interface PeerMapProps {
 
 export const PeerMap = ({ peers }: PeerMapProps) => {
     const { t } = useTranslation();
-    const palette = useCanvasPalette();
     const [scale, setScale] = useState(1);
     const [translate, setTranslate] = useState({ x: 0, y: 0 });
     const [isDragging, setIsDragging] = useState(false);
@@ -39,7 +38,6 @@ export const PeerMap = ({ peers }: PeerMapProps) => {
             ),
         [peers]
     );
-
     const nodes = useMemo(() => {
         if (!peers.length) return [];
         const radius = 70;
@@ -51,29 +49,31 @@ export const PeerMap = ({ peers }: PeerMapProps) => {
             const x = center + Math.cos(angle) * distance;
             const y = center + Math.sin(angle) * distance;
             const size = 6 + (peer.progress ?? 0) * 12;
-
-            // Use semantic palette
-            const fill = peer.peerIsChoking ? palette.danger : palette.success;
-
+            const isChoking = peer.peerIsChoking;
+            const fill = isChoking ? "hsl(0,80%,60%)" : "hsl(150,80%,60%)";
+            const driftX = (Math.random() - 0.5) * PEER_DRIFT_AMPLITUDE;
+            const driftY = (Math.random() - 0.5) * PEER_DRIFT_AMPLITUDE;
+            const duration =
+                PEER_DRIFT_DURATION_MIN +
+                Math.random() *
+                    (PEER_DRIFT_DURATION_MAX - PEER_DRIFT_DURATION_MIN);
+            const delay = Math.random() * 1.5;
+            const delayY = delay + Math.random() * 0.7;
             return {
                 peer,
                 x,
                 y,
                 size,
                 fill,
-                driftX: (Math.random() - 0.5) * PEER_DRIFT_AMPLITUDE,
-                driftY: (Math.random() - 0.5) * PEER_DRIFT_AMPLITUDE,
-                duration:
-                    PEER_DRIFT_DURATION_MIN +
-                    Math.random() *
-                        (PEER_DRIFT_DURATION_MAX - PEER_DRIFT_DURATION_MIN),
-                delay: Math.random() * 1.5,
-                delayY: Math.random() * 1.5 + 0.7,
+                driftX,
+                driftY,
+                duration,
+                delay,
+                delayY,
             };
         });
-    }, [maxRate, peers, palette]);
+    }, [maxRate, peers]);
 
-    // ... Event handlers (handleZoom, handlePointerDown/Move/Up, handleWheel) remain unchanged ...
     const handleZoom = (direction: "in" | "out") => {
         setScale((prev) =>
             clamp(
@@ -114,28 +114,31 @@ export const PeerMap = ({ peers }: PeerMapProps) => {
         lastPointerRef.current = null;
     }, []);
 
-    const handleWheel = useCallback((event: WheelEvent<SVGSVGElement>) => {
-        event.preventDefault();
-        setScale((prev) =>
-            clamp(
-                prev + (event.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP),
-                MIN_SCALE,
-                MAX_SCALE
-            )
-        );
-    }, []);
+    const handleWheel = useCallback(
+        (event: WheelEvent<SVGSVGElement>) => {
+            event.preventDefault();
+            setScale((prev) =>
+                clamp(
+                    prev + (event.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP),
+                    MIN_SCALE,
+                    MAX_SCALE
+                )
+            );
+        },
+        []
+    );
 
     return (
         <motion.div
             layout
-            className="flex flex-col flex-1 min-h-[320px] rounded-2xl border border-content1/20 bg-content1/10 p-4 space-y-3 overflow-hidden"
+            className="flex flex-col flex-1 min-h-[320px] rounded-2xl border border-content1/20 bg-content1/15 p-4 space-y-3 overflow-hidden"
         >
             <div className="flex items-center justify-between">
                 <div className="flex flex-col">
-                    <span className="text-tiny uppercase tracking-[0.3em] text-foreground/50">
+                    <span className="text-[11px] uppercase tracking-[0.3em] text-foreground/50">
                         {t("torrent_modal.peer_map.title")}
                     </span>
-                    <span className="text-tiny font-mono text-foreground/50">
+                    <span className="text-[10px] font-mono text-foreground/50">
                         {t("torrent_modal.peer_map.total", {
                             count: peers.length,
                         })}
@@ -143,25 +146,27 @@ export const PeerMap = ({ peers }: PeerMapProps) => {
                 </div>
                 <div className="flex items-center gap-1">
                     <Button
-                        isIconOnly
                         size="sm"
                         variant="flat"
+                        color="default"
+                        className="h-7 w-7"
                         onPress={() => handleZoom("out")}
                     >
                         <ZoomOut
-                            size={16}
+                            size={12}
                             strokeWidth={1.5}
                             className="text-current"
                         />
                     </Button>
                     <Button
-                        isIconOnly
                         size="sm"
                         variant="flat"
+                        color="default"
+                        className="h-7 w-7"
                         onPress={() => handleZoom("in")}
                     >
                         <ZoomIn
-                            size={16}
+                            size={12}
                             strokeWidth={1.5}
                             className="text-current"
                         />
@@ -189,6 +194,36 @@ export const PeerMap = ({ peers }: PeerMapProps) => {
                     onPointerUp={handlePointerUp}
                     onPointerLeave={handlePointerUp}
                 >
+                    <defs>
+                        <linearGradient
+                            id="peer-map-radar"
+                            x1="0"
+                            y1="0"
+                            x2="1"
+                            y2="0"
+                        >
+                            <stop
+                                offset="0%"
+                                stopColor="var(--heroui-primary)"
+                                stopOpacity="0.35"
+                            />
+                            <stop
+                                offset="20%"
+                                stopColor="var(--heroui-primary)"
+                                stopOpacity="0.25"
+                            />
+                            <stop
+                                offset="70%"
+                                stopColor="var(--heroui-primary)"
+                                stopOpacity="0.05"
+                            />
+                            <stop
+                                offset="100%"
+                                stopColor="transparent"
+                                stopOpacity="0"
+                            />
+                        </linearGradient>
+                    </defs>
                     <motion.g
                         style={{
                             transform: `translate(${translate.x}px, ${translate.y}px)`,
@@ -220,7 +255,7 @@ export const PeerMap = ({ peers }: PeerMapProps) => {
                                     key={`${peer.address}-${x}-${y}`}
                                     content={`${peer.address} • ${formatSpeed(
                                         peer.rateToClient
-                                    )} DL`}
+                                    )} DL / ${formatSpeed(peer.rateToPeer)} UL`}
                                     delay={0}
                                     closeDelay={0}
                                     classNames={GLASS_TOOLTIP_CLASSNAMES}

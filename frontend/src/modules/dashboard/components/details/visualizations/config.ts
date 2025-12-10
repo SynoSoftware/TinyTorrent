@@ -1,4 +1,4 @@
-import constants from "../../../config/constants.json";
+import constants from "../../../../../config/constants.json";
 
 const PIECE_MAP_DEFAULTS = {
     columns: 42,

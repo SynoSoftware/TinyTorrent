@@ -10,13 +10,13 @@ import "./constants.json";
 import "./iconography";
 import "./interaction";
 import "./keymap";
-import "./detail";
+import "./heartbeats";
 
 // Feature configs
 import "../modules/dashboard/config/layout";
 import "../modules/settings/data/config";
 import "../modules/settings/data/settings-tabs";
-import "../shared/ui/visualizations/config";
-import "../shared/ui/visualizations/speedConfig";
+import "../modules/dashboard/components/details/visualizations/config";
+import "../modules/dashboard/components/details/visualizations/speedConfig";
 
 // Add future config imports here.

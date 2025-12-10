@@ -499,10 +499,11 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
         id: "hash",
         labelKey: "table.header_hash",
         width: 160,
-        sortable: false,
+        sortable: true,
         rpcField: "hash",
         descriptionKey: "table.column_desc_hash",
         headerIcon: Hash,
+        sortAccessor: (torrent) => torrent.hash,
         render: ({ torrent }) => (
             <span
                 className={cn(
