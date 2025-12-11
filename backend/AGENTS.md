@@ -84,8 +84,14 @@ Thread-safe, minimal, fast.
 
 ```txt
 root/
-|-- CMakeLists.txt            # Development/Release modes
+|-- meson.build              # Development/Release modes
+|-- meson_options.txt        # Debug/size options
 |-- vcpkg.json
+|-- scripts/
+|   |-- setup.ps1
+|   \-- build.ps1
+|-- tests/
+|   \-- meson.build
 |
 |-- src/
 |   |-- main.cpp              # Entry point, thread creation

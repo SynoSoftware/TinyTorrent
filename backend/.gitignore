@@ -1,4 +1,8 @@
 build/
+meson-logs/
+meson-private/
+*.ninja_log
+*.ninja_deps
 vcpkg/
 *.exe
 *.obj

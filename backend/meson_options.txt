@@ -1,0 +1,5 @@
+option('tt_enable_logging', type: 'boolean', value: true,
+  description : 'Enable verbose logging; kept on for development builds.')
+
+option('tt_enable_tests', type: 'boolean', value: true,
+  description : 'Build the dispatcher and RPC endpoint tests.')
