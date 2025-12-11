@@ -91,7 +91,24 @@ export function useTorrentActions({
         [queueActions, runWithRefresh, torrentClient]
     );
 
+    const handleOpenFolder = useCallback(
+        async (torrent: Torrent) => {
+            if (!torrentClient.openPath) return;
+            const targetPath = torrent.savePath ?? "";
+            if (!targetPath) return;
+            try {
+                await torrentClient.openPath(targetPath);
+            } catch {
+                if (isMountedRef.current) {
+                    reportRpcStatus("error");
+                }
+            }
+        },
+        [reportRpcStatus, torrentClient, isMountedRef]
+    );
+
     return {
         handleTorrentAction,
+        handleOpenFolder,
     };
 }

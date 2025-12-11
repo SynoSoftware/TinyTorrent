@@ -23,11 +23,19 @@ import { useTorrentDetail } from "../modules/dashboard/hooks/useTorrentDetail";
 import { useDetailControls } from "../modules/dashboard/hooks/useDetailControls";
 import { useTorrentActions } from "../modules/dashboard/hooks/useTorrentActions";
 import { CommandPalette } from "./components/CommandPalette";
+import type {
+    CommandAction,
+    CommandPaletteContext,
+} from "./components/CommandPalette";
 import { WorkspaceShell } from "./components/WorkspaceShell";
 import { useTorrentClient } from "./providers/TorrentClientProvider";
 import { FocusProvider, useFocusState } from "./context/FocusContext";
 import type { Torrent, TorrentDetail } from "../modules/dashboard/types/torrent";
 import type { RehashStatus } from "./types/workspace";
+import type {
+    DetailTab,
+    PeerSortStrategy,
+} from "../modules/dashboard/components/TorrentDetailView";
 
 interface FocusControllerProps {
     selectedTorrents: Torrent[];
@@ -158,6 +166,9 @@ export default function App() {
         isInitialLoadFinished,
         refresh: refreshTorrents,
         queueActions,
+        ghostTorrents,
+        addGhostTorrent,
+        removeGhostTorrent,
     } = useTorrentData({
         client: torrentClient,
         sessionReady: rpcStatus === "connected",
@@ -197,7 +208,10 @@ export default function App() {
         refreshSessionStatsData,
     });
 
-    const { handleTorrentAction: executeTorrentAction } = useTorrentActions({
+    const {
+        handleTorrentAction: executeTorrentAction,
+        handleOpenFolder,
+    } = useTorrentActions({
         torrentClient,
         queueActions,
         refreshTorrents,
@@ -213,12 +227,18 @@ export default function App() {
         refreshSessionStatsData,
         reportRpcStatus,
         isMountedRef,
+        addGhostTorrent,
+        removeGhostTorrent,
     });
 
     const [filter, setFilter] = useState("all");
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedTorrents, setSelectedTorrents] = useState<Torrent[]>([]);
     const [isCommandPaletteOpen, setCommandPaletteOpen] = useState(false);
+    const [peerSortStrategy, setPeerSortStrategy] =
+        useState<PeerSortStrategy>("none");
+    const [inspectorTabCommand, setInspectorTabCommand] =
+        useState<DetailTab | null>(null);
     const focusSearchInput = useCallback(() => {
         if (typeof document === "undefined") return;
         const searchInput = document.querySelector(
@@ -346,6 +366,10 @@ export default function App() {
         setSelectedTorrents(selection);
     }, []);
 
+    const handleInspectorTabCommandHandled = useCallback(() => {
+        setInspectorTabCommand(null);
+    }, []);
+
     const handleRequestDetails = useCallback(
         async (torrent: Torrent) => {
             await loadDetail(torrent.id, {
@@ -356,6 +380,116 @@ export default function App() {
             } as TorrentDetail);
         },
         [loadDetail]
+    );
+
+    const getContextActions = useCallback(
+        ({ activePart }: CommandPaletteContext) => {
+            const contextGroup = t("command_palette.group.context");
+            const entries: CommandAction[] = [];
+
+            if (activePart === "table" && selectedTorrents.length) {
+                entries.push(
+                    {
+                        id: "context.pause_selected",
+                        group: contextGroup,
+                        title: t("command_palette.actions.pause_selected"),
+                        description: t(
+                            "command_palette.actions.pause_selected_description"
+                        ),
+                        onSelect: () => handleBulkAction("pause"),
+                    },
+                    {
+                        id: "context.resume_selected",
+                        group: contextGroup,
+                        title: t("command_palette.actions.resume_selected"),
+                        description: t(
+                            "command_palette.actions.resume_selected_description"
+                        ),
+                        onSelect: () => handleBulkAction("resume"),
+                    },
+                    {
+                        id: "context.recheck_selected",
+                        group: contextGroup,
+                        title: t("command_palette.actions.recheck_selected"),
+                        description: t(
+                            "command_palette.actions.recheck_selected_description"
+                        ),
+                        onSelect: () => handleBulkAction("recheck"),
+                    }
+                );
+                const targetTorrent = selectedTorrents[0];
+                if (targetTorrent) {
+                    entries.push({
+                        id: "context.open_inspector",
+                        group: contextGroup,
+                        title: t("command_palette.actions.open_inspector"),
+                        description: t(
+                            "command_palette.actions.open_inspector_description"
+                        ),
+                        onSelect: () => handleRequestDetails(targetTorrent),
+                    });
+                }
+            }
+
+            if (activePart === "inspector" && detailData) {
+                const fileIndexes =
+                    detailData.files?.map((file) => file.index) ?? [];
+                if (fileIndexes.length) {
+                    entries.push({
+                        id: "context.select_all_files",
+                        group: contextGroup,
+                        title: t("command_palette.actions.select_all_files"),
+                        description: t(
+                            "command_palette.actions.select_all_files_description"
+                        ),
+                        onSelect: () => {
+                            setInspectorTabCommand("content");
+                            return handleFileSelectionChange(fileIndexes, true);
+                        },
+                    });
+                }
+
+                const hasPeers = Boolean(detailData.peers?.length);
+                if (hasPeers) {
+                    const isSpeedSorted = peerSortStrategy === "speed";
+                    entries.push({
+                        id: isSpeedSorted
+                            ? "context.inspector.reset_peer_sort"
+                            : "context.inspector.sort_peers_by_speed",
+                        group: contextGroup,
+                        title: t(
+                            isSpeedSorted
+                                ? "command_palette.actions.reset_peer_sort"
+                                : "command_palette.actions.sort_peers_by_speed"
+                        ),
+                        description: t(
+                            isSpeedSorted
+                                ? "command_palette.actions.reset_peer_sort_description"
+                                : "command_palette.actions.sort_peers_by_speed_description"
+                        ),
+                        onSelect: () => {
+                            setInspectorTabCommand("peers");
+                            setPeerSortStrategy(
+                                isSpeedSorted ? "none" : "speed"
+                            );
+                        },
+                    });
+                }
+            }
+
+            return entries;
+        },
+        [
+            detailData,
+            handleBulkAction,
+            handleFileSelectionChange,
+            handleRequestDetails,
+            peerSortStrategy,
+            selectedTorrents,
+            setInspectorTabCommand,
+            setPeerSortStrategy,
+            t,
+        ]
     );
 
     const handleCloseDetail = useCallback(() => {
@@ -421,6 +555,12 @@ export default function App() {
         };
     }, []);
 
+    useEffect(() => {
+        if (!detailData) {
+            setPeerSortStrategy("none");
+        }
+    }, [detailData]);
+
     const handleReconnect = () => {
         reconnect();
     };
@@ -450,6 +590,7 @@ export default function App() {
             workspaceStyle={workspaceStyle}
             toggleWorkspaceStyle={toggleWorkspaceStyle}
             torrents={torrents}
+            ghostTorrents={ghostTorrents}
             isTableLoading={!isInitialLoadFinished}
             handleTorrentAction={handleTorrentAction}
             handleRequestDetails={handleRequestDetails}
@@ -467,6 +608,10 @@ export default function App() {
             superSeedingSupported={superSeedingSupported}
             optimisticStatuses={optimisticStatuses}
             handleSelectionChange={handleSelectionChange}
+            handleOpenFolder={handleOpenFolder}
+            peerSortStrategy={peerSortStrategy}
+            inspectorTabCommand={inspectorTabCommand}
+            onInspectorTabCommandHandled={handleInspectorTabCommandHandled}
             sessionStats={sessionStats}
             downHistory={downHistory}
             upHistory={upHistory}
@@ -496,6 +641,7 @@ export default function App() {
                 isOpen={isCommandPaletteOpen}
                 onOpenChange={setCommandPaletteOpen}
                 actions={commandActions}
+                getContextActions={getContextActions}
             />
         </FocusProvider>
     );

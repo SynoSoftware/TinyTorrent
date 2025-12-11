@@ -2,7 +2,11 @@ import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { GlassPanel } from "../../../../../shared/ui/layout/GlassPanel";
-import { FileExplorerTree } from "../../../../../shared/ui/workspace/FileExplorerTree";
+import {
+    FileExplorerTree,
+    type FileExplorerContextAction,
+    type FileExplorerEntry,
+} from "../../../../../shared/ui/workspace/FileExplorerTree";
 import { useFileTree } from "../../../../../shared/hooks/useFileTree";
 import type { TorrentFileEntity } from "../../../../../services/rpc/entities";
 import { DETAILS_TAB_CONTENT_MAX_HEIGHT } from "../../../../../config/logic";
@@ -11,9 +15,18 @@ interface ContentTabProps {
     files?: TorrentFileEntity[];
     emptyMessage: string;
     onFilesToggle?: (indexes: number[], wanted: boolean) => Promise<void> | void;
+    onFileContextAction?: (
+        action: FileExplorerContextAction,
+        entry: FileExplorerEntry
+    ) => void;
 }
 
-export const ContentTab = ({ files, emptyMessage, onFilesToggle }: ContentTabProps) => {
+export const ContentTab = ({
+    files,
+    emptyMessage,
+    onFilesToggle,
+    onFileContextAction,
+}: ContentTabProps) => {
     const { t } = useTranslation();
     const fileEntries = useFileTree(files);
     const filesCount = files?.length ?? 0;
@@ -97,6 +110,7 @@ export const ContentTab = ({ files, emptyMessage, onFilesToggle }: ContentTabPro
                             files={displayFiles}
                             emptyMessage={emptyMessage}
                             onFilesToggle={handleToggle}
+                            onFileContextAction={onFileContextAction}
                         />
                     </div>
                 </div>

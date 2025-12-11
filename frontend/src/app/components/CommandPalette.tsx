@@ -14,10 +14,15 @@ export interface CommandAction {
     onSelect: () => void | Promise<void>;
 }
 
+export interface CommandPaletteContext {
+    activePart: FocusPart;
+}
+
 interface CommandPaletteProps {
     isOpen: boolean;
     onOpenChange: (open: boolean) => void;
     actions: CommandAction[];
+    getContextActions?: (context: CommandPaletteContext) => CommandAction[];
 }
 
 const PANEL_ANIMATION = {
@@ -30,16 +35,26 @@ export function CommandPalette({
     isOpen,
     onOpenChange,
     actions,
+    getContextActions,
 }: CommandPaletteProps) {
     const { t } = useTranslation();
     const { activePart, setActivePart } = useFocusState();
     const previousPartRef = useRef<FocusPart>("table");
     const previousOpenRef = useRef(isOpen);
     const [query, setQuery] = useState("");
+    const contextActions = useMemo(
+        () => getContextActions?.({ activePart }) ?? [],
+        [getContextActions, activePart]
+    );
+    const allActions = useMemo(
+        () => [...actions, ...contextActions],
+        [actions, contextActions]
+    );
     const groupedActions = useMemo(() => {
         const result = new Map<string, CommandAction[]>();
-        actions.forEach((action) => {
-            const group = action.group ?? t("command_palette.group.ungrouped");
+        allActions.forEach((action) => {
+            const group =
+                action.group ?? t("command_palette.group.ungrouped");
             const bucket = result.get(group) ?? [];
             bucket.push(action);
             result.set(group, bucket);
@@ -48,7 +63,7 @@ export function CommandPalette({
             group,
             entries,
         }));
-    }, [actions, t]);
+    }, [allActions, t]);
 
     useEffect(() => {
         if (!previousOpenRef.current && isOpen) {

@@ -87,6 +87,9 @@ export interface TorrentEntity {
     added: number;
     savePath?: string;
     rpcId?: number;
+    isGhost?: boolean;
+    ghostLabel?: string;
+    ghostState?: string;
 }
 
 export interface TorrentDetailEntity extends TorrentEntity {

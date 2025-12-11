@@ -36,17 +36,21 @@ import { getDriveSpace } from "../../../services/rpc/rpc-extended";
 import { ICON_STROKE_WIDTH } from "../../../config/logic";
 import { INTERACTION_CONFIG } from "../../../config/logic";
 import { GLASS_MODAL_SURFACE } from "../../../shared/ui/layout/glass-surface";
+import type { AddTorrentContext } from "../../../app/hooks/useAddTorrent";
 
 interface AddTorrentModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onAdd: (payload: {
-        magnetLink?: string;
-        metainfo?: string;
-        downloadDir: string;
-        startNow: boolean;
-        filesUnwanted?: number[];
-    }) => Promise<void>;
+    onAdd: (
+        payload: {
+            magnetLink?: string;
+            metainfo?: string;
+            downloadDir: string;
+            startNow: boolean;
+            filesUnwanted?: number[];
+        },
+        context?: AddTorrentContext
+    ) => Promise<void>;
     isSubmitting: boolean;
     initialFile?: File | null;
     initialMagnetLink?: string | null;
@@ -253,6 +257,14 @@ export function AddTorrentModal({
     const handleSubmit = async () => {
         if (!canSubmit || isSubmitting) return;
         const trimmedLink = magnetLink.trim();
+        const ghostLabel =
+            torrentMetadata?.name ??
+            trimmedLink ??
+            t("modals.add_title");
+        const ghostContext: AddTorrentContext = {
+            label: ghostLabel,
+            strategy: trimmedLink ? "magnet_lookup" : "loading",
+        };
         try {
             const payload: {
                 magnetLink?: string;
@@ -278,7 +290,7 @@ export function AddTorrentModal({
                         filtered;
                 }
             }
-            await onAdd(payload);
+            await onAdd(payload, ghostContext);
             onClose();
         } catch {
             // The caller will handle errors; keep the modal open for corrections.

@@ -195,6 +195,11 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
                 >
                     {torrent.name}
                 </span>
+                {torrent.isGhost && torrent.ghostState && (
+                    <span className="text-[9px] uppercase tracking-[0.3em] text-foreground/50">
+                        {t(`torrent_modal.ghost_states.${torrent.ghostState}`)}
+                    </span>
+                )}
                 {torrent.state === "downloading" && (
                     <div
                         className={cn(

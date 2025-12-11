@@ -16,9 +16,19 @@ import {
     type TorrentTableAction,
     type OptimisticStatusMap,
 } from "./TorrentTable";
-import { TorrentDetailView } from "./TorrentDetailView";
+import {
+    TorrentDetailView,
+    type DetailTab,
+    type PeerSortStrategy,
+} from "./TorrentDetailView";
 import type { Torrent, TorrentDetail } from "../types/torrent";
 import { ICON_STROKE_WIDTH } from "../../../config/logic";
+import type { TorrentPeerEntity } from "../../../services/rpc/entities";
+import type {
+    FileExplorerContextAction,
+    FileExplorerEntry,
+} from "../../../shared/ui/workspace/FileExplorerTree";
+import type { PeerContextAction } from "./details/tabs/PeersTab";
 
 const DROP_BORDER_TRANSITION: Transition = {
     type: "spring",
@@ -45,12 +55,25 @@ interface ModeLayoutProps {
         indexes: number[],
         wanted: boolean
     ) => Promise<void> | void;
+    ghostTorrents?: Torrent[];
+    onOpenFolder?: (torrent: Torrent) => Promise<void>;
+    onFileContextAction?: (
+        action: FileExplorerContextAction,
+        entry: FileExplorerEntry
+    ) => void;
+    onPeerContextAction?: (
+        action: PeerContextAction,
+        peer: TorrentPeerEntity
+    ) => void;
     onSequentialToggle?: (enabled: boolean) => Promise<void> | void;
     onSuperSeedingToggle?: (enabled: boolean) => Promise<void> | void;
     onForceTrackerReannounce?: () => Promise<void> | void;
     sequentialSupported?: boolean;
     superSeedingSupported?: boolean;
     optimisticStatuses?: OptimisticStatusMap;
+    peerSortStrategy?: PeerSortStrategy;
+    inspectorTabCommand?: DetailTab | null;
+    onInspectorTabCommandHandled?: () => void;
     isDropActive?: boolean;
 }
 
@@ -64,12 +87,19 @@ export function ModeLayout({
     detailData,
     onCloseDetail,
     onFilesToggle,
+    ghostTorrents,
+    onFileContextAction,
+    onPeerContextAction,
     onSequentialToggle,
     onSuperSeedingToggle,
     onForceTrackerReannounce,
+    onOpenFolder,
     sequentialSupported,
     superSeedingSupported,
     optimisticStatuses,
+    peerSortStrategy,
+    inspectorTabCommand,
+    onInspectorTabCommandHandled,
     onSelectionChange,
     isDropActive = false,
     detailSplitDirection = "vertical",
@@ -258,6 +288,8 @@ export function ModeLayout({
                             }
                             onSelectionChange={onSelectionChange}
                             optimisticStatuses={optimisticStatuses}
+                            ghostTorrents={ghostTorrents}
+                            onOpenFolder={onOpenFolder}
                         />
                         {dropOverlay}
                     </div>
@@ -300,6 +332,13 @@ export function ModeLayout({
                             torrent={detailData}
                             onClose={handleDetailClose}
                             onFilesToggle={onFilesToggle}
+                            onFileContextAction={onFileContextAction}
+                            onPeerContextAction={onPeerContextAction}
+                            peerSortStrategy={peerSortStrategy}
+                            inspectorTabCommand={inspectorTabCommand}
+                            onInspectorTabCommandHandled={
+                                onInspectorTabCommandHandled
+                            }
                             onSequentialToggle={onSequentialToggle}
                             onSuperSeedingToggle={onSuperSeedingToggle}
                             onForceTrackerReannounce={
@@ -331,11 +370,18 @@ export function ModeLayout({
                             exit={{ opacity: 0, scale: 0.96 }}
                             transition={{ duration: 0.25 }}
                         >
-                            <TorrentDetailView
-                                torrent={detailData}
-                                onClose={handleDetailClose}
-                                onFilesToggle={onFilesToggle}
-                                onSequentialToggle={onSequentialToggle}
+                        <TorrentDetailView
+                            torrent={detailData}
+                            onClose={handleDetailClose}
+                            onFilesToggle={onFilesToggle}
+                            onFileContextAction={onFileContextAction}
+                            onPeerContextAction={onPeerContextAction}
+                            peerSortStrategy={peerSortStrategy}
+                            inspectorTabCommand={inspectorTabCommand}
+                            onInspectorTabCommandHandled={
+                                onInspectorTabCommandHandled
+                            }
+                            onSequentialToggle={onSequentialToggle}
                                 onSuperSeedingToggle={onSuperSeedingToggle}
                                 onForceTrackerReannounce={
                                     onForceTrackerReannounce

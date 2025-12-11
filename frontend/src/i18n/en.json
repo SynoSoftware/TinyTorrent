@@ -216,6 +216,7 @@
             "confirm_delete_data": "Delete downloaded data?",
             "copy_hash": "Copy Hash",
             "copy_magnet": "Copy Magnet Link",
+            "open_folder": "Open Download Folder",
             "pause": "Pause",
             "recheck": "Force Recheck",
             "remove": "Remove",
@@ -255,6 +256,9 @@
             "move_top": "Move to Top",
             "move_up": "Move Up",
             "title": "Queue"
+        },
+        "data": {
+            "title": "Data"
         },
         "select_all": "Select all",
         "select_item": "Select {{name}}",
@@ -394,6 +398,10 @@
             "queued": "Queued",
             "seeding": "Seeding"
         },
+        "ghost_states": {
+            "loading": "Adding torrent...",
+            "magnet_lookup": "Resolving magnet link..."
+        },
         "tabs": {
             "content": "Content",
             "general": "General",
@@ -402,6 +410,20 @@
             "pieces": "Pieces",
             "speed": "Speed",
             "trackers": "Trackers"
+        },
+        "context_menu": {
+            "files": {
+                "open_file": "Open File",
+                "open_folder": "Open Folder",
+                "priority_high": "High Priority",
+                "priority_normal": "Normal Priority",
+                "priority_low": "Low Priority"
+            },
+            "peers": {
+                "add_peer": "Add Peer",
+                "ban_ip": "Ban IP",
+                "copy_ip": "Copy IP"
+            }
         },
         "placeholder": "Select a torrent and open the inspector to see details.",
         "title": "Torrent Details",
@@ -431,6 +453,7 @@
         "empty": "No matching commands.",
         "group": {
             "actions": "Actions",
+            "context": "Context",
             "filters": "Filters",
             "search": "Search",
             "ungrouped": "Commands"
@@ -443,7 +466,21 @@
             "refresh": "Refresh torrents",
             "refresh_description": "Fetch the latest data immediately.",
             "focus_search": "Focus search field",
-            "focus_search_description": "Jump straight to the filter bar."
+            "focus_search_description": "Jump straight to the filter bar.",
+            "pause_selected": "Pause selected torrents",
+            "pause_selected_description": "Pause every torrent you have selected.",
+            "resume_selected": "Resume selected torrents",
+            "resume_selected_description": "Resume every torrent you have selected.",
+            "recheck_selected": "Force recheck selection",
+            "recheck_selected_description": "Trigger a recheck on the selected torrents.",
+            "open_inspector": "Open inspector",
+            "open_inspector_description": "Show details for the selected torrent.",
+            "select_all_files": "Select all files",
+            "select_all_files_description": "Mark every file in the inspector for download.",
+            "sort_peers_by_speed": "Sort peers by speed",
+            "sort_peers_by_speed_description": "Order the peer list by transfer velocity.",
+            "reset_peer_sort": "Reset peer sorting",
+            "reset_peer_sort_description": "Return the peer list to its original order."
         },
         "filters": {
             "all_description": "Show every torrent in the list.",
