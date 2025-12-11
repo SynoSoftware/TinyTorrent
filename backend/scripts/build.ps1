@@ -2,7 +2,8 @@ param(
   [ValidateSet('Debug','MinSizeRel')]
   [string]$Configuration = 'Debug',
   [string]$MesonPath = '',
-  [string]$NinjaPath = ''
+  [string]$NinjaPath = '',
+  [string]$VsWherePath = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -54,6 +55,62 @@ function Resolve-Executable {
   throw "Could not locate $name; install it with `python -m pip install --user $name` and add the user Scripts folder to PATH, or pass -${name}Path."
 }
 
+function Resolve-VsWhere {
+  param($overridePath)
+
+  if ($overridePath) {
+    if (Test-Path $overridePath) {
+      return $overridePath
+    }
+    throw "Override path for vswhere.exe not found: $overridePath"
+  }
+
+  $cmd = Get-Command vswhere.exe -ErrorAction SilentlyContinue
+  if ($cmd) {
+    return $cmd.Source
+  }
+
+  $programFilesX86 = [Environment]::GetEnvironmentVariable('ProgramFiles(x86)')
+  if ($programFilesX86) {
+    $default = Join-Path $programFilesX86 'Microsoft Visual Studio\Installer\vswhere.exe'
+    if (Test-Path $default) {
+      return $default
+    }
+  }
+
+  throw 'Could not locate vswhere.exe; install Visual Studio 2017+ or provide a path via -VsWherePath.'
+}
+
+function Import-VsEnvironment {
+  param($vswhere)
+
+  $vsInstallArgs = @('-latest', '-products', '*', '-requires', 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64', '-property', 'installationPath')
+  $vsInstallPath = (& $vswhere @vsInstallArgs) | Where-Object { $_ -and $_.Trim() } | Select-Object -First 1
+  if (-not $vsInstallPath) {
+    throw 'Unable to locate a Visual Studio installation that contains the MSVC toolset.'
+  }
+
+  $vcvarsPath = Join-Path $vsInstallPath 'VC\Auxiliary\Build\vcvars64.bat'
+  if (-not (Test-Path $vcvarsPath)) {
+    throw "Could not find vcvars64.bat under $vsInstallPath."
+  }
+
+  $cmd = "`"$vcvarsPath`" amd64 && set"
+  $envOutput = & cmd /c $cmd
+  foreach ($line in ($envOutput -split "`r?`n")) {
+    if (-not $line) {
+      continue
+    }
+    $parts = $line -split('=', 2)
+    if ($parts.Count -ne 2) {
+      continue
+    }
+    $envName = $parts[0]
+    $envValue = $parts[1]
+    Set-Item -Path ("Env:" + $envName) -Value $envValue
+  }
+}
+
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $repoRoot = Resolve-Path (Join-Path $scriptRoot '..')
 $vcpkgDir = Join-Path $repoRoot 'vcpkg'
@@ -66,6 +123,9 @@ if (-not (Test-Path $vcpkgDir)) {
 if (-not (Test-Path $vcpkgExe)) {
   throw 'vcpkg.exe not found; run scripts/setup.ps1 first.'
 }
+
+$vswhereExe = Resolve-VsWhere $VsWherePath
+Import-VsEnvironment $vswhereExe
 
 $userScriptDirs = Get-UserScriptsPath
 $mesonExe = Resolve-Executable $MesonPath 'meson' $userScriptDirs
@@ -125,3 +185,47 @@ Write-Host "Configuring ($Configuration) with Meson/Ninja..."
 
 Write-Host "Building ($Configuration)..."
 & $ninjaExe -C $mesonBuildDir
+
+$testsEnabled = $testsArg -eq 'true'
+if ($testsEnabled) {
+  Write-Host "Running tests..."
+  $testBinDirs = @()
+  $releaseBin = Join-Path $repoRoot 'vcpkg_installed\x64-windows\bin'
+  $debugBin = Join-Path $repoRoot 'vcpkg_installed\x64-windows\debug\bin'
+  if (Test-Path $releaseBin) {
+    $testBinDirs += $releaseBin
+  }
+  if (Test-Path $debugBin) {
+    $testBinDirs += $debugBin
+  }
+  $originalPath = $env:PATH
+  if ($testBinDirs.Count -gt 0) {
+    $env:PATH = ($testBinDirs -join ';') + ';' + $env:PATH
+  }
+  $testDir = Join-Path $mesonBuildDir 'tests'
+  $testExecutables = @('dispatcher-test.exe', 'rpc-endpoint-test.exe')
+  try {
+    foreach ($testExe in $testExecutables) {
+      $testPath = Join-Path $testDir $testExe
+      if (-not (Test-Path $testPath)) {
+        throw "Test executable not found: $testPath"
+      }
+      Write-Host "  ▶ $testExe"
+      $testOutput = & $testPath 2>&1 | Out-String
+      $testExitCode = $LASTEXITCODE
+      if ($testExitCode -ne 0) {
+        Write-Host "    ✗ failed (exit code $testExitCode)"
+        Write-Host "    ── captured output ──"
+        Write-Host $testOutput.Trim()
+        throw "Test $testExe failed (exit code $testExitCode)"
+      } else {
+        Write-Host "    ✔ done"
+      }
+    }
+  }
+  finally {
+    $env:PATH = $originalPath
+  }
+} else {
+  Write-Host "Tests are disabled for configuration $Configuration; skipping."
+}
