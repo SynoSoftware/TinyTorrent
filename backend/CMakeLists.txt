@@ -13,6 +13,10 @@ if(NOT CMAKE_CONFIGURATION_TYPES)
 endif()
 
 option(TT_ENABLE_LOGGING "Enable verbose logging for the daemon." ON)
+option(TT_ENABLE_TESTS "Build dispatcher unit tests" ON)
+if(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel")
+  set(TT_ENABLE_TESTS OFF CACHE BOOL "Build dispatcher unit tests" FORCE)
+endif()
 
 set(SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src")
 
@@ -65,3 +69,7 @@ target_link_options(tt-engine PRIVATE
 )
 
 set_property(TARGET tt-engine PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+if(TT_ENABLE_TESTS)
+  add_subdirectory(tests)
+endif()

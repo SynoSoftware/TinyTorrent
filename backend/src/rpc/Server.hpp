@@ -26,7 +26,7 @@ public:
 private:
   void run_loop();
   std::string dispatch(std::string_view payload);
-  static void handle_event(struct mg_connection *conn, int ev, void *ev_data, void *fn_data);
+  static void handle_event(struct mg_connection *conn, int ev, void *ev_data);
 
   std::string bind_url_;
   std::string rpc_path_;
