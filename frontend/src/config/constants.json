@@ -43,6 +43,9 @@
             "font_mono": "font-mono",
             "icon_size": 14,
             "overscan": 20
+        },
+        "details": {
+            "tab_content_max_height": 360
         }
     },
     "iconography": {

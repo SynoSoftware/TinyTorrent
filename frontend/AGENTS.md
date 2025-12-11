@@ -719,6 +719,65 @@ Order inside a component file:
 -   No empty folders.
 -   Delete unused files immediately.
 
+## **6. Absolute Import Policy (Mandatory)**
+
+All internal imports must use the `@/` alias.  
+Relative paths like `../../../../../` are forbidden.
+
+### **Aliases:**
+
+```
+
+@/app        → src/app
+@/modules    → src/modules
+@/shared     → src/shared
+@/services   → src/services
+@/config     → src/config
+@/i18n       → src/i18n
+
+```
+
+### **Rules:**
+
+1. All imports inside the project must use `@/...` instead of relative chains.
+2. The agent must automatically rewrite any deep relative imports to the correct alias.
+3. When new files are created, they must always be imported via aliases.
+4. Directory moves or refactors must update import paths accordingly.
+5. The agent must maintain `tsconfig.json` and `vite.config.ts` alias configuration.
+
+### **Required Configuration:**
+
+**tsconfig.json**
+
+```jsonc
+{
+    "compilerOptions": {
+        "baseUrl": "./src",
+        "paths": {
+            "@/*": ["*"]
+        }
+    }
+}
+```
+
+**vite.config.ts**
+
+```ts
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import path from "path";
+
+export default defineConfig({
+    plugins: [react()],
+    resolve: {
+        alias: {
+            "@": path.resolve(__dirname, "src"),
+        },
+    },
+});
+```
+
+```
 ---
 
 # **14. Internationalization (Enforcement)**
@@ -747,3 +806,4 @@ Order inside a component file:
     - `rg -n -C 5 "<pattern>" <path>`
 
 6. Never write complex or nested shell one-liners. If a command requires tricky quoting or multiple pipes, move it into a script file instead. All commands must be simple, cross-platform, and Windows-safe.
+```
