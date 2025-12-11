@@ -26,6 +26,20 @@ const zRpcTorrentStatus = z
         message: "Invalid transmission torrent status",
     });
 
+const logValidationIssue = (
+    context: string,
+    payload: unknown,
+    error: unknown
+) => {
+    if (typeof console !== "undefined" && console.error) {
+        console.error(
+            `[tiny-torrent][rpc-validation] ${context} failed`,
+            payload,
+            error
+        );
+    }
+};
+
 const zTransmissionTorrentFile = z.object({
     bytesCompleted: z.number(),
     length: z.number(),
@@ -77,7 +91,7 @@ const zTransmissionTorrent = z.object({
     peersConnected: z.number(),
     eta: z.number(),
     addedDate: z.number(),
-    queuePosition: z.number(),
+    queuePosition: z.number().optional(),
     uploadRatio: z.number(),
     uploadedEver: z.number(),
     downloadedEver: z.number(),
@@ -119,16 +133,37 @@ const zSessionStatsTotals = z.object({
     sessionCount: z.number(),
 });
 
-const zTransmissionSessionStats = z.object({
+const zSessionStatsRaw = z.object({
     activeTorrentCount: z.number(),
     downloadSpeed: z.number(),
     pausedTorrentCount: z.number(),
     torrentCount: z.number(),
     uploadSpeed: z.number(),
     dhtNodes: z.number().optional(),
-    cumulativeStats: zSessionStatsTotals,
-    currentStats: zSessionStatsTotals,
+    cumulativeStats: zSessionStatsTotals.optional(),
+    "cumulative-stats": zSessionStatsTotals.optional(),
+    currentStats: zSessionStatsTotals.optional(),
+    "current-stats": zSessionStatsTotals.optional(),
 });
+
+const normalizeSessionStats = (raw: z.infer<typeof zSessionStatsRaw>) => {
+    const cumulative =
+        raw.cumulativeStats ?? raw["cumulative-stats"];
+    const current = raw.currentStats ?? raw["current-stats"];
+    if (!cumulative || !current) {
+        throw new Error("Missing session stats totals");
+    }
+    return {
+        activeTorrentCount: raw.activeTorrentCount,
+        downloadSpeed: raw.downloadSpeed,
+        pausedTorrentCount: raw.pausedTorrentCount,
+        torrentCount: raw.torrentCount,
+        uploadSpeed: raw.uploadSpeed,
+        dhtNodes: raw.dhtNodes,
+        cumulativeStats: cumulative,
+        currentStats: current,
+    };
+};
 
 const zEncryptionLevel = z.enum([
     "required",
@@ -178,26 +213,63 @@ const zTransmissionFreeSpace = z.object({
     totalSize: z.number(),
 });
 
-export const parseRpcResponse = (payload: unknown) => zRpcResponse.parse(payload);
-export const getTorrentList = (payload: unknown): TransmissionTorrent[] =>
-    zTorrentListResponse.parse(payload).torrents as TransmissionTorrent[];
-export const getTorrentDetail = (payload: unknown): TransmissionTorrentDetail => {
-    const result = zTorrentDetailResponse.parse(payload);
-    const [torrent] = result.torrents;
-    if (!torrent) {
-        throw new Error("Torrent not found in RPC response");
+export const parseRpcResponse = (payload: unknown) => {
+    try {
+        return zRpcResponse.parse(payload);
+    } catch (error) {
+        logValidationIssue("parseRpcResponse", payload, error);
+        throw error;
     }
-    return torrent as TransmissionTorrentDetail;
+};
+export const getTorrentList = (payload: unknown): TransmissionTorrent[] => {
+    try {
+        return zTorrentListResponse.parse(payload).torrents as TransmissionTorrent[];
+    } catch (error) {
+        logValidationIssue("getTorrentList", payload, error);
+        throw error;
+    }
+};
+export const getTorrentDetail = (
+    payload: unknown
+): TransmissionTorrentDetail => {
+    try {
+        const result = zTorrentDetailResponse.parse(payload);
+        const [torrent] = result.torrents;
+        if (!torrent) {
+            throw new Error("Torrent not found in RPC response");
+        }
+        return torrent as TransmissionTorrentDetail;
+    } catch (error) {
+        logValidationIssue("getTorrentDetail", payload, error);
+        throw error;
+    }
 };
 export const getSessionStats = (
     payload: unknown
-): TransmissionSessionStats =>
-    zTransmissionSessionStats.parse(payload) as TransmissionSessionStats;
+): TransmissionSessionStats => {
+    try {
+        const raw = zSessionStatsRaw.parse(payload);
+        return normalizeSessionStats(raw);
+    } catch (error) {
+        logValidationIssue("getSessionStats", payload, error);
+        throw error;
+    }
+};
 export const getSessionSettings = (
     payload: unknown
-): TransmissionSessionSettings =>
-    zTransmissionSessionSettings.parse(payload) as TransmissionSessionSettings;
-export const getFreeSpace = (
-    payload: unknown
-): TransmissionFreeSpace =>
-    zTransmissionFreeSpace.parse(payload) as TransmissionFreeSpace;
+): TransmissionSessionSettings => {
+    try {
+        return zTransmissionSessionSettings.parse(payload) as TransmissionSessionSettings;
+    } catch (error) {
+        logValidationIssue("getSessionSettings", payload, error);
+        throw error;
+    }
+};
+export const getFreeSpace = (payload: unknown): TransmissionFreeSpace => {
+    try {
+        return zTransmissionFreeSpace.parse(payload) as TransmissionFreeSpace;
+    } catch (error) {
+        logValidationIssue("getFreeSpace", payload, error);
+        throw error;
+    }
+};
