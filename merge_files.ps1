@@ -1,121 +1,227 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-    Concatenates all files matching the specified patterns into a single text file.
+    Concatenates files matching patterns, with support for excluding specific file patterns.
 
 .DESCRIPTION
-    Recursively searches a directory for files that match one or more wildcard patterns
-    (e.g., *.cs, *.razor) and combines their content into a single output file.
+    Scans for files matching <Patterns>. 
+    Skips specific directories (node_modules, bin, etc).
+    Skips files matching exclusion patterns.
 
-    By default, the output file is named after the search folder and placed in C:\temp.
-    Common build / tooling folders (bin, obj, node_modules, .git, .vs, and *any* directory
-    whose name starts with a dot) are skipped automatically.
+    USAGE:
+    1. Using ! for exclusion (Easiest):
+       .\merge_files.ps1 *.c *.h !mongoose.* !test*
 
-.PARAMETER Patterns
-    One or more file patterns to search for.
+    2. Using quotes for - exclusion:
+       .\merge_files.ps1 *.c *.h '-mongoose.*'
 
-.PARAMETER OutputFile
-    Optional explicit output file path.  If omitted -> C:\temp\<SearchFolderName>.txt.
-
-.PARAMETER Path
-    Root folder to start the search.  Defaults to the current directory ('.').
+    3. Using explicit parameter:
+       .\merge_files.ps1 *.c *.h -Exclude mongoose.*
 #>
 
 [CmdletBinding()]
 param (
     [Parameter(Mandatory = $true, Position = 0, ValueFromRemainingArguments = $true)]
-    [string[]]$Patterns,
+    [string[]]$Arguments,
 
-    [string]$OutputFile,
+    [string[]]$Exclude, # Explicit exclude parameter
 
-    [string]$Path = '.'
+    [string]$OutputFile
 )
 
+# --- Argument Parsing ---------------------------------------------------------
+$Path = '.'
+$IncludePatterns = @()
+$ExcludePatterns = @()
+
+# Add explicit excludes from parameter if provided
+if ($Exclude) { $ExcludePatterns += $Exclude }
+
+# Determine if first arg is a path
+$startIndex = 0
+if ($Arguments.Count -gt 0 -and (Test-Path -Path $Arguments[0] -PathType Container)) {
+    $Path = $Arguments[0]
+    $startIndex = 1
+}
+
+# Parse the rest of the arguments
+if ($Arguments.Count -gt $startIndex) {
+    for ($i = $startIndex; $i -lt $Arguments.Count; $i++) {
+        $arg = $Arguments[$i]
+        
+        if ($arg.StartsWith('!')) {
+            # Handle !pattern (e.g. !mongoose.*)
+            $ExcludePatterns += $arg.Substring(1)
+        }
+        elseif ($arg.StartsWith('-')) {
+            # Handle -pattern (e.g. '-mongoose.*' - requires quotes in CLI)
+            $ExcludePatterns += $arg.Substring(1)
+        }
+        else {
+            $IncludePatterns += $arg
+        }
+    }
+}
+
+if (-not $IncludePatterns) {
+    Write-Error "No include patterns specified.`nUsage: merge_files.ps1 [Folder] <*.ext> [!exclude*]..."
+    exit 1
+}
+
+# --- Helper Functions ---------------------------------------------------------
+
+function Parse-Gitignore {
+    param([string]$FilePath)
+    $rules = @()
+    if (Test-Path $FilePath) {
+        Get-Content -Path $FilePath -ErrorAction SilentlyContinue | ForEach-Object {
+            $line = $_.Trim()
+            if (-not [string]::IsNullOrWhiteSpace($line) -and -not $line.StartsWith('#') -and -not $line.StartsWith('!')) {
+                $entry = $line.TrimEnd('/', '\')
+                $segments = @($entry -split '[\\/]' | Where-Object { $_ })
+                if ($segments.Count -gt 0) {
+                    $rules += $segments[-1] 
+                }
+            }
+        }
+    }
+    return $rules
+}
+
+# --- Main Execution -----------------------------------------------------------
+
 try {
-    $searchPath = (Resolve-Path -Path $Path -ErrorAction Stop).Path
-    if (-not $PSBoundParameters.ContainsKey('OutputFile')) {
-        $searchFolderName = Split-Path -Leaf $searchPath
-        $OutputFile       = Join-Path 'C:\temp' "$searchFolderName.txt"
-    }
+    $rootPath = (Resolve-Path -Path $Path -ErrorAction Stop).Path
+    
+    # 1. Setup Directory Exclusions (Skipping folders entirely)
+    $DirExcludeSet = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::InvariantCultureIgnoreCase)
+    
+    # Default ignored folders
+    $defaults = @('bin', 'obj', 'node_modules', '.git', '.vs', 'migrations', 'migration', '.vshistory', 'dist', 'build', '.idea', '.vscode', 'coverage')
+    foreach ($d in $defaults) { $DirExcludeSet.Add($d) | Out-Null }
 
-    Write-Host "Searching in '$searchPath' for patterns: $($Patterns -join ', ')`n" -ForegroundColor Yellow
-
-    $excludeDirs = @('bin', 'obj', 'node_modules', '.git', '.vs', 'migrations', 'migration', '.vshistory')
-    $totalRAMMB  = [math]::Round((Get-CimInstance CIM_ComputerSystem).TotalPhysicalMemory / 1MB, 2)
-
-    # --- file discovery -------------------------------------------------------
-    $allFiles = @()
-    foreach ($pattern in $Patterns) {
-        $allFiles += Get-ChildItem -Path $searchPath -Recurse -File -Include $pattern -ErrorAction SilentlyContinue
-    }
-    $allFiles = $allFiles | Sort-Object -Unique -Property FullName
-
-
-    $filesToProcess = @()
-    $totalBytes     = 0
-
-
-
-    foreach ($file in $allFiles) {
-        $dirParts = $file.DirectoryName -split '[\\/]' | ForEach-Object { $_.ToLowerInvariant() }
-
-        $relativePath = $file.FullName.Substring($searchPath.Length).TrimStart('\','/')
-
-        # skip explicit list OR any directory that starts with dot
-        if ($dirParts | Where-Object { $_ -in $excludeDirs -or $_ -match '^\.' }) {
-            Write-Host ("Excluded: {0,-60}" -f $relativePath) -ForegroundColor DarkGray
-            continue
+    # Load .gitignore rules
+    $current = $rootPath
+    while ($current) {
+        $gi = Join-Path $current '.gitignore'
+        if (Test-Path $gi) {
+            foreach ($rule in Parse-Gitignore $gi) { $DirExcludeSet.Add($rule) | Out-Null }
         }
-
-        if ($file.Name -ieq 'package-lock.json') {   # same exclusion rule as before
-            Write-Host ("Excluded: {0,-60}" -f $relativePath) -ForegroundColor DarkGray
-            continue
-        }
-
-        $filesToProcess += $file
-        $totalBytes     += $file.Length
+        $parent = Split-Path $current -Parent
+        if ($parent -eq $current -or [string]::IsNullOrEmpty($parent)) { break }
+        $current = $parent
     }
 
-    if (-not $filesToProcess) {
-        Write-Warning 'No files found matching the specified patterns.'
+    # 2. Output File Setup
+    if (-not $PSBoundParameters.ContainsKey('OutputFile') -or [string]::IsNullOrWhiteSpace($OutputFile)) {
+        $folderName = Split-Path -Leaf $rootPath
+        if ([string]::IsNullOrWhiteSpace($folderName)) { $folderName = "root" }
+        $OutputFile = Join-Path 'C:\temp' "$folderName.txt"
+    }
+
+    Write-Host "Searching in: $rootPath" -ForegroundColor Yellow
+    Write-Host "Include:      $($IncludePatterns -join ', ')" -ForegroundColor Yellow
+    if ($ExcludePatterns) {
+        Write-Host "Exclude Files:$($ExcludePatterns -join ', ')" -ForegroundColor Red
+    }
+    Write-Host "Skip Folders: $($DirExcludeSet.Count) rules loaded`n" -ForegroundColor DarkGray
+
+    # 3. Fast Directory Walker
+    $stack = [System.Collections.Generic.Stack[string]]::new()
+    $stack.Push($rootPath)
+
+    $filesToProcess = [System.Collections.Generic.List[System.IO.FileInfo]]::new()
+    $totalBytes = 0
+
+    while ($stack.Count -gt 0) {
+        $currentDir = $stack.Pop()
+        $items = Get-ChildItem -Path $currentDir -Force -ErrorAction SilentlyContinue
+
+        foreach ($item in $items) {
+            $name = $item.Name
+
+            if ($item.PSIsContainer) {
+                # --- FOLDER SKIPPING ---
+                if ($name.StartsWith('.') -or $DirExcludeSet.Contains($name)) { continue }
+                $stack.Push($item.FullName)
+            }
+            else {
+                # --- FILE CHECKING ---
+                if ($name -ieq 'package-lock.json') { continue }
+                
+                # A. Check Excludes first
+                $isExcluded = $false
+                foreach ($exPat in $ExcludePatterns) {
+                    if ($name -like $exPat) {
+                        $isExcluded = $true
+                        # Write-Verbose "Skipping $name (matches $exPat)"
+                        break
+                    }
+                }
+                if ($isExcluded) { continue }
+
+                # B. Check Includes
+                foreach ($inPat in $IncludePatterns) {
+                    if ($name -like $inPat) {
+                        $filesToProcess.Add($item)
+                        $totalBytes += $item.Length
+                        break
+                    }
+                }
+            }
+        }
+    }
+
+    if ($filesToProcess.Count -eq 0) {
+        Write-Warning "No files found matching the specified patterns."
         return
     }
 
-    # --- reporting ------------------------------------------------------------
-    foreach ($f in $filesToProcess | Sort-Object Length) {
-        $sizeKB         = [math]::Round($f.Length / 1KB, 2)
-        $percentOfTotal = [math]::Round($f.Length / $totalBytes * 100, 2)
-        $relativePath   = $f.FullName.Substring($searchPath.Length).TrimStart('\','/')
-        Write-Host ("Include: {0,-60} {1,8} KB {2,6}% of batch" -f $relativePath, $sizeKB, $percentOfTotal) -ForegroundColor Cyan
-    }
+    # 4. Sorting and Reporting
+    $sortedFiles = $filesToProcess | Sort-Object Length
 
+    foreach ($f in $sortedFiles) {
+        $relPath = $f.FullName.Substring($rootPath.Length).TrimStart('\', '/')
+        $sizeKB = [math]::Round($f.Length / 1KB, 2)
+        
+        $percentOfTotal = 0
+        if ($totalBytes -gt 0) {
+            $percentOfTotal = [math]::Round($f.Length / $totalBytes * 100, 2)
+        }
+
+        Write-Host ("Include: {0,-60} {1,8} KB {2,6}% of batch" -f $relPath, $sizeKB, $percentOfTotal) -ForegroundColor Cyan
+    }
 
     Write-Host "`nFound $($filesToProcess.Count) files. Concatenating..." -ForegroundColor Yellow
 
-    # ensure output directory exists
+    # Ensure output directory
     $outDir = Split-Path $OutputFile -Parent
     if (-not (Test-Path $outDir)) { New-Item -ItemType Directory -Path $outDir -Force | Out-Null }
 
-    # --- concatenate ----------------------------------------------------------
-    $filesToProcess | ForEach-Object {
-        @"
-================================================================================
-FILE: $($_.FullName)
-================================================================================
+    # 5. Concatenation
+    $sb = [System.Text.StringBuilder]::new()
+    
+    foreach ($file in $sortedFiles) {
+        [void]$sb.AppendLine("================================================================================")
+        [void]$sb.AppendLine("FILE: $($file.FullName)")
+        [void]$sb.AppendLine("================================================================================")
+        try {
+            [void]$sb.AppendLine([System.IO.File]::ReadAllText($file.FullName, [System.Text.Encoding]::UTF8))
+        }
+        catch {
+            [void]$sb.AppendLine("[Error reading file: $_]")
+        }
+        [void]$sb.AppendLine("`n")
+    }
 
-"@
-        [System.IO.File]::ReadAllText($_.FullName, [System.Text.Encoding]::UTF8)
-        "`n"
-    } | Set-Content -Path $OutputFile -Encoding UTF8 -NoNewline
+    [System.IO.File]::WriteAllText($OutputFile, $sb.ToString(), [System.Text.Encoding]::UTF8)
 
-    $sizeKB         = [math]::Round($totalBytes / 1KB, 2)
+    $finalSizeKB = [math]::Round($totalBytes / 1KB, 2)
     $estimatedTokens = [math]::Ceiling($totalBytes / 4)
-    $tokenPercent   = [math]::Round($estimatedTokens / 128000 * 100, 2)
-
-    Write-Host "`nCombined file created at: $(Resolve-Path $OutputFile)" -ForegroundColor Green
-    Write-Host "Total combined size: $sizeKB KB  ~${estimatedTokens} tokens (${tokenPercent}% of 128K context)`n" -ForegroundColor Magenta
-
-
+    $tokenPercent = [math]::Round($estimatedTokens / 128000 * 100, 2)
+    
+    Write-Host "`nCombined file created at: $OutputFile" -ForegroundColor Green
+    Write-Host "Total size: $finalSizeKB KB  ~${estimatedTokens} tokens (${tokenPercent}% of 128K context)`n" -ForegroundColor Magenta
 }
 catch {
     Write-Error "Fatal: $_"
