@@ -26,7 +26,7 @@ tt_link_args = ['Ws2_32.lib']
 if is_minsize
   tt_cpp_args += ['/Os', '/GL', '/MT']
   tt_c_args += ['/Os', '/GL', '/MT']
-  tt_link_args += ['/LTCG']
+  tt_link_args += ['/LTCG', '/MAP:tt-engine.map', '/MAPINFO:EXPORTS']
 endif
 
 tt_define_args = []

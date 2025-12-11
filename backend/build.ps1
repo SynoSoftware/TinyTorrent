@@ -145,7 +145,7 @@ switch ($Configuration) {
     $configSubdir = 'debug'
   }
   'Release' {
-    $mesonBuildType = 'release'
+    $mesonBuildType = 'minsize'
     $configSubdir = 'release'
     $loggingArg = 'false'
     $testsArg = 'false'
@@ -211,6 +211,11 @@ $mesonArgs += "--buildtype=$mesonBuildType"
 $mesonArgs += "-Dtt_enable_logging=$loggingArg"
 $mesonArgs += "-Dtt_enable_tests=$testsArg"
 $mesonArgs += "-Db_vscrt=$vscrt"
+$sizeOptimizedBuild = $mesonBuildType -ne 'debug'
+if ($sizeOptimizedBuild) {
+  $mesonArgs += '-Db_lto=true'
+  $mesonArgs += '-Dstrip=true'
+}
 $mesonArgs += $mesonBuildDir
 $mesonArgs += $repoRoot
 
@@ -333,12 +338,38 @@ if (-not $useStaticVcpkg) {
 } else {
   Write-Host "Static vcpkg triplet in use; runtime DLLs are linked statically."
 }
+
+$linkedLibs = @(
+  'torrent-rasterbar.lib',
+  'yyjson.lib',
+  'sqlite3.lib',
+  'libssl.lib',
+  'libcrypto.lib'
+)
+$staticLibDir = Join-Path $vcpkgTripletRoot 'lib'
+Write-Host "Linked library footprint ($vcpkgTriplet):"
+foreach ($lib in $linkedLibs) {
+  $path = Join-Path $staticLibDir $lib
+  if (Test-Path $path) {
+    $sizeMb = (Get-Item $path).Length / 1MB
+    Write-Host ("  {0,-20} {1,8:N2} MB  {2}" -f $lib, $sizeMb, $path)
+  }
+  else {
+    Write-Host ("  {0,-20}    missing  {1}" -f $lib, $path)
+  }
+}
+
 $fileName = 'tt-engine.exe'
 $exePath = Join-Path $mesonBuildDir $fileName
 if (Test-Path $exePath) {
   $lengthKb = (Get-Item $exePath).Length / 1024.0
   Write-Host $exePath
   Write-Host ("└── {0}    {1:N2} kb" -f $fileName, $lengthKb)
+  $mapPath = Join-Path $mesonBuildDir 'tt-engine.map'
+  if (Test-Path $mapPath) {
+    $mapSizeKb = (Get-Item $mapPath).Length / 1024.0
+    Write-Host ("   map: {0} ({1:N2} kb)" -f $mapPath, $mapSizeKb)
+  }
 }
 else {
   Write-Host ('Executable not found: {0}' -f $exePath)
