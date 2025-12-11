@@ -1,149 +1,262 @@
-# **AGENTS_BACKEND.md — TinyTorrent C++ Engine**
+# **AGENTS_BACKEND.md — TinyTorrent Micro-Engine**
 
 **Purpose:**
-Single authoritative reference for the architecture, protocol compliance, and development standards for the **TinyTorrent Daemon (C++ Edition)**.
+Single authoritative reference for the architecture of the **TinyTorrent Daemon**, optimized for **minimum binary size** and **minimal memory usage**, while maintaining a **comfortable development workflow**.
 
 ---
 
 # **1. Core Identity**
 
-TinyTorrent Daemon = **C++20** × **libtorrent** × **Zero Overhead**.
+TinyTorrent Daemon = **C++20** × **libtorrent** × **Embedded Tactics**.
 
-### Identity Pillars:
+### Identity Pillars
 
-- **True Native:** No Garbage Collection. No Virtual Machine. Metal performance.
-- **Micro-Footprint:** Target executable size **< 5MB**. Target Idle RAM **< 15MB**.
-- **Dependency Discipline:** We do not import heavy frameworks. We use libraries that compile down to static code.
-- **Modern C++:** We use C++20 (Smart Pointers, Modules if viable, Coroutines) to prevent memory leaks and segmentation faults.
-- **Protocol Mimicry:** We look exactly like `Transmission 4.0.0` to the HTTP RPC world.
+- **Static & Stripped (Release Only):**
+  Release builds produce one `.exe`, fully static, symbol-free, no DLLs.
+
+- **Debuggable (Development):**
+  Development builds retain symbols, exceptions, RTTI, logs, and dynamic CRT.
+
+- **No Frameworks:**
+  No Beast, no Crow, no Boost-websocket. They are heavy and template-bloated.
+
+- **Hybrid Stack:**
+  Engine = C++20 (libtorrent)
+  RPC Layer = C (Mongoose) for minimal footprint.
+
+- **Size Target:**
+  **Release:** `< 4MB` uncompressed, ~1.5MB with UPX.
+  **Development:** unrestricted.
+
+- **Memory Target (Release):**
+  **< 10MB idle** on Windows (except user requested disk cache)
 
 ---
 
 # **2. Architecture**
 
-- **Language:** **C++20**.
-- **Core Engine:** `libtorrent-rasterbar` (v2.0+).
-  - _Why:_ The industry standard. Used by qBittorrent, Deluge. Highly optimized.
-- **Build System:** **CMake** + **Vcpkg** (Manifest mode).
-  - _Strict Rule:_ No manual compiling of libs. Dependencies are defined in `vcpkg.json`.
-- **Web/RPC Server:** `Crow` OR `Boost.Beast`.
-  - _Requirement:_ Must handle HTTP (RPC) and WebSockets (Push) asynchronously.
-  - If `libtorrent` pulls in Boost.Asio, we prefer **Boost.Beast** to reuse the existing async reactor and avoid adding a second event loop.
-- **JSON Serialization:** `nlohmann/json`.
-- **Database:** `SQLite` (Lightweight, single file) or flat JSON files (if < 1000 items).
-  - _Decision:_ **SQLite** is preferred for robustness and complex sorting (History, Search).
+- **Language:** C++20 (MSVC).
 
-## **The "Single Reactor" Strategy**
+- **Core Engine:** `libtorrent-rasterbar` (static link)
+  _Build:_ minimal-size configuration (logging disabled, deprecated APIs removed, tools excluded).
 
-To minimize context switching and thread overhead, the app should ideally run on a **Shared `io_context`** (Asynchronous Event Loop).
+- **RPC/Web Server:** **Mongoose** (Cesanta).
+  _Why:_ Pure C, single-file library, tiny binary footprint, handles HTTP + WebSockets.
 
-1.  **Main Thread:** Initializes the `boost::asio::io_context`.
-2.  **Libtorrent:** Posts alerts/events to this context.
-3.  **RPC Server:** Listens on a socket bound to this same context.
-4.  **Result:** Zero locking issues, zero thread-hopping latency. Everything happens sequentially in the event loop (or a small thread pool handling the loop).
+- **JSON Parser:** **yyjson** (preferred) or **RapidJSON**.
+  _Why:_ `nlohmann/json` generates hundreds of KB of templates. yyjson is extremely small and very fast.
+
+- **Database:** **SQLite3** (C API), statically linked.
+
+## **The Micro-Loop**
+
+Two threads only:
+
+1. **Thread 1 — Engine:** Runs libtorrent session loop.
+2. **Thread 2 — RPC:** Runs Mongoose event loop (`mongoose_poll`).
+
+Communication:
+
+- Command queue: `std::deque` with a mutex or MPSC queue.
+- Shared state snapshot: `std::atomic<void*>` or RC’ed struct for readonly snapshots.
+
+Thread-safe, minimal, fast.
 
 ---
 
-# **3. Project Structure (C++)**
+# **3. Dependencies (vcpkg Manifest)**
 
-Standard CMake structure.
+**`vcpkg.json`:**
+
+```json
+{
+  "name": "tinytorrent-daemon",
+  "version-string": "0.1.0",
+  "dependencies": ["libtorrent", "sqlite3", "yyjson"]
+}
+```
+
+**Mongoose** is not installed through vcpkg — it is compiled directly from `mongoose.c`.
+
+---
+
+# **4. Project Structure (Optimized)**
 
 ```txt
 root/
-|-- CMakeLists.txt           # Main build config
-|-- vcpkg.json               # Dependencies (libtorrent, boost, sqlite3, nlohmann-json)
+|-- CMakeLists.txt            # Development/Release modes
+|-- vcpkg.json
 |
 |-- src/
-|   |-- main.cpp             # Entry point, Signal Handling, Context setup
+|   |-- main.cpp              # Entry point, thread creation
 |   |
-|   |-- engine/              # Torrent Logic
-|   |   |-- Session.hpp      # Wrapper around lt::session
-|   |   |-- Session.cpp
-|   |   \-- AlertHandler.cpp # Handles libtorrent events (finished, progress)
+|   |-- vendor/
+|   |   |-- mongoose.c
+|   |   \-- mongoose.h
 |   |
-|   |-- rpc/                 # Network Layer
-|   |   |-- Server.hpp       # HTTP/WS Listener
-|   |   |-- Controller.cpp   # Handles "torrent-get", "torrent-add"
-|   |   \-- Mapper.cpp       # Converts lt::torrent_status -> Transmission JSON
+|   |-- engine/
+|   |   |-- Core.cpp          # Libtorrent session wrapper
+|   |   \-- Core.hpp
 |   |
-|   |-- store/               # Persistence
-|   |   \-- DB.cpp           # SQLite wrapper
+|   |-- rpc/
+|   |   |-- Server.cpp        # Mongoose event handlers
+|   |   |-- Dispatcher.cpp    # RPC method routing
+|   |   \-- Serializer.cpp    # yyjson encoding
 |   |
 |   \-- utils/
-|       \-- Config.hpp       # Constants & Paths
-|
-\-- tests/
-    \-- ...
+|       \-- FS.cpp            # filesystem helpers
 ```
 
 ---
 
-# **4. Protocol & Data Logic**
+# **5. Protocol Implementation (RPC)**
 
-### **The "Imposter" Interface**
+### **C-Bridge Strategy**
 
-We must implement the Transmission RPC Spec exactly.
+No heavy abstractions.
+No OOP server framework.
+Mongoose callback + switch logic is enough.
 
-- **Input:** JSON Payload.
-  - Example: `{"method": "torrent-get", "arguments": {"fields": ["id", "name"]}}`
-- **Mapping:**
-  - `id` (Transmission) <=> `info_hash` (Libtorrent).
-  - _Challenge:_ Transmission uses integer IDs (1, 2, 3). Libtorrent uses Hash strings.
-  - _Solution:_ The `DB` or `Session` must maintain a `std::map<int, lt::sha1_hash>` and `std::map<lt::sha1_hash, int>` to translate permanently.
-- **Output:**
-  - Must match Transmission types strictly (Ints, Bools, Arrays).
+**Example:**
 
-### **Memory Management**
+```cpp
+static void fn(struct mg_connection *c, int ev, void *ev_data, void *fn_data) {
+    if (ev == MG_EV_HTTP_MSG) {
+        auto *hm = (struct mg_http_message *)ev_data;
+        // 1. Validate endpoint
+        // 2. Parse JSON via yyjson
+        // 3. Push command to engine queue
+        // 4. Send reply with mg_http_reply()
+    }
+}
+```
 
-- **RAII (Resource Acquisition Is Initialization):**
-  - Never use `new` / `delete`.
-  - Use `std::unique_ptr` and `std::shared_ptr`.
-  - Resources (Sockets, File Handles) must close automatically when the object goes out of scope.
-- **String Handling:**
-  - Use `std::string_view` for parsing to avoid copying memory unnecessarily.
+### **Data Strategy**
 
----
-
-# **5. Performance Standards**
-
-- **Startup Time:** < 500ms.
-- **Linker Optimization:**
-  - Use LTO (Link Time Optimization) in Release builds (`-flto`).
-  - Strip symbols (`-s` equivalent in CMake).
-- **Static Linking:**
-  - Where possible, link libraries statically (except system libs) to produce a portable binary.
+- **Input:** Transmission RPC-compatible requests.
+- **Output:** Minimal JSON strings.
+- **Push Updates:**
+  Build a **single JSON buffer per second** and broadcast to all WebSocket clients.
+  → Zero per-client allocations.
 
 ---
 
-# **6. Integration Directives (C++ Specific)**
+# **6. Build Modes (Mandatory)**
 
-1.  **Vcpkg is the Law:**
-    - Do not ask the user to `apt-get install libboost`.
-    - The build process must be: `cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE=.../vcpkg.cmake` -> `cmake --build build`.
-2.  **Windows Compatibility:**
-    - Since the build machine is Windows, we must ensure MSVC (Visual Studio Compiler) compatibility.
-    - Avoid `unistd.h` or Linux-specific syscalls. Use `std::filesystem` for file ops.
-3.  **Safety:**
-    - Compiler Warnings are Errors (`/WX` on MSVC, `-Werror` on GCC/Clang).
+TinyTorrent uses **two** build configurations.
+One for productivity, one for binary minimalism.
 
 ---
 
-# **7. MVP Deliverables (C++ Backend)**
+## **6.1 Development Mode (`Debug` or `RelWithDebInfo`)**
 
-1.  **CMake Setup:** A working `CMakeLists.txt` that pulls `libtorrent` and a Web Server via Vcpkg.
-2.  **Hello World:** A compiled `.exe` that prints the Libtorrent version.
-3.  **RPC Stub:** A server listening on port 9091 responding to `session-get` with dummy JSON.
-4.  **Engine Wiring:** Ability to add a magnet link and see it download to a folder.
-5.  **WebSockets:** A push stream sending updates to the frontend.
+Default mode used during daily coding.
+
+- **Runtime:** `/MD` (dynamic CRT)
+- **Optimization:** default or `/O2`
+- **LTO:** OFF
+- **Symbols:** ON
+- **Exceptions:** ON globally (`/EHsc`)
+- **RTTI:** ON
+- **Logging:** ON
+- **Assertions:** ON
+- **Binary size:** irrelevant
+
+This ensures:
+
+- fast build times
+- easy debugging
+- stack traces
+- no accidental size-optimization misery
+- no “where did my symbol go?” headaches
 
 ---
 
-# **8. Development Environment (Windows)**
+## **6.2 Release Mode (`MinSizeRel`)**
 
-Since you are on Windows:
+Used only for producing the distributable daemon.
 
-1.  **Prerequisites:** Visual Studio 2022 (C++ Desktop Dev), CMake, Git.
-2.  **Vcpkg:** Needs to be bootstrapped.
-3.  **Commands:**
-    - Agents must provide PowerShell-compatible CMake commands.
-    - Agents must not assume `make` exists (use `cmake --build`).
+- **Runtime:** `/MT` (static CRT)
+- **Optimization:** `/Os` or `/O1` (minimize size)
+- **LTO:** `/GL` (Link-Time Optimization)
+- **Symbols:** stripped
+- **Exceptions:** allowed only where libtorrent requires
+- **RTTI:** OFF if possible
+- **Logging:** OFF
+- **Assertions:** OFF
+- **Binary target:** `< 4MB`
+
+This build is sculpted for extreme minimalism.
+
+---
+
+# **7. MVP Deliverables**
+
+1. **Micro-Server:** Minimal Mongoose-based HTTP server.
+2. **Libtorrent Static Integration:** Engine loop running.
+3. **RPC Stub:** `session-get` implemented.
+4. **Tiny JSON:** yyjson-based RPC parsing.
+5. **Single Executable:** `tt-engine.exe` runnable on clean Windows.
+
+---
+
+# **8. Development Rules**
+
+These rules protect binary size **without breaking development workflow**:
+
+1. **Do not use `<iostream>` in release code.**
+   It drags huge static initializers. Use `printf` or `fmt`.
+
+2. **Exceptions:**
+
+   - ON during development.
+   - Keep exception paths rare in release. Libtorrent uses exceptions internally.
+
+3. **Forward Declarations:**
+   Use them aggressively to keep headers light.
+
+4. **Includes:**
+   Do not include large STL headers in `.hpp` files.
+
+5. **Logging:**
+
+   - Verbose logging allowed in dev.
+   - Completely removed in release via macros.
+
+6. **Check `.exe` size after major work.**
+   Any unexpected +1MB spike must be investigated immediately.
+
+---
+
+# **9. Development vs Release Rules (Critical)**
+
+These guarantees must always hold:
+
+### **Development (Default)**
+
+- Fast compiles
+- Full debug symbols
+- Logs enabled
+- Exceptions enabled
+- Dynamic CRT
+- No size constraints
+
+This is the only mode used while writing code.
+
+### **Release (Manual Only)**
+
+- Switch to `MinSizeRel`
+- Static CRT
+- LTO enabled
+- Symbols removed
+- Logging disabled
+- RTTI removed if possible
+- Size < 4 MB
+
+Run this only when producing the final artifact.
+
+---
+
+# **End of Specification**
+
+All agents must respect development ergonomics while ensuring release builds meet the extreme micro-binary requirements.
