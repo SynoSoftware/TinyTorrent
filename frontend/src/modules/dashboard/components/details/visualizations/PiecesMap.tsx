@@ -9,8 +9,7 @@ import {
     useCanvasPalette,
 } from "./canvasUtils";
 import type { FrameHandle } from "./canvasUtils";
-
-import { PIECE_MAP_CONFIG } from "../details-config";
+import { DETAILS_PIECE_MAP_CONFIG } from "../../../../../config/logic";
 type PieceStatus = "done" | "downloading" | "missing";
 interface PiecesMapProps {
     percent: number;
@@ -30,10 +29,10 @@ const normalizePercent = (value: number) =>
     Math.min(Math.max(value ?? 0, 0), 1);
 const buildGridRows = (pieceCount: number) =>
     Math.min(
-        PIECE_MAP_CONFIG.rows.max,
+        DETAILS_PIECE_MAP_CONFIG.rows.max,
         Math.max(
-            PIECE_MAP_CONFIG.rows.base,
-            Math.ceil(pieceCount / PIECE_MAP_CONFIG.columns)
+            DETAILS_PIECE_MAP_CONFIG.rows.base,
+            Math.ceil(pieceCount / DETAILS_PIECE_MAP_CONFIG.columns)
         )
     );
 
@@ -58,7 +57,7 @@ export const PiecesMap = ({
     );
     const totalPieces = pieceCount ?? fallbackPieces;
     const gridRows = buildGridRows(totalPieces);
-    const cellsToDraw = gridRows * PIECE_MAP_CONFIG.columns;
+    const cellsToDraw = gridRows * DETAILS_PIECE_MAP_CONFIG.columns;
     const sampleCount = Math.min(totalPieces, cellsToDraw);
 
     const sampleIndexes = useMemo(() => {
@@ -115,12 +114,15 @@ export const PiecesMap = ({
         ? formatBytes(pieceSize)
         : t("torrent_modal.labels.unknown");
     const canvasWidth =
-        PIECE_MAP_CONFIG.columns * PIECE_MAP_CONFIG.cell_size +
-        (PIECE_MAP_CONFIG.columns - 1) * PIECE_MAP_CONFIG.cell_gap;
+        DETAILS_PIECE_MAP_CONFIG.columns *
+            DETAILS_PIECE_MAP_CONFIG.cell_size +
+        (DETAILS_PIECE_MAP_CONFIG.columns - 1) *
+            DETAILS_PIECE_MAP_CONFIG.cell_gap;
     const canvasHeight =
-        gridRows * PIECE_MAP_CONFIG.cell_size +
-        (gridRows - 1) * PIECE_MAP_CONFIG.cell_gap;
-    const cellPitch = PIECE_MAP_CONFIG.cell_size + PIECE_MAP_CONFIG.cell_gap;
+        gridRows * DETAILS_PIECE_MAP_CONFIG.cell_size +
+        (gridRows - 1) * DETAILS_PIECE_MAP_CONFIG.cell_gap;
+    const cellPitch =
+        DETAILS_PIECE_MAP_CONFIG.cell_size + DETAILS_PIECE_MAP_CONFIG.cell_gap;
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const [hoveredPiece, setHoveredPiece] = useState<PieceHover | null>(null);
     const [hoverPosition, setHoverPosition] = useState<HoverPosition | null>(
@@ -176,8 +178,8 @@ export const PiecesMap = ({
             };
 
             cells.forEach((cell, index) => {
-                const column = index % PIECE_MAP_CONFIG.columns;
-                const row = Math.floor(index / PIECE_MAP_CONFIG.columns);
+        const column = index % DETAILS_PIECE_MAP_CONFIG.columns;
+        const row = Math.floor(index / DETAILS_PIECE_MAP_CONFIG.columns);
                 const x = column * cellPitch;
                 const y = row * cellPitch;
                 ctx.save();
@@ -197,8 +199,8 @@ export const PiecesMap = ({
                 ctx.fillRect(
                     x,
                     y,
-                    PIECE_MAP_CONFIG.cell_size,
-                    PIECE_MAP_CONFIG.cell_size
+                    DETAILS_PIECE_MAP_CONFIG.cell_size,
+                    DETAILS_PIECE_MAP_CONFIG.cell_size
                 );
                 if (hoveredPiece?.gridIndex === index) {
                     ctx.strokeStyle = palette.foreground;
@@ -206,8 +208,8 @@ export const PiecesMap = ({
                     ctx.strokeRect(
                         x + 0.6,
                         y + 0.6,
-                        PIECE_MAP_CONFIG.cell_size - 1.2,
-                        PIECE_MAP_CONFIG.cell_size - 1.2
+                        DETAILS_PIECE_MAP_CONFIG.cell_size - 1.2,
+                        DETAILS_PIECE_MAP_CONFIG.cell_size - 1.2
                     );
                 }
                 ctx.restore();
@@ -245,7 +247,7 @@ export const PiecesMap = ({
             const row = Math.floor(intrinsicY / cellPitch);
             if (
                 column < 0 ||
-                column >= PIECE_MAP_CONFIG.columns ||
+                column >= DETAILS_PIECE_MAP_CONFIG.columns ||
                 row < 0 ||
                 row >= gridRows
             ) {
@@ -253,7 +255,8 @@ export const PiecesMap = ({
                 setHoverPosition(null);
                 return;
             }
-            const cellIndex = row * PIECE_MAP_CONFIG.columns + column;
+            const cellIndex =
+                row * DETAILS_PIECE_MAP_CONFIG.columns + column;
             const cell = cells[cellIndex];
             if (!cell) {
                 setHoveredPiece(null);

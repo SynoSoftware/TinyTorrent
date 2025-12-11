@@ -1,5 +1,5 @@
 import { Button, cn } from "@heroui/react";
-import { ICON_STROKE_WIDTH } from "../../../config/iconography";
+import { ICON_STROKE_WIDTH } from "../../../config/logic";
 import {
     forwardRef,
     type ComponentPropsWithoutRef,

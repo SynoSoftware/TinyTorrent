@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import { ZoomIn, ZoomOut } from "lucide-react";
 import { GLASS_TOOLTIP_CLASSNAMES } from "./constants";
 import { clamp } from "./canvasUtils";
-import { PEER_MAP_CONFIG } from "./config";
+import { PEER_MAP_CONFIG } from "../../../../../config/logic";
 import { formatSpeed } from "../../../../../shared/utils/format";
 import type { TorrentPeerEntity } from "../../../../../services/rpc/entities";
 

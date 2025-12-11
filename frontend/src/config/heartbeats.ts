@@ -1,5 +1,0 @@
-export const DETAIL_REFRESH_INTERVAL_MS = 1000;
-
-export const HEARTBEAT_INTERVALS = {
-    detail: DETAIL_REFRESH_INTERVAL_MS,
-};

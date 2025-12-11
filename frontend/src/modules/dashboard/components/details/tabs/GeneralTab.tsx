@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import type { TorrentDetail } from "../../../types/torrent";
 import { formatBytes } from "../../../../../shared/utils/format";
 import { GlassPanel } from "../../../../../shared/ui/layout/GlassPanel";
-import { ICON_STROKE_WIDTH } from "../../../../../config/iconography";
+import { ICON_STROKE_WIDTH } from "../../../../../config/logic";
 
 interface GeneralTabProps {
     torrent: TorrentDetail;

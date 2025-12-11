@@ -6,7 +6,7 @@ import {
     CHART_HEIGHT,
     CHART_WIDTH,
     SPEED_WINDOW_OPTIONS,
-} from "./speedConfig";
+} from "../../../../../config/logic";
 import { HISTORY_POINTS } from "./canvasUtils";
 
 type Point = { x: number; y: number };
@@ -286,4 +286,3 @@ export const useTorrentDetailSpeedHistory = (torrent: TorrentDetail | null) => {
 
     return { downHistory, upHistory };
 };
-

@@ -1,7 +1,7 @@
 import { useHotkeys } from "react-hotkeys-hook";
 import type { Torrent } from "../types/torrent";
 import type { TorrentTableAction } from "../components/TorrentTable";
-import { KEYMAP, ShortcutIntent } from "../../../config/keymap";
+import { KEYMAP, ShortcutIntent } from "../../../config/logic";
 
 interface UseTorrentShortcutsProps {
     scope: string;

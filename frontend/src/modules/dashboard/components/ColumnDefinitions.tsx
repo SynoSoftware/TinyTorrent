@@ -42,9 +42,9 @@ import {
 import { buildSplinePath } from "../../../shared/utils/spline";
 import type { Torrent } from "../types/torrent";
 import type { ReactNode } from "react";
-import { TABLE_LAYOUT } from "../config/layout";
+import { TABLE_LAYOUT } from "../../../config/logic";
 import { GLASS_MENU_SURFACE } from "../../../shared/ui/layout/glass-surface";
-import { ICON_STROKE_WIDTH_DENSE } from "../../../config/iconography";
+import { ICON_STROKE_WIDTH_DENSE } from "../../../config/logic";
 import { SmoothProgressBar } from "../../../shared/ui/components/SmoothProgressBar";
 import type { Table } from "@tanstack/react-table";
 import type { OptimisticStatusMap } from "./TorrentTable";

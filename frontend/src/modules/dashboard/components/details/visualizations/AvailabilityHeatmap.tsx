@@ -23,7 +23,7 @@ import {
     HEATMAP_SAMPLE_LIMIT,
     HEATMAP_ZOOM_LEVELS,
     PIECE_COLUMNS,
-} from "./config";
+} from "../../../../../config/logic";
 
 interface AvailabilityHeatmapProps {
     pieceAvailability?: number[];
