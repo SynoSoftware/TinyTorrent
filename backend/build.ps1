@@ -1,5 +1,5 @@
 param(
-  [ValidateSet('Debug', 'MinSizeRel')]
+  [ValidateSet('Debug', 'Release', 'MinSizeRel')]
   [string]$Configuration = 'Debug',
   [string]$MesonPath = '',
   [string]$NinjaPath = '',
@@ -132,18 +132,42 @@ $userScriptDirs = Get-UserScriptsPath
 $mesonExe = Resolve-Executable $MesonPath 'meson' $userScriptDirs
 $ninjaExe = Resolve-Executable $NinjaPath 'ninja' $userScriptDirs
 
-$mesonBuildType = if ($Configuration -eq 'MinSizeRel') { 'minsize' } else { 'debug' }
-$configSubdir = if ($Configuration -eq 'MinSizeRel') { 'minsize' } else { 'debug' }
+$mesonBuildType = ''
+$configSubdir = ''
+$mesonBuildDir = ''
+$loggingArg = 'true'
+$testsArg = 'true'
+$vscrt = 'md'
+
+switch ($Configuration) {
+  'Debug' {
+    $mesonBuildType = 'debug'
+    $configSubdir = 'debug'
+  }
+  'Release' {
+    $mesonBuildType = 'release'
+    $configSubdir = 'release'
+    $loggingArg = 'false'
+    $testsArg = 'false'
+    $vscrt = 'mt'
+  }
+  'MinSizeRel' {
+    $mesonBuildType = 'minsize'
+    $configSubdir = 'minsize'
+    $loggingArg = 'false'
+    $testsArg = 'false'
+    $vscrt = 'mt'
+  }
+}
 $mesonBuildDir = Join-Path $buildDir $configSubdir
+$vcpkgTriplet = if ($Configuration -eq 'Debug') { 'x64-windows' } else { 'x64-windows-static' }
+$useStaticVcpkg = $vcpkgTriplet -eq 'x64-windows-static'
+$env:VCPKG_DEFAULT_TRIPLET = $vcpkgTriplet
 
-$loggingArg = if ($Configuration -eq 'MinSizeRel') { 'false' } else { 'true' }
-$testsArg = if ($Configuration -eq 'MinSizeRel') { 'false' } else { 'true' }
-$vscrt = if ($Configuration -eq 'MinSizeRel') { 'static' } else { 'md' }
-
-Write-Host "Installing manifest dependencies via vcpkg..."
+Write-Host ("Installing manifest dependencies via vcpkg ({0})..." -f $vcpkgTriplet)
 Push-Location $vcpkgDir
 try {
-  & $vcpkgExe install --triplet x64-windows
+  & $vcpkgExe install --triplet $vcpkgTriplet
 }
 finally {
   Pop-Location
@@ -151,8 +175,10 @@ finally {
 
 Set-Location $repoRoot
 
-$vcpkgShare = Join-Path $repoRoot 'vcpkg_installed\x64-windows\share'
-$vcpkgRoot = Join-Path $repoRoot 'vcpkg_installed\x64-windows'
+$vcpkgTripletRoot = Join-Path $repoRoot 'vcpkg_installed'
+$vcpkgTripletRoot = Join-Path $vcpkgTripletRoot $vcpkgTriplet
+$vcpkgShare = Join-Path $vcpkgTripletRoot 'share'
+$vcpkgRoot = $vcpkgTripletRoot
 $prefixPaths = @()
 if (Test-Path $vcpkgShare) {
   $prefixPaths += $vcpkgShare
@@ -170,10 +196,16 @@ if ($prefixPaths.Count -gt 0) {
   }
 }
 
+if ($useStaticVcpkg -and (Test-Path $mesonBuildDir)) {
+  Remove-Item $mesonBuildDir -Recurse -Force -ErrorAction SilentlyContinue
+}
+
 $mesonArgs = @('setup', '--backend=ninja')
-$mesonInfo = Join-Path $mesonBuildDir 'meson-info'
-if (Test-Path $mesonInfo) {
-  $mesonArgs += '--reconfigure'
+if (-not $useStaticVcpkg) {
+  $mesonInfo = Join-Path $mesonBuildDir 'meson-info'
+  if (Test-Path $mesonInfo) {
+    $mesonArgs += '--reconfigure'
+  }
 }
 $mesonArgs += "--buildtype=$mesonBuildType"
 $mesonArgs += "-Dtt_enable_logging=$loggingArg"
@@ -215,8 +247,15 @@ if ($testsEnabled) {
       if (-not (Test-Path $testPath)) {
         throw "Test executable not found: $testPath"
       }
-      Write-Host "  ▶ $testExe"
-      $testOutput = & $testPath 2>&1 | Out-String
+      Write-Host "  > $testExe"
+      $previousErrorAction = $ErrorActionPreference
+      try {
+        $ErrorActionPreference = 'Continue'
+        $testOutput = & $testPath 2>&1 | Out-String
+      }
+      finally {
+        $ErrorActionPreference = $previousErrorAction
+      }
       $testExitCode = $LASTEXITCODE
       $trimmedOutput = $testOutput.Trim()
       $testResults += [pscustomobject]@{
@@ -225,8 +264,8 @@ if ($testsEnabled) {
         Output   = $trimmedOutput
       }
       if ($testExitCode -ne 0) {
-        Write-Host "    ✗ failed (exit code $testExitCode)"
-        Write-Host "    ── captured output ──"
+        Write-Host ("    FAIL (exit code {0})" -f $testExitCode)
+        Write-Host "    -- captured output --"
         if ($trimmedOutput) {
           Write-Host $trimmedOutput
         }
@@ -238,7 +277,7 @@ if ($testsEnabled) {
         break
       }
       else {
-        Write-Host "    ✔ done"
+        Write-Host "    PASS"
       }
     }
   }
@@ -246,7 +285,8 @@ if ($testsEnabled) {
     $testLogFile = Join-Path $mesonBuildDir 'test-results.log'
     $logLines = @()
     $timestamp = Get-Date -Format o
-    $logLines += '[ ' + $timestamp + ' - ' + $Configuration + ' ]'
+    $entryLine = "[ {0} - {1} ]" -f $timestamp, $Configuration
+    $logLines += $entryLine
     foreach ($entry in $testResults) {
       $status = if ($entry.ExitCode -eq 0) { 'PASS' } else { 'FAIL' }
       $logLines += "$status $($entry.Name) exit=$($entry.ExitCode)"
@@ -266,15 +306,40 @@ if ($testsEnabled) {
 else {
   Write-Host "Tests are disabled for configuration $Configuration; skipping."
 }
+
+if (-not $useStaticVcpkg) {
+  $runtimeDlls = @(
+    'torrent-rasterbar.dll',
+    'yyjson.dll',
+    'libssl-3-x64.dll',
+    'libcrypto-3-x64.dll'
+  )
+  $runtimeRoot = Join-Path $repoRoot 'vcpkg_installed\x64-windows'
+  $runtimeSourceDir = if ($Configuration -eq 'Debug') {
+    Join-Path $runtimeRoot 'debug\bin'
+  } else {
+    Join-Path $runtimeRoot 'bin'
+  }
+  if (Test-Path $runtimeSourceDir) {
+    foreach ($dll in $runtimeDlls) {
+      $source = Join-Path $runtimeSourceDir $dll
+      if (Test-Path $source) {
+        Copy-Item -Path $source -Destination $mesonBuildDir -Force
+      }
+    }
+  } else {
+    Write-Host "Warning: runtime dependency directory missing: $runtimeSourceDir"
+  }
+} else {
+  Write-Host "Static vcpkg triplet in use; runtime DLLs are linked statically."
+}
 $fileName = 'tt-engine.exe'
 $exePath = Join-Path $mesonBuildDir $fileName
 if (Test-Path $exePath) {
-  $length = (Get-Item $exePath).Length / 1024
-  Write-Host "$exePath"
-  Write-Host "\\--  $fileName    $length kb"
-
-  
+  $lengthKb = (Get-Item $exePath).Length / 1024.0
+  Write-Host $exePath
+  Write-Host ("└── {0}    {1:N2} kb" -f $fileName, $lengthKb)
 }
 else {
-  Write-Host "Executable not found: $exePath"
+  Write-Host ('Executable not found: {0}' -f $exePath)
 }
