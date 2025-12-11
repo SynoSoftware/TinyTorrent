@@ -4,31 +4,31 @@ This folder captures the TinyTorrent micro-engine described in `AGENTS.md`. The 
 
 ## Build layout
 
-- `CMakeLists.txt` configures a single executable `tt-engine` and wires in the vcpkg dependencies (`libtorrent`, `sqlite3`, `yyjson`) plus the in-tree `mongoose.c` stub.
-- `vcpkg.json` keeps the dependency manifest aligned with the agent requirements.
-- Sources are grouped under `src/engine`, `src/rpc`, `src/utils`, and `src/vendor`.
+- `meson.build` configures the `tt-engine` executable, keeps the same source set (engine, RPC, utils, embedded `mongoose.c`), and exposes the debug/release macros that the runtime expects.
+- `meson_options.txt` exposes `tt_enable_logging` and `tt_enable_tests` so the release build can disable logging/tests without touching the sources.
+- `tests/meson.build` reuses the daemon sources plus the test cases so the dispatch/RPC test binaries inherit the same flags and dependencies.
+- `scripts/setup.ps1` bootstraps vcpkg and installs the manifest dependencies (`libtorrent`, `sqlite3`, `yyjson`), while `scripts/build.ps1` now drives Meson + Ninja for both debug and MinSizeRel flows.
 
 ## Getting started
 
-1. Run the bootstrap script to import `vcpkg`, install the manifest dependencies (`libtorrent`, `sqlite3`, `yyjson`), and bootstrap the toolchain:
+1. Run the bootstrap script to clone/boot vcpkg and install the manifest dependencies (`libtorrent`, `sqlite3`, `yyjson`):
    ```
    powershell -File scripts/setup.ps1
    ```
-2. Build the debug configuration (includes logging and dynamic CRT) via the Visual Studio 2026 generator (default):
+2. Make sure `meson` and `ninja` are installed (`python -m pip install --user meson ninja`) and that your `%USERPROFILE%\AppData\Roaming\Python\PythonXXX\Scripts` folder is on the PATH so the scripts can find the tools.
+3. Build the debug configuration (logging/tests on, dynamic CRT) via the Meson/Ninja wrapper:
    ```
    powershell -File scripts/build.ps1 -Configuration Debug
    ```
-   Use `-Generator "Visual Studio 17 2022"` (or another generator) only if you genuinely need an older toolset. If `cmake` is not on your PATH, pass `-CMakePath "C:\Path\To\cmake.exe"` so that the script executes the right binary. The script now runs `vcpkg install` itself before configuring, so you get live progress output for every dependency being compiled.
-
+   This script installs the manifest, runs `meson setup` into `build/debug`, and then builds everything with `ninja`.
 ### Visual Studio 2026
-
-You can also open this folder directly in Visual Studio 2026 (File → Open → CMake...) and pick one of the configure presets defined in `CMakePresets.json` (`debug-vs2026` or `minsize-vs2026`). Visual Studio will read the preset, configure CMake with the VS 2026 generator, and expose the `tt-engine` target in the IDE so you can build and debug without running the PowerShell scripts manually.
-3. When you're ready to generate the size-optimized artifact, rerun the build script with `MinSizeRel`. This configuration enables `/MT`, `/GL`, `/Os`, and strips logging to keep the `tt-engine` binary under 4 MB:
+Open the repository with VS2026 (File → Open → Folder). After running the build script, Visual Studio sees the generated `build/debug/build.ninja` file and you can build/debug `tt-engine` directly from the IDE (the debugger attaches to the same binary under `build/debug`).
+4. When you need the size-optimized binary, rerun the wrapper with `MinSizeRel`. That configuration flips the macros/logging, switches the CRT to `/MT`, enables `/Os`, `/GL`, `/LTCG`, and keeps the tests disabled:
    ```
    powershell -File scripts/build.ps1 -Configuration MinSizeRel
    ```
 
-> **Tip:** Run these scripts from the Visual Studio 2026 Developer Command Prompt so that the generator's toolchain (`cl.exe`, `link.exe`, etc.) is already on the path; otherwise specify a different generator via `-Generator`.
+> **Tip:** Run these scripts from the Visual Studio 2026 Developer Command Prompt so the MSVC toolchain (`cl.exe`, `link.exe`, …) is already on PATH; otherwise install Meson/Ninja into an environment that already sees the compiler.
 
 ## Notes
 

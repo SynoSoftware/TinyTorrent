@@ -31,6 +31,9 @@ TinyTorrent = **modern µTorrent** × **glass UI** × **Apple/Linear polish**.
 -   **Data/Validation:** **Zod** is mandatory for all RPC boundaries. Never trust the backend blindly.
 -   **Virtualization:** `@tanstack/react-virtual` is **mandatory** for any list > 50 items (Torrents, Files, Peers).
 -   **Command Palette:** `cmdk` for keyboard-driven navigation (`Cmd+K`).
+-   **Layout Engine:** `react-resizable-panels` (CRITICAL). Do not attempt to write custom drag-handle logic. This library handles the "VS Code" split-pane feel (smooth resizing, min/max constraints, collapsing).
+-   **Window Controls:** Custom Titlebar implementation (frameless window).
+-   **Context:** `React Context` for global focus tracking (e.g., `FocusContext`: is the user in the Table, the Search, or the Details Panel?).
 
 ## **State & Heartbeat Strategy (CRITICAL)**
 
@@ -72,6 +75,10 @@ We use Tailwind's opacity modifier (`/opacity`) on HeroUI tokens. This preserves
 | **Layer 2** | Modals / Popovers / Floating | `backdrop-blur-xl` + `bg-content1/80` + `shadow-medium` + `border-default/20` |
 
 **Rule:** Every "Glass" layer (Layers 1 & 2) must have a subtle border (`border-default/xx`) to define its edge. Using `border-default` ensures the border is dark in Light Mode and light in Dark Mode automatically.
+
+-   **Layer 0 (App Shell):** Transparency should allow the OS window material to show through if supported (Mica).
+    -   If not supported: `bg-[#0f0f0f]` (Dark) or `bg-[#f3f3f3]` (Light).
+    -   **Crucial:** The "App Background" is not white/black. It is "Chrome Gray." The _Content_ (Tables) puts a layer of `bg-background` on top of that.
 
 ### **Semantic Status Mapping**
 
@@ -134,8 +141,19 @@ TinyTorrent is an OS-level tool, not a website.
     -   Right Click = Context Menu (acting on _all_ selected items)
 
 2.  **Optimistic UI:**
+
     -   Actions (Pause, Start, Delete) must reflect in the UI _instantly_.
     -   Do not wait for the RPC roundtrip. Revert only if the RPC errors.
+
+3.  **The "Viewport" Rule:**
+    -   The `body` and `#root` must be `h-screen w-screen overflow-hidden`.
+    -   The window never has a scrollbar. Only specific panels (Table, Details) have internal scrollbars.
+4.  **Selection vs. Text:**
+    -   **Global Default:** `user-select: none;` (The app behaves like UI, not a document).
+    -   **Exception:** Specific text fields (Hash, File Paths, Error Logs) must explicitly allow selection (`select-text`).
+5.  **Cursor Discipline:**
+    -   Do not use the "text cursor" (I-beam) unless the user is hovering over an input field.
+    -   Standard interaction zones use `cursor-default` or `cursor-pointer`.
 
 ### **Zero Friction**
 
@@ -235,6 +253,39 @@ Any component that presents data visually (charts, peer maps) must behave like a
 -   Reset view
 -   Motion-driven transforms
 
+## **5a. The Workbench Layout (Panel Strategy)**
+
+Instead of "Modals" for details, we use a **Master-Detail Split View**.
+
+1.  **Three-Pane Layout:**
+
+    -   **Sidebar (Left):** Filters / Tree (Resizable, Collapsible).
+    -   **Main (Center):** The Torrent Grid (Flexible).
+    -   **Inspector (Bottom or Right - Configurable):** The Details Panel (Resizable, Collapsible).
+    -   Panels are never conditionally mounted.
+    -   Collapsing = size 0.
+    -   Expanding = restore last size.
+    -   DOM nodes must always exist to preserve scroll, focus, and native-feel continuity.
+
+2.  **The "Pinning" Logic (Interaction Model):**
+
+    -   **Selection:** Clicking a row updates the data in the Inspector immediately.
+    -   **Visibility:**
+        -   _Default:_ Inspector is collapsed (hidden).
+        -   _Active:_ Double-clicking a row OR pressing `Cmd+I` expands the Inspector pane.
+    -   **Persistence:** The Inspector state (Height/Open status) is saved to local storage. It restores exactly where the user left it.
+
+3.  **Visuals:**
+    -   Use `react-resizable-panels`.
+    -   Drag Handles must be invisible hover-targets (4px wide) that highlight with a 1px separator line on hover/active.
+
+-   **Modals are a last resort.**
+    -   Use Modals **only** for "Blocking" actions (Add Torrent, Settings, Confirm Delete).
+    -   **Never** use Modals for viewing data (Details, Peers, Files). That belongs in the **Inspector Panel**.
+-   **Context Menus:**
+    -   Must be custom (Radix UI / HeroUI Dropdown).
+    -   Must not overflow the window boundary.
+
 ---
 
 # **6. RPC Layer (Protocol Strategy)**
@@ -331,18 +382,27 @@ TinyTorrent must deliver **Adaptive Excellence**:
     -   **Split-Pane:** Details are accessed via double-click (Modal), preserving the clean "List View" focus but it can be pinned on the bottom (like visual studio panels can be pinned)
 
 -   **Professional Tool, Not a Webpage:**
+
     -   Precision refers to behavior and feedback.
     -   Controls must remain visually expressive and easy to target.
     -   **Respect the Muscle Memory of the veteran, but deliver the Fluidity of the future.**
+
+-   **Layout Implementation Strategy:**
+
+    -   The main application layout must be built using `react-resizable-panels`.
+    -   Flexbox/Grid is allowed inside panels, but never to structure the workbench itself.
+    -   Always use Panel Groups + Handles for the IDE-style split view.
+    -   Pinning = setting a non-zero `defaultSize` or `minSize`.
+    -   Unpinning = collapsing the panel to size 0.
 
 ---
 
 # **11. Architectural Principles (Mandatory)**
 
--   **Use HeroUI as the primary design system.**
-    HeroUI components and tokens are the default for every surface, layout, and control.
-    Custom UI exists only when HeroUI cannot express a required interaction.
-    No external UI kits. No custom CSS that replicates HeroUI features.
+-   **HeroUI governs controls (buttons, inputs, menus).**
+    The workbench (titlebar, panels, splitters, shell surfaces) is fully custom.
+    Tailwind + motion define all workspace surfaces and layout.
+    No external UI kits beyond HeroUI + react-resizable-panels.
 
 -   **One responsibility per unit.**
     Every component, hook, and module must do exactly one thing. No mixed concerns.
