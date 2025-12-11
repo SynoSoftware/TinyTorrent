@@ -50,7 +50,9 @@
         "stroke_width_dense": 1.2
     },
     "heartbeats": {
-        "detail_refresh_interval_ms": 1000
+        "table_refresh_interval_ms": 1500,
+        "detail_refresh_interval_ms": 500,
+        "background_refresh_interval_ms": 5000
     },
     "interaction": {
         "dragOverlay": {

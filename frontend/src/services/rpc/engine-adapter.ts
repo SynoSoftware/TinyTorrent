@@ -9,6 +9,11 @@ import type {
     TransmissionSessionSettings,
     TransmissionFreeSpace,
 } from "./types";
+import { HeartbeatManager } from "./heartbeat";
+import type {
+    HeartbeatSubscriberParams,
+    HeartbeatSubscription,
+} from "./heartbeat";
 
 export interface EngineAdapter {
     handshake?(): Promise<unknown>;
@@ -40,4 +45,7 @@ export interface EngineAdapter {
     forceTrackerReannounce?(id: string): Promise<void>;
     detectEngine?(): Promise<EngineInfo>;
     updateRequestTimeout?(timeout: number): void;
+    subscribeToHeartbeat(
+        params: HeartbeatSubscriberParams
+    ): HeartbeatSubscription;
 }

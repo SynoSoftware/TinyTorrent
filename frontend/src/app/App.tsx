@@ -5,11 +5,11 @@ import {
     useRef,
     useState,
 } from "react";
+import { useHotkeys } from "react-hotkeys-hook";
 import { useTranslation } from "react-i18next";
 
 import { usePerformanceHistory } from "../shared/hooks/usePerformanceHistory";
 import { useTransmissionSession } from "./hooks/useTransmissionSession";
-import { useWorkspaceHeartbeat } from "./hooks/useWorkspaceHeartbeat";
 import { useWorkspaceShell } from "./hooks/useWorkspaceShell";
 import { useWorkspaceModals } from "./WorkspaceModalContext";
 import { useAddModalState } from "./hooks/useAddModalState";
@@ -22,11 +22,11 @@ import { useTorrentData } from "../modules/dashboard/hooks/useTorrentData";
 import { useTorrentDetail } from "../modules/dashboard/hooks/useTorrentDetail";
 import { useDetailControls } from "../modules/dashboard/hooks/useDetailControls";
 import { useTorrentActions } from "../modules/dashboard/hooks/useTorrentActions";
+import { CommandPalette } from "./components/CommandPalette";
 import { WorkspaceShell } from "./components/WorkspaceShell";
 import { useTorrentClient } from "./providers/TorrentClientProvider";
 import type { Torrent, TorrentDetail } from "../modules/dashboard/types/torrent";
 import type { RehashStatus } from "./types/workspace";
-import { HEARTBEAT_INTERVALS } from "../config/logic";
 
 export default function App() {
     const { t } = useTranslation();
@@ -75,6 +75,7 @@ export default function App() {
         torrentClient,
         reportRpcStatus,
         isMountedRef,
+        sessionReady: rpcStatus === "connected",
     });
 
     const refreshSessionStatsDataRef = useRef<() => Promise<void>>(
@@ -111,7 +112,6 @@ export default function App() {
         client: torrentClient,
         sessionReady: rpcStatus === "connected",
         pollingIntervalMs,
-        autoRefresh: false,
         onRpcStatusChange: reportRpcStatus,
     });
 
@@ -129,6 +129,7 @@ export default function App() {
         torrentClient,
         reportRpcStatus,
         isMountedRef,
+        sessionReady: rpcStatus === "connected",
     });
     const {
         handleFileSelectionChange,
@@ -167,6 +168,96 @@ export default function App() {
     const [filter, setFilter] = useState("all");
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedTorrents, setSelectedTorrents] = useState<Torrent[]>([]);
+    const [isCommandPaletteOpen, setCommandPaletteOpen] = useState(false);
+    const focusSearchInput = useCallback(() => {
+        if (typeof document === "undefined") return;
+        const searchInput = document.querySelector(
+            'input[data-command-search="true"]'
+        ) as HTMLInputElement | null;
+        if (!searchInput) return;
+        searchInput.focus();
+        searchInput.select();
+    }, []);
+
+    useHotkeys(
+        "cmd+k,ctrl+k",
+        (event) => {
+            event.preventDefault();
+            setCommandPaletteOpen((prev) => !prev);
+        },
+        { enableOnFormTags: true, enableOnContentEditable: true },
+        [setCommandPaletteOpen]
+    );
+
+    const commandActions = useMemo(() => {
+        const actionGroup = t("command_palette.group.actions");
+        const filterGroup = t("command_palette.group.filters");
+        const searchGroup = t("command_palette.group.search");
+        return [
+            {
+                id: "add-torrent",
+                group: actionGroup,
+                title: t("command_palette.actions.add_torrent"),
+                description: t(
+                    "command_palette.actions.add_torrent_description"
+                ),
+                onSelect: openAddModal,
+            },
+            {
+                id: "open-settings",
+                group: actionGroup,
+                title: t("command_palette.actions.open_settings"),
+                description: t(
+                    "command_palette.actions.open_settings_description"
+                ),
+                onSelect: openSettings,
+            },
+            {
+                id: "refresh-torrents",
+                group: actionGroup,
+                title: t("command_palette.actions.refresh"),
+                description: t("command_palette.actions.refresh_description"),
+                onSelect: refreshTorrents,
+            },
+            {
+                id: "focus-search",
+                group: searchGroup,
+                title: t("command_palette.actions.focus_search"),
+                description: t(
+                    "command_palette.actions.focus_search_description"
+                ),
+                onSelect: focusSearchInput,
+            },
+            {
+                id: "filter-all",
+                group: filterGroup,
+                title: t("nav.filter_all"),
+                description: t("command_palette.filters.all_description"),
+                onSelect: () => setFilter("all"),
+            },
+            {
+                id: "filter-downloading",
+                group: filterGroup,
+                title: t("nav.filter_downloading"),
+                description: t("command_palette.filters.downloading_description"),
+                onSelect: () => setFilter("downloading"),
+            },
+            {
+                id: "filter-seeding",
+                group: filterGroup,
+                title: t("nav.filter_seeding"),
+                description: t("command_palette.filters.seeding_description"),
+                onSelect: () => setFilter("seeding"),
+            },
+        ];
+    }, [
+        focusSearchInput,
+        openAddModal,
+        openSettings,
+        refreshTorrents,
+        setFilter,
+        t,
+    ]);
 
     const {
         globalActionFeedback,
@@ -273,27 +364,6 @@ export default function App() {
         };
     }, [t, torrents]);
 
-    useWorkspaceHeartbeat({
-        sessionReady: rpcStatus === "connected",
-        pollingIntervalMs,
-        refreshTorrents,
-        refreshSessionStatsData,
-        refreshDetailData,
-        detailId: detailData?.id,
-    });
-
-    useEffect(() => {
-        const detailId = detailData?.id;
-        if (rpcStatus !== "connected" || !detailId) return;
-        void refreshDetailData();
-        const intervalId = window.setInterval(() => {
-            void refreshDetailData();
-        }, HEARTBEAT_INTERVALS.detail);
-        return () => {
-            window.clearInterval(intervalId);
-        };
-    }, [detailData?.id, refreshDetailData, rpcStatus]);
-
     useEffect(() => {
         isMountedRef.current = true;
         return () => {
@@ -306,7 +376,8 @@ export default function App() {
     };
 
     return (
-        <WorkspaceShell
+        <>
+            <WorkspaceShell
             getRootProps={getRootProps}
             getInputProps={getInputProps}
             isDragActive={isDragActive}
@@ -364,6 +435,12 @@ export default function App() {
             handleTestPort={settingsFlow.handleTestPort}
             restoreHudCards={restoreHudCards}
             torrentClient={torrentClient}
-        />
+            />
+            <CommandPalette
+                isOpen={isCommandPaletteOpen}
+                onOpenChange={setCommandPaletteOpen}
+                actions={commandActions}
+            />
+        </>
     );
 }

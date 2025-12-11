@@ -406,5 +406,30 @@
             "hud_dismissed": "Insights hidden. Restore to view connection, drag, and deep-link helpers.",
             "restore_hud": "Restore insights"
         }
+    },
+    "command_palette": {
+        "placeholder": "Type a command or action…",
+        "empty": "No matching commands.",
+        "group": {
+            "actions": "Actions",
+            "filters": "Filters",
+            "search": "Search",
+            "ungrouped": "Commands"
+        },
+        "actions": {
+            "add_torrent": "Add Torrent",
+            "add_torrent_description": "Open the add torrent modal.",
+            "open_settings": "Open Settings",
+            "open_settings_description": "Adjust engine and interface preferences.",
+            "refresh": "Refresh torrents",
+            "refresh_description": "Fetch the latest data immediately.",
+            "focus_search": "Focus search field",
+            "focus_search_description": "Jump straight to the filter bar."
+        },
+        "filters": {
+            "all_description": "Show every torrent in the list.",
+            "downloading_description": "Show only downloading torrents.",
+            "seeding_description": "Show only seeding torrents."
+        }
     }
 }

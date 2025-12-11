@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { usePerformanceHistory } from "../../../shared/hooks/usePerformanceHistory";
 import type { EngineAdapter } from "../../../services/rpc/engine-adapter";
+import type { HeartbeatPayload } from "../../../services/rpc/heartbeat";
 import type { RpcStatus } from "../../../shared/types/rpc";
 import type { Torrent } from "../types/torrent";
 
@@ -8,7 +9,6 @@ type UseTorrentDataOptions = {
     client: EngineAdapter;
     sessionReady: boolean;
     pollingIntervalMs: number;
-    autoRefresh?: boolean;
     onRpcStatusChange?: (status: Exclude<RpcStatus, "idle">) => void;
 };
 
@@ -30,19 +30,16 @@ export function useTorrentData({
     client,
     sessionReady,
     pollingIntervalMs,
-    autoRefresh = true,
     onRpcStatusChange,
 }: UseTorrentDataOptions): UseTorrentDataResult {
     const [torrents, setTorrents] = useState<Torrent[]>([]);
     const [isInitialLoadFinished, setIsInitialLoadFinished] = useState(false);
-    const pollingRef = useRef<number | null>(null);
     const isMountedRef = useRef(false);
     const initialLoadRef = useRef(false);
     const { pushSpeeds } = usePerformanceHistory();
 
-    const refresh = useCallback(async () => {
-        try {
-            const data = await client.getTorrents();
+    const commitTorrentSnapshot = useCallback(
+        (data: Torrent[]) => {
             if (!isMountedRef.current) return;
             setTorrents(data);
             const totalDown = data.reduce(
@@ -57,17 +54,25 @@ export function useTorrentData({
             );
             pushSpeeds(totalDown, totalUp);
             onRpcStatusChange?.("connected");
-        } catch (error) {
-            if (!isMountedRef.current) return;
-            onRpcStatusChange?.("error");
-            throw error;
-        } finally {
-            if (isMountedRef.current && !initialLoadRef.current) {
+            if (!initialLoadRef.current) {
                 initialLoadRef.current = true;
                 setIsInitialLoadFinished(true);
             }
+        },
+        [onRpcStatusChange, pushSpeeds]
+    );
+
+    const refresh = useCallback(async () => {
+        try {
+            const data = await client.getTorrents();
+            commitTorrentSnapshot(data);
+        } catch (error) {
+            if (isMountedRef.current) {
+                onRpcStatusChange?.("error");
+            }
+            throw error;
         }
-    }, [client, onRpcStatusChange, pushSpeeds]);
+    }, [client, commitTorrentSnapshot, onRpcStatusChange]);
 
     useEffect(() => {
         isMountedRef.current = true;
@@ -76,24 +81,36 @@ export function useTorrentData({
         };
     }, []);
 
+    const handleHeartbeatUpdate = useCallback(
+        ({ torrents: heartbeatTorrents }: HeartbeatPayload) => {
+            if (!heartbeatTorrents) return;
+            commitTorrentSnapshot(heartbeatTorrents);
+        },
+        [commitTorrentSnapshot]
+    );
+
     useEffect(() => {
-        if (!sessionReady || !autoRefresh) return;
-        void refresh();
+        if (!sessionReady) return;
         const intervalMs = Math.max(1000, pollingIntervalMs);
-        if (pollingRef.current) {
-            window.clearInterval(pollingRef.current);
-            pollingRef.current = null;
-        }
-        pollingRef.current = window.setInterval(() => {
-            void refresh();
-        }, intervalMs);
+        const subscription = client.subscribeToHeartbeat({
+            mode: "table",
+            pollingIntervalMs: intervalMs,
+            onUpdate: handleHeartbeatUpdate,
+            onError: () => {
+                if (!isMountedRef.current) return;
+                onRpcStatusChange?.("error");
+            },
+        });
         return () => {
-            if (pollingRef.current) {
-                window.clearInterval(pollingRef.current);
-                pollingRef.current = null;
-            }
+            subscription.unsubscribe();
         };
-    }, [sessionReady, pollingIntervalMs, refresh, autoRefresh]);
+    }, [
+        client,
+        sessionReady,
+        pollingIntervalMs,
+        handleHeartbeatUpdate,
+        onRpcStatusChange,
+    ]);
 
     return {
         torrents,

@@ -12,6 +12,11 @@ import type {
 } from "./types";
 import constants from "../../config/constants.json";
 import type { EngineAdapter } from "./engine-adapter";
+import { HeartbeatManager } from "./heartbeat";
+import type {
+    HeartbeatSubscriberParams,
+    HeartbeatSubscription,
+} from "./heartbeat";
 import type {
     TorrentEntity,
     TorrentDetailEntity,
@@ -229,6 +234,7 @@ export class TransmissionAdapter implements EngineAdapter {
     private sessionSettingsCache?: TransmissionSessionSettings;
     private engineInfoCache?: EngineInfo;
     private idMap = new Map<string, number>();
+    private readonly heartbeat = new HeartbeatManager(this);
 
     constructor(options?: {
         endpoint?: string;
@@ -446,6 +452,12 @@ export class TransmissionAdapter implements EngineAdapter {
             pausedTorrentCount: stats.pausedTorrentCount,
             dhtNodes: stats.dhtNodes ?? 0,
         };
+    }
+
+    public subscribeToHeartbeat(
+        params: HeartbeatSubscriberParams
+    ): HeartbeatSubscription {
+        return this.heartbeat.subscribe(params);
     }
 
     public async closeSession(): Promise<void> {
