@@ -180,9 +180,9 @@ export function Navbar({
                     classNames={{
                         base: "w-40 lg:w-56 h-9 transition-all hover:w-60 focus-within:w-60",
                         mainWrapper: "h-full",
-                        input: "text-small",
+                        input: "text-small text-foreground/90 whitespace-nowrap overflow-hidden text-ellipsis placeholder:opacity-70",
                         inputWrapper:
-                            "h-full font-normal text-default-500 bg-default-100/50 hover:bg-default-200/50 border-transparent focus-within:bg-default-100 focus-within:border-primary/20 shadow-inner rounded-full transition-colors",
+                            "h-full flex items-center gap-2 flex-nowrap font-normal text-default-500 bg-default-100/50 hover:bg-default-200/50 border-transparent focus-within:bg-default-100 focus-within:border-primary/20 shadow-inner rounded-full transition-colors",
                     }}
                     placeholder={t("nav.search_placeholder")}
                     size="sm"

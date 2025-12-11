@@ -8,7 +8,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 
 export const TOOLBAR_ICON_CLASSES =
-    "text-foreground/70 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring focus-visible:ring-primary/60";
+    "flex items-center justify-center text-foreground/70 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring focus-visible:ring-primary/60";
 
 export const TOOLBAR_ICON_BUTTON_CLASSES =
     `${TOOLBAR_ICON_CLASSES} bg-content1/10 border border-content1/20`;
