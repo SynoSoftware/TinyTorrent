@@ -1,23 +1,25 @@
 import { useCallback, useEffect } from "react";
-import hotkeys from "hotkeys-js";
+import { useHotkeysContext } from "react-hotkeys-hook";
 
-const DEFAULT_SCOPE = "default";
+export const DEFAULT_KEYBOARD_SCOPE = "default";
 
 export function useKeyboardScope(scope: string) {
-    useEffect(() => {
-        hotkeys.setScope(DEFAULT_SCOPE);
-        return () => {
-            hotkeys.setScope(DEFAULT_SCOPE);
-        };
-    }, []);
+    const { enableScope, disableScope } = useHotkeysContext();
 
     const activate = useCallback(() => {
-        hotkeys.setScope(scope);
-    }, [scope]);
+        enableScope(scope);
+    }, [enableScope, scope]);
 
     const deactivate = useCallback(() => {
-        hotkeys.setScope(DEFAULT_SCOPE);
-    }, []);
+        disableScope(scope);
+    }, [disableScope, scope]);
+
+    useEffect(
+        () => () => {
+            disableScope(scope);
+        },
+        [disableScope, scope]
+    );
 
     return { activate, deactivate };
 }
