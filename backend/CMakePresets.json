@@ -1,0 +1,51 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 25
+  },
+  "configurePresets": [
+    {
+      "name": "debug-vs2026",
+      "displayName": "TinyTorrent Debug (VS 2026)",
+      "description": "Use Visual Studio 2026 generator with Debug settings.",
+      "generator": "Visual Studio 18 2026",
+      "binaryDir": "${sourceDir}/build/debug",
+      "architecture": {
+        "value": "x64"
+      },
+      "cacheVariables": {
+        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake",
+        "VCPKG_TARGET_TRIPLET": "x64-windows",
+        "CMAKE_BUILD_TYPE": "Debug",
+        "TT_ENABLE_LOGGING": "ON"
+      }
+    },
+    {
+      "name": "minsize-vs2026",
+      "displayName": "TinyTorrent MinSizeRel (VS 2026)",
+      "description": "Visual Studio 2026 generator with MinSizeRel settings for release builds.",
+      "generator": "Visual Studio 18 2026",
+      "binaryDir": "${sourceDir}/build/minsize",
+      "architecture": {
+        "value": "x64"
+      },
+      "cacheVariables": {
+        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake",
+        "VCPKG_TARGET_TRIPLET": "x64-windows",
+        "CMAKE_BUILD_TYPE": "MinSizeRel",
+        "TT_ENABLE_LOGGING": "OFF"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "debug-vs2026",
+      "configurePreset": "debug-vs2026"
+    },
+    {
+      "name": "minsize-vs2026",
+      "configurePreset": "minsize-vs2026"
+    }
+  ]
+}
