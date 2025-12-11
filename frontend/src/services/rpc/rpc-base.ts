@@ -10,6 +10,14 @@ import type {
     TransmissionBandwidthGroupOptions,
     TransmissionTorrentRenameResult,
 } from "./types";
+import {
+    getFreeSpace,
+    getSessionSettings,
+    getSessionStats as parseSessionStats,
+    getTorrentDetail,
+    getTorrentList,
+    parseRpcResponse,
+} from "./schemas";
 import constants from "../../config/constants.json";
 import type { EngineAdapter } from "./engine-adapter";
 import { HeartbeatManager } from "./heartbeat";
@@ -305,8 +313,18 @@ export class TransmissionAdapter implements EngineAdapter {
                 );
             }
 
-            const data = (await response.json()) as RpcResponse<T>;
-            return data;
+            const json = await response.json();
+            const parsed = parseRpcResponse(json);
+            if (parsed.result !== "success") {
+                throw new Error(
+                    `Transmission RPC responded with ${parsed.result}`
+                );
+            }
+            const args = (parsed.arguments ?? ({} as T)) as T;
+            return {
+                ...parsed,
+                arguments: args,
+            };
         } finally {
             if (timeoutId) {
                 window.clearTimeout(timeoutId);
@@ -389,8 +407,9 @@ export class TransmissionAdapter implements EngineAdapter {
         const result = await this.send<TransmissionSessionSettings>({
             method: "session-get",
         });
-        this.sessionSettingsCache = result.arguments;
-        return result.arguments;
+        const settings = getSessionSettings(result.arguments);
+        this.sessionSettingsCache = settings;
+        return settings;
     }
 
     public async detectEngine(): Promise<EngineInfo> {
@@ -439,7 +458,7 @@ export class TransmissionAdapter implements EngineAdapter {
         const result = await this.send<TransmissionSessionStats>({
             method: "session-stats",
         });
-        return result.arguments;
+        return parseSessionStats(result.arguments);
     }
 
     public async getSessionStats(): Promise<SessionStats> {
@@ -469,7 +488,7 @@ export class TransmissionAdapter implements EngineAdapter {
             method: "free-space",
             arguments: { path },
         });
-        return result.arguments;
+        return getFreeSpace(result.arguments);
     }
 
     private async fetchTransmissionTorrents(): Promise<TransmissionTorrent[]> {
@@ -481,7 +500,7 @@ export class TransmissionAdapter implements EngineAdapter {
                 },
             }
         );
-        return result.arguments.torrents;
+        return getTorrentList(result.arguments);
     }
 
     private async fetchTransmissionTorrentSummaryByIdentifier(
@@ -491,12 +510,12 @@ export class TransmissionAdapter implements EngineAdapter {
             {
                 method: "torrent-get",
                 arguments: {
-                    fields: ["id", "hashString"],
+                    fields: SUMMARY_FIELDS,
                     ids: [identifier],
                 },
             }
         );
-        const [torrent] = result.arguments.torrents;
+        const [torrent] = getTorrentList(result.arguments);
         if (!torrent) {
             throw new Error(`Torrent ${identifier} not found`);
         }
@@ -515,11 +534,7 @@ export class TransmissionAdapter implements EngineAdapter {
                 ids: [id],
             },
         });
-        const [torrent] = result.arguments.torrents;
-        if (!torrent) {
-            throw new Error(`Torrent ${id} not found`);
-        }
-        return torrent;
+        return getTorrentDetail(result.arguments);
     }
 
     public async getTorrents(): Promise<TorrentEntity[]> {
