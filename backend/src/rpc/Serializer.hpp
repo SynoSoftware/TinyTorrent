@@ -26,6 +26,8 @@ std::string serialize_fs_space(std::string const &path,
 std::string serialize_system_action(std::string const &action, bool success,
                                     std::string const &message);
 
+std::string serialize_capabilities();
+
 std::string serialize_session_settings(
     engine::CoreSettings const &settings, std::size_t blocklist_entries,
     std::optional<std::chrono::system_clock::time_point> blocklist_updated,

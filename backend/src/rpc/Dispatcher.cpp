@@ -707,7 +707,9 @@ std::string Dispatcher::dispatch(std::string_view payload) {
   yyjson_val *arguments = yyjson_obj_get(root, "arguments");
   std::string response;
 
-  if (method == "session-get") {
+  if (method == "tt-get-capabilities") {
+    response = serialize_capabilities();
+  } else if (method == "session-get") {
     auto settings = engine_ ? engine_->settings() : engine::CoreSettings{};
     auto entries = engine_ ? engine_->blocklist_entry_count() : 0;
     auto updated = engine_ ? engine_->blocklist_last_update() : std::optional<std::chrono::system_clock::time_point>{};

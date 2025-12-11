@@ -2,12 +2,22 @@
 
 #include "rpc/Serializer.hpp"
 #include "utils/Log.hpp"
+
+#if defined(_WIN32)
+#include <winsock2.h>
+#else
+#include <arpa/inet.h>
+#endif
+
 #include "vendor/mongoose.h"
 
+#include <algorithm>
 #include <array>
 #include <cctype>
+#include <cstdint>
 #include <chrono>
 #include <limits>
+#include <optional>
 #include <random>
 #include <string>
 #include <string_view>
@@ -85,6 +95,89 @@ std::optional<std::string> decode_basic_credentials(std::string_view header) {
   return std::string(decoded->begin(), decoded->end());
 }
 
+constexpr std::array<std::string_view, 5> kLoopbackHosts = {
+    "127.0.0.1", "localhost", "[::1]", "::1", "0:0:0:0:0:0:0:1"};
+constexpr char kLegacyTokenHeader[] = "X-TinyTorrent-Token";
+
+std::optional<std::string> header_value(struct mg_http_message *hm,
+                                        char const *name) {
+  if (hm == nullptr) {
+    return std::nullopt;
+  }
+  auto *header = mg_http_get_header(hm, name);
+  if (header == nullptr) {
+    return std::nullopt;
+  }
+  return std::string(header->buf, header->len);
+}
+
+std::string lowercase(std::string value) {
+  std::transform(value.begin(), value.end(), value.begin(),
+                 [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+  return value;
+}
+
+std::string canonicalize_host(std::string host) {
+  auto start = host.find_first_not_of(" \t\r\n");
+  if (start == std::string::npos) {
+    return {};
+  }
+  auto end = host.find_last_not_of(" \t\r\n");
+  host = host.substr(start, end - start + 1);
+  if (host.empty()) {
+    return {};
+  }
+  if (host.front() == '[') {
+    auto closing = host.find(']');
+    if (closing != std::string::npos) {
+      return lowercase(host.substr(0, closing + 1));
+    }
+    return lowercase(host);
+  }
+  auto colon = host.rfind(':');
+  if (colon != std::string::npos && host.find(':') == colon) {
+    host.resize(colon);
+  }
+  if (host.empty()) {
+    return {};
+  }
+  return lowercase(host);
+}
+
+std::optional<std::string> normalized_host(struct mg_http_message *hm) {
+  if (auto value = header_value(hm, "Host")) {
+    auto normalized = canonicalize_host(std::move(*value));
+    if (!normalized.empty()) {
+      return normalized;
+    }
+  }
+  return std::nullopt;
+}
+
+bool host_allowed(std::string const &host) {
+  if (host.empty()) {
+    return false;
+  }
+  return std::any_of(kLoopbackHosts.begin(), kLoopbackHosts.end(),
+                     [&](std::string_view candidate) { return host == candidate; });
+}
+
+bool origin_allowed(struct mg_http_message *hm, tt::rpc::ServerOptions const &options) {
+  if (options.trusted_origins.empty()) {
+    return true;
+  }
+  auto origin = header_value(hm, "Origin");
+  if (!origin) {
+    return true;
+  }
+  for (auto const &candidate : options.trusted_origins) {
+    if (origin->compare(candidate) == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
 } // namespace
 
 namespace tt::rpc {
@@ -97,6 +190,10 @@ Server::Server(engine::Core *engine, std::string bind_url, ServerOptions options
       listener_(nullptr),
       session_id_(generate_session_id()),
       options_(std::move(options)) {
+  if (options_.token) {
+    connection_info_.emplace();
+    connection_info_->token = *options_.token;
+  }
   mg_mgr_init(&mgr_);
   mgr_.userdata = this;
 }
@@ -116,6 +213,7 @@ void Server::start() {
   if (listener_ == nullptr) {
     TT_LOG_INFO("Failed to bind RPC listener to {}", bind_url_);
   } else {
+    refresh_connection_port();
     TT_LOG_INFO("RPC listener bound to {}, exposing {}", bind_url_,
                 rpc_path_);
   }
@@ -145,18 +243,30 @@ std::string Server::dispatch(std::string_view payload) {
   return dispatcher_.dispatch(payload);
 }
 
+void Server::refresh_connection_port() {
+  if (!connection_info_ || listener_ == nullptr) {
+    return;
+  }
+  connection_info_->port =
+      static_cast<std::uint16_t>(ntohs(listener_->loc.port));
+}
+
 bool Server::authorize_request(struct mg_http_message *hm) {
   if (!options_.basic_auth && !options_.token) {
     return true;
   }
   if (options_.token) {
     auto const &token = *options_.token;
-    if (auto *header = mg_http_get_header(hm, options_.token_header.c_str());
-        header != nullptr) {
-      std::string_view value(header->buf, header->len);
-      if (value == token) {
-        return true;
+    auto matches_token = [&](char const *header_name) {
+      if (auto *header = mg_http_get_header(hm, header_name); header != nullptr) {
+        std::string_view value(header->buf, header->len);
+        return value == token;
       }
+      return false;
+    };
+    if (matches_token(options_.token_header.c_str()) ||
+        matches_token(kLegacyTokenHeader)) {
+      return true;
     }
     if (auto *header = mg_http_get_header(hm, "Authorization"); header != nullptr) {
       std::string_view value(header->buf, header->len);
@@ -184,6 +294,10 @@ bool Server::authorize_request(struct mg_http_message *hm) {
   return false;
 }
 
+std::optional<ConnectionInfo> Server::connection_info() const {
+  return connection_info_;
+}
+
 void Server::handle_event(struct mg_connection *conn, int ev, void *ev_data) {
   if (ev != MG_EV_HTTP_MSG) {
     return;
@@ -206,6 +320,25 @@ void Server::handle_event(struct mg_connection *conn, int ev, void *ev_data) {
       std::memcmp(uri.data(), self->rpc_path_.data(), uri.size()) != 0) {
     TT_LOG_INFO("RPC request rejected; unsupported path {}", uri);
     mg_http_reply(conn, 404, "Content-Type: text/plain\r\n", "not found");
+    return;
+  }
+
+  auto normalized = normalized_host(hm);
+  if (!normalized || !host_allowed(*normalized)) {
+    TT_LOG_INFO("RPC request rejected; unsupported host header {}",
+                normalized ? *normalized : "<missing>");
+    auto payload = serialize_error("invalid host header");
+    mg_http_reply(conn, 403, "Content-Type: application/json\r\n", "%s",
+                  payload.c_str());
+    return;
+  }
+  if (!origin_allowed(hm, self->options_)) {
+    auto origin_value = header_value(hm, "Origin");
+    TT_LOG_INFO("RPC request rejected; origin not allowed {}",
+                origin_value ? *origin_value : "<missing>");
+    auto payload = serialize_error("origin not allowed");
+    mg_http_reply(conn, 403, "Content-Type: application/json\r\n", "%s",
+                  payload.c_str());
     return;
   }
 

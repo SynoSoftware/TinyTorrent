@@ -50,6 +50,33 @@ TEST_CASE("session-test") {
   expect_bool_argument(view, "portIsOpen", false);
 }
 
+TEST_CASE("tt-get-capabilities reports features") {
+  tt::rpc::Dispatcher dispatcher{nullptr};
+  auto response =
+      dispatcher.dispatch(R"({"method":"tt-get-capabilities","arguments":{}})");
+  ResponseView view{response};
+  expect_result(view, "success", "tt-get-capabilities");
+  auto *arguments = view.arguments();
+  CHECK(arguments != nullptr);
+  auto *version = yyjson_obj_get(arguments, "server-version");
+  CHECK(version != nullptr);
+  CHECK(yyjson_is_str(version));
+  CHECK(std::string_view(yyjson_get_str(version)) == "TinyTorrent 1.0.0");
+  auto *features = yyjson_obj_get(arguments, "features");
+  CHECK(features != nullptr);
+  CHECK(yyjson_is_arr(features));
+  bool found_fs_browse = false;
+  size_t idx, limit;
+  yyjson_val *value = nullptr;
+  yyjson_arr_foreach(features, idx, limit, value) {
+    if (yyjson_is_str(value) &&
+        std::string_view(yyjson_get_str(value)) == "fs-browse") {
+      found_fs_browse = true;
+    }
+  }
+  CHECK(found_fs_browse);
+}
+
 TEST_CASE("session-stats") {
   tt::rpc::Dispatcher dispatcher{nullptr};
   auto response =
