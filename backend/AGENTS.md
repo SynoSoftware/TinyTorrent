@@ -24,8 +24,9 @@ Agents must choose algorithms and libraries that are correct, modern, lean, and 
 ### **Release Mode:**
 
 - Only structurally lightweight components remain.
+- **Strict Separation:** All dev-only helpers (heavy loggers, debug UIs, test harnesses) must compile out via macros or separate targets.
 - **No Template Bloat:** We avoid heavy C++ template libraries (like `nlohmann/json` or `Boost.Beast`) because they bloat binary size structurally.
-- **Architecture:** The binary remains small because we chose the right dependencies (C-libs), not because we wrote obscure code.
+- **Architecture:** The binary remains small because we chose the right dependencies (C-libs + standard library), not because we wrote obscure code or hand-optimized every byte.
 
 ---
 
@@ -108,7 +109,7 @@ root/
 |   |   \-- Controllers.cpp
 |   |
 |   |-- vendor/
-|   |   \-- mongoose.c
+|   |   \-- mongoose.c       # No external package for this
 |   |
 |   \-- utils/
 |       \-- Json.hpp         # C++ Wrapper around yyjson
@@ -132,9 +133,10 @@ root/
 
 ### **5.2 String Formatting**
 
-- **Use:** `std::format` (C++20).
+- **Use:** `std::format` (C++20) for all formatted messages.
 - **Example:** `auto s = std::format("Error: {}", code);`
-- **Avoid:** `<iostream>` in Release builds (it brings in heavy static initializers). Use `fmt` or `printf` style logging in Dev.
+- **Avoid:** `<iostream>` in Release builds (it brings in heavy static initializers).
+- **Dev Logging:** Use lightweight logging macros that call `std::format` + `printf`/`OutputDebugStringA` under the hood. Do not introduce `fmt` as an additional dependency.
 
 ### **5.3 Error Handling**
 
