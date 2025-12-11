@@ -11,14 +11,18 @@
 #endif
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#include <shellapi.h>
 #endif
 
 #include <array>
+#include <cstdlib>
+#include <algorithm>
 #include <cctype>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <limits>
+#include <system_error>
 #include <utility>
 #include <memory>
 #include <optional>
@@ -188,6 +192,287 @@ std::optional<bool> parse_bool_flag(yyjson_val *value) {
     return std::nullopt;
   }
   return bool_value(value);
+}
+
+std::string escape_shell_argument(std::string const &value) {
+  std::string result;
+  result.reserve(value.size() + 2);
+  result.push_back('"');
+  for (char ch : value) {
+    if (ch == '"' || ch == '\\') {
+      result.push_back('\\');
+    }
+    result.push_back(ch);
+  }
+  result.push_back('"');
+  return result;
+}
+
+bool run_external_command(std::string const &command) {
+  if (command.empty()) {
+    return false;
+  }
+  int status = std::system(command.c_str());
+  return status == 0;
+}
+
+bool open_with_default_app(std::filesystem::path const &path) {
+  if (path.empty()) {
+    return false;
+  }
+#if defined(_WIN32)
+  auto wide_path = path.wstring();
+  auto handle = ShellExecuteW(nullptr, L"open", wide_path.c_str(), nullptr,
+                              nullptr, SW_SHOWNORMAL);
+  return reinterpret_cast<intptr_t>(handle) > 32;
+#elif defined(__APPLE__)
+  return run_external_command(
+      "open " + escape_shell_argument(path.string()));
+#else
+  return run_external_command(
+      "xdg-open " + escape_shell_argument(path.string()));
+#endif
+}
+
+bool reveal_in_file_manager(std::filesystem::path const &target) {
+  if (target.empty()) {
+    return false;
+  }
+  auto subject = target;
+  if (!std::filesystem::is_directory(subject)) {
+    subject = subject.parent_path();
+  }
+  if (subject.empty()) {
+    subject = std::filesystem::current_path();
+  }
+#if defined(_WIN32)
+  auto params = std::wstring(L"/select,") + target.wstring();
+  auto handle = ShellExecuteW(nullptr, L"open", L"explorer.exe", params.c_str(),
+                              nullptr, SW_SHOWNORMAL);
+  return reinterpret_cast<intptr_t>(handle) > 32;
+#else
+  return open_with_default_app(subject);
+#endif
+}
+
+std::string path_to_string(std::filesystem::path const &value) {
+  try {
+    return value.string();
+  } catch (...) {
+    return {};
+  }
+}
+
+std::filesystem::path parse_request_path(yyjson_val *value) {
+  if (value == nullptr || !yyjson_is_str(value)) {
+    return {};
+  }
+  return std::filesystem::path(yyjson_get_str(value));
+}
+
+std::vector<tt::rpc::FsEntry> collect_directory_entries(
+    std::filesystem::path const &path) {
+  std::vector<tt::rpc::FsEntry> result;
+  try {
+    for (auto const &entry : std::filesystem::directory_iterator(path)) {
+      tt::rpc::FsEntry info;
+      info.name = entry.path().filename().string();
+      if (entry.is_directory()) {
+        info.type = "directory";
+      } else if (entry.is_regular_file()) {
+        info.type = "file";
+      } else {
+        info.type = "other";
+      }
+      if (entry.is_regular_file()) {
+        info.size = entry.file_size();
+      }
+      result.push_back(std::move(info));
+    }
+    std::sort(result.begin(), result.end(), [](auto const &a, auto const &b) {
+      if (a.type != b.type) {
+        return a.type < b.type;
+      }
+      return a.name < b.name;
+    });
+  } catch (...) {
+  }
+  return result;
+}
+
+std::string to_lower_view(std::string_view value) {
+  std::string result(value);
+  std::transform(result.begin(), result.end(), result.begin(),
+                 [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+  return result;
+}
+
+std::optional<double> parse_double_value(yyjson_val *value) {
+  if (value == nullptr) {
+    return std::nullopt;
+  }
+  if (yyjson_is_real(value)) {
+    return yyjson_get_real(value);
+  }
+  if (yyjson_is_sint(value)) {
+    return static_cast<double>(yyjson_get_sint(value));
+  }
+  if (yyjson_is_uint(value)) {
+    return static_cast<double>(yyjson_get_uint(value));
+  }
+  if (yyjson_is_str(value)) {
+    try {
+      return std::stod(yyjson_get_str(value));
+    } catch (...) {
+      return std::nullopt;
+    }
+  }
+  return std::nullopt;
+}
+
+std::optional<engine::EncryptionMode> parse_encryption(yyjson_val *value) {
+  if (value == nullptr) {
+    return std::nullopt;
+  }
+  if (yyjson_is_sint(value)) {
+    int code = static_cast<int>(yyjson_get_sint(value));
+    switch (code) {
+      case 1:
+        return engine::EncryptionMode::Preferred;
+      case 2:
+        return engine::EncryptionMode::Required;
+      default:
+        return engine::EncryptionMode::Tolerated;
+    }
+  }
+  if (yyjson_is_uint(value)) {
+    int code = static_cast<int>(yyjson_get_uint(value));
+    switch (code) {
+      case 1:
+        return engine::EncryptionMode::Preferred;
+      case 2:
+        return engine::EncryptionMode::Required;
+      default:
+        return engine::EncryptionMode::Tolerated;
+    }
+  }
+  if (yyjson_is_str(value)) {
+    auto text = to_lower_view(yyjson_get_str(value));
+    if (text == "preferred" || text == "1" || text == "prefer") {
+      return engine::EncryptionMode::Preferred;
+    }
+    if (text == "required" || text == "2") {
+      return engine::EncryptionMode::Required;
+    }
+    return engine::EncryptionMode::Tolerated;
+  }
+  return std::nullopt;
+}
+
+std::vector<engine::TrackerEntry> parse_tracker_entries(yyjson_val *value) {
+  std::vector<engine::TrackerEntry> entries;
+  if (value == nullptr) {
+    return entries;
+  }
+  auto push_entry = [&](yyjson_val *entry) {
+    if (entry == nullptr) {
+      return;
+    }
+    engine::TrackerEntry tracker;
+    if (yyjson_is_str(entry)) {
+      tracker.announce = yyjson_get_str(entry);
+    } else if (yyjson_is_obj(entry)) {
+      auto *announce = yyjson_obj_get(entry, "announce");
+      if (announce && yyjson_is_str(announce)) {
+        tracker.announce = yyjson_get_str(announce);
+      }
+      tracker.tier = parse_int_value(yyjson_obj_get(entry, "tier")).value_or(0);
+    }
+    if (!tracker.announce.empty()) {
+      entries.push_back(std::move(tracker));
+    }
+  };
+  if (yyjson_is_arr(value)) {
+    size_t idx, limit;
+    yyjson_val *item = nullptr;
+    yyjson_arr_foreach(value, idx, limit, item) {
+      push_entry(item);
+    }
+  } else {
+    push_entry(value);
+  }
+  return entries;
+}
+
+std::vector<std::string> parse_tracker_announces(yyjson_val *value) {
+  std::vector<std::string> result;
+  if (value == nullptr) {
+    return result;
+  }
+  if (yyjson_is_arr(value)) {
+    size_t idx, limit;
+    yyjson_val *item = nullptr;
+    yyjson_arr_foreach(value, idx, limit, item) {
+      if (yyjson_is_str(item)) {
+        result.emplace_back(yyjson_get_str(item));
+      } else if (yyjson_is_obj(item)) {
+        auto *announce = yyjson_obj_get(item, "announce");
+        if (announce && yyjson_is_str(announce)) {
+          result.emplace_back(yyjson_get_str(announce));
+        }
+      }
+    }
+  } else if (yyjson_is_str(value)) {
+    result.emplace_back(yyjson_get_str(value));
+  } else if (yyjson_is_obj(value)) {
+    auto *announce = yyjson_obj_get(value, "announce");
+    if (announce && yyjson_is_str(announce)) {
+      result.emplace_back(yyjson_get_str(announce));
+    }
+  }
+  return result;
+}
+
+std::optional<std::vector<std::string>> parse_labels(yyjson_val *value) {
+  if (value == nullptr) {
+    return std::nullopt;
+  }
+  std::vector<std::string> result;
+  if (yyjson_is_arr(value)) {
+    size_t idx, limit;
+    yyjson_val *item = nullptr;
+    yyjson_arr_foreach(value, idx, limit, item) {
+      if (yyjson_is_str(item)) {
+        result.emplace_back(yyjson_get_str(item));
+      }
+    }
+  } else if (yyjson_is_str(value)) {
+    result.emplace_back(yyjson_get_str(value));
+  }
+  return result;
+}
+
+std::optional<int> parse_bandwidth_priority(yyjson_val *value) {
+  if (value == nullptr) {
+    return std::nullopt;
+  }
+  if (auto parsed = parse_int_value(value)) {
+    int priority = std::clamp(*parsed, 0, 2);
+    return priority;
+  }
+  if (yyjson_is_str(value)) {
+    auto text = to_lower_view(yyjson_get_str(value));
+    if (text == "low" || text == "0") {
+      return 0;
+    }
+    if (text == "normal" || text == "1") {
+      return 1;
+    }
+    if (text == "high" || text == "2") {
+      return 2;
+    }
+  }
+  return std::nullopt;
 }
 
 #if defined(_WIN32)
@@ -474,6 +759,163 @@ std::string Dispatcher::dispatch(std::string_view payload) {
         engine_->set_peer_limits(peer_limit, peer_limit_per_torrent);
         applied = true;
       }
+
+      tt::engine::SessionUpdate session_update;
+      bool session_update_needed = false;
+      if (auto value = parse_int_value(yyjson_obj_get(arguments, "alt-speed-down"))) {
+        session_update.alt_speed_down_kbps = *value;
+        session_update_needed = true;
+      }
+      if (auto value = parse_int_value(yyjson_obj_get(arguments, "alt-speed-up"))) {
+        session_update.alt_speed_up_kbps = *value;
+        session_update_needed = true;
+      }
+      if (auto value = parse_bool_flag(yyjson_obj_get(arguments, "alt-speed-enabled"))) {
+        session_update.alt_speed_enabled = *value;
+        session_update_needed = true;
+      }
+      if (auto value =
+              parse_bool_flag(yyjson_obj_get(arguments, "alt-speed-time-enabled"))) {
+        session_update.alt_speed_time_enabled = *value;
+        session_update_needed = true;
+      }
+      if (auto value =
+              parse_int_value(yyjson_obj_get(arguments, "alt-speed-time-begin"))) {
+        session_update.alt_speed_time_begin = *value;
+        session_update_needed = true;
+      }
+      if (auto value =
+              parse_int_value(yyjson_obj_get(arguments, "alt-speed-time-end"))) {
+        session_update.alt_speed_time_end = *value;
+        session_update_needed = true;
+      }
+      if (auto value = parse_int_value(yyjson_obj_get(arguments, "alt-speed-time-day"))) {
+        session_update.alt_speed_time_day = *value;
+        session_update_needed = true;
+      }
+      if (auto enc = parse_encryption(yyjson_obj_get(arguments, "encryption"))) {
+        session_update.encryption = *enc;
+        session_update_needed = true;
+      }
+      if (auto value = parse_bool_flag(yyjson_obj_get(arguments, "dht-enabled"))) {
+        session_update.dht_enabled = *value;
+        session_update_needed = true;
+      }
+      if (auto value = parse_bool_flag(yyjson_obj_get(arguments, "pex-enabled"))) {
+        session_update.pex_enabled = *value;
+        session_update_needed = true;
+      }
+      if (auto value = parse_bool_flag(yyjson_obj_get(arguments, "lpd-enabled"))) {
+        session_update.lpd_enabled = *value;
+        session_update_needed = true;
+      }
+      if (auto value = parse_bool_flag(yyjson_obj_get(arguments, "utp-enabled"))) {
+        session_update.utp_enabled = *value;
+        session_update_needed = true;
+      }
+      if (auto value =
+              parse_int_value(yyjson_obj_get(arguments, "download-queue-size"))) {
+        session_update.download_queue_size = *value;
+        session_update_needed = true;
+      }
+      if (auto value =
+              parse_int_value(yyjson_obj_get(arguments, "seed-queue-size"))) {
+        session_update.seed_queue_size = *value;
+        session_update_needed = true;
+      }
+      if (auto value = parse_bool_flag(yyjson_obj_get(arguments,
+                                                      "queue-stalled-enabled"))) {
+        session_update.queue_stalled_enabled = *value;
+        session_update_needed = true;
+      }
+      if (auto *incomplete =
+              yyjson_obj_get(arguments, "incomplete-dir")) {
+        if (yyjson_is_str(incomplete)) {
+          session_update.incomplete_dir =
+              std::filesystem::path(yyjson_get_str(incomplete));
+          session_update_needed = true;
+        }
+      }
+      if (auto value =
+              parse_bool_flag(yyjson_obj_get(arguments, "incomplete-dir-enabled"))) {
+        session_update.incomplete_dir_enabled = *value;
+        session_update_needed = true;
+      }
+      if (auto *watch_dir =
+              yyjson_obj_get(arguments, "watch-dir")) {
+        if (yyjson_is_str(watch_dir)) {
+          session_update.watch_dir =
+              std::filesystem::path(yyjson_get_str(watch_dir));
+          session_update_needed = true;
+        }
+      }
+      if (auto value =
+              parse_bool_flag(yyjson_obj_get(arguments, "watch-dir-enabled"))) {
+        session_update.watch_dir_enabled = *value;
+        session_update_needed = true;
+      }
+      if (auto value =
+              parse_double_value(yyjson_obj_get(arguments, "seed-ratio-limit"))) {
+        session_update.seed_ratio_limit = *value;
+        session_update_needed = true;
+      }
+      if (auto value =
+              parse_bool_flag(yyjson_obj_get(arguments, "seed-ratio-limited"))) {
+        session_update.seed_ratio_enabled = *value;
+        session_update_needed = true;
+      }
+      if (auto value =
+              parse_int_value(yyjson_obj_get(arguments, "seed-idle-limit"))) {
+        session_update.seed_idle_limit = *value;
+        session_update_needed = true;
+      }
+      if (auto value =
+              parse_bool_flag(yyjson_obj_get(arguments, "seed-idle-limited"))) {
+        session_update.seed_idle_enabled = *value;
+        session_update_needed = true;
+      }
+      if (auto value = parse_int_value(yyjson_obj_get(arguments, "proxy-type"))) {
+        session_update.proxy_type = *value;
+        session_update_needed = true;
+      }
+      if (auto *proxy_host = yyjson_obj_get(arguments, "proxy-host")) {
+        if (yyjson_is_str(proxy_host)) {
+          session_update.proxy_hostname = std::string(yyjson_get_str(proxy_host));
+          session_update_needed = true;
+        }
+      }
+      if (auto value = parse_int_value(yyjson_obj_get(arguments, "proxy-port"))) {
+        session_update.proxy_port = *value;
+        session_update_needed = true;
+      }
+      if (auto value =
+              parse_bool_flag(yyjson_obj_get(arguments, "proxy-auth-enabled"))) {
+        session_update.proxy_auth_enabled = *value;
+        session_update_needed = true;
+      }
+      if (auto *proxy_user = yyjson_obj_get(arguments, "proxy-username")) {
+        if (yyjson_is_str(proxy_user)) {
+          session_update.proxy_username =
+              std::string(yyjson_get_str(proxy_user));
+          session_update_needed = true;
+        }
+      }
+      if (auto *proxy_pass = yyjson_obj_get(arguments, "proxy-password")) {
+        if (yyjson_is_str(proxy_pass)) {
+          session_update.proxy_password =
+              std::string(yyjson_get_str(proxy_pass));
+          session_update_needed = true;
+        }
+      }
+      if (auto value =
+              parse_bool_flag(yyjson_obj_get(arguments, "proxy-peer-connections"))) {
+        session_update.proxy_peer_connections = *value;
+        session_update_needed = true;
+      }
+      if (session_update_needed) {
+        engine_->update_session_settings(std::move(session_update));
+        applied = true;
+      }
       if (!ok) {
         response = serialize_error("failed to update session settings");
       } else {
@@ -506,6 +948,72 @@ std::string Dispatcher::dispatch(std::string_view payload) {
             *entries, engine_->blocklist_last_update());
       }
     }
+  } else if (method == "fs-browse") {
+    if (!arguments) {
+      response = serialize_error("arguments required for fs-browse");
+    } else {
+      auto target = parse_request_path(yyjson_obj_get(arguments, "path"));
+      if (target.empty()) {
+        target = std::filesystem::current_path();
+      }
+      auto normalized = target.lexically_normal();
+      std::error_code ec;
+      if (!std::filesystem::exists(normalized, ec)) {
+        response = serialize_error("path does not exist");
+      } else if (!std::filesystem::is_directory(normalized, ec)) {
+        response = serialize_error("path is not a directory");
+      } else {
+        auto entries = collect_directory_entries(normalized);
+        auto parent = normalized.parent_path();
+        response = serialize_fs_browse(
+            path_to_string(normalized), path_to_string(parent),
+            std::string(1, std::filesystem::path::preferred_separator),
+            entries);
+      }
+    }
+  } else if (method == "fs-space") {
+    auto target = arguments ? parse_request_path(yyjson_obj_get(arguments, "path"))
+                            : std::filesystem::path{};
+    if (target.empty()) {
+      target = std::filesystem::current_path();
+    }
+    std::error_code ec;
+    auto info = std::filesystem::space(target, ec);
+    if (ec) {
+      response = serialize_error("unable to query space");
+    } else {
+      response = serialize_fs_space(path_to_string(target), info.available,
+                                   info.capacity);
+    }
+  } else if (method == "system-reveal") {
+    if (!arguments) {
+      response = serialize_error("arguments required for system-reveal");
+    } else {
+      auto target = parse_request_path(yyjson_obj_get(arguments, "path"));
+      if (target.empty()) {
+        response = serialize_error("path required");
+      } else {
+        bool success = reveal_in_file_manager(target);
+        response = serialize_system_action("system-reveal", success,
+                                           success ? "" : "unable to reveal path");
+      }
+    }
+  } else if (method == "system-open") {
+    if (!arguments) {
+      response = serialize_error("arguments required for system-open");
+    } else {
+      auto target = parse_request_path(yyjson_obj_get(arguments, "path"));
+      if (target.empty()) {
+        response = serialize_error("path required");
+      } else {
+        bool success = open_with_default_app(target);
+        response = serialize_system_action("system-open", success,
+                                           success ? "" : "unable to open path");
+      }
+    }
+  } else if (method == "system-register-handler") {
+    response = serialize_system_action("system-register-handler", false,
+                                       "not implemented");
   } else if (method == "free-space") {
     if (!arguments) {
       response = serialize_error("arguments missing for free-space");
@@ -630,8 +1138,87 @@ std::string Dispatcher::dispatch(std::string_view payload) {
         engine_->toggle_file_selection(ids, unwanted, false);
         handled = true;
       }
+      auto tracker_add =
+          parse_tracker_entries(yyjson_obj_get(arguments, "trackerAdd"));
+      if (!tracker_add.empty()) {
+        engine_->add_trackers(ids, tracker_add);
+        handled = true;
+      }
+      auto tracker_remove =
+          parse_tracker_announces(yyjson_obj_get(arguments, "trackerRemove"));
+      if (!tracker_remove.empty()) {
+        engine_->remove_trackers(ids, tracker_remove);
+        handled = true;
+      }
+      auto tracker_replace =
+          parse_tracker_entries(yyjson_obj_get(arguments, "trackerReplace"));
+      if (!tracker_replace.empty()) {
+        engine_->replace_trackers(ids, tracker_replace);
+        handled = true;
+      }
+      if (auto priority =
+              parse_bandwidth_priority(yyjson_obj_get(arguments, "bandwidthPriority"));
+          priority) {
+        engine_->set_torrent_bandwidth_priority(ids, *priority);
+        handled = true;
+      }
+      auto download_limit =
+          parse_int_value(yyjson_obj_get(arguments, "downloadLimit"));
+      auto download_limited =
+          parse_bool_flag(yyjson_obj_get(arguments, "downloadLimited"));
+      auto upload_limit =
+          parse_int_value(yyjson_obj_get(arguments, "uploadLimit"));
+      auto upload_limited =
+          parse_bool_flag(yyjson_obj_get(arguments, "uploadLimited"));
+      if (download_limit || download_limited || upload_limit ||
+          upload_limited) {
+        engine_->set_torrent_bandwidth_limits(ids, download_limit,
+                                              download_limited, upload_limit,
+                                              upload_limited);
+        handled = true;
+      }
+      engine::TorrentSeedLimit seed_limits;
+      bool seed_limit_set = false;
+      if (auto ratio_limit =
+              parse_double_value(yyjson_obj_get(arguments, "seedRatioLimit"))) {
+        seed_limits.ratio_limit = *ratio_limit;
+        seed_limit_set = true;
+      }
+      if (auto ratio_enabled =
+              parse_bool_flag(yyjson_obj_get(arguments, "seedRatioLimited"))) {
+        seed_limits.ratio_enabled = *ratio_enabled;
+        seed_limit_set = true;
+      }
+      if (auto ratio_mode =
+              parse_int_value(yyjson_obj_get(arguments, "seedRatioMode"))) {
+        seed_limits.ratio_mode = *ratio_mode;
+        seed_limit_set = true;
+      }
+      if (auto idle_limit =
+              parse_int_value(yyjson_obj_get(arguments, "seedIdleLimit"))) {
+        seed_limits.idle_limit = std::max(0, *idle_limit) * 60;
+        seed_limit_set = true;
+      }
+      if (auto idle_enabled =
+              parse_bool_flag(yyjson_obj_get(arguments, "seedIdleLimited"))) {
+        seed_limits.idle_enabled = *idle_enabled;
+        seed_limit_set = true;
+      }
+      if (auto idle_mode =
+              parse_int_value(yyjson_obj_get(arguments, "seedIdleMode"))) {
+        seed_limits.idle_mode = *idle_mode;
+        seed_limit_set = true;
+      }
+      if (seed_limit_set) {
+        engine_->set_torrent_seed_limits(ids, seed_limits);
+        handled = true;
+      }
+      if (auto labels = parse_labels(yyjson_obj_get(arguments, "labels"))) {
+        engine_->set_torrent_labels(ids, *labels);
+        handled = true;
+      }
       if (!handled) {
-        response = serialize_error("files-wanted or files-unwanted required");
+        response = serialize_error("unsupported torrent-set arguments");
       } else {
         response = serialize_success();
       }

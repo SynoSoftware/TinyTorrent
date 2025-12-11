@@ -142,6 +142,76 @@ std::string serialize_session_settings(
                          settings.peer_limit);
   yyjson_mut_obj_add_sint(native, arguments, "peer-limit-per-torrent",
                          settings.peer_limit_per_torrent);
+  yyjson_mut_obj_add_sint(native, arguments, "alt-speed-down",
+                          settings.alt_download_rate_limit_kbps);
+  yyjson_mut_obj_add_sint(native, arguments, "alt-speed-up",
+                          settings.alt_upload_rate_limit_kbps);
+  yyjson_mut_obj_add_bool(native, arguments, "alt-speed-enabled",
+                         settings.alt_speed_enabled);
+  yyjson_mut_obj_add_bool(native, arguments, "alt-speed-time-enabled",
+                         settings.alt_speed_time_enabled);
+  yyjson_mut_obj_add_sint(native, arguments, "alt-speed-time-begin",
+                          settings.alt_speed_time_begin);
+  yyjson_mut_obj_add_sint(native, arguments, "alt-speed-time-end",
+                          settings.alt_speed_time_end);
+  yyjson_mut_obj_add_sint(native, arguments, "alt-speed-time-day",
+                          settings.alt_speed_time_day);
+  yyjson_mut_obj_add_sint(native, arguments, "encryption",
+                          static_cast<int>(settings.encryption));
+  yyjson_mut_obj_add_bool(native, arguments, "dht-enabled",
+                         settings.dht_enabled);
+  yyjson_mut_obj_add_bool(native, arguments, "pex-enabled",
+                         settings.pex_enabled);
+  yyjson_mut_obj_add_bool(native, arguments, "lpd-enabled",
+                         settings.lpd_enabled);
+  yyjson_mut_obj_add_bool(native, arguments, "utp-enabled",
+                         settings.utp_enabled);
+  yyjson_mut_obj_add_sint(native, arguments, "download-queue-size",
+                          settings.download_queue_size);
+  yyjson_mut_obj_add_sint(native, arguments, "seed-queue-size",
+                          settings.seed_queue_size);
+  yyjson_mut_obj_add_bool(native, arguments, "queue-stalled-enabled",
+                         settings.queue_stalled_enabled);
+  if (!settings.incomplete_dir.empty()) {
+    yyjson_mut_obj_add_str(native, arguments, "incomplete-dir",
+                           settings.incomplete_dir.string().c_str());
+  }
+  yyjson_mut_obj_add_bool(native, arguments, "incomplete-dir-enabled",
+                         settings.incomplete_dir_enabled);
+  if (!settings.watch_dir.empty()) {
+    yyjson_mut_obj_add_str(native, arguments, "watch-dir",
+                           settings.watch_dir.string().c_str());
+  }
+  yyjson_mut_obj_add_bool(native, arguments, "watch-dir-enabled",
+                         settings.watch_dir_enabled);
+  yyjson_mut_obj_add_real(native, arguments, "seed-ratio-limit",
+                          settings.seed_ratio_limit);
+  yyjson_mut_obj_add_bool(native, arguments, "seed-ratio-limited",
+                         settings.seed_ratio_enabled);
+  yyjson_mut_obj_add_sint(native, arguments, "seed-idle-limit",
+                          settings.seed_idle_limit_minutes);
+  yyjson_mut_obj_add_bool(native, arguments, "seed-idle-limited",
+                         settings.seed_idle_enabled);
+  yyjson_mut_obj_add_sint(native, arguments, "proxy-type",
+                          settings.proxy_type);
+  if (!settings.proxy_hostname.empty()) {
+    yyjson_mut_obj_add_str(native, arguments, "proxy-host",
+                           settings.proxy_hostname.c_str());
+  }
+  yyjson_mut_obj_add_sint(native, arguments, "proxy-port",
+                          settings.proxy_port);
+  yyjson_mut_obj_add_bool(native, arguments, "proxy-auth-enabled",
+                         settings.proxy_auth_enabled);
+  if (!settings.proxy_username.empty()) {
+    yyjson_mut_obj_add_str(native, arguments, "proxy-username",
+                           settings.proxy_username.c_str());
+  }
+  if (!settings.proxy_password.empty()) {
+    yyjson_mut_obj_add_str(native, arguments, "proxy-password",
+                           settings.proxy_password.c_str());
+  }
+  yyjson_mut_obj_add_bool(native, arguments, "proxy-peer-connections",
+                         settings.proxy_peer_connections);
   bool blocklist_enabled = !settings.blocklist_path.empty();
   yyjson_mut_obj_add_bool(native, arguments, "blocklist-enabled",
                          blocklist_enabled);
@@ -266,6 +336,13 @@ std::string serialize_torrent_list(
   for (auto const &torrent : torrents) {
     auto *entry = yyjson_mut_obj(native);
     add_torrent_summary(native, entry, torrent);
+    auto *labels = yyjson_mut_arr(native);
+    yyjson_mut_obj_add_val(native, entry, "labels", labels);
+    for (auto const &label : torrent.labels) {
+      yyjson_mut_arr_add_str(native, labels, label.c_str());
+    }
+    yyjson_mut_obj_add_sint(native, entry, "bandwidthPriority",
+                            torrent.bandwidth_priority);
     yyjson_mut_arr_add_val(array, entry);
   }
 
@@ -293,6 +370,13 @@ std::string serialize_torrent_detail(
   for (auto const &detail : details) {
     auto *entry = yyjson_mut_obj(native);
     add_torrent_summary(native, entry, detail.summary);
+    auto *labels = yyjson_mut_arr(native);
+    yyjson_mut_obj_add_val(native, entry, "labels", labels);
+    for (auto const &label : detail.summary.labels) {
+      yyjson_mut_arr_add_str(native, labels, label.c_str());
+    }
+    yyjson_mut_obj_add_sint(native, entry, "bandwidthPriority",
+                            detail.summary.bandwidth_priority);
 
     auto *files = yyjson_mut_arr(native);
     yyjson_mut_obj_add_val(native, entry, "files", files);
@@ -444,6 +528,84 @@ std::string serialize_blocklist_update(
   if (last_updated) {
     yyjson_mut_obj_add_uint(native, arguments, "blocklist-last-updated",
                             to_epoch_seconds(*last_updated));
+  }
+
+  return doc.write(R"({"result":"error"})");
+}
+
+std::string serialize_fs_browse(std::string const &path,
+                                std::string const &parent,
+                                std::string const &separator,
+                                std::vector<FsEntry> const &entries) {
+  tt::json::MutableDocument doc;
+  if (!doc.is_valid()) {
+    return "{}";
+  }
+
+  auto *native = doc.doc();
+  auto *root = yyjson_mut_obj(native);
+  doc.set_root(root);
+  yyjson_mut_obj_add_str(native, root, "result", "success");
+
+  auto *arguments = yyjson_mut_obj(native);
+  yyjson_mut_obj_add_val(native, root, "arguments", arguments);
+  yyjson_mut_obj_add_str(native, arguments, "path", path.c_str());
+  yyjson_mut_obj_add_str(native, arguments, "parent", parent.c_str());
+  yyjson_mut_obj_add_str(native, arguments, "separator", separator.c_str());
+
+  auto *array = yyjson_mut_arr(native);
+  yyjson_mut_obj_add_val(native, arguments, "entries", array);
+  for (auto const &entry : entries) {
+    auto *item = yyjson_mut_obj(native);
+    yyjson_mut_obj_add_str(native, item, "name", entry.name.c_str());
+    yyjson_mut_obj_add_str(native, item, "type", entry.type.c_str());
+    yyjson_mut_obj_add_uint(native, item, "size", entry.size);
+    yyjson_mut_arr_add_val(array, item);
+  }
+
+  return doc.write(R"({"result":"error"})");
+}
+
+std::string serialize_fs_space(std::string const &path,
+                               std::uint64_t free_bytes,
+                               std::uint64_t total_bytes) {
+  tt::json::MutableDocument doc;
+  if (!doc.is_valid()) {
+    return "{}";
+  }
+
+  auto *native = doc.doc();
+  auto *root = yyjson_mut_obj(native);
+  doc.set_root(root);
+  yyjson_mut_obj_add_str(native, root, "result", "success");
+
+  auto *arguments = yyjson_mut_obj(native);
+  yyjson_mut_obj_add_val(native, root, "arguments", arguments);
+  yyjson_mut_obj_add_str(native, arguments, "path", path.c_str());
+  yyjson_mut_obj_add_uint(native, arguments, "freeBytes", free_bytes);
+  yyjson_mut_obj_add_uint(native, arguments, "totalBytes", total_bytes);
+
+  return doc.write(R"({"result":"error"})");
+}
+
+std::string serialize_system_action(std::string const &action, bool success,
+                                    std::string const &message) {
+  tt::json::MutableDocument doc;
+  if (!doc.is_valid()) {
+    return "{}";
+  }
+
+  auto *native = doc.doc();
+  auto *root = yyjson_mut_obj(native);
+  doc.set_root(root);
+  yyjson_mut_obj_add_str(native, root, "result", success ? "success" : "error");
+
+  auto *arguments = yyjson_mut_obj(native);
+  yyjson_mut_obj_add_val(native, root, "arguments", arguments);
+  yyjson_mut_obj_add_str(native, arguments, "action", action.c_str());
+  yyjson_mut_obj_add_bool(native, arguments, "success", success);
+  if (!message.empty()) {
+    yyjson_mut_obj_add_str(native, arguments, "message", message.c_str());
   }
 
   return doc.write(R"({"result":"error"})");

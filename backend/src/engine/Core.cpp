@@ -12,6 +12,7 @@
 #include <libtorrent/magnet_uri.hpp>
 #include <libtorrent/hex.hpp>
 #include <libtorrent/address.hpp>
+#include <libtorrent/announce_entry.hpp>
 #include <libtorrent/peer_info.hpp>
 #include <libtorrent/session.hpp>
 #include <libtorrent/session_params.hpp>
@@ -27,12 +28,15 @@
 #include <libtorrent/download_priority.hpp>
 #include <libtorrent/storage_defs.hpp>
 #include <libtorrent/units.hpp>
+#include <libtorrent/time.hpp>
+#include <libtorrent/write_resume_data.hpp>
 
 #include "utils/Log.hpp"
 #include "utils/Base64.hpp"
 #include "utils/FS.hpp"
 #include "utils/StateStore.hpp"
 
+#include <ctime>
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -42,12 +46,14 @@
 #include <future>
 #include <limits>
 #include <memory>
-#include <mutex>
 #include <optional>
+#include <mutex>
 #include <string>
 #include <thread>
 #include <type_traits>
+#include <iterator>
 #include <fstream>
+#include <system_error>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -57,6 +63,8 @@ namespace tt::engine {
 namespace {
 
 constexpr char const *kUserAgent = "TinyTorrent/0.1.0";
+constexpr auto kHousekeepingInterval = std::chrono::seconds(2);
+constexpr auto kResumeAlertTimeout = std::chrono::seconds(5);
 
 constexpr int kSha1Bytes = static_cast<int>(libtorrent::sha1_hash::size());
 
@@ -131,6 +139,97 @@ std::string normalize_torrent_path(std::string_view value) {
   } catch (...) {
     return {};
   }
+}
+
+std::tm to_local_time(std::time_t value) {
+  std::tm result{};
+#if defined(_WIN32)
+  localtime_s(&result, &value);
+#else
+  localtime_r(&value, &result);
+#endif
+  return result;
+}
+
+bool alt_speed_day_matches(CoreSettings const &settings, int day) {
+  int mask = settings.alt_speed_time_day;
+  if (mask == 0) {
+    mask = 0x7F;
+  }
+  return (mask & (1 << day)) != 0;
+}
+
+bool alt_speed_time_matches(CoreSettings const &settings) {
+  if (!settings.alt_speed_time_enabled) {
+    return false;
+  }
+  int begin = std::clamp(settings.alt_speed_time_begin, 0, 24 * 60 - 1);
+  int end = std::clamp(settings.alt_speed_time_end, 0, 24 * 60 - 1);
+  auto now = std::chrono::system_clock::now();
+  auto tm = to_local_time(std::chrono::system_clock::to_time_t(now));
+  int minute = tm.tm_hour * 60 + tm.tm_min;
+  if (!alt_speed_day_matches(settings, tm.tm_wday)) {
+    return false;
+  }
+  if (begin == end) {
+    return true;
+  }
+  if (begin < end) {
+    return minute >= begin && minute < end;
+  }
+  return minute >= begin || minute < end;
+}
+
+bool should_use_alt_speed(CoreSettings const &settings) {
+  if (settings.alt_speed_enabled) {
+    return true;
+  }
+  if (settings.alt_speed_time_enabled) {
+    return alt_speed_time_matches(settings);
+  }
+  return false;
+}
+
+void configure_encryption(libtorrent::settings_pack &pack, EncryptionMode mode) {
+  using namespace libtorrent;
+  settings_pack::enc_policy policy = settings_pack::enc_policy::pe_enabled;
+  settings_pack::enc_level level = settings_pack::enc_level::pe_both;
+  bool prefer_rc4 = false;
+  switch (mode) {
+    case EncryptionMode::Preferred:
+      prefer_rc4 = true;
+      break;
+    case EncryptionMode::Required:
+      policy = settings_pack::enc_policy::pe_forced;
+      level = settings_pack::enc_level::pe_rc4;
+      prefer_rc4 = true;
+      break;
+    case EncryptionMode::Tolerated:
+    default:
+      break;
+  }
+  pack.set_int(settings_pack::out_enc_policy, static_cast<int>(policy));
+  pack.set_int(settings_pack::in_enc_policy, static_cast<int>(policy));
+  pack.set_int(settings_pack::allowed_enc_level, static_cast<int>(level));
+  pack.set_bool(settings_pack::prefer_rc4, prefer_rc4);
+}
+
+void configure_proxy_settings(libtorrent::settings_pack &pack,
+                              CoreSettings const &settings) {
+  pack.set_int(libtorrent::settings_pack::proxy_type, settings.proxy_type);
+  pack.set_str(libtorrent::settings_pack::proxy_hostname,
+               settings.proxy_hostname);
+  pack.set_int(libtorrent::settings_pack::proxy_port, settings.proxy_port);
+  pack.set_bool(libtorrent::settings_pack::proxy_peer_connections,
+                settings.proxy_peer_connections);
+  pack.set_bool(libtorrent::settings_pack::proxy_tracker_connections,
+                settings.proxy_peer_connections);
+  pack.set_bool(libtorrent::settings_pack::proxy_hostnames,
+                !settings.proxy_hostname.empty());
+  pack.set_str(libtorrent::settings_pack::proxy_username,
+               settings.proxy_auth_enabled ? settings.proxy_username : "");
+  pack.set_str(libtorrent::settings_pack::proxy_password,
+               settings.proxy_auth_enabled ? settings.proxy_password : "");
 }
 
 std::string_view trim_view(std::string_view value) {
@@ -283,6 +382,19 @@ std::optional<std::string> info_hash_from_params(
 
 } // namespace
 
+struct TorrentLimitState {
+  std::optional<double> ratio_limit;
+  bool ratio_enabled = false;
+  std::optional<int> ratio_mode;
+  std::optional<int> idle_limit;
+  bool idle_enabled = false;
+  std::optional<int> idle_mode;
+  libtorrent::clock_type::time_point last_activity =
+      libtorrent::clock_type::now();
+  bool ratio_triggered = false;
+  bool idle_triggered = false;
+};
+
 struct Core::Impl {
   friend class Core;
   CoreSettings settings;
@@ -298,20 +410,40 @@ struct Core::Impl {
   std::unordered_map<libtorrent::sha1_hash, int, Sha1HashHash> hash_to_id;
   int next_id = 1;
   std::filesystem::path state_path;
+  std::filesystem::path resume_dir;
   tt::storage::SessionState persisted_state;
   mutable std::mutex state_mutex;
   std::filesystem::path blocklist_path;
   std::size_t blocklist_entries = 0;
   std::optional<std::chrono::system_clock::time_point> blocklist_last_update;
+  bool alt_speed_active = false;
+  std::unordered_map<int, TorrentLimitState> torrent_limits;
+  std::unordered_map<std::string, std::vector<std::string>> torrent_labels;
+  std::unordered_map<std::string, std::filesystem::path> final_paths;
+  std::unordered_map<int, int> torrent_priorities;
+  std::atomic_bool shutdown_requested{false};
+  bool save_resume_in_progress = false;
+  int pending_resume_requests = 0;
+  int processed_resume_alerts = 0;
+  std::chrono::steady_clock::time_point resume_deadline =
+      std::chrono::steady_clock::now();
+  std::chrono::steady_clock::time_point next_housekeeping =
+      std::chrono::steady_clock::now();
 
   explicit Impl(CoreSettings settings) : settings(std::move(settings)) {
     std::filesystem::create_directories(this->settings.download_path);
+    resume_dir = tt::utils::data_root() / "resume";
+    std::filesystem::create_directories(resume_dir);
+    if (this->settings.watch_dir_enabled && !this->settings.watch_dir.empty()) {
+      std::filesystem::create_directories(this->settings.watch_dir);
+    }
 
     state_path = this->settings.state_path;
     if (state_path.empty()) {
       state_path = tt::utils::data_root() / "state.json";
     }
     persisted_state = tt::storage::load_session_state(state_path);
+    torrent_labels = persisted_state.labels;
 
     libtorrent::settings_pack pack;
     pack.set_int(libtorrent::settings_pack::alert_mask, libtorrent::alert::all_categories);
@@ -333,28 +465,68 @@ struct Core::Impl {
                    this->settings.peer_limit_per_torrent);
     }
 
+    configure_encryption(pack, this->settings.encryption);
+    pack.set_bool(libtorrent::settings_pack::enable_dht,
+                  this->settings.dht_enabled);
+    pack.set_bool(libtorrent::settings_pack::enable_lsd,
+                  this->settings.lpd_enabled);
+    pack.set_bool(libtorrent::settings_pack::enable_incoming_utp,
+                  this->settings.utp_enabled);
+    pack.set_bool(libtorrent::settings_pack::enable_outgoing_utp,
+                  this->settings.utp_enabled);
+    if (this->settings.download_queue_size > 0) {
+      pack.set_int(libtorrent::settings_pack::active_downloads,
+                   this->settings.download_queue_size);
+    }
+    if (this->settings.seed_queue_size > 0) {
+      pack.set_int(libtorrent::settings_pack::active_seeds,
+                   this->settings.seed_queue_size);
+    }
+    pack.set_bool(libtorrent::settings_pack::dont_count_slow_torrents,
+                  this->settings.queue_stalled_enabled);
+
+    configure_proxy_settings(pack, this->settings);
+
     current_settings = pack;
     blocklist_path = this->settings.blocklist_path;
     libtorrent::session_params params(pack);
     session = std::make_unique<libtorrent::session>(params);
+    refresh_active_speed_limits(true);
     replay_saved_torrents();
     persist_state();
   }
 
   void run() {
     while (running.load(std::memory_order_relaxed)) {
+      if (shutdown_requested.load(std::memory_order_relaxed) && !save_resume_in_progress) {
+        persist_resume_data();
+      }
+      refresh_active_speed_limits();
       process_tasks();
+      process_alerts();
       update_snapshot();
+      perform_housekeeping();
+      if (shutdown_requested.load(std::memory_order_relaxed)) {
+        auto now = std::chrono::steady_clock::now();
+        if (!save_resume_in_progress ||
+            pending_resume_requests == 0 ||
+            processed_resume_alerts >= pending_resume_requests ||
+            now >= resume_deadline) {
+          running.store(false, std::memory_order_relaxed);
+          continue;
+        }
+      }
       std::unique_lock<std::mutex> lock(wake_mutex);
       wake_cv.wait_for(lock, std::chrono::milliseconds(settings.idle_sleep_ms),
                        [this] {
-                         return !tasks.empty() || !running.load(std::memory_order_relaxed);
+                         return !tasks.empty() ||
+                                shutdown_requested.load(std::memory_order_relaxed);
                        });
     }
   }
 
   void stop() noexcept {
-    running.store(false, std::memory_order_relaxed);
+    shutdown_requested.store(true, std::memory_order_relaxed);
     wake_cv.notify_one();
   }
 
@@ -391,7 +563,12 @@ struct Core::Impl {
 
     auto save_path = request.download_path.empty() ? settings.download_path
                                                    : request.download_path;
-    params.save_path = save_path.string();
+    auto final_save_path = save_path;
+    if (settings.incomplete_dir_enabled && !settings.incomplete_dir.empty()) {
+      params.save_path = settings.incomplete_dir.string();
+    } else {
+      params.save_path = final_save_path.string();
+    }
     params.flags = libtorrent::torrent_flags::auto_managed;
     if (request.paused) {
       params.flags |= libtorrent::torrent_flags::paused;
@@ -471,9 +648,84 @@ private:
     }
   }
 
+  void process_alerts() {
+    if (!session) {
+      return;
+    }
+    std::vector<libtorrent::alert *> alerts;
+    session->pop_alerts(&alerts);
+    for (auto const *alert : alerts) {
+      if (auto *finished = libtorrent::alert_cast<libtorrent::torrent_finished_alert>(alert)) {
+        handle_torrent_finished(*finished);
+      } else if (auto *resume =
+                     libtorrent::alert_cast<libtorrent::save_resume_data_alert>(alert)) {
+        handle_save_resume_data_alert(*resume);
+      } else if (auto *failed =
+                     libtorrent::alert_cast<libtorrent::save_resume_data_failed_alert>(alert)) {
+        handle_save_resume_data_failed_alert(*failed);
+      } else if (auto *metadata =
+                     libtorrent::alert_cast<libtorrent::metadata_received_alert>(alert)) {
+        TT_LOG_DEBUG("metadata received for {}", info_hash_to_hex(metadata->info_hashes));
+      }
+    }
+  }
+
+  void handle_torrent_finished(libtorrent::torrent_finished_alert const &alert) {
+    if (!session) {
+      return;
+    }
+    auto handle = alert.handle;
+    if (!handle.is_valid()) {
+      return;
+    }
+    auto status = handle.status();
+    move_completed_from_incomplete(handle, status);
+  }
+
+  void handle_save_resume_data_alert(libtorrent::save_resume_data_alert const &alert) {
+    if (auto hash = info_hash_from_params(alert.params); hash) {
+      write_resume_blob(*hash, alert.params);
+    }
+    ++processed_resume_alerts;
+    resume_deadline = std::chrono::steady_clock::now() + kResumeAlertTimeout;
+    if (processed_resume_alerts >= pending_resume_requests) {
+      save_resume_in_progress = false;
+    }
+  }
+
+  void handle_save_resume_data_failed_alert(
+      libtorrent::save_resume_data_failed_alert const &alert) {
+    TT_LOG_INFO("save resume data failed: {}", alert.error.message());
+    ++processed_resume_alerts;
+    resume_deadline = std::chrono::steady_clock::now() + kResumeAlertTimeout;
+    if (processed_resume_alerts >= pending_resume_requests) {
+      save_resume_in_progress = false;
+    }
+  }
+
   void persist_state() {
     std::lock_guard<std::mutex> lock(state_mutex);
     persist_state_unlocked();
+  }
+
+  void persist_resume_data() {
+    if (!session) {
+      return;
+    }
+    session->pause();
+    pending_resume_requests = 0;
+    processed_resume_alerts = 0;
+    save_resume_in_progress = false;
+    auto handles = session->get_torrents();
+    for (auto const &handle : handles) {
+      if (!handle.is_valid()) {
+        continue;
+      }
+      handle.save_resume_data();
+      ++pending_resume_requests;
+    }
+    save_resume_in_progress = pending_resume_requests > 0;
+    resume_deadline = std::chrono::steady_clock::now() + kResumeAlertTimeout;
   }
 
   void persist_state_unlocked() {
@@ -488,9 +740,157 @@ private:
     persisted_state.speed_limit_up_enabled = settings.upload_rate_limit_enabled;
     persisted_state.peer_limit = settings.peer_limit;
     persisted_state.peer_limit_per_torrent = settings.peer_limit_per_torrent;
+    persisted_state.alt_speed_down_kbps = settings.alt_download_rate_limit_kbps;
+    persisted_state.alt_speed_up_kbps = settings.alt_upload_rate_limit_kbps;
+    persisted_state.alt_speed_enabled = settings.alt_speed_enabled;
+    persisted_state.alt_speed_time_enabled = settings.alt_speed_time_enabled;
+    persisted_state.alt_speed_time_begin = settings.alt_speed_time_begin;
+    persisted_state.alt_speed_time_end = settings.alt_speed_time_end;
+    persisted_state.alt_speed_time_day = settings.alt_speed_time_day;
+    persisted_state.encryption = static_cast<int>(settings.encryption);
+    persisted_state.dht_enabled = settings.dht_enabled;
+    persisted_state.pex_enabled = settings.pex_enabled;
+    persisted_state.lpd_enabled = settings.lpd_enabled;
+    persisted_state.utp_enabled = settings.utp_enabled;
+    persisted_state.download_queue_size = settings.download_queue_size;
+    persisted_state.seed_queue_size = settings.seed_queue_size;
+    persisted_state.queue_stalled_enabled = settings.queue_stalled_enabled;
+    persisted_state.incomplete_dir =
+        settings.incomplete_dir.empty() ? std::string{} : settings.incomplete_dir.string();
+    persisted_state.incomplete_dir_enabled = settings.incomplete_dir_enabled;
+    persisted_state.watch_dir =
+        settings.watch_dir.empty() ? std::string{} : settings.watch_dir.string();
+    persisted_state.watch_dir_enabled = settings.watch_dir_enabled;
+    persisted_state.seed_ratio_limit = settings.seed_ratio_limit;
+    persisted_state.seed_ratio_enabled = settings.seed_ratio_enabled;
+    persisted_state.seed_idle_limit = settings.seed_idle_limit_minutes;
+    persisted_state.seed_idle_enabled = settings.seed_idle_enabled;
+    persisted_state.proxy_type = settings.proxy_type;
+    persisted_state.proxy_hostname = settings.proxy_hostname;
+    persisted_state.proxy_port = settings.proxy_port;
+    persisted_state.proxy_auth_enabled = settings.proxy_auth_enabled;
+    persisted_state.proxy_username = settings.proxy_username;
+    persisted_state.proxy_password = settings.proxy_password;
+    persisted_state.proxy_peer_connections = settings.proxy_peer_connections;
+    persisted_state.labels = torrent_labels;
     if (!tt::storage::save_session_state(state_path, persisted_state)) {
       TT_LOG_INFO("failed to persist session state to {}", state_path.string());
     }
+  }
+
+  void perform_housekeeping() {
+    auto now = std::chrono::steady_clock::now();
+    if (now < next_housekeeping) {
+      return;
+    }
+    next_housekeeping = now + kHousekeepingInterval;
+    scan_watch_directory();
+  }
+
+  void scan_watch_directory() {
+    if (!settings.watch_dir_enabled || settings.watch_dir.empty()) {
+      return;
+    }
+    std::error_code ec;
+    std::filesystem::create_directories(settings.watch_dir, ec);
+    if (ec) {
+      TT_LOG_INFO("failed to create watch-dir {}: {}", settings.watch_dir.string(),
+                  ec.message());
+      return;
+    }
+    for (auto const &entry :
+         std::filesystem::directory_iterator(settings.watch_dir, ec)) {
+      if (ec) {
+        TT_LOG_INFO("watch-dir iteration failed: {}", ec.message());
+        break;
+      }
+      auto path = entry.path();
+      std::error_code file_ec;
+      if (!entry.is_regular_file(file_ec) || file_ec) {
+        continue;
+      }
+      if (path.extension() != ".torrent") {
+        continue;
+      }
+      std::ifstream input(path, std::ios::binary);
+      if (!input) {
+        mark_watch_file(path, ".invalid");
+        continue;
+      }
+      std::vector<std::uint8_t> buffer(
+          (std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+      if (buffer.empty()) {
+        mark_watch_file(path, ".invalid");
+        continue;
+      }
+      TorrentAddRequest request;
+      request.metainfo = std::move(buffer);
+      request.download_path = settings.download_path;
+      enqueue_torrent(std::move(request));
+      mark_watch_file(path, ".added");
+    }
+  }
+
+  void mark_watch_file(std::filesystem::path const &source,
+                       char const *suffix) {
+    std::error_code ec;
+    auto target = source;
+    target += suffix;
+    std::filesystem::remove(target, ec);
+    std::filesystem::rename(source, target, ec);
+    if (ec) {
+      TT_LOG_INFO("failed to rename watch file {}: {}", source.string(),
+                  ec.message());
+    }
+  }
+
+  std::filesystem::path resume_blob_path(std::string const &hash) const {
+    if (hash.empty() || resume_dir.empty()) {
+      return {};
+    }
+    return resume_dir / (hash + ".fastresume");
+  }
+
+  void write_resume_blob(std::string const &hash,
+                         libtorrent::add_torrent_params const &params) {
+    auto path = resume_blob_path(hash);
+    if (path.empty()) {
+      return;
+    }
+    std::error_code ec;
+    std::filesystem::create_directories(resume_dir, ec);
+    if (ec) {
+      TT_LOG_INFO("failed to ensure resume directory {}: {}", resume_dir.string(),
+                  ec.message());
+      return;
+    }
+    auto buffer = libtorrent::write_resume_data_buf(params);
+    std::ofstream output(path, std::ios::binary);
+    if (!output) {
+      TT_LOG_INFO("failed to serialize resume blob for {} ({})",
+                  hash, path.string());
+      return;
+    }
+    output.write(buffer.data(), static_cast<std::streamsize>(buffer.size()));
+    output.flush();
+  }
+
+  std::optional<std::vector<std::uint8_t>> load_resume_blob(
+      std::string const &hash) const {
+    auto path = resume_blob_path(hash);
+    if (path.empty()) {
+      return std::nullopt;
+    }
+    std::ifstream input(path, std::ios::binary);
+    if (!input) {
+      return std::nullopt;
+    }
+    std::vector<std::uint8_t> blob(
+        (std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+    if (blob.empty()) {
+      return std::nullopt;
+    }
+    return blob;
   }
 
   void add_or_update_persisted(tt::storage::PersistedTorrent entry) {
@@ -522,6 +922,7 @@ private:
       persisted_state.torrents.erase(it, persisted_state.torrents.end());
       persist_state_unlocked();
     }
+    final_paths.erase(hash);
   }
 
   void register_persisted_torrent(std::string const &hash,
@@ -539,6 +940,9 @@ private:
     if (!request.metainfo.empty()) {
       entry.metainfo = tt::utils::encode_base64(request.metainfo);
     }
+    auto final_path = request.download_path.empty() ? settings.download_path
+                                                    : request.download_path;
+    final_paths[hash] = final_path;
     add_or_update_persisted(std::move(entry));
   }
 
@@ -561,6 +965,11 @@ private:
         }
       } else {
         continue;
+      }
+      if (!entry.hash.empty()) {
+        if (auto blob = load_resume_blob(entry.hash); blob) {
+          request.resume_data = std::move(*blob);
+        }
       }
       pending.push_back(std::move(request));
     }
@@ -585,9 +994,21 @@ private:
 
     for (auto const &handle : handles) {
       auto status = handle.status();
+      auto const hash = info_hash_to_hex(status.info_hashes);
       auto id = assign_rpc_id(status.info_hashes.get_best());
       seen_ids.insert(id);
+      enforce_torrent_seed_limits(id, handle, status);
+      move_completed_from_incomplete(handle, status);
       new_snapshot->torrents.push_back(build_snapshot(id, status));
+      auto &entry = new_snapshot->torrents.back();
+      if (auto labels_it = torrent_labels.find(hash);
+          labels_it != torrent_labels.end()) {
+        entry.labels = labels_it->second;
+      }
+      if (auto prio_it = torrent_priorities.find(id);
+          prio_it != torrent_priorities.end()) {
+        entry.bandwidth_priority = prio_it->second;
+      }
 
       const auto download_payload = status.download_payload_rate > 0 ? status.download_payload_rate : 0;
       const auto upload_payload = status.upload_payload_rate > 0 ? status.upload_payload_rate : 0;
@@ -602,6 +1023,21 @@ private:
       if (seen_ids.find(it->first) == seen_ids.end()) {
         hash_to_id.erase(it->second);
         it = id_to_hash.erase(it);
+      } else {
+        ++it;
+      }
+    }
+
+    for (auto it = torrent_limits.begin(); it != torrent_limits.end();) {
+      if (!seen_ids.contains(it->first)) {
+        it = torrent_limits.erase(it);
+      } else {
+        ++it;
+      }
+    }
+    for (auto it = torrent_priorities.begin(); it != torrent_priorities.end();) {
+      if (!seen_ids.contains(it->first)) {
+        it = torrent_priorities.erase(it);
       } else {
         ++it;
       }
@@ -704,9 +1140,33 @@ private:
     settings.download_rate_limit_kbps = download_value;
     settings.upload_rate_limit_kbps = upload_value;
 
+    refresh_active_speed_limits(true);
+    persist_state();
+  }
+
+  void refresh_active_speed_limits(bool force = false) {
+    if (!session) {
+      return;
+    }
+    bool active = should_use_alt_speed(settings);
+    if (!force && active == alt_speed_active) {
+      return;
+    }
+    alt_speed_active = active;
+    int download_value = active ? settings.alt_download_rate_limit_kbps
+                                : settings.download_rate_limit_kbps;
+    bool download_enabled = active ? true : settings.download_rate_limit_enabled;
+    int upload_value = active ? settings.alt_upload_rate_limit_kbps
+                              : settings.upload_rate_limit_kbps;
+    bool upload_enabled = active ? true : settings.upload_rate_limit_enabled;
+    apply_rate_limits(download_value, download_enabled, upload_value, upload_enabled);
+  }
+
+  void apply_rate_limits(int download_kbps, bool download_enabled,
+                         int upload_kbps, bool upload_enabled) {
     libtorrent::settings_pack pack;
-    int download_bytes = kbps_to_bytes(download_value, download_enabled_flag);
-    int upload_bytes = kbps_to_bytes(upload_value, upload_enabled_flag);
+    int download_bytes = kbps_to_bytes(download_kbps, download_enabled);
+    int upload_bytes = kbps_to_bytes(upload_kbps, upload_enabled);
     pack.set_int(libtorrent::settings_pack::download_rate_limit, download_bytes);
     pack.set_int(libtorrent::settings_pack::upload_rate_limit, upload_bytes);
     current_settings.set_int(libtorrent::settings_pack::download_rate_limit, download_bytes);
@@ -714,7 +1174,6 @@ private:
     if (session) {
       session->apply_settings(pack);
     }
-    persist_state();
   }
 
   void apply_peer_limits(std::optional<int> global_limit,
@@ -739,6 +1198,565 @@ private:
       session->apply_settings(pack);
       persist_state();
     }
+  }
+
+  void apply_session_update(SessionUpdate update) {
+    bool persist = false;
+    bool encryption_changed = false;
+    bool network_changed = false;
+    bool queue_changed = false;
+    bool alt_changed = false;
+    bool proxy_changed = false;
+
+    if (update.alt_speed_down_kbps) {
+      settings.alt_download_rate_limit_kbps = *update.alt_speed_down_kbps;
+      alt_changed = true;
+      persist = true;
+    }
+    if (update.alt_speed_up_kbps) {
+      settings.alt_upload_rate_limit_kbps = *update.alt_speed_up_kbps;
+      alt_changed = true;
+      persist = true;
+    }
+    if (update.alt_speed_enabled) {
+      settings.alt_speed_enabled = *update.alt_speed_enabled;
+      alt_changed = true;
+      persist = true;
+    }
+    if (update.alt_speed_time_enabled) {
+      settings.alt_speed_time_enabled = *update.alt_speed_time_enabled;
+      alt_changed = true;
+      persist = true;
+    }
+    if (update.alt_speed_time_begin) {
+      settings.alt_speed_time_begin = *update.alt_speed_time_begin;
+      alt_changed = true;
+      persist = true;
+    }
+    if (update.alt_speed_time_end) {
+      settings.alt_speed_time_end = *update.alt_speed_time_end;
+      alt_changed = true;
+      persist = true;
+    }
+    if (update.alt_speed_time_day) {
+      settings.alt_speed_time_day = *update.alt_speed_time_day;
+      alt_changed = true;
+      persist = true;
+    }
+    if (update.encryption) {
+      settings.encryption = *update.encryption;
+      encryption_changed = true;
+      persist = true;
+    }
+    if (update.dht_enabled) {
+      settings.dht_enabled = *update.dht_enabled;
+      network_changed = true;
+      persist = true;
+    }
+    if (update.lpd_enabled) {
+      settings.lpd_enabled = *update.lpd_enabled;
+      network_changed = true;
+      persist = true;
+    }
+    if (update.utp_enabled) {
+      settings.utp_enabled = *update.utp_enabled;
+      network_changed = true;
+      persist = true;
+    }
+    if (update.pex_enabled) {
+      settings.pex_enabled = *update.pex_enabled;
+      apply_pex_flags();
+      persist = true;
+    }
+    if (update.download_queue_size) {
+      settings.download_queue_size = *update.download_queue_size;
+      queue_changed = true;
+      persist = true;
+    }
+    if (update.seed_queue_size) {
+      settings.seed_queue_size = *update.seed_queue_size;
+      queue_changed = true;
+      persist = true;
+    }
+    if (update.queue_stalled_enabled) {
+      settings.queue_stalled_enabled = *update.queue_stalled_enabled;
+      queue_changed = true;
+      persist = true;
+    }
+    if (update.incomplete_dir) {
+      settings.incomplete_dir = *update.incomplete_dir;
+      persist = true;
+    }
+    if (update.incomplete_dir_enabled) {
+      settings.incomplete_dir_enabled = *update.incomplete_dir_enabled;
+      persist = true;
+    }
+    if (update.watch_dir) {
+      settings.watch_dir = *update.watch_dir;
+      persist = true;
+      if (settings.watch_dir_enabled && !settings.watch_dir.empty()) {
+        std::filesystem::create_directories(settings.watch_dir);
+      }
+    }
+    if (update.watch_dir_enabled) {
+      settings.watch_dir_enabled = *update.watch_dir_enabled;
+      persist = true;
+      if (settings.watch_dir_enabled && !settings.watch_dir.empty()) {
+        std::filesystem::create_directories(settings.watch_dir);
+      }
+    }
+    if (update.seed_ratio_limit) {
+      settings.seed_ratio_limit = *update.seed_ratio_limit;
+      persist = true;
+    }
+    if (update.seed_ratio_enabled) {
+      settings.seed_ratio_enabled = *update.seed_ratio_enabled;
+      persist = true;
+    }
+    if (update.seed_idle_limit) {
+      settings.seed_idle_limit_minutes = *update.seed_idle_limit;
+      persist = true;
+    }
+    if (update.seed_idle_enabled) {
+      settings.seed_idle_enabled = *update.seed_idle_enabled;
+      persist = true;
+    }
+    if (update.proxy_type) {
+      settings.proxy_type = *update.proxy_type;
+      proxy_changed = true;
+      persist = true;
+    }
+    if (update.proxy_hostname) {
+      settings.proxy_hostname = *update.proxy_hostname;
+      proxy_changed = true;
+      persist = true;
+    }
+    if (update.proxy_port) {
+      settings.proxy_port = *update.proxy_port;
+      proxy_changed = true;
+      persist = true;
+    }
+    if (update.proxy_auth_enabled) {
+      settings.proxy_auth_enabled = *update.proxy_auth_enabled;
+      proxy_changed = true;
+      persist = true;
+    }
+    if (update.proxy_username) {
+      settings.proxy_username = *update.proxy_username;
+      proxy_changed = true;
+      persist = true;
+    }
+    if (update.proxy_password) {
+      settings.proxy_password = *update.proxy_password;
+      proxy_changed = true;
+      persist = true;
+    }
+    if (update.proxy_peer_connections) {
+      settings.proxy_peer_connections = *update.proxy_peer_connections;
+      proxy_changed = true;
+      persist = true;
+    }
+
+    if (encryption_changed) {
+      apply_encryption_settings();
+    }
+    if (network_changed) {
+      apply_network_settings();
+    }
+    if (queue_changed) {
+      apply_queue_settings();
+    }
+    if (alt_changed) {
+      refresh_active_speed_limits(true);
+    }
+    if (proxy_changed) {
+      apply_proxy_settings();
+    }
+    if (persist) {
+      persist_state();
+    }
+  }
+
+  void apply_encryption_settings() {
+    if (!session) {
+      return;
+    }
+    libtorrent::settings_pack pack;
+    configure_encryption(pack, settings.encryption);
+    configure_encryption(current_settings, settings.encryption);
+    session->apply_settings(pack);
+  }
+
+  void apply_network_settings() {
+    if (!session) {
+      return;
+    }
+    libtorrent::settings_pack pack;
+    pack.set_bool(libtorrent::settings_pack::enable_dht, settings.dht_enabled);
+    pack.set_bool(libtorrent::settings_pack::enable_lsd, settings.lpd_enabled);
+    pack.set_bool(libtorrent::settings_pack::enable_incoming_utp,
+                  settings.utp_enabled);
+    pack.set_bool(libtorrent::settings_pack::enable_outgoing_utp,
+                  settings.utp_enabled);
+    current_settings.set_bool(libtorrent::settings_pack::enable_dht,
+                              settings.dht_enabled);
+    current_settings.set_bool(libtorrent::settings_pack::enable_lsd,
+                              settings.lpd_enabled);
+    current_settings.set_bool(libtorrent::settings_pack::enable_incoming_utp,
+                              settings.utp_enabled);
+    current_settings.set_bool(libtorrent::settings_pack::enable_outgoing_utp,
+                              settings.utp_enabled);
+    session->apply_settings(pack);
+    apply_pex_flags();
+  }
+
+  void apply_proxy_settings() {
+    if (!session) {
+      return;
+    }
+    libtorrent::settings_pack pack;
+    pack.set_int(libtorrent::settings_pack::proxy_type, settings.proxy_type);
+    pack.set_str(libtorrent::settings_pack::proxy_hostname,
+                 settings.proxy_hostname);
+    pack.set_int(libtorrent::settings_pack::proxy_port, settings.proxy_port);
+    pack.set_bool(libtorrent::settings_pack::proxy_peer_connections,
+                  settings.proxy_peer_connections);
+    pack.set_bool(libtorrent::settings_pack::proxy_tracker_connections,
+                  settings.proxy_peer_connections);
+    pack.set_bool(libtorrent::settings_pack::proxy_hostnames,
+                  !settings.proxy_hostname.empty());
+    pack.set_str(libtorrent::settings_pack::proxy_username,
+                 settings.proxy_auth_enabled ? settings.proxy_username : "");
+    pack.set_str(libtorrent::settings_pack::proxy_password,
+                 settings.proxy_auth_enabled ? settings.proxy_password : "");
+
+    current_settings.set_int(libtorrent::settings_pack::proxy_type,
+                             settings.proxy_type);
+    current_settings.set_str(libtorrent::settings_pack::proxy_hostname,
+                             settings.proxy_hostname);
+    current_settings.set_int(libtorrent::settings_pack::proxy_port,
+                             settings.proxy_port);
+    current_settings.set_bool(libtorrent::settings_pack::proxy_peer_connections,
+                              settings.proxy_peer_connections);
+    current_settings.set_bool(libtorrent::settings_pack::proxy_tracker_connections,
+                              settings.proxy_peer_connections);
+    current_settings.set_bool(libtorrent::settings_pack::proxy_hostnames,
+                              !settings.proxy_hostname.empty());
+    current_settings.set_str(libtorrent::settings_pack::proxy_username,
+                             settings.proxy_auth_enabled ? settings.proxy_username
+                                                         : "");
+    current_settings.set_str(libtorrent::settings_pack::proxy_password,
+                             settings.proxy_auth_enabled ? settings.proxy_password
+                                                         : "");
+
+    session->apply_settings(pack);
+  }
+
+  void apply_queue_settings() {
+    if (!session) {
+      return;
+    }
+    libtorrent::settings_pack pack;
+    pack.set_int(libtorrent::settings_pack::active_downloads,
+                 settings.download_queue_size);
+    current_settings.set_int(libtorrent::settings_pack::active_downloads,
+                             settings.download_queue_size);
+    pack.set_int(libtorrent::settings_pack::active_seeds,
+                 settings.seed_queue_size);
+    current_settings.set_int(libtorrent::settings_pack::active_seeds,
+                             settings.seed_queue_size);
+    pack.set_bool(libtorrent::settings_pack::dont_count_slow_torrents,
+                  settings.queue_stalled_enabled);
+    current_settings.set_bool(libtorrent::settings_pack::dont_count_slow_torrents,
+                              settings.queue_stalled_enabled);
+    session->apply_settings(pack);
+  }
+
+  void apply_pex_flags() {
+    if (!session) {
+      return;
+    }
+    auto handles = session->get_torrents();
+    for (auto const &handle : handles) {
+      if (!handle.is_valid()) {
+        continue;
+      }
+      auto flag = libtorrent::torrent_flags::disable_pex;
+      if (settings.pex_enabled) {
+        handle.unset_flags(flag);
+      } else {
+        handle.set_flags(flag);
+      }
+    }
+  }
+
+  void add_torrent_trackers(std::vector<int> const &ids,
+                            std::vector<TrackerEntry> const &entries) {
+    if (entries.empty()) {
+      return;
+    }
+    auto handles = resolve_handles(ids);
+    for (auto &handle : handles) {
+      if (!handle.is_valid()) {
+        continue;
+      }
+      for (auto const &entry : entries) {
+        libtorrent::announce_entry announce(entry.announce);
+        announce.tier = entry.tier;
+        handle.add_tracker(announce);
+      }
+      handle.force_reannounce();
+    }
+  }
+
+  void remove_torrent_trackers(std::vector<int> const &ids,
+                               std::vector<std::string> const &announces) {
+    if (announces.empty()) {
+      return;
+    }
+    std::unordered_set<std::string> to_remove;
+    for (auto const &value : announces) {
+      to_remove.insert(value);
+    }
+    auto handles = resolve_handles(ids);
+    for (auto &handle : handles) {
+      if (!handle.is_valid()) {
+        continue;
+      }
+      auto current = handle.trackers();
+      std::vector<libtorrent::announce_entry> filtered;
+      filtered.reserve(current.size());
+      for (auto const &entry : current) {
+        if (to_remove.contains(entry.url)) {
+          continue;
+        }
+        filtered.push_back(entry);
+      }
+      handle.replace_trackers(filtered);
+      handle.force_reannounce();
+    }
+  }
+
+  void replace_torrent_trackers(std::vector<int> const &ids,
+                                std::vector<TrackerEntry> const &entries) {
+    auto handles = resolve_handles(ids);
+    std::vector<libtorrent::announce_entry> new_list;
+    new_list.reserve(entries.size());
+    for (auto const &entry : entries) {
+      libtorrent::announce_entry announce(entry.announce);
+      announce.tier = entry.tier;
+      new_list.push_back(announce);
+    }
+    for (auto &handle : handles) {
+      if (!handle.is_valid()) {
+        continue;
+      }
+      handle.replace_trackers(new_list);
+      handle.force_reannounce();
+    }
+  }
+
+  void set_torrent_bandwidth_limits(
+      std::vector<int> const &ids, std::optional<int> download_limit_kbps,
+      std::optional<bool> download_limited,
+      std::optional<int> upload_limit_kbps,
+      std::optional<bool> upload_limited) {
+    if (!session) {
+      return;
+    }
+    auto handles = resolve_handles(ids);
+    for (auto &handle : handles) {
+      if (!handle.is_valid()) {
+        continue;
+      }
+      if (download_limit_kbps || download_limited) {
+        bool enabled = download_limited.value_or(download_limit_kbps.has_value());
+        int limit = enabled ? download_limit_kbps.value_or(0) : 0;
+        handle.set_download_limit(kbps_to_bytes(limit, enabled));
+      }
+      if (upload_limit_kbps || upload_limited) {
+        bool enabled = upload_limited.value_or(upload_limit_kbps.has_value());
+        int limit = enabled ? upload_limit_kbps.value_or(0) : 0;
+        handle.set_upload_limit(kbps_to_bytes(limit, enabled));
+      }
+    }
+  }
+
+  void set_torrent_bandwidth_priority(std::vector<int> const &ids, int priority) {
+    priority = std::clamp(priority, 0, 255);
+    for (int id : ids) {
+      torrent_priorities[id] = priority;
+    }
+  }
+
+  void set_torrent_labels(std::vector<int> const &ids,
+                          std::vector<std::string> const &labels) {
+    struct LabelUpdate {
+      std::string hash;
+      std::optional<std::vector<std::string>> value;
+    };
+
+    std::vector<LabelUpdate> updates;
+    updates.reserve(ids.size());
+    for (int id : ids) {
+      if (auto handle = handle_for_id(id); handle) {
+        auto hash = info_hash_to_hex(handle->status().info_hashes);
+        if (hash.empty()) {
+          continue;
+        }
+        if (labels.empty()) {
+          updates.push_back({hash, std::nullopt});
+        } else {
+          updates.push_back({hash, labels});
+        }
+      }
+    }
+    if (updates.empty()) {
+      return;
+    }
+    bool changed = false;
+    for (auto const &update : updates) {
+      if (update.value) {
+        torrent_labels[update.hash] = *update.value;
+      } else {
+        torrent_labels.erase(update.hash);
+      }
+    }
+    {
+      std::lock_guard<std::mutex> lock(state_mutex);
+      for (auto const &update : updates) {
+        if (update.value) {
+          auto it = persisted_state.labels.find(update.hash);
+          if (it == persisted_state.labels.end() ||
+              it->second != *update.value) {
+            changed = true;
+          }
+          persisted_state.labels[update.hash] = *update.value;
+        } else if (persisted_state.labels.erase(update.hash) > 0) {
+          changed = true;
+        }
+      }
+    }
+    if (changed) {
+      persist_state_unlocked();
+    }
+  }
+
+  void set_torrent_seed_limits(std::vector<int> const &ids,
+                               TorrentSeedLimit const &limits) {
+    auto now = libtorrent::clock_type::now();
+    for (int id : ids) {
+      auto &state = torrent_limits[id];
+      if (limits.ratio_limit) {
+        state.ratio_limit = limits.ratio_limit;
+      }
+      if (limits.ratio_enabled) {
+        state.ratio_enabled = *limits.ratio_enabled;
+        if (!state.ratio_enabled) {
+          state.ratio_triggered = false;
+        }
+      }
+      if (limits.ratio_mode) {
+        state.ratio_mode = limits.ratio_mode;
+      }
+      if (limits.idle_limit) {
+        state.idle_limit = limits.idle_limit;
+      }
+      if (limits.idle_enabled) {
+        state.idle_enabled = *limits.idle_enabled;
+        if (!state.idle_enabled) {
+          state.idle_triggered = false;
+        }
+      }
+      if (limits.idle_mode) {
+        state.idle_mode = limits.idle_mode;
+      }
+      state.last_activity = now;
+    }
+  }
+
+  void enforce_torrent_seed_limits(int id,
+                                   libtorrent::torrent_handle const &handle,
+                                   libtorrent::torrent_status const &status) {
+    auto it = torrent_limits.find(id);
+    if (it == torrent_limits.end()) {
+      return;
+    }
+    auto &state = it->second;
+    auto now = libtorrent::clock_type::now();
+    bool active = status.upload_payload_rate > 0 || status.download_payload_rate > 0;
+    bool idle_enabled = state.idle_enabled;
+    int idle_limit = state.idle_limit.value_or(0);
+    if (!idle_enabled && settings.seed_idle_enabled &&
+        settings.seed_idle_limit_minutes > 0) {
+      idle_enabled = true;
+      idle_limit = settings.seed_idle_limit_minutes * 60;
+    }
+    if (active) {
+      state.last_activity = now;
+      state.idle_triggered = false;
+    } else if (idle_enabled && idle_limit > 0 && !state.idle_triggered) {
+      auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - state.last_activity);
+      if (elapsed.count() >= idle_limit) {
+        handle.pause();
+        state.idle_triggered = true;
+      }
+    }
+    bool ratio_enabled = state.ratio_enabled;
+    double ratio_limit = state.ratio_limit.value_or(0.0);
+    if (!ratio_enabled && settings.seed_ratio_enabled && settings.seed_ratio_limit > 0.0) {
+      ratio_enabled = true;
+      ratio_limit = settings.seed_ratio_limit;
+    }
+    if (ratio_enabled && ratio_limit > 0.0 && !state.ratio_triggered &&
+        status.is_seeding) {
+      double ratio = status.total_download > 0
+                         ? static_cast<double>(status.total_upload) / status.total_download
+                         : 0.0;
+      if (ratio >= ratio_limit) {
+        handle.pause();
+        state.ratio_triggered = true;
+      }
+    }
+  }
+
+  void set_final_path(libtorrent::torrent_handle const &handle,
+                      std::filesystem::path const &destination) {
+    if (!handle.is_valid() || destination.empty()) {
+      return;
+    }
+    auto hash = info_hash_to_hex(handle.status().info_hashes);
+    if (hash.empty()) {
+      return;
+    }
+    final_paths[hash] = destination;
+  }
+
+  void move_completed_from_incomplete(libtorrent::torrent_handle const &handle,
+                                      libtorrent::torrent_status const &status) {
+    if (!settings.incomplete_dir_enabled || !session) {
+      return;
+    }
+    if (settings.download_path.empty() || settings.incomplete_dir.empty()) {
+      return;
+    }
+    if (status.save_path != settings.incomplete_dir.string()) {
+      return;
+    }
+    if (!status.is_seeding) {
+      return;
+    }
+    if (settings.download_path == settings.incomplete_dir) {
+      return;
+    }
+    auto default_path = settings.download_path;
+    auto hash = info_hash_to_hex(status.info_hashes);
+    auto it = final_paths.find(hash);
+    auto final_path = it != final_paths.end() ? it->second : default_path;
+    if (final_path.empty() || final_path == settings.incomplete_dir) {
+      return;
+    }
+    handle.move_storage(final_path.string());
   }
 
   bool rename_path(int id, std::string const &current, std::string const &replacement) {
@@ -842,6 +1860,15 @@ private:
                                libtorrent::torrent_status const &status) {
     TorrentDetail detail;
     detail.summary = build_snapshot(rpc_id, status);
+    auto const hash = info_hash_to_hex(status.info_hashes);
+    if (auto labels_it = torrent_labels.find(hash);
+        labels_it != torrent_labels.end()) {
+      detail.summary.labels = labels_it->second;
+    }
+    if (auto prio_it = torrent_priorities.find(rpc_id);
+        prio_it != torrent_priorities.end()) {
+      detail.summary.bandwidth_priority = prio_it->second;
+    }
     detail.files = collect_files(handle);
     detail.trackers = collect_trackers(handle);
     detail.peers = collect_peers(handle);
@@ -1251,6 +2278,7 @@ void Core::move_torrent_location(int id, std::string path, bool move) {
       } else {
         handle->move_storage(path, libtorrent::move_flags_t::reset_save_path);
       }
+      impl_->set_final_path(*handle, std::filesystem::path(path));
     }
   }).get();
 }
@@ -1320,6 +2348,125 @@ void Core::set_peer_limits(std::optional<int> global_limit,
   try {
     impl_->run_task([this, global_limit, per_torrent_limit]() {
       impl_->apply_peer_limits(global_limit, per_torrent_limit);
+    }).get();
+  } catch (...) {
+  }
+}
+
+void Core::update_session_settings(SessionUpdate update) {
+  if (!impl_) {
+    return;
+  }
+  try {
+    impl_->run_task(
+        [this, update = std::move(update)]() mutable {
+          impl_->apply_session_update(std::move(update));
+        }).get();
+  } catch (...) {
+  }
+}
+
+void Core::add_trackers(std::vector<int> ids,
+                       std::vector<TrackerEntry> const &entries) {
+  if (!impl_ || ids.empty() || entries.empty()) {
+    return;
+  }
+  try {
+    auto entries_copy = entries;
+    impl_->run_task([this, ids = std::move(ids),
+                     entries = std::move(entries_copy)]() mutable {
+      impl_->add_torrent_trackers(ids, entries);
+    }).get();
+  } catch (...) {
+  }
+}
+
+void Core::remove_trackers(std::vector<int> ids,
+                          std::vector<std::string> const &announces) {
+  if (!impl_ || ids.empty() || announces.empty()) {
+    return;
+  }
+  try {
+    auto announces_copy = announces;
+    impl_->run_task(
+        [this, ids = std::move(ids),
+         announces = std::move(announces_copy)]() mutable {
+          impl_->remove_torrent_trackers(ids, announces);
+        }).get();
+  } catch (...) {
+  }
+}
+
+void Core::replace_trackers(std::vector<int> ids,
+                           std::vector<TrackerEntry> const &entries) {
+  if (!impl_ || ids.empty()) {
+    return;
+  }
+  try {
+    auto entries_copy = entries;
+    impl_->run_task([this, ids = std::move(ids),
+                     entries = std::move(entries_copy)]() mutable {
+      impl_->replace_torrent_trackers(ids, entries);
+    }).get();
+  } catch (...) {
+  }
+}
+
+void Core::set_torrent_bandwidth_priority(std::vector<int> ids, int priority) {
+  if (!impl_ || ids.empty()) {
+    return;
+  }
+  try {
+    impl_->run_task(
+        [this, ids = std::move(ids), priority]() mutable {
+          impl_->set_torrent_bandwidth_priority(ids, priority);
+        }).get();
+  } catch (...) {
+  }
+}
+
+void Core::set_torrent_bandwidth_limits(
+    std::vector<int> ids, std::optional<int> download_limit_kbps,
+    std::optional<bool> download_limited, std::optional<int> upload_limit_kbps,
+    std::optional<bool> upload_limited) {
+  if (!impl_ || ids.empty()) {
+    return;
+  }
+  try {
+    impl_->run_task(
+        [this, ids = std::move(ids), download_limit_kbps, download_limited,
+         upload_limit_kbps, upload_limited]() mutable {
+          impl_->set_torrent_bandwidth_limits(ids, download_limit_kbps,
+                                               download_limited, upload_limit_kbps,
+                                               upload_limited);
+        }).get();
+  } catch (...) {
+  }
+}
+
+void Core::set_torrent_seed_limits(std::vector<int> ids,
+                                   TorrentSeedLimit limits) {
+  if (!impl_ || ids.empty()) {
+    return;
+  }
+  try {
+    impl_->run_task([this, ids = std::move(ids), limits = std::move(limits)]() mutable {
+      impl_->set_torrent_seed_limits(ids, limits);
+    }).get();
+  } catch (...) {
+  }
+}
+
+void Core::set_torrent_labels(std::vector<int> ids,
+                              std::vector<std::string> const &labels) {
+  if (!impl_ || ids.empty()) {
+    return;
+  }
+  try {
+    auto labels_copy = labels;
+    impl_->run_task([this, ids = std::move(ids),
+                     labels = std::move(labels_copy)]() mutable {
+      impl_->set_torrent_labels(ids, labels);
     }).get();
   } catch (...) {
   }

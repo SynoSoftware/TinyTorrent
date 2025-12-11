@@ -159,3 +159,51 @@ The C++ Engine (`Core.cpp`) must implement these autonomous loops.
 | **Engine Loop**  | Implement Watch Dir & Seeding Limit logic               | ⬜ To Do |
 | **Libtorrent**   | Map `session-set` Proxy keys to `lt::settings_pack`     | ⬜ To Do |
 | **Frontend**     | Check capabilities, switch to WS, use new RPC methods   | ⬜ To Do |
+
+## **7. Security Model (Mandatory)**
+
+TinyTorrent enforces a strict _Local Capability Model_.
+Because the daemon runs with user privileges, it must defend against local hostile processes and browser-origin attacks (CSRF, DNS rebinding, cross-site WS access).
+
+### **7.1 Ephemeral Credentials**
+
+- **Freshness:** On _every_ startup, the daemon:
+  1.  Generates a **new** 128-bit high-entropy token.
+  2.  Binds to a **random** free TCP port on loopback (`127.0.0.1` or `[::1]`).
+- **Atomic Handover:** The daemon writes the following to `connection.json`:
+  ```json
+  { "port": 54321, "token": "a1b2c3...", "pid": 1234 }
+  ```
+- **Permissions:** The file is locked immediately:
+  - **Linux/macOS:** `chmod 600` (User Read/Write ONLY).
+  - **Windows:** NTFS ACL set to User SID only (inheritance disabled).
+- **Lifecycle:** Credentials are valid only for the life of the process. They represent a temporary session capability, not a permanent password.
+
+### **7.2 HTTP Transport Security**
+
+- **Header Required:** `X-TT-Auth: <token>` must be included in all RPC requests.
+- **Host Header Enforcement (DNS Rebinding):**
+  The `Host` header must strictly match one of:
+  - `127.0.0.1` / `127.0.0.1:<port>`
+  - `localhost` / `localhost:<port>`
+  - `[::1]` / `[::1]:<port>`
+- **CORS / Origin Enforcement:**
+  - If `Origin` header is **present**: It must match the trusted UI origin (e.g., `tt://app` or `http://localhost:3000`).
+  - If `Origin` header is **absent** (e.g., `file://`, Native WebView, Curl): Request is **Allowed** (The Token is the primary defense).
+
+### **7.3 WebSocket Upgrade Security**
+
+- **Limitation:** Browsers cannot send custom headers (`X-TT-Auth`) during the WS handshake.
+- **Solution:** Token must be passed in the Query String: `GET /ws?token=<token>`.
+- **Validation:** The server validates the token **before** completing the Upgrade handshake (sending `101 Switching Protocols`).
+- **Failure:** Invalid token results in immediate `403 Forbidden` and socket closure.
+
+### **7.4 Launcher Integration Contract**
+
+The Launcher acts as the "Secure Boot" for the UI:
+
+1.  Start `tt-engine`.
+2.  Poll for the creation/update of `connection.json`.
+3.  **PID Check:** Verify `json.pid` matches a running process to prevent using stale files from a previous crash.
+4.  Read `port` + `token`.
+5.  Inject these credentials into the Frontend environment (via Window Object injection or URL parameters).

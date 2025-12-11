@@ -35,6 +35,23 @@ int read_int(yyjson_val *root, char const *key) {
   return 0;
 }
 
+double read_double(yyjson_val *root, char const *key) {
+  auto *value = yyjson_obj_get(root, key);
+  if (value == nullptr) {
+    return 0.0;
+  }
+  if (yyjson_is_real(value)) {
+    return yyjson_get_real(value);
+  }
+  if (yyjson_is_sint(value)) {
+    return static_cast<double>(yyjson_get_sint(value));
+  }
+  if (yyjson_is_uint(value)) {
+    return static_cast<double>(yyjson_get_uint(value));
+  }
+  return 0.0;
+}
+
 bool read_bool(yyjson_val *root, char const *key) {
   auto *value = yyjson_obj_get(root, key);
   if (value == nullptr) {
@@ -87,6 +104,61 @@ SessionState load_session_state(std::filesystem::path const &path) {
   state.speed_limit_up_enabled = read_bool(root, "speedLimitUpEnabled");
   state.peer_limit = read_int(root, "peerLimit");
   state.peer_limit_per_torrent = read_int(root, "peerLimitPerTorrent");
+  state.alt_speed_down_kbps = read_int(root, "altSpeedDown");
+  state.alt_speed_up_kbps = read_int(root, "altSpeedUp");
+  state.alt_speed_enabled = read_bool(root, "altSpeedEnabled");
+  state.alt_speed_time_enabled = read_bool(root, "altSpeedTimeEnabled");
+  state.alt_speed_time_begin = read_int(root, "altSpeedTimeBegin");
+  state.alt_speed_time_end = read_int(root, "altSpeedTimeEnd");
+  state.alt_speed_time_day = read_int(root, "altSpeedTimeDay");
+  state.encryption = read_int(root, "encryption");
+  state.dht_enabled = read_bool(root, "dhtEnabled");
+  state.pex_enabled = read_bool(root, "pexEnabled");
+  state.lpd_enabled = read_bool(root, "lpdEnabled");
+  state.utp_enabled = read_bool(root, "utpEnabled");
+  state.download_queue_size = read_int(root, "downloadQueueSize");
+  state.seed_queue_size = read_int(root, "seedQueueSize");
+  state.queue_stalled_enabled = read_bool(root, "queueStalledEnabled");
+  state.incomplete_dir = std::string(read_string(root, "incompleteDir"));
+  state.incomplete_dir_enabled = read_bool(root, "incompleteDirEnabled");
+  state.watch_dir = std::string(read_string(root, "watchDir"));
+  state.watch_dir_enabled = read_bool(root, "watchDirEnabled");
+  state.seed_ratio_limit = read_double(root, "seedRatioLimit");
+  state.seed_ratio_enabled = read_bool(root, "seedRatioLimited");
+  state.seed_idle_limit = read_int(root, "seedIdleLimit");
+  state.seed_idle_enabled = read_bool(root, "seedIdleLimited");
+  state.proxy_type = read_int(root, "proxyType");
+  state.proxy_hostname = std::string(read_string(root, "proxyHost"));
+  state.proxy_port = read_int(root, "proxyPort");
+  state.proxy_auth_enabled = read_bool(root, "proxyAuthEnabled");
+  state.proxy_username = std::string(read_string(root, "proxyUsername"));
+  state.proxy_password = std::string(read_string(root, "proxyPassword"));
+  state.proxy_peer_connections = read_bool(root, "proxyPeerConnections");
+
+  auto *labels = yyjson_obj_get(root, "labels");
+  if (labels != nullptr && yyjson_is_obj(labels)) {
+    yyjson_obj_iter iter;
+    yyjson_obj_iter_init(labels, &iter);
+    yyjson_val *key = nullptr;
+    while ((key = yyjson_obj_iter_next(&iter)) != nullptr) {
+      if (!yyjson_is_str(key)) {
+        continue;
+      }
+      auto *value = yyjson_obj_iter_get_val(key);
+      if (value == nullptr || !yyjson_is_arr(value)) {
+        continue;
+      }
+      std::vector<std::string> entry_labels;
+      size_t idx, limit;
+      yyjson_val *label_value = nullptr;
+      yyjson_arr_foreach(value, idx, limit, label_value) {
+        if (yyjson_is_str(label_value)) {
+          entry_labels.emplace_back(yyjson_get_str(label_value));
+        }
+      }
+      state.labels.emplace(yyjson_get_str(key), std::move(entry_labels));
+    }
+  }
 
   auto *torrents = yyjson_obj_get(root, "torrents");
   if (torrents != nullptr && yyjson_is_arr(torrents)) {
@@ -143,6 +215,76 @@ bool save_session_state(std::filesystem::path const &path,
   yyjson_mut_obj_add_sint(native, root, "peerLimit", state.peer_limit);
   yyjson_mut_obj_add_sint(native, root, "peerLimitPerTorrent",
                           state.peer_limit_per_torrent);
+  yyjson_mut_obj_add_sint(native, root, "altSpeedDown",
+                          state.alt_speed_down_kbps);
+  yyjson_mut_obj_add_sint(native, root, "altSpeedUp", state.alt_speed_up_kbps);
+  yyjson_mut_obj_add_bool(native, root, "altSpeedEnabled",
+                         state.alt_speed_enabled);
+  yyjson_mut_obj_add_bool(native, root, "altSpeedTimeEnabled",
+                         state.alt_speed_time_enabled);
+  yyjson_mut_obj_add_sint(native, root, "altSpeedTimeBegin",
+                          state.alt_speed_time_begin);
+  yyjson_mut_obj_add_sint(native, root, "altSpeedTimeEnd",
+                          state.alt_speed_time_end);
+  yyjson_mut_obj_add_sint(native, root, "altSpeedTimeDay",
+                          state.alt_speed_time_day);
+  yyjson_mut_obj_add_sint(native, root, "encryption", state.encryption);
+  yyjson_mut_obj_add_bool(native, root, "dhtEnabled", state.dht_enabled);
+  yyjson_mut_obj_add_bool(native, root, "pexEnabled", state.pex_enabled);
+  yyjson_mut_obj_add_bool(native, root, "lpdEnabled", state.lpd_enabled);
+  yyjson_mut_obj_add_bool(native, root, "utpEnabled", state.utp_enabled);
+  yyjson_mut_obj_add_sint(native, root, "downloadQueueSize",
+                          state.download_queue_size);
+  yyjson_mut_obj_add_sint(native, root, "seedQueueSize",
+                          state.seed_queue_size);
+  yyjson_mut_obj_add_bool(native, root, "queueStalledEnabled",
+                         state.queue_stalled_enabled);
+  if (!state.incomplete_dir.empty()) {
+    yyjson_mut_obj_add_str(native, root, "incompleteDir",
+                           state.incomplete_dir.c_str());
+  }
+  yyjson_mut_obj_add_bool(native, root, "incompleteDirEnabled",
+                         state.incomplete_dir_enabled);
+  if (!state.watch_dir.empty()) {
+    yyjson_mut_obj_add_str(native, root, "watchDir", state.watch_dir.c_str());
+  }
+  yyjson_mut_obj_add_bool(native, root, "watchDirEnabled",
+                         state.watch_dir_enabled);
+  yyjson_mut_obj_add_real(native, root, "seedRatioLimit",
+                          state.seed_ratio_limit);
+  yyjson_mut_obj_add_bool(native, root, "seedRatioLimited",
+                         state.seed_ratio_enabled);
+  yyjson_mut_obj_add_sint(native, root, "seedIdleLimit",
+                          state.seed_idle_limit);
+  yyjson_mut_obj_add_bool(native, root, "seedIdleLimited",
+                         state.seed_idle_enabled);
+  yyjson_mut_obj_add_sint(native, root, "proxyType", state.proxy_type);
+  if (!state.proxy_hostname.empty()) {
+    yyjson_mut_obj_add_str(native, root, "proxyHost",
+                           state.proxy_hostname.c_str());
+  }
+  yyjson_mut_obj_add_sint(native, root, "proxyPort", state.proxy_port);
+  yyjson_mut_obj_add_bool(native, root, "proxyAuthEnabled",
+                         state.proxy_auth_enabled);
+  if (!state.proxy_username.empty()) {
+    yyjson_mut_obj_add_str(native, root, "proxyUsername",
+                           state.proxy_username.c_str());
+  }
+  if (!state.proxy_password.empty()) {
+    yyjson_mut_obj_add_str(native, root, "proxyPassword",
+                           state.proxy_password.c_str());
+  }
+  yyjson_mut_obj_add_bool(native, root, "proxyPeerConnections",
+                         state.proxy_peer_connections);
+  auto *labels_obj = yyjson_mut_obj(native);
+  yyjson_mut_obj_add_val(native, root, "labels", labels_obj);
+  for (auto const &entry : state.labels) {
+    auto *array = yyjson_mut_arr(native);
+    yyjson_mut_obj_add_val(native, labels_obj, entry.first.c_str(), array);
+    for (auto const &label : entry.second) {
+      yyjson_mut_arr_add_str(native, array, label.c_str());
+    }
+  }
 
   auto *torrents = yyjson_mut_arr(native);
   yyjson_mut_obj_add_val(native, root, "torrents", torrents);

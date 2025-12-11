@@ -10,6 +10,22 @@
 
 namespace tt::rpc {
 
+struct FsEntry {
+  std::string name;
+  std::string type;
+  std::uint64_t size = 0;
+};
+
+std::string serialize_fs_browse(std::string const &path,
+                                std::string const &parent,
+                                std::string const &separator,
+                                std::vector<FsEntry> const &entries);
+std::string serialize_fs_space(std::string const &path,
+                               std::uint64_t free_bytes,
+                               std::uint64_t total_bytes);
+std::string serialize_system_action(std::string const &action, bool success,
+                                    std::string const &message);
+
 std::string serialize_session_settings(
     engine::CoreSettings const &settings, std::size_t blocklist_entries,
     std::optional<std::chrono::system_clock::time_point> blocklist_updated,
