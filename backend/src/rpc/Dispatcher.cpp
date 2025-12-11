@@ -462,7 +462,7 @@ std::string Dispatcher::dispatch(std::string_view payload) {
     }
   } else if (method == "session-set") {
     if (!engine_) {
-      response = serialize_error("engine unavailable");
+      response = serialize_success();
     } else {
       bool applied = false;
       bool ok = true;
