@@ -6,12 +6,14 @@
 #include <chrono>
 #include <exception>
 #include <future>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <string_view>
 #include <thread>
 
 #include <doctest/doctest.h>
+#include <yyjson.h>
 
 namespace {
 
@@ -82,6 +84,61 @@ void http_client_handler(struct mg_connection *conn, int ev, void *ev_data) {
       ctx->signal_failure(std::make_exception_ptr(
           std::runtime_error("RPC request aborted before response")));
     }
+  }
+}
+
+struct WsTestContext {
+  WsTestContext()
+      : future(ready.get_future()), message_future(message_ready.get_future()) {}
+
+  std::promise<void> ready;
+  std::future<void> future;
+  std::atomic<bool> completed{false};
+  bool handshake_success = false;
+
+  std::promise<void> message_ready;
+  std::future<void> message_future;
+  std::atomic<bool> message_signaled{false};
+  bool message_received = false;
+  std::string message_payload;
+
+  void signal_completion(bool success) {
+    bool expected = false;
+    if (completed.compare_exchange_strong(expected, true)) {
+      handshake_success = success;
+      ready.set_value();
+    }
+  }
+
+  void signal_message() {
+    bool expected = false;
+    if (message_signaled.compare_exchange_strong(expected, true)) {
+      message_received = true;
+      message_ready.set_value();
+    }
+  }
+};
+
+void ws_client_handler(struct mg_connection *conn, int ev, void *ev_data) {
+  if (conn == nullptr) {
+    return;
+  }
+  auto *ctx = static_cast<WsTestContext *>(conn->fn_data);
+  if (ctx == nullptr) {
+    return;
+  }
+  if (ev == MG_EV_WS_OPEN) {
+    ctx->signal_completion(true);
+  } else if (ev == MG_EV_WS_MSG) {
+    auto *message = static_cast<struct mg_ws_message *>(ev_data);
+    if (message && message->data.len > 0) {
+      ctx->message_payload.assign(message->data.buf, message->data.len);
+    } else {
+      ctx->message_payload.clear();
+    }
+    ctx->signal_message();
+  } else if (ev == MG_EV_CLOSE || ev == MG_EV_ERROR) {
+    ctx->signal_completion(false);
   }
 }
 
@@ -177,6 +234,54 @@ std::string send_rpc_request(std::string_view payload,
   return response.body;
 }
 
+void run_ws_client(WsTestContext &context, std::string const &url,
+                   std::optional<std::string> const &origin = std::nullopt,
+                   bool wait_for_message = false) {
+  mg_mgr mgr;
+  mg_mgr_init(&mgr);
+  struct mg_connection *conn = nullptr;
+  if (origin) {
+    conn = mg_ws_connect(&mgr, url.c_str(), ws_client_handler, &context,
+                         "Origin: %s\r\n", origin->c_str());
+  } else {
+    conn = mg_ws_connect(&mgr, url.c_str(), ws_client_handler, &context, nullptr);
+  }
+  if (conn != nullptr) {
+    conn->fn_data = &context;
+  }
+
+  auto handshake_deadline =
+      std::chrono::steady_clock::now() + std::chrono::seconds(5);
+  while (context.future.wait_for(std::chrono::milliseconds(0)) ==
+             std::future_status::timeout &&
+         std::chrono::steady_clock::now() < handshake_deadline) {
+    mg_mgr_poll(&mgr, 50);
+    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+  }
+  if (context.future.wait_for(std::chrono::milliseconds(0)) ==
+      std::future_status::timeout) {
+    context.signal_completion(false);
+  }
+
+  if (wait_for_message && context.handshake_success) {
+    auto message_deadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    while (context.message_future.wait_for(std::chrono::milliseconds(0)) ==
+               std::future_status::timeout &&
+           std::chrono::steady_clock::now() < message_deadline) {
+      mg_mgr_poll(&mgr, 50);
+      std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+  }
+
+  if (conn != nullptr) {
+    conn->is_closing = 1;
+  }
+  mg_mgr_poll(&mgr, 0);
+  mg_mgr_free(&mgr);
+  context.future.get();
+}
+
 } // namespace
 
 struct ServerGuard {
@@ -220,4 +325,45 @@ TEST_CASE("rpc endpoint enforces token authentication when configured") {
       std::string("X-TT-Auth: rpc-secret\r\n"));
   ResponseView auth_view{authorized};
   CHECK(auth_view.result() == "success");
+}
+
+TEST_CASE("websocket handshake enforces token authentication") {
+  tt::rpc::ServerOptions options;
+  options.token = "rpc-secret";
+  tt::rpc::Server server{nullptr, std::string{kServerUrl}, options};
+  server.start();
+  ServerGuard guard{server};
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  WsTestContext missing_token;
+  run_ws_client(missing_token, "ws://127.0.0.1:8086/ws");
+  CHECK(!missing_token.handshake_success);
+
+  WsTestContext with_token;
+  run_ws_client(with_token, "ws://127.0.0.1:8086/ws?token=rpc-secret");
+  CHECK(with_token.handshake_success);
+}
+
+TEST_CASE("websocket snapshot is delivered on connect") {
+  tt::rpc::Server server{nullptr, std::string{kServerUrl}};
+  server.start();
+  ServerGuard guard{server};
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  WsTestContext ctx;
+  run_ws_client(ctx, "ws://127.0.0.1:8086/ws", std::nullopt, true);
+  CHECK(ctx.handshake_success);
+  CHECK(ctx.message_received);
+
+  auto *doc = yyjson_read(ctx.message_payload.data(), ctx.message_payload.size(), 0);
+  REQUIRE(doc != nullptr);
+  auto *root = yyjson_doc_get_root(doc);
+  REQUIRE(root != nullptr);
+  REQUIRE(yyjson_is_obj(root));
+  auto *type = yyjson_obj_get(root, "type");
+  REQUIRE(type != nullptr);
+  REQUIRE(yyjson_is_str(type));
+  std::string type_value = yyjson_get_str(type);
+  CHECK(type_value == "sync-snapshot");
+  yyjson_doc_free(doc);
 }
