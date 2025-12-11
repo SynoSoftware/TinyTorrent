@@ -2,13 +2,18 @@
 
 #include "engine/Core.hpp"
 
+#include <chrono>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
 
 namespace tt::rpc {
 
-std::string serialize_session_settings(engine::CoreSettings const &settings);
+std::string serialize_session_settings(
+    engine::CoreSettings const &settings, std::size_t blocklist_entries,
+    std::optional<std::chrono::system_clock::time_point> blocklist_updated,
+    std::string const &rpc_bind);
 std::string serialize_session_stats(engine::SessionSnapshot const &snapshot);
 std::string serialize_add_result(engine::Core::AddTorrentStatus status);
 std::string serialize_error(std::string_view message);
@@ -22,5 +27,8 @@ std::string serialize_success();
 std::string serialize_session_test(bool port_open);
 std::string serialize_torrent_rename(int id, std::string const &name,
                                      std::string const &path);
+std::string serialize_blocklist_update(
+    std::size_t entries,
+    std::optional<std::chrono::system_clock::time_point> last_updated);
 
 } // namespace tt::rpc

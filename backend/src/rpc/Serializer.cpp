@@ -1,5 +1,6 @@
 #include "rpc/Serializer.hpp"
 
+#include <chrono>
 #include <cstdint>
 #include <limits>
 #include <optional>
@@ -24,6 +25,11 @@ char const *message_for_status(engine::Core::AddTorrentStatus status) {
   return "unknown status";
 }
 
+std::uint64_t to_epoch_seconds(std::chrono::system_clock::time_point tp) {
+  return static_cast<std::uint64_t>(
+      std::chrono::duration_cast<std::chrono::seconds>(tp.time_since_epoch()).count());
+}
+
 } // namespace
 
 std::optional<std::uint16_t> parse_listen_port(std::string_view interface) {
@@ -43,7 +49,69 @@ std::optional<std::uint16_t> parse_listen_port(std::string_view interface) {
   }
 }
 
-std::string serialize_session_settings(engine::CoreSettings const &settings) {
+std::string normalize_rpc_host(std::string host) {
+  if (host.size() >= 2 && host.front() == '[' && host.back() == ']') {
+    host = host.substr(1, host.size() - 2);
+  }
+  if (host == "0.0.0.0") {
+    host = "127.0.0.1";
+  }
+  return host;
+}
+
+std::optional<std::uint16_t> parse_rpc_port(std::string_view value) {
+  if (value.empty()) {
+    return std::nullopt;
+  }
+  try {
+    auto port = std::stoi(std::string(value));
+    if (port < 0 || port > std::numeric_limits<std::uint16_t>::max()) {
+      return std::nullopt;
+    }
+    return static_cast<std::uint16_t>(port);
+  } catch (...) {
+    return std::nullopt;
+  }
+}
+
+std::pair<std::string, std::string> parse_rpc_bind(std::string const &value) {
+  if (value.empty()) {
+    return {"", ""};
+  }
+  auto scheme = value.find("://");
+  auto host_start = (scheme == std::string::npos) ? 0 : scheme + 3;
+  auto host_end = value.find('/', host_start);
+  auto host_port = host_end == std::string::npos
+                       ? value.substr(host_start)
+                       : value.substr(host_start, host_end - host_start);
+  if (host_port.empty()) {
+    return {"", ""};
+  }
+  std::string host = host_port;
+  std::string port;
+  if (host.front() == '[') {
+    auto closing = host.find(']');
+    if (closing != std::string::npos) {
+      if (closing + 1 < host.size() && host[closing + 1] == ':') {
+        port = host.substr(closing + 2);
+      }
+      host = host.substr(0, closing + 1);
+    }
+  } else {
+    auto colon = host.find_last_of(':');
+    if (colon != std::string::npos && host.find(':') == colon) {
+      port = host.substr(colon + 1);
+      host = host.substr(0, colon);
+    }
+  }
+  host = normalize_rpc_host(host);
+  return {host, port};
+}
+
+std::string serialize_session_settings(
+    engine::CoreSettings const &settings, std::size_t blocklist_entries,
+    std::optional<std::chrono::system_clock::time_point> blocklist_updated,
+    std::string const &rpc_bind) {
   tt::json::MutableDocument doc;
   if (!doc.is_valid()) {
     return "{}";
@@ -62,8 +130,40 @@ std::string serialize_session_settings(engine::CoreSettings const &settings) {
   yyjson_mut_obj_add_uint(native, arguments, "rpc-version-min", 1);
   yyjson_mut_obj_add_str(native, arguments, "download-dir",
                          settings.download_path.string().c_str());
+  yyjson_mut_obj_add_sint(native, arguments, "speed-limit-down",
+                         settings.download_rate_limit_kbps);
+  yyjson_mut_obj_add_bool(native, arguments, "speed-limit-down-enabled",
+                         settings.download_rate_limit_enabled);
+  yyjson_mut_obj_add_sint(native, arguments, "speed-limit-up",
+                         settings.upload_rate_limit_kbps);
+  yyjson_mut_obj_add_bool(native, arguments, "speed-limit-up-enabled",
+                         settings.upload_rate_limit_enabled);
+  yyjson_mut_obj_add_sint(native, arguments, "peer-limit",
+                         settings.peer_limit);
+  yyjson_mut_obj_add_sint(native, arguments, "peer-limit-per-torrent",
+                         settings.peer_limit_per_torrent);
+  bool blocklist_enabled = !settings.blocklist_path.empty();
+  yyjson_mut_obj_add_bool(native, arguments, "blocklist-enabled",
+                         blocklist_enabled);
+  yyjson_mut_obj_add_uint(native, arguments, "blocklist-size",
+                          static_cast<std::uint64_t>(blocklist_entries));
+  if (blocklist_updated.has_value()) {
+    yyjson_mut_obj_add_uint(native, arguments, "blocklist-last-updated",
+                            to_epoch_seconds(*blocklist_updated));
+  }
+  if (blocklist_enabled) {
+    yyjson_mut_obj_add_str(native, arguments, "blocklist-path",
+                           settings.blocklist_path.string().c_str());
+  }
   if (auto port = parse_listen_port(settings.listen_interface)) {
     yyjson_mut_obj_add_uint(native, arguments, "peer-port", *port);
+  }
+  auto [rpc_host, rpc_port] = parse_rpc_bind(rpc_bind);
+  if (!rpc_host.empty()) {
+    yyjson_mut_obj_add_str(native, arguments, "rpc-bind-address", rpc_host.c_str());
+  }
+  if (auto port = parse_rpc_port(rpc_port); port) {
+    yyjson_mut_obj_add_uint(native, arguments, "rpc-port", *port);
   }
 
   return doc.write("{}");
@@ -320,6 +420,31 @@ std::string serialize_torrent_rename(int id, std::string const &name,
   yyjson_mut_obj_add_sint(native, arguments, "id", id);
   yyjson_mut_obj_add_str(native, arguments, "name", name.c_str());
   yyjson_mut_obj_add_str(native, arguments, "path", path.c_str());
+
+  return doc.write(R"({"result":"error"})");
+}
+
+std::string serialize_blocklist_update(
+    std::size_t entries,
+    std::optional<std::chrono::system_clock::time_point> last_updated) {
+  tt::json::MutableDocument doc;
+  if (!doc.is_valid()) {
+    return "{}";
+  }
+
+  auto *native = doc.doc();
+  auto *root = yyjson_mut_obj(native);
+  doc.set_root(root);
+  yyjson_mut_obj_add_str(native, root, "result", "success");
+
+  auto *arguments = yyjson_mut_obj(native);
+  yyjson_mut_obj_add_val(native, root, "arguments", arguments);
+  yyjson_mut_obj_add_uint(native, arguments, "blocklist-size",
+                          static_cast<std::uint64_t>(entries));
+  if (last_updated) {
+    yyjson_mut_obj_add_uint(native, arguments, "blocklist-last-updated",
+                            to_epoch_seconds(*last_updated));
+  }
 
   return doc.write(R"({"result":"error"})");
 }

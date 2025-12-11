@@ -3,6 +3,7 @@ tt_test_common_sources = [
   '../src/rpc/Serializer.cpp',
   '../src/engine/Core.cpp',
   '../src/utils/FS.cpp',
+  '../src/utils/StateStore.cpp',
   '../src/vendor/mongoose.c',
 ]
 
