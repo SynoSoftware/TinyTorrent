@@ -45,6 +45,7 @@ const pieceMapLayout = layoutConfig.piece_map ?? DEFAULT_LAYOUT_PIECE_MAP;
 const heatmapLayout = layoutConfig.heatmap ?? DEFAULT_LAYOUT_HEATMAP;
 const peerMapLayout = layoutConfig.peer_map ?? DEFAULT_LAYOUT_PEER_MAP;
 const tableLayout = layoutConfig.table ?? DEFAULT_TABLE_LAYOUT;
+const detailsLayout = layoutConfig.details ?? {};
 
 export const TABLE_LAYOUT = {
     rowHeight: tableLayout.row_height,
@@ -173,6 +174,9 @@ export const INTERACTION_CONFIG: InteractionConfig = {
 const SPEED_CHART = INTERACTION_CONFIG.speedChart;
 export const CHART_WIDTH = SPEED_CHART.width;
 export const CHART_HEIGHT = SPEED_CHART.height;
+
+export const DETAILS_TAB_CONTENT_MAX_HEIGHT =
+    detailsLayout.tab_content_max_height ?? 360;
 
 type DetailsPieceMapConfig = {
     cell_size: number;
