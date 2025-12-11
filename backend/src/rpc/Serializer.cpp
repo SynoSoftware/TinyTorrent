@@ -3,6 +3,7 @@
 #include <array>
 #include <chrono>
 #include <cstdint>
+#include <functional>
 #include <limits>
 #include <optional>
 #include <string>
@@ -29,6 +30,84 @@ char const *message_for_status(engine::Core::AddTorrentStatus status) {
 std::uint64_t to_epoch_seconds(std::chrono::system_clock::time_point tp) {
   return static_cast<std::uint64_t>(
       std::chrono::duration_cast<std::chrono::seconds>(tp.time_since_epoch()).count());
+}
+
+void add_session_stats(yyjson_mut_doc *doc, yyjson_mut_val *session,
+                       engine::SessionSnapshot const &snapshot) {
+  yyjson_mut_obj_add_uint(doc, session, "downloadSpeed", snapshot.download_rate);
+  yyjson_mut_obj_add_uint(doc, session, "uploadSpeed", snapshot.upload_rate);
+  yyjson_mut_obj_add_uint(doc, session, "torrentCount",
+                          static_cast<std::uint64_t>(snapshot.torrent_count));
+  yyjson_mut_obj_add_uint(doc, session, "activeTorrentCount",
+                          static_cast<std::uint64_t>(snapshot.active_torrent_count));
+  yyjson_mut_obj_add_uint(doc, session, "pausedTorrentCount",
+                          static_cast<std::uint64_t>(snapshot.paused_torrent_count));
+  yyjson_mut_obj_add_uint(doc, session, "dhtNodes", snapshot.dht_nodes);
+}
+
+bool session_stats_equal(engine::SessionSnapshot const &a,
+                         engine::SessionSnapshot const &b) {
+  return a.download_rate == b.download_rate && a.upload_rate == b.upload_rate &&
+         a.torrent_count == b.torrent_count &&
+         a.active_torrent_count == b.active_torrent_count &&
+         a.paused_torrent_count == b.paused_torrent_count &&
+         a.dht_nodes == b.dht_nodes;
+}
+
+bool torrent_snapshot_equal(engine::TorrentSnapshot const &a,
+                            engine::TorrentSnapshot const &b) {
+  return a.hash == b.hash && a.name == b.name && a.state == b.state &&
+         a.progress == b.progress && a.total_wanted == b.total_wanted &&
+         a.total_done == b.total_done && a.total_size == b.total_size &&
+         a.downloaded == b.downloaded && a.uploaded == b.uploaded &&
+         a.download_rate == b.download_rate && a.upload_rate == b.upload_rate &&
+         a.status == b.status && a.queue_position == b.queue_position &&
+         a.peers_connected == b.peers_connected &&
+         a.seeds_connected == b.seeds_connected &&
+         a.peers_sending_to_us == b.peers_sending_to_us &&
+         a.peers_getting_from_us == b.peers_getting_from_us &&
+         a.eta == b.eta && a.total_wanted_done == b.total_wanted_done &&
+         a.added_time == b.added_time && a.ratio == b.ratio &&
+         a.is_finished == b.is_finished &&
+         a.sequential_download == b.sequential_download &&
+         a.super_seeding == b.super_seeding &&
+         a.download_dir == b.download_dir && a.error == b.error &&
+         a.error_string == b.error_string &&
+         a.left_until_done == b.left_until_done &&
+         a.size_when_done == b.size_when_done && a.labels == b.labels &&
+         a.bandwidth_priority == b.bandwidth_priority;
+}
+
+void attach_labels(yyjson_mut_doc *doc, yyjson_mut_val *entry,
+                   engine::TorrentSnapshot const &torrent) {
+  auto *labels = yyjson_mut_arr(doc);
+  yyjson_mut_obj_add_val(doc, entry, "labels", labels);
+  for (auto const &label : torrent.labels) {
+    yyjson_mut_arr_add_str(doc, labels, label.c_str());
+  }
+}
+
+std::string serialize_ws_event_base(
+    std::string_view name,
+    std::optional<std::function<void(yyjson_mut_doc *, yyjson_mut_val *)>> const &builder) {
+  tt::json::MutableDocument doc;
+  if (!doc.is_valid()) {
+    return "{}";
+  }
+  auto *native = doc.doc();
+  auto *root = yyjson_mut_obj(native);
+  doc.set_root(root);
+  yyjson_mut_obj_add_str(native, root, "type", "event");
+  std::string event_name(name);
+  yyjson_mut_obj_add_str(native, root, "event", event_name.c_str());
+  if (builder) {
+    auto *data = yyjson_mut_obj(native);
+    (*builder)(native, data);
+    yyjson_mut_obj_add_val(native, root, "data", data);
+  } else {
+    yyjson_mut_obj_add_null(native, root, "data");
+  }
+  return doc.write(R"({"type":"event"})");
 }
 
 } // namespace
@@ -569,6 +648,133 @@ std::string serialize_blocklist_update(
   }
 
   return doc.write(R"({"result":"error"})");
+}
+
+std::string serialize_ws_snapshot(engine::SessionSnapshot const &snapshot) {
+  tt::json::MutableDocument doc;
+  if (!doc.is_valid()) {
+    return "{}";
+  }
+
+  auto *native = doc.doc();
+  auto *root = yyjson_mut_obj(native);
+  doc.set_root(root);
+  yyjson_mut_obj_add_str(native, root, "type", "sync-snapshot");
+
+  auto *data = yyjson_mut_obj(native);
+  yyjson_mut_obj_add_val(native, root, "data", data);
+
+  auto *session = yyjson_mut_obj(native);
+  yyjson_mut_obj_add_val(native, data, "session", session);
+  add_session_stats(native, session, snapshot);
+
+  auto *torrents = yyjson_mut_arr(native);
+  yyjson_mut_obj_add_val(native, data, "torrents", torrents);
+  for (auto const &torrent : snapshot.torrents) {
+    auto *entry = yyjson_mut_obj(native);
+    add_torrent_summary(native, entry, torrent);
+    attach_labels(native, entry, torrent);
+    yyjson_mut_obj_add_sint(native, entry, "bandwidthPriority",
+                            torrent.bandwidth_priority);
+    yyjson_mut_arr_add_val(torrents, entry);
+  }
+
+  return doc.write(R"({"type":"error"})");
+}
+
+std::string serialize_ws_patch(engine::SessionSnapshot const &snapshot,
+                               std::vector<engine::TorrentSnapshot> const &added,
+                               std::vector<engine::TorrentSnapshot> const &updated,
+                               std::vector<int> const &removed) {
+  tt::json::MutableDocument doc;
+  if (!doc.is_valid()) {
+    return "{}";
+  }
+
+  auto *native = doc.doc();
+  auto *root = yyjson_mut_obj(native);
+  doc.set_root(root);
+  yyjson_mut_obj_add_str(native, root, "type", "sync-patch");
+
+  auto *data = yyjson_mut_obj(native);
+  yyjson_mut_obj_add_val(native, root, "data", data);
+
+  auto *session = yyjson_mut_obj(native);
+  yyjson_mut_obj_add_val(native, data, "session", session);
+  add_session_stats(native, session, snapshot);
+
+  auto *torrents = yyjson_mut_obj(native);
+  yyjson_mut_obj_add_val(native, data, "torrents", torrents);
+
+  auto *removed_arr = yyjson_mut_arr(native);
+  yyjson_mut_obj_add_val(native, torrents, "removed", removed_arr);
+  for (int id : removed) {
+    yyjson_mut_arr_add_sint(native, removed_arr, id);
+  }
+
+  auto *added_arr = yyjson_mut_arr(native);
+  yyjson_mut_obj_add_val(native, torrents, "added", added_arr);
+  for (auto const &torrent : added) {
+    auto *entry = yyjson_mut_obj(native);
+    add_torrent_summary(native, entry, torrent);
+    attach_labels(native, entry, torrent);
+    yyjson_mut_obj_add_sint(native, entry, "bandwidthPriority",
+                            torrent.bandwidth_priority);
+    yyjson_mut_arr_add_val(added_arr, entry);
+  }
+
+  auto *updated_arr = yyjson_mut_arr(native);
+  yyjson_mut_obj_add_val(native, torrents, "updated", updated_arr);
+  for (auto const &torrent : updated) {
+    auto *entry = yyjson_mut_obj(native);
+    add_torrent_summary(native, entry, torrent);
+    attach_labels(native, entry, torrent);
+    yyjson_mut_obj_add_sint(native, entry, "bandwidthPriority",
+                            torrent.bandwidth_priority);
+    yyjson_mut_arr_add_val(updated_arr, entry);
+  }
+
+  return doc.write(R"({"type":"error"})");
+}
+
+std::string serialize_ws_event_torrent_added(int id) {
+  return serialize_ws_event_base("torrent-added",
+                                 std::optional<std::function<void(yyjson_mut_doc *, yyjson_mut_val *)>>(
+                                     [id](yyjson_mut_doc *doc, yyjson_mut_val *value) {
+                                       yyjson_mut_obj_add_sint(doc, value, "id", id);
+                                     }));
+}
+
+std::string serialize_ws_event_torrent_finished(int id) {
+  return serialize_ws_event_base("torrent-finished",
+                                 std::optional<std::function<void(yyjson_mut_doc *, yyjson_mut_val *)>>(
+                                     [id](yyjson_mut_doc *doc, yyjson_mut_val *value) {
+                                       yyjson_mut_obj_add_sint(doc, value, "id", id);
+                                     }));
+}
+
+std::string serialize_ws_event_blocklist_updated(std::size_t count) {
+  return serialize_ws_event_base(
+      "blocklist-updated",
+      std::optional<std::function<void(yyjson_mut_doc *, yyjson_mut_val *)>>(
+          [count](yyjson_mut_doc *doc, yyjson_mut_val *value) {
+            yyjson_mut_obj_add_uint(doc, value, "count",
+                                    static_cast<std::uint64_t>(count));
+          }));
+}
+
+std::string serialize_ws_event_app_shutdown() {
+  return serialize_ws_event_base("app-shutdown", std::nullopt);
+}
+
+std::string serialize_ws_event_error(std::string const &message, int code) {
+  return serialize_ws_event_base(
+      "error",
+      std::optional<std::function<void(yyjson_mut_doc *, yyjson_mut_val *)>>(
+          [&message, code](yyjson_mut_doc *doc, yyjson_mut_val *value) {
+            yyjson_mut_obj_add_str(doc, value, "message", message.c_str());
+            yyjson_mut_obj_add_sint(doc, value, "code", code);
+          }));
 }
 
 std::string serialize_fs_browse(std::string const &path,

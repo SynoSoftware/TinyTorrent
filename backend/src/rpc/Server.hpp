@@ -3,7 +3,9 @@
 #include "vendor/mongoose.h"
 
 #include <atomic>
+#include <chrono>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <thread>
@@ -46,10 +48,18 @@ public:
 
 private:
   void run_loop();
+  void handle_http_message(struct mg_connection *conn, struct mg_http_message *hm);
+  void handle_ws_open(struct mg_connection *conn, struct mg_http_message *hm);
+  void handle_ws_message(struct mg_connection *conn, struct mg_ws_message *message);
+  void handle_connection_closed(struct mg_connection *conn, int ev);
   std::string dispatch(std::string_view payload);
   static void handle_event(struct mg_connection *conn, int ev, void *ev_data);
   bool authorize_request(struct mg_http_message *hm);
+  bool authorize_ws_upgrade(struct mg_http_message *hm, std::optional<std::string> const &token);
   void refresh_connection_port();
+  void broadcast_websocket_updates();
+  void broadcast_event(std::string const &payload);
+  void send_ws_message(struct mg_connection *conn, std::string const &payload);
 
   std::string bind_url_;
   std::string rpc_path_;
@@ -62,6 +72,15 @@ private:
   std::atomic_bool running_{false};
   std::thread worker_;
   ServerOptions options_;
+  std::string ws_path_ = "/ws";
+
+  struct WsClient {
+    struct mg_connection *conn = nullptr;
+    std::shared_ptr<engine::SessionSnapshot> last_known_snapshot;
+  };
+  std::vector<WsClient> ws_clients_;
+  std::shared_ptr<engine::SessionSnapshot> last_patch_snapshot_;
+  std::size_t last_blocklist_entries_ = 0;
 };
 
 } // namespace tt::rpc
