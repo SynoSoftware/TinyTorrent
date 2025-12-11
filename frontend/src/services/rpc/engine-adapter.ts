@@ -48,4 +48,5 @@ export interface EngineAdapter {
     subscribeToHeartbeat(
         params: HeartbeatSubscriberParams
     ): HeartbeatSubscription;
+    openPath?(path: string): Promise<void>;
 }

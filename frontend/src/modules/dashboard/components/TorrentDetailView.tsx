@@ -28,7 +28,15 @@ import type { Torrent, TorrentDetail } from "../types/torrent";
 
 import { SmoothProgressBar } from "../../../shared/ui/components/SmoothProgressBar";
 
-import type { TorrentStatus } from "../../../services/rpc/entities";
+import type {
+    TorrentPeerEntity,
+    TorrentStatus,
+} from "../../../services/rpc/entities";
+import type {
+    FileExplorerContextAction,
+    FileExplorerEntry,
+} from "../../../shared/ui/workspace/FileExplorerTree";
+import type { PeerContextAction } from "./details/tabs/PeersTab";
 
 import { ContentTab } from "./details/tabs/ContentTab";
 
@@ -40,13 +48,15 @@ import { PiecesTab } from "./details/tabs/PiecesTab";
 
 import { SpeedTab } from "./details/tabs/SpeedTab";
 
-type DetailTab =
+export type DetailTab =
     | "general"
     | "content"
     | "pieces"
     | "trackers"
     | "peers"
     | "speed";
+
+export type PeerSortStrategy = "none" | "speed";
 
 interface TorrentDetailViewProps {
     torrent: TorrentDetail | null;
@@ -55,9 +65,20 @@ interface TorrentDetailViewProps {
         indexes: number[],
         wanted: boolean
     ) => Promise<void> | void;
+    onFileContextAction?: (
+        action: FileExplorerContextAction,
+        entry: FileExplorerEntry
+    ) => void;
+    onPeerContextAction?: (
+        action: PeerContextAction,
+        peer: TorrentPeerEntity
+    ) => void;
     onSequentialToggle?: (enabled: boolean) => Promise<void> | void;
     onSuperSeedingToggle?: (enabled: boolean) => Promise<void> | void;
     onForceTrackerReannounce?: () => Promise<void> | void;
+    peerSortStrategy?: PeerSortStrategy;
+    inspectorTabCommand?: DetailTab | null;
+    onInspectorTabCommandHandled?: () => void;
     sequentialSupported?: boolean;
     superSeedingSupported?: boolean;
     isFullscreen?: boolean;
@@ -181,6 +202,12 @@ export function TorrentDetailView({
 
     onFilesToggle,
 
+    onFileContextAction,
+    onPeerContextAction,
+    peerSortStrategy,
+    inspectorTabCommand,
+    onInspectorTabCommandHandled,
+
     onSequentialToggle,
 
     onSuperSeedingToggle,
@@ -210,6 +237,12 @@ export function TorrentDetailView({
     useEffect(() => {
         if (torrent) setActiveTab("general");
     }, [torrent?.id]);
+
+    useEffect(() => {
+        if (!inspectorTabCommand) return;
+        setActiveTab(inspectorTabCommand);
+        onInspectorTabCommandHandled?.();
+    }, [inspectorTabCommand, onInspectorTabCommandHandled]);
 
     if (!torrent) {
         return (
@@ -427,11 +460,20 @@ export function TorrentDetailView({
                                             "torrent_modal.files_empty"
                                         )}
                                         onFilesToggle={onFilesToggle}
+                                        onFileContextAction={onFileContextAction}
                                     />
                                 )}
 
                                 {activeTab === "peers" && (
-                                    <PeersTab peers={peerEntries} />
+                                    <PeersTab
+                                        peers={peerEntries}
+                                        onPeerContextAction={
+                                            onPeerContextAction
+                                        }
+                                        sortBySpeed={
+                                            peerSortStrategy === "speed"
+                                        }
+                                    />
                                 )}
 
                                 {activeTab === "trackers" && (

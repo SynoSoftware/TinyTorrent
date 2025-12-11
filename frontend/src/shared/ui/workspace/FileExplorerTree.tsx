@@ -1,10 +1,21 @@
 import { Checkbox } from "@heroui/react";
 import { ChevronDown, ChevronRight, FileText, Folder } from "lucide-react";
-import { useMemo, useState, useCallback, useRef } from "react";
+import {
+    type KeyboardEvent,
+    type MouseEvent,
+    useCallback,
+    useEffect,
+    useLayoutEffect,
+    useMemo,
+    useRef,
+    useState,
+} from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { formatBytes } from "../../utils/format";
-import type { LibtorrentPriority } from "../../../services/rpc/entities";
-import { ICON_STROKE_WIDTH } from "../../../config/logic";
+import { useTranslation } from "react-i18next";
+
+import { formatBytes } from "@/shared/utils/format";
+import type { LibtorrentPriority } from "@/services/rpc/entities";
+import { ICON_STROKE_WIDTH } from "@/config/logic";
 
 export interface FileExplorerEntry {
     name: string;
@@ -15,7 +26,7 @@ export interface FileExplorerEntry {
     priority?: LibtorrentPriority;
 }
 
-interface FileExplorerTreeProps {
+interface FileExplorerTreeProps extends FileExplorerTreeContextProps {
     files: FileExplorerEntry[];
     emptyMessage?: string;
     onFilesToggle?: (
@@ -23,6 +34,31 @@ interface FileExplorerTreeProps {
         wanted: boolean
     ) => void | Promise<void>;
 }
+
+export type FileExplorerContextAction =
+    | "priority_high"
+    | "priority_normal"
+    | "priority_low"
+    | "open_file"
+    | "open_folder";
+
+interface FileExplorerTreeContextProps {
+    onFileContextAction?: (
+        action: FileExplorerContextAction,
+        entry: FileExplorerEntry
+    ) => void;
+}
+
+type FileContextMenuState = {
+    file: FileExplorerEntry;
+    rawX: number;
+    rawY: number;
+    x: number;
+    y: number;
+};
+
+const CONTEXT_MENU_WIDTH = 220;
+const CONTEXT_MENU_MARGIN = 8;
 
 type FileExplorerNode = {
     id: string;
@@ -123,7 +159,17 @@ export function FileExplorerTree({
     files,
     emptyMessage,
     onFilesToggle,
+    onFileContextAction,
 }: FileExplorerTreeProps) {
+    const { t } = useTranslation();
+    const [selectedIndexes, setSelectedIndexes] = useState<Set<number>>(
+        () => new Set()
+    );
+    const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(
+        null
+    );
+    const [fileContextMenu, setFileContextMenu] =
+        useState<FileContextMenuState | null>(null);
     const selectionMap = useMemo(() => {
         const map = new Map<number, boolean>();
         files.forEach((file) => {
@@ -132,6 +178,18 @@ export function FileExplorerTree({
         return map;
     }, [files]);
     const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+    useEffect(() => {
+        setSelectedIndexes(new Set());
+        setLastSelectedIndex(null);
+        setFileContextMenu(null);
+    }, [files]);
+    useEffect(() => {
+        const handlePointerDown = () => setFileContextMenu(null);
+        window.addEventListener("pointerdown", handlePointerDown);
+        return () => {
+            window.removeEventListener("pointerdown", handlePointerDown);
+        };
+    }, []);
 
     const toggleExpanded = useCallback((id: string) => {
         setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -141,13 +199,184 @@ export function FileExplorerTree({
         const tree = buildFileTree(files);
         return flattenVisibleNodes(tree, expanded);
     }, [files, expanded]);
+    const visibleFileIndexes = useMemo(() => {
+        return visibleNodes
+            .filter(({ node }) => !node.isFolder && node.file)
+            .map(({ node }) => node.file!.index);
+    }, [visibleNodes]);
+    const visibleIndexPositions = useMemo(() => {
+        const map = new Map<number, number>();
+        visibleFileIndexes.forEach((index, position) => {
+            map.set(index, position);
+        });
+        return map;
+    }, [visibleFileIndexes]);
 
     const handleFileToggle = useCallback(
-        (index: number, wanted: boolean) => {
-            onFilesToggle?.([index], wanted);
+        (indexes: number[], wanted: boolean) => {
+            if (!indexes.length) return;
+            onFilesToggle?.(indexes, wanted);
         },
         [onFilesToggle]
     );
+    const containerRef = useRef<HTMLDivElement>(null);
+    const focusContainer = useCallback(() => {
+        containerRef.current?.focus({ preventScroll: true });
+    }, []);
+    const clampContextMenuPosition = useCallback(
+        (x: number, y: number, menuWidth = CONTEXT_MENU_WIDTH) => {
+            const rect = containerRef.current?.getBoundingClientRect();
+            if (!rect) {
+                return { x, y };
+            }
+            const maxX = Math.max(
+                rect.width - menuWidth - CONTEXT_MENU_MARGIN,
+                CONTEXT_MENU_MARGIN
+            );
+            const maxY = Math.max(rect.height - CONTEXT_MENU_MARGIN, CONTEXT_MENU_MARGIN);
+            return {
+                x: Math.min(Math.max(x, CONTEXT_MENU_MARGIN), maxX),
+                y: Math.min(Math.max(y, CONTEXT_MENU_MARGIN), maxY),
+            };
+        },
+        []
+    );
+    const getRangeIndexes = useCallback(
+        (targetIndex: number, anchorIndex: number | null) => {
+            if (anchorIndex === null) {
+                return [targetIndex];
+            }
+            const anchorPos = visibleIndexPositions.get(anchorIndex);
+            const targetPos = visibleIndexPositions.get(targetIndex);
+            if (anchorPos === undefined || targetPos === undefined) {
+                return [targetIndex];
+            }
+            const [start, end] =
+                anchorPos < targetPos
+                    ? [anchorPos, targetPos]
+                    : [targetPos, anchorPos];
+            return visibleFileIndexes.slice(start, end + 1);
+        },
+        [visibleFileIndexes, visibleIndexPositions]
+    );
+    const handleRowSelection = useCallback(
+        (event: MouseEvent<HTMLDivElement>, index: number) => {
+            const rangeSelection =
+                event.shiftKey && lastSelectedIndex !== null;
+            const additiveSelection = event.metaKey || event.ctrlKey;
+            if (rangeSelection) {
+                const nextSelection = getRangeIndexes(index, lastSelectedIndex);
+                setSelectedIndexes(new Set(nextSelection));
+            } else if (additiveSelection) {
+                setSelectedIndexes((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(index)) {
+                        next.delete(index);
+                    } else {
+                        next.add(index);
+                    }
+                    return next;
+                });
+            } else {
+                setSelectedIndexes(new Set([index]));
+            }
+            setLastSelectedIndex(index);
+            focusContainer();
+        },
+        [focusContainer, getRangeIndexes, lastSelectedIndex]
+    );
+    const handleKeyDown = useCallback(
+        (event: KeyboardEvent<HTMLDivElement>) => {
+            if (event.key === "Escape") {
+                setFileContextMenu(null);
+                return;
+            }
+            if (event.code !== "Space" && event.key !== " ") return;
+            if (!selectedIndexes.size) return;
+            event.preventDefault();
+            const selectedArray = Array.from(selectedIndexes);
+            const allSelectedWanted = selectedArray.every((index) =>
+                selectionMap.get(index)
+            );
+            handleFileToggle(selectedArray, !allSelectedWanted);
+        },
+        [handleFileToggle, selectedIndexes, selectionMap]
+    );
+    const fileContextMenuItems = useMemo(
+        () => [
+            {
+                key: "open_file" as const,
+                label: t("torrent_modal.context_menu.files.open_file"),
+            },
+            {
+                key: "open_folder" as const,
+                label: t("torrent_modal.context_menu.files.open_folder"),
+            },
+            {
+                key: "priority_high" as const,
+                label: t("torrent_modal.context_menu.files.priority_high"),
+            },
+            {
+                key: "priority_normal" as const,
+                label: t("torrent_modal.context_menu.files.priority_normal"),
+            },
+            {
+                key: "priority_low" as const,
+                label: t("torrent_modal.context_menu.files.priority_low"),
+            },
+        ],
+        [t]
+    );
+    const menuRef = useRef<HTMLDivElement | null>(null);
+    const handleFileContextMenu = useCallback(
+        (event: MouseEvent<HTMLDivElement>, file: FileExplorerEntry) => {
+            event.preventDefault();
+            event.stopPropagation();
+            const rect = containerRef.current?.getBoundingClientRect();
+            const offsetX = rect ? event.clientX - rect.left : event.clientX;
+            const offsetY = rect ? event.clientY - rect.top : event.clientY;
+            const { x, y } = clampContextMenuPosition(offsetX, offsetY);
+            setFileContextMenu({
+                file,
+                rawX: offsetX,
+                rawY: offsetY,
+                x,
+                y,
+            });
+            if (!selectedIndexes.has(file.index)) {
+                setSelectedIndexes(new Set([file.index]));
+                setLastSelectedIndex(file.index);
+            }
+        },
+        [clampContextMenuPosition, selectedIndexes]
+    );
+    const handleFileContextAction = useCallback(
+        (action: FileExplorerContextAction) => {
+            if (!fileContextMenu) return;
+            onFileContextAction?.(action, fileContextMenu.file);
+            setFileContextMenu(null);
+        },
+        [fileContextMenu, onFileContextAction]
+    );
+
+    useLayoutEffect(() => {
+        if (!fileContextMenu || !menuRef.current) return;
+        const rect = menuRef.current.getBoundingClientRect();
+        const clamped = clampContextMenuPosition(
+            fileContextMenu.rawX,
+            fileContextMenu.rawY,
+            rect.width
+        );
+        if (
+            clamped.x === fileContextMenu.x &&
+            clamped.y === fileContextMenu.y
+        ) {
+            return;
+        }
+        setFileContextMenu((prev) =>
+            prev ? { ...prev, x: clamped.x, y: clamped.y } : prev
+        );
+    }, [clampContextMenuPosition, fileContextMenu]);
 
     const handleFolderToggle = useCallback(
         (node: FileExplorerNode) => {
@@ -156,12 +385,11 @@ export function FileExplorerTree({
             const allSelected = indexes.every((index) =>
                 selectionMap.get(index)
             );
-            onFilesToggle?.(indexes, !allSelected);
+            handleFileToggle(indexes, !allSelected);
         },
-        [onFilesToggle, selectionMap]
+        [handleFileToggle, selectionMap]
     );
 
-    const containerRef = useRef<HTMLDivElement>(null);
     const rowVirtualizer = useVirtualizer({
         count: visibleNodes.length,
         getScrollElement: () => containerRef.current,
@@ -173,7 +401,7 @@ export function FileExplorerTree({
     if (!files.length) {
         return (
             <div className="rounded-xl border border-content1/20 bg-content1/15 p-4 text-xs text-foreground/50 text-center">
-                {emptyMessage ?? "No files available."}
+                {emptyMessage ?? t("torrent_modal.files_empty")}
             </div>
         );
     }
@@ -181,13 +409,18 @@ export function FileExplorerTree({
     if (!visibleNodes.length) {
         return (
             <div className="rounded-xl border border-content1/20 bg-content1/15 p-4 text-xs text-foreground/50 text-center">
-                {emptyMessage ?? "No files available."}
+                {emptyMessage ?? t("torrent_modal.files_empty")}
             </div>
         );
     }
 
     return (
-        <div ref={containerRef} className="relative h-full overflow-y-auto">
+        <div
+            ref={containerRef}
+            className="relative h-full overflow-y-auto"
+            tabIndex={0}
+            onKeyDown={handleKeyDown}
+        >
             <div
                 style={{
                     height: `${rowVirtualizer.getTotalSize()}px`,
@@ -242,13 +475,17 @@ export function FileExplorerTree({
                                         {isExpanded ? (
                                             <ChevronDown
                                                 size={16}
-                                                strokeWidth={ICON_STROKE_WIDTH}
+                                                strokeWidth={
+                                                    ICON_STROKE_WIDTH
+                                                }
                                                 className="text-current"
                                             />
                                         ) : (
                                             <ChevronRight
                                                 size={16}
-                                                strokeWidth={ICON_STROKE_WIDTH}
+                                                strokeWidth={
+                                                    ICON_STROKE_WIDTH
+                                                }
                                                 className="text-current"
                                             />
                                         )}
@@ -279,7 +516,9 @@ export function FileExplorerTree({
                                         >
                                             <Folder
                                                 size={16}
-                                                strokeWidth={ICON_STROKE_WIDTH}
+                                                strokeWidth={
+                                                    ICON_STROKE_WIDTH
+                                                }
                                                 className="text-current"
                                             />
                                         </button>
@@ -308,6 +547,10 @@ export function FileExplorerTree({
                                   PRIORITY_BADGE_CLASSES[node.file.priority]
                               }`
                             : "";
+                    const isRowSelected = selectedIndexes.has(node.file.index);
+                    const rowClasses = `flex items-center gap-2 py-2 rounded cursor-pointer h-full transition-colors ${
+                        isRowSelected ? "bg-primary/10" : "hover:bg-content1/10"
+                    }`;
                     return (
                         <div
                             key={rowKey}
@@ -318,14 +561,15 @@ export function FileExplorerTree({
                             }}
                         >
                             <div
-                                className="flex items-center gap-2 py-2 rounded hover:bg-content1/10 cursor-pointer h-full"
+                                className={rowClasses}
                                 style={{ paddingLeft }}
-                                onClick={() =>
-                                    handleFileToggle(
-                                        node.file!.index,
-                                        !fileWanted
-                                    )
+                                onClick={(event) =>
+                                    handleRowSelection(event, node.file!.index)
                                 }
+                                onContextMenu={(event) =>
+                                    handleFileContextMenu(event, node.file!)
+                                }
+                                data-selected={isRowSelected}
                             >
                                 <div
                                     onClick={(event) => event.stopPropagation()}
@@ -334,7 +578,7 @@ export function FileExplorerTree({
                                         isSelected={fileWanted}
                                         onValueChange={(value) =>
                                             handleFileToggle(
-                                                node.file!.index,
+                                                [node.file!.index],
                                                 Boolean(value)
                                             )
                                         }
@@ -372,6 +616,32 @@ export function FileExplorerTree({
                     );
                 })}
             </div>
+            {fileContextMenu && (
+                <div
+                    ref={menuRef}
+                    className="pointer-events-auto absolute z-50 rounded-2xl border border-content1/40 bg-content1/80 p-1 backdrop-blur-3xl shadow-[0_20px_45px_rgba(0,0,0,0.35)]"
+                    style={{
+                        top: fileContextMenu.y,
+                        left: fileContextMenu.x,
+                        minWidth: CONTEXT_MENU_WIDTH,
+                    }}
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onContextMenu={(event) => event.preventDefault()}
+                >
+                    {fileContextMenuItems.map((item) => (
+                        <button
+                            key={item.key}
+                            type="button"
+                            className="w-full rounded-xl px-3 py-2 text-left text-sm font-medium text-foreground transition-colors data-[hover=true]:bg-content2/70 data-[pressed=true]:bg-content2/80 hover:text-foreground"
+                            onClick={() =>
+                                handleFileContextAction(item.key)
+                            }
+                        >
+                            {item.label}
+                        </button>
+                    ))}
+                </div>
+            )}
         </div>
     );
 }

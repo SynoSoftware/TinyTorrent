@@ -85,6 +85,7 @@ import {
     ICON_STROKE_WIDTH,
     ICON_STROKE_WIDTH_DENSE,
 } from "../../../config/logic";
+import constants from "@/config/constants.json";
 
 // --- CONSTANTS ---
 const STORAGE_KEY = "tiny-torrent.table-state.v2.8";
@@ -107,7 +108,7 @@ export type TorrentTableAction =
     | "queue-move-down"
     | "queue-move-bottom";
 
-type ContextMenuKey = TorrentTableAction | "cols";
+type ContextMenuKey = TorrentTableAction;
 
 type MarqueeRect = {
     left: number;
@@ -169,6 +170,8 @@ const CONTEXT_MENU_SHORTCUTS: Partial<
     "queue-move-bottom": "ctrl+end",
 };
 
+const DEFAULT_MAGNET_PREFIX = constants.defaults.magnet_protocol_prefix;
+
 const getContextMenuShortcut = (action: ContextMenuKey) =>
     formatShortcutLabel(CONTEXT_MENU_SHORTCUTS[action]);
 
@@ -189,6 +192,8 @@ interface TorrentTableProps {
     onSelectionChange?: (selection: Torrent[]) => void;
     optimisticStatuses?: OptimisticStatusMap;
     disableDetailOpen?: boolean;
+    onOpenFolder?: (torrent: Torrent) => Promise<void>;
+    ghostTorrents?: Torrent[];
 }
 
 // --- HELPERS ---
@@ -567,6 +572,8 @@ export function TorrentTable({
     onSelectionChange,
     optimisticStatuses = {},
     disableDetailOpen = false,
+    ghostTorrents,
+    onOpenFolder,
 }: TorrentTableProps) {
     const { t } = useTranslation();
     const [highlightedRowId, setHighlightedRowId] = useState<string | null>(
@@ -584,19 +591,26 @@ export function TorrentTable({
         [optimisticStatuses]
     );
 
+    const pooledTorrents = useMemo(() => {
+        if (!ghostTorrents?.length) return torrents;
+        return [...ghostTorrents, ...torrents];
+    }, [ghostTorrents, torrents]);
+
     // Prepare data for the table - memoized to prevent re-processing
     const data = useMemo(() => {
-        // Map original torrents to display versions (handling optimistic updates)
-        const displayTorrents = torrents.map(getDisplayTorrent);
+        const displayTorrents = pooledTorrents.map(getDisplayTorrent);
         const filteredByState =
             filter === "all"
                 ? displayTorrents
-                : displayTorrents.filter((t) => t.state === filter);
+                : displayTorrents.filter(
+                      (t) => t.isGhost || t.state === filter
+                  );
         const normalizedQuery = searchQuery.trim().toLowerCase();
         if (!normalizedQuery) return filteredByState;
-        return filteredByState.filter((torrent) =>
-            torrent.name.toLowerCase().includes(normalizedQuery)
-        );
+        return filteredByState.filter((torrent) => {
+            const haystack = `${torrent.name} ${torrent.ghostLabel ?? ""}`.toLowerCase();
+            return haystack.includes(normalizedQuery);
+        });
     }, [torrents, filter, searchQuery, getDisplayTorrent]);
 
     const parentRef = useRef<HTMLDivElement>(null);
@@ -624,14 +638,37 @@ export function TorrentTable({
         [overlayPortalHost]
     );
 
-    const queueMenuActions = useMemo<QueueMenuAction[]>(
-        () => [
-            { key: "queue-move-top", label: t("table.queue.move_top") },
-            { key: "queue-move-up", label: t("table.queue.move_up") },
-            { key: "queue-move-down", label: t("table.queue.move_down") },
-            { key: "queue-move-bottom", label: t("table.queue.move_bottom") },
-        ],
-        [t]
+const queueMenuActions = useMemo<QueueMenuAction[]>(
+    () => [
+        { key: "queue-move-top", label: t("table.queue.move_top") },
+        { key: "queue-move-up", label: t("table.queue.move_up") },
+        { key: "queue-move-down", label: t("table.queue.move_down") },
+        { key: "queue-move-bottom", label: t("table.queue.move_bottom") },
+    ],
+    [t]
+);
+
+    const isClipboardSupported =
+        typeof navigator !== "undefined" &&
+        typeof navigator.clipboard?.writeText === "function";
+    const copyToClipboard = useCallback(async (value?: string) => {
+        if (!value) return;
+        if (
+            typeof navigator === "undefined" ||
+            typeof navigator.clipboard?.writeText !== "function"
+        ) {
+            return;
+        }
+        try {
+            await navigator.clipboard.writeText(value);
+        } catch {
+            // ignore
+        }
+    }, []);
+    const buildMagnetLink = useCallback(
+        (torrent: Torrent) =>
+            `${DEFAULT_MAGNET_PREFIX}xt=urn:btih:${torrent.hash}`,
+        []
     );
 
     useEffect(() => {
@@ -795,6 +832,38 @@ export function TorrentTable({
             }
         },
         [tableContainerRef]
+    );
+
+    const handleContextMenuAction = useCallback(
+        async (key?: string) => {
+            if (!contextMenu) return;
+            const torrent = contextMenu.torrent;
+            if (!torrent) return;
+            if (key === "cols") {
+                const rowElement = findRowElement(torrent.id);
+                openColumnModal(rowElement ?? null);
+            } else if (key === "open-folder") {
+                if (onOpenFolder && torrent.savePath) {
+                    await onOpenFolder(torrent);
+                }
+            } else if (key === "copy-hash") {
+                await copyToClipboard(torrent.hash);
+            } else if (key === "copy-magnet") {
+                await copyToClipboard(buildMagnetLink(torrent));
+            } else if (key) {
+                onAction?.(key as TorrentTableAction, torrent);
+            }
+            setContextMenu(null);
+        },
+        [
+            buildMagnetLink,
+            copyToClipboard,
+            contextMenu,
+            findRowElement,
+            onAction,
+            onOpenFolder,
+            openColumnModal,
+        ]
     );
 
     type SavedTableState = {
@@ -1082,6 +1151,7 @@ export function TorrentTable({
         const allRows = table.getRowModel().rows;
         const nextSelection: RowSelectionState = {};
         allRows.forEach((row) => {
+            if (row.original.isGhost) return;
             nextSelection[row.id] = true;
         });
         setRowSelection(nextSelection);
@@ -1097,7 +1167,11 @@ export function TorrentTable({
 
     const rowSelectionState = table.getState().rowSelection;
     const selectedTorrents = useMemo(
-        () => table.getSelectedRowModel().rows.map((row) => row.original),
+        () =>
+            table
+                .getSelectedRowModel()
+                .rows.map((row) => row.original)
+                .filter((torrent) => !torrent.isGhost),
         [table, rowSelectionState]
     );
 
@@ -1326,6 +1400,8 @@ export function TorrentTable({
                 marqueeClickBlockRef.current = false;
                 return;
             }
+            const rowData = table.getRow(rowId)?.original;
+            if (rowData?.isGhost) return;
             if (
                 target.closest("button") ||
                 target.closest("label") ||
@@ -1383,7 +1459,14 @@ export function TorrentTable({
     const handleContextMenu = useCallback(
         (e: React.MouseEvent, torrent: Torrent) => {
             e.preventDefault();
-            const virtualElement = createVirtualElement(e.clientX, e.clientY);
+            if (torrent.isGhost) return;
+            const rowElement = findRowElement(torrent.id);
+            const rowRect = rowElement?.getBoundingClientRect();
+            const targetY =
+                rowRect !== undefined
+                    ? rowRect.top + rowRect.height / 2
+                    : e.clientY;
+            const virtualElement = createVirtualElement(e.clientX, targetY);
             setContextMenu({ virtualElement, torrent });
 
             const allRows = table.getRowModel().rows;
@@ -1396,7 +1479,7 @@ export function TorrentTable({
             setAnchorIndex(row.index);
             setFocusIndex(row.index);
         },
-        [rowSelection, table]
+        [rowSelection, table, findRowElement]
     );
 
     const activeHeader = useMemo(() => {
@@ -1678,89 +1761,107 @@ export function TorrentTable({
                                     }}
                                 />
                             </DropdownTrigger>
-                            <DropdownMenu
-                                variant="flat"
-                                className={GLASS_MENU_SURFACE}
-                                onAction={(key) => {
-                                    const menuKey = key as
-                                        | ContextMenuKey
-                                        | undefined;
-                                    if (menuKey === "cols") {
-                                        const rowElement = findRowElement(
-                                            contextMenu?.torrent.id
-                                        );
-                                        openColumnModal(rowElement ?? null);
-                                    } else if (menuKey) {
-                                        onAction?.(
-                                            menuKey,
-                                            contextMenu.torrent
-                                        );
-                                    }
-                                    setContextMenu(null);
-                                }}
-                            >
-                                <DropdownItem
-                                    key="pause"
-                                    shortcut={getContextMenuShortcut("pause")}
-                                >
-                                    {t("table.actions.pause")}
-                                </DropdownItem>
-                                <DropdownItem
-                                    key="resume"
-                                    shortcut={getContextMenuShortcut("resume")}
-                                >
-                                    {t("table.actions.resume")}
-                                </DropdownItem>
-                                <DropdownItem
-                                    key="recheck"
-                                    shortcut={getContextMenuShortcut("recheck")}
-                                >
-                                    {t("table.actions.recheck")}
-                                </DropdownItem>
-                                <DropdownItem
-                                    key="remove"
-                                    color="danger"
-                                    shortcut={getContextMenuShortcut("remove")}
-                                >
-                                    {t("table.actions.remove")}
-                                </DropdownItem>
-                                <DropdownItem
-                                    key="remove-with-data"
-                                    color="danger"
-                                    shortcut={getContextMenuShortcut(
-                                        "remove-with-data"
-                                    )}
-                                >
-                                    {t("table.actions.remove_with_data")}
-                                </DropdownItem>
-                                <DropdownItem
-                                    key="queue-title"
-                                    isDisabled
-                                    className="border-t border-content1/20 mt-2 pt-2 px-4 text-[10px] font-bold uppercase tracking-[0.4em] text-foreground/50"
-                                >
-                                    {t("table.queue.title")}
-                                </DropdownItem>
-                                <>
-                                    {queueMenuActions.map((action) => (
-                                        <DropdownItem
-                                            key={action.key}
-                                            className="pl-10 text-sm"
-                                            shortcut={getContextMenuShortcut(
-                                                action.key as ContextMenuKey
-                                            )}
-                                        >
-                                            {action.label}
-                                        </DropdownItem>
-                                    ))}
-                                </>
-                                <DropdownItem key="cols" showDivider>
-                                    {t("table.column_picker_title")}
-                                </DropdownItem>
-                            </DropdownMenu>
-                        </Dropdown>
-                    )}
-                </AnimatePresence>
-            </div>
+            <DropdownMenu
+                variant="flat"
+                className={GLASS_MENU_SURFACE}
+                onAction={(key) => {
+                    void handleContextMenuAction(
+                        key as
+                            | ContextMenuKey
+                            | "cols"
+                            | "open-folder"
+                            | "copy-magnet"
+                            | "copy-hash"
+                    );
+                }}
+            >
+                <DropdownItem
+                    key="pause"
+                    shortcut={getContextMenuShortcut("pause")}
+                >
+                    {t("table.actions.pause")}
+                </DropdownItem>
+                <DropdownItem
+                    key="resume"
+                    shortcut={getContextMenuShortcut("resume")}
+                >
+                    {t("table.actions.resume")}
+                </DropdownItem>
+                <DropdownItem
+                    key="recheck"
+                    shortcut={getContextMenuShortcut("recheck")}
+                >
+                    {t("table.actions.recheck")}
+                </DropdownItem>
+                <DropdownItem
+                    key="queue-title"
+                    isDisabled
+                    className="border-t border-content1/20 mt-2 pt-2 px-4 text-[10px] font-bold uppercase tracking-[0.4em] text-foreground/50"
+                >
+                    {t("table.queue.title")}
+                </DropdownItem>
+                <>
+                    {queueMenuActions.map((action) => (
+                        <DropdownItem
+                            key={action.key}
+                            className="pl-10 text-sm"
+                            shortcut={getContextMenuShortcut(
+                                action.key as ContextMenuKey
+                            )}
+                        >
+                            {action.label}
+                        </DropdownItem>
+                    ))}
+                </>
+                <DropdownItem
+                    key="data-title"
+                    isDisabled
+                    className="border-t border-content1/20 mt-2 pt-2 px-4 text-[10px] font-bold uppercase tracking-[0.4em] text-foreground/50"
+                >
+                    {t("table.data.title")}
+                </DropdownItem>
+                <DropdownItem
+                    key="open-folder"
+                    isDisabled={
+                        !onOpenFolder || !contextMenu.torrent.savePath
+                    }
+                >
+                    {t("table.actions.open_folder")}
+                </DropdownItem>
+                <DropdownItem
+                    key="copy-magnet"
+                    isDisabled={!isClipboardSupported}
+                >
+                    {t("table.actions.copy_magnet")}
+                </DropdownItem>
+                <DropdownItem
+                    key="copy-hash"
+                    isDisabled={!isClipboardSupported}
+                >
+                    {t("table.actions.copy_hash")}
+                </DropdownItem>
+                <DropdownItem
+                    key="remove"
+                    color="danger"
+                    shortcut={getContextMenuShortcut("remove")}
+                >
+                    {t("table.actions.remove")}
+                </DropdownItem>
+                <DropdownItem
+                    key="remove-with-data"
+                    color="danger"
+                    shortcut={getContextMenuShortcut("remove-with-data")}
+                >
+                    {t("table.actions.remove_with_data")}
+                </DropdownItem>
+                <DropdownItem key="cols" showDivider>
+                    {t("table.column_picker_title")}
+                </DropdownItem>
+            </DropdownMenu>
+        </Dropdown>
+    )}
+</AnimatePresence>
+</div>
 
             <Modal
                 isOpen={isColumnModalOpen}

@@ -29,15 +29,24 @@ import type {
     RehashStatus,
 } from "../types/workspace";
 import type {
-    Torrent,
-    TorrentDetail,
-} from "../../modules/dashboard/types/torrent";
+    FileExplorerContextAction,
+    FileExplorerEntry,
+} from "../../shared/ui/workspace/FileExplorerTree";
+import type { Torrent, TorrentDetail } from "../../modules/dashboard/types/torrent";
 import type {
     OptimisticStatusMap,
     TorrentTableAction,
 } from "../../modules/dashboard/components/TorrentTable";
-import type { SessionStats } from "../../services/rpc/entities";
+import type {
+    PeerContextAction,
+} from "../../modules/dashboard/components/details/tabs/PeersTab";
+import type {
+    DetailTab,
+    PeerSortStrategy,
+} from "../../modules/dashboard/components/TorrentDetailView";
+import type { SessionStats, TorrentPeerEntity } from "../../services/rpc/entities";
 import type { RpcStatus } from "../../shared/types/rpc";
+import type { AddTorrentContext } from "../hooks/useAddTorrent";
 import type { WorkspaceStyle } from "../hooks/useWorkspaceShell";
 
 type AddTorrentPayload = {
@@ -72,6 +81,7 @@ interface WorkspaceShellProps {
     workspaceStyle: WorkspaceStyle;
     toggleWorkspaceStyle: () => void;
     torrents: Torrent[];
+    ghostTorrents: Torrent[];
     isTableLoading: boolean;
     handleTorrentAction: (
         action: TorrentTableAction,
@@ -84,6 +94,14 @@ interface WorkspaceShellProps {
         indexes: number[],
         wanted: boolean
     ) => Promise<void>;
+    onFileContextAction?: (
+        action: FileExplorerContextAction,
+        entry: FileExplorerEntry
+    ) => void;
+    onPeerContextAction?: (
+        action: PeerContextAction,
+        peer: TorrentPeerEntity
+    ) => void;
     sequentialToggleHandler?: (enabled: boolean) => Promise<void>;
     superSeedingToggleHandler?: (enabled: boolean) => Promise<void>;
     handleForceTrackerReannounce: () => Promise<void>;
@@ -91,6 +109,10 @@ interface WorkspaceShellProps {
     superSeedingSupported: boolean;
     optimisticStatuses: OptimisticStatusMap;
     handleSelectionChange: (selection: Torrent[]) => void;
+    handleOpenFolder: (torrent: Torrent) => Promise<void>;
+    peerSortStrategy: PeerSortStrategy;
+    inspectorTabCommand: DetailTab | null;
+    onInspectorTabCommandHandled: () => void;
     sessionStats: SessionStats | null;
     downHistory: number[];
     upHistory: number[];
@@ -105,7 +127,10 @@ interface WorkspaceShellProps {
     handleAddModalClose: () => void;
     pendingTorrentFile: File | null;
     incomingMagnetLink: string | null;
-    handleAddTorrent: (payload: AddTorrentPayload) => Promise<void>;
+    handleAddTorrent: (
+        payload: AddTorrentPayload,
+        context?: AddTorrentContext
+    ) => Promise<void>;
     isAddingTorrent: boolean;
     isSettingsOpen: boolean;
     closeSettings: () => void;
@@ -134,12 +159,15 @@ export function WorkspaceShell({
     workspaceStyle,
     toggleWorkspaceStyle,
     torrents,
+    ghostTorrents,
     isTableLoading,
     handleTorrentAction,
     handleRequestDetails,
     detailData,
     closeDetail,
     handleFileSelectionChange,
+    onFileContextAction,
+    onPeerContextAction,
     sequentialToggleHandler,
     superSeedingToggleHandler,
     handleForceTrackerReannounce,
@@ -147,6 +175,10 @@ export function WorkspaceShell({
     superSeedingSupported,
     optimisticStatuses,
     handleSelectionChange,
+    handleOpenFolder,
+    peerSortStrategy,
+    inspectorTabCommand,
+    onInspectorTabCommandHandled,
     sessionStats,
     downHistory,
     upHistory,
@@ -214,25 +246,32 @@ export function WorkspaceShell({
     );
 
     const renderModeLayoutSection = () => (
-        <ModeLayout
-            torrents={torrents}
-            filter={filter}
-            searchQuery={searchQuery}
-            isTableLoading={isTableLoading}
-            onAction={handleTorrentAction}
-            onRequestDetails={handleRequestDetails}
-            detailData={detailData}
-            onCloseDetail={closeDetail}
-            onFilesToggle={handleFileSelectionChange}
-            onSequentialToggle={sequentialToggleHandler}
-            onSuperSeedingToggle={superSeedingToggleHandler}
-            onForceTrackerReannounce={handleForceTrackerReannounce}
-            sequentialSupported={sequentialSupported}
-            superSeedingSupported={superSeedingSupported}
-            optimisticStatuses={optimisticStatuses}
-            isDropActive={isDragActive}
-            onSelectionChange={handleSelectionChange}
-        />
+            <ModeLayout
+                torrents={torrents}
+                filter={filter}
+                searchQuery={searchQuery}
+                isTableLoading={isTableLoading}
+                onAction={handleTorrentAction}
+                onRequestDetails={handleRequestDetails}
+                detailData={detailData}
+                onCloseDetail={closeDetail}
+                onFilesToggle={handleFileSelectionChange}
+                onFileContextAction={onFileContextAction}
+                onPeerContextAction={onPeerContextAction}
+                onSequentialToggle={sequentialToggleHandler}
+                onSuperSeedingToggle={superSeedingToggleHandler}
+                onForceTrackerReannounce={handleForceTrackerReannounce}
+                sequentialSupported={sequentialSupported}
+                superSeedingSupported={superSeedingSupported}
+                optimisticStatuses={optimisticStatuses}
+                peerSortStrategy={peerSortStrategy}
+                inspectorTabCommand={inspectorTabCommand}
+                onInspectorTabCommandHandled={onInspectorTabCommandHandled}
+                ghostTorrents={ghostTorrents}
+                isDropActive={isDragActive}
+                onSelectionChange={handleSelectionChange}
+                onOpenFolder={handleOpenFolder}
+            />
     );
 
     const renderStatusBarSection = () => (
