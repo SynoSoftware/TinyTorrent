@@ -1,0 +1,15 @@
+build/
+vcpkg/
+*.exe
+*.obj
+*.pdb
+*.ilk
+*.sdf
+*.user
+*.ipch
+*.log
+*.vs
+*.VC.db
+*.VC.opendb
+cmake-build-*/
+*.cache

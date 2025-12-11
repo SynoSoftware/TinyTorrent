@@ -257,6 +257,15 @@ Run this only when producing the final artifact.
 
 ---
 
+# Other
+
+at the end of each task you must buil the app in dev mode and fix all errors and warnings (it's acceptable to leave warnings that cannot be fixed immediatelly or out of scope of the feature you have been working on).
+
+for setup environment you can use scripts/setup.ps1
+for build you can run scripts/build.ps1
+
+-- if you work on the build system, update this section on how to build exactly so it remains to be up to date.
+
 # **End of Specification**
 
 All agents must respect development ergonomics while ensuring release builds meet the extreme micro-binary requirements.
