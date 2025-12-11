@@ -13,6 +13,12 @@
 
 namespace tt::engine {
 
+enum class EncryptionMode {
+  Tolerated = 0,
+  Preferred = 1,
+  Required = 2,
+};
+
 struct CoreSettings {
   std::filesystem::path download_path{"data"};
   std::string listen_interface{"0.0.0.0:6881"};
@@ -21,15 +27,93 @@ struct CoreSettings {
   int upload_rate_limit_kbps = 0;
   bool download_rate_limit_enabled = false;
   bool upload_rate_limit_enabled = false;
+  int alt_download_rate_limit_kbps = 0;
+  int alt_upload_rate_limit_kbps = 0;
+  bool alt_speed_enabled = false;
+  bool alt_speed_time_enabled = false;
+  int alt_speed_time_begin = 0;
+  int alt_speed_time_end = 0;
+  int alt_speed_time_day = 0;
+  EncryptionMode encryption = EncryptionMode::Tolerated;
   int peer_limit = 0;
   int peer_limit_per_torrent = 0;
+  bool dht_enabled = true;
+  bool pex_enabled = true;
+  bool lpd_enabled = true;
+  bool utp_enabled = true;
+  int download_queue_size = 0;
+  int seed_queue_size = 0;
+  bool queue_stalled_enabled = false;
+  std::filesystem::path incomplete_dir;
+  bool incomplete_dir_enabled = false;
   std::filesystem::path blocklist_path;
   std::filesystem::path state_path;
+  std::filesystem::path watch_dir;
+  bool watch_dir_enabled = false;
+  bool seed_ratio_enabled = false;
+  double seed_ratio_limit = 0.0;
+  bool seed_idle_enabled = false;
+  int seed_idle_limit_minutes = 0;
+  int proxy_type = 0;
+  std::string proxy_hostname;
+  int proxy_port = 0;
+  bool proxy_auth_enabled = false;
+  std::string proxy_username;
+  std::string proxy_password;
+  bool proxy_peer_connections = false;
+};
+
+struct SessionUpdate {
+  std::optional<int> alt_speed_down_kbps;
+  std::optional<int> alt_speed_up_kbps;
+  std::optional<bool> alt_speed_enabled;
+  std::optional<bool> alt_speed_time_enabled;
+  std::optional<int> alt_speed_time_begin;
+  std::optional<int> alt_speed_time_end;
+  std::optional<int> alt_speed_time_day;
+  std::optional<EncryptionMode> encryption;
+  std::optional<bool> dht_enabled;
+  std::optional<bool> pex_enabled;
+  std::optional<bool> lpd_enabled;
+  std::optional<bool> utp_enabled;
+  std::optional<int> download_queue_size;
+  std::optional<int> seed_queue_size;
+  std::optional<bool> queue_stalled_enabled;
+  std::optional<std::filesystem::path> incomplete_dir;
+  std::optional<bool> incomplete_dir_enabled;
+  std::optional<std::filesystem::path> watch_dir;
+  std::optional<bool> watch_dir_enabled;
+  std::optional<bool> seed_ratio_enabled;
+  std::optional<double> seed_ratio_limit;
+  std::optional<bool> seed_idle_enabled;
+  std::optional<int> seed_idle_limit;
+  std::optional<int> proxy_type;
+  std::optional<std::string> proxy_hostname;
+  std::optional<int> proxy_port;
+  std::optional<bool> proxy_auth_enabled;
+  std::optional<std::string> proxy_username;
+  std::optional<std::string> proxy_password;
+  std::optional<bool> proxy_peer_connections;
+};
+
+struct TrackerEntry {
+  std::string announce;
+  int tier = 0;
+};
+
+struct TorrentSeedLimit {
+  std::optional<double> ratio_limit;
+  std::optional<bool> ratio_enabled;
+  std::optional<int> ratio_mode;
+  std::optional<int> idle_limit;
+  std::optional<bool> idle_enabled;
+  std::optional<int> idle_mode;
 };
 
 struct TorrentAddRequest {
   std::optional<std::string> uri;
   std::vector<std::uint8_t> metainfo;
+  std::vector<std::uint8_t> resume_data;
   std::filesystem::path download_path;
   bool paused = false;
 };
@@ -65,6 +149,8 @@ struct TorrentSnapshot {
   std::string error_string;
   std::int64_t left_until_done = 0;
   std::int64_t size_when_done = 0;
+  std::vector<std::string> labels;
+  int bandwidth_priority = 0;
 };
 
 struct TorrentFileInfo {
@@ -158,6 +244,18 @@ public:
   std::optional<std::size_t> reload_blocklist();
   std::size_t blocklist_entry_count() const noexcept;
   std::optional<std::chrono::system_clock::time_point> blocklist_last_update() const noexcept;
+  void update_session_settings(SessionUpdate update);
+  void add_trackers(std::vector<int> ids, std::vector<TrackerEntry> const &entries);
+  void remove_trackers(std::vector<int> ids, std::vector<std::string> const &announces);
+  void replace_trackers(std::vector<int> ids, std::vector<TrackerEntry> const &entries);
+  void set_torrent_bandwidth_priority(std::vector<int> ids, int priority);
+  void set_torrent_bandwidth_limits(std::vector<int> ids,
+                                    std::optional<int> download_limit_kbps,
+                                    std::optional<bool> download_limited,
+                                    std::optional<int> upload_limit_kbps,
+                                    std::optional<bool> upload_limited);
+  void set_torrent_seed_limits(std::vector<int> ids, TorrentSeedLimit limits);
+  void set_torrent_labels(std::vector<int> ids, std::vector<std::string> const &labels);
 
 private:
   struct Impl;

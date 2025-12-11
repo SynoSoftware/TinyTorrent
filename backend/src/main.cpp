@@ -120,6 +120,50 @@ int main() {
   settings.upload_rate_limit_enabled = session_state.speed_limit_up_enabled;
   settings.peer_limit = session_state.peer_limit;
   settings.peer_limit_per_torrent = session_state.peer_limit_per_torrent;
+  settings.alt_download_rate_limit_kbps = session_state.alt_speed_down_kbps;
+  settings.alt_upload_rate_limit_kbps = session_state.alt_speed_up_kbps;
+  settings.alt_speed_enabled = session_state.alt_speed_enabled;
+  settings.alt_speed_time_enabled = session_state.alt_speed_time_enabled;
+  settings.alt_speed_time_begin = session_state.alt_speed_time_begin;
+  settings.alt_speed_time_end = session_state.alt_speed_time_end;
+  settings.alt_speed_time_day = session_state.alt_speed_time_day;
+  switch (session_state.encryption) {
+    case 1:
+      settings.encryption = tt::engine::EncryptionMode::Preferred;
+      break;
+    case 2:
+      settings.encryption = tt::engine::EncryptionMode::Required;
+      break;
+    default:
+      settings.encryption = tt::engine::EncryptionMode::Tolerated;
+      break;
+  }
+  settings.dht_enabled = session_state.dht_enabled;
+  settings.pex_enabled = session_state.pex_enabled;
+  settings.lpd_enabled = session_state.lpd_enabled;
+  settings.utp_enabled = session_state.utp_enabled;
+  settings.download_queue_size = session_state.download_queue_size;
+  settings.seed_queue_size = session_state.seed_queue_size;
+  settings.queue_stalled_enabled = session_state.queue_stalled_enabled;
+  if (!session_state.incomplete_dir.empty()) {
+    settings.incomplete_dir = std::filesystem::path(session_state.incomplete_dir);
+  }
+  settings.incomplete_dir_enabled = session_state.incomplete_dir_enabled;
+  if (!session_state.watch_dir.empty()) {
+    settings.watch_dir = std::filesystem::path(session_state.watch_dir);
+  }
+  settings.watch_dir_enabled = session_state.watch_dir_enabled;
+  settings.seed_ratio_limit = session_state.seed_ratio_limit;
+  settings.seed_ratio_enabled = session_state.seed_ratio_enabled;
+  settings.seed_idle_limit_minutes = session_state.seed_idle_limit;
+  settings.seed_idle_enabled = session_state.seed_idle_enabled;
+  settings.proxy_type = session_state.proxy_type;
+  settings.proxy_hostname = session_state.proxy_hostname;
+  settings.proxy_port = session_state.proxy_port;
+  settings.proxy_auth_enabled = session_state.proxy_auth_enabled;
+  settings.proxy_username = session_state.proxy_username;
+  settings.proxy_password = session_state.proxy_password;
+  settings.proxy_peer_connections = session_state.proxy_peer_connections;
   settings.state_path = state_path;
 
   TT_LOG_INFO("Engine listen interface: {}", settings.listen_interface);
