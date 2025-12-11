@@ -37,10 +37,13 @@ TinyTorrent = **modern µTorrent** × **glass UI** × **Apple/Linear polish**.
 To prevent "Slow Table / Fast CPU Burn":
 
 1.  **Single Heartbeat Source:** The App must have **one** central heartbeat loop (managed by `EngineAdapter`). Components must **never** set their own `setInterval` for fetching.
-2.  **Adaptive Frequency:**
-    -   **Table Mode:** Update every ~1500ms (High density, low frequency needs).
-    -   **Detail/Graph Mode:** Update every ~500ms (Low density, high frequency needs).
-    -   **Background:** Throttle to 5000ms or Pause.
+2.  **Adaptive Modes:**
+    -   **Polling Mode (Current):**
+        -   **Table View:** Fetch every ~1500ms.
+        -   **Detail/Graph View:** Fetch every ~500ms.
+        -   **Background:** Throttle to 5000ms.
+    -   **Push Mode (Future):**
+        -   Polling stops. The Heartbeat is used only to check connection health (Ping/Pong). Data is driven by incoming Server Events.
 3.  **Selective Subscriptions (Selector Pattern):**
     -   **The Table** subscribes to the _List Hash/Delta_. It only re-renders rows that changed.
     -   **The Details Panel** must subscribe **only** to `state.torrents[activeId]`.
@@ -70,9 +73,22 @@ We use Tailwind's opacity modifier (`/opacity`) on HeroUI tokens. This preserves
 
 **Rule:** Every "Glass" layer (Layers 1 & 2) must have a subtle border (`border-default/xx`) to define its edge. Using `border-default` ensures the border is dark in Light Mode and light in Dark Mode automatically.
 
+### **Semantic Status Mapping**
+
+These mappings must be consistent across the app (Text, Badges, Icons, Graphs):
+
+| Token     | Usage                  |
+| --------- | ---------------------- |
+| `success` | Seeding, Completed     |
+| `warning` | Paused, Checking       |
+| `danger`  | Deletes, Errors        |
+| `primary` | CTAs, Progress Accents |
+| `default` | Borders, Inactive Text |
+
 ## **Color Rules**
 
-I want light/dark mode to work flawlessly. For this, use HeroUI’s semantic color tokens for everything.
+**Mandatory:** Light/dark mode has to work flawlessly.
+Main strategy: use HeroUI’s semantic color tokens for everything.
 
 **Use:**
 
@@ -239,10 +255,10 @@ The Frontend must run on a **Dual-Transport System**:
     -   This ensures compatibility with the current standard daemon.
     -   **Polling Interval:** Adaptive (e.g., 2s in table view, 5s in background).
 
-2.  **Upgrade Path (WebSocket / Extensions):**
-    -   The `EngineAdapter` should be designed to support a WebSocket connection _if available_.
-    -   If the backend is identified as "Standard Transmission" (via handshake), the app stays in **HTTP Only Mode**.
-    -   If/When the backend is identified as "TinyTorrent Custom," it upgrades to WebSocket for real-time updates.
+2.  **Upgrade Path (Server-Push / WebSocket):**
+    -   If the backend is identified as "Standard Transmission", the app stays in **HTTP Polling Mode**.
+    -   If/When the backend is identified as "TinyTorrent", it upgrades to a **Server-Push (Event-Driven)** model (SignalR-style).
+    -   **Zero Polling:** In this mode, the client stops polling. The server pushes state deltas instantly via WebSocket when data changes.
 
 ### **Design Rules**
 
