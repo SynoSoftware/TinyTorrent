@@ -79,10 +79,16 @@ export const ICON_STROKE_WIDTH = constants.iconography.stroke_width;
 export const ICON_STROKE_WIDTH_DENSE =
     constants.iconography.stroke_width_dense;
 
+export const TABLE_REFRESH_INTERVAL_MS =
+    constants.heartbeats.table_refresh_interval_ms;
 export const DETAIL_REFRESH_INTERVAL_MS =
     constants.heartbeats.detail_refresh_interval_ms;
+export const BACKGROUND_REFRESH_INTERVAL_MS =
+    constants.heartbeats.background_refresh_interval_ms;
 export const HEARTBEAT_INTERVALS = {
     detail: DETAIL_REFRESH_INTERVAL_MS,
+    table: TABLE_REFRESH_INTERVAL_MS,
+    background: BACKGROUND_REFRESH_INTERVAL_MS,
 };
 
 export interface DragOverlayRootConfig {

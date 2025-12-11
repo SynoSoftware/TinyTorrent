@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type MutableRefObject } from "react";
+import { useCallback, useRef, useState, useEffect, type MutableRefObject } from "react";
 import type { EngineAdapter } from "../../../services/rpc/engine-adapter";
 import type { RpcStatus } from "../../../shared/types/rpc";
 import type { TorrentDetail } from "../types/torrent";
@@ -7,6 +7,7 @@ interface UseTorrentDetailParams {
     torrentClient: EngineAdapter;
     reportRpcStatus: (status: RpcStatus) => void;
     isMountedRef: MutableRefObject<boolean>;
+    sessionReady: boolean;
 }
 
 interface UseTorrentDetailResult {
@@ -26,6 +27,7 @@ export function useTorrentDetail({
     torrentClient,
     reportRpcStatus,
     isMountedRef,
+    sessionReady,
 }: UseTorrentDetailParams): UseTorrentDetailResult {
     const [detailData, setDetailData] = useState<TorrentDetail | null>(null);
     const detailRequestRef = useRef(0);
@@ -83,6 +85,28 @@ export function useTorrentDetail({
         activeDetailIdRef.current = null;
         setDetailData(null);
     }, []);
+
+    useEffect(() => {
+        if (!sessionReady || !detailData?.id) return;
+        const subscription = torrentClient.subscribeToHeartbeat({
+            mode: "detail",
+            detailId: detailData.id,
+            onUpdate: ({ detail }) => {
+                if (!detail) return;
+                if (!isMountedRef.current) return;
+                if (activeDetailIdRef.current !== detail.id) return;
+                setDetailData(detail);
+                reportRpcStatus("connected");
+            },
+            onError: () => {
+                if (!isMountedRef.current) return;
+                reportRpcStatus("error");
+            },
+        });
+        return () => {
+            subscription.unsubscribe();
+        };
+    }, [sessionReady, detailData?.id, torrentClient, reportRpcStatus, isMountedRef]);
 
     return {
         detailData,

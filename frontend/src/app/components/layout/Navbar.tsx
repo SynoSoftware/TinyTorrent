@@ -187,6 +187,7 @@ export function Navbar({
                     placeholder={t("nav.search_placeholder")}
                     size="sm"
                     value={searchQuery}
+                    data-command-search="true"
                     onChange={(event) =>
                         setSearchQuery(event.currentTarget.value)
                     }
