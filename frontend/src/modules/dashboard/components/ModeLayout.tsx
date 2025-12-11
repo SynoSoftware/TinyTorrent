@@ -7,7 +7,7 @@ import {
     PanelResizeHandle,
     type ImperativePanelHandle,
 } from "react-resizable-panels";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useFocusState } from "../../../app/context/FocusContext";
 
@@ -82,6 +82,7 @@ export function ModeLayout({
     const detailPanelDefaultSize = isHorizontalSplit ? 34 : 34;
     const detailPanelRef = useRef<ImperativePanelHandle | null>(null);
     const focusReturnRef = useRef<string | null>(null);
+    const [isDetailFullscreen, setIsDetailFullscreen] = useState(false);
 
     const isDetailOpen = Boolean(detailData);
     const tableFocused = activePart === "table";
@@ -101,23 +102,48 @@ export function ModeLayout({
         (torrent: Torrent) => {
             focusReturnRef.current = torrent.id;
             setActivePart("inspector");
+            setIsDetailFullscreen(false);
             onRequestDetails?.(torrent);
         },
-        [onRequestDetails, setActivePart]
+        [onRequestDetails, setActivePart, setIsDetailFullscreen]
+    );
+
+    const handleDetailFullscreenRequest = useCallback(
+        (torrent: Torrent) => {
+            focusReturnRef.current = torrent.id;
+            setActivePart("inspector");
+            setIsDetailFullscreen(true);
+            onRequestDetails?.(torrent);
+        },
+        [onRequestDetails, setActivePart, setIsDetailFullscreen]
     );
 
     const handleDetailClose = useCallback(() => {
+        setIsDetailFullscreen(false);
         setActivePart("table");
         onCloseDetail();
-    }, [onCloseDetail, setActivePart]);
+    }, [onCloseDetail, setActivePart, setIsDetailFullscreen]);
+    const handleDetailDock = useCallback(() => {
+        setIsDetailFullscreen(false);
+        setActivePart("inspector");
+    }, [setActivePart, setIsDetailFullscreen]);
+    const handleDetailPopout = useCallback(() => {
+        setIsDetailFullscreen(true);
+        setActivePart("inspector");
+    }, [setActivePart, setIsDetailFullscreen]);
     useEffect(() => {
         if (!detailPanelRef.current) return;
-        if (isDetailOpen) {
+        if (isDetailOpen && !isDetailFullscreen) {
             detailPanelRef.current.expand();
         } else {
             detailPanelRef.current.collapse();
         }
-    }, [isDetailOpen]);
+    }, [isDetailOpen, isDetailFullscreen]);
+
+    useEffect(() => {
+        if (detailData) return;
+        setIsDetailFullscreen(false);
+    }, [detailData]);
 
     useEffect(() => {
         if (isDetailOpen) return;
@@ -227,6 +253,9 @@ export function ModeLayout({
                             isLoading={isTableLoading}
                             onAction={onAction}
                             onRequestDetails={handleDetailRequest}
+                            onRequestDetailsFullscreen={
+                                handleDetailFullscreenRequest
+                            }
                             onSelectionChange={onSelectionChange}
                             optimisticStatuses={optimisticStatuses}
                         />
@@ -282,7 +311,8 @@ export function ModeLayout({
                                     superSeedingSupported={
                                         superSeedingSupported
                                     }
-                                    onAction={onAction}
+                                    isFullscreen={isDetailFullscreen}
+                                    onPopout={handleDetailPopout}
                                 />
                             </motion.div>
                         ) : (
@@ -293,6 +323,42 @@ export function ModeLayout({
                     </AnimatePresence>
                 </Panel>
             </PanelGroup>
+            <AnimatePresence initial={false}>
+                {detailData && isDetailFullscreen && (
+                    <motion.div
+                        key={`fullscreen-detail-${detailData.id}`}
+                        className="fixed inset-0 z-40 flex items-center justify-center p-4"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.25 }}
+                    >
+                        <div className="absolute inset-0 pointer-events-none bg-background/90 backdrop-blur-3xl" />
+                        <motion.div
+                            className="relative z-10 flex h-full w-full max-h-[calc(100vh-2rem)] max-w-[1100px] flex-col overflow-hidden rounded-[32px] border border-content1/20 bg-background/60 shadow-[0_40px_100px_rgba(0,0,0,0.55)] backdrop-blur-3xl"
+                            initial={{ opacity: 0, scale: 0.96 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.96 }}
+                            transition={{ duration: 0.25 }}
+                        >
+                            <TorrentDetailView
+                                torrent={detailData}
+                                onClose={handleDetailClose}
+                                onFilesToggle={onFilesToggle}
+                                onSequentialToggle={onSequentialToggle}
+                                onSuperSeedingToggle={onSuperSeedingToggle}
+                                onForceTrackerReannounce={
+                                    onForceTrackerReannounce
+                                }
+                                sequentialSupported={sequentialSupported}
+                                superSeedingSupported={superSeedingSupported}
+                                isFullscreen
+                                onDock={handleDetailDock}
+                            />
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }
