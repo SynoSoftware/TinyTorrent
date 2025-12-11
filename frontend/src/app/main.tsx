@@ -6,15 +6,19 @@ import App from "./App";
 import { ClientProvider } from "./providers/TorrentClientProvider";
 import { PerformanceHistoryProvider } from "../shared/hooks/usePerformanceHistory";
 import { WorkspaceModalProvider } from "./WorkspaceModalContext";
+import { HotkeysProvider } from "react-hotkeys-hook";
+import { DEFAULT_KEYBOARD_SCOPE } from "../shared/hooks/useKeyboardScope";
 
 createRoot(document.getElementById("root")!).render(
     <StrictMode>
-        <ClientProvider>
-            <WorkspaceModalProvider>
-                <PerformanceHistoryProvider>
-                    <App />
-                </PerformanceHistoryProvider>
-            </WorkspaceModalProvider>
-        </ClientProvider>
+        <HotkeysProvider initiallyActiveScopes={[DEFAULT_KEYBOARD_SCOPE]}>
+            <ClientProvider>
+                <WorkspaceModalProvider>
+                    <PerformanceHistoryProvider>
+                        <App />
+                    </PerformanceHistoryProvider>
+                </WorkspaceModalProvider>
+            </ClientProvider>
+        </HotkeysProvider>
     </StrictMode>
 );
