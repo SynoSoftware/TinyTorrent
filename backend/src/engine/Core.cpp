@@ -7,6 +7,7 @@
 #include <libtorrent/add_torrent_params.hpp>
 #include <libtorrent/bdecode.hpp>
 #include <libtorrent/alert.hpp>
+#include <libtorrent/alert_types.hpp>
 #include <libtorrent/error_code.hpp>
 #include <libtorrent/file_storage.hpp>
 #include <libtorrent/magnet_uri.hpp>
@@ -665,7 +666,9 @@ private:
         handle_save_resume_data_failed_alert(*failed);
       } else if (auto *metadata =
                      libtorrent::alert_cast<libtorrent::metadata_received_alert>(alert)) {
-        TT_LOG_DEBUG("metadata received for {}", info_hash_to_hex(metadata->info_hashes));
+        auto const &handle = metadata->handle;
+        auto info = handle.info_hashes().get_best();
+        TT_LOG_DEBUG("metadata received for {}", info_hash_to_hex(info));
       }
     }
   }

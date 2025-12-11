@@ -217,7 +217,7 @@ TEST_CASE("rpc endpoint enforces token authentication when configured") {
 
   auto authorized = send_rpc_request(
       R"({"method":"session-get","arguments":{}})",
-      std::string("X-TinyTorrent-Token: rpc-secret\r\n"));
+      std::string("X-TT-Auth: rpc-secret\r\n"));
   ResponseView auth_view{authorized};
   CHECK(auth_view.result() == "success");
 }

@@ -3,10 +3,12 @@
 #include "vendor/mongoose.h"
 
 #include <atomic>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <thread>
 #include <utility>
+#include <vector>
 
 namespace tt::engine {
 class Core;
@@ -17,8 +19,14 @@ namespace tt::rpc {
 struct ServerOptions {
   std::optional<std::pair<std::string, std::string>> basic_auth;
   std::optional<std::string> token;
-  std::string token_header = "X-TinyTorrent-Token";
+  std::string token_header = "X-TT-Auth";
   std::string basic_realm = "TinyTorrent RPC";
+  std::vector<std::string> trusted_origins = {"tt://app", "http://localhost:3000"};
+};
+
+struct ConnectionInfo {
+  std::string token;
+  std::uint16_t port = 0;
 };
 
 class Server {
@@ -34,11 +42,14 @@ public:
   void start();
   void stop();
 
+  std::optional<ConnectionInfo> connection_info() const;
+
 private:
   void run_loop();
   std::string dispatch(std::string_view payload);
   static void handle_event(struct mg_connection *conn, int ev, void *ev_data);
   bool authorize_request(struct mg_http_message *hm);
+  void refresh_connection_port();
 
   std::string bind_url_;
   std::string rpc_path_;
@@ -47,6 +58,7 @@ private:
   mg_mgr mgr_;
   struct mg_connection *listener_;
   std::string session_id_;
+  std::optional<ConnectionInfo> connection_info_;
   std::atomic_bool running_{false};
   std::thread worker_;
   ServerOptions options_;

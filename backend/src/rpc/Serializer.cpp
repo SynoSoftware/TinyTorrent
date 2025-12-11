@@ -1,5 +1,6 @@
 #include "rpc/Serializer.hpp"
 
+#include <array>
 #include <chrono>
 #include <cstdint>
 #include <limits>
@@ -108,6 +109,41 @@ std::pair<std::string, std::string> parse_rpc_bind(std::string const &value) {
   return {host, port};
 }
 
+std::string serialize_capabilities() {
+  tt::json::MutableDocument doc;
+  if (!doc.is_valid()) {
+    return "{}";
+  }
+
+  auto *native = doc.doc();
+  auto *root = yyjson_mut_obj(native);
+  doc.set_root(root);
+  yyjson_mut_obj_add_str(native, root, "result", "success");
+
+  auto *arguments = yyjson_mut_obj(native);
+  yyjson_mut_obj_add_val(native, root, "arguments", arguments);
+  yyjson_mut_obj_add_str(native, arguments, "server-version",
+                         "TinyTorrent 1.0.0");
+  yyjson_mut_obj_add_str(native, arguments, "version", "TinyTorrent 1.0.0");
+  yyjson_mut_obj_add_uint(native, arguments, "rpc-version", 17);
+  yyjson_mut_obj_add_uint(native, arguments, "rpc-version-min", 1);
+  yyjson_mut_obj_add_str(native, arguments, "websocket-endpoint", "/ws");
+  yyjson_mut_obj_add_str(native, arguments, "websocket-path", "/ws");
+  yyjson_mut_obj_add_str(native, arguments, "platform", "win32");
+
+  static constexpr std::array<char const *, 8> kFeatures = {
+      "fs-browse",       "system-integration", "system-reveal",
+      "system-open",     "proxy-configuration", "proxy-support",
+      "sequential-download", "labels"};
+  auto *features = yyjson_mut_arr(native);
+  yyjson_mut_obj_add_val(native, arguments, "features", features);
+  for (auto const feature : kFeatures) {
+    yyjson_mut_arr_add_str(native, features, feature);
+  }
+
+  return doc.write(R"({"result":"error"})");
+}
+
 std::string serialize_session_settings(
     engine::CoreSettings const &settings, std::size_t blocklist_entries,
     std::optional<std::chrono::system_clock::time_point> blocklist_updated,
@@ -208,7 +244,9 @@ std::string serialize_session_settings(
   }
   if (!settings.proxy_password.empty()) {
     yyjson_mut_obj_add_str(native, arguments, "proxy-password",
-                           settings.proxy_password.c_str());
+                           "<REDACTED>");
+  } else {
+    yyjson_mut_obj_add_null(native, arguments, "proxy-password");
   }
   yyjson_mut_obj_add_bool(native, arguments, "proxy-peer-connections",
                          settings.proxy_peer_connections);

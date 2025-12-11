@@ -7,14 +7,27 @@
 #include <atomic>
 #include <chrono>
 #include <csignal>
+#include <cctype>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <format>
+#include <fstream>
 #include <memory>
 #include <optional>
+#include <random>
 #include <string>
+#include <system_error>
 #include <thread>
 #include <utility>
+#include <vector>
+
+#if defined(_WIN32)
+#include <process.h>
+#else
+#include <unistd.h>
+#endif
 
 std::atomic_bool keep_running{true};
 
@@ -29,6 +42,96 @@ int main() {
     }
     return std::string(value);
   };
+
+  auto trim_whitespace = [](std::string value) -> std::string {
+    auto begin = value.find_first_not_of(" \t\r\n");
+    if (begin == std::string::npos) {
+      return {};
+    }
+    auto end = value.find_last_not_of(" \t\r\n");
+    if (end == std::string::npos) {
+      end = value.size() - 1;
+    }
+    return value.substr(begin, end - begin + 1);
+  };
+
+  auto parse_trusted_origins = [&](std::string const &raw) {
+    std::vector<std::string> result;
+    std::string buffer;
+    buffer.reserve(raw.size());
+    for (char ch : raw) {
+      if (ch == ',' || ch == ';') {
+        auto trimmed = trim_whitespace(buffer);
+        if (!trimmed.empty()) {
+          result.emplace_back(std::move(trimmed));
+        }
+        buffer.clear();
+      } else {
+        buffer.push_back(ch);
+      }
+    }
+    auto trimmed = trim_whitespace(buffer);
+    if (!trimmed.empty()) {
+      result.emplace_back(std::move(trimmed));
+    }
+    return result;
+  };
+
+  auto generate_rpc_token = []() -> std::string {
+    static constexpr char kHexDigits[] = "0123456789abcdef";
+    std::mt19937_64 rng(static_cast<std::uint64_t>(
+        std::chrono::high_resolution_clock::now().time_since_epoch().count()));
+    std::uniform_int_distribution<std::uint64_t> dist;
+    std::string token;
+    token.reserve(32);
+    while (token.size() < 32) {
+      auto value = dist(rng);
+      for (int bit = 0; bit < 16 && token.size() < 32; ++bit) {
+        token.push_back(kHexDigits[value & 0xF]);
+        value >>= 4;
+      }
+    }
+    return token;
+  };
+
+  auto current_pid = []() -> std::uint64_t {
+#if defined(_WIN32)
+    return static_cast<std::uint64_t>(_getpid());
+#else
+    return static_cast<std::uint64_t>(getpid());
+#endif
+  };
+
+  auto write_connection_file =
+      [&](std::filesystem::path const &path,
+          tt::rpc::ConnectionInfo const &info, std::uint64_t pid) {
+        if (info.port == 0 || info.token.empty()) {
+          return false;
+        }
+        auto payload = std::format(R"({{"port":{},"token":"{}","pid":{}}})",
+                                   info.port, info.token, pid);
+        auto tmp_path = path;
+        tmp_path.replace_extension(".json.tmp");
+        std::filesystem::create_directories(tmp_path.parent_path());
+        std::ofstream output(tmp_path, std::ios::binary);
+        if (!output) {
+          return false;
+        }
+        output << payload;
+        output.flush();
+        output.close();
+        std::error_code ec;
+        std::filesystem::rename(tmp_path, path, ec);
+        if (ec) {
+          std::filesystem::remove(tmp_path, ec);
+          return false;
+        }
+        std::filesystem::permissions(
+            path,
+            std::filesystem::perms::owner_read | std::filesystem::perms::owner_write,
+            std::filesystem::perm_options::replace, ec);
+        return true;
+      };
 
   auto root = tt::utils::data_root();
   auto download_path = root / "downloads";
@@ -87,7 +190,7 @@ int main() {
   session_state.listen_interface = listen_interface;
 
   std::string rpc_bind =
-      session_state.rpc_bind.empty() ? "http://127.0.0.1:8080"
+      session_state.rpc_bind.empty() ? "http://127.0.0.1:0"
                                      : session_state.rpc_bind;
   if (auto env = read_env("TT_RPC_BIND"); env) {
     rpc_bind = *env;
@@ -173,20 +276,40 @@ int main() {
   TT_LOG_INFO("Engine thread started");
 
   tt::rpc::ServerOptions rpc_options;
-  if (auto user = read_env("TT_RPC_BASIC_USERNAME");
-      user.has_value()) {
-    if (auto pass = read_env("TT_RPC_BASIC_PASSWORD"); pass.has_value()) {
+  if (auto user = read_env("TT_RPC_BASIC_USERNAME"); user) {
+    if (auto pass = read_env("TT_RPC_BASIC_PASSWORD"); pass) {
       rpc_options.basic_auth = std::make_pair(*user, *pass);
     }
   }
-  if (auto token = read_env("TT_RPC_TOKEN"); token.has_value()) {
-    rpc_options.token = *token;
+  std::string rpc_token;
+  if (auto token = read_env("TT_RPC_TOKEN"); token) {
+    rpc_token = *token;
+  } else {
+    rpc_token = generate_rpc_token();
   }
-  if (rpc_options.basic_auth || rpc_options.token) {
-    TT_LOG_INFO("RPC authentication enabled");
+  rpc_options.token = rpc_token;
+  if (auto origins = read_env("TT_RPC_TRUSTED_ORIGINS"); origins) {
+    auto parsed = parse_trusted_origins(*origins);
+    if (!parsed.empty()) {
+      rpc_options.trusted_origins = std::move(parsed);
+    }
   }
+  TT_LOG_INFO("RPC authentication enforced; connection.json contains credentials.");
   tt::rpc::Server rpc(engine.get(), rpc_bind, rpc_options);
   rpc.start();
+  auto connection_info = rpc.connection_info();
+  auto connection_file = root / "connection.json";
+  if (connection_info) {
+    if (write_connection_file(connection_file, *connection_info, current_pid())) {
+      TT_LOG_INFO("RPC listening on port {}; connection info saved to {}",
+                  connection_info->port, connection_file.string());
+    } else {
+      TT_LOG_INFO("Failed to write connection info to {}",
+                  connection_file.string());
+    }
+  } else {
+    TT_LOG_INFO("Connection info unavailable; secure launcher cannot start.");
+  }
   TT_LOG_INFO("RPC layer ready; POST requests should hit {}/transmission/rpc",
               rpc_bind);
 
