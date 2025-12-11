@@ -20,7 +20,6 @@ interface GeneralTabProps {
     progressPercent: number;
     timeRemainingLabel: string;
     activePeers: number;
-    isPinned: boolean;
 }
 
 interface GeneralInfoCardProps {
@@ -69,83 +68,41 @@ export const GeneralTab = ({
     progressPercent,
     timeRemainingLabel,
     activePeers,
-    isPinned,
 }: GeneralTabProps) => {
     const { t } = useTranslation();
     const handleCopyHash = () => navigator.clipboard.writeText(torrent.hash);
 
     return (
         <div className="space-y-6">
-            {isPinned && (
-                <GlassPanel className="space-y-4 border border-content1/20 bg-content1/30 p-4">
-                    <div className="flex items-end justify-between gap-4">
-                        <div>
-                            <div className="text-[10px] uppercase tracking-[0.3em] text-foreground/40 font-bold mb-1">
-                                {t("torrent_modal.stats.total_progress")}
-                            </div>
-                            <div className="text-4xl font-mono font-medium tracking-tight">
-                                {progressPercent.toFixed(1)}%
-                            </div>
-                        </div>
-                        <div className="text-right">
-                            <div className="text-[10px] uppercase tracking-[0.3em] text-foreground/40 font-bold">
-                                {t("torrent_modal.stats.time_remaining")}
-                            </div>
-                            <div className="font-mono text-xl">{timeRemainingLabel}</div>
-                        </div>
+            <GlassPanel className="space-y-3 border border-content1/20 bg-content1/30 p-4">
+                <div className="flex items-center justify-between gap-4 text-[10px] uppercase tracking-[0.3em] text-foreground/50">
+                    <div className="flex flex-col">
+                        <span className="text-xs font-semibold text-foreground">
+                            {progressPercent.toFixed(1)}%
+                        </span>
+                        <span>{t("torrent_modal.stats.total_progress")}</span>
                     </div>
-                    <div className="h-3">
-                        <SmoothProgressBar
-                            value={progressPercent}
-                            trackClassName="h-full bg-content1/20"
-                            indicatorClassName="h-full bg-gradient-to-r from-success/50 to-success"
-                        />
+                    <div className="flex flex-col items-end">
+                        <span className="text-xs font-semibold text-foreground">
+                            {timeRemainingLabel}
+                        </span>
+                        <span>{t("torrent_modal.stats.time_remaining")}</span>
                     </div>
-                    <div className="space-y-1.5">
-                        <div className="flex justify-between text-[9px] uppercase tracking-[0.3em] font-bold text-foreground/40">
-                            <span>{t("torrent_modal.stats.availability")}</span>
-                            <span className="text-primary">
-                                {activePeers} {t("torrent_modal.stats.active")}
-                            </span>
-                        </div>
-                        <div className="h-1.5 w-full rounded-full bg-content1/20 overflow-hidden flex">
-                            <div className="h-full w-full bg-primary opacity-80" />
-                        </div>
+                    <div className="flex flex-col items-end text-primary">
+                        <span className="text-xs font-semibold font-mono">
+                            {activePeers}
+                        </span>
+                        <span>{t("torrent_modal.stats.active")}</span>
                     </div>
-                    <div className="space-y-2 border-t border-content1/10 pt-2">
-                        <div className="flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-2">
-                                <Hash
-                                    size={16}
-                                    strokeWidth={ICON_STROKE_WIDTH}
-                                    className="text-foreground/60"
-                                />
-                                <span className="text-[10px] uppercase tracking-[0.3em] text-foreground/40">
-                                    {t("torrent_modal.general.hash")}
-                                </span>
-                            </div>
-                            <Button
-                                isIconOnly
-                                size="sm"
-                                variant="flat"
-                                color="primary"
-                                onPress={handleCopyHash}
-                                aria-label={t("table.actions.copy_hash")}
-                                className="text-foreground/50 hover:text-foreground"
-                            >
-                                <Copy
-                                    size={12}
-                                    strokeWidth={ICON_STROKE_WIDTH}
-                                    className="text-current"
-                                />
-                            </Button>
-                        </div>
-                        <code className="block font-mono text-xs text-foreground/70 rounded bg-content1/20 px-2 py-1 break-words">
-                            {torrent.hash}
-                        </code>
-                    </div>
-                </GlassPanel>
-            )}
+                </div>
+                <div className="h-2 rounded-full bg-background/30">
+                    <SmoothProgressBar
+                        value={progressPercent}
+                        trackClassName="h-full bg-transparent"
+                        indicatorClassName="h-full bg-gradient-to-r from-success/60 via-success to-primary"
+                    />
+                </div>
+            </GlassPanel>
             <GlassPanel className="p-4 space-y-4 bg-content1/30 border border-content1/20">
                 <div className="flex items-center justify-between gap-4">
                     <div className="flex flex-col gap-1">
@@ -260,39 +217,37 @@ export const GeneralTab = ({
                         {downloadDir}
                     </code>
                 </GlassPanel>
-                {!isPinned && (
-                    <GlassPanel className="p-4 space-y-3">
-                        <div className="flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-2">
-                                <Hash
-                                    size={16}
-                                    strokeWidth={ICON_STROKE_WIDTH}
-                                    className="text-foreground/50"
-                                />
-                                <span className="text-[10px] uppercase tracking-[0.3em] text-foreground/40">
-                                    {t("torrent_modal.labels.info_hash")}
-                                </span>
-                            </div>
-                            <Button
-                                isIconOnly
-                                size="sm"
-                                variant="flat"
-                                onPress={handleCopyHash}
-                                aria-label={t("table.actions.copy_hash")}
-                                className="text-foreground/50 hover:text-foreground"
-                            >
-                                <Copy
-                                    size={12}
-                                    strokeWidth={ICON_STROKE_WIDTH}
-                                    className="text-current"
-                                />
-                            </Button>
+                <GlassPanel className="p-4 space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                            <Hash
+                                size={16}
+                                strokeWidth={ICON_STROKE_WIDTH}
+                                className="text-foreground/50"
+                            />
+                            <span className="text-[10px] uppercase tracking-[0.3em] text-foreground/40">
+                                {t("torrent_modal.labels.info_hash")}
+                            </span>
                         </div>
-                        <code className="font-mono text-xs text-foreground/70 bg-content1/20 px-2 py-1 rounded break-words">
-                            {torrent.hash}
-                        </code>
-                    </GlassPanel>
-                )}
+                        <Button
+                            isIconOnly
+                            size="sm"
+                            variant="flat"
+                            onPress={handleCopyHash}
+                            aria-label={t("table.actions.copy_hash")}
+                            className="text-foreground/50 hover:text-foreground"
+                        >
+                            <Copy
+                                size={12}
+                                strokeWidth={ICON_STROKE_WIDTH}
+                                className="text-current"
+                            />
+                        </Button>
+                    </div>
+                    <code className="font-mono text-xs text-foreground/70 bg-content1/20 px-2 py-1 rounded break-words">
+                        {torrent.hash}
+                    </code>
+                </GlassPanel>
             </div>
         </div>
     );

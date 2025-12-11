@@ -1,13 +1,16 @@
 import { AnimatePresence, motion, type Transition } from "framer-motion";
 import { FileUp } from "lucide-react";
-import { Modal, ModalContent, cn } from "@heroui/react";
+import { cn } from "@heroui/react";
 import {
-    useLayoutEffect,
-    useState,
-    useCallback,
-    useEffect,
-    useRef,
-} from "react";
+    Panel,
+    PanelGroup,
+    PanelResizeHandle,
+    type ImperativePanelHandle,
+} from "react-resizable-panels";
+import { useCallback, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
+import { useFocusState } from "../../../app/context/FocusContext";
+
 import {
     TorrentTable,
     type TorrentTableAction,
@@ -15,11 +18,8 @@ import {
 } from "./TorrentTable";
 import { TorrentDetailView } from "./TorrentDetailView";
 import type { Torrent, TorrentDetail } from "../types/torrent";
-import { INTERACTION_CONFIG } from "../../../config/logic";
 import { ICON_STROKE_WIDTH } from "../../../config/logic";
-import { useTranslation } from "react-i18next";
 
-const { modalBloom } = INTERACTION_CONFIG;
 const DROP_BORDER_TRANSITION: Transition = {
     type: "spring",
     stiffness: 240,
@@ -27,6 +27,8 @@ const DROP_BORDER_TRANSITION: Transition = {
     repeat: Infinity,
     repeatType: "reverse",
 };
+
+const DETAIL_PANEL_LAYOUT_ID = "tiny-torrent.detail-panel.layout";
 
 interface ModeLayoutProps {
     torrents: Torrent[];
@@ -73,31 +75,61 @@ export function ModeLayout({
     detailSplitDirection = "vertical",
 }: ModeLayoutProps) {
     const { t } = useTranslation();
-    const isDetailOpen = Boolean(detailData);
-    const [detailOrigin, setDetailOrigin] = useState<{
-        x: number;
-        y: number;
-    } | null>(null);
-    const [isDetailPinned, setIsDetailPinned] = useState(false);
+    const { activePart, setActivePart } = useFocusState();
+    const splitDirection = detailSplitDirection;
+    const isHorizontalSplit = splitDirection === "horizontal";
+    const detailPanelMinSize = isHorizontalSplit ? 22 : 26;
+    const detailPanelDefaultSize = isHorizontalSplit ? 34 : 34;
+    const detailPanelRef = useRef<ImperativePanelHandle | null>(null);
     const focusReturnRef = useRef<string | null>(null);
+
+    const isDetailOpen = Boolean(detailData);
+    const tableFocused = activePart === "table";
+    const inspectorFocused = activePart === "inspector";
+    const focusTable = useCallback(() => setActivePart("table"), [setActivePart]);
+    const focusInspector = useCallback(() => setActivePart("inspector"), [
+        setActivePart,
+    ]);
+    const tableRegionClass = cn(
+        "absolute inset-0 pb-2 rounded-2xl transition-colors duration-200 overflow-hidden",
+        tableFocused
+            ? "border border-primary/30 ring-1 ring-primary/20"
+            : "border border-content1/10"
+    );
 
     const handleDetailRequest = useCallback(
         (torrent: Torrent) => {
             focusReturnRef.current = torrent.id;
+            setActivePart("inspector");
             onRequestDetails?.(torrent);
         },
-        [onRequestDetails]
-    );
-
-    const toggleDetailPin = useCallback(
-        () => setIsDetailPinned((previous) => !previous),
-        []
+        [onRequestDetails, setActivePart]
     );
 
     const handleDetailClose = useCallback(() => {
-        setIsDetailPinned(false);
+        setActivePart("table");
         onCloseDetail();
-    }, [onCloseDetail]);
+    }, [onCloseDetail, setActivePart]);
+    useEffect(() => {
+        if (!detailPanelRef.current) return;
+        if (isDetailOpen) {
+            detailPanelRef.current.expand();
+        } else {
+            detailPanelRef.current.collapse();
+        }
+    }, [isDetailOpen]);
+
+    useEffect(() => {
+        if (isDetailOpen) return;
+        if (typeof document === "undefined") return;
+        const pendingId = focusReturnRef.current;
+        if (!pendingId) return;
+        const rowElement = document.querySelector<HTMLElement>(
+            `[data-torrent-row="${pendingId}"]`
+        );
+        rowElement?.focus();
+        focusReturnRef.current = null;
+    }, [isDetailOpen]);
 
     useEffect(() => {
         if (!isDetailOpen) return;
@@ -113,114 +145,81 @@ export function ModeLayout({
         };
     }, [isDetailOpen, handleDetailClose]);
 
-    useEffect(() => {
-        if (isDetailOpen) return;
-        if (typeof document === "undefined") return;
-        const pendingId = focusReturnRef.current;
-        if (!pendingId) return;
-        const rowElement = document.querySelector<HTMLElement>(
-            `[data-torrent-row="${pendingId}"]`
-        );
-        rowElement?.focus();
-        focusReturnRef.current = null;
-    }, [isDetailOpen]);
-
-    useLayoutEffect(() => {
-        if (typeof window === "undefined" || !isDetailOpen || !detailData) {
-            setDetailOrigin(null);
-            return;
-        }
-
-        const selector = `[data-torrent-row="${detailData.id}"]`;
-        const rowElement = document.querySelector<HTMLElement>(selector);
-        if (!rowElement) {
-            setDetailOrigin(null);
-            return;
-        }
-
-        const updateOrigin = () => {
-            const rect = rowElement.getBoundingClientRect();
-            setDetailOrigin({
-                x: rect.left + rect.width / 2,
-                y: rect.top + rect.height / 2,
-            });
-        };
-
-        updateOrigin();
-        const ObserverCtor =
-            typeof ResizeObserver === "undefined" ? undefined : ResizeObserver;
-        if (!ObserverCtor) {
-            return;
-        }
-        const observer = new ObserverCtor(() => {
-            updateOrigin();
-        });
-        observer.observe(rowElement);
-
-        return () => {
-            observer.disconnect();
-        };
-    }, [detailData?.id, isDetailOpen]);
-
-    const hasOrigin = Boolean(detailOrigin);
-    const viewportOffset =
-        hasOrigin && typeof window !== "undefined" && detailOrigin !== null
-            ? {
-                  x: detailOrigin.x - window.innerWidth / 2,
-                  y: detailOrigin.y - window.innerHeight / 2,
-              }
-            : { x: 0, y: 20 };
-    const bloomInitial = hasOrigin
-        ? {
-              opacity: 0,
-              scale: modalBloom.originScale,
-              x: viewportOffset.x,
-              y: viewportOffset.y,
-          }
-        : {
-              opacity: 0,
-              scale: modalBloom.fallbackScale,
-              x: 0,
-              y: modalBloom.fallbackOffsetY,
-          };
-    const bloomAnimate = { opacity: 1, scale: 1, x: 0, y: 0 };
-    const bloomExit = {
-        opacity: 0,
-        scale: modalBloom.exitScale,
-        x: 0,
-        y: modalBloom.exitOffsetY,
-    };
-    const bloomTransition = modalBloom.transition;
-    const splitDirection = detailSplitDirection ?? "vertical";
-    const isHorizontalSplit = splitDirection === "horizontal";
-
-    const detailMotionProps = isHorizontalSplit
-        ? { initial: { opacity: 0, x: 32 }, exit: { opacity: 0, x: 32 } }
-        : { initial: { opacity: 0, y: 32 }, exit: { opacity: 0, y: 32 } };
-
-    const workspaceClass = cn(
-        "flex-1 min-h-0 h-full relative flex overflow-hidden",
-        isDetailPinned && isHorizontalSplit ? "lg:flex-row" : "flex-col"
+    const dropOverlay = (
+        <AnimatePresence>
+            {isDropActive && (
+                <motion.div
+                    className="pointer-events-none absolute inset-0 flex items-center justify-center z-50"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                >
+                    <motion.div
+                        className="absolute inset-2 rounded-[34px] border border-primary/60"
+                        initial={{ scale: 0.96, opacity: 0.4 }}
+                        animate={{ scale: 1, opacity: 0.8 }}
+                        exit={{ opacity: 0 }}
+                        transition={DROP_BORDER_TRANSITION}
+                    />
+                    <motion.div
+                        className="absolute inset-6 rounded-[30px] border border-primary/30 opacity-60"
+                        initial={{ scale: 1.03, opacity: 0.3 }}
+                        animate={{ scale: 1, opacity: 0.65 }}
+                        exit={{ opacity: 0 }}
+                        transition={{
+                            ...DROP_BORDER_TRANSITION,
+                            stiffness: 200,
+                        }}
+                    />
+                    <div className="relative z-10 flex flex-col items-center gap-2 rounded-2xl border border-primary/30 bg-background/90 px-6 py-4 text-center text-[11px] font-semibold uppercase tracking-[0.3em] text-foreground/70 shadow-lg">
+                        <FileUp
+                            size={28}
+                            strokeWidth={ICON_STROKE_WIDTH}
+                            className="text-primary"
+                        />
+                        <span className="text-sm font-semibold text-foreground">
+                            {t("drop_overlay.title")}
+                        </span>
+                        <span className="text-[10px] tracking-[0.45em] text-foreground/50">
+                            {t("drop_overlay.subtitle")}
+                        </span>
+                    </div>
+                </motion.div>
+            )}
+        </AnimatePresence>
     );
 
-    const detailPanelClasses = cn(
-        "glass-panel hidden flex-col overflow-hidden rounded-2xl border border-content1/20 bg-content1/80 shadow-2xl backdrop-blur-2xl lg:flex z-20",
+    const panelGroupClass = cn(
+        "flex-1 min-h-0 h-full w-full",
+        "relative flex flex-col overflow-hidden"
+    );
+    const detailPanelClass = cn(
+        "glass-panel inspector-shell hidden flex-col overflow-hidden rounded-2xl transition-colors lg:flex z-20",
+        inspectorFocused
+            ? "border border-primary/30 ring-1 ring-primary/20"
+            : "border border-content1/20",
         {
             "lg:w-[360px] lg:max-w-[440px] h-full": isHorizontalSplit,
             "lg:h-[360px] lg:max-h-[440px] w-full": !isHorizontalSplit,
         }
     );
+    const handleClass = cn(
+        "group relative z-10 transition-colors",
+        isHorizontalSplit
+            ? "h-full w-4 cursor-col-resize"
+            : "w-full h-4 cursor-row-resize"
+    );
 
     return (
-        <>
-            <div className={workspaceClass}>
-                <main className="flex-1 min-h-0 min-w-0 relative flex flex-col overflow-hidden">
-                    {/* 
-                        FIX: Using 'absolute inset-0' forces this container to fit exactly 
-                        into the space left by the flex parent, ignoring the table's natural height.
-                        This allows the scrollbar to appear on the table, rather than the window.
-                    */}
-                    <div className="absolute inset-0 pb-2">
+        <div className="flex-1 min-h-0 h-full">
+            <PanelGroup
+                direction={splitDirection}
+                autoSaveId={DETAIL_PANEL_LAYOUT_ID}
+                className={panelGroupClass}
+            >
+                <Panel className="relative flex-1 min-h-0">
+                    <div className={tableRegionClass} onPointerDown={focusTable}>
                         <TorrentTable
                             torrents={torrents}
                             filter={filter}
@@ -230,122 +229,70 @@ export function ModeLayout({
                             onRequestDetails={handleDetailRequest}
                             onSelectionChange={onSelectionChange}
                             optimisticStatuses={optimisticStatuses}
-                            disableDetailOpen={Boolean(
-                                detailData && !isDetailPinned
-                            )}
                         />
-                        <AnimatePresence>
-                            {isDropActive && (
-                                <motion.div
-                                    className="pointer-events-none absolute inset-0 flex items-center justify-center z-50"
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    exit={{ opacity: 0 }}
-                                    transition={{ duration: 0.2 }}
-                                >
-                                    <motion.div
-                                        className="absolute inset-2 rounded-[34px] border border-primary/60"
-                                        initial={{ scale: 0.96, opacity: 0.4 }}
-                                        animate={{ scale: 1, opacity: 0.8 }}
-                                        exit={{ opacity: 0 }}
-                                        transition={DROP_BORDER_TRANSITION}
-                                    />
-                                    <motion.div
-                                        className="absolute inset-6 rounded-[30px] border border-primary/30 opacity-60"
-                                        initial={{ scale: 1.03, opacity: 0.3 }}
-                                        animate={{ scale: 1, opacity: 0.65 }}
-                                        exit={{ opacity: 0 }}
-                                        transition={{
-                                            ...DROP_BORDER_TRANSITION,
-                                            stiffness: 200,
-                                        }}
-                                    />
-                                    <div className="relative z-10 flex flex-col items-center gap-2 rounded-2xl border border-primary/30 bg-background/90 px-6 py-4 text-center text-[11px] font-semibold uppercase tracking-[0.3em] text-foreground/70 shadow-lg">
-                                        <FileUp
-                                            size={28}
-                                            strokeWidth={ICON_STROKE_WIDTH}
-                                            className="text-primary"
-                                        />
-                                        <span className="text-sm font-semibold text-foreground">
-                                            {t("drop_overlay.title")}
-                                        </span>
-                                        <span className="text-[10px] tracking-[0.45em] text-foreground/50">
-                                            {t("drop_overlay.subtitle")}
-                                        </span>
-                                    </div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
+                        {dropOverlay}
                     </div>
-                </main>
-                <AnimatePresence mode="wait">
-                    {detailData && isDetailPinned && (
-                        <motion.aside
-                            key={detailData.id}
-                            initial={detailMotionProps.initial}
-                            animate={{ opacity: 1, x: 0, y: 0 }}
-                            exit={detailMotionProps.exit}
-                            transition={{
-                                type: "spring",
-                                stiffness: 220,
-                                damping: 24,
-                            }}
-                            className={detailPanelClasses}
-                        >
-                            <TorrentDetailView
-                                torrent={detailData}
-                                onClose={handleDetailClose}
-                                onFilesToggle={onFilesToggle}
-                                onSequentialToggle={onSequentialToggle}
-                                onSuperSeedingToggle={onSuperSeedingToggle}
-                                onForceTrackerReannounce={
-                                    onForceTrackerReannounce
-                                }
-                                sequentialSupported={sequentialSupported}
-                                superSeedingSupported={superSeedingSupported}
-                                onAction={onAction}
-                                isPinned
-                                onTogglePin={toggleDetailPin}
-                            />
-                        </motion.aside>
-                    )}
-                </AnimatePresence>
-            </div>
-            {detailData && !isDetailPinned && (
-                <Modal
-                    isOpen={isDetailOpen}
-                    onOpenChange={(open) => !open && handleDetailClose()}
-                    backdrop="blur"
-                    placement="center"
-                    size="4xl"
-                    hideCloseButton
-                    classNames={{
-                        base: "glass-panel bg-content1/80 backdrop-blur-2xl border border-content1/20 shadow-2xl rounded-2xl flex flex-col overflow-hidden h-auto max-h-[85vh] min-h-[450px]",
-                        backdrop: "transition-opacity duration-200 ease-out",
-                    }}
-                    motionProps={{
-                        initial: bloomInitial,
-                        animate: bloomAnimate,
-                        exit: bloomExit,
-                        transition: bloomTransition,
-                    }}
+                </Panel>
+                <PanelResizeHandle
+                    className={handleClass}
+                    hitAreaMargins={{ coarse: 20, fine: 6 }}
                 >
-                    <ModalContent className="h-full">
-                        <TorrentDetailView
-                            torrent={detailData}
-                            onClose={handleDetailClose}
-                            onFilesToggle={onFilesToggle}
-                            onSequentialToggle={onSequentialToggle}
-                            onSuperSeedingToggle={onSuperSeedingToggle}
-                            onForceTrackerReannounce={onForceTrackerReannounce}
-                            sequentialSupported={sequentialSupported}
-                            superSeedingSupported={superSeedingSupported}
-                            onAction={onAction}
-                            onTogglePin={toggleDetailPin}
+                    <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                        <span
+                            className={cn(
+                                isHorizontalSplit
+                                    ? "h-full w-[1px]"
+                                    : "w-full h-[1px]",
+                                "bg-foreground/10 transition-colors group-hover:bg-foreground/30"
+                            )}
                         />
-                    </ModalContent>
-                </Modal>
-            )}
-        </>
+                    </span>
+                </PanelResizeHandle>
+                <Panel
+                    ref={detailPanelRef}
+                    collapsible
+                    collapsedSize={0}
+                    minSize={detailPanelMinSize}
+                    defaultSize={detailPanelDefaultSize}
+                    onPointerDown={focusInspector}
+                    className={detailPanelClass}
+                >
+                    <AnimatePresence initial={false} mode="wait">
+                        {detailData ? (
+                            <motion.div
+                                key={detailData.id}
+                                initial={{ opacity: 0, y: 12 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: 12 }}
+                                transition={{ duration: 0.2 }}
+                                className="h-full min-h-0 flex-1"
+                            >
+                                <TorrentDetailView
+                                    torrent={detailData}
+                                    onClose={handleDetailClose}
+                                    onFilesToggle={onFilesToggle}
+                                    onSequentialToggle={onSequentialToggle}
+                                    onSuperSeedingToggle={
+                                        onSuperSeedingToggle
+                                    }
+                                    onForceTrackerReannounce={
+                                        onForceTrackerReannounce
+                                    }
+                                    sequentialSupported={sequentialSupported}
+                                    superSeedingSupported={
+                                        superSeedingSupported
+                                    }
+                                    onAction={onAction}
+                                />
+                            </motion.div>
+                        ) : (
+                            <div className="flex h-full min-h-0 flex-1 items-center justify-center px-4 text-center text-[10px] uppercase tracking-[0.4em] text-foreground/40">
+                                {t("torrent_modal.placeholder")}
+                            </div>
+                        )}
+                    </AnimatePresence>
+                </Panel>
+            </PanelGroup>
+        </div>
     );
 }

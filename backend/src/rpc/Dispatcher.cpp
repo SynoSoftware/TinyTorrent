@@ -3,11 +3,21 @@
 #include "rpc/Serializer.hpp"
 #include "utils/Log.hpp"
 
+#if defined(_WIN32)
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#endif
+
 #include <array>
 #include <cctype>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <limits>
+#include <utility>
 #include <memory>
 #include <optional>
 #include <string>
@@ -53,9 +63,9 @@ std::vector<int> parse_ids(yyjson_val *arguments) {
     return result;
   }
   if (yyjson_is_arr(ids)) {
-    size_t idx, max;
+    size_t idx, limit;
     yyjson_val *value = nullptr;
-    yyjson_arr_foreach(ids, idx, max, value) {
+    yyjson_arr_foreach(ids, idx, limit, value) {
       if (auto parsed = parse_int_value(value)) {
         result.push_back(*parsed);
       }
@@ -77,9 +87,9 @@ std::vector<int> parse_int_array(yyjson_val *arguments, char const *key) {
   if (value == nullptr || !yyjson_is_arr(value)) {
     return result;
   }
-  size_t idx, max;
+  size_t idx, limit;
   yyjson_val *entry = nullptr;
-  yyjson_arr_foreach(value, idx, max, entry) {
+  yyjson_arr_foreach(value, idx, limit, entry) {
     if (auto parsed = parse_int_value(entry)) {
       result.push_back(*parsed);
     }
@@ -87,13 +97,53 @@ std::vector<int> parse_int_array(yyjson_val *arguments, char const *key) {
   return result;
 }
 
+std::optional<std::filesystem::path> parse_download_dir(yyjson_val *arguments) {
+  if (arguments == nullptr) {
+    return std::nullopt;
+  }
+  auto *value = yyjson_obj_get(arguments, "download-dir");
+  if (value == nullptr || !yyjson_is_str(value)) {
+    return std::nullopt;
+  }
+  auto candidate = std::filesystem::path(yyjson_get_str(value));
+  if (candidate.empty()) {
+    return std::nullopt;
+  }
+  try {
+    if (!candidate.is_absolute()) {
+      candidate = std::filesystem::absolute(candidate);
+    }
+    candidate = candidate.lexically_normal();
+    return candidate;
+  } catch (std::filesystem::filesystem_error const &ex) {
+    TT_LOG_INFO("session-set download-dir invalid: %s", ex.what());
+    return std::nullopt;
+  }
+}
+
+std::optional<std::uint16_t> parse_peer_port(yyjson_val *arguments) {
+  if (arguments == nullptr) {
+    return std::nullopt;
+  }
+  auto *value = yyjson_obj_get(arguments, "peer-port");
+  if (value == nullptr) {
+    return std::nullopt;
+  }
+  if (auto parsed = parse_int_value(value)) {
+    if (*parsed >= 0 && *parsed <= std::numeric_limits<std::uint16_t>::max()) {
+      return static_cast<std::uint16_t>(*parsed);
+    }
+  }
+  return std::nullopt;
+}
+
 bool needs_detail(yyjson_val *fields) {
   if (fields == nullptr || !yyjson_is_arr(fields)) {
     return false;
   }
-  size_t idx, max;
+  size_t idx, count;
   yyjson_val *value = nullptr;
-  yyjson_arr_foreach(fields, idx, max, value) {
+  yyjson_arr_foreach(fields, idx, count, value) {
     if (!yyjson_is_str(value)) {
       continue;
     }
@@ -169,6 +219,111 @@ std::optional<std::vector<std::uint8_t>> decode_base64(std::string_view input) {
   }
   return result;
 }
+
+#if defined(_WIN32)
+struct WsaInitializer {
+  WsaInitializer() {
+    WSADATA data{};
+    started = (WSAStartup(MAKEWORD(2, 2), &data) == 0);
+  }
+  ~WsaInitializer() {
+    if (started) {
+      WSACleanup();
+    }
+  }
+  bool started = false;
+};
+
+std::pair<std::string, std::string> split_listen_interface(std::string const &value) {
+  auto colon = value.find_last_of(':');
+  if (colon == std::string::npos) {
+    return {"127.0.0.1", {}};
+  }
+  auto host = value.substr(0, colon);
+  auto port = value.substr(colon + 1);
+  if (host.empty() || host == "0.0.0.0") {
+    host = "127.0.0.1";
+  }
+  return {host, port};
+}
+
+bool check_session_port(std::string const &listen_interface) {
+  auto [host, port] = split_listen_interface(listen_interface);
+  if (port.empty()) {
+    return false;
+  }
+  WsaInitializer wsa;
+  if (!wsa.started) {
+    return false;
+  }
+
+  addrinfo hints{};
+  hints.ai_family = AF_UNSPEC;
+  hints.ai_socktype = SOCK_STREAM;
+  hints.ai_protocol = IPPROTO_TCP;
+  addrinfo *result = nullptr;
+  if (getaddrinfo(host.c_str(), port.c_str(), &hints, &result) != 0) {
+    return false;
+  }
+
+  bool success = false;
+  for (auto *ptr = result; ptr != nullptr; ptr = ptr->ai_next) {
+    SOCKET sock = socket(ptr->ai_family, ptr->ai_socktype, ptr->ai_protocol);
+    if (sock == INVALID_SOCKET) {
+      continue;
+    }
+    u_long mode = 1;
+    ioctlsocket(sock, FIONBIO, &mode);
+
+    timeval timeout{};
+    timeout.tv_sec = 0;
+    timeout.tv_usec = 250000;
+    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<char *>(&timeout),
+               sizeof(timeout));
+    setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, reinterpret_cast<char *>(&timeout),
+               sizeof(timeout));
+
+    auto result_code = connect(sock, ptr->ai_addr,
+                               static_cast<int>(ptr->ai_addrlen));
+    if (result_code == 0) {
+      success = true;
+    } else {
+      auto err = WSAGetLastError();
+      if (err == WSAEWOULDBLOCK || err == WSAEINPROGRESS) {
+        fd_set write_fds;
+        FD_ZERO(&write_fds);
+        FD_SET(sock, &write_fds);
+        timeval select_timeout{};
+        select_timeout.tv_sec = 0;
+        select_timeout.tv_usec = 200000;
+        int ready =
+            select(0, nullptr, &write_fds, nullptr, &select_timeout);
+        if (ready > 0 && FD_ISSET(sock, &write_fds)) {
+          int sock_err = 0;
+          int len = sizeof(sock_err);
+          if (getsockopt(sock, SOL_SOCKET, SO_ERROR,
+                         reinterpret_cast<char *>(&sock_err),
+                         &len) == 0 &&
+              sock_err == 0) {
+            success = true;
+          }
+        }
+      }
+    }
+    closesocket(sock);
+    if (success) {
+      break;
+    }
+  }
+
+  freeaddrinfo(result);
+  return success;
+}
+#else
+bool check_session_port(std::string const &) {
+  return false;
+}
+#endif
 
 std::vector<engine::TorrentSnapshot> filter_torrents(
     engine::Core *engine, std::vector<int> const &ids) {
@@ -306,11 +461,34 @@ std::string Dispatcher::dispatch(std::string_view payload) {
       response = serialize_session_settings(engine_->settings());
     }
   } else if (method == "session-set") {
-    TT_LOG_DEBUG("session-set invoked (no-op)");
-    response = serialize_success();
+    if (!engine_) {
+      response = serialize_error("engine unavailable");
+    } else {
+      bool applied = false;
+      bool ok = true;
+      if (auto download = parse_download_dir(arguments)) {
+        TT_LOG_DEBUG("session-set download-dir=%s",
+                     download->string().c_str());
+        engine_->set_download_path(*download);
+        applied = true;
+      }
+      if (auto port = parse_peer_port(arguments)) {
+        TT_LOG_DEBUG("session-set peer-port=%u", static_cast<unsigned>(*port));
+        applied = true;
+        if (!engine_->set_listen_port(*port)) {
+          ok = false;
+        }
+      }
+      if (!ok) {
+        response = serialize_error("failed to update session settings");
+      } else {
+        response = serialize_success();
+      }
+    }
   } else if (method == "session-test") {
-    TT_LOG_DEBUG("session-test stubbed (port detection disabled)");
-    response = serialize_session_test(false);
+    auto port_interface = engine_ ? engine_->settings().listen_interface : std::string{};
+    bool port_open = !port_interface.empty() && check_session_port(port_interface);
+    response = serialize_session_test(port_open);
   } else if (method == "session-stats") {
     auto snapshot = engine_ ? engine_->snapshot()
                             : std::make_shared<engine::SessionSnapshot>();
@@ -474,10 +652,23 @@ std::string Dispatcher::dispatch(std::string_view payload) {
     if (ids.empty() || path_value == nullptr || !yyjson_is_str(path_value) ||
         name_value == nullptr || !yyjson_is_str(name_value)) {
       response = serialize_error("ids, path and name required");
+    } else if (!engine_) {
+      response = serialize_error("engine unavailable");
     } else {
-      TT_LOG_INFO("torrent-rename-path stubbed (no-op)");
-      response = serialize_torrent_rename(ids.front(), yyjson_get_str(name_value),
-                                         yyjson_get_str(path_value));
+      std::string path(yyjson_get_str(path_value));
+      std::string name(yyjson_get_str(name_value));
+      bool renamed = false;
+      for (int id : ids) {
+        if (engine_->rename_torrent_path(id, path, name)) {
+          renamed = true;
+          break;
+        }
+      }
+      if (!renamed) {
+        response = serialize_error("rename failed");
+      } else {
+        response = serialize_torrent_rename(ids.front(), name, path);
+      }
     }
   } else if (method == "group-set") {
     TT_LOG_DEBUG("group-set ignored in this implementation");

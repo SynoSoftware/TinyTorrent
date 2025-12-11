@@ -27,6 +27,8 @@ struct HttpTestContext {
 
   std::string request;
   std::string response;
+  std::string session_id;
+  int status_code = 0;
   bool request_sent = false;
   std::promise<void> ready;
   std::future<void> future;
@@ -62,6 +64,10 @@ void http_client_handler(struct mg_connection *conn, int ev, void *ev_data) {
   } else if (ev == MG_EV_HTTP_MSG) {
     auto *hm = static_cast<struct mg_http_message *>(ev_data);
     ctx->response.assign(hm->body.buf, hm->body.len);
+    ctx->status_code = mg_http_status(hm);
+    if (auto *header = mg_http_get_header(hm, "X-Transmission-Session-Id")) {
+      ctx->session_id.assign(header->buf, header->len);
+    }
     ctx->signal_success();
     conn->is_closing = 1;
   } else if (ev == MG_EV_ERROR) {
@@ -79,7 +85,8 @@ void http_client_handler(struct mg_connection *conn, int ev, void *ev_data) {
   }
 }
 
-std::string build_http_request(std::string_view payload) {
+std::string build_http_request(std::string_view payload,
+                               std::string const &session_id = {}) {
   std::string request;
   request.reserve(256 + payload.size());
   request += "POST ";
@@ -88,13 +95,24 @@ std::string build_http_request(std::string_view payload) {
   request += kHostHeader;
   request += "\r\nContent-Type: application/json\r\nContent-Length: ";
   request += std::to_string(payload.size());
+  if (!session_id.empty()) {
+    request += "\r\nX-Transmission-Session-Id: ";
+    request += session_id;
+  }
   request += "\r\nConnection: close\r\n\r\n";
   request.append(payload);
   return request;
 }
 
-std::string send_rpc_request(std::string_view payload) {
-  auto request = build_http_request(payload);
+struct RpcResponse {
+  int status_code = 0;
+  std::string body;
+  std::string session_id;
+};
+
+RpcResponse send_rpc_request_once(std::string_view payload,
+                                  std::string const &session_id = {}) {
+  auto request = build_http_request(payload, session_id);
   HttpTestContext context(std::move(request));
   mg_mgr mgr;
   mg_mgr_init(&mgr);
@@ -123,7 +141,26 @@ std::string send_rpc_request(std::string_view payload) {
 
   mg_mgr_free(&mgr);
   context.future.get();
-  return context.response;
+
+  RpcResponse response;
+  response.status_code = context.status_code;
+  response.body = std::move(context.response);
+  response.session_id = std::move(context.session_id);
+  return response;
+}
+
+std::string send_rpc_request(std::string_view payload) {
+  auto response = send_rpc_request_once(payload);
+  if (response.status_code == 409) {
+    if (response.session_id.empty()) {
+      throw std::runtime_error("session handshake missing header");
+    }
+    response = send_rpc_request_once(payload, response.session_id);
+  }
+  if (response.status_code != 200) {
+    throw std::runtime_error("unexpected RPC response status");
+  }
+  return response.body;
 }
 
 } // namespace

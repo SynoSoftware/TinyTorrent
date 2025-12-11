@@ -385,6 +385,7 @@
             "speed": "Speed",
             "trackers": "Trackers"
         },
+        "placeholder": "Select a torrent and open the inspector to see details.",
         "title": "Torrent Details",
         "trackers": {
             "empty": "No tracker history available.",

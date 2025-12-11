@@ -21,6 +21,7 @@
 #include <libtorrent/span.hpp>
 #include <libtorrent/download_priority.hpp>
 #include <libtorrent/storage_defs.hpp>
+#include <libtorrent/units.hpp>
 
 #include "utils/Log.hpp"
 
@@ -106,6 +107,19 @@ struct Sha1HashHash {
     return value;
   }
 };
+
+std::string normalize_torrent_path(std::string_view value) {
+  if (value.empty()) {
+    return {};
+  }
+  try {
+    auto path = std::filesystem::path(std::string(value));
+    path = path.lexically_normal();
+    return path.generic_string();
+  } catch (...) {
+    return {};
+  }
+}
 
 } // namespace
 
@@ -352,6 +366,69 @@ private:
       }
     }
     return result;
+  }
+
+  void update_download_path(std::filesystem::path path) {
+    if (path.empty()) {
+      return;
+    }
+    std::filesystem::create_directories(path);
+    settings.download_path = std::move(path);
+  }
+
+  bool update_listen_port(std::uint16_t port) {
+    if (!session) {
+      return false;
+    }
+    auto host = std::string{"0.0.0.0"};
+    auto colon = settings.listen_interface.find_last_of(':');
+    if (colon != std::string::npos) {
+      host = settings.listen_interface.substr(0, colon);
+      if (host.empty()) {
+        host = "0.0.0.0";
+      }
+    } else if (!settings.listen_interface.empty()) {
+      host = settings.listen_interface;
+    }
+    settings.listen_interface = host + ":" + std::to_string(port);
+    TT_LOG_INFO("recorded listen interface %s for peer-port %u",
+                settings.listen_interface.c_str(), static_cast<unsigned>(port));
+    return true;
+  }
+
+  bool rename_path(int id, std::string const &current, std::string const &replacement) {
+    if (!session) {
+      return false;
+    }
+    if (replacement.empty() || current.empty()) {
+      return false;
+    }
+    if (auto handle = handle_for_id(id); handle) {
+      auto const *ti = handle->torrent_file().get();
+      if (ti == nullptr) {
+        return false;
+      }
+      auto const &files = ti->files();
+      auto target = normalize_torrent_path(current);
+      if (target.empty()) {
+        return false;
+      }
+      for (int index = 0; index < files.num_files(); ++index) {
+        libtorrent::file_index_t file_index(index);
+        auto existing = normalize_torrent_path(files.file_path(file_index));
+        if (existing != target) {
+          continue;
+        }
+        std::filesystem::path base(target);
+        auto parent = base.parent_path();
+        std::filesystem::path new_path =
+            parent.empty() ? std::filesystem::path(replacement)
+                           : parent / replacement;
+        handle->rename_file(file_index, new_path.generic_string());
+        return true;
+      }
+    }
+    return false;
   }
 
   TorrentSnapshot build_snapshot(int rpc_id, libtorrent::torrent_status const &status) {
@@ -808,6 +885,46 @@ void Core::move_torrent_location(int id, std::string path, bool move) {
       }
     }
   }).get();
+}
+
+void Core::set_download_path(std::filesystem::path path) {
+  if (!impl_) {
+    return;
+  }
+  try {
+    impl_->run_task([this, path = std::move(path)]() mutable {
+      impl_->update_download_path(std::move(path));
+    }).get();
+  } catch (...) {
+  }
+}
+
+bool Core::set_listen_port(std::uint16_t port) {
+  if (!impl_) {
+    return false;
+  }
+  try {
+    return impl_->run_task([this, port]() { return impl_->update_listen_port(port); }).get();
+  } catch (...) {
+    return false;
+  }
+}
+
+bool Core::rename_torrent_path(int id, std::string const &path,
+                               std::string const &name) {
+  if (!impl_ || path.empty() || name.empty()) {
+    return false;
+  }
+  try {
+    auto current = path;
+    auto target = name;
+    return impl_->run_task([this, id, current = std::move(current),
+                            target = std::move(target)]() mutable {
+      return impl_->rename_path(id, current, target);
+    }).get();
+  } catch (...) {
+    return false;
+  }
 }
 
 } // namespace tt::engine

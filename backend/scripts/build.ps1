@@ -204,6 +204,9 @@ if ($testsEnabled) {
   }
   $testDir = Join-Path $mesonBuildDir 'tests'
   $testExecutables = @('dispatcher-test.exe', 'rpc-endpoint-test.exe')
+  $testResults = @()
+  $runSucceeded = $true
+  $failureMessage = ''
   try {
     foreach ($testExe in $testExecutables) {
       $testPath = Join-Path $testDir $testExe
@@ -213,18 +216,46 @@ if ($testsEnabled) {
       Write-Host "  ▶ $testExe"
       $testOutput = & $testPath 2>&1 | Out-String
       $testExitCode = $LASTEXITCODE
+      $trimmedOutput = $testOutput.Trim()
+      $testResults += [pscustomobject]@{
+        Name = $testExe
+        ExitCode = $testExitCode
+        Output = $trimmedOutput
+      }
       if ($testExitCode -ne 0) {
         Write-Host "    ✗ failed (exit code $testExitCode)"
         Write-Host "    ── captured output ──"
-        Write-Host $testOutput.Trim()
-        throw "Test $testExe failed (exit code $testExitCode)"
+        if ($trimmedOutput) {
+          Write-Host $trimmedOutput
+        } else {
+          Write-Host "    <no output captured>"
+        }
+        $runSucceeded = $false
+        $failureMessage = "Test $testExe failed (exit code $testExitCode)"
+        break
       } else {
         Write-Host "    ✔ done"
       }
     }
   }
   finally {
+    $testLogFile = Join-Path $mesonBuildDir 'test-results.log'
+    $logLines = @()
+    $logLines += "[ $(Get-Date -Format o) | $Configuration ]"
+    foreach ($entry in $testResults) {
+      $status = if ($entry.ExitCode -eq 0) { 'PASS' } else { 'FAIL' }
+      $logLines += "$status $($entry.Name) exit=$($entry.ExitCode)"
+      if ($entry.ExitCode -ne 0 -and $entry.Output) {
+        $logLines += "  Output: $($entry.Output)"
+      }
+    }
+    if ($logLines.Count -gt 0) {
+      Add-Content -Path $testLogFile -Value $logLines
+    }
     $env:PATH = $originalPath
+  }
+  if (-not $runSucceeded) {
+    throw $failureMessage
   }
 } else {
   Write-Host "Tests are disabled for configuration $Configuration; skipping."

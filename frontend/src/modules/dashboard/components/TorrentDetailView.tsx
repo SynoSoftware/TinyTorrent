@@ -22,10 +22,6 @@ import {
 
     X,
 
-    Pin,
-
-    PinOff,
-
 } from "lucide-react";
 
 import { AnimatePresence, motion } from "framer-motion";
@@ -77,259 +73,139 @@ type DetailTab =
 
 
 interface TorrentDetailViewProps {
-
     torrent: TorrentDetail | null;
-
     onClose: () => void;
-
     onFilesToggle?: (
-
         indexes: number[],
-
         wanted: boolean
-
     ) => Promise<void> | void;
-
     onSequentialToggle?: (enabled: boolean) => Promise<void> | void;
-
     onSuperSeedingToggle?: (enabled: boolean) => Promise<void> | void;
-
     onForceTrackerReannounce?: () => Promise<void> | void;
-
     sequentialSupported?: boolean;
-
     superSeedingSupported?: boolean;
-
     onAction?: (action: TorrentTableAction, torrent: Torrent) => void;
-
-    isPinned?: boolean;
-
-    onTogglePin?: () => void;
-
 }
 
-
-
 type StatusChipColor = "success" | "primary" | "warning" | "danger";
-
-
 
 const STATUS_CONFIG: Record<
     TorrentStatus,
     { color: StatusChipColor; labelKey: string }
 > = {
     downloading: {
-
         color: "success",
-
         labelKey: "torrent_modal.statuses.downloading",
-
     },
-
     seeding: { color: "primary", labelKey: "torrent_modal.statuses.seeding" },
-
     paused: { color: "warning", labelKey: "torrent_modal.statuses.paused" },
-
     checking: { color: "warning", labelKey: "torrent_modal.statuses.checking" },
-
     queued: { color: "warning", labelKey: "torrent_modal.statuses.queued" },
-
     error: { color: "danger", labelKey: "torrent_modal.statuses.error" },
 } as const;
 
 interface DetailHeaderContentProps {
     torrent: TorrentDetail;
-    progressPercent: number;
-    activePeers: number;
-    timeRemainingLabel: string;
     statusMeta: (typeof STATUS_CONFIG)[TorrentStatus];
     canPause: boolean;
     canResume: boolean;
     handleAction: (action: TorrentTableAction) => void;
-    onTogglePin?: () => void;
-    isPinned: boolean;
     onClose: () => void;
     t: TFunction;
 }
 
 function DetailHeaderContent({
     torrent,
-    progressPercent,
-    activePeers,
-    timeRemainingLabel,
     statusMeta,
     canPause,
     canResume,
     handleAction,
-    onTogglePin,
-    isPinned,
     onClose,
     t,
 }: DetailHeaderContentProps) {
-    const headerSpacing = isPinned ? "space-y-3" : "space-y-4";
-    const actionGap = isPinned ? "gap-1" : "gap-2";
-    const statsPadding = "p-4";
-
     return (
-        <div className={headerSpacing}>
-            <div className="flex items-start justify-between gap-4">
-                <div className="flex flex-col gap-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                        <h3 className="text-xl font-bold text-foreground truncate">
-                            {torrent.name}
-                        </h3>
-                        <Chip
-                            size="sm"
-                            variant="flat"
-                            color={statusMeta.color}
-                            classNames={{
-                                base: "h-5 px-1",
-                                content:
-                                    "text-[9px] font-bold uppercase tracking-wider",
-                            }}
-                        >
-                            {t(statusMeta.labelKey)}
-                        </Chip>
-                    </div>
-                    <span className="text-[10px] uppercase tracking-widest text-foreground/40 font-bold">
-                        {t("torrent_modal.general.hash")}:{" "}
-                        {torrent.hash.substring(0, 8)}...
-                    </span>
+        <div className="flex items-center justify-between gap-3 py-1">
+            <div className="flex items-center gap-3 min-w-0">
+                <div className="min-w-0 flex-1">
+                    <h3 className="text-lg font-semibold tracking-tight text-foreground truncate">
+                        {torrent.name}
+                    </h3>
                 </div>
-                <div className={cn("flex items-center", actionGap)}>
-                    {canPause && (
-                        <Button
-                            size="sm"
-                            variant="shadow"
-                            color="warning"
-                            className="flex items-center gap-1"
-                            onPress={() => handleAction("pause")}
-                        >
-                            <PauseCircle
-                                size={14}
-                                strokeWidth={ICON_STROKE_WIDTH}
-                                className="text-current"
-                            />
-                            {t("table.actions.pause")}
-                        </Button>
-                    )}
-                    {canResume && (
-                        <Button
-                            size="sm"
-                            variant="shadow"
-                            color="success"
-                            className="flex items-center gap-1"
-                            onPress={() => handleAction("resume")}
-                        >
-                            <PlayCircle
-                                size={14}
-                                strokeWidth={ICON_STROKE_WIDTH}
-                                className="text-current"
-                            />
-                            {t("table.actions.resume")}
-                        </Button>
-                    )}
+                <Chip
+                    size="sm"
+                    variant="flat"
+                    color={statusMeta.color}
+                    classNames={{
+                        base: "h-6 px-3 flex-shrink-0",
+                        content:
+                            "text-[9px] font-bold uppercase tracking-[0.3em]",
+                    }}
+                >
+                    {t(statusMeta.labelKey)}
+                </Chip>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+                {canPause && (
                     <Button
                         size="sm"
-                        variant="flat"
-                        color="danger"
+                        variant="shadow"
+                        color="warning"
                         className="flex items-center gap-1"
-                        onPress={() => handleAction("remove")}
+                        onPress={() => handleAction("pause")}
                     >
-                        <Trash2
+                        <PauseCircle
                             size={14}
                             strokeWidth={ICON_STROKE_WIDTH}
                             className="text-current"
                         />
-                        {t("table.actions.remove")}
+                        {t("table.actions.pause")}
                     </Button>
-                    {onTogglePin && (
-                        <Button
-                            isIconOnly
-                            size="sm"
-                            variant="light"
-                            onPress={onTogglePin}
-                            title={
-                                isPinned
-                                    ? t("torrent_modal.actions.popout_panel")
-                                    : t("torrent_modal.actions.pin_panel")
-                            }
-                            className="text-foreground/40 hover:text-foreground"
-                        >
-                            {isPinned ? (
-                                <PinOff
-                                    size={16}
-                                    strokeWidth={ICON_STROKE_WIDTH}
-                                    className="text-current"
-                                />
-                            ) : (
-                                <Pin
-                                    size={16}
-                                    strokeWidth={ICON_STROKE_WIDTH}
-                                    className="text-current"
-                                />
-                            )}
-                        </Button>
-                    )}
+                )}
+                {canResume && (
                     <Button
-                        isIconOnly
                         size="sm"
-                        variant="light"
-                        onPress={onClose}
-                        className="text-foreground/40 hover:text-foreground"
-                        aria-label={t("torrent_modal.actions.close")}
+                        variant="shadow"
+                        color="success"
+                        className="flex items-center gap-1"
+                        onPress={() => handleAction("resume")}
                     >
-                        <X
-                            size={20}
+                        <PlayCircle
+                            size={14}
                             strokeWidth={ICON_STROKE_WIDTH}
                             className="text-current"
                         />
+                        {t("table.actions.resume")}
                     </Button>
-                </div>
-            </div>
-            {!isPinned && (
-                <div
-                    className={cn(
-                        "rounded-2xl border border-content1/20 bg-content1/20 space-y-3",
-                        statsPadding
-                    )}
+                )}
+                <Button
+                    size="sm"
+                    variant="flat"
+                    color="danger"
+                    className="flex items-center gap-1"
+                    onPress={() => handleAction("remove")}
                 >
-                    <div className="flex items-end justify-between gap-4">
-                        <div>
-                            <div className="text-[10px] uppercase tracking-widest text-foreground/40 font-bold mb-1">
-                                {t("torrent_modal.stats.total_progress")}
-                            </div>
-                            <div className="text-4xl font-mono font-medium tracking-tight">
-                                {progressPercent.toFixed(1)}%
-                            </div>
-                        </div>
-                        <div className="text-right">
-                            <div className="text-[10px] uppercase tracking-widest text-foreground/40 font-bold">
-                                {t("torrent_modal.stats.time_remaining")}
-                            </div>
-                            <div className="font-mono text-xl">{timeRemainingLabel}</div>
-                        </div>
-                    </div>
-                    <div className="h-3">
-                        <SmoothProgressBar
-                            value={progressPercent}
-                            trackClassName="h-full bg-content1/20"
-                            indicatorClassName="h-full bg-gradient-to-r from-success/50 to-success"
-                        />
-                    </div>
-                    <div className="space-y-1.5">
-                        <div className="flex justify-between text-[9px] uppercase tracking-wider font-bold text-foreground/40">
-                            <span>{t("torrent_modal.stats.availability")}</span>
-                            <span className="text-primary">
-                                {activePeers} {t("torrent_modal.stats.active")}
-                            </span>
-                        </div>
-                        <div className="h-1.5 w-full bg-content1/20 rounded-full overflow-hidden flex">
-                            <div className="h-full bg-primary w-full opacity-80" />
-                        </div>
-                    </div>
-                </div>
-            )}
+                    <Trash2
+                        size={14}
+                        strokeWidth={ICON_STROKE_WIDTH}
+                        className="text-current"
+                    />
+                    {t("table.actions.remove")}
+                </Button>
+                <Button
+                    isIconOnly
+                    size="sm"
+                    variant="light"
+                    onPress={onClose}
+                    className="text-foreground/40 hover:text-foreground"
+                    aria-label={t("torrent_modal.actions.close")}
+                >
+                    <X
+                        size={20}
+                        strokeWidth={ICON_STROKE_WIDTH}
+                        className="text-current"
+                    />
+                </Button>
+            </div>
         </div>
     );
 }
@@ -354,10 +230,6 @@ export function TorrentDetailView({
     superSeedingSupported: superSeedingSupportedProp,
 
     onAction,
-
-    isPinned = false,
-
-    onTogglePin,
 
 }: TorrentDetailViewProps) {
 
@@ -437,34 +309,24 @@ export function TorrentDetailView({
     const headerPanel = (
         <DetailHeaderContent
             torrent={torrent}
-            progressPercent={progressPercent}
-            activePeers={activePeers}
-            timeRemainingLabel={timeRemainingLabel}
             statusMeta={statusMeta}
             canPause={canPause}
             canResume={canResume}
             handleAction={handleAction}
-            onTogglePin={onTogglePin}
-            isPinned={isPinned}
             onClose={onClose}
             t={t}
         />
     );
-    const tabBodyClass = cn(
-        "flex-1 min-h-0 h-full overflow-y-auto pb-6",
-        isPinned ? "px-4 pt-4" : "px-6 pt-6"
-    );
-    const tabContentPadding = isPinned ? "pt-4" : "pt-6";
+    const tabBodyClass =
+        "flex-1 min-h-0 h-full overflow-y-auto px-6 pt-6 pb-6";
+    const tabContentPadding = "pt-6";
     const tabContentClasses = cn(
         "min-h-0 pr-2 scrollbar-hide pb-8",
         activeTab === "peers" ? "overflow-y-hidden" : "overflow-y-auto"
     );
 
-
-    const headerWrapperClass = cn(
-        "sticky top-0 z-30 border-b border-content1/20 bg-background/90 backdrop-blur-2xl transition-all duration-200",
-        isPinned ? "px-4 pt-4 pb-3" : "px-6 pt-6 pb-4"
-    );
+    const headerWrapperClass =
+        "sticky top-0 z-30 border-b border-content1/20 bg-background/80 backdrop-blur-2xl px-6 py-3 transition-all duration-200";
 
     return (
         <div className="flex flex-col h-full min-h-0">
@@ -705,14 +567,9 @@ export function TorrentDetailView({
                                             onForceTrackerReannounce
 
                                         }
-
                                         progressPercent={progressPercent}
-
                                         timeRemainingLabel={timeRemainingLabel}
-
                                         activePeers={activePeers}
-
-                                        isPinned={isPinned}
 
                                     />
 

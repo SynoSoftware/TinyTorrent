@@ -22,7 +22,7 @@ endif
 
 tt_cpp_args = ['/EHsc']
 tt_c_args = []
-tt_link_args = []
+tt_link_args = ['Ws2_32.lib']
 if is_minsize
   tt_cpp_args += ['/Os', '/GL', '/MT']
   tt_c_args += ['/Os', '/GL', '/MT']
