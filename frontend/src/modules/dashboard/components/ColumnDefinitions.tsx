@@ -294,12 +294,15 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
                             />
                         }
                         classNames={{
-                            base: "h-5 px-2",
+                            base:
+                                "h-5 px-2 inline-flex items-center gap-1 whitespace-nowrap flex-nowrap",
                             content:
-                                "font-bold text-[9px] uppercase tracking-wider",
+                                "font-bold text-[9px] uppercase tracking-wider leading-none whitespace-nowrap",
                         }}
                     >
-                        {t(conf.labelKey)}
+                        <span className="truncate" title={t(conf.labelKey)}>
+                            {t(conf.labelKey)}
+                        </span>
                     </Chip>
                 </div>
             );

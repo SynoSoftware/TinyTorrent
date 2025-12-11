@@ -262,16 +262,16 @@ export function StatusBar({
                     {/* SECTION: CONTEXT INFO */}
                     <div
                         className={cn(
-                            "flex flex-col items-end gap-1",
+                            "flex flex-col items-end gap-1 whitespace-nowrap",
                             LAYOUT_CONFIG.hudWidths.context
                         )}
                     >
                         <span className="text-[9px] font-bold uppercase tracking-wider text-foreground/30">
                             {summaryLabel}
                         </span>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 whitespace-nowrap">
                             <span
-                                className="font-semibold text-foreground max-w-[200px] truncate text-right"
+                                className="font-semibold text-foreground max-w-[200px] truncate text-right whitespace-nowrap"
                                 title={summaryValue}
                             >
                                 {summaryValue}
@@ -299,14 +299,14 @@ export function StatusBar({
                     {/* SECTION: NETWORK */}
                     <div
                         className={cn(
-                            "flex flex-col items-end gap-1",
+                            "flex flex-col items-end gap-1 whitespace-nowrap",
                             LAYOUT_CONFIG.hudWidths.network
                         )}
                     >
                         <span className="text-[9px] font-bold uppercase tracking-wider text-foreground/30">
                             {t("status_bar.network")}
                         </span>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 whitespace-nowrap">
                             <span className="font-medium text-foreground/70 tabular-nums">
                                 {t("status_bar.dht_nodes", {
                                     count: dhtNodeCount,
