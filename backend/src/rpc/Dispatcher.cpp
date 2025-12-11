@@ -1,6 +1,7 @@
 #include "rpc/Dispatcher.hpp"
 
 #include "rpc/Serializer.hpp"
+#include "utils/Base64.hpp"
 #include "utils/Json.hpp"
 #include "utils/Log.hpp"
 
@@ -182,43 +183,11 @@ bool bool_value(yyjson_val *value, bool default_value = false) {
   return default_value;
 }
 
-std::optional<std::vector<std::uint8_t>> decode_base64(std::string_view input) {
-  static constexpr char const *kAlphabet =
-      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-  static const std::array<int8_t, 256> kLookup = [] {
-    std::array<int8_t, 256> table{};
-    table.fill(-1);
-    for (int i = 0; kAlphabet[i] != '\0'; ++i) {
-      table[static_cast<std::size_t>(kAlphabet[i])] =
-          static_cast<int8_t>(i);
-    }
-    return table;
-  }();
-
-  std::vector<std::uint8_t> result;
-  result.reserve((input.size() * 3) / 4);
-  unsigned buffer = 0;
-  int bits_collected = 0;
-  for (char ch : input) {
-    if (std::isspace(static_cast<unsigned char>(ch))) {
-      continue;
-    }
-    if (ch == '=') {
-      break;
-    }
-    auto value = kLookup[static_cast<unsigned char>(ch)];
-    if (value < 0) {
-      return std::nullopt;
-    }
-    buffer = (buffer << 6) | static_cast<unsigned>(value);
-    bits_collected += 6;
-    if (bits_collected >= 8) {
-      bits_collected -= 8;
-      result.push_back(
-          static_cast<std::uint8_t>((buffer >> bits_collected) & 0xFF));
-    }
+std::optional<bool> parse_bool_flag(yyjson_val *value) {
+  if (value == nullptr) {
+    return std::nullopt;
   }
-  return result;
+  return bool_value(value);
 }
 
 #if defined(_WIN32)
@@ -400,7 +369,7 @@ std::string handle_torrent_add(engine::Core *engine, yyjson_val *arguments) {
   yyjson_val *metainfo_value = yyjson_obj_get(arguments, "metainfo");
   if (metainfo_value && yyjson_is_str(metainfo_value)) {
     auto raw = std::string_view(yyjson_get_str(metainfo_value));
-    auto decoded = decode_base64(raw);
+    auto decoded = tt::utils::decode_base64(raw);
     if (!decoded || decoded->empty()) {
       return serialize_error("invalid metainfo content");
     }
@@ -424,7 +393,8 @@ std::string handle_torrent_add(engine::Core *engine, yyjson_val *arguments) {
 
 } // namespace
 
-Dispatcher::Dispatcher(engine::Core *engine) : engine_(engine) {}
+Dispatcher::Dispatcher(engine::Core *engine, std::string rpc_bind)
+    : engine_(engine), rpc_bind_(std::move(rpc_bind)) {}
 
 std::string Dispatcher::dispatch(std::string_view payload) {
   if (payload.empty()) {
@@ -453,11 +423,10 @@ std::string Dispatcher::dispatch(std::string_view payload) {
   std::string response;
 
   if (method == "session-get") {
-    if (!engine_) {
-      response = serialize_error("engine unavailable");
-    } else {
-      response = serialize_session_settings(engine_->settings());
-    }
+    auto settings = engine_ ? engine_->settings() : engine::CoreSettings{};
+    auto entries = engine_ ? engine_->blocklist_entry_count() : 0;
+    auto updated = engine_ ? engine_->blocklist_last_update() : std::optional<std::chrono::system_clock::time_point>{};
+    response = serialize_session_settings(settings, entries, updated, rpc_bind_);
   } else if (method == "session-set") {
     if (!engine_) {
       response = serialize_success();
@@ -475,6 +444,35 @@ std::string Dispatcher::dispatch(std::string_view payload) {
         if (!engine_->set_listen_port(*port)) {
           ok = false;
         }
+      }
+      auto download_limit =
+          parse_int_value(yyjson_obj_get(arguments, "speed-limit-down"));
+      auto download_enabled =
+          parse_bool_flag(yyjson_obj_get(arguments, "speed-limit-down-enabled"));
+      auto upload_limit =
+          parse_int_value(yyjson_obj_get(arguments, "speed-limit-up"));
+      auto upload_enabled =
+          parse_bool_flag(yyjson_obj_get(arguments, "speed-limit-up-enabled"));
+      if (download_limit || download_enabled || upload_limit ||
+          upload_enabled) {
+        TT_LOG_DEBUG("session-set speed-limit-down={} enabled={} speed-limit-up={} enabled={}",
+                     download_limit.value_or(-1),
+                     download_enabled.value_or(false),
+                     upload_limit.value_or(-1),
+                     upload_enabled.value_or(false));
+        engine_->set_speed_limits(download_limit, download_enabled, upload_limit,
+                                  upload_enabled);
+        applied = true;
+      }
+      auto peer_limit = parse_int_value(yyjson_obj_get(arguments, "peer-limit"));
+      auto peer_limit_per_torrent =
+          parse_int_value(yyjson_obj_get(arguments, "peer-limit-per-torrent"));
+      if (peer_limit || peer_limit_per_torrent) {
+        TT_LOG_DEBUG("session-set peer-limit={} peer-limit-per-torrent={}",
+                     peer_limit.value_or(-1),
+                     peer_limit_per_torrent.value_or(-1));
+        engine_->set_peer_limits(peer_limit, peer_limit_per_torrent);
+        applied = true;
       }
       if (!ok) {
         response = serialize_error("failed to update session settings");
@@ -496,6 +494,18 @@ std::string Dispatcher::dispatch(std::string_view payload) {
       engine_->stop();
     }
     response = serialize_success();
+  } else if (method == "blocklist-update") {
+    if (!engine_) {
+      response = serialize_error("engine unavailable");
+    } else {
+      auto entries = engine_->reload_blocklist();
+      if (!entries) {
+        response = serialize_error("blocklist update failed");
+      } else {
+        response = serialize_blocklist_update(
+            *entries, engine_->blocklist_last_update());
+      }
+    }
   } else if (method == "free-space") {
     if (!arguments) {
       response = serialize_error("arguments missing for free-space");

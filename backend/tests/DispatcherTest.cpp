@@ -136,6 +136,15 @@ TEST_CASE("group-set no-op") {
   expect_result(view, "success", "group-set");
 }
 
+TEST_CASE("blocklist-update engine unavailable") {
+  tt::rpc::Dispatcher dispatcher{nullptr};
+  auto response =
+      dispatcher.dispatch(R"({"method":"blocklist-update","arguments":{}})");
+  ResponseView view{response};
+  expect_result(view, "error", "blocklist-update engine unavailable");
+  expect_argument(view, "message", "engine unavailable");
+}
+
 TEST_CASE("unsupported method") {
   tt::rpc::Dispatcher dispatcher{nullptr};
   auto response =

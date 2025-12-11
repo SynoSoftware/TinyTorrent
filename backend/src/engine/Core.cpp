@@ -1,6 +1,8 @@
 #include "engine/Core.hpp"
 
+#include <algorithm>
 #include <array>
+#include <cctype>
 #include <cstddef>
 #include <libtorrent/add_torrent_params.hpp>
 #include <libtorrent/bdecode.hpp>
@@ -9,9 +11,12 @@
 #include <libtorrent/file_storage.hpp>
 #include <libtorrent/magnet_uri.hpp>
 #include <libtorrent/hex.hpp>
+#include <libtorrent/address.hpp>
 #include <libtorrent/peer_info.hpp>
 #include <libtorrent/session.hpp>
 #include <libtorrent/session_params.hpp>
+#include <boost/asio/ip/network_v4.hpp>
+#include <boost/asio/ip/network_v6.hpp>
 #include <libtorrent/settings_pack.hpp>
 #include <libtorrent/torrent_flags.hpp>
 #include <libtorrent/torrent_handle.hpp>
@@ -24,6 +29,9 @@
 #include <libtorrent/units.hpp>
 
 #include "utils/Log.hpp"
+#include "utils/Base64.hpp"
+#include "utils/FS.hpp"
+#include "utils/StateStore.hpp"
 
 #include <atomic>
 #include <chrono>
@@ -39,6 +47,7 @@
 #include <string>
 #include <thread>
 #include <type_traits>
+#include <fstream>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -51,8 +60,7 @@ constexpr char const *kUserAgent = "TinyTorrent/0.1.0";
 
 constexpr int kSha1Bytes = static_cast<int>(libtorrent::sha1_hash::size());
 
-std::string info_hash_to_hex(libtorrent::info_hash_t const &info) {
-  auto hash = info.get_best();
+std::string info_hash_to_hex(libtorrent::sha1_hash const &hash) {
   constexpr char kHexDigits[] = "0123456789abcdef";
   std::string result;
   result.reserve(kSha1Bytes * 2);
@@ -62,6 +70,10 @@ std::string info_hash_to_hex(libtorrent::info_hash_t const &info) {
     result.push_back(kHexDigits[byte & 0x0F]);
   }
   return result;
+}
+
+std::string info_hash_to_hex(libtorrent::info_hash_t const &info) {
+  return info_hash_to_hex(info.get_best());
 }
 
 std::int64_t estimate_eta(libtorrent::torrent_status const &status) {
@@ -121,12 +133,161 @@ std::string normalize_torrent_path(std::string_view value) {
   }
 }
 
+std::string_view trim_view(std::string_view value) {
+  std::size_t begin = 0;
+  std::size_t end = value.size();
+  while (begin < end &&
+         std::isspace(static_cast<unsigned char>(value[begin]))) {
+    ++begin;
+  }
+  while (end > begin &&
+         std::isspace(static_cast<unsigned char>(value[end - 1]))) {
+    --end;
+  }
+  return value.substr(begin, end - begin);
+}
+
+std::optional<libtorrent::address> parse_address(std::string_view input) {
+  if (input.empty()) {
+    return std::nullopt;
+  }
+  try {
+    return libtorrent::make_address(std::string(input));
+  } catch (...) {
+    return std::nullopt;
+  }
+}
+
+libtorrent::address_v6 expand_ipv6_range(boost::asio::ip::network_v6 const &network) {
+  auto bytes = network.network().to_bytes();
+  int prefix = static_cast<int>(network.prefix_length());
+  for (int bit = prefix; bit < 128; ++bit) {
+    auto index = bit / 8;
+    auto shift = 7 - (bit % 8);
+    bytes[index] |= static_cast<unsigned char>(1 << shift);
+  }
+  return libtorrent::address_v6(bytes);
+}
+
+std::optional<std::pair<libtorrent::address, libtorrent::address>>
+parse_blocklist_entry(std::string_view raw) {
+  auto value = trim_view(raw);
+  if (value.empty() || value[0] == '#') {
+    return std::nullopt;
+  }
+
+  auto const dash = value.find('-');
+  if (dash != std::string_view::npos) {
+    auto first = trim_view(value.substr(0, dash));
+    auto last = trim_view(value.substr(dash + 1));
+    if (auto start = parse_address(first); start) {
+      if (auto end = parse_address(last); end) {
+        return std::make_pair(*start, *end);
+      }
+    }
+    return std::nullopt;
+  }
+
+  auto const slash = value.find('/');
+  if (slash != std::string_view::npos) {
+    std::string segment(value);
+    try {
+      auto network = boost::asio::ip::make_network_v4(segment);
+      libtorrent::address start =
+          libtorrent::address_v4(network.network());
+      libtorrent::address end =
+          libtorrent::address_v4(network.broadcast());
+      return std::make_pair(start, end);
+    } catch (...) {
+      try {
+        auto network = boost::asio::ip::make_network_v6(segment);
+        libtorrent::address start =
+            libtorrent::address_v6(network.network());
+        libtorrent::address end =
+            libtorrent::address_v6(expand_ipv6_range(network));
+        return std::make_pair(start, end);
+      } catch (...) {
+        return std::nullopt;
+      }
+    }
+  }
+
+  if (auto addr = parse_address(value); addr) {
+    return std::make_pair(*addr, *addr);
+  }
+  return std::nullopt;
+}
+
+bool load_blocklist(std::filesystem::path const &path,
+                    libtorrent::ip_filter &filter, std::size_t &entries) {
+  if (path.empty()) {
+    return false;
+  }
+  if (!std::filesystem::exists(path)) {
+    return false;
+  }
+  std::ifstream input(path);
+  if (!input) {
+    return false;
+  }
+  entries = 0;
+  std::string line;
+  while (std::getline(input, line)) {
+    if (!line.empty() && line.back() == '\r') {
+      line.pop_back();
+    }
+    if (auto range = parse_blocklist_entry(line); range) {
+      filter.add_rule(range->first, range->second,
+                      libtorrent::ip_filter::blocked);
+      ++entries;
+    }
+  }
+  return true;
+}
+
+int kbps_to_bytes(int limit_kbps, bool enabled) {
+  if (!enabled || limit_kbps <= 0) {
+    return 0;
+  }
+  std::int64_t bytes = static_cast<std::int64_t>(limit_kbps) * 1024;
+  if (bytes > std::numeric_limits<int>::max()) {
+    bytes = std::numeric_limits<int>::max();
+  }
+  return static_cast<int>(bytes);
+}
+
+bool hash_is_nonzero(libtorrent::sha1_hash const &hash) {
+  auto const *bytes = reinterpret_cast<unsigned char const *>(hash.data());
+  for (int i = 0; i < kSha1Bytes; ++i) {
+    if (bytes[i] != 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+std::optional<std::string> info_hash_from_params(
+    libtorrent::add_torrent_params const &params) {
+  auto best = params.info_hashes.get_best();
+  if (hash_is_nonzero(best)) {
+    return info_hash_to_hex(best);
+  }
+  if (params.ti) {
+    auto const alt = params.ti->info_hashes().get_best();
+    if (hash_is_nonzero(alt)) {
+      return info_hash_to_hex(alt);
+    }
+  }
+  return std::nullopt;
+}
+
 } // namespace
 
 struct Core::Impl {
   friend class Core;
   CoreSettings settings;
   std::unique_ptr<libtorrent::session> session;
+  libtorrent::settings_pack current_settings;
   std::deque<std::function<void()>> tasks;
   mutable std::mutex task_mutex;
   std::condition_variable wake_cv;
@@ -136,18 +297,48 @@ struct Core::Impl {
   std::unordered_map<int, libtorrent::sha1_hash> id_to_hash;
   std::unordered_map<libtorrent::sha1_hash, int, Sha1HashHash> hash_to_id;
   int next_id = 1;
+  std::filesystem::path state_path;
+  tt::storage::SessionState persisted_state;
+  mutable std::mutex state_mutex;
+  std::filesystem::path blocklist_path;
+  std::size_t blocklist_entries = 0;
+  std::optional<std::chrono::system_clock::time_point> blocklist_last_update;
 
   explicit Impl(CoreSettings settings) : settings(std::move(settings)) {
     std::filesystem::create_directories(this->settings.download_path);
+
+    state_path = this->settings.state_path;
+    if (state_path.empty()) {
+      state_path = tt::utils::data_root() / "state.json";
+    }
+    persisted_state = tt::storage::load_session_state(state_path);
 
     libtorrent::settings_pack pack;
     pack.set_int(libtorrent::settings_pack::alert_mask, libtorrent::alert::all_categories);
     pack.set_str(libtorrent::settings_pack::user_agent, kUserAgent);
     pack.set_str(libtorrent::settings_pack::listen_interfaces,
                  this->settings.listen_interface);
+    pack.set_int(libtorrent::settings_pack::download_rate_limit,
+                 kbps_to_bytes(this->settings.download_rate_limit_kbps,
+                               this->settings.download_rate_limit_enabled));
+    pack.set_int(libtorrent::settings_pack::upload_rate_limit,
+                 kbps_to_bytes(this->settings.upload_rate_limit_kbps,
+                               this->settings.upload_rate_limit_enabled));
+    if (this->settings.peer_limit > 0) {
+      pack.set_int(libtorrent::settings_pack::connections_limit,
+                   this->settings.peer_limit);
+    }
+    if (this->settings.peer_limit_per_torrent > 0) {
+      pack.set_int(libtorrent::settings_pack::unchoke_slots_limit,
+                   this->settings.peer_limit_per_torrent);
+    }
 
+    current_settings = pack;
+    blocklist_path = this->settings.blocklist_path;
     libtorrent::session_params params(pack);
     session = std::make_unique<libtorrent::session>(params);
+    replay_saved_torrents();
+    persist_state();
   }
 
   void run() {
@@ -220,6 +411,9 @@ struct Core::Impl {
     }
     TT_LOG_INFO("enqueue_add_torrent name={} save_path={} paused={}", info,
                 params.save_path, static_cast<int>(request.paused));
+    if (auto hash = info_hash_from_params(params); hash) {
+      register_persisted_torrent(*hash, request);
+    }
 
     enqueue_task([this, params = std::move(params)]() mutable {
       if (session) {
@@ -274,6 +468,104 @@ private:
 
     for (auto &task : pending) {
       task();
+    }
+  }
+
+  void persist_state() {
+    std::lock_guard<std::mutex> lock(state_mutex);
+    persist_state_unlocked();
+  }
+
+  void persist_state_unlocked() {
+    if (state_path.empty()) {
+      return;
+    }
+    persisted_state.listen_interface = settings.listen_interface;
+    persisted_state.download_path = settings.download_path.string();
+    persisted_state.speed_limit_down_kbps = settings.download_rate_limit_kbps;
+    persisted_state.speed_limit_down_enabled = settings.download_rate_limit_enabled;
+    persisted_state.speed_limit_up_kbps = settings.upload_rate_limit_kbps;
+    persisted_state.speed_limit_up_enabled = settings.upload_rate_limit_enabled;
+    persisted_state.peer_limit = settings.peer_limit;
+    persisted_state.peer_limit_per_torrent = settings.peer_limit_per_torrent;
+    if (!tt::storage::save_session_state(state_path, persisted_state)) {
+      TT_LOG_INFO("failed to persist session state to {}", state_path.string());
+    }
+  }
+
+  void add_or_update_persisted(tt::storage::PersistedTorrent entry) {
+    std::lock_guard<std::mutex> lock(state_mutex);
+    auto it = std::find_if(
+        persisted_state.torrents.begin(), persisted_state.torrents.end(),
+        [&entry](tt::storage::PersistedTorrent const &existing) {
+          return existing.hash == entry.hash;
+        });
+    if (it == persisted_state.torrents.end()) {
+      persisted_state.torrents.push_back(std::move(entry));
+    } else {
+      *it = std::move(entry);
+    }
+    persist_state_unlocked();
+  }
+
+  void remove_persisted_torrent(std::string const &hash) {
+    if (hash.empty()) {
+      return;
+    }
+    std::lock_guard<std::mutex> lock(state_mutex);
+    auto it = std::remove_if(
+        persisted_state.torrents.begin(), persisted_state.torrents.end(),
+        [&hash](tt::storage::PersistedTorrent const &entry) {
+          return entry.hash == hash;
+        });
+    if (it != persisted_state.torrents.end()) {
+      persisted_state.torrents.erase(it, persisted_state.torrents.end());
+      persist_state_unlocked();
+    }
+  }
+
+  void register_persisted_torrent(std::string const &hash,
+                                  TorrentAddRequest const &request) {
+    if (hash.empty()) {
+      return;
+    }
+    tt::storage::PersistedTorrent entry;
+    entry.hash = hash;
+    entry.download_path = request.download_path.string();
+    entry.paused = request.paused;
+    if (request.uri) {
+      entry.uri = *request.uri;
+    }
+    if (!request.metainfo.empty()) {
+      entry.metainfo = tt::utils::encode_base64(request.metainfo);
+    }
+    add_or_update_persisted(std::move(entry));
+  }
+
+  void replay_saved_torrents() {
+    std::vector<TorrentAddRequest> pending;
+    for (auto const &entry : persisted_state.torrents) {
+      TorrentAddRequest request;
+      request.download_path =
+          entry.download_path.empty() ? settings.download_path
+                                      : std::filesystem::path(entry.download_path);
+      request.paused = entry.paused;
+      if (!entry.uri.empty()) {
+        request.uri = entry.uri;
+      } else if (!entry.metainfo.empty()) {
+        if (auto decoded = tt::utils::decode_base64(entry.metainfo);
+            decoded && !decoded->empty()) {
+          request.metainfo = std::move(*decoded);
+        } else {
+          continue;
+        }
+      } else {
+        continue;
+      }
+      pending.push_back(std::move(request));
+    }
+    for (auto &request : pending) {
+      enqueue_torrent(std::move(request));
     }
   }
 
@@ -371,6 +663,7 @@ private:
     }
     std::filesystem::create_directories(path);
     settings.download_path = std::move(path);
+    persist_state();
   }
 
   bool update_listen_port(std::uint16_t port) {
@@ -390,7 +683,62 @@ private:
     settings.listen_interface = host + ":" + std::to_string(port);
     TT_LOG_INFO("recorded listen interface {} for peer-port {}",
                 settings.listen_interface, static_cast<unsigned>(port));
+    persist_state();
     return true;
+  }
+
+  void apply_speed_limits(std::optional<int> download_kbps,
+                          std::optional<bool> download_enabled,
+                          std::optional<int> upload_kbps,
+                          std::optional<bool> upload_enabled) {
+    auto download_enabled_flag =
+        download_enabled.value_or(settings.download_rate_limit_enabled);
+    auto upload_enabled_flag =
+        upload_enabled.value_or(settings.upload_rate_limit_enabled);
+    auto download_value =
+        download_kbps.value_or(settings.download_rate_limit_kbps);
+    auto upload_value = upload_kbps.value_or(settings.upload_rate_limit_kbps);
+
+    settings.download_rate_limit_enabled = download_enabled_flag;
+    settings.upload_rate_limit_enabled = upload_enabled_flag;
+    settings.download_rate_limit_kbps = download_value;
+    settings.upload_rate_limit_kbps = upload_value;
+
+    libtorrent::settings_pack pack;
+    int download_bytes = kbps_to_bytes(download_value, download_enabled_flag);
+    int upload_bytes = kbps_to_bytes(upload_value, upload_enabled_flag);
+    pack.set_int(libtorrent::settings_pack::download_rate_limit, download_bytes);
+    pack.set_int(libtorrent::settings_pack::upload_rate_limit, upload_bytes);
+    current_settings.set_int(libtorrent::settings_pack::download_rate_limit, download_bytes);
+    current_settings.set_int(libtorrent::settings_pack::upload_rate_limit, upload_bytes);
+    if (session) {
+      session->apply_settings(pack);
+    }
+    persist_state();
+  }
+
+  void apply_peer_limits(std::optional<int> global_limit,
+                         std::optional<int> per_torrent_limit) {
+    libtorrent::settings_pack pack;
+    bool updated = false;
+    if (global_limit) {
+      int limit = std::max(0, *global_limit);
+      settings.peer_limit = limit;
+      pack.set_int(libtorrent::settings_pack::connections_limit, limit);
+      current_settings.set_int(libtorrent::settings_pack::connections_limit, limit);
+      updated = true;
+    }
+    if (per_torrent_limit) {
+      int limit = std::max(0, *per_torrent_limit);
+      settings.peer_limit_per_torrent = limit;
+      pack.set_int(libtorrent::settings_pack::unchoke_slots_limit, limit);
+      current_settings.set_int(libtorrent::settings_pack::unchoke_slots_limit, limit);
+      updated = true;
+    }
+    if (updated && session) {
+      session->apply_settings(pack);
+      persist_state();
+    }
   }
 
   bool rename_path(int id, std::string const &current, std::string const &replacement) {
@@ -426,6 +774,27 @@ private:
       }
     }
     return false;
+  }
+
+  std::optional<std::size_t> reload_blocklist_internal() {
+    if (blocklist_path.empty()) {
+      TT_LOG_INFO("blocklist path not configured; skipping reload");
+      return std::nullopt;
+    }
+    libtorrent::ip_filter filter;
+    std::size_t entries = 0;
+    if (!load_blocklist(blocklist_path, filter, entries)) {
+      TT_LOG_INFO("failed to load blocklist from {}", blocklist_path.string());
+      return std::nullopt;
+    }
+    if (session) {
+      session->set_ip_filter(filter);
+    }
+    blocklist_entries = entries;
+    blocklist_last_update = std::chrono::system_clock::now();
+    TT_LOG_INFO("loaded blocklist ({} entries) from {}", entries,
+                blocklist_path.string());
+    return entries;
   }
 
   TorrentSnapshot build_snapshot(int rpc_id, libtorrent::torrent_status const &status) {
@@ -732,7 +1101,9 @@ void Core::remove_torrents(std::vector<int> ids, bool delete_data) {
       if (delete_data) {
         flags = libtorrent::session::delete_files;
       }
+      auto status = handle.status();
       impl_->session->remove_torrent(handle, flags);
+      impl_->remove_persisted_torrent(info_hash_to_hex(status.info_hashes));
     }
   }).get();
 }
@@ -922,6 +1293,59 @@ bool Core::rename_torrent_path(int id, std::string const &path,
   } catch (...) {
     return false;
   }
+}
+
+void Core::set_speed_limits(std::optional<int> download_kbps,
+                           std::optional<bool> download_enabled,
+                           std::optional<int> upload_kbps,
+                           std::optional<bool> upload_enabled) {
+  if (!impl_) {
+    return;
+  }
+  try {
+    impl_->run_task(
+        [this, download_kbps, download_enabled, upload_kbps, upload_enabled]() {
+          impl_->apply_speed_limits(download_kbps, download_enabled, upload_kbps,
+                                    upload_enabled);
+        }).get();
+  } catch (...) {
+  }
+}
+
+void Core::set_peer_limits(std::optional<int> global_limit,
+                          std::optional<int> per_torrent_limit) {
+  if (!impl_) {
+    return;
+  }
+  try {
+    impl_->run_task([this, global_limit, per_torrent_limit]() {
+      impl_->apply_peer_limits(global_limit, per_torrent_limit);
+    }).get();
+  } catch (...) {
+  }
+}
+
+std::optional<std::size_t> Core::reload_blocklist() {
+  if (!impl_) {
+    return std::nullopt;
+  }
+  try {
+    return impl_->run_task([this]() { return impl_->reload_blocklist_internal(); }).get();
+  } catch (...) {
+    return std::nullopt;
+  }
+}
+
+std::size_t Core::blocklist_entry_count() const noexcept {
+  return impl_ ? impl_->blocklist_entries : 0;
+}
+
+std::optional<std::chrono::system_clock::time_point>
+Core::blocklist_last_update() const noexcept {
+  if (!impl_) {
+    return std::nullopt;
+  }
+  return impl_->blocklist_last_update;
 }
 
 } // namespace tt::engine

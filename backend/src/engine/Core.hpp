@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <chrono>
 #include <filesystem>
 #include <future>
 #include <memory>
@@ -16,6 +17,14 @@ struct CoreSettings {
   std::filesystem::path download_path{"data"};
   std::string listen_interface{"0.0.0.0:6881"};
   unsigned idle_sleep_ms = 500;
+  int download_rate_limit_kbps = 0;
+  int upload_rate_limit_kbps = 0;
+  bool download_rate_limit_enabled = false;
+  bool upload_rate_limit_enabled = false;
+  int peer_limit = 0;
+  int peer_limit_per_torrent = 0;
+  std::filesystem::path blocklist_path;
+  std::filesystem::path state_path;
 };
 
 struct TorrentAddRequest {
@@ -140,6 +149,15 @@ public:
   void set_download_path(std::filesystem::path path);
   bool set_listen_port(std::uint16_t port);
   bool rename_torrent_path(int id, std::string const &path, std::string const &name);
+  void set_speed_limits(std::optional<int> download_kbps,
+                        std::optional<bool> download_enabled,
+                        std::optional<int> upload_kbps,
+                        std::optional<bool> upload_enabled);
+  void set_peer_limits(std::optional<int> global_limit,
+                       std::optional<int> per_torrent_limit);
+  std::optional<std::size_t> reload_blocklist();
+  std::size_t blocklist_entry_count() const noexcept;
+  std::optional<std::chrono::system_clock::time_point> blocklist_last_update() const noexcept;
 
 private:
   struct Impl;

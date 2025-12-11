@@ -58,6 +58,7 @@ tt_sources = [
   'src/rpc/Dispatcher.cpp',
   'src/rpc/Serializer.cpp',
   'src/utils/FS.cpp',
+  'src/utils/StateStore.cpp',
   'src/vendor/mongoose.c',
 ]
 

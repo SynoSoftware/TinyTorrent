@@ -86,7 +86,8 @@ void http_client_handler(struct mg_connection *conn, int ev, void *ev_data) {
 }
 
 std::string build_http_request(std::string_view payload,
-                               std::string const &session_id = {}) {
+                               std::string const &session_id = {},
+                               std::string const &extra_headers = {}) {
   std::string request;
   request.reserve(256 + payload.size());
   request += "POST ";
@@ -98,6 +99,16 @@ std::string build_http_request(std::string_view payload,
   if (!session_id.empty()) {
     request += "\r\nX-Transmission-Session-Id: ";
     request += session_id;
+  }
+  if (!extra_headers.empty()) {
+    auto sanitized_headers = extra_headers;
+    while (sanitized_headers.size() >= 2 &&
+           sanitized_headers.substr(sanitized_headers.size() - 2) ==
+               "\r\n") {
+      sanitized_headers.resize(sanitized_headers.size() - 2);
+    }
+    request += "\r\n";
+    request += sanitized_headers;
   }
   request += "\r\nConnection: close\r\n\r\n";
   request.append(payload);
@@ -111,8 +122,9 @@ struct RpcResponse {
 };
 
 RpcResponse send_rpc_request_once(std::string_view payload,
-                                  std::string const &session_id = {}) {
-  auto request = build_http_request(payload, session_id);
+                                  std::string const &session_id = {},
+                                  std::string const &extra_headers = {}) {
+  auto request = build_http_request(payload, session_id, extra_headers);
   HttpTestContext context(std::move(request));
   mg_mgr mgr;
   mg_mgr_init(&mgr);
@@ -149,13 +161,15 @@ RpcResponse send_rpc_request_once(std::string_view payload,
   return response;
 }
 
-std::string send_rpc_request(std::string_view payload) {
-  auto response = send_rpc_request_once(payload);
+std::string send_rpc_request(std::string_view payload,
+                             std::string const &extra_headers = {}) {
+  auto response = send_rpc_request_once(payload, {}, extra_headers);
   if (response.status_code == 409) {
     if (response.session_id.empty()) {
       throw std::runtime_error("session handshake missing header");
     }
-    response = send_rpc_request_once(payload, response.session_id);
+    response =
+        send_rpc_request_once(payload, response.session_id, extra_headers);
   }
   if (response.status_code != 200) {
     throw std::runtime_error("unexpected RPC response status");
@@ -187,4 +201,23 @@ TEST_CASE("rpc endpoint handles session-set and unsupported method") {
   ResponseView unsupported_view{unsupported_response};
   CHECK(unsupported_view.result() == "error");
   expect_argument(unsupported_view, "message", "unsupported method");
+}
+
+TEST_CASE("rpc endpoint enforces token authentication when configured") {
+  tt::rpc::ServerOptions options;
+  options.token = "rpc-secret";
+  tt::rpc::Server server{nullptr, std::string{kServerUrl}, options};
+  server.start();
+  ServerGuard guard{server};
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  auto unauthenticated =
+      send_rpc_request_once(R"({"method":"session-get","arguments":{}})");
+  CHECK(unauthenticated.status_code == 401);
+
+  auto authorized = send_rpc_request(
+      R"({"method":"session-get","arguments":{}})",
+      std::string("X-TinyTorrent-Token: rpc-secret\r\n"));
+  ResponseView auth_view{authorized};
+  CHECK(auth_view.result() == "success");
 }
