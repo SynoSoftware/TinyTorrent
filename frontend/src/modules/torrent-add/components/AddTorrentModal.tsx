@@ -323,8 +323,8 @@ export function AddTorrentModal({
                         <ModalHeader className="flex flex-col gap-1">
                             <h3 className="text-lg font-bold flex items-center gap-2">
                                 <FileUp
-                                    size={20}
-                                    strokeWidth={ICON_STROKE_WIDTH}
+                                    size={22}
+                                    strokeWidth={ICON_STROKE_WIDTH + 0.5}
                                     className="text-primary"
                                 />
                                 {t("modals.add_title")}
@@ -352,7 +352,7 @@ export function AddTorrentModal({
                                 <div className="flex items-center justify-between text-foreground/60">
                                     <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider">
                                         <FileText
-                                            size={14}
+                                            size={16}
                                             strokeWidth={ICON_STROKE_WIDTH}
                                         />
                                         {t("modals.file_label")}
@@ -435,7 +435,7 @@ export function AddTorrentModal({
                                 <div className="rounded-xl border border-content1/20 bg-content1/15 px-4 py-3 space-y-2">
                                     <div className="flex items-center gap-2 text-foreground/60">
                                             <HardDrive
-                                                size={16}
+                                                size={18}
                                                 strokeWidth={ICON_STROKE_WIDTH}
                                             />
                                         <span className="text-xs font-bold uppercase tracking-wider">
@@ -471,7 +471,7 @@ export function AddTorrentModal({
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-2 text-foreground/60">
                                             <Zap
-                                                size={16}
+                                                size={18}
                                                 strokeWidth={ICON_STROKE_WIDTH}
                                             />
                                             <span className="text-xs font-bold uppercase tracking-wider">

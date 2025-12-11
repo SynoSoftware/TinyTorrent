@@ -32,6 +32,7 @@ import { INTERACTION_CONFIG } from "../../../config/logic";
 import { DirectoryPicker } from "../../../shared/ui/workspace/DirectoryPicker";
 import { LanguageMenu } from "../../../shared/ui/controls/LanguageMenu";
 import { ChevronLeft, RotateCcw, Save, X } from "lucide-react";
+import { ConnectionManager } from "./ConnectionManager";
 
 interface SectionTitleProps {
     title: string;
@@ -361,11 +362,19 @@ export function SettingsModal({
 
         switch (block.type) {
             case "switch-slider": {
-                const value = config[block.sliderKey] as number;
+                const rawValue = config[block.sliderKey];
                 const sliderDisabled =
                     block.disabledWhenSwitchOff !== false
                         ? !(config[block.switchKey] as boolean)
                         : false;
+                const boundedValue =
+                    typeof rawValue === "number" && Number.isFinite(rawValue)
+                        ? rawValue
+                        : block.slider.min;
+                const sliderValue = Math.min(
+                    Math.max(boundedValue, block.slider.min),
+                    block.slider.max
+                );
                 return (
                     <div
                         key={`section-${sectionIndex}-block-${blockIndex}`}
@@ -389,8 +398,10 @@ export function SettingsModal({
                             </Switch>
                             <div className="text-[11px] font-mono font-medium text-foreground/80 bg-content2 px-2 py-1 rounded-md min-w-[60px] text-center">
                                 {block.valueSuffixKey
-                                    ? t(block.valueSuffixKey, { value })
-                                    : value}
+                                    ? t(block.valueSuffixKey, {
+                                          value: boundedValue,
+                                      })
+                                    : boundedValue}
                             </div>
                         </div>
                         <Slider
@@ -398,7 +409,7 @@ export function SettingsModal({
                             step={block.slider.step}
                             maxValue={block.slider.max}
                             minValue={block.slider.min}
-                            value={value}
+                            value={sliderValue}
                             onChange={(value) =>
                                 updateConfig(
                                     block.sliderKey,
@@ -633,6 +644,17 @@ export function SettingsModal({
                                 aria-label={t(block.labelKey)}
                             />
                         </div>
+                    </div>
+                );
+            }
+
+            case "connection-manager": {
+                return (
+                    <div
+                        key={`section-${sectionIndex}-block-${blockIndex}`}
+                        className="space-y-3"
+                    >
+                        <ConnectionManager />
                     </div>
                 );
             }

@@ -80,11 +80,13 @@
             "language": "Pick the interface language you prefer.",
             "language_helper": "The HUD updates immediately after you change it.",
             "config_export": "Copy the raw settings JSON for backups or automation.",
-            "config_details": "Includes both engine telemetry and UI preferences in a single snapshot."
+            "config_details": "Includes both engine telemetry and UI preferences in a single snapshot.",
+            "connection_profiles": "Manage the RPC endpoints and credentials TinyTorrent talks to."
         },
         "headers": {
             "gui": "Interface",
             "network": "Connectivity",
+            "connection": "Connection",
             "peers": "Peer Limits",
             "privacy": "Privacy",
             "speed": "Speed Limits",
@@ -153,6 +155,7 @@
             "behavior": "Behavior",
             "blocklist": "Blocklist",
             "connectionLimits": "Connection Limits",
+            "connection_profiles": "Connections",
             "dashboard": "Dashboard",
             "localization": "Localization",
             "advanced": "Advanced",
@@ -167,6 +170,7 @@
         "tabs": {
             "gui": "Interface",
             "network": "Network",
+            "connection": "Connections",
             "peers": "Peers",
             "privacy": "Privacy",
             "speed": "Speed",
@@ -174,6 +178,18 @@
         },
         "units": {
             "kbps": "{{value}} KB/s"
+        },
+        "connection": {
+            "profile_title": "Connection {{index}}",
+            "profile_placeholder": "Unnamed Connection",
+            "active_badge": "Active",
+            "activate": "Activate",
+            "remove": "Remove",
+            "add": "Add Connection",
+            "profile_label": "Profile Name",
+            "endpoint": "RPC Endpoint",
+            "username": "Username",
+            "password": "Password"
         },
         "unsaved_changes": "Unsaved changes"
     },
