@@ -6,12 +6,14 @@ import {
     Network,
     Shield,
     Zap,
+    Plug,
 } from "lucide-react";
 import { type SettingsConfig, type ConfigKey } from "./config";
 
 export type SettingsTab =
     | "speed"
     | "network"
+    | "connection"
     | "peers"
     | "storage"
     | "privacy"
@@ -116,6 +118,10 @@ type RawConfigBlock = {
     descriptionKey?: string;
 } & BlockBase;
 
+type ConnectionManagerBlock = {
+    type: "connection-manager";
+} & BlockBase;
+
 export type SectionBlock =
     | SwitchSliderBlock
     | SwitchBlock
@@ -126,7 +132,8 @@ export type SectionBlock =
     | ButtonRowBlock
     | LanguageBlock
     | RawConfigBlock
-    | DaySelectorBlock;
+    | DaySelectorBlock
+    | ConnectionManagerBlock;
 
 interface SectionDefinition {
     titleKey: string;
@@ -333,6 +340,23 @@ export const SETTINGS_TABS: TabDefinition[] = [
                         type: "switch",
                         labelKey: "settings.labels.pex",
                         stateKey: "pex_enabled",
+                    },
+                ],
+            },
+        ],
+    },
+    {
+        id: "connection",
+        labelKey: "settings.tabs.connection",
+        icon: Plug,
+        headerKey: "settings.headers.connection",
+        sections: [
+            {
+                titleKey: "settings.sections.connection_profiles",
+                descriptionKey: "settings.descriptions.connection_profiles",
+                blocks: [
+                    {
+                        type: "connection-manager",
                     },
                 ],
             },

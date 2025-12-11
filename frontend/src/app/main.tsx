@@ -8,17 +8,20 @@ import { PerformanceHistoryProvider } from "../shared/hooks/usePerformanceHistor
 import { WorkspaceModalProvider } from "./WorkspaceModalContext";
 import { HotkeysProvider } from "react-hotkeys-hook";
 import { DEFAULT_KEYBOARD_SCOPE } from "../shared/hooks/useKeyboardScope";
+import { ConnectionConfigProvider } from "./context/ConnectionConfigContext";
 
 createRoot(document.getElementById("root")!).render(
     <StrictMode>
         <HotkeysProvider initiallyActiveScopes={[DEFAULT_KEYBOARD_SCOPE]}>
-            <ClientProvider>
-                <WorkspaceModalProvider>
-                    <PerformanceHistoryProvider>
-                        <App />
-                    </PerformanceHistoryProvider>
-                </WorkspaceModalProvider>
-            </ClientProvider>
+            <ConnectionConfigProvider>
+                <ClientProvider>
+                    <WorkspaceModalProvider>
+                        <PerformanceHistoryProvider>
+                            <App />
+                        </PerformanceHistoryProvider>
+                    </WorkspaceModalProvider>
+                </ClientProvider>
+            </ConnectionConfigProvider>
         </HotkeysProvider>
     </StrictMode>
 );
