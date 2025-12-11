@@ -1,7 +1,7 @@
 $ErrorActionPreference = 'Stop'
 
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Definition
-$repoRoot = Resolve-Path (Join-Path $scriptRoot '..')
+$repoRoot = Resolve-Path $scriptRoot
 $vcpkgDir = Join-Path $repoRoot 'vcpkg'
 
 function Throw-IfError() {

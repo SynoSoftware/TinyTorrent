@@ -4,6 +4,7 @@
   "dependencies": [
     "libtorrent",
     "sqlite3",
-    "yyjson"
+    "yyjson",
+    "doctest"
   ]
 }

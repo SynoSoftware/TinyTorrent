@@ -57,10 +57,10 @@ void Server::start() {
   listener_ = mg_http_listen(&mgr_, bind_url_.c_str(), &Server::handle_event,
                              this);
   if (listener_ == nullptr) {
-    TT_LOG_INFO("Failed to bind RPC listener to %s", bind_url_.c_str());
+    TT_LOG_INFO("Failed to bind RPC listener to {}", bind_url_);
   } else {
-    TT_LOG_INFO("RPC listener bound to %s, exposing %s", bind_url_.c_str(),
-                rpc_path_.c_str());
+    TT_LOG_INFO("RPC listener bound to {}, exposing {}", bind_url_,
+                rpc_path_);
   }
   worker_ = std::thread(&Server::run_loop, this);
   TT_LOG_INFO("RPC worker thread started");
@@ -105,12 +105,10 @@ void Server::handle_event(struct mg_connection *conn, int ev, void *ev_data) {
   auto *hm = static_cast<struct mg_http_message *>(ev_data);
   std::string_view uri(hm->uri.buf, hm->uri.len);
   std::string_view method(hm->method.buf, hm->method.len);
-  TT_LOG_DEBUG("RPC request %.*s %.*s", static_cast<int>(method.size()),
-               method.data(), static_cast<int>(uri.size()), uri.data());
+  TT_LOG_DEBUG("RPC request {} {}", method, uri);
   if (uri.size() != self->rpc_path_.size() ||
       std::memcmp(uri.data(), self->rpc_path_.data(), uri.size()) != 0) {
-    TT_LOG_INFO("RPC request rejected; unsupported path %.*s",
-                static_cast<int>(uri.size()), uri.data());
+    TT_LOG_INFO("RPC request rejected; unsupported path {}", uri);
     mg_http_reply(conn, 404, "Content-Type: text/plain\r\n", "not found");
     return;
   }

@@ -1,6 +1,7 @@
 #include "rpc/Dispatcher.hpp"
 
 #include "rpc/Serializer.hpp"
+#include "utils/Json.hpp"
 #include "utils/Log.hpp"
 
 #if defined(_WIN32)
@@ -116,7 +117,7 @@ std::optional<std::filesystem::path> parse_download_dir(yyjson_val *arguments) {
     candidate = candidate.lexically_normal();
     return candidate;
   } catch (std::filesystem::filesystem_error const &ex) {
-    TT_LOG_INFO("session-set download-dir invalid: %s", ex.what());
+  TT_LOG_INFO("session-set download-dir invalid: {}", ex.what());
     return std::nullopt;
   }
 }
@@ -415,9 +416,8 @@ std::string handle_torrent_add(engine::Core *engine, yyjson_val *arguments) {
     request.uri = std::string(yyjson_get_str(uri_value));
   }
 
-  TT_LOG_DEBUG("torrent-add download-dir=%s paused=%d",
-               request.download_path.string().c_str(),
-               static_cast<int>(request.paused));
+  TT_LOG_DEBUG("torrent-add download-dir={} paused={}",
+               request.download_path.string(), static_cast<int>(request.paused));
   auto status = engine->enqueue_add_torrent(std::move(request));
   return serialize_add_result(status);
 }
@@ -431,25 +431,23 @@ std::string Dispatcher::dispatch(std::string_view payload) {
     return serialize_error("empty RPC payload");
   }
 
-  yyjson_doc *doc = yyjson_read(payload.data(), payload.size(), 0);
-  if (doc == nullptr) {
+  auto doc = tt::json::Document::parse(payload);
+  if (!doc.is_valid()) {
     return serialize_error("invalid JSON");
   }
 
-  yyjson_val *root = yyjson_doc_get_root(doc);
+  yyjson_val *root = doc.root();
   if (root == nullptr || !yyjson_is_obj(root)) {
-    yyjson_doc_free(doc);
     return serialize_error("expected JSON object");
   }
 
   yyjson_val *method_value = yyjson_obj_get(root, "method");
   if (method_value == nullptr || !yyjson_is_str(method_value)) {
-    yyjson_doc_free(doc);
     return serialize_error("missing method");
   }
 
   std::string method(yyjson_get_str(method_value));
-  TT_LOG_DEBUG("Dispatching RPC method=%s", method.c_str());
+  TT_LOG_DEBUG("Dispatching RPC method={}", method);
 
   yyjson_val *arguments = yyjson_obj_get(root, "arguments");
   std::string response;
@@ -467,13 +465,12 @@ std::string Dispatcher::dispatch(std::string_view payload) {
       bool applied = false;
       bool ok = true;
       if (auto download = parse_download_dir(arguments)) {
-        TT_LOG_DEBUG("session-set download-dir=%s",
-                     download->string().c_str());
+        TT_LOG_DEBUG("session-set download-dir={}", download->string());
         engine_->set_download_path(*download);
         applied = true;
       }
       if (auto port = parse_peer_port(arguments)) {
-        TT_LOG_DEBUG("session-set peer-port=%u", static_cast<unsigned>(*port));
+        TT_LOG_DEBUG("session-set peer-port={}", static_cast<unsigned>(*port));
         applied = true;
         if (!engine_->set_listen_port(*port)) {
           ok = false;
@@ -513,8 +510,7 @@ std::string Dispatcher::dispatch(std::string_view payload) {
           response = serialize_free_space(path.string(), info.available,
                                           info.capacity);
         } catch (std::filesystem::filesystem_error const &ex) {
-          TT_LOG_INFO("free-space failed for %s: %s", path.string().c_str(),
-                      ex.what());
+          TT_LOG_INFO("free-space failed for {}: {}", path.string(), ex.what());
           response = serialize_error(ex.what());
         }
       }
@@ -677,9 +673,7 @@ std::string Dispatcher::dispatch(std::string_view payload) {
     response = serialize_error("unsupported method");
   }
 
-  yyjson_doc_free(doc);
-  TT_LOG_DEBUG("RPC method %s responded with %zu bytes", method.c_str(),
-               response.size());
+  TT_LOG_DEBUG("RPC method {} responded with {} bytes", method, response.size());
   return response;
 }
 

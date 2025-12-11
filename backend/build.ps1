@@ -1,5 +1,5 @@
 param(
-  [ValidateSet('Debug','MinSizeRel')]
+  [ValidateSet('Debug', 'MinSizeRel')]
   [string]$Configuration = 'Debug',
   [string]$MesonPath = '',
   [string]$NinjaPath = '',
@@ -22,7 +22,8 @@ function Get-UserScriptsPath {
       $paths += $pythonBase
     }
     return $paths
-  } catch {
+  }
+  catch {
     throw 'Unable to determine the Python user scripts path; ensure Python 3.9+ is on the PATH.'
   }
 }
@@ -101,7 +102,7 @@ function Import-VsEnvironment {
     if (-not $line) {
       continue
     }
-    $parts = $line -split('=', 2)
+    $parts = $line -split ('=', 2)
     if ($parts.Count -ne 2) {
       continue
     }
@@ -112,16 +113,16 @@ function Import-VsEnvironment {
 }
 
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Definition
-$repoRoot = Resolve-Path (Join-Path $scriptRoot '..')
+$repoRoot = Resolve-Path $scriptRoot
 $vcpkgDir = Join-Path $repoRoot 'vcpkg'
 $vcpkgExe = Join-Path $vcpkgDir 'vcpkg.exe'
 $buildDir = Join-Path $repoRoot 'build'
 
 if (-not (Test-Path $vcpkgDir)) {
-  throw 'vcpkg directory not found. Run scripts/setup.ps1 first.'
+  throw 'vcpkg directory not found. Run setup.ps1 first.'
 }
 if (-not (Test-Path $vcpkgExe)) {
-  throw 'vcpkg.exe not found; run scripts/setup.ps1 first.'
+  throw 'vcpkg.exe not found; run setup.ps1 first.'
 }
 
 $vswhereExe = Resolve-VsWhere $VsWherePath
@@ -163,7 +164,8 @@ if ($prefixPaths.Count -gt 0) {
   $newPrefixValue = $prefixPaths -join ';'
   if ($env:CMAKE_PREFIX_PATH) {
     $env:CMAKE_PREFIX_PATH = "$newPrefixValue;$env:CMAKE_PREFIX_PATH"
-  } else {
+  }
+  else {
     $env:CMAKE_PREFIX_PATH = $newPrefixValue
   }
 }
@@ -218,22 +220,24 @@ if ($testsEnabled) {
       $testExitCode = $LASTEXITCODE
       $trimmedOutput = $testOutput.Trim()
       $testResults += [pscustomobject]@{
-        Name = $testExe
+        Name     = $testExe
         ExitCode = $testExitCode
-        Output = $trimmedOutput
+        Output   = $trimmedOutput
       }
       if ($testExitCode -ne 0) {
         Write-Host "    ✗ failed (exit code $testExitCode)"
         Write-Host "    ── captured output ──"
         if ($trimmedOutput) {
           Write-Host $trimmedOutput
-        } else {
+        }
+        else {
           Write-Host "    <no output captured>"
         }
         $runSucceeded = $false
         $failureMessage = "Test $testExe failed (exit code $testExitCode)"
         break
-      } else {
+      }
+      else {
         Write-Host "    ✔ done"
       }
     }
@@ -241,7 +245,8 @@ if ($testsEnabled) {
   finally {
     $testLogFile = Join-Path $mesonBuildDir 'test-results.log'
     $logLines = @()
-    $logLines += "[ $(Get-Date -Format o) | $Configuration ]"
+    $timestamp = Get-Date -Format o
+    $logLines += '[ ' + $timestamp + ' - ' + $Configuration + ' ]'
     foreach ($entry in $testResults) {
       $status = if ($entry.ExitCode -eq 0) { 'PASS' } else { 'FAIL' }
       $logLines += "$status $($entry.Name) exit=$($entry.ExitCode)"
@@ -257,6 +262,19 @@ if ($testsEnabled) {
   if (-not $runSucceeded) {
     throw $failureMessage
   }
-} else {
+}
+else {
   Write-Host "Tests are disabled for configuration $Configuration; skipping."
+}
+$fileName = 'tt-engine.exe'
+$exePath = Join-Path $mesonBuildDir $fileName
+if (Test-Path $exePath) {
+  $length = (Get-Item $exePath).Length / 1024
+  Write-Host "$exePath"
+  Write-Host "\\--  $fileName    $length kb"
+
+  
+}
+else {
+  Write-Host "Executable not found: $exePath"
 }
