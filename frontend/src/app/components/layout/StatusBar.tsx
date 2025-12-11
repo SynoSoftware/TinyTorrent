@@ -17,7 +17,7 @@ import type {
     TorrentEntity,
 } from "../../../services/rpc/entities";
 import type { RpcStatus } from "../../../shared/types/rpc";
-import { ICON_STROKE_WIDTH } from "../../../config/iconography";
+import { ICON_STROKE_WIDTH } from "../../../config/logic";
 import type {
     FeedbackMessage,
     FeedbackTone,

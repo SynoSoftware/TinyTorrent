@@ -4,9 +4,9 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import { ZoomIn, ZoomOut } from "lucide-react";
-import { GLASS_TOOLTIP_CLASSNAMES } from "./constants";
-import { clamp, useCanvasPalette } from "./canvasUtils";
-import { PEER_MAP_CONFIG } from "./config";
+import { GLASS_TOOLTIP_CLASSNAMES } from "../../../modules/dashboard/components/details/visualizations/constants";
+import { clamp, useCanvasPalette } from "../../../modules/dashboard/components/details/visualizations/canvasUtils";
+import { PEER_MAP_CONFIG } from "../../../config/logic";
 import { formatSpeed } from "../../utils/format";
 import type { TorrentPeerEntity } from "../../../services/rpc/entities";
 

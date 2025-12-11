@@ -19,8 +19,8 @@ import { SettingsModal } from "../../modules/settings/components/SettingsModal";
 import { Navbar } from "./layout/Navbar";
 import { StatusBar } from "./layout/StatusBar";
 import type { SettingsConfig } from "../../modules/settings/data/config";
-import { INTERACTION_CONFIG } from "../../config/interaction";
-import { ICON_STROKE_WIDTH } from "../../config/iconography";
+import { INTERACTION_CONFIG } from "../../config/logic";
+import { ICON_STROKE_WIDTH } from "../../config/logic";
 import type {
     AmbientHudCard,
     DeleteIntent,

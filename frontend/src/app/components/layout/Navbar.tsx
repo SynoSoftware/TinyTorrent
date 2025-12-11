@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ThemeToggle } from "../../../shared/ui/controls/ThemeToggle";
-import { ICON_STROKE_WIDTH } from "../../../config/iconography";
+import { ICON_STROKE_WIDTH } from "../../../config/logic";
 import { ToolbarIconButton } from "../../../shared/ui/layout/toolbar-button";
 import { SmoothProgressBar } from "../../../shared/ui/components/SmoothProgressBar";
 import type {

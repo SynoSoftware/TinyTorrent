@@ -4,7 +4,7 @@ import { useMemo, useState, useCallback, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { formatBytes } from "../../utils/format";
 import type { LibtorrentPriority } from "../../../services/rpc/entities";
-import { ICON_STROKE_WIDTH } from "../../../config/iconography";
+import { ICON_STROKE_WIDTH } from "../../../config/logic";
 
 export interface FileExplorerEntry {
     name: string;

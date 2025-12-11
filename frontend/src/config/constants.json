@@ -21,7 +21,12 @@
         },
         "heatmap": {
             "sample_limit_multiplier": 6,
-            "zoom_levels": [1, 1.5, 2, 2.5],
+            "zoom_levels": [
+                1,
+                1.5,
+                2,
+                2.5
+            ],
             "cell_size": 6,
             "cell_gap": 3
         },
@@ -30,6 +35,227 @@
             "drift_duration": {
                 "min": 6,
                 "max": 10
+            }
+        },
+        "table": {
+            "row_height": 32,
+            "font_size": "text-[11px]",
+            "font_mono": "font-mono",
+            "icon_size": 14,
+            "overscan": 20
+        }
+    },
+    "iconography": {
+        "stroke_width": 1.5,
+        "stroke_width_dense": 1.2
+    },
+    "heartbeats": {
+        "detail_refresh_interval_ms": 1000
+    },
+    "interaction": {
+        "dragOverlay": {
+            "root": {
+                "initialScale": 1.05,
+                "activeScale": 1,
+                "exitScale": 1.03,
+                "initialBlur": 0,
+                "activeBlur": 18,
+                "exitBlur": 0,
+                "transition": {
+                    "type": "spring",
+                    "stiffness": 260,
+                    "damping": 34,
+                    "mass": 0.8
+                }
+            },
+            "layers": [
+                {
+                    "id": "outer",
+                    "className": "absolute inset-0 rounded-[32px] border border-primary/40 bg-gradient-to-br from-primary/30 via-transparent to-transparent shadow-[0_25px_120px_rgba(16,185,129,0.35)]",
+                    "initial": {
+                        "scale": 0.94,
+                        "opacity": 0
+                    },
+                    "animate": {
+                        "scale": 1,
+                        "opacity": 0.55
+                    },
+                    "exit": {
+                        "opacity": 0
+                    },
+                    "transition": {
+                        "type": "spring",
+                        "stiffness": 280,
+                        "damping": 32
+                    }
+                },
+                {
+                    "id": "middle",
+                    "className": "absolute inset-6 rounded-[28px] border border-primary/40",
+                    "initial": {
+                        "scale": 0.9,
+                        "opacity": 0
+                    },
+                    "animate": {
+                        "scale": 1,
+                        "opacity": 0.4
+                    },
+                    "exit": {
+                        "opacity": 0
+                    },
+                    "transition": {
+                        "type": "spring",
+                        "stiffness": 240,
+                        "damping": 28,
+                        "repeat": -1,
+                        "repeatType": "reverse"
+                    }
+                },
+                {
+                    "id": "inner",
+                    "className": "absolute inset-12 rounded-[26px] border border-primary/30 opacity-70",
+                    "initial": {
+                        "scale": 0.95,
+                        "opacity": 0
+                    },
+                    "animate": {
+                        "scale": 1.02,
+                        "opacity": 0.35
+                    },
+                    "exit": {
+                        "opacity": 0
+                    },
+                    "transition": {
+                        "type": "spring",
+                        "stiffness": 220,
+                        "damping": 26,
+                        "repeat": -1,
+                        "repeatType": "reverse"
+                    }
+                }
+            ],
+            "iconPulse": {
+                "initialScale": 0.9,
+                "animateScale": [
+                    1,
+                    1.08,
+                    1
+                ],
+                "transition": {
+                    "type": "spring",
+                    "stiffness": 260,
+                    "damping": 22,
+                    "repeat": -1,
+                    "repeatType": "reverse"
+                }
+            }
+        },
+        "modalBloom": {
+            "originScale": 0.62,
+            "fallbackScale": 0.85,
+            "fallbackOffsetY": 20,
+            "exitScale": 0.9,
+            "exitOffsetY": 25,
+            "transition": {
+                "type": "spring",
+                "stiffness": 210,
+                "damping": 32
+            }
+        },
+        "speedChart": {
+            "width": 180,
+            "height": 72
+        },
+        "networkGraph": {
+            "width": 64,
+            "height": 24
+        }
+    },
+    "shortcuts": {
+        "intents": {
+            "SelectAll": "action.select_all",
+            "Delete": "action.delete",
+            "ShowDetails": "action.show_details",
+            "TogglePause": "action.toggle_pause",
+            "Recheck": "action.recheck",
+            "RemoveWithData": "action.remove_with_data"
+        },
+        "keyScope": {
+            "Dashboard": "dashboard",
+            "Modal": "modal",
+            "Settings": "settings"
+        },
+        "keymap": {
+            "action.select_all": [
+                "ctrl+a",
+                "meta+a"
+            ],
+            "action.delete": [
+                "delete",
+                "backspace"
+            ],
+            "action.show_details": [
+                "enter"
+            ],
+            "action.toggle_pause": [
+                "space"
+            ],
+            "action.recheck": "ctrl+r",
+            "action.remove_with_data": "shift+delete"
+        }
+    },
+    "visualizations": {
+        "details": {
+            "piece_map": {
+                "cell_size": 10,
+                "cell_gap": 2,
+                "columns": 60,
+                "rows": {
+                    "base": 4,
+                    "max": 16
+                }
+            },
+            "peer_map": {
+                "drift_amplitude": 8,
+                "drift_duration": {
+                    "min": 4,
+                    "max": 8
+                },
+                "layout": {
+                    "center": 90,
+                    "radius": 70,
+                    "base_node_size": 6,
+                    "progress_scale": 12
+                }
+            },
+            "scatter": {
+                "padding": {
+                    "top": 24,
+                    "bottom": 20,
+                    "x": 16
+                },
+                "radius": {
+                    "normal": 4,
+                    "hover": 7,
+                    "hit": 20
+                }
+            },
+            "tooltip_animation": {
+                "initial": {
+                    "opacity": 0,
+                    "scale": 0.95
+                },
+                "animate": {
+                    "opacity": 1,
+                    "scale": 1
+                },
+                "exit": {
+                    "opacity": 0,
+                    "scale": 0.95
+                },
+                "transition": {
+                    "duration": 0.1
+                }
             }
         }
     }

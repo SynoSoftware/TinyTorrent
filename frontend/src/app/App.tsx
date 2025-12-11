@@ -26,7 +26,7 @@ import { WorkspaceShell } from "./components/WorkspaceShell";
 import { useTorrentClient } from "./providers/TorrentClientProvider";
 import type { Torrent, TorrentDetail } from "../modules/dashboard/types/torrent";
 import type { RehashStatus } from "./types/workspace";
-import { HEARTBEAT_INTERVALS } from "../config/heartbeats";
+import { HEARTBEAT_INTERVALS } from "../config/logic";
 
 export default function App() {
     const { t } = useTranslation();

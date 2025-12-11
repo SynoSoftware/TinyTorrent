@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { formatSpeed } from "../../../../../shared/utils/format";
 import { useCanvasPalette } from "./canvasUtils";
 import type { TorrentPeerEntity } from "../../../../../services/rpc/entities";
-import { SCATTER_CONFIG } from "../details-config";
+import { DETAILS_SCATTER_CONFIG } from "../../../../../config/logic";
 
 interface PeerScatterProps {
     peers: TorrentPeerEntity[];
@@ -47,15 +47,15 @@ export const PeerScatter = ({
         (peer: TorrentPeerEntity, w: number, h: number) => {
             const progress = Math.min(Math.max(peer.progress ?? 0, 0), 1);
             const speed = peer.rateToClient + peer.rateToPeer;
-            const usableWidth = w - SCATTER_CONFIG.padding.x * 2;
+            const usableWidth = w - DETAILS_SCATTER_CONFIG.padding.x * 2;
             const usableHeight =
-                h - SCATTER_CONFIG.padding.top - SCATTER_CONFIG.padding.bottom;
+                h - DETAILS_SCATTER_CONFIG.padding.top - DETAILS_SCATTER_CONFIG.padding.bottom;
 
             return {
-                x: SCATTER_CONFIG.padding.x + progress * usableWidth,
+                x: DETAILS_SCATTER_CONFIG.padding.x + progress * usableWidth,
                 y:
                     h -
-                    SCATTER_CONFIG.padding.bottom -
+                    DETAILS_SCATTER_CONFIG.padding.bottom -
                     Math.min(speed / maxSpeed, 1) * usableHeight,
             };
         },
@@ -102,24 +102,24 @@ export const PeerScatter = ({
         ctx.textAlign = "center";
 
         const usableHeight =
-            height - SCATTER_CONFIG.padding.top - SCATTER_CONFIG.padding.bottom;
-        const usableWidth = width - SCATTER_CONFIG.padding.x * 2;
-        const bottomY = height - SCATTER_CONFIG.padding.bottom;
+            height - DETAILS_SCATTER_CONFIG.padding.top - DETAILS_SCATTER_CONFIG.padding.bottom;
+        const usableWidth = width - DETAILS_SCATTER_CONFIG.padding.x * 2;
+        const bottomY = height - DETAILS_SCATTER_CONFIG.padding.bottom;
 
         // Draw Lines
         ctx.globalAlpha = 0.1;
         [0, 0.5, 1].forEach((ratio) => {
             const y = bottomY - ratio * usableHeight;
             ctx.beginPath();
-            ctx.moveTo(SCATTER_CONFIG.padding.x, y);
-            ctx.lineTo(width - SCATTER_CONFIG.padding.x, y);
+            ctx.moveTo(DETAILS_SCATTER_CONFIG.padding.x, y);
+            ctx.lineTo(width - DETAILS_SCATTER_CONFIG.padding.x, y);
             ctx.stroke();
         });
 
         // Draw Ticks & Text
         ctx.globalAlpha = 0.4;
         [0, 0.5, 1].forEach((ratio) => {
-            const x = SCATTER_CONFIG.padding.x + ratio * usableWidth;
+            const x = DETAILS_SCATTER_CONFIG.padding.x + ratio * usableWidth;
             ctx.beginPath();
             ctx.moveTo(x, bottomY);
             ctx.lineTo(x, bottomY + 4);
@@ -130,8 +130,8 @@ export const PeerScatter = ({
         ctx.textAlign = "left";
         ctx.fillText(
             `${formatSpeed(maxSpeed)}`,
-            SCATTER_CONFIG.padding.x,
-            SCATTER_CONFIG.padding.top - 6
+            DETAILS_SCATTER_CONFIG.padding.x,
+            DETAILS_SCATTER_CONFIG.padding.top - 6
         );
 
         ctx.globalAlpha = 1.0; // Reset alpha for dots
@@ -152,8 +152,8 @@ export const PeerScatter = ({
                 x,
                 y,
                 isHovered
-                    ? SCATTER_CONFIG.radius.hover
-                    : SCATTER_CONFIG.radius.normal,
+                    ? DETAILS_SCATTER_CONFIG.radius.hover
+                    : DETAILS_SCATTER_CONFIG.radius.normal,
                 0,
                 Math.PI * 2
             );
@@ -174,7 +174,7 @@ export const PeerScatter = ({
                 ctx.stroke();
 
                 ctx.beginPath();
-                ctx.moveTo(x, y + SCATTER_CONFIG.radius.hover);
+                ctx.moveTo(x, y + DETAILS_SCATTER_CONFIG.radius.hover);
                 ctx.lineTo(x, bottomY);
                 ctx.lineWidth = 1;
                 ctx.strokeStyle = palette.foreground;
@@ -207,7 +207,7 @@ export const PeerScatter = ({
                 const dist = Math.sqrt(
                     Math.pow(point.x - x, 2) + Math.pow(point.y - y, 2)
                 );
-                if (dist < minDistance && dist < SCATTER_CONFIG.radius.hit) {
+                if (dist < minDistance && dist < DETAILS_SCATTER_CONFIG.radius.hit) {
                     minDistance = dist;
                     closest = peer;
                 }

@@ -76,14 +76,14 @@ import {
     type ColumnId,
     type DashboardTableMeta,
 } from "./ColumnDefinitions";
-import { TABLE_LAYOUT } from "../config/layout";
-import { INTERACTION_CONFIG } from "../../../config/interaction";
+import { TABLE_LAYOUT } from "../../../config/logic";
+import { INTERACTION_CONFIG } from "../../../config/logic";
 import { useTorrentShortcuts } from "../hooks/useTorrentShortcuts";
-import { KEY_SCOPE, KEYMAP, ShortcutIntent } from "../../../config/keymap";
+import { KEY_SCOPE, KEYMAP, ShortcutIntent } from "../../../config/logic";
 import {
     ICON_STROKE_WIDTH,
     ICON_STROKE_WIDTH_DENSE,
-} from "../../../config/iconography";
+} from "../../../config/logic";
 
 // --- CONSTANTS ---
 const STORAGE_KEY = "tiny-torrent.table-state.v2.8";

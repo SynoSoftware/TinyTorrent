@@ -32,8 +32,8 @@ import {
 } from "../../../shared/utils/torrent";
 import type { TransmissionFreeSpace } from "../../../services/rpc/types";
 import { getDriveSpace } from "../../../services/rpc/rpc-extended";
-import { ICON_STROKE_WIDTH } from "../../../config/iconography";
-import { INTERACTION_CONFIG } from "../../../config/interaction";
+import { ICON_STROKE_WIDTH } from "../../../config/logic";
+import { INTERACTION_CONFIG } from "../../../config/logic";
 
 interface AddTorrentModalProps {
     isOpen: boolean;

@@ -5,7 +5,7 @@ import {
     buildSplinePathFromPoints,
     createSplinePoints,
 } from "../../utils/spline";
-import { INTERACTION_CONFIG } from "../../../config/interaction";
+import { INTERACTION_CONFIG } from "../../../config/logic";
 
 const { networkGraph } = INTERACTION_CONFIG;
 const GRAPH_WIDTH = networkGraph.width;

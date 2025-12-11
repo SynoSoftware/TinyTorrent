@@ -17,7 +17,7 @@ import {
     type DirectoryBrowseResult,
     type DirectoryNode,
 } from "../../../services/rpc/rpc-extended";
-import { ICON_STROKE_WIDTH } from "../../../config/iconography";
+import { ICON_STROKE_WIDTH } from "../../../config/logic";
 
 interface DirectoryPickerProps {
     isOpen: boolean;

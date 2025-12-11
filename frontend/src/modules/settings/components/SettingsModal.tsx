@@ -27,8 +27,8 @@ import type {
     SectionBlock,
     SettingsTab,
 } from "../data/settings-tabs";
-import { ICON_STROKE_WIDTH } from "../../../config/iconography";
-import { INTERACTION_CONFIG } from "../../../config/interaction";
+import { ICON_STROKE_WIDTH } from "../../../config/logic";
+import { INTERACTION_CONFIG } from "../../../config/logic";
 import { DirectoryPicker } from "../../../shared/ui/workspace/DirectoryPicker";
 import { LanguageMenu } from "../../../shared/ui/controls/LanguageMenu";
 import { ChevronLeft, RotateCcw, Save, X } from "lucide-react";

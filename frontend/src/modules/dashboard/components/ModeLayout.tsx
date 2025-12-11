@@ -15,8 +15,8 @@ import {
 } from "./TorrentTable";
 import { TorrentDetailView } from "./TorrentDetailView";
 import type { Torrent, TorrentDetail } from "../types/torrent";
-import { INTERACTION_CONFIG } from "../../../config/interaction";
-import { ICON_STROKE_WIDTH } from "../../../config/iconography";
+import { INTERACTION_CONFIG } from "../../../config/logic";
+import { ICON_STROKE_WIDTH } from "../../../config/logic";
 import { useTranslation } from "react-i18next";
 
 const { modalBloom } = INTERACTION_CONFIG;
