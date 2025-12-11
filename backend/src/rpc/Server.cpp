@@ -3,6 +3,7 @@
 #include "utils/Log.hpp"
 #include "vendor/mongoose.h"
 
+#include <cstring>
 #include <string_view>
 
 namespace tt::rpc {
@@ -27,8 +28,7 @@ void Server::start() {
     return;
   }
 
-  listener_ = mg_http_listen(&mgr_, bind_url_.c_str(),
-                             reinterpret_cast<mg_event_handler_t>(&Server::handle_event),
+  listener_ = mg_http_listen(&mgr_, bind_url_.c_str(), &Server::handle_event,
                              this);
   if (listener_ == nullptr) {
     TT_LOG_INFO("Failed to bind RPC listener to %s", bind_url_.c_str());
@@ -62,27 +62,37 @@ std::string Server::dispatch(std::string_view payload) {
   return dispatcher_.dispatch(payload);
 }
 
-void Server::handle_event(struct mg_connection *conn, int ev, void *ev_data, void *fn_data) {
+void Server::handle_event(struct mg_connection *conn, int ev, void *ev_data) {
   if (ev != MG_EV_HTTP_MSG) {
     return;
   }
 
-  auto *self = static_cast<Server *>(fn_data);
+  if (conn == nullptr) {
+    return;
+  }
+
+  auto *self = static_cast<Server *>(conn->fn_data);
   if (self == nullptr) {
     return;
   }
 
   auto *hm = static_cast<struct mg_http_message *>(ev_data);
-  std::string uri(hm->uri.buf, hm->uri.len);
-  std::string method(hm->method.buf, hm->method.len);
-  TT_LOG_DEBUG("RPC request %s %s", method.c_str(), uri.c_str());
-  if (uri != self->rpc_path_) {
-    TT_LOG_INFO("RPC request rejected; unsupported path %s", uri.c_str());
+  std::string_view uri(hm->uri.buf, hm->uri.len);
+  std::string_view method(hm->method.buf, hm->method.len);
+  TT_LOG_DEBUG("RPC request %.*s %.*s", static_cast<int>(method.size()),
+               method.data(), static_cast<int>(uri.size()), uri.data());
+  if (uri.size() != self->rpc_path_.size() ||
+      std::memcmp(uri.data(), self->rpc_path_.data(), uri.size()) != 0) {
+    TT_LOG_INFO("RPC request rejected; unsupported path %.*s",
+                static_cast<int>(uri.size()), uri.data());
     mg_http_reply(conn, 404, "Content-Type: text/plain\r\n", "not found");
     return;
   }
 
-  std::string body(hm->body.buf, hm->body.len);
+  std::string body;
+  if (hm->body.len > 0 && hm->body.buf != nullptr) {
+    body.assign(hm->body.buf, hm->body.len);
+  }
   auto payload = self->dispatch(body);
   mg_http_reply(conn, 200, "Content-Type: application/json\r\n", "%s", payload.c_str());
 }
