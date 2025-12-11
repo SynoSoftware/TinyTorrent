@@ -1,7 +1,9 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { Command } from "cmdk";
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { useFocusState } from "../context/FocusContext";
+import type { FocusPart } from "../context/FocusContext";
 
 export interface CommandAction {
     id: string;
@@ -30,6 +32,9 @@ export function CommandPalette({
     actions,
 }: CommandPaletteProps) {
     const { t } = useTranslation();
+    const { activePart, setActivePart } = useFocusState();
+    const previousPartRef = useRef<FocusPart>("table");
+    const previousOpenRef = useRef(isOpen);
     const [query, setQuery] = useState("");
     const groupedActions = useMemo(() => {
         const result = new Map<string, CommandAction[]>();
@@ -44,6 +49,16 @@ export function CommandPalette({
             entries,
         }));
     }, [actions, t]);
+
+    useEffect(() => {
+        if (!previousOpenRef.current && isOpen) {
+            previousPartRef.current = activePart;
+            setActivePart("command-palette");
+        } else if (previousOpenRef.current && !isOpen) {
+            setActivePart(previousPartRef.current);
+        }
+        previousOpenRef.current = isOpen;
+    }, [isOpen, activePart, setActivePart]);
 
     useEffect(() => {
         if (!isOpen) {

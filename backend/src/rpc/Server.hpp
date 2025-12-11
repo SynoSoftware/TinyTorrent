@@ -34,6 +34,7 @@ private:
   Dispatcher dispatcher_;
   mg_mgr mgr_;
   struct mg_connection *listener_;
+  std::string session_id_;
   std::atomic_bool running_{false};
   std::thread worker_;
 };

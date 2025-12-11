@@ -137,6 +137,9 @@ public:
   void set_sequential(std::vector<int> ids, bool enabled);
   void set_super_seeding(std::vector<int> ids, bool enabled);
   void move_torrent_location(int id, std::string path, bool move);
+  void set_download_path(std::filesystem::path path);
+  bool set_listen_port(std::uint16_t port);
+  bool rename_torrent_path(int id, std::string const &path, std::string const &name);
 
 private:
   struct Impl;

@@ -197,7 +197,9 @@
                 "backspace"
             ],
             "action.show_details": [
-                "enter"
+                "enter",
+                "meta+i",
+                "ctrl+i"
             ],
             "action.toggle_pause": [
                 "space"

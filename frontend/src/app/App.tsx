@@ -25,8 +25,58 @@ import { useTorrentActions } from "../modules/dashboard/hooks/useTorrentActions"
 import { CommandPalette } from "./components/CommandPalette";
 import { WorkspaceShell } from "./components/WorkspaceShell";
 import { useTorrentClient } from "./providers/TorrentClientProvider";
+import { FocusProvider, useFocusState } from "./context/FocusContext";
 import type { Torrent, TorrentDetail } from "../modules/dashboard/types/torrent";
 import type { RehashStatus } from "./types/workspace";
+
+interface FocusControllerProps {
+    selectedTorrents: Torrent[];
+    detailData: TorrentDetail | null;
+    requestDetails: (torrent: Torrent) => Promise<void>;
+    closeDetail: () => void;
+}
+
+function FocusController({
+    selectedTorrents,
+    detailData,
+    requestDetails,
+    closeDetail,
+}: FocusControllerProps) {
+    const { setActivePart } = useFocusState();
+
+    const toggleInspector = useCallback(async () => {
+        if (detailData) {
+            closeDetail();
+            return;
+        }
+
+        const targetTorrent = selectedTorrents[0];
+        if (!targetTorrent) return;
+
+        await requestDetails(targetTorrent);
+    }, [closeDetail, detailData, requestDetails, selectedTorrents]);
+
+    useHotkeys(
+        "cmd+i,ctrl+i",
+        (event) => {
+            event.preventDefault();
+            void toggleInspector();
+        },
+        {
+            enableOnFormTags: true,
+            enableOnContentEditable: true,
+        },
+        [toggleInspector]
+    );
+
+    useEffect(() => {
+        if (detailData) {
+            setActivePart("inspector");
+        }
+    }, [detailData, setActivePart]);
+
+    return null;
+}
 
 export default function App() {
     const { t } = useTranslation();
@@ -308,9 +358,9 @@ export default function App() {
         [loadDetail]
     );
 
-    const closeDetail = () => {
+    const handleCloseDetail = useCallback(() => {
         clearDetail();
-    };
+    }, [clearDetail]);
 
     const handleAddModalClose = useCallback(() => {
         closeAddModal();
@@ -376,7 +426,13 @@ export default function App() {
     };
 
     return (
-        <>
+        <FocusProvider>
+            <FocusController
+                selectedTorrents={selectedTorrents}
+                detailData={detailData}
+                requestDetails={handleRequestDetails}
+                closeDetail={handleCloseDetail}
+            />
             <WorkspaceShell
             getRootProps={getRootProps}
             getInputProps={getInputProps}
@@ -398,7 +454,7 @@ export default function App() {
             handleTorrentAction={handleTorrentAction}
             handleRequestDetails={handleRequestDetails}
             detailData={detailData}
-            closeDetail={closeDetail}
+            closeDetail={handleCloseDetail}
             handleFileSelectionChange={handleFileSelectionChange}
             sequentialToggleHandler={
                 sequentialSupported ? handleSequentialToggle : undefined
@@ -441,6 +497,6 @@ export default function App() {
                 onOpenChange={setCommandPaletteOpen}
                 actions={commandActions}
             />
-        </>
+        </FocusProvider>
     );
 }

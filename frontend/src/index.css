@@ -211,6 +211,20 @@
             transparent
         );
     }
+
+    .inspector-shell {
+        border-radius: 20px;
+        border: 1px solid color-mix(in srgb, var(--heroui-default), transparent 60%);
+        background-color: color-mix(
+            in srgb,
+            var(--heroui-content1) 90%,
+            transparent 10%
+        );
+        backdrop-filter: blur(24px);
+        box-shadow: 0 35px 60px rgba(0, 0, 0, 0.45);
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        background-clip: padding-box;
+    }
 }
 
 @layer utilities {

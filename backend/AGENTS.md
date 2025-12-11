@@ -1,70 +1,66 @@
-# **AGENTS_BACKEND.md — TinyTorrent Micro-Engine**
+# **AGENTS_BACKEND.md — TinyTorrent Backend Specification**
 
 **Purpose:**
-Single authoritative reference for the architecture of the **TinyTorrent Daemon**, optimized for **minimum binary size** and **minimal memory usage**, while maintaining a **comfortable development workflow**.
+Authoritative reference for the **TinyTorrent Daemon**.
+**Priority:** Correctness > Architectural Minimalism > Development Ergonomics.
 
 ---
 
-# **1. Core Identity**
+# **1. Core Identity & Philosophy**
 
-TinyTorrent Daemon = **C++20** × **libtorrent** × **Embedded Tactics**.
+TinyTorrent Daemon = **Modern C++20** × **Libtorrent** × **Pragmatic Design**.
 
-### Identity Pillars
+## **The Practical Minimalism Rule (Critical)**
 
-- **Static & Stripped (Release Only):**
-  Release builds produce one `.exe`, fully static, symbol-free, no DLLs.
+TinyTorrent does **not** chase byte-shaving or premature optimization.
+Agents must choose algorithms and libraries that are correct, modern, lean, and maintainable.
 
-- **Debuggable (Development):**
-  Development builds retain symbols, exceptions, RTTI, logs, and dynamic CRT.
+### **Development Mode:**
 
-- **No Frameworks:**
-  No Beast, no Crow, no Boost-websocket. They are heavy and template-bloated.
+- You may use helpers, loggers, diagnostic tools, or richer STL features.
+- **Priority:** Fast iteration, clear debugging, and ergonomics.
+- Do not strip useful debug info just to save space in a Dev build.
 
-- **Hybrid Stack:**
-  Engine = C++20 (libtorrent)
-  RPC Layer = C (Mongoose) for minimal footprint.
+### **Release Mode:**
 
-- **Size Target:**
-  **Release:** `< 4MB` uncompressed, ~1.5MB with UPX.
-  **Development:** unrestricted.
-
-- **Memory Target (Release):**
-  **< 10MB idle** on Windows (except user requested disk cache)
+- Only structurally lightweight components remain.
+- **No Template Bloat:** We avoid heavy C++ template libraries (like `nlohmann/json` or `Boost.Beast`) because they bloat binary size structurally.
+- **Architecture:** The binary remains small because we chose the right dependencies (C-libs), not because we wrote obscure code.
 
 ---
 
 # **2. Architecture**
 
-- **Language:** C++20 (MSVC).
+We use a standard, robust **Producer/Consumer** model.
 
-- **Core Engine:** `libtorrent-rasterbar` (static link)
-  _Build:_ minimal-size configuration (logging disabled, deprecated APIs removed, tools excluded).
+### **Thread 1: The Engine (The Worker)**
 
-- **RPC/Web Server:** **Mongoose** (Cesanta).
-  _Why:_ Pure C, single-file library, tiny binary footprint, handles HTTP + WebSockets.
+- **Role:** Runs the `libtorrent` main loop.
+- **Responsibility:**
+  - Owns the `lt::session`.
+  - Executes logic (Add, Pause, Remove).
+  - Periodically publishes a **State Snapshot**.
 
-- **JSON Parser:** **yyjson** (preferred) or **RapidJSON**.
-  _Why:_ `nlohmann/json` generates hundreds of KB of templates. yyjson is extremely small and very fast.
+### **Thread 2: The RPC Server (The Interface)**
 
-- **Database:** **SQLite3** (C API), statically linked.
+- **Role:** Runs the **Mongoose** HTTP/WebSocket loop.
+- **Responsibility:**
+  - Parses input using `yyjson`.
+  - Validates data structure.
+  - Pushes commands to the Engine Queue.
+  - Reads the latest **State Snapshot** to serve clients instantly.
 
-## **The Micro-Loop**
+### **Synchronization**
 
-Two threads only:
-
-1. **Thread 1 — Engine:** Runs libtorrent session loop.
-2. **Thread 2 — RPC:** Runs Mongoose event loop (`mongoose_poll`).
-
-Communication:
-
-- Command queue: `std::deque` with a mutex or MPSC queue.
-- Shared state snapshot: `std::atomic<void*>` or RC’ed struct for readonly snapshots.
-
-Thread-safe, minimal, fast.
+- **Queue:** Thread-safe command queue (RPC → Engine).
+- **Snapshot:** Mutex-protected swap of the State struct (Engine → RPC).
+- **Why:** Simple, correct, and prevents the UI from freezing.
 
 ---
 
-# **3. Dependencies (vcpkg Manifest)**
+# **3. Dependencies (vcpkg)**
+
+We select dependencies that are **structurally small** (mostly C libraries) but use them with **Modern C++20**.
 
 **`vcpkg.json`:**
 
@@ -72,206 +68,133 @@ Thread-safe, minimal, fast.
 {
   "name": "tinytorrent-daemon",
   "version-string": "0.1.0",
-  "dependencies": ["libtorrent", "sqlite3", "yyjson"]
+  "dependencies": [
+    "libtorrent", // The Core Engine (Unavoidable weight)
+    "sqlite3", // Persistence (Tiny, reliable C lib)
+    "yyjson", // JSON (Fastest, smallest C lib)
+    "doctest" // Testing (Dev dependency only)
+  ]
 }
 ```
 
-**Mongoose** is not installed through vcpkg — it is compiled directly from `mongoose.c`.
+**Note:**
+
+- **Mongoose** is included as a vendor file (`src/vendor/mongoose.c`) to keep build simple.
+- **Boost** is used internally by libtorrent, but we **do not** use Boost headers in our codebase to prevent compilation slowdowns and bloat.
 
 ---
 
-# **4. Project Structure (Optimized)**
+# **4. Project Structure**
 
 ```txt
 root/
-|-- meson.build              # Development/Release modes
-|-- meson_options.txt        # Debug/size options
+|-- meson.build              # Build system
 |-- vcpkg.json
 |-- scripts/
 |   |-- setup.ps1
-|   \-- build.ps1
-|-- tests/
-|   \-- meson.build
+|   \-- build.ps1            # Builds AND runs tests
 |
 |-- src/
-|   |-- main.cpp              # Entry point, thread creation
+|   |-- main.cpp             # Entry point
+|   |
+|   |-- engine/              # Logic related to Libtorrent
+|   |   |-- Session.cpp
+|   |   |-- Session.hpp
+|   |   \-- State.hpp        # Data structures (DTOs)
+|   |
+|   |-- rpc/                 # Logic related to HTTP/JSON
+|   |   |-- Server.cpp
+|   |   |-- Router.cpp
+|   |   \-- Controllers.cpp
 |   |
 |   |-- vendor/
-|   |   |-- mongoose.c
-|   |   \-- mongoose.h
-|   |
-|   |-- engine/
-|   |   |-- Core.cpp          # Libtorrent session wrapper
-|   |   \-- Core.hpp
-|   |
-|   |-- rpc/
-|   |   |-- Server.cpp        # Mongoose event handlers
-|   |   |-- Dispatcher.cpp    # RPC method routing
-|   |   \-- Serializer.cpp    # yyjson encoding
+|   |   \-- mongoose.c
 |   |
 |   \-- utils/
-|       \-- FS.cpp            # filesystem helpers
+|       \-- Json.hpp         # C++ Wrapper around yyjson
+|
+|-- tests/
+|   |-- main_test.cpp
+|   \-- unit/                # Logic & JSON tests
 ```
 
 ---
 
-# **5. Protocol Implementation (RPC)**
+# **5. Implementation Rules**
 
-### **C-Bridge Strategy**
+### **5.1 JSON Handling**
 
-No heavy abstractions.
-No OOP server framework.
-Mongoose callback + switch logic is enough.
+- **Library:** `yyjson`.
+- **Reason:** It avoids the massive template instantiation cost of `nlohmann/json`.
+- **Usage:**
+  - Write small C++ wrappers (`utils/Json.hpp`) to ensure RAII (memory cleanup).
+  - Do not manually concatenate strings to build JSON. Use the library's mutable document API.
 
-**Example:**
+### **5.2 String Formatting**
 
-```cpp
-static void fn(struct mg_connection *c, int ev, void *ev_data, void *fn_data) {
-    if (ev == MG_EV_HTTP_MSG) {
-        auto *hm = (struct mg_http_message *)ev_data;
-        // 1. Validate endpoint
-        // 2. Parse JSON via yyjson
-        // 3. Push command to engine queue
-        // 4. Send reply with mg_http_reply()
-    }
-}
+- **Use:** `std::format` (C++20).
+- **Example:** `auto s = std::format("Error: {}", code);`
+- **Avoid:** `<iostream>` in Release builds (it brings in heavy static initializers). Use `fmt` or `printf` style logging in Dev.
+
+### **5.3 Error Handling**
+
+- **Exceptions:** Allowed and expected from `libtorrent`.
+- **Boundary:** Exceptions must be caught before entering C-callbacks (Mongoose) or crossing threads.
+- **Stability:** The daemon should log an error and continue, not crash, unless the state is unrecoverable.
+
+---
+
+# **6. Build Modes**
+
+TinyTorrent uses **two** distinct build configurations.
+
+## **6.1 Development Mode (Default)**
+
+- **Focus:** Speed of iteration.
+- **Flags:** `/MD` (Dynamic Runtime), Debug Symbols, Logging ON.
+- **Features:** Helpers, debug prints, and `doctest` are compiled in.
+
+## **6.2 Release Mode**
+
+- **Focus:** Distribution.
+- **Flags:** `/MT` (Static Runtime), `/O1` (Size) or `/O2` (Speed).
+- **Features:** Logging macros compile to nothing. Tests excluded.
+
+---
+
+# **7. Testing Strategy**
+
+**Philosophy:** Tests exist to prevent regressions, not to burden the developer.
+
+1.  **Scope:**
+    - **Unit Tests:** Verify JSON parsing and core state logic.
+    - **Integration:** Ensure the RPC server responds to valid requests.
+2.  **The "Good Enough" Rule:**
+    - We do not need 100% coverage.
+    - We need enough tests to ensure `scripts/build.ps1` catches obvious breakages.
+    - **Agents:** If you break a test, fix the code. If the test is obsolete, update it. Do not spend hours writing complex mocks.
+
+---
+
+# **8. Development Workflow**
+
+### **How to Build**
+
+Agents must use the provided scripts.
+
+```powershell
+# 1. Setup Dependencies (VCPKG)
+./scripts/setup.ps1
+
+# 2. Build & Test
+./scripts/build.ps1
 ```
 
-### **Data Strategy**
+### **Definition of Done**
 
-- **Input:** Transmission RPC-compatible requests.
-- **Output:** Minimal JSON strings.
-- **Push Updates:**
-  Build a **single JSON buffer per second** and broadcast to all WebSocket clients.
-  → Zero per-client allocations.
+A task is complete when:
 
----
-
-# **6. Build Modes (Mandatory)**
-
-TinyTorrent uses **two** build configurations.
-One for productivity, one for binary minimalism.
-
----
-
-## **6.1 Development Mode (`Debug` or `RelWithDebInfo`)**
-
-Default mode used during daily coding.
-
-- **Runtime:** `/MD` (dynamic CRT)
-- **Optimization:** default or `/O2`
-- **LTO:** OFF
-- **Symbols:** ON
-- **Exceptions:** ON globally (`/EHsc`)
-- **RTTI:** ON
-- **Logging:** ON
-- **Assertions:** ON
-- **Binary size:** irrelevant
-
-This ensures:
-
-- fast build times
-- easy debugging
-- stack traces
-- no accidental size-optimization misery
-- no “where did my symbol go?” headaches
-
----
-
-## **6.2 Release Mode (`MinSizeRel`)**
-
-Used only for producing the distributable daemon.
-
-- **Runtime:** `/MT` (static CRT)
-- **Optimization:** `/Os` or `/O1` (minimize size)
-- **LTO:** `/GL` (Link-Time Optimization)
-- **Symbols:** stripped
-- **Exceptions:** allowed only where libtorrent requires
-- **RTTI:** OFF if possible
-- **Logging:** OFF
-- **Assertions:** OFF
-- **Binary target:** `< 4MB`
-
-This build is sculpted for extreme minimalism.
-
----
-
-# **7. MVP Deliverables**
-
-1. **Micro-Server:** Minimal Mongoose-based HTTP server.
-2. **Libtorrent Static Integration:** Engine loop running.
-3. **RPC Stub:** `session-get` implemented.
-4. **Tiny JSON:** yyjson-based RPC parsing.
-5. **Single Executable:** `tt-engine.exe` runnable on clean Windows.
-
----
-
-# **8. Development Rules**
-
-These rules protect binary size **without breaking development workflow**:
-
-1. **Do not use `<iostream>` in release code.**
-   It drags huge static initializers. Use `printf` or `fmt`.
-
-2. **Exceptions:**
-
-   - ON during development.
-   - Keep exception paths rare in release. Libtorrent uses exceptions internally.
-
-3. **Forward Declarations:**
-   Use them aggressively to keep headers light.
-
-4. **Includes:**
-   Do not include large STL headers in `.hpp` files.
-
-5. **Logging:**
-
-   - Verbose logging allowed in dev.
-   - Completely removed in release via macros.
-
-6. **Check `.exe` size after major work.**
-   Any unexpected +1MB spike must be investigated immediately.
-
----
-
-# **9. Development vs Release Rules (Critical)**
-
-These guarantees must always hold:
-
-### **Development (Default)**
-
-- Fast compiles
-- Full debug symbols
-- Logs enabled
-- Exceptions enabled
-- Dynamic CRT
-- No size constraints
-
-This is the only mode used while writing code.
-
-### **Release (Manual Only)**
-
-- Switch to `MinSizeRel`
-- Static CRT
-- LTO enabled
-- Symbols removed
-- Logging disabled
-- RTTI removed if possible
-- Size < 4 MB
-
-Run this only when producing the final artifact.
-
----
-
-# Other
-
-at the end of each task you must buil the app in dev mode and fix all errors and warnings (it's acceptable to leave warnings that cannot be fixed immediatelly or out of scope of the feature you have been working on).
-
-for setup environment you can use scripts/setup.ps1
-for build you can run scripts/build.ps1
-
--- if you work on the build system, update this section on how to build exactly so it remains to be up to date.
-
-# **End of Specification**
-
-All agents must respect development ergonomics while ensuring release builds meet the extreme micro-binary requirements.
+1.  The code compiles in **Dev Mode**.
+2.  The automated tests pass (`scripts/build.ps1` returns success).
+3.  Architectural boundaries (Engine vs. RPC) are respected.
+4.  No new libraries were added without explicit necessity.
