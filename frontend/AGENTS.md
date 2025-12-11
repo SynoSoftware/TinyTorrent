@@ -87,7 +87,7 @@ We use Tailwind's opacity modifier (`/opacity`) on HeroUI tokens. This preserves
 | Layer       | Surface                      | Tokens                                                                        |
 | :---------- | :--------------------------- | :---------------------------------------------------------------------------- |
 | **Layer 0** | App Background (Shell)       | `bg-background` + subtle noise texture (2–4% opacity), defined via config     |
-| **Layer 1** | Panels / Tables / Sidebar    | `backdrop-blur-md` + `bg-background/60` + `border-default/10`                 |
+| **Layer 1** | Panels / Tables              | `backdrop-blur-md` + `bg-background/60` + `border-default/10`                 |
 | **Layer 2** | Modals / Popovers / Floating | `backdrop-blur-xl` + `bg-content1/80` + `shadow-medium` + `border-default/20` |
 
 **Rule:**
@@ -190,7 +190,7 @@ TinyTorrent is an **OS-level tool**, not a webpage.
 
 ### **Focus Model (VS Code–Style)**
 
--   Only **one Part** (Sidebar, Main, Inspector) holds "active focus" at a time.
+-   Only **one Part** (Main, Inspector) holds "active focus" at a time.
 -   Arrow keys, PageUp/PageDown, Home/End operate on the **active Part** only.
 -   Switching Parts updates the global `FocusContext`.
 -   The active Part must show a subtle focus border using HeroUI tokens (no custom colors).
@@ -224,7 +224,7 @@ Complex widgets must behave like a **workspace**:
 
 -   Full-window drop zone with animated overlay.
 -   Auto-paste for magnet links (detect & parse from clipboard).
--   Context menus everywhere (rows, sidebar, inspector areas).
+-   Context menus everywhere (rows, inspector areas).
 -   Keyboard-first for core actions.
 -   Continuous feedback — no dead states.
 -   Minimal chrome, maximal clarity.
@@ -350,11 +350,10 @@ Any component that presents data visually (e.g., peer map, bandwidth graphs) mus
 
 Instead of "modals for details", TinyTorrent uses a **Master–Detail Workbench**.
 
-1. **Three-Pane Layout**
+1. **One/two-Pane Layout**
 
-    - **Sidebar (Left)** — Filters / Tree / Status buckets; resizable, collapsible.
     - **Main (Center)** — Torrent grid; flexible, primary focus area.
-    - **Inspector (Bottom or Right, configurable)** — Details for the active torrent (tabs for Summary, Files, Peers, Trackers); resizable, collapsible.
+    - **Inspector (Bottom, Right, full screen configurable)** — Details for the active torrent (tabs for Summary, Files, Peers, Trackers); resizable, collapsible.
 
 2. **The "Pinning" Logic (Interaction Model)**
 
@@ -378,7 +377,7 @@ Instead of "modals for details", TinyTorrent uses a **Master–Detail Workbench*
 
 4. **Panel Mounting Rule (IDE-Grade Continuity)**
 
-    - Panels (Sidebar, Main, Inspector) are **never** conditionally mounted.
+    - Panels (Main, Inspector) are **never** conditionally mounted.
     - Collapsing = set panel size to `0`.
     - Expanding = restore previous size.
     - DOM nodes must remain mounted to preserve:
@@ -400,7 +399,7 @@ Instead of "modals for details", TinyTorrent uses a **Master–Detail Workbench*
 
 TinyTorrent adopts a simplified VS Code workbench structure:
 
--   **Part** → major region (Sidebar, Main, Inspector)
+-   **Part** → major region (Main, Inspector)
 -   **Container** → persistent layout node that holds one or more panes
 -   **Pane** → resizable element managed by `react-resizable-panels`
 -   **View** → React component rendered inside a pane (e.g., TorrentGridView, FilesView, PeersView)
@@ -420,7 +419,7 @@ This model guarantees IDE-like continuity: stable scroll state, predictable focu
 
 -   The **main application layout** is built entirely using `react-resizable-panels`.
 -   Flexbox/Grid is allowed **inside views**, not for structuring Parts.
--   Every Part (Sidebar, Main, Inspector) maps to a Pane.
+-   Every Part (Main, Inspector) maps to a Pane.
 -   Panes never unmount; collapse → size 0, expand → restore last size.
 -   Handles are invisible until hovered, then show a 1 px separator line.
 -   Pinning = assigning a non-zero `defaultSize` or `minSize`.
