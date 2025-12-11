@@ -60,10 +60,11 @@ import React, {
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
-import { GLASS_MENU_SURFACE } from "../../../shared/ui/layout/glass-surface";
 import {
     BLOCK_SHADOW,
     GLASS_BLOCK_SURFACE,
+    GLASS_MENU_SURFACE,
+    GLASS_MODAL_SURFACE,
     PANEL_SHADOW,
 } from "../../../shared/ui/layout/glass-surface";
 import { useKeyboardScope } from "../../../shared/hooks/useKeyboardScope";
@@ -1334,12 +1335,13 @@ export function TorrentTable({
 
             const isMultiSelect = e.ctrlKey || e.metaKey;
             const isRangeSelect = e.shiftKey;
+            const rangeAnchor = anchorIndex ?? focusIndex;
 
-            if (isRangeSelect && anchorIndex !== null) {
+            if (isRangeSelect && rangeAnchor !== null) {
                 const allRows = table.getRowModel().rows;
                 const actualAnchorIndex = Math.max(
                     0,
-                    Math.min(allRows.length - 1, anchorIndex)
+                    Math.min(allRows.length - 1, rangeAnchor)
                 );
                 const [start, end] =
                     actualAnchorIndex < originalIndex
@@ -1366,7 +1368,7 @@ export function TorrentTable({
             setFocusIndex(originalIndex);
             setHighlightedRowId(rowId);
         },
-        [anchorIndex, table]
+        [anchorIndex, focusIndex, table]
     );
 
     const handleRowDoubleClick = useCallback(
@@ -1765,15 +1767,11 @@ export function TorrentTable({
                 onOpenChange={handleColumnModalOpenChange}
                 size="lg"
                 backdrop="blur"
-                motionProps={{
-                    initial: { opacity: 0, scale: 0.98, y: 10 },
-                    animate: { opacity: 1, scale: 1, y: 0 },
-                    exit: { opacity: 0, scale: 0.98, y: 10 },
-                    transition: INTERACTION_CONFIG.modalBloom.transition,
-                }}
+                motionProps={INTERACTION_CONFIG.modalBloom}
                 classNames={{
                     base: cn(
-                        "glass-panel bg-content1/80 backdrop-blur-2xl border border-content1/20 rounded-2xl flex flex-col overflow-hidden",
+                        GLASS_MODAL_SURFACE,
+                        "flex flex-col overflow-hidden",
                         PANEL_SHADOW
                     ),
                 }}

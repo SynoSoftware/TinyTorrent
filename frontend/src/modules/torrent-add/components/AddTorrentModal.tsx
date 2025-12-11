@@ -7,6 +7,7 @@ import {
     ModalFooter,
     ModalHeader,
     Switch,
+    cn,
 } from "@heroui/react";
 import { ArrowDown, FileText, FileUp, HardDrive, Zap } from "lucide-react";
 import {
@@ -34,6 +35,7 @@ import type { TransmissionFreeSpace } from "../../../services/rpc/types";
 import { getDriveSpace } from "../../../services/rpc/rpc-extended";
 import { ICON_STROKE_WIDTH } from "../../../config/logic";
 import { INTERACTION_CONFIG } from "../../../config/logic";
+import { GLASS_MODAL_SURFACE } from "../../../shared/ui/layout/glass-surface";
 
 interface AddTorrentModalProps {
     isOpen: boolean;
@@ -305,17 +307,10 @@ export function AddTorrentModal({
             backdrop="blur"
             size="2xl"
             classNames={{
-                base: "glass-panel bg-content1/80 backdrop-blur-xl border border-content1/20 shadow-2xl",
-                header: "border-b border-content1/30 py-4",
-                footer: "border-t border-content1/30 py-4",
+                base: cn(GLASS_MODAL_SURFACE, "w-full max-w-[720px]"),
                 closeButton: "hover:bg-content1/10 active:bg-content1/20",
             }}
-            motionProps={{
-                initial: { y: 12, opacity: 0, scale: 0.98 },
-                animate: { y: 0, opacity: 1, scale: 1 },
-                exit: { y: 12, opacity: 0, scale: 0.98 },
-                transition: INTERACTION_CONFIG.modalBloom.transition,
-            }}
+            motionProps={INTERACTION_CONFIG.modalBloom}
         >
             <ModalContent>
                 {(handleClose) => (

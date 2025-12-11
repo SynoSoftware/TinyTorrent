@@ -33,6 +33,7 @@ import { DirectoryPicker } from "../../../shared/ui/workspace/DirectoryPicker";
 import { LanguageMenu } from "../../../shared/ui/controls/LanguageMenu";
 import { ChevronLeft, RotateCcw, Save, X } from "lucide-react";
 import { ConnectionManager } from "./ConnectionManager";
+import { GLASS_MODAL_SURFACE } from "../../../shared/ui/layout/glass-surface";
 
 interface SectionTitleProps {
     title: string;
@@ -682,7 +683,10 @@ export function SettingsModal({
             size="5xl"
             hideCloseButton
             classNames={{
-                base: "glass-panel bg-content1/80 backdrop-blur-2xl border border-white/5 shadow-2xl flex flex-row h-[85vh] max-h-[800px] min-h-[500px] overflow-hidden rounded-2xl",
+                base: cn(
+                    GLASS_MODAL_SURFACE,
+                    "flex flex-row h-[85vh] max-h-[800px] min-h-[500px] overflow-hidden"
+                ),
                 wrapper: "overflow-hidden",
             }}
             motionProps={INTERACTION_CONFIG.modalBloom}
