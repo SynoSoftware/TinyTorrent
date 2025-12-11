@@ -24,15 +24,31 @@ TinyTorrent = **modern µTorrent** × **glass UI** × **Apple/Linear polish**.
 
 -   **Frontend:** React 19 + TypeScript + Vite
 -   **Styling:** TailwindCSS v4 + HeroUI
--   **Motion:** Framer Motion — required for every interactive element. Complex components (lists, draggable rows, compare sliders, zoomable panes, split-views, progress animations) must use motion to express structure, state, and depth. Motion must feel physical, intentional, and consistent with system physics.
+-   **Motion:** Framer Motion — required for all interactive state changes (layout, sorting, drag). Complex components must use motion to express structure.
 -   **Drag & Drop:** react-dropzone (full-window detection)
 -   **Icons:** Lucide (tree-shaken)
 -   **State:** React Hooks; Zustand only when necessary
--   **Routing:** Only if strictly required
+-   **Data/Validation:** **Zod** is mandatory for all RPC boundaries. Never trust the backend blindly.
+-   **Virtualization:** `@tanstack/react-virtual` is **mandatory** for any list > 50 items (Torrents, Files, Peers).
+-   **Command Palette:** `cmdk` for keyboard-driven navigation (`Cmd+K`).
+
+## **State & Heartbeat Strategy (CRITICAL)**
+
+To prevent "Slow Table / Fast CPU Burn":
+
+1.  **Single Heartbeat Source:** The App must have **one** central heartbeat loop (managed by `EngineAdapter`). Components must **never** set their own `setInterval` for fetching.
+2.  **Adaptive Frequency:**
+    -   **Table Mode:** Update every ~1500ms (High density, low frequency needs).
+    -   **Detail/Graph Mode:** Update every ~500ms (Low density, high frequency needs).
+    -   **Background:** Throttle to 5000ms or Pause.
+3.  **Selective Subscriptions (Selector Pattern):**
+    -   **The Table** subscribes to the _List Hash/Delta_. It only re-renders rows that changed.
+    -   **The Details Panel** must subscribe **only** to `state.torrents[activeId]`.
+    -   **Prevents CPU Burn:** If the list updates but `activeId` data hasn't changed, the Details Panel **must not render**.
 
 ## UI Scale System:
 
--   All interactive element sizes (icons, hit areas, paddings) are derived from a central scale value in config. This drives responsive sizing without hard-coded pixels.
+-   All interactive element sizes (icons, hit areas, paddings) are derived from the central config.
 -   Do not use Tailwind pixel-based sizing classes (w-5, h-6, text-[14px]). All sizing must reference scale tokens or semantic utility classes derived from config.
 
 ---
@@ -41,24 +57,22 @@ TinyTorrent = **modern µTorrent** × **glass UI** × **Apple/Linear polish**.
 
 **Mandatory:**
 **Use HeroUI semantic tokens everywhere.**
-No hard-coded hex colors or arbitrary Tailwind colors.
 
-| Token        | Usage                  |
-| ------------ | ---------------------- |
-| `background` | App shell              |
-| `content1`   | Tables, cards, modals  |
-| `foreground` | Primary text           |
-| `primary`    | CTAs, progress accents |
-| `success`    | Seeding, Completed     |
-| `warning`    | Paused, Checking       |
-| `danger`     | Deletes, Errors        |
+### **The Layered Depth System (Semantic Glass)**
 
-Here is the **shortest possible rule** that still enforces everything you want **without treating the agent as stupid** and without ambiguity:
+We use Tailwind's opacity modifier (`/opacity`) on HeroUI tokens. This preserves the semantic color (white in Light, black in Dark) while applying the glass transparency.
+
+| Layer       | Surface                      | Tokens                                                                        |
+| :---------- | :--------------------------- | :---------------------------------------------------------------------------- |
+| **Layer 0** | App Background               | `bg-background` + Subtle Noise Texture (2-4% opacity)                         |
+| **Layer 1** | Panels / Tables / Sidebar    | `backdrop-blur-md` + `bg-background/60` + `border-default/10`                 |
+| **Layer 2** | Modals / Popovers / Floating | `backdrop-blur-xl` + `bg-content1/80` + `shadow-medium` + `border-default/20` |
+
+**Rule:** Every "Glass" layer (Layers 1 & 2) must have a subtle border (`border-default/xx`) to define its edge. Using `border-default` ensures the border is dark in Light Mode and light in Dark Mode automatically.
 
 ## **Color Rules**
 
-I want light/dark mode to work flawlessly. For this, use HeroUI’s semantic color tokens for everything — text, backgrounds, borders, shadows, glows.
-Do **not** specify your own literal colors. HeroUI already solves dark/light mode; using its tokens ensures the UI stays correct in both themes automatically.
+I want light/dark mode to work flawlessly. For this, use HeroUI’s semantic color tokens for everything.
 
 **Use:**
 
@@ -66,20 +80,14 @@ Do **not** specify your own literal colors. HeroUI already solves dark/light mod
 -   `var(--heroui-content1)`
 -   `var(--heroui-foreground)`
 -   `var(--heroui-primary)`
-    (and the other semantic tokens)
--   HeroUI’s built-in semantic shadow utilities (shadow-small, shadow-medium, etc.). Do not define custom shadow RGBA strings unless they’re required for a specific effect.
+-   `var(--heroui-default)` (for borders/dividers)
 
 **Avoid:**
 
 -   Custom hex/rgb colors
 -   Tailwind named colors
--   Hard-coded shadow colors (`shadow-black`, `rgba(0,0,0,0.3)`, etc.)
-
-If you need opacity, wrap the token:
-
-```
-rgba(var(--heroui-foreground), 0.25)
-```
+-   Hard-coded `border-white` or `border-black` (Breaks theme switching)
+-   `rgba()` manual calculations.
 
 ## No magic numbers
 
@@ -89,9 +97,8 @@ All spacing, sizing, radius, and scale values must come from configuration token
 
 -   Detect system dark/light mode and use it automatically; fallback = Dark.
 -   Detect system/browser language and use it; fallback = English.
--   Glass layers (backdrop-blur) for all UI surfaces that float or overlay (sidebar, modals, table headers, toolbars, workspace areas).
+-   Glass layers (backdrop-blur) for all UI surfaces that float or overlay.
 -   Controls (buttons, icons, chips) use enlarged visual size and comfortable hit areas to improve usability without inflating layouts.
--   Minimal padding, tight alignment, but controls may use larger icons and generous hit areas as long as layout density is preserved.
 -   Strong typography hierarchy (Swiss style).
 -   Layered shadows used sparingly for depth — never decoration.
 
@@ -99,9 +106,24 @@ All spacing, sizing, radius, and scale values must come from configuration token
 
 # **4. UI/UX Philosophy**
 
+### **The "Tool" Interaction Model**
+
+TinyTorrent is an OS-level tool, not a website.
+
+1.  **OS-Style Selection:**
+
+    -   Click = Select Single
+    -   Ctrl/Cmd + Click = Add to Selection
+    -   Shift + Click = Range Selection
+    -   Right Click = Context Menu (acting on _all_ selected items)
+
+2.  **Optimistic UI:**
+    -   Actions (Pause, Start, Delete) must reflect in the UI _instantly_.
+    -   Do not wait for the RPC roundtrip. Revert only if the RPC errors.
+
 ### **Zero Friction**
 
-Every interaction must be physically obvious, reversible, continuous, and feel like a professional tool — not a webpage.
+Every interaction must be physically obvious, reversible, continuous, and feel like a professional tool.
 Complex widgets must behave like a workspace:
 
 -   zoomable
@@ -113,9 +135,6 @@ Complex widgets must behave like a workspace:
 -   state-aware
 -   motion-coherent
 
-Every gesture (drag, wheel, zoom, pan, resize, compare, reorder) must be smooth, predictable, and never block or jitter.
-Clarity and recognizability take priority over maximal density; controls must remain visually expressive and easy to target.
-
 ### **Interaction Principles**
 
 -   **Full-window drop zone** with animated overlay.
@@ -125,11 +144,10 @@ Clarity and recognizability take priority over maximal density; controls must re
 -   **Continuous feedback** — no dead states.
 -   **Minimal chrome, maximal clarity.**
 -   **No click-hunting** — controls must appear where they are needed.
--   Size increases must improve readability, not introduce visual bloat
 
 ### **Motion**
 
-Kinetic micro-interactions must clarify structure:
+Kinetic micro-interactions must clarify structure. Use `framer-motion`'s `layout` prop for lists so rows glide into place when sorted or filtered, rather than snapping.
 
 -   Buttons: micro-scale + color shifts
 -   Icons: task-specific motion (e.g., rotate, pulse, bounce subtly)
@@ -156,17 +174,20 @@ Motion is part of the UX language, not decoration.
 -   No row flicker on updates
 -   Row-level motion for selection, hover, reorder
 
----
+### Tables & Grids (Implementation Strategy)
+
+Do not build a "God Component". Use specific components for specific needs, sharing only the logic.
+
+-   Dashboard Grid (Dashboard_Grid.tsx): Heavy. Supports Row Drag & Drop (Queue), Marquee Selection, Sparklines.
+-   Details Grid (SimpleVirtualTable.tsx): Light. Supports Virtualization and Sorting only. Used for Files/Peers.
 
 ### **Modals**
 
 -   Instant autofocus
--   Blur + depth shadow
+-   Blur + depth shadow (Layer 2)
 -   Framer Motion transitions
 -   Must feel like floating “panels” inside a HUD
 -   No heavy chrome; no wasted margins
-
----
 
 ### **Buttons**
 
@@ -174,9 +195,6 @@ Motion is part of the UX language, not decoration.
 -   Secondary = `light` / `ghost`
 -   Icon-only buttons for toolbars
 -   Must animate on hover/press
--   Must preserve clean layout and avoid bloated chrome, but icons and interactive elements may be visually larger as long as alignment remains tight.
-
----
 
 ### **Drag & Drop Overlay**
 
@@ -186,83 +204,61 @@ Motion is part of the UX language, not decoration.
 -   Dims background but keeps context visible
 -   Cancels instantly on drag-out
 
----
-
 ### **Iconography (Lucide)**
 
+-   **Icons as Data:** Prefer icons over text for status (Play/Pause/Check), Priority (Arrows), and File Types.
 -   Icons must always use semantic colors.
--   People should be able to use the tool using icons. Use them everywhere it makes sense. Make them larger than text so the function of the feature can be understood without reading the text.
-
-Icon Size Principles (Scalable)
-
 -   Icon size is responsive, derived from the global UI scale configuration.
--   Icons must always remain visually dominant in interactive contexts, but never dictate row or layout height.
--   Controls scale relatively, not with hard-coded pixels.
--   Icons inside tables scale proportionally but must not increase row height.
--   No magic numbers: all scale values originate from a configuration token, not inline values.
 
-### **Workspace Components **
+### **Workspace Components**
 
-Any component that presents data visually (torrent details, file info, preview panels, charts, peer maps, piece distribution) must behave like a **workspace**, not a static block.
+Any component that presents data visually (charts, peer maps) must behave like a **workspace**:
 
-Workspace capabilities:
-
--   Smooth zoom (wheel / pinch / +/- buttons)
+-   Smooth zoom (wheel / pinch)
 -   Smooth pan (click-drag)
 -   Reset view
 -   Motion-driven transforms
--   Toolbars that float above content
--   Dynamic affordances (handles, sliders, overlays)
--   Split views or comparison views when appropriate
-
-This matches the interaction model you demonstrated:
-**professional tool UI, not a webpage UI.**
 
 ---
 
-# **6. RPC Layer (Unified Engine Interface)**
+# **6. RPC Layer (Protocol Strategy)**
 
-TinyTorrent operates on a **single abstract RPC interface** called `EngineAdapter`.
-This interface defines the **common protocol** used by the UI, hooks, and state layer — independent of the underlying torrent engine.
+We are currently in a **Transition Phase**.
+
+1.  **Current Backend:** Standard `transmission-daemon` (Official).
+2.  **Target Backend:** Custom `libtorrent`-based daemon that **mimics** the Transmission RPC interface perfectly, while adding extensions.
+
+### **Connection Strategy: "The Adaptive Client"**
+
+The Frontend must run on a **Dual-Transport System**:
+
+1.  **Baseline (HTTP Polling):**
+
+    -   **Mandatory for MVP.**
+    -   The app must fully function using standard HTTP RPC calls (POST requests) to `/transmission/rpc`.
+    -   This ensures compatibility with the current standard daemon.
+    -   **Polling Interval:** Adaptive (e.g., 2s in table view, 5s in background).
+
+2.  **Upgrade Path (WebSocket / Extensions):**
+    -   The `EngineAdapter` should be designed to support a WebSocket connection _if available_.
+    -   If the backend is identified as "Standard Transmission" (via handshake), the app stays in **HTTP Only Mode**.
+    -   If/When the backend is identified as "TinyTorrent Custom," it upgrades to WebSocket for real-time updates.
 
 ### **Design Rules**
 
--   **Transmission = baseline canonical protocol.**
-    All mandatory fields, command semantics, and update flows are defined according to Transmission’s RPC model.
+-   **Transmission RPC is the Law:**
+    We do not invent a new protocol. We use the Transmission RPC spec for _everything_ (Session, Stats, Torrent Get/Set).
+-   **Zod at the Gate:**
+    Since we are transitioning backends, we strictly validate incoming data. If the future Libtorrent daemon sends malformed Transmission DTOs, Zod must catch it.
+-   **EngineAdapter Interface:**
+    The UI components must be agnostic. They call `adapter.getTorrents()`.
+    -   _Now:_ `adapter` does `fetch('.../rpc')`.
+    -   _Future:_ `adapter` might receive a push frame, but the UI component doesn't care.
 
--   **Libtorrent = extension layer (future).**
-    Libtorrent support will implement the same `EngineAdapter` interface,
-    extending it only when libtorrent exposes capabilities beyond the Transmission baseline.
+### **Data Handling**
 
--   **No engine-specific logic in UI or features.**
-    Every component must consume **only the EngineAdapter interface**, never raw RPC shapes.
-
--   **One adapter active at runtime.**
-    Selection handled at startup or settings page.
-
--   **Typed reality.**
-    Transmission types define the canonical DTOs.
-    Libtorrent adapter must conform to them and provide extended structures through explicit extension models — never by mutating the baseline DTOs.
-
-### **EngineAdapter Responsibilities**
-
-These methods exist **abstractly**; their internal implementation depends on the engine:
-
--   handshake / session initialization
--   fetch session stats
--   fetch torrent list (delta-friendly)
--   fetch single torrent details (piece map, files, trackers, peers)
--   add torrent (magnet / file)
--   start / pause / delete
--   update subscription (polling)
--   error reporting (non-blocking, recoverable)
-
-### **Principles**
-
--   **UI never sees engine-specific fields.**
--   **Adapters must translate engine responses into canonical Transmission-shaped DTOs.**
--   **Extensions must be explicit, namespaced, and optional.**
--   **Adapters must be hot-swappable with zero UI changes.**
+-   **Strictly Typed:** Use `transmission-rpc-typescript` types (or equivalent) as the source of truth.
+-   **Delta Updates:** Even over HTTP polling, use the `ids` field to request only changed torrents to minimize bandwidth on the standard daemon.
 
 ---
 
@@ -270,7 +266,7 @@ These methods exist **abstractly**; their internal implementation depends on the
 
 -   i18next
 -   Only `en.json` must be maintained for MVP
--   All visible UI text must go through `t("…")`
+-   **Hard Rule:** No hard-coded English strings in JSX. All text must use `t("key")`.
 
 ---
 
@@ -278,36 +274,36 @@ These methods exist **abstractly**; their internal implementation depends on the
 
 ### Requirements
 
+-   **Virtualization:** Mandatory for lists > 50 items.
 -   No console noise
 -   No unused imports
 -   Strict TypeScript
 -   Minimal bundle size
 -   Clean build (`vite build` / `npm run build`)
--   Consistent commit quality
 -   Visually consistent dark-mode-first UI
 
 ### Rendering
 
--   Efficient row-level updates
--   Minimal unnecessary React re-renders
--   No layout thrash
+-   Efficient row-level updates (Diffing/Selective Subscriptions).
+-   Minimal unnecessary React re-renders.
+-   No layout thrash.
 
 ---
 
 # **9. MVP Deliverables**
 
-1. **Glass App Shell** (sidebar/navbar with blur)
-2. **Real-Time Dashboard Table** (compact, smooth updates)
-3. **Global Dropzone Layer**
-4. **Transmission RPC Handshake**
-5. **Add Torrent Modal** (magnet/file/text)
-6. **Context Menus** (Start, Pause, Delete)
-7. **Keyboard Actions**
-8. **Clean, tight build**
+1.  **Glass App Shell** (Layered Depth System).
+2.  **Dashboard Grid** (Virtual, Sortable, Queue-Draggable).
+3.  **Details Tables** (Virtual, Sortable - Files/Peers).
+4.  **Hybrid RPC Layer** (Transmission Base + Zod + WS).
+5.  **Add Torrent Modal** (Magnet/File/Text).
+6.  **Context Menus** (Start, Pause, Delete, "Open Folder").
+7.  **Command Palette** (Cmd+K).
+8.  **Tray Integration Stub** (UI buttons to trigger Native RPC calls).
 
 ---
 
-# **10. UX Excellence Directive **
+# **10. UX Excellence Directive**
 
 All Agents must operate as **world-class tool-UI designers**, capable of bridging two eras of design.
 TinyTorrent must deliver **Adaptive Excellence**:
@@ -315,15 +311,13 @@ TinyTorrent must deliver **Adaptive Excellence**:
 -   **Unified Professional Interface:**
 
     -   **Single Mode:** The UI operates exclusively in "Modern Mode" (Glass/Blur).
-    -   **Tooling Precision:** While the aesthetic is modern, the functionality must remain dense and keyboard-friendly (e.g. arrow key navigation in the table).
-        Precision refers to behavior and feedback, not microscopic UI elements. A modern tool may use larger controls without sacrificing professional workflows.
-    -   **No Split-Pane:** Details are accessed via double-click (Modal), preserving the clean "List View" focus.
+    -   **Tooling Precision:** Functionality must remain dense and keyboard-friendly.
+    -   **Split-Pane:** Details are accessed via double-click (Modal), preserving the clean "List View" focus but it can be pinned on the bottom (like visual studio panels can be pinned)
 
--   **Tooling-Grade Ergonomics:**
-    -   the tool must feel precise.
-
-**Simplicity of presentation — not simplicity of capability.**
-**Respect the Muscle Memory of the veteran, but deliver the Fluidity of the future.**
+-   **Professional Tool, Not a Webpage:**
+    -   Precision refers to behavior and feedback.
+    -   Controls must remain visually expressive and easy to target.
+    -   **Respect the Muscle Memory of the veteran, but deliver the Fluidity of the future.**
 
 ---
 
@@ -365,57 +359,52 @@ TinyTorrent must deliver **Adaptive Excellence**:
 -   **Don’t reinvent solved problems.**
     Use libraries with purpose — avoid bloat and avoid reinvention. Adopt modern, battle-tested libraries for non-core needs, but introduce nothing legacy and nothing that doesn’t earn its place.
 
-# **12. Project Structure (Blueprint)**
-
-A shallow, predictable, human-readable structure.
-Features live in `modules/`; all external service integrations live in `services/`; shared reusable code lives in `shared/`; global configuration stays in `config/`.
-All logic must remain close to where it is used — no unnecessary layers, no scattered files.
-
 ---
+
+# **12. Project Structure (Optimized for Single Developer)**
+
+A flat, high-maintenance structure designed for speed.
+We favor **co-location** over nesting. We use **sibling naming** instead of deep folders.
 
 ### **Directory Map**
 
 ```txt
 src/
-|-- app/                      # App entry shell: App.tsx, main.tsx, router, providers, theming
+|-- app/                      # App shell: providers, routes, main.tsx
 |
-|-- modules/                  # Feature folders (each screen, modal, or major UI unit)
-|   |-- dashboard/
+|-- config/                   # THE TWO CONFIG FILES
+|   |-- constants.json        # 1. Literals (colors, magic numbers, defaults)
+|   \-- logic.ts              # 2. Logic (types, computed config, maps)
+|
+|-- modules/                  # Feature Areas
+|   |-- dashboard/            # Flat structure - no internal folders
 |   |   |-- DashboardView.tsx
-|   |   |-- hooks.ts                 # Local hooks and feature logic
-|   |   \-- parts/                   # Optional: split out UI subcomponents when large
+|   |   |-- Dashboard_Grid.tsx       # The Virtualized Table (Sibling)
+|   |   |-- Dashboard_Row.tsx        # Sibling file
+|   |   |-- DetailModal.tsx
+|   |   |-- DetailModal_Files.tsx    # Uses Shared SimpleTable
+|   |   |-- DetailModal_Peers.tsx    # Uses Shared SimpleTable
+|   |   \-- hooks.ts                 # All local hooks for this module
 |   |
-|   |-- settings/
-|   |   |-- SettingsModal.tsx
-|   |   \-- hooks.ts
-|   |
-|   \-- torrent-add/
-|       |-- AddTorrentModal.tsx
+|   \-- settings/
+|       |-- SettingsModal.tsx
 |       \-- hooks.ts
 |
-|-- services/                 # All external service integrations
-|   |-- rpc/                  # Torrent RPC layer (Transmission baseline + extensions)
-|   |   |-- rpc-base.ts            # Canonical RPC implementation (Transmission protocol)
-|   |   |-- rpc-extended.ts        # Extends rpc-base with libtorrent-capable features
-|   |   \-- types.ts               # Canonical Transmission-shaped DTOs (+ optional extensions)
-|   |
-|   \-- (other services as needed)
-|       \-- <service-name>/
-|           |-- <service-name>.ts
-|           \-- types.ts
+|-- services/                 # External Integrations
+|   |-- rpc/
+|   |   |-- engine-adapter.ts      # The Hybrid Client (HTTP + WS)
+|   |   |-- schemas.ts             # Zod Schemas (Validation)
+|   |   \-- types.ts               # Inferred TypeScript Types
 |
-|-- shared/                   # Reusable UI primitives, hooks, utilities, and assets
-|   |-- ui/
-|   |-- hooks.ts              # Can become shared/hooks/ if it grows large
-|   |-- utils.ts              # Can become shared/utils/ if it grows large
-|   \-- assets/
-|
-|-- config/                   # App-wide configuration
-|   |-- app-config.ts
-|   \-- (additional config files allowed when needed)
+|-- shared/                   # Generic Reusables
+|   |-- ui/                   # Reusable UI primitives (Buttons, Inputs)
+|   |-- components/           # Complex shared
+|   |   \-- SimpleVirtualTable.tsx # Light Grid (Files/Peers)
+|   |-- hooks/                # Generic hooks
+|   \-- utils/                # Generic logic
 |
 \-- i18n/
-    \-- en.json               # Localization source
+    \-- en.json
 ```
 
 ---
@@ -424,80 +413,25 @@ src/
 
 #### **1. Features (`modules/`)**
 
--   One feature = one folder under `modules/`.
--   Each feature contains:
+-   **Flat is better than nested.** Do not create `parts/`, `tabs/`, or `components/` folders inside a module.
+-   **Sibling Naming:** Use underscores to group related files (`Dashboard_Grid.tsx`).
+-   **Local Hooks:** Keep feature hooks in `hooks.ts` inside the module.
 
-    -   main UI component (`XxxView.tsx` or `XxxModal.tsx`)
-    -   a local `hooks.ts` for feature-specific logic
-    -   `parts/` only when the UI grows beyond a comfortable size.
+#### **2. Configuration (`config/`)**
 
--   If `hooks.ts` becomes too large or contains unrelated hooks, convert it into a `hooks/` folder:
+-   **The Two-File Rule:**
+    1.  `constants.json`: Literals only.
+    2.  `logic.ts`: Types and Logic.
+-   No other files in root config.
 
-```
-hooks/
-    useTorrentList.ts
-    useSpeedGraph.ts
-```
+#### **3. Services (`services/`)**
 
----
+-   **Zod Mandate:** Every service must define Zod schemas for its external data.
 
-#### **2. Services (`services/`)**
-
--   All external integrations MUST live under `services/<service-name>/`.
--   Torrent RPC lives under `services/rpc/`:
-
-    -   `rpc-base.ts` -> Transmission-compatible RPC client (baseline)
-    -   `rpc-extended.ts` -> extends the base with additional capabilities
-    -   `types.ts` -> canonical DTOs (Transmission-shaped) + optional extensions
-
--   Adding new services (auth, telemetry, storage, etc.) follows the same pattern:
-
-```
-services/auth/
-services/storage/
-services/telemetry/
-```
-
--   No service code may exist outside `services/`.
-
----
-
-#### **3. Shared (`shared/`)**
-
--   Only place code here when two or more features need it.
--   `shared/hooks.ts` and `shared/utils.ts` begin as single files.
--   When either grows too large or mixes unrelated concerns, convert them into folders:
-
-```
-shared/hooks/
-shared/utils/
-```
-
--   Never store feature-specific logic here.
-
----
-
-#### **4. Config (`config/`)**
-
--   App-wide configuration begins in `config/app-config.ts`.
--   If config grows, it may be split into multiple files:
-
-```
-config/ui.ts
-config/network.ts
-config/session.ts
-```
-
--   All config must stay under `config/`.
--   Feature-specific configuration belongs inside its feature folder.
--   A single config hub file (`config/config-hub.ts`) should import all feature-specific config files so that configuration is discoverable from one place.
-
----
-
-#### **5. Simplicity**
+#### **4. Simplicity**
 
 -   Do not create folders without real code.
--   Avoid deep nesting; maximum allowed depth is three levels.
+-   Avoid deep nesting
 -   Keep related logic physically close; no scattering across unrelated directories.
 
 ---
@@ -508,120 +442,69 @@ config/session.ts
 -   Do not create directories “for future use.”
 -   Delete any folder that becomes empty.
 
+---
+
 # **13. Coding Standards**
 
 These rules exist to guarantee consistency and prevent architectural drift.
-They apply to all generated code.
 
 ---
 
 ## **1. File Naming Conventions**
 
-**React components → PascalCase**
+**Components → PascalCase (with Underscores for Siblings)**
 
 ```
 DashboardView.tsx
-SettingsModal.tsx
-AddTorrentModal.tsx
-Table.tsx
-FilesPanel.tsx
+Dashboard_Grid.tsx
 ```
 
-**Local feature hooks → camelCase and begin with “use” when split**
+**Hooks & Logic → camelCase**
 
 ```
-hooks.ts                          # only if small
-hooks/useTorrentList.ts
-hooks/useSpeedGraph.ts
+hooks.ts
+useVirtualGrid.ts
 ```
 
-**Service modules → kebab-case**
+**Services → kebab-case**
 
 ```
-rpc-base.ts
-rpc-extended.ts
-auth-client.ts
-telemetry-client.ts
-storage-client.ts
+engine-adapter.ts
 ```
-
-**Utilities → kebab-case**
-
-```
-bytes-format.ts
-parse-magnet.ts
-debounce.ts
-```
-
-**Rules:**
-
--   Do not mix naming styles in the same folder.
--   Only hooks use camelCase; everything else is PascalCase or kebab-case.
--   Never create generic filenames like `client.ts`, `helpers.ts`, or `index2.ts`.
 
 ---
 
-## **2. Component Shape (Required Order)**
+## **2. Configuration Access**
 
-Every `.tsx` file follows this structure:
-
-1. imports
-2. local types/interfaces
-3. hooks and derived state
-4. internal functions
-5. JSX return
-6. export
-
-No commented-out blocks or unused code.
+-   **Never hardcode numbers.**
+-   Import all literals from `@/config/constants.json`.
+-   Import all config logic from `@/config/logic.ts`.
 
 ---
 
-## **3. Hooks & Data Flow**
+## **3. Component Shape**
 
--   Hooks must start with `use`.
--   Components must **never** contain RPC calls.
--   RPC and network access live only in `services/<name>/`.
--   Hooks may call services; components may not.
-
----
-
-## **4. Services**
-
--   Each service gets its own folder: `services/<service-name>/`.
--   File names must be explicit:
-    `auth-client.ts`, `telemetry-client.ts`, `rpc-base.ts`, not `client.ts`.
--   Services define their DTOs only in `types.ts`.
+1.  Imports
+2.  Zod Schemas (if local validation needed)
+3.  Types/Interfaces
+4.  Hooks
+5.  Implementation
+6.  Export
 
 ---
 
-## **5. Imports**
+## **4. Service Isolation**
 
--   Prefer absolute imports (`@/modules/...`) when available.
--   No deep relative imports like `../../../utils`.
--   No circular imports.
-
----
-
-## **6. Splitting Rules**
-
-**Components:**
-Split into `parts/` only when the main file exceeds ~250–300 lines.
-
-**Hooks:**
-Split into `hooks/` only when `hooks.ts` becomes large or contains multiple unrelated responsibilities.
+-   **UI never calls `fetch` directly.**
+-   UI calls Hooks -> Hooks call Service Adapters -> Adapters call Zod -> Adapters call Network.
 
 ---
 
-## **7. No Empty Folders**
+## **5. Indentation & Hygiene**
 
-Folders may only exist when they contain real code.
-Never create placeholder folders.
-Remove any folder that becomes empty.
-
-### **8. Indentation Rule**
-
-4 spaces per indentation level.
-Tabs are not allowed.
+-   4 spaces indentation.
+-   No empty folders.
+-   Delete unused files immediately.
 
 # **14. Internationalization **
 
