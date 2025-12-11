@@ -18,6 +18,8 @@ import {
     type DirectoryNode,
 } from "../../../services/rpc/rpc-extended";
 import { ICON_STROKE_WIDTH } from "../../../config/logic";
+import { INTERACTION_CONFIG } from "../../../config/logic";
+import { GLASS_MODAL_SURFACE } from "../layout/glass-surface";
 
 interface DirectoryPickerProps {
     isOpen: boolean;
@@ -121,14 +123,9 @@ export function DirectoryPicker({
             size="xl"
             backdrop="blur"
             classNames={{
-                base: "glass-panel bg-content1/75 backdrop-blur-2xl border border-content1/20 shadow-2xl",
+                base: cn(GLASS_MODAL_SURFACE, "max-w-[640px] w-full"),
             }}
-            motionProps={{
-                initial: { opacity: 0, scale: 0.95 },
-                animate: { opacity: 1, scale: 1 },
-                exit: { opacity: 0, scale: 0.95 },
-                transition: { duration: 0.2 },
-            }}
+            motionProps={INTERACTION_CONFIG.modalBloom}
         >
             <ModalContent>
                 <ModalHeader className="flex flex-col gap-1 pb-0">

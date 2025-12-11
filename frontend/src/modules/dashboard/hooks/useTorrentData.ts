@@ -26,6 +26,45 @@ type UseTorrentDataResult = {
     queueActions: QueueActionHandlers;
 };
 
+const arePeerSummariesEqual = (
+    a: Torrent["peerSummary"],
+    b: Torrent["peerSummary"]
+) =>
+    a.connected === b.connected &&
+    a.total === b.total &&
+    a.sending === b.sending &&
+    a.getting === b.getting &&
+    a.seeds === b.seeds;
+
+const areSpeedsEqual = (a: Torrent["speed"], b: Torrent["speed"]) =>
+    a.down === b.down && a.up === b.up;
+
+const areTorrentsEqual = (current: Torrent, next: Torrent) =>
+    current.id === next.id &&
+    current.hash === next.hash &&
+    current.name === next.name &&
+    current.progress === next.progress &&
+    current.verificationProgress === next.verificationProgress &&
+    current.state === next.state &&
+    areSpeedsEqual(current.speed, next.speed) &&
+    arePeerSummariesEqual(current.peerSummary, next.peerSummary) &&
+    current.totalSize === next.totalSize &&
+    current.eta === next.eta &&
+    current.queuePosition === next.queuePosition &&
+    current.ratio === next.ratio &&
+    current.uploaded === next.uploaded &&
+    current.downloaded === next.downloaded &&
+    current.leftUntilDone === next.leftUntilDone &&
+    current.sizeWhenDone === next.sizeWhenDone &&
+    current.error === next.error &&
+    current.errorString === next.errorString &&
+    current.isFinished === next.isFinished &&
+    current.sequentialDownload === next.sequentialDownload &&
+    current.superSeeding === next.superSeeding &&
+    current.added === next.added &&
+    current.savePath === next.savePath &&
+    current.rpcId === next.rpcId;
+
 export function useTorrentData({
     client,
     sessionReady,
@@ -37,11 +76,39 @@ export function useTorrentData({
     const isMountedRef = useRef(false);
     const initialLoadRef = useRef(false);
     const { pushSpeeds } = usePerformanceHistory();
+    const snapshotCacheRef = useRef<Map<string, Torrent>>(new Map());
+    const snapshotOrderRef = useRef<string[]>([]);
 
     const commitTorrentSnapshot = useCallback(
         (data: Torrent[]) => {
             if (!isMountedRef.current) return;
-            setTorrents(data);
+            const nextOrder: string[] = [];
+            const nextCache = new Map<string, Torrent>();
+            const previousCache = snapshotCacheRef.current;
+            const previousOrder = snapshotOrderRef.current;
+            let hasDataChanges = false;
+            let hasOrderChanges = previousOrder.length !== data.length;
+
+            for (let index = 0; index < data.length; index += 1) {
+                const torrent = data[index];
+                const cached = previousCache.get(torrent.id);
+                const reuseExisting = Boolean(
+                    cached && areTorrentsEqual(cached, torrent)
+                );
+                nextCache.set(torrent.id, reuseExisting ? cached! : torrent);
+                nextOrder.push(torrent.id);
+
+                if (!reuseExisting) {
+                    hasDataChanges = true;
+                }
+                if (!hasOrderChanges && previousOrder[index] !== torrent.id) {
+                    hasOrderChanges = true;
+                }
+            }
+
+            snapshotCacheRef.current = nextCache;
+            snapshotOrderRef.current = nextOrder;
+
             const totalDown = data.reduce(
                 (acc, torrent) =>
                     acc +
@@ -58,6 +125,14 @@ export function useTorrentData({
                 initialLoadRef.current = true;
                 setIsInitialLoadFinished(true);
             }
+
+            const hadPreviousData = previousOrder.length > 0;
+            if (!hasDataChanges && !hasOrderChanges && hadPreviousData) {
+                return;
+            }
+
+            const nextList = nextOrder.map((id) => nextCache.get(id)!);
+            setTorrents(nextList);
         },
         [onRpcStatusChange, pushSpeeds]
     );

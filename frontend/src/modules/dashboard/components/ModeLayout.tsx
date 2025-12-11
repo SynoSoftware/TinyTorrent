@@ -286,41 +286,31 @@ export function ModeLayout({
                     onPointerDown={focusInspector}
                     className={detailPanelClass}
                 >
-                    <AnimatePresence initial={false} mode="wait">
-                        {detailData ? (
-                            <motion.div
-                                key={detailData.id}
-                                initial={{ opacity: 0, y: 12 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: 12 }}
-                                transition={{ duration: 0.2 }}
-                                className="h-full min-h-0 flex-1"
-                            >
-                                <TorrentDetailView
-                                    torrent={detailData}
-                                    onClose={handleDetailClose}
-                                    onFilesToggle={onFilesToggle}
-                                    onSequentialToggle={onSequentialToggle}
-                                    onSuperSeedingToggle={
-                                        onSuperSeedingToggle
-                                    }
-                                    onForceTrackerReannounce={
-                                        onForceTrackerReannounce
-                                    }
-                                    sequentialSupported={sequentialSupported}
-                                    superSeedingSupported={
-                                        superSeedingSupported
-                                    }
-                                    isFullscreen={isDetailFullscreen}
-                                    onPopout={handleDetailPopout}
-                                />
-                            </motion.div>
-                        ) : (
-                            <div className="flex h-full min-h-0 flex-1 items-center justify-center px-4 text-center text-[10px] uppercase tracking-[0.4em] text-foreground/40">
-                                {t("torrent_modal.placeholder")}
-                            </div>
-                        )}
-                    </AnimatePresence>
+                    <motion.div
+                        className="h-full min-h-0 flex-1"
+                        initial={false}
+                        animate={
+                            isDetailOpen
+                                ? { opacity: 1, y: 0 }
+                                : { opacity: 0.75, y: 6 }
+                        }
+                        transition={{ duration: 0.2 }}
+                    >
+                        <TorrentDetailView
+                            torrent={detailData}
+                            onClose={handleDetailClose}
+                            onFilesToggle={onFilesToggle}
+                            onSequentialToggle={onSequentialToggle}
+                            onSuperSeedingToggle={onSuperSeedingToggle}
+                            onForceTrackerReannounce={
+                                onForceTrackerReannounce
+                            }
+                            sequentialSupported={sequentialSupported}
+                            superSeedingSupported={superSeedingSupported}
+                            isFullscreen={isDetailFullscreen}
+                            onPopout={handleDetailPopout}
+                        />
+                    </motion.div>
                 </Panel>
             </PanelGroup>
             <AnimatePresence initial={false}>

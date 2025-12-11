@@ -211,7 +211,13 @@ export function TorrentDetailView({
         if (torrent) setActiveTab("general");
     }, [torrent?.id]);
 
-    if (!torrent) return null;
+    if (!torrent) {
+        return (
+            <div className="flex h-full min-h-0 flex-col items-center justify-center px-5 text-center text-[10px] uppercase tracking-[0.4em] text-foreground/50">
+                {t("torrent_modal.placeholder")}
+            </div>
+        );
+    }
 
     const progressPercent = torrent.progress * 100;
 

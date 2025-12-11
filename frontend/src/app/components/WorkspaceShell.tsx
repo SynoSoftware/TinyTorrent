@@ -21,6 +21,7 @@ import { StatusBar } from "./layout/StatusBar";
 import type { SettingsConfig } from "../../modules/settings/data/config";
 import { INTERACTION_CONFIG } from "../../config/logic";
 import { ICON_STROKE_WIDTH } from "../../config/logic";
+import { GLASS_MODAL_SURFACE } from "../../shared/ui/layout/glass-surface";
 import type {
     AmbientHudCard,
     DeleteIntent,
@@ -254,14 +255,9 @@ export function WorkspaceShell({
             }}
             size="sm"
             backdrop="blur"
-            motionProps={{
-                initial: { opacity: 0, scale: 0.96, y: 8 },
-                animate: { opacity: 1, scale: 1, y: 0 },
-                exit: { opacity: 0, scale: 0.96, y: 8 },
-                transition: MODAL_SPRING_TRANSITION,
-            }}
+            motionProps={INTERACTION_CONFIG.modalBloom}
             classNames={{
-                base: "glass-panel bg-content1/80 backdrop-blur-2xl border border-content1/20 shadow-xl rounded-2xl",
+                base: cn(GLASS_MODAL_SURFACE, "shadow-xl"),
             }}
         >
             <ModalContent>

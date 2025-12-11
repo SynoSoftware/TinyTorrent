@@ -187,6 +187,39 @@
         background-clip: padding-box;
     }
 
+    .surface-layer-0 {
+        background-color: var(--heroui-background);
+        border: 1px solid
+            color-mix(in srgb, var(--heroui-default) 20%, transparent 80%);
+        background-image:
+            radial-gradient(
+                circle at 18% 25%,
+                color-mix(in srgb, var(--heroui-content1) 25%, transparent 75%),
+                transparent 50%
+            ),
+            radial-gradient(
+                circle at 80% 10%,
+                color-mix(in srgb, var(--heroui-foreground) 15%, transparent 85%),
+                transparent 60%
+            ),
+            repeating-linear-gradient(
+                135deg,
+                transparent 0,
+                transparent 8px,
+                color-mix(in srgb, var(--heroui-foreground) 6%, transparent 94%) 8px,
+                color-mix(in srgb, var(--heroui-foreground) 6%, transparent 94%) 9px
+            );
+        background-blend-mode: screen;
+    }
+
+    .surface-layer-1 {
+        @apply border border-default/10 bg-background/60 backdrop-blur-md;
+    }
+
+    .surface-layer-2 {
+        @apply border border-default/20 bg-content1/80 backdrop-blur-2xl;
+    }
+
     .inspector-shell {
         border-radius: 20px;
         border: 1px solid color-mix(in srgb, var(--heroui-default), transparent 60%);
