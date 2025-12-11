@@ -177,23 +177,20 @@ struct Core::Impl {
         static_cast<int>(request.metainfo.size()));
     auto node = libtorrent::bdecode(span, ec);
       if (ec) {
-        TT_LOG_INFO("failed to decode provided metainfo: %s",
-                    ec.message().c_str());
+        TT_LOG_INFO("failed to decode provided metainfo: {}", ec.message());
         return Core::AddTorrentStatus::InvalidUri;
       }
 
       auto ti = std::make_shared<libtorrent::torrent_info>(node, ec);
       if (ec) {
-        TT_LOG_INFO("failed to parse torrent metainfo: %s",
-                    ec.message().c_str());
+        TT_LOG_INFO("failed to parse torrent metainfo: {}", ec.message());
         return Core::AddTorrentStatus::InvalidUri;
       }
       params.ti = std::move(ti);
     } else if (request.uri) {
       libtorrent::parse_magnet_uri(*request.uri, params, ec);
       if (ec) {
-        TT_LOG_INFO("failed to parse magnet link: %s",
-                    ec.message().c_str());
+        TT_LOG_INFO("failed to parse magnet link: {}", ec.message());
         return Core::AddTorrentStatus::InvalidUri;
       }
     } else {
@@ -221,8 +218,8 @@ struct Core::Impl {
     if (info.size() > 128) {
       info = info.substr(0, 128) + "...";
     }
-    TT_LOG_INFO("enqueue_add_torrent name=%s save_path=%s paused=%d", info.c_str(),
-                params.save_path.c_str(), static_cast<int>(request.paused));
+    TT_LOG_INFO("enqueue_add_torrent name={} save_path={} paused={}", info,
+                params.save_path, static_cast<int>(request.paused));
 
     enqueue_task([this, params = std::move(params)]() mutable {
       if (session) {
@@ -273,7 +270,7 @@ private:
       pending.swap(tasks);
     }
 
-    TT_LOG_DEBUG("Processing %zu pending engine commands", pending.size());
+    TT_LOG_DEBUG("Processing {} pending engine commands", pending.size());
 
     for (auto &task : pending) {
       task();
@@ -326,7 +323,7 @@ private:
     new_snapshot->dht_nodes = 0;
 
     TT_LOG_DEBUG(
-        "Snapshot updated: %zu torrents (%zu active, %zu paused) down=%llu up=%llu",
+        "Snapshot updated: {} torrents ({} active, {} paused) down={} up={}",
         new_snapshot->torrent_count, new_snapshot->active_torrent_count,
         new_snapshot->paused_torrent_count,
         static_cast<unsigned long long>(new_snapshot->download_rate),
@@ -391,8 +388,8 @@ private:
       host = settings.listen_interface;
     }
     settings.listen_interface = host + ":" + std::to_string(port);
-    TT_LOG_INFO("recorded listen interface %s for peer-port %u",
-                settings.listen_interface.c_str(), static_cast<unsigned>(port));
+    TT_LOG_INFO("recorded listen interface {} for peer-port {}",
+                settings.listen_interface, static_cast<unsigned>(port));
     return true;
   }
 

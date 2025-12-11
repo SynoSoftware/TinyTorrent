@@ -21,14 +21,14 @@ int main() {
   auto download_path = root / "downloads";
   std::filesystem::create_directories(download_path);
 
-  TT_LOG_INFO("Data root: %s", root.string().c_str());
-  TT_LOG_INFO("Download path: %s", download_path.string().c_str());
+  TT_LOG_INFO("Data root: {}", root.string());
+  TT_LOG_INFO("Download path: {}", download_path.string());
 
   tt::engine::CoreSettings settings;
   settings.download_path = download_path;
   settings.listen_interface = "0.0.0.0:6881";
 
-  TT_LOG_INFO("Engine listen interface: %s", settings.listen_interface.c_str());
+  TT_LOG_INFO("Engine listen interface: {}", settings.listen_interface);
 
   auto engine = tt::engine::Core::create(settings);
   std::thread engine_thread([core = engine.get()] { core->run(); });
@@ -38,7 +38,7 @@ int main() {
   rpc.start();
   TT_LOG_INFO("RPC layer ready; POST requests should hit http://127.0.0.1:8080/transmission/rpc");
 
-  std::printf("TinyTorrent daemon running; CTRL+C to stop.\n");
+  tt::log::print_status("TinyTorrent daemon running; CTRL+C to stop.");
 
   while (keep_running.load(std::memory_order_relaxed)) {
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
@@ -51,7 +51,7 @@ int main() {
     engine_thread.join();
   }
 
-  std::printf("Shutdown complete.\n");
+  tt::log::print_status("Shutdown complete.");
   TT_LOG_INFO("Shutdown complete.");
   return 0;
 }

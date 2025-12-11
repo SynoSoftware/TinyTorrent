@@ -8,6 +8,7 @@
 #include <yyjson.h>
 
 #include <cstdlib>
+#include "utils/Json.hpp"
 
 namespace tt::rpc {
 
@@ -43,80 +44,73 @@ std::optional<std::uint16_t> parse_listen_port(std::string_view interface) {
 }
 
 std::string serialize_session_settings(engine::CoreSettings const &settings) {
-  yyjson_mut_doc *doc = yyjson_mut_doc_new(nullptr);
-  if (doc == nullptr) {
+  tt::json::MutableDocument doc;
+  if (!doc.is_valid()) {
     return "{}";
   }
 
-  yyjson_mut_val *root = yyjson_mut_obj(doc);
-  yyjson_mut_doc_set_root(doc, root);
-  yyjson_mut_obj_add_str(doc, root, "result", "success");
+  auto *native = doc.doc();
+  auto *root = yyjson_mut_obj(native);
+  doc.set_root(root);
+  yyjson_mut_obj_add_str(native, root, "result", "success");
 
-  yyjson_mut_val *arguments = yyjson_mut_obj(doc);
-  yyjson_mut_obj_add_val(doc, root, "arguments", arguments);
+  auto *arguments = yyjson_mut_obj(native);
+  yyjson_mut_obj_add_val(native, root, "arguments", arguments);
 
-  yyjson_mut_obj_add_str(doc, arguments, "version", "TinyTorrent 0.1.0");
-  yyjson_mut_obj_add_uint(doc, arguments, "rpc-version", 17);
-  yyjson_mut_obj_add_uint(doc, arguments, "rpc-version-min", 1);
-  yyjson_mut_obj_add_str(doc, arguments, "download-dir",
+  yyjson_mut_obj_add_str(native, arguments, "version", "TinyTorrent 0.1.0");
+  yyjson_mut_obj_add_uint(native, arguments, "rpc-version", 17);
+  yyjson_mut_obj_add_uint(native, arguments, "rpc-version-min", 1);
+  yyjson_mut_obj_add_str(native, arguments, "download-dir",
                          settings.download_path.string().c_str());
   if (auto port = parse_listen_port(settings.listen_interface)) {
-    yyjson_mut_obj_add_uint(doc, arguments, "peer-port", *port);
+    yyjson_mut_obj_add_uint(native, arguments, "peer-port", *port);
   }
 
-  char *json = yyjson_mut_write(doc, 0, nullptr);
-  std::string result = json ? json : "{}";
-
-  yyjson_mut_doc_free(doc);
-  std::free(json);
-  return result;
+  return doc.write("{}");
 }
 
 std::string serialize_session_stats(engine::SessionSnapshot const &snapshot) {
-  yyjson_mut_doc *doc = yyjson_mut_doc_new(nullptr);
-  if (doc == nullptr) {
+  tt::json::MutableDocument doc;
+  if (!doc.is_valid()) {
     return "{}";
   }
 
-  yyjson_mut_val *root = yyjson_mut_obj(doc);
-  yyjson_mut_doc_set_root(doc, root);
-  yyjson_mut_obj_add_str(doc, root, "result", "success");
+  auto *native = doc.doc();
+  auto *root = yyjson_mut_obj(native);
+  doc.set_root(root);
+  yyjson_mut_obj_add_str(native, root, "result", "success");
 
-  yyjson_mut_val *arguments = yyjson_mut_obj(doc);
-  yyjson_mut_obj_add_val(doc, root, "arguments", arguments);
-
-  yyjson_mut_obj_add_uint(doc, arguments, "downloadSpeed", snapshot.download_rate);
-  yyjson_mut_obj_add_uint(doc, arguments, "uploadSpeed", snapshot.upload_rate);
-  yyjson_mut_obj_add_uint(doc, arguments, "torrentCount",
+  auto *arguments = yyjson_mut_obj(native);
+  yyjson_mut_obj_add_val(native, root, "arguments", arguments);
+  yyjson_mut_obj_add_uint(native, arguments, "downloadSpeed",
+                          snapshot.download_rate);
+  yyjson_mut_obj_add_uint(native, arguments, "uploadSpeed",
+                          snapshot.upload_rate);
+  yyjson_mut_obj_add_uint(native, arguments, "torrentCount",
                           static_cast<std::uint64_t>(snapshot.torrent_count));
-  yyjson_mut_obj_add_uint(doc, arguments, "activeTorrentCount",
+  yyjson_mut_obj_add_uint(native, arguments, "activeTorrentCount",
                           static_cast<std::uint64_t>(snapshot.active_torrent_count));
-  yyjson_mut_obj_add_uint(doc, arguments, "pausedTorrentCount",
+  yyjson_mut_obj_add_uint(native, arguments, "pausedTorrentCount",
                           static_cast<std::uint64_t>(snapshot.paused_torrent_count));
-  yyjson_mut_obj_add_uint(doc, arguments, "dhtNodes", snapshot.dht_nodes);
+  yyjson_mut_obj_add_uint(native, arguments, "dhtNodes", snapshot.dht_nodes);
 
-  auto cumulative = yyjson_mut_obj(doc);
-  yyjson_mut_obj_add_uint(doc, cumulative, "uploadedBytes", 0);
-  yyjson_mut_obj_add_uint(doc, cumulative, "downloadedBytes", 0);
-  yyjson_mut_obj_add_uint(doc, cumulative, "filesAdded", 0);
-  yyjson_mut_obj_add_uint(doc, cumulative, "secondsActive", 0);
-  yyjson_mut_obj_add_uint(doc, cumulative, "sessionCount", 0);
-  yyjson_mut_obj_add_val(doc, arguments, "cumulativeStats", cumulative);
+  auto *cumulative = yyjson_mut_obj(native);
+  yyjson_mut_obj_add_uint(native, cumulative, "uploadedBytes", 0);
+  yyjson_mut_obj_add_uint(native, cumulative, "downloadedBytes", 0);
+  yyjson_mut_obj_add_uint(native, cumulative, "filesAdded", 0);
+  yyjson_mut_obj_add_uint(native, cumulative, "secondsActive", 0);
+  yyjson_mut_obj_add_uint(native, cumulative, "sessionCount", 0);
+  yyjson_mut_obj_add_val(native, arguments, "cumulativeStats", cumulative);
 
-  auto current = yyjson_mut_obj(doc);
-  yyjson_mut_obj_add_uint(doc, current, "uploadedBytes", 0);
-  yyjson_mut_obj_add_uint(doc, current, "downloadedBytes", 0);
-  yyjson_mut_obj_add_uint(doc, current, "filesAdded", 0);
-  yyjson_mut_obj_add_uint(doc, current, "secondsActive", 0);
-  yyjson_mut_obj_add_uint(doc, current, "sessionCount", 0);
-  yyjson_mut_obj_add_val(doc, arguments, "currentStats", current);
+  auto *current = yyjson_mut_obj(native);
+  yyjson_mut_obj_add_uint(native, current, "uploadedBytes", 0);
+  yyjson_mut_obj_add_uint(native, current, "downloadedBytes", 0);
+  yyjson_mut_obj_add_uint(native, current, "filesAdded", 0);
+  yyjson_mut_obj_add_uint(native, current, "secondsActive", 0);
+  yyjson_mut_obj_add_uint(native, current, "sessionCount", 0);
+  yyjson_mut_obj_add_val(native, arguments, "currentStats", current);
 
-  char *json = yyjson_mut_write(doc, 0, nullptr);
-  std::string response = json ? json : R"({"result":"error"})";
-
-  yyjson_mut_doc_free(doc);
-  std::free(json);
-  return response;
+  return doc.write(R"({"result":"error"})");
 }
 
 static void add_torrent_summary(yyjson_mut_doc *doc, yyjson_mut_val *entry,
@@ -153,271 +147,242 @@ static void add_torrent_summary(yyjson_mut_doc *doc, yyjson_mut_val *entry,
 
 std::string serialize_torrent_list(
     std::vector<engine::TorrentSnapshot> const &torrents) {
-  yyjson_mut_doc *doc = yyjson_mut_doc_new(nullptr);
-  if (doc == nullptr) {
+  tt::json::MutableDocument doc;
+  if (!doc.is_valid()) {
     return "{}";
   }
 
-  yyjson_mut_val *root = yyjson_mut_obj(doc);
-  yyjson_mut_doc_set_root(doc, root);
-  yyjson_mut_obj_add_str(doc, root, "result", "success");
+  auto *native = doc.doc();
+  auto *root = yyjson_mut_obj(native);
+  doc.set_root(root);
+  yyjson_mut_obj_add_str(native, root, "result", "success");
 
-  yyjson_mut_val *arguments = yyjson_mut_obj(doc);
-  yyjson_mut_obj_add_val(doc, root, "arguments", arguments);
+  auto *arguments = yyjson_mut_obj(native);
+  yyjson_mut_obj_add_val(native, root, "arguments", arguments);
 
-  yyjson_mut_val *array = yyjson_mut_arr(doc);
-  yyjson_mut_obj_add_val(doc, arguments, "torrents", array);
+  auto *array = yyjson_mut_arr(native);
+  yyjson_mut_obj_add_val(native, arguments, "torrents", array);
 
   for (auto const &torrent : torrents) {
-    yyjson_mut_val *entry = yyjson_mut_obj(doc);
-    add_torrent_summary(doc, entry, torrent);
+    auto *entry = yyjson_mut_obj(native);
+    add_torrent_summary(native, entry, torrent);
     yyjson_mut_arr_add_val(array, entry);
   }
 
-  char *json = yyjson_mut_write(doc, 0, nullptr);
-  std::string response = json ? json : R"({"result":"error"})";
-
-  yyjson_mut_doc_free(doc);
-  std::free(json);
-  return response;
+  return doc.write(R"({"result":"error"})");
 }
 
 std::string serialize_torrent_detail(
     std::vector<engine::TorrentDetail> const &details) {
-  yyjson_mut_doc *doc = yyjson_mut_doc_new(nullptr);
-  if (doc == nullptr) {
+  tt::json::MutableDocument doc;
+  if (!doc.is_valid()) {
     return "{}";
   }
 
-  yyjson_mut_val *root = yyjson_mut_obj(doc);
-  yyjson_mut_doc_set_root(doc, root);
-  yyjson_mut_obj_add_str(doc, root, "result", "success");
+  auto *native = doc.doc();
+  auto *root = yyjson_mut_obj(native);
+  doc.set_root(root);
+  yyjson_mut_obj_add_str(native, root, "result", "success");
 
-  yyjson_mut_val *arguments = yyjson_mut_obj(doc);
-  yyjson_mut_obj_add_val(doc, root, "arguments", arguments);
+  auto *arguments = yyjson_mut_obj(native);
+  yyjson_mut_obj_add_val(native, root, "arguments", arguments);
 
-  yyjson_mut_val *array = yyjson_mut_arr(doc);
-  yyjson_mut_obj_add_val(doc, arguments, "torrents", array);
+  auto *array = yyjson_mut_arr(native);
+  yyjson_mut_obj_add_val(native, arguments, "torrents", array);
 
   for (auto const &detail : details) {
-    yyjson_mut_val *entry = yyjson_mut_obj(doc);
-    add_torrent_summary(doc, entry, detail.summary);
+    auto *entry = yyjson_mut_obj(native);
+    add_torrent_summary(native, entry, detail.summary);
 
-    auto files = yyjson_mut_arr(doc);
-    yyjson_mut_obj_add_val(doc, entry, "files", files);
+    auto *files = yyjson_mut_arr(native);
+    yyjson_mut_obj_add_val(native, entry, "files", files);
     for (auto const &file : detail.files) {
-      yyjson_mut_val *file_entry = yyjson_mut_obj(doc);
-      yyjson_mut_obj_add_sint(doc, file_entry, "index", file.index);
-      yyjson_mut_obj_add_str(doc, file_entry, "name", file.name.c_str());
-      yyjson_mut_obj_add_uint(doc, file_entry, "length", file.length);
-      yyjson_mut_obj_add_uint(doc, file_entry, "bytesCompleted",
+      auto *file_entry = yyjson_mut_obj(native);
+      yyjson_mut_obj_add_sint(native, file_entry, "index", file.index);
+      yyjson_mut_obj_add_str(native, file_entry, "name", file.name.c_str());
+      yyjson_mut_obj_add_uint(native, file_entry, "length", file.length);
+      yyjson_mut_obj_add_uint(native, file_entry, "bytesCompleted",
                               file.bytes_completed);
-      yyjson_mut_obj_add_real(doc, file_entry, "progress", file.progress);
-      yyjson_mut_obj_add_sint(doc, file_entry, "priority", file.priority);
-      yyjson_mut_obj_add_bool(doc, file_entry, "wanted", file.wanted);
+      yyjson_mut_obj_add_real(native, file_entry, "progress", file.progress);
+      yyjson_mut_obj_add_sint(native, file_entry, "priority", file.priority);
+      yyjson_mut_obj_add_bool(native, file_entry, "wanted", file.wanted);
       yyjson_mut_arr_add_val(files, file_entry);
     }
 
-    auto trackers = yyjson_mut_arr(doc);
-    yyjson_mut_obj_add_val(doc, entry, "trackers", trackers);
+    auto *trackers = yyjson_mut_arr(native);
+    yyjson_mut_obj_add_val(native, entry, "trackers", trackers);
     for (auto const &tracker : detail.trackers) {
-      yyjson_mut_val *tracker_entry = yyjson_mut_obj(doc);
-      yyjson_mut_obj_add_str(doc, tracker_entry, "announce",
+      auto *tracker_entry = yyjson_mut_obj(native);
+      yyjson_mut_obj_add_str(native, tracker_entry, "announce",
                             tracker.announce.c_str());
-      yyjson_mut_obj_add_sint(doc, tracker_entry, "tier", tracker.tier);
+      yyjson_mut_obj_add_sint(native, tracker_entry, "tier", tracker.tier);
       yyjson_mut_arr_add_val(trackers, tracker_entry);
     }
 
-    auto peers = yyjson_mut_arr(doc);
-    yyjson_mut_obj_add_val(doc, entry, "peers", peers);
+    auto *peers = yyjson_mut_arr(native);
+    yyjson_mut_obj_add_val(native, entry, "peers", peers);
     for (auto const &peer : detail.peers) {
-      yyjson_mut_val *peer_entry = yyjson_mut_obj(doc);
-      yyjson_mut_obj_add_str(doc, peer_entry, "address", peer.address.c_str());
-      yyjson_mut_obj_add_bool(doc, peer_entry, "clientIsChoking",
+      auto *peer_entry = yyjson_mut_obj(native);
+      yyjson_mut_obj_add_str(native, peer_entry, "address", peer.address.c_str());
+      yyjson_mut_obj_add_bool(native, peer_entry, "clientIsChoking",
                              peer.client_is_choking);
-      yyjson_mut_obj_add_bool(doc, peer_entry, "clientIsInterested",
+      yyjson_mut_obj_add_bool(native, peer_entry, "clientIsInterested",
                              peer.client_is_interested);
-      yyjson_mut_obj_add_bool(doc, peer_entry, "peerIsChoking",
+      yyjson_mut_obj_add_bool(native, peer_entry, "peerIsChoking",
                              peer.peer_is_choking);
-      yyjson_mut_obj_add_bool(doc, peer_entry, "peerIsInterested",
+      yyjson_mut_obj_add_bool(native, peer_entry, "peerIsInterested",
                              peer.peer_is_interested);
-      yyjson_mut_obj_add_str(doc, peer_entry, "clientName",
+      yyjson_mut_obj_add_str(native, peer_entry, "clientName",
                             peer.client_name.c_str());
-      yyjson_mut_obj_add_uint(doc, peer_entry, "rateToClient",
+      yyjson_mut_obj_add_uint(native, peer_entry, "rateToClient",
                               peer.rate_to_client);
-      yyjson_mut_obj_add_uint(doc, peer_entry, "rateToPeer", peer.rate_to_peer);
-      yyjson_mut_obj_add_real(doc, peer_entry, "progress", peer.progress);
-      yyjson_mut_obj_add_str(doc, peer_entry, "flagStr", peer.flag_str.c_str());
+      yyjson_mut_obj_add_uint(native, peer_entry, "rateToPeer",
+                              peer.rate_to_peer);
+      yyjson_mut_obj_add_real(native, peer_entry, "progress", peer.progress);
+      yyjson_mut_obj_add_str(native, peer_entry, "flagStr", peer.flag_str.c_str());
       yyjson_mut_arr_add_val(peers, peer_entry);
     }
 
-    yyjson_mut_obj_add_uint(doc, entry, "pieceCount", detail.piece_count);
-    yyjson_mut_obj_add_uint(doc, entry, "pieceSize", detail.piece_size);
+    yyjson_mut_obj_add_uint(native, entry, "pieceCount", detail.piece_count);
+    yyjson_mut_obj_add_uint(native, entry, "pieceSize", detail.piece_size);
 
-    auto states = yyjson_mut_arr(doc);
-    yyjson_mut_obj_add_val(doc, entry, "pieceStates", states);
+    auto *states = yyjson_mut_arr(native);
+    yyjson_mut_obj_add_val(native, entry, "pieceStates", states);
     for (int value : detail.piece_states) {
-      yyjson_mut_arr_add_uint(doc, states, static_cast<std::uint64_t>(value));
+      yyjson_mut_arr_add_uint(native, states, static_cast<std::uint64_t>(value));
     }
 
-    auto availability = yyjson_mut_arr(doc);
-    yyjson_mut_obj_add_val(doc, entry, "pieceAvailability", availability);
+    auto *availability = yyjson_mut_arr(native);
+    yyjson_mut_obj_add_val(native, entry, "pieceAvailability", availability);
     for (int value : detail.piece_availability) {
-      yyjson_mut_arr_add_uint(doc, availability,
+      yyjson_mut_arr_add_uint(native, availability,
                               static_cast<std::uint64_t>(value));
     }
 
     yyjson_mut_arr_add_val(array, entry);
   }
 
-  char *json = yyjson_mut_write(doc, 0, nullptr);
-  std::string response = json ? json : R"({"result":"error"})";
-
-  yyjson_mut_doc_free(doc);
-  std::free(json);
-  return response;
+  return doc.write(R"({"result":"error"})");
 }
 
 std::string serialize_free_space(std::string const &path, std::uint64_t sizeBytes,
                                  std::uint64_t totalSize) {
-  yyjson_mut_doc *doc = yyjson_mut_doc_new(nullptr);
-  if (doc == nullptr) {
+  tt::json::MutableDocument doc;
+  if (!doc.is_valid()) {
     return "{}";
   }
 
-  yyjson_mut_val *root = yyjson_mut_obj(doc);
-  yyjson_mut_doc_set_root(doc, root);
-  yyjson_mut_obj_add_str(doc, root, "result", "success");
+  auto *native = doc.doc();
+  auto *root = yyjson_mut_obj(native);
+  doc.set_root(root);
+  yyjson_mut_obj_add_str(native, root, "result", "success");
 
-  yyjson_mut_val *arguments = yyjson_mut_obj(doc);
-  yyjson_mut_obj_add_val(doc, root, "arguments", arguments);
-  yyjson_mut_obj_add_str(doc, arguments, "path", path.c_str());
-  yyjson_mut_obj_add_uint(doc, arguments, "sizeBytes", sizeBytes);
-  yyjson_mut_obj_add_uint(doc, arguments, "totalSize", totalSize);
+  auto *arguments = yyjson_mut_obj(native);
+  yyjson_mut_obj_add_val(native, root, "arguments", arguments);
+  yyjson_mut_obj_add_str(native, arguments, "path", path.c_str());
+  yyjson_mut_obj_add_uint(native, arguments, "sizeBytes", sizeBytes);
+  yyjson_mut_obj_add_uint(native, arguments, "totalSize", totalSize);
 
-  char *json = yyjson_mut_write(doc, 0, nullptr);
-  std::string response = json ? json : R"({"result":"error"})";
-
-  yyjson_mut_doc_free(doc);
-  std::free(json);
-  return response;
+  return doc.write(R"({"result":"error"})");
 }
 
 std::string serialize_success() {
-  yyjson_mut_doc *doc = yyjson_mut_doc_new(nullptr);
-  if (doc == nullptr) {
+  tt::json::MutableDocument doc;
+  if (!doc.is_valid()) {
     return "{}";
   }
 
-  yyjson_mut_val *root = yyjson_mut_obj(doc);
-  yyjson_mut_doc_set_root(doc, root);
-  yyjson_mut_obj_add_str(doc, root, "result", "success");
+  auto *native = doc.doc();
+  auto *root = yyjson_mut_obj(native);
+  doc.set_root(root);
+  yyjson_mut_obj_add_str(native, root, "result", "success");
 
-  yyjson_mut_val *arguments = yyjson_mut_obj(doc);
-  yyjson_mut_obj_add_val(doc, root, "arguments", arguments);
+  auto *arguments = yyjson_mut_obj(native);
+  yyjson_mut_obj_add_val(native, root, "arguments", arguments);
 
-  char *json = yyjson_mut_write(doc, 0, nullptr);
-  std::string response = json ? json : R"({"result":"error"})";
-
-  yyjson_mut_doc_free(doc);
-  std::free(json);
-  return response;
+  return doc.write(R"({"result":"error"})");
 }
 
 std::string serialize_torrent_rename(int id, std::string const &name,
                                      std::string const &path) {
-  yyjson_mut_doc *doc = yyjson_mut_doc_new(nullptr);
-  if (doc == nullptr) {
+  tt::json::MutableDocument doc;
+  if (!doc.is_valid()) {
     return "{}";
   }
 
-  yyjson_mut_val *root = yyjson_mut_obj(doc);
-  yyjson_mut_doc_set_root(doc, root);
-  yyjson_mut_obj_add_str(doc, root, "result", "success");
+  auto *native = doc.doc();
+  auto *root = yyjson_mut_obj(native);
+  doc.set_root(root);
+  yyjson_mut_obj_add_str(native, root, "result", "success");
 
-  yyjson_mut_val *arguments = yyjson_mut_obj(doc);
-  yyjson_mut_obj_add_val(doc, root, "arguments", arguments);
-  yyjson_mut_obj_add_sint(doc, arguments, "id", id);
-  yyjson_mut_obj_add_str(doc, arguments, "name", name.c_str());
-  yyjson_mut_obj_add_str(doc, arguments, "path", path.c_str());
+  auto *arguments = yyjson_mut_obj(native);
+  yyjson_mut_obj_add_val(native, root, "arguments", arguments);
+  yyjson_mut_obj_add_sint(native, arguments, "id", id);
+  yyjson_mut_obj_add_str(native, arguments, "name", name.c_str());
+  yyjson_mut_obj_add_str(native, arguments, "path", path.c_str());
 
-  char *json = yyjson_mut_write(doc, 0, nullptr);
-  std::string response = json ? json : R"({"result":"error"})";
-
-  yyjson_mut_doc_free(doc);
-  std::free(json);
-  return response;
+  return doc.write(R"({"result":"error"})");
 }
 
 std::string serialize_session_test(bool port_open) {
-  yyjson_mut_doc *doc = yyjson_mut_doc_new(nullptr);
-  if (doc == nullptr) {
+  tt::json::MutableDocument doc;
+  if (!doc.is_valid()) {
     return "{}";
   }
 
-  yyjson_mut_val *root = yyjson_mut_obj(doc);
-  yyjson_mut_doc_set_root(doc, root);
-  yyjson_mut_obj_add_str(doc, root, "result", "success");
+  auto *native = doc.doc();
+  auto *root = yyjson_mut_obj(native);
+  doc.set_root(root);
+  yyjson_mut_obj_add_str(native, root, "result", "success");
 
-  yyjson_mut_val *arguments = yyjson_mut_obj(doc);
-  yyjson_mut_obj_add_val(doc, root, "arguments", arguments);
-  yyjson_mut_obj_add_bool(doc, arguments, "portIsOpen", port_open);
+  auto *arguments = yyjson_mut_obj(native);
+  yyjson_mut_obj_add_val(native, root, "arguments", arguments);
+  yyjson_mut_obj_add_bool(native, arguments, "portIsOpen", port_open);
 
-  char *json = yyjson_mut_write(doc, 0, nullptr);
-  std::string response = json ? json : R"({"result":"error"})";
-
-  yyjson_mut_doc_free(doc);
-  std::free(json);
-  return response;
+  return doc.write(R"({"result":"error"})");
 }
 
 std::string serialize_add_result(engine::Core::AddTorrentStatus status) {
-  yyjson_mut_doc *doc = yyjson_mut_doc_new(nullptr);
-  if (doc == nullptr) {
+  tt::json::MutableDocument doc;
+  if (!doc.is_valid()) {
     return "{}";
   }
 
-  yyjson_mut_val *root = yyjson_mut_obj(doc);
-  yyjson_mut_doc_set_root(doc, root);
+  auto *native = doc.doc();
+  auto *root = yyjson_mut_obj(native);
+  doc.set_root(root);
 
   if (status == engine::Core::AddTorrentStatus::Ok) {
-    yyjson_mut_obj_add_str(doc, root, "result", "success");
+    yyjson_mut_obj_add_str(native, root, "result", "success");
   } else {
-    yyjson_mut_obj_add_str(doc, root, "result", "error");
+    yyjson_mut_obj_add_str(native, root, "result", "error");
   }
 
-  yyjson_mut_val *arguments = yyjson_mut_obj(doc);
-  yyjson_mut_obj_add_val(doc, root, "arguments", arguments);
-  yyjson_mut_obj_add_str(doc, arguments, "message", message_for_status(status));
+  auto *arguments = yyjson_mut_obj(native);
+  yyjson_mut_obj_add_val(native, root, "arguments", arguments);
+  yyjson_mut_obj_add_str(native, arguments, "message",
+                        message_for_status(status));
 
-  char *json = yyjson_mut_write(doc, 0, nullptr);
-  std::string response = json ? json : R"({"result":"error"})";
-
-  yyjson_mut_doc_free(doc);
-  std::free(json);
-  return response;
+  return doc.write(R"({"result":"error"})");
 }
 
 std::string serialize_error(std::string_view message) {
-  yyjson_mut_doc *doc = yyjson_mut_doc_new(nullptr);
-  if (doc == nullptr) {
+  tt::json::MutableDocument doc;
+  if (!doc.is_valid()) {
     return "{}";
   }
 
-  yyjson_mut_val *root = yyjson_mut_obj(doc);
-  yyjson_mut_doc_set_root(doc, root);
-  yyjson_mut_obj_add_str(doc, root, "result", "error");
+  auto *native = doc.doc();
+  auto *root = yyjson_mut_obj(native);
+  doc.set_root(root);
+  yyjson_mut_obj_add_str(native, root, "result", "error");
 
-  yyjson_mut_val *arguments = yyjson_mut_obj(doc);
-  yyjson_mut_obj_add_val(doc, root, "arguments", arguments);
-  yyjson_mut_obj_add_strn(doc, arguments, "message", message.data(), message.size());
+  auto *arguments = yyjson_mut_obj(native);
+  yyjson_mut_obj_add_val(native, root, "arguments", arguments);
+  yyjson_mut_obj_add_strn(native, arguments, "message", message.data(),
+                          message.size());
 
-  char *json = yyjson_mut_write(doc, 0, nullptr);
-  std::string response = json ? json : R"({"result":"error"})";
-
-  yyjson_mut_doc_free(doc);
-  std::free(json);
-  return response;
+  return doc.write(R"({"result":"error"})");
 }
 
 } // namespace tt::rpc

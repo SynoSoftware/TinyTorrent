@@ -4,7 +4,6 @@
 
 #include <atomic>
 #include <chrono>
-#include <cstdio>
 #include <exception>
 #include <future>
 #include <stdexcept>
@@ -12,13 +11,14 @@
 #include <string_view>
 #include <thread>
 
+#include <doctest/doctest.h>
+
 namespace {
 
 using namespace tt::tests;
 
 constexpr std::string_view kRpcPath = "/transmission/rpc";
 constexpr std::string_view kHostHeader = "127.0.0.1:8086";
-constexpr char const* kTcpEndpoint = "tcp://127.0.0.1:8086";
 constexpr std::string_view kServerUrl = "http://127.0.0.1:8086";
 
 struct HttpTestContext {
@@ -71,8 +71,8 @@ void http_client_handler(struct mg_connection *conn, int ev, void *ev_data) {
     ctx->signal_success();
     conn->is_closing = 1;
   } else if (ev == MG_EV_ERROR) {
-    ctx->signal_failure(
-        std::make_exception_ptr(std::runtime_error("RPC connection error")));
+    ctx->signal_failure(std::make_exception_ptr(
+        std::runtime_error("RPC connection error")));
   } else if (ev == MG_EV_CLOSE) {
     if (ctx->completed.load(std::memory_order_acquire)) {
       return;
@@ -171,26 +171,20 @@ struct ServerGuard {
   tt::rpc::Server &server;
 };
 
-int main() {
+TEST_CASE("rpc endpoint handles session-set and unsupported method") {
   tt::rpc::Server server{nullptr, std::string{kServerUrl}};
   server.start();
   ServerGuard guard{server};
   std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
-  try {
-    auto session_set_response =
-        send_rpc_request(R"({"method":"session-set","arguments":{"download-dir":"."}})");
-    ResponseView set_view{session_set_response};
-    expect_result(set_view, "success", "session-set over HTTP");
+  auto session_set_response =
+      send_rpc_request(R"({"method":"session-set","arguments":{"download-dir":"."}})");
+  ResponseView set_view{session_set_response};
+  CHECK(set_view.result() == "success");
 
-    auto unsupported_response =
-        send_rpc_request(R"({"method":"does-not-exist","arguments":{}})");
-    ResponseView unsupported_view{unsupported_response};
-    expect_result(unsupported_view, "error", "unsupported over HTTP");
-    expect_argument(unsupported_view, "message", "unsupported method");
-  } catch (std::exception const& ex) {
-    std::fprintf(stderr, "rpc-endpoint-test: %s\n", ex.what());
-    return 1;
-  }
-
+  auto unsupported_response =
+      send_rpc_request(R"({"method":"does-not-exist","arguments":{}})");
+  ResponseView unsupported_view{unsupported_response};
+  CHECK(unsupported_view.result() == "error");
+  expect_argument(unsupported_view, "message", "unsupported method");
 }

@@ -173,7 +173,7 @@ TinyTorrent uses **two** distinct build configurations.
     - **Integration:** Ensure the RPC server responds to valid requests.
 2.  **The "Good Enough" Rule:**
     - We do not need 100% coverage.
-    - We need enough tests to ensure `scripts/build.ps1` catches obvious breakages.
+    - We need enough tests to ensure `build.ps1` catches obvious breakages.
     - **Agents:** If you break a test, fix the code. If the test is obsolete, update it. Do not spend hours writing complex mocks.
 
 ---
@@ -186,10 +186,10 @@ Agents must use the provided scripts.
 
 ```powershell
 # 1. Setup Dependencies (VCPKG)
-./scripts/setup.ps1
+setup.ps1
 
 # 2. Build & Test
-./scripts/build.ps1
+build.ps1
 ```
 
 ### **Definition of Done**
@@ -197,6 +197,6 @@ Agents must use the provided scripts.
 A task is complete when:
 
 1.  The code compiles in **Dev Mode**.
-2.  The automated tests pass (`scripts/build.ps1` returns success).
+2.  The automated tests pass (`build.ps1` returns success).
 3.  Architectural boundaries (Engine vs. RPC) are respected.
 4.  No new libraries were added without explicit necessity.
