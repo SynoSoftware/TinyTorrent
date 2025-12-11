@@ -184,6 +184,7 @@ interface TorrentTableProps {
     isLoading?: boolean;
     onAction?: (action: TorrentTableAction, torrent: Torrent) => void;
     onRequestDetails?: (torrent: Torrent) => void;
+    onRequestDetailsFullscreen?: (torrent: Torrent) => void;
     onSelectionChange?: (selection: Torrent[]) => void;
     optimisticStatuses?: OptimisticStatusMap;
     disableDetailOpen?: boolean;
@@ -561,6 +562,7 @@ export function TorrentTable({
     isLoading = false,
     onAction,
     onRequestDetails,
+    onRequestDetailsFullscreen,
     onSelectionChange,
     optimisticStatuses = {},
     disableDetailOpen = false,
@@ -1371,8 +1373,9 @@ export function TorrentTable({
         (torrent: Torrent) => {
             if (disableDetailOpen) return;
             onRequestDetails?.(torrent);
+            onRequestDetailsFullscreen?.(torrent);
         },
-        [disableDetailOpen, onRequestDetails]
+        [disableDetailOpen, onRequestDetails, onRequestDetailsFullscreen]
     );
 
     const handleContextMenu = useCallback(

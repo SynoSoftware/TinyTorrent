@@ -1,27 +1,15 @@
 import { Button, Chip, Tab, Tabs, cn } from "@heroui/react";
 
 import {
-
     Activity,
-
     Grid,
-
     HardDrive,
-
     Info,
-
+    Maximize2,
+    Minimize2,
     Network,
-
-    PauseCircle,
-
-    PlayCircle,
-
     Server,
-
-    Trash2,
-
     X,
-
 } from "lucide-react";
 
 import { AnimatePresence, motion } from "framer-motion";
@@ -40,7 +28,6 @@ import type { Torrent, TorrentDetail } from "../types/torrent";
 
 import { SmoothProgressBar } from "../../../shared/ui/components/SmoothProgressBar";
 
-import type { TorrentTableAction } from "./TorrentTable";
 
 import type { TorrentStatus } from "../../../services/rpc/entities";
 
@@ -84,7 +71,9 @@ interface TorrentDetailViewProps {
     onForceTrackerReannounce?: () => Promise<void> | void;
     sequentialSupported?: boolean;
     superSeedingSupported?: boolean;
-    onAction?: (action: TorrentTableAction, torrent: Torrent) => void;
+    isFullscreen?: boolean;
+    onDock?: () => void;
+    onPopout?: () => void;
 }
 
 type StatusChipColor = "success" | "primary" | "warning" | "danger";
@@ -107,20 +96,20 @@ const STATUS_CONFIG: Record<
 interface DetailHeaderContentProps {
     torrent: TorrentDetail;
     statusMeta: (typeof STATUS_CONFIG)[TorrentStatus];
-    canPause: boolean;
-    canResume: boolean;
-    handleAction: (action: TorrentTableAction) => void;
+    isFullscreen: boolean;
     onClose: () => void;
+    onDock?: () => void;
+    onPopout?: () => void;
     t: TFunction;
 }
 
 function DetailHeaderContent({
     torrent,
     statusMeta,
-    canPause,
-    canResume,
-    handleAction,
+    isFullscreen,
     onClose,
+    onDock,
+    onPopout,
     t,
 }: DetailHeaderContentProps) {
     return (
@@ -145,52 +134,38 @@ function DetailHeaderContent({
                 </Chip>
             </div>
             <div className="flex shrink-0 items-center gap-2">
-                {canPause && (
+                {!isFullscreen && onPopout && (
                     <Button
                         size="sm"
-                        variant="shadow"
-                        color="warning"
-                        className="flex items-center gap-1"
-                        onPress={() => handleAction("pause")}
+                        variant="light"
+                        color="primary"
+                        className="flex items-center gap-2"
+                        onPress={onPopout}
                     >
-                        <PauseCircle
+                        <Maximize2
                             size={14}
                             strokeWidth={ICON_STROKE_WIDTH}
                             className="text-current"
                         />
-                        {t("table.actions.pause")}
+                        {t("torrent_modal.actions.popout")}
                     </Button>
                 )}
-                {canResume && (
+                {isFullscreen && onDock && (
                     <Button
                         size="sm"
-                        variant="shadow"
-                        color="success"
-                        className="flex items-center gap-1"
-                        onPress={() => handleAction("resume")}
+                        variant="light"
+                        color="primary"
+                        className="flex items-center gap-2"
+                        onPress={onDock}
                     >
-                        <PlayCircle
+                        <Minimize2
                             size={14}
                             strokeWidth={ICON_STROKE_WIDTH}
                             className="text-current"
                         />
-                        {t("table.actions.resume")}
+                        {t("torrent_modal.actions.dock")}
                     </Button>
                 )}
-                <Button
-                    size="sm"
-                    variant="flat"
-                    color="danger"
-                    className="flex items-center gap-1"
-                    onPress={() => handleAction("remove")}
-                >
-                    <Trash2
-                        size={14}
-                        strokeWidth={ICON_STROKE_WIDTH}
-                        className="text-current"
-                    />
-                    {t("table.actions.remove")}
-                </Button>
                 <Button
                     isIconOnly
                     size="sm"
@@ -229,7 +204,11 @@ export function TorrentDetailView({
 
     superSeedingSupported: superSeedingSupportedProp,
 
-    onAction,
+    isFullscreen,
+
+    onDock,
+
+    onPopout,
 
 }: TorrentDetailViewProps) {
 
@@ -255,22 +234,6 @@ export function TorrentDetailView({
 
 
 
-    const handleAction = useCallback(
-
-        (action: TorrentTableAction) => {
-
-            if (!torrent || !onAction) return;
-
-            onAction(action, torrent);
-
-        },
-
-        [onAction, torrent]
-
-    );
-
-
-
     if (!torrent) return null;
 
 
@@ -289,16 +252,6 @@ export function TorrentDetailView({
 
             : t("torrent_modal.eta_unknown");
 
-    const canPause = ["downloading", "seeding", "checking"].includes(
-
-        torrent.state
-
-    );
-
-    const canResume = ["paused", "queued", "error"].includes(torrent.state);
-
-
-
     const trackers = torrent.trackers ?? [];
 
     const peerEntries = torrent.peers ?? [];
@@ -310,10 +263,10 @@ export function TorrentDetailView({
         <DetailHeaderContent
             torrent={torrent}
             statusMeta={statusMeta}
-            canPause={canPause}
-            canResume={canResume}
-            handleAction={handleAction}
+            isFullscreen={Boolean(isFullscreen)}
             onClose={onClose}
+            onDock={onDock}
+            onPopout={onPopout}
             t={t}
         />
     );

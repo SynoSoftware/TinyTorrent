@@ -283,7 +283,9 @@
     "torrent_modal": {
         "actions": {
             "close": "Close",
+            "dock": "Dock to workspace",
             "pin_panel": "Pin workspace",
+            "popout": "Fullscreen properties",
             "popout_panel": "Return to modal view"
         },
         "availability": {
