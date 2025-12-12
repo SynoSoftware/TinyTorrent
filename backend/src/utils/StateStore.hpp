@@ -23,6 +23,14 @@ struct PersistedTorrent {
   std::string metadata_path;
 };
 
+struct SpeedHistoryEntry {
+  std::int64_t timestamp = 0;
+  std::uint64_t total_down = 0;
+  std::uint64_t total_up = 0;
+  std::uint64_t peak_down = 0;
+  std::uint64_t peak_up = 0;
+};
+
 std::string serialize_label_list(std::vector<std::string> const &labels);
 std::vector<std::string> deserialize_label_list(std::string const &payload);
 
@@ -48,6 +56,14 @@ public:
                           std::vector<std::uint8_t> const &data);
   std::optional<std::vector<std::uint8_t>> resume_data(
       std::string const &hash) const;
+
+  bool insert_speed_history(std::int64_t timestamp, std::uint64_t down_bytes,
+                            std::uint64_t up_bytes) const;
+  std::vector<SpeedHistoryEntry> query_speed_history(std::int64_t start,
+                                                     std::int64_t end,
+                                                     std::int64_t step) const;
+  bool delete_speed_history_before(std::int64_t timestamp) const;
+  bool delete_speed_history_all() const;
 
 private:
   bool ensure_schema();

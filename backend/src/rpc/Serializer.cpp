@@ -451,6 +451,12 @@ std::string serialize_session_settings(
   }
   yyjson_mut_obj_add_bool(native, arguments, "proxy-peer-connections",
                          settings.proxy_peer_connections);
+  yyjson_mut_obj_add_bool(native, arguments, "history-enabled",
+                         settings.history_enabled);
+  yyjson_mut_obj_add_sint(native, arguments, "history-interval",
+                          settings.history_interval_seconds);
+  yyjson_mut_obj_add_sint(native, arguments, "history-retention-days",
+                          settings.history_retention_days);
   bool blocklist_enabled = !settings.blocklist_path.empty();
   yyjson_mut_obj_add_bool(native, arguments, "blocklist-enabled",
                          blocklist_enabled);
@@ -769,6 +775,38 @@ std::string serialize_blocklist_update(
   if (last_updated) {
     yyjson_mut_obj_add_uint(native, arguments, "blocklist-last-updated",
                             to_epoch_seconds(*last_updated));
+  }
+
+  return doc.write(R"({"result":"error"})");
+}
+
+std::string serialize_history_data(std::vector<engine::HistoryBucket> const &buckets,
+                                   std::int64_t step, int recording_interval) {
+  tt::json::MutableDocument doc;
+  if (!doc.is_valid()) {
+    return "{}";
+  }
+  auto *native = doc.doc();
+  auto *root = yyjson_mut_obj(native);
+  doc.set_root(root);
+  yyjson_mut_obj_add_str(native, root, "result", "success");
+
+  auto *arguments = yyjson_mut_obj(native);
+  yyjson_mut_obj_add_val(native, root, "arguments", arguments);
+  yyjson_mut_obj_add_sint(native, arguments, "step", step);
+  yyjson_mut_obj_add_sint(native, arguments, "recording_interval",
+                          recording_interval);
+
+  auto *array = yyjson_mut_arr(native);
+  yyjson_mut_obj_add_val(native, arguments, "data", array);
+  for (auto const &entry : buckets) {
+    auto *tuple = yyjson_mut_arr(native);
+    yyjson_mut_arr_add_sint(native, tuple, entry.timestamp);
+    yyjson_mut_arr_add_uint(native, tuple, entry.total_down);
+    yyjson_mut_arr_add_uint(native, tuple, entry.total_up);
+    yyjson_mut_arr_add_uint(native, tuple, entry.peak_down);
+    yyjson_mut_arr_add_uint(native, tuple, entry.peak_up);
+    yyjson_mut_arr_add_val(array, tuple);
   }
 
   return doc.write(R"({"result":"error"})");

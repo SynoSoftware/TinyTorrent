@@ -83,6 +83,16 @@ Database::Database(std::filesystem::path path) {
     db_ = nullptr;
     return;
   }
+  char *err_msg = nullptr;
+  rc = sqlite3_exec(db_, "PRAGMA journal_mode=WAL;", nullptr, nullptr, &err_msg);
+  if (rc != SQLITE_OK) {
+    if (err_msg != nullptr) {
+      TT_LOG_INFO("failed to enable WAL journal mode: {}", err_msg);
+      sqlite3_free(err_msg);
+    }
+  } else if (err_msg != nullptr) {
+    sqlite3_free(err_msg);
+  }
   if (!ensure_schema()) {
     sqlite3_close(db_);
     db_ = nullptr;
@@ -116,7 +126,13 @@ bool Database::ensure_schema() {
       "added_at INTEGER,"
       "rpc_id INTEGER,"
       "metadata_path TEXT);";
-  return execute(kSettingsSql) && execute(kTorrentsSql);
+  constexpr char const *kSpeedHistorySql =
+      "CREATE TABLE IF NOT EXISTS speed_history ("
+      "timestamp INTEGER PRIMARY KEY,"
+      "down_bytes INTEGER NOT NULL,"
+      "up_bytes INTEGER NOT NULL);";
+  return execute(kSettingsSql) && execute(kTorrentsSql) &&
+         execute(kSpeedHistorySql);
 }
 
 bool Database::execute(std::string const &sql) const {
@@ -388,6 +404,98 @@ std::optional<std::vector<std::uint8_t>> Database::resume_data(
   }
   sqlite3_finalize(stmt);
   return result;
+}
+
+bool Database::insert_speed_history(std::int64_t timestamp, std::uint64_t down_bytes,
+                                    std::uint64_t up_bytes) const {
+  if (!db_) {
+    return false;
+  }
+  constexpr char const *sql =
+      "INSERT OR REPLACE INTO speed_history (timestamp, down_bytes, up_bytes)"
+      " VALUES (?, ?, ?);";
+  sqlite3_stmt *stmt = nullptr;
+  int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
+  if (rc != SQLITE_OK) {
+    TT_LOG_INFO("sqlite prepare failed: {}", sqlite3_errmsg(db_));
+    return false;
+  }
+  sqlite3_bind_int64(stmt, 1, static_cast<sqlite3_int64>(timestamp));
+  sqlite3_bind_int64(stmt, 2, static_cast<sqlite3_int64>(down_bytes));
+  sqlite3_bind_int64(stmt, 3, static_cast<sqlite3_int64>(up_bytes));
+  rc = sqlite3_step(stmt);
+  sqlite3_finalize(stmt);
+  return rc == SQLITE_DONE;
+}
+
+std::vector<SpeedHistoryEntry> Database::query_speed_history(std::int64_t start,
+                                                             std::int64_t end,
+                                                             std::int64_t step) const {
+  std::vector<SpeedHistoryEntry> result;
+  if (!db_ || step <= 0 || start >= end) {
+    return result;
+  }
+  constexpr char const *sql =
+      "SELECT ((timestamp / ?) * ?) AS bucket,"
+      " SUM(down_bytes),"
+      " SUM(up_bytes),"
+      " MAX(down_bytes),"
+      " MAX(up_bytes)"
+      " FROM speed_history"
+      " WHERE timestamp >= ? AND timestamp < ?"
+      " GROUP BY bucket"
+      " ORDER BY bucket ASC;";
+  sqlite3_stmt *stmt = nullptr;
+  int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
+  if (rc != SQLITE_OK) {
+    TT_LOG_INFO("sqlite prepare failed: {}", sqlite3_errmsg(db_));
+    return result;
+  }
+  sqlite3_bind_int64(stmt, 1, step);
+  sqlite3_bind_int64(stmt, 2, step);
+  sqlite3_bind_int64(stmt, 3, start);
+  sqlite3_bind_int64(stmt, 4, end);
+  while (sqlite3_step(stmt) == SQLITE_ROW) {
+    SpeedHistoryEntry entry;
+    entry.timestamp = sqlite3_column_int64(stmt, 0);
+    auto total_down = sqlite3_column_int64(stmt, 1);
+    auto total_up = sqlite3_column_int64(stmt, 2);
+    auto peak_down = sqlite3_column_int64(stmt, 3);
+    auto peak_up = sqlite3_column_int64(stmt, 4);
+    entry.total_down = total_down < 0 ? 0 : static_cast<std::uint64_t>(total_down);
+    entry.total_up = total_up < 0 ? 0 : static_cast<std::uint64_t>(total_up);
+    entry.peak_down = peak_down < 0 ? 0 : static_cast<std::uint64_t>(peak_down);
+    entry.peak_up = peak_up < 0 ? 0 : static_cast<std::uint64_t>(peak_up);
+    result.push_back(entry);
+  }
+  sqlite3_finalize(stmt);
+  return result;
+}
+
+bool Database::delete_speed_history_before(std::int64_t timestamp) const {
+  if (!db_) {
+    return false;
+  }
+  constexpr char const *sql =
+      "DELETE FROM speed_history WHERE timestamp < ?;";
+  sqlite3_stmt *stmt = nullptr;
+  int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
+  if (rc != SQLITE_OK) {
+    TT_LOG_INFO("sqlite prepare failed: {}", sqlite3_errmsg(db_));
+    return false;
+  }
+  sqlite3_bind_int64(stmt, 1, timestamp);
+  rc = sqlite3_step(stmt);
+  sqlite3_finalize(stmt);
+  return rc == SQLITE_DONE;
+}
+
+bool Database::delete_speed_history_all() const {
+  if (!db_) {
+    return false;
+  }
+  constexpr char const *sql = "DELETE FROM speed_history;";
+  return execute(sql);
 }
 
 } // namespace tt::storage

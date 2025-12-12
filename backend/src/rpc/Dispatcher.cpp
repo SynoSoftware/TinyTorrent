@@ -23,6 +23,7 @@
 #endif
 
 #include <array>
+#include <chrono>
 #include <cstdlib>
 #include <algorithm>
 #include <cctype>
@@ -119,6 +120,31 @@ std::optional<int> parse_int_value(yyjson_val *value) {
   }
   return std::nullopt;
 }
+
+std::optional<std::int64_t> parse_int64_value(yyjson_val *value) {
+  if (value == nullptr) {
+    return std::nullopt;
+  }
+  if (yyjson_is_sint(value)) {
+    return static_cast<std::int64_t>(yyjson_get_sint(value));
+  }
+  if (yyjson_is_uint(value)) {
+    return static_cast<std::int64_t>(yyjson_get_uint(value));
+  }
+  if (yyjson_is_real(value)) {
+    return static_cast<std::int64_t>(yyjson_get_real(value));
+  }
+  if (yyjson_is_str(value)) {
+    try {
+      return std::stoll(yyjson_get_str(value));
+    } catch (...) {
+      return std::nullopt;
+    }
+  }
+  return std::nullopt;
+}
+
+constexpr int kDispatcherMinHistoryIntervalSeconds = 60;
 
 std::vector<int> parse_ids(yyjson_val *arguments) {
   std::vector<int> result;
@@ -1110,6 +1136,19 @@ std::string handle_session_set(engine::Core *engine, yyjson_val *arguments) {
     session_update.proxy_peer_connections = *value;
     session_update_needed = true;
   }
+  if (auto value = parse_bool_flag(yyjson_obj_get(arguments, "history-enabled"))) {
+    session_update.history_enabled = *value;
+    session_update_needed = true;
+  }
+  if (auto value = parse_int_value(yyjson_obj_get(arguments, "history-interval"))) {
+    session_update.history_interval_seconds = *value;
+    session_update_needed = true;
+  }
+  if (auto value =
+          parse_int_value(yyjson_obj_get(arguments, "history-retention-days"))) {
+    session_update.history_retention_days = *value;
+    session_update_needed = true;
+  }
   if (session_update_needed) {
     engine->update_session_settings(std::move(session_update));
     applied = true;
@@ -1208,6 +1247,72 @@ std::future<std::string> handle_fs_space_async(yyjson_val *arguments) {
       return serialize_error("fs-space failed");
     }
   });
+}
+
+std::future<std::string> handle_history_get(engine::Core *engine, yyjson_val *arguments) {
+  if (!engine) {
+    return ready_future(serialize_error("engine unavailable"));
+  }
+  if (arguments == nullptr) {
+    return ready_future(serialize_error("arguments required"));
+  }
+  auto *start_value = yyjson_obj_get(arguments, "start");
+  if (start_value == nullptr) {
+    return ready_future(serialize_error("start required"));
+  }
+  auto start = parse_int64_value(start_value);
+  if (!start) {
+    return ready_future(serialize_error("invalid start"));
+  }
+  auto now = std::chrono::system_clock::now();
+  std::int64_t end = static_cast<std::int64_t>(
+      std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count());
+  if (auto *end_value = yyjson_obj_get(arguments, "end")) {
+    if (auto parsed = parse_int64_value(end_value)) {
+      end = *parsed;
+    } else {
+      return ready_future(serialize_error("invalid end"));
+    }
+  }
+  if (end < *start) {
+    end = *start;
+  }
+  auto config = engine->history_config();
+  int base_interval = config.interval_seconds > 0 ? config.interval_seconds
+                                                  : kDispatcherMinHistoryIntervalSeconds;
+  std::int64_t step = base_interval;
+  if (auto value = parse_int64_value(yyjson_obj_get(arguments, "step"));
+      value && *value > 0) {
+    step = *value;
+  }
+  if (step < base_interval) {
+    step = base_interval;
+  }
+  if (base_interval > 0 && step % base_interval != 0) {
+    step = ((step + base_interval - 1) / base_interval) * base_interval;
+  }
+  auto buckets = engine->history_data(*start, end, step);
+  return ready_future(serialize_history_data(buckets, step, base_interval));
+}
+
+std::string handle_history_clear(engine::Core *engine, yyjson_val *arguments) {
+  if (!engine) {
+    return serialize_error("engine unavailable");
+  }
+  std::optional<std::int64_t> older_than;
+  if (arguments) {
+    auto *value = yyjson_obj_get(arguments, "older-than");
+    if (value != nullptr) {
+      older_than = parse_int64_value(value);
+      if (!older_than) {
+        return serialize_error("invalid older-than");
+      }
+    }
+  }
+  if (!engine->history_clear(older_than)) {
+    return serialize_error("history clear failed");
+  }
+  return serialize_success();
 }
 
 std::future<std::string> handle_system_reveal_async(yyjson_val *arguments) {
@@ -1599,6 +1704,10 @@ void Dispatcher::register_handlers() {
   add_sync("app-shutdown",
            [this](yyjson_val *) { return handle_app_shutdown(engine_); });
   add_async("free-space", handle_free_space_async);
+  add_async("history-get",
+            [this](yyjson_val *arguments) { return handle_history_get(engine_, arguments); });
+  add_sync("history-clear",
+           [this](yyjson_val *arguments) { return handle_history_clear(engine_, arguments); });
   add_sync("torrent-get",
            [this](yyjson_val *arguments) { return handle_torrent_get(engine_, arguments); });
   add_sync("torrent-add",

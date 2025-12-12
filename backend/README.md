@@ -34,3 +34,9 @@ Open the repository with VS2026 (File → Open → Folder). After running the bu
 
 - Replace `src/vendor/mongoose.c`/`.h` with the real Mongoose single-file library from https://github.com/cesanta/mongoose before shipping.
 - The runtime currently just spins both loops for a fixed short duration. The scaffolding is there to plug in the actual libtorrent session and RPC handlers.
+
+## Historical Traffic Specification
+
+TinyTorrent keeps a dedicated `speed_history` time-series table (`timestamp`, `down_bytes`, `up_bytes`) inside `tinytorrent.db`. The daemon writes fixed-size buckets (`history-interval`, 5 minutes by default) on every flush and never aggregates during writes; aggregation happens when a client issues `history-get`. The backend exposes three new configuration knobs via `session-set`: `history-enabled`, `history-interval` (clamped to ≥60 seconds), and `history-retention-days` (0 = forever). A housekeeping task trims older rows once per hour when retention is configured.
+
+Two new RPCs, `history-get` and `history-clear`, allow the UI to read/clean the series. `history-get` samples the DB at a client-supplied `step` (rounded up to a multiple of `history-interval`) and returns `[timestamp, sumDown, sumUp, peakDown, peakUp]` tuples together with the `step` and the `recording_interval` so the UI can derive both average and peak speeds. `history-clear` deletes either the whole series or rows older than the provided cutoff.
