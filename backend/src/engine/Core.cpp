@@ -2045,7 +2045,8 @@ private:
       stem = target.filename().string();
     }
     auto extension = target.extension().string();
-    for (int index = 1; index <= 32; ++index) {
+    static constexpr int kMaxCompletionAttempts = 1024;
+    for (int index = 1; index <= kMaxCompletionAttempts; ++index) {
       std::string candidate_name = stem + " (" + std::to_string(index) + ")";
       if (!extension.empty()) {
         candidate_name += extension;
@@ -2060,7 +2061,8 @@ private:
         return candidate;
       }
     }
-    TT_LOG_INFO("unable to find unique completion destination for {}", target.string());
+    TT_LOG_ERROR("unable to find unique completion destination for {} after {} attempts",
+                 target.string(), kMaxCompletionAttempts);
     return {};
   }
 
