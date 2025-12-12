@@ -61,6 +61,9 @@ struct CoreSettings {
   std::string proxy_username;
   std::string proxy_password;
   bool proxy_peer_connections = false;
+  bool history_enabled = true;
+  int history_interval_seconds = 300;
+  int history_retention_days = 30;
 };
 
 struct SessionUpdate {
@@ -94,6 +97,9 @@ struct SessionUpdate {
   std::optional<std::string> proxy_username;
   std::optional<std::string> proxy_password;
   std::optional<bool> proxy_peer_connections;
+  std::optional<bool> history_enabled;
+  std::optional<int> history_interval_seconds;
+  std::optional<int> history_retention_days;
 };
 
 struct TrackerEntry {
@@ -200,6 +206,20 @@ struct SessionStatistics {
   std::uint64_t session_count = 0;
 };
 
+struct HistoryBucket {
+  std::int64_t timestamp = 0;
+  std::uint64_t total_down = 0;
+  std::uint64_t total_up = 0;
+  std::uint64_t peak_down = 0;
+  std::uint64_t peak_up = 0;
+};
+
+struct HistoryConfig {
+  bool enabled = true;
+  int interval_seconds = 300;
+  int retention_days = 30;
+};
+
 struct SessionSnapshot {
   std::vector<TorrentSnapshot> torrents;
   std::uint64_t download_rate = 0;
@@ -266,6 +286,10 @@ public:
                                     std::optional<bool> upload_limited);
   void set_torrent_seed_limits(std::vector<int> ids, TorrentSeedLimit limits);
   void set_torrent_labels(std::vector<int> ids, std::vector<std::string> const &labels);
+  HistoryConfig history_config() const;
+  std::vector<HistoryBucket> history_data(std::int64_t start, std::int64_t end,
+                                          std::int64_t step) const;
+  bool history_clear(std::optional<std::int64_t> older_than);
 
 private:
   struct Impl;

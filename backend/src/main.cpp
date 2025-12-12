@@ -412,6 +412,20 @@ int main(int argc, char *argv[]) {
   }
   settings.proxy_peer_connections =
       parse_bool_value(read_db_string("proxyPeerConnections"));
+  if (auto value = read_db_string("historyEnabled"); value) {
+    settings.history_enabled = parse_bool_value(value);
+  }
+  if (auto value = parse_int_value(read_db_string("historyInterval"))) {
+    settings.history_interval_seconds = std::max(60, *value);
+  }
+  if (auto value = parse_int_value(read_db_string("historyRetentionDays"))) {
+    settings.history_retention_days = std::max(0, *value);
+  }
+  set_db_setting("historyEnabled", settings.history_enabled ? "1" : "0");
+  set_db_setting("historyInterval",
+                 std::to_string(settings.history_interval_seconds));
+  set_db_setting("historyRetentionDays",
+                 std::to_string(settings.history_retention_days));
   settings.state_path = state_path;
 
   TT_LOG_INFO("Engine listen interface: {}", settings.listen_interface);

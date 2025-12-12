@@ -49,6 +49,8 @@ std::string serialize_torrent_rename(int id, std::string const &name,
 std::string serialize_blocklist_update(
     std::size_t entries,
     std::optional<std::chrono::system_clock::time_point> last_updated);
+std::string serialize_history_data(std::vector<engine::HistoryBucket> const &buckets,
+                                   std::int64_t step, int recording_interval);
 std::string serialize_ws_snapshot(engine::SessionSnapshot const &snapshot);
 std::string serialize_ws_patch(
     engine::SessionSnapshot const &snapshot,

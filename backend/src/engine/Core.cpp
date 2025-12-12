@@ -67,6 +67,8 @@ constexpr char const *kUserAgent = "TinyTorrent/0.1.0";
 constexpr auto kHousekeepingInterval = std::chrono::seconds(2);
 constexpr auto kResumeAlertTimeout = std::chrono::seconds(5);
 constexpr auto kStateFlushInterval = std::chrono::seconds(5);
+constexpr int kMinHistoryIntervalSeconds = 60;
+constexpr auto kHistoryRetentionCheckInterval = std::chrono::hours(1);
 
 constexpr int kSha1Bytes = static_cast<int>(libtorrent::sha1_hash::size());
 
@@ -74,6 +76,16 @@ struct SessionTotals {
   std::uint64_t uploaded = 0;
   std::uint64_t downloaded = 0;
 };
+
+std::int64_t align_to_history_interval(std::chrono::system_clock::time_point now,
+                                       int interval_seconds) {
+  auto seconds = static_cast<std::int64_t>(
+      std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count());
+  if (interval_seconds <= 0) {
+    return seconds;
+  }
+  return (seconds / interval_seconds) * interval_seconds;
+}
 
 std::string info_hash_to_hex(libtorrent::sha1_hash const &hash) {
   constexpr char kHexDigits[] = "0123456789abcdef";
@@ -479,6 +491,9 @@ struct Core::Impl {
   std::size_t blocklist_entries = 0;
   std::optional<std::chrono::system_clock::time_point> blocklist_last_update;
   bool alt_speed_active = false;
+  bool history_enabled = true;
+  int history_interval_seconds = kMinHistoryIntervalSeconds;
+  int history_retention_days = 0;
   std::unordered_map<int, TorrentLimitState> torrent_limits;
   std::unordered_map<std::string, std::vector<std::string>> torrent_labels;
   std::unordered_map<std::string, std::filesystem::path> final_paths;
@@ -497,6 +512,13 @@ struct Core::Impl {
   std::chrono::steady_clock::time_point resume_deadline =
       std::chrono::steady_clock::now();
   std::chrono::steady_clock::time_point next_housekeeping =
+      std::chrono::steady_clock::now();
+  std::uint64_t history_accumulator_down = 0;
+  std::uint64_t history_accumulator_up = 0;
+  std::int64_t history_bucket_start = 0;
+  std::chrono::steady_clock::time_point history_last_flush =
+      std::chrono::steady_clock::now();
+  std::chrono::steady_clock::time_point next_history_retention =
       std::chrono::steady_clock::now();
 
   explicit Impl(CoreSettings settings) : settings(std::move(settings)) {
@@ -519,6 +541,12 @@ struct Core::Impl {
       TT_LOG_INFO("sqlite state database unavailable; falling back to ephemeral state");
       persisted_stats.session_count = 1;
     }
+
+    history_enabled = this->settings.history_enabled;
+    history_interval_seconds = std::max(kMinHistoryIntervalSeconds, this->settings.history_interval_seconds);
+    this->settings.history_interval_seconds = history_interval_seconds;
+    history_retention_days = std::max(0, this->settings.history_retention_days);
+    configure_history_window(std::chrono::system_clock::now());
 
     libtorrent::settings_pack pack;
     pack.set_int(libtorrent::settings_pack::alert_mask, libtorrent::alert::all_categories);
@@ -596,6 +624,11 @@ struct Core::Impl {
                          return !tasks.empty() ||
                                 shutdown_requested.load(std::memory_order_relaxed);
                        });
+    }
+    auto now = std::chrono::steady_clock::now();
+    if (history_enabled &&
+        now - history_last_flush >= std::chrono::seconds(10)) {
+      flush_history_if_due(now, true);
     }
     persist_state();
   }
@@ -1060,6 +1093,127 @@ private:
     database->set_setting("proxyUsername", settings.proxy_username);
     database->set_setting("proxyPassword", settings.proxy_password);
     set_bool("proxyPeerConnections", settings.proxy_peer_connections);
+    set_bool("historyEnabled", settings.history_enabled);
+    set_int("historyInterval", settings.history_interval_seconds);
+    set_int("historyRetentionDays", settings.history_retention_days);
+  }
+
+  int normalized_history_interval(int value) const {
+    return std::max(kMinHistoryIntervalSeconds, value);
+  }
+
+  void configure_history_window(std::chrono::system_clock::time_point now) {
+    history_bucket_start = align_to_history_interval(now, history_interval_seconds);
+    history_accumulator_down = 0;
+    history_accumulator_up = 0;
+    history_last_flush = std::chrono::steady_clock::now();
+    next_history_retention = history_last_flush;
+  }
+
+  void accumulate_history(std::chrono::steady_clock::time_point now,
+                          std::uint64_t downloaded_delta,
+                          std::uint64_t uploaded_delta) {
+    if (!history_enabled) {
+      return;
+    }
+    history_accumulator_down += downloaded_delta;
+    history_accumulator_up += uploaded_delta;
+    flush_history_if_due(now);
+  }
+
+  void flush_history_if_due(std::chrono::steady_clock::time_point now, bool force = false) {
+    if (!history_enabled && !force) {
+      return;
+    }
+    if (history_interval_seconds <= 0) {
+      return;
+    }
+    if (!force) {
+      auto next_flush = history_last_flush + std::chrono::seconds(history_interval_seconds);
+      if (now < next_flush) {
+        return;
+      }
+    }
+    auto bucket_timestamp = history_bucket_start;
+    auto down_bytes = history_accumulator_down;
+    auto up_bytes = history_accumulator_up;
+    history_accumulator_down = 0;
+    history_accumulator_up = 0;
+    if (bucket_timestamp <= 0) {
+      bucket_timestamp = align_to_history_interval(std::chrono::system_clock::now(),
+                                                  history_interval_seconds);
+    }
+    if (database && database->is_valid()) {
+      if (!database->insert_speed_history(bucket_timestamp, down_bytes, up_bytes)) {
+        TT_LOG_INFO("failed to record history bucket {}", bucket_timestamp);
+      }
+    }
+    history_bucket_start = bucket_timestamp + history_interval_seconds;
+    history_last_flush = now;
+  }
+
+  void perform_history_retention(std::chrono::steady_clock::time_point now) {
+    if (history_retention_days <= 0) {
+      return;
+    }
+    if (now < next_history_retention) {
+      return;
+    }
+    next_history_retention = now + kHistoryRetentionCheckInterval;
+    if (!database || !database->is_valid()) {
+      return;
+    }
+    auto cutoff = static_cast<std::int64_t>(
+        std::chrono::duration_cast<std::chrono::seconds>(
+            std::chrono::system_clock::now().time_since_epoch())
+            .count());
+    auto retention_seconds =
+        static_cast<std::int64_t>(history_retention_days) * 86400;
+    cutoff -= retention_seconds;
+    if (cutoff < 0) {
+      cutoff = 0;
+    }
+    if (!database->delete_speed_history_before(cutoff)) {
+      TT_LOG_INFO("history retention delete failed");
+    }
+  }
+
+  std::vector<HistoryBucket> history_query(std::int64_t start, std::int64_t end,
+                                           std::int64_t step) const {
+    std::vector<HistoryBucket> result;
+    if (!database || !database->is_valid()) {
+      return result;
+    }
+    auto entries = database->query_speed_history(start, end, step);
+    result.reserve(entries.size());
+    for (auto const &entry : entries) {
+      HistoryBucket bucket;
+      bucket.timestamp = entry.timestamp;
+      bucket.total_down = entry.total_down;
+      bucket.total_up = entry.total_up;
+      bucket.peak_down = entry.peak_down;
+      bucket.peak_up = entry.peak_up;
+      result.push_back(bucket);
+    }
+    return result;
+  }
+
+  bool history_clear(std::optional<std::int64_t> older_than) {
+    if (!database || !database->is_valid()) {
+      return false;
+    }
+    if (older_than) {
+      return database->delete_speed_history_before(*older_than);
+    }
+    return database->delete_speed_history_all();
+  }
+
+  HistoryConfig history_config_impl() const {
+    HistoryConfig config;
+    config.enabled = history_enabled;
+    config.interval_seconds = history_interval_seconds;
+    config.retention_days = history_retention_days;
+    return config;
   }
 
   void initialize_session_statistics() {
@@ -1131,6 +1285,7 @@ private:
     next_housekeeping = now + kHousekeepingInterval;
     scan_watch_directory();
     flush_state_if_due(now);
+    perform_history_retention(now);
   }
 
   void scan_watch_directory() {
@@ -1410,6 +1565,13 @@ private:
     auto new_snapshot = std::make_shared<SessionSnapshot>();
     auto totals = capture_session_totals();
     auto now = std::chrono::steady_clock::now();
+    std::uint64_t downloaded_delta =
+        totals.downloaded >= last_total_downloaded ? totals.downloaded - last_total_downloaded
+                                                   : totals.downloaded;
+    std::uint64_t uploaded_delta =
+        totals.uploaded >= last_total_uploaded ? totals.uploaded - last_total_uploaded
+                                               : totals.uploaded;
+    accumulate_history(now, downloaded_delta, uploaded_delta);
     SessionStatistics cumulative_stats{};
     {
       std::lock_guard<std::mutex> lock(state_mutex);
@@ -1845,6 +2007,39 @@ private:
       proxy_changed = true;
       persist = true;
     }
+    if (update.history_enabled) {
+      bool new_value = *update.history_enabled;
+      if (settings.history_enabled != new_value) {
+      if (!new_value) {
+        flush_history_if_due(std::chrono::steady_clock::now(), true);
+      } else if (history_interval_seconds > 0) {
+        configure_history_window(std::chrono::system_clock::now());
+      }
+      settings.history_enabled = new_value;
+      history_enabled = new_value;
+      persist = true;
+    }
+  }
+  if (update.history_interval_seconds) {
+    int interval =
+        normalized_history_interval(*update.history_interval_seconds);
+    if (settings.history_interval_seconds != interval) {
+      flush_history_if_due(std::chrono::steady_clock::now(), true);
+      settings.history_interval_seconds = interval;
+      history_interval_seconds = interval;
+      configure_history_window(std::chrono::system_clock::now());
+      persist = true;
+    }
+  }
+  if (update.history_retention_days) {
+    int retention = std::max(0, *update.history_retention_days);
+    if (settings.history_retention_days != retention) {
+      settings.history_retention_days = retention;
+      history_retention_days = retention;
+      next_history_retention = std::chrono::steady_clock::now();
+      persist = true;
+    }
+  }
 
     if (encryption_changed) {
       apply_encryption_settings();
@@ -3072,6 +3267,41 @@ Core::blocklist_last_update() const noexcept {
     return std::nullopt;
   }
   return impl_->blocklist_last_update;
+}
+
+HistoryConfig Core::history_config() const {
+  if (!impl_) {
+    return {};
+  }
+  return impl_->history_config_impl();
+}
+
+std::vector<HistoryBucket> Core::history_data(std::int64_t start, std::int64_t end,
+                                               std::int64_t step) const {
+  if (!impl_) {
+    return {};
+  }
+  try {
+    return impl_->run_task([this, start, end, step]() {
+      return impl_->history_query(start, end, step);
+    }).get();
+  } catch (...) {
+    return {};
+  }
+}
+
+bool Core::history_clear(std::optional<std::int64_t> older_than) {
+  if (!impl_) {
+    return false;
+  }
+  try {
+    return impl_
+        ->run_task(
+            [this, older_than]() { return impl_->history_clear(older_than); })
+        .get();
+  } catch (...) {
+    return false;
+  }
 }
 
 } // namespace tt::engine
