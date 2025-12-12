@@ -528,6 +528,17 @@ export const SETTINGS_TABS: TabDefinition[] = [
                 ],
             },
             {
+                titleKey: "settings.sections.visuals",
+                descriptionKey: "settings.descriptions.table_watermark",
+                blocks: [
+                    {
+                        type: "switch",
+                        labelKey: "settings.labels.tableWatermark",
+                        stateKey: "table_watermark_enabled",
+                    },
+                ],
+            },
+            {
                 titleKey: "settings.sections.localization",
                 descriptionKey: "settings.descriptions.language",
                 blocks: [

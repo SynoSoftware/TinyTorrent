@@ -166,15 +166,16 @@
         border-radius: inherit;
     }
 
-    .app-titlebar :where(
-        button,
-        input,
-        textarea,
-        select,
-        a,
-        [role="button"],
-        [role="tab"]
-    ) {
+    .app-titlebar
+        :where(
+            button,
+            input,
+            textarea,
+            select,
+            a,
+            [role="button"],
+            [role="tab"]
+        ) {
         -webkit-app-region: no-drag;
     }
 }
@@ -191,23 +192,28 @@
         background-color: var(--heroui-background);
         border: 1px solid
             color-mix(in srgb, var(--heroui-default) 20%, transparent 80%);
-        background-image:
-            radial-gradient(
+        background-image: radial-gradient(
                 circle at 18% 25%,
                 color-mix(in srgb, var(--heroui-content1) 25%, transparent 75%),
                 transparent 50%
             ),
             radial-gradient(
                 circle at 80% 10%,
-                color-mix(in srgb, var(--heroui-foreground) 15%, transparent 85%),
+                color-mix(
+                    in srgb,
+                    var(--heroui-foreground) 15%,
+                    transparent 85%
+                ),
                 transparent 60%
             ),
             repeating-linear-gradient(
                 135deg,
                 transparent 0,
                 transparent 8px,
-                color-mix(in srgb, var(--heroui-foreground) 6%, transparent 94%) 8px,
-                color-mix(in srgb, var(--heroui-foreground) 6%, transparent 94%) 9px
+                color-mix(in srgb, var(--heroui-foreground) 6%, transparent 94%)
+                    8px,
+                color-mix(in srgb, var(--heroui-foreground) 6%, transparent 94%)
+                    9px
             );
         background-blend-mode: screen;
     }
@@ -222,7 +228,8 @@
 
     .inspector-shell {
         border-radius: 20px;
-        border: 1px solid color-mix(in srgb, var(--heroui-default), transparent 60%);
+        border: 1px solid
+            color-mix(in srgb, var(--heroui-default), transparent 60%);
         background-color: color-mix(
             in srgb,
             var(--heroui-content1) 90%,
@@ -232,6 +239,35 @@
         box-shadow: 0 35px 60px rgba(0, 0, 0, 0.45);
         transition: border-color 0.2s ease, box-shadow 0.2s ease;
         background-clip: padding-box;
+    }
+}
+
+@layer components {
+    .torrent-table-watermark {
+        background-image: url("/tinyTorrent.svg");
+        background-repeat: no-repeat;
+
+        /* 25% of container height */
+        background-size: auto 70%;
+
+        /* right edge, and 5% up from the bottom */
+        background-position: right 5% bottom 15%;
+
+        transition: opacity 1.25s ease;
+    }
+
+    @media (max-width: 960px) {
+        .torrent-table-watermark {
+            background-size: 48vw;
+            background-position: center 88%;
+        }
+    }
+
+    @media (max-width: 600px) {
+        .torrent-table-watermark {
+            background-size: 62vw;
+            background-position: center 92%;
+        }
     }
 }
 

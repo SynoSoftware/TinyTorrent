@@ -75,6 +75,7 @@ interface ModeLayoutProps {
     inspectorTabCommand?: DetailTab | null;
     onInspectorTabCommandHandled?: () => void;
     isDropActive?: boolean;
+    tableWatermarkEnabled?: boolean;
 }
 
 export function ModeLayout({
@@ -103,6 +104,7 @@ export function ModeLayout({
     onSelectionChange,
     isDropActive = false,
     detailSplitDirection = "vertical",
+    tableWatermarkEnabled = true,
 }: ModeLayoutProps) {
     const { t } = useTranslation();
     const { activePart, setActivePart } = useFocusState();
@@ -246,6 +248,13 @@ export function ModeLayout({
         </AnimatePresence>
     );
 
+    const watermarkLayer = tableWatermarkEnabled ? (
+        <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 z-0 torrent-table-watermark"
+        />
+    ) : null;
+
     const panelGroupClass = cn(
         "flex-1 min-h-0 h-full w-full",
         "relative flex flex-col overflow-hidden"
@@ -276,21 +285,24 @@ export function ModeLayout({
             >
                 <Panel className="relative flex-1 min-h-0">
                     <div className={tableRegionClass} onPointerDown={focusTable}>
-                        <TorrentTable
-                            torrents={torrents}
-                            filter={filter}
-                            searchQuery={searchQuery}
-                            isLoading={isTableLoading}
-                            onAction={onAction}
-                            onRequestDetails={handleDetailRequest}
-                            onRequestDetailsFullscreen={
-                                handleDetailFullscreenRequest
-                            }
-                            onSelectionChange={onSelectionChange}
-                            optimisticStatuses={optimisticStatuses}
-                            ghostTorrents={ghostTorrents}
-                            onOpenFolder={onOpenFolder}
-                        />
+                        {watermarkLayer}
+                        <div className="relative z-10 h-full min-h-0">
+                            <TorrentTable
+                                torrents={torrents}
+                                filter={filter}
+                                searchQuery={searchQuery}
+                                isLoading={isTableLoading}
+                                onAction={onAction}
+                                onRequestDetails={handleDetailRequest}
+                                onRequestDetailsFullscreen={
+                                    handleDetailFullscreenRequest
+                                }
+                                onSelectionChange={onSelectionChange}
+                                optimisticStatuses={optimisticStatuses}
+                                ghostTorrents={ghostTorrents}
+                                onOpenFolder={onOpenFolder}
+                            />
+                        </div>
                         {dropOverlay}
                     </div>
                 </Panel>

@@ -12,7 +12,7 @@ import {
 const USER_PREFERENCES_KEY = "tiny-torrent.user-preferences";
 type PreferencePayload = Pick<
     SettingsConfig,
-    "refresh_interval_ms" | "request_timeout_ms"
+    "refresh_interval_ms" | "request_timeout_ms" | "table_watermark_enabled"
 >;
 
 const padTime = (value: number) => String(value).padStart(2, "0");
@@ -51,6 +51,7 @@ const persistUserPreferences = (config: SettingsConfig) => {
     const payload: PreferencePayload = {
         refresh_interval_ms: config.refresh_interval_ms,
         request_timeout_ms: config.request_timeout_ms,
+        table_watermark_enabled: config.table_watermark_enabled,
     };
     window.localStorage.setItem(USER_PREFERENCES_KEY, JSON.stringify(payload));
 };

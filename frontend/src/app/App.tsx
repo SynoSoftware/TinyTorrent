@@ -635,6 +635,9 @@ export default function App() {
             handleSaveSettings={settingsFlow.handleSaveSettings}
             handleTestPort={settingsFlow.handleTestPort}
             restoreHudCards={restoreHudCards}
+            tableWatermarkEnabled={
+                settingsFlow.settingsConfig.table_watermark_enabled
+            }
             torrentClient={torrentClient}
             />
             <CommandPalette
