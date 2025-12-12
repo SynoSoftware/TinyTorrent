@@ -37,6 +37,39 @@
 #include <unistd.h>
 #endif
 
+namespace {
+
+std::string replace_endpoint_port(std::string value, std::string const &port) {
+  if (value.empty() || port.empty()) {
+    return value;
+  }
+  auto parts = tt::net::parse_host_port(value);
+  parts.port = port;
+  return tt::net::format_host_port(parts);
+}
+
+std::string replace_url_port(std::string url, std::string const &port) {
+  if (url.empty() || port.empty()) {
+    return url;
+  }
+  auto scheme = url.find("://");
+  auto host_start = (scheme == std::string::npos) ? 0 : scheme + 3;
+  auto host_end = url.find('/', host_start);
+  std::string host_port =
+      host_end == std::string::npos ? url.substr(host_start)
+                                    : url.substr(host_start, host_end - host_start);
+  if (host_port.empty()) {
+    return url;
+  }
+  auto replaced = replace_endpoint_port(host_port, port);
+  if (host_end == std::string::npos) {
+    return url.substr(0, host_start) + replaced;
+  }
+  return url.substr(0, host_start) + replaced + url.substr(host_end);
+}
+
+} // namespace
+
 #if defined(_WIN32)
 bool secure_connection_permissions(std::filesystem::path const &path) {
   if (path.empty()) {
@@ -287,44 +320,6 @@ int main(int argc, char *argv[]) {
   download_path = std::filesystem::path(persisted_download);
   std::filesystem::create_directories(download_path);
   set_db_setting("downloadPath", download_path.string());
-
-  auto replace_endpoint_port = [](std::string value, std::string const &port) {
-    if (value.empty() || port.empty()) {
-      return value;
-    }
-    if (value.front() == '[') {
-      auto closing = value.find(']');
-      if (closing != std::string::npos) {
-        auto colon = value.find(':', closing);
-        if (colon != std::string::npos) {
-          return value.substr(0, colon) + ":" + port;
-        }
-        return value + ":" + port;
-      }
-    }
-    auto colon = value.find_last_of(':');
-    if (colon != std::string::npos) {
-      return value.substr(0, colon) + ":" + port;
-    }
-    return value + ":" + port;
-  };
-
-  auto replace_url_port = [&](std::string url, std::string const &port) {
-    if (url.empty() || port.empty()) {
-      return url;
-    }
-    auto scheme = url.find("://");
-    auto host_start = (scheme == std::string::npos) ? 0 : scheme + 3;
-    auto host_end = url.find('/', host_start);
-    std::string host_port =
-        host_end == std::string::npos ? url.substr(host_start)
-                                      : url.substr(host_start, host_end - host_start);
-    auto replaced = replace_endpoint_port(host_port, port);
-    if (host_end == std::string::npos) {
-      return url.substr(0, host_start) + replaced;
-    }
-    return url.substr(0, host_start) + replaced + url.substr(host_end);
-  };
 
   auto blocklist_dir = root / "blocklists";
   std::filesystem::create_directories(blocklist_dir);
