@@ -1,358 +1,393 @@
 #include "utils/StateStore.hpp"
 
-#include "utils/Base64.hpp"
 #include "utils/Json.hpp"
+#include "utils/Log.hpp"
 #include <yyjson.h>
 
-#include <fstream>
-#include <iterator>
+#include <filesystem>
 #include <system_error>
-#include <string>
 
 namespace tt::storage {
 
-namespace {
-
-std::string_view read_string(yyjson_val *root, char const *key) {
-  auto *value = yyjson_obj_get(root, key);
-  if (value == nullptr || !yyjson_is_str(value)) {
+std::string serialize_label_list(std::vector<std::string> const &labels) {
+  tt::json::MutableDocument doc;
+  if (!doc.is_valid()) {
     return {};
   }
-  return yyjson_get_str(value);
+  auto *native = doc.doc();
+  auto *root = yyjson_mut_arr(native);
+  doc.set_root(root);
+  for (auto const &label : labels) {
+    yyjson_mut_arr_add_str(native, root, label.c_str());
+  }
+  return doc.write("[]");
 }
 
-int read_int(yyjson_val *root, char const *key) {
-  auto *value = yyjson_obj_get(root, key);
-  if (value == nullptr) {
-    return 0;
+std::vector<std::string> deserialize_label_list(std::string const &payload) {
+  std::vector<std::string> result;
+  if (payload.empty()) {
+    return result;
   }
-  if (yyjson_is_sint(value)) {
-    return static_cast<int>(yyjson_get_sint(value));
+  auto doc = tt::json::Document::parse(payload);
+  if (!doc.is_valid()) {
+    return result;
   }
-  if (yyjson_is_uint(value)) {
-    return static_cast<int>(yyjson_get_uint(value));
+  auto *root = doc.root();
+  if (root == nullptr || !yyjson_is_arr(root)) {
+    return result;
   }
-  return 0;
-}
-
-double read_double(yyjson_val *root, char const *key) {
-  auto *value = yyjson_obj_get(root, key);
-  if (value == nullptr) {
-    return 0.0;
-  }
-  if (yyjson_is_real(value)) {
-    return yyjson_get_real(value);
-  }
-  if (yyjson_is_sint(value)) {
-    return static_cast<double>(yyjson_get_sint(value));
-  }
-  if (yyjson_is_uint(value)) {
-    return static_cast<double>(yyjson_get_uint(value));
-  }
-  return 0.0;
-}
-
-bool read_bool(yyjson_val *root, char const *key) {
-  auto *value = yyjson_obj_get(root, key);
-  if (value == nullptr) {
-    return false;
-  }
-  if (yyjson_is_bool(value)) {
-    return yyjson_get_bool(value);
-  }
-  if (yyjson_is_sint(value)) {
-    return yyjson_get_sint(value) != 0;
-  }
-  if (yyjson_is_uint(value)) {
-    return yyjson_get_uint(value) != 0;
-  }
-  return false;
-}
-
-std::uint64_t read_uint64(yyjson_val *root, char const *key) {
-  auto *value = yyjson_obj_get(root, key);
-  if (value == nullptr) {
-    return 0;
-  }
-  if (yyjson_is_uint(value)) {
-    return yyjson_get_uint(value);
-  }
-  if (yyjson_is_sint(value)) {
-    auto signed_value = yyjson_get_sint(value);
-    if (signed_value < 0) {
-      return 0;
+  size_t idx, limit;
+  yyjson_val *entry = nullptr;
+  yyjson_arr_foreach(root, idx, limit, entry) {
+    if (yyjson_is_str(entry)) {
+      result.emplace_back(yyjson_get_str(entry));
     }
-    return static_cast<std::uint64_t>(signed_value);
   }
-  return 0;
+  return result;
+}
+
+namespace {
+
+std::optional<std::vector<std::uint8_t>> copy_column_blob(sqlite3_stmt *stmt,
+                                                           int index) {
+  auto size = sqlite3_column_bytes(stmt, index);
+  if (size <= 0) {
+    return std::vector<std::uint8_t>{};
+  }
+  auto data = sqlite3_column_blob(stmt, index);
+  if (data == nullptr) {
+    return std::vector<std::uint8_t>{};
+  }
+  return std::vector<std::uint8_t>(
+      reinterpret_cast<std::uint8_t const *>(data),
+      reinterpret_cast<std::uint8_t const *>(data) + static_cast<std::size_t>(size));
 }
 
 } // namespace
 
-SessionState load_session_state(std::filesystem::path const &path) {
-  SessionState state;
-  if (path.empty() || !std::filesystem::exists(path)) {
-    return state;
+Database::Database(std::filesystem::path path) {
+  if (path.empty()) {
+    return;
   }
-  std::ifstream input(path, std::ios::binary);
-  if (!input) {
-    return state;
+  auto parent = path.parent_path();
+  if (!parent.empty()) {
+    std::filesystem::create_directories(parent);
   }
-  std::string payload(
-      (std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
-  if (payload.empty()) {
-    return state;
+  int rc = sqlite3_open_v2(path.string().c_str(), &db_,
+                           SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX,
+                           nullptr);
+  if (rc != SQLITE_OK) {
+    TT_LOG_INFO("failed to open sqlite database {}: {}", path.string(),
+                sqlite3_errstr(rc));
+    sqlite3_close(db_);
+    db_ = nullptr;
+    return;
   }
-
-  auto doc = tt::json::Document::parse(payload);
-  if (!doc.is_valid()) {
-    return state;
+  if (!ensure_schema()) {
+    sqlite3_close(db_);
+    db_ = nullptr;
   }
-  auto *root = doc.root();
-  if (root == nullptr || !yyjson_is_obj(root)) {
-    return state;
-  }
-
-  state.listen_interface = std::string(read_string(root, "listenInterface"));
-  state.rpc_bind = std::string(read_string(root, "rpcBind"));
-  state.download_path = std::string(read_string(root, "downloadPath"));
-  state.speed_limit_down_kbps = read_int(root, "speedLimitDown");
-  state.speed_limit_down_enabled = read_bool(root, "speedLimitDownEnabled");
-  state.speed_limit_up_kbps = read_int(root, "speedLimitUp");
-  state.speed_limit_up_enabled = read_bool(root, "speedLimitUpEnabled");
-  state.peer_limit = read_int(root, "peerLimit");
-  state.peer_limit_per_torrent = read_int(root, "peerLimitPerTorrent");
-  state.alt_speed_down_kbps = read_int(root, "altSpeedDown");
-  state.alt_speed_up_kbps = read_int(root, "altSpeedUp");
-  state.alt_speed_enabled = read_bool(root, "altSpeedEnabled");
-  state.alt_speed_time_enabled = read_bool(root, "altSpeedTimeEnabled");
-  state.alt_speed_time_begin = read_int(root, "altSpeedTimeBegin");
-  state.alt_speed_time_end = read_int(root, "altSpeedTimeEnd");
-  state.alt_speed_time_day = read_int(root, "altSpeedTimeDay");
-  state.encryption = read_int(root, "encryption");
-  state.dht_enabled = read_bool(root, "dhtEnabled");
-  state.pex_enabled = read_bool(root, "pexEnabled");
-  state.lpd_enabled = read_bool(root, "lpdEnabled");
-  state.utp_enabled = read_bool(root, "utpEnabled");
-  state.download_queue_size = read_int(root, "downloadQueueSize");
-  state.seed_queue_size = read_int(root, "seedQueueSize");
-  state.queue_stalled_enabled = read_bool(root, "queueStalledEnabled");
-  state.incomplete_dir = std::string(read_string(root, "incompleteDir"));
-  state.incomplete_dir_enabled = read_bool(root, "incompleteDirEnabled");
-  state.watch_dir = std::string(read_string(root, "watchDir"));
-  state.watch_dir_enabled = read_bool(root, "watchDirEnabled");
-  state.seed_ratio_limit = read_double(root, "seedRatioLimit");
-  state.seed_ratio_enabled = read_bool(root, "seedRatioLimited");
-  state.seed_idle_limit = read_int(root, "seedIdleLimit");
-  state.seed_idle_enabled = read_bool(root, "seedIdleLimited");
-  state.proxy_type = read_int(root, "proxyType");
-  state.proxy_hostname = std::string(read_string(root, "proxyHost"));
-  state.proxy_port = read_int(root, "proxyPort");
-  state.proxy_auth_enabled = read_bool(root, "proxyAuthEnabled");
-  state.proxy_username = std::string(read_string(root, "proxyUsername"));
-  state.proxy_password = std::string(read_string(root, "proxyPassword"));
-  state.proxy_peer_connections = read_bool(root, "proxyPeerConnections");
-  state.uploaded_bytes = read_uint64(root, "uploadedBytes");
-  state.downloaded_bytes = read_uint64(root, "downloadedBytes");
-  state.seconds_active = read_uint64(root, "secondsActive");
-  state.session_count = read_uint64(root, "sessionCount");
-
-  auto *labels = yyjson_obj_get(root, "labels");
-  if (labels != nullptr && yyjson_is_obj(labels)) {
-    yyjson_obj_iter iter;
-    yyjson_obj_iter_init(labels, &iter);
-    yyjson_val *key = nullptr;
-    while ((key = yyjson_obj_iter_next(&iter)) != nullptr) {
-      if (!yyjson_is_str(key)) {
-        continue;
-      }
-      auto *value = yyjson_obj_iter_get_val(key);
-      if (value == nullptr || !yyjson_is_arr(value)) {
-        continue;
-      }
-      std::vector<std::string> entry_labels;
-      size_t idx, limit;
-      yyjson_val *label_value = nullptr;
-      yyjson_arr_foreach(value, idx, limit, label_value) {
-        if (yyjson_is_str(label_value)) {
-          entry_labels.emplace_back(yyjson_get_str(label_value));
-        }
-      }
-      state.labels.emplace(yyjson_get_str(key), std::move(entry_labels));
-    }
-  }
-
-  auto *torrents = yyjson_obj_get(root, "torrents");
-  if (torrents != nullptr && yyjson_is_arr(torrents)) {
-    size_t idx, limit;
-    yyjson_val *entry = nullptr;
-    yyjson_arr_foreach(torrents, idx, limit, entry) {
-      if (!yyjson_is_obj(entry)) {
-        continue;
-      }
-      PersistedTorrent torrent;
-      torrent.hash = std::string(read_string(entry, "hash"));
-      if (torrent.hash.empty()) {
-        continue;
-      }
-      torrent.download_path = std::string(read_string(entry, "downloadPath"));
-      torrent.uri = std::string(read_string(entry, "uri"));
-      torrent.metainfo = std::string(read_string(entry, "metainfo"));
-      torrent.paused = read_bool(entry, "paused");
-      state.torrents.push_back(std::move(torrent));
-    }
-  }
-
-  return state;
 }
 
-bool save_session_state(std::filesystem::path const &path,
-                        SessionState const &state) {
-  if (path.empty()) {
+Database::~Database() {
+  if (db_) {
+    sqlite3_close(db_);
+    db_ = nullptr;
+  }
+}
+
+bool Database::ensure_schema() {
+  if (!db_) {
     return false;
   }
-  std::filesystem::create_directories(path.parent_path());
+  constexpr char const *kSettingsSql =
+      "CREATE TABLE IF NOT EXISTS settings ("
+      "key TEXT PRIMARY KEY,"
+      "value TEXT NOT NULL);";
+  constexpr char const *kTorrentsSql =
+      "CREATE TABLE IF NOT EXISTS torrents ("
+      "info_hash TEXT PRIMARY KEY,"
+      "magnet_uri TEXT,"
+      "save_path TEXT,"
+      "resume_data BLOB,"
+      "metainfo BLOB,"
+      "paused INTEGER,"
+      "labels TEXT,"
+      "added_at INTEGER,"
+      "rpc_id INTEGER,"
+      "metadata_path TEXT);";
+  return execute(kSettingsSql) && execute(kTorrentsSql);
+}
 
-  tt::json::MutableDocument doc;
-  if (!doc.is_valid()) {
+bool Database::execute(std::string const &sql) const {
+  if (!db_) {
     return false;
   }
-  auto *native = doc.doc();
-  auto *root = yyjson_mut_obj(native);
-  doc.set_root(root);
-
-  yyjson_mut_obj_add_str(native, root, "listenInterface",
-                         state.listen_interface.c_str());
-  yyjson_mut_obj_add_str(native, root, "rpcBind", state.rpc_bind.c_str());
-  yyjson_mut_obj_add_str(native, root, "downloadPath",
-                         state.download_path.c_str());
-  yyjson_mut_obj_add_sint(native, root, "speedLimitDown",
-                          state.speed_limit_down_kbps);
-  yyjson_mut_obj_add_bool(native, root, "speedLimitDownEnabled",
-                         state.speed_limit_down_enabled);
-  yyjson_mut_obj_add_sint(native, root, "speedLimitUp",
-                          state.speed_limit_up_kbps);
-  yyjson_mut_obj_add_bool(native, root, "speedLimitUpEnabled",
-                         state.speed_limit_up_enabled);
-  yyjson_mut_obj_add_sint(native, root, "peerLimit", state.peer_limit);
-  yyjson_mut_obj_add_sint(native, root, "peerLimitPerTorrent",
-                          state.peer_limit_per_torrent);
-  yyjson_mut_obj_add_sint(native, root, "altSpeedDown",
-                          state.alt_speed_down_kbps);
-  yyjson_mut_obj_add_sint(native, root, "altSpeedUp", state.alt_speed_up_kbps);
-  yyjson_mut_obj_add_bool(native, root, "altSpeedEnabled",
-                         state.alt_speed_enabled);
-  yyjson_mut_obj_add_bool(native, root, "altSpeedTimeEnabled",
-                         state.alt_speed_time_enabled);
-  yyjson_mut_obj_add_sint(native, root, "altSpeedTimeBegin",
-                          state.alt_speed_time_begin);
-  yyjson_mut_obj_add_sint(native, root, "altSpeedTimeEnd",
-                          state.alt_speed_time_end);
-  yyjson_mut_obj_add_sint(native, root, "altSpeedTimeDay",
-                          state.alt_speed_time_day);
-  yyjson_mut_obj_add_sint(native, root, "encryption", state.encryption);
-  yyjson_mut_obj_add_bool(native, root, "dhtEnabled", state.dht_enabled);
-  yyjson_mut_obj_add_bool(native, root, "pexEnabled", state.pex_enabled);
-  yyjson_mut_obj_add_bool(native, root, "lpdEnabled", state.lpd_enabled);
-  yyjson_mut_obj_add_bool(native, root, "utpEnabled", state.utp_enabled);
-  yyjson_mut_obj_add_sint(native, root, "downloadQueueSize",
-                          state.download_queue_size);
-  yyjson_mut_obj_add_sint(native, root, "seedQueueSize",
-                          state.seed_queue_size);
-  yyjson_mut_obj_add_bool(native, root, "queueStalledEnabled",
-                         state.queue_stalled_enabled);
-  if (!state.incomplete_dir.empty()) {
-    yyjson_mut_obj_add_str(native, root, "incompleteDir",
-                           state.incomplete_dir.c_str());
-  }
-  yyjson_mut_obj_add_bool(native, root, "incompleteDirEnabled",
-                         state.incomplete_dir_enabled);
-  if (!state.watch_dir.empty()) {
-    yyjson_mut_obj_add_str(native, root, "watchDir", state.watch_dir.c_str());
-  }
-  yyjson_mut_obj_add_bool(native, root, "watchDirEnabled",
-                         state.watch_dir_enabled);
-  yyjson_mut_obj_add_real(native, root, "seedRatioLimit",
-                          state.seed_ratio_limit);
-  yyjson_mut_obj_add_bool(native, root, "seedRatioLimited",
-                         state.seed_ratio_enabled);
-  yyjson_mut_obj_add_sint(native, root, "seedIdleLimit",
-                          state.seed_idle_limit);
-  yyjson_mut_obj_add_bool(native, root, "seedIdleLimited",
-                         state.seed_idle_enabled);
-  yyjson_mut_obj_add_sint(native, root, "proxyType", state.proxy_type);
-  if (!state.proxy_hostname.empty()) {
-    yyjson_mut_obj_add_str(native, root, "proxyHost",
-                           state.proxy_hostname.c_str());
-  }
-  yyjson_mut_obj_add_sint(native, root, "proxyPort", state.proxy_port);
-  yyjson_mut_obj_add_bool(native, root, "proxyAuthEnabled",
-                         state.proxy_auth_enabled);
-  if (!state.proxy_username.empty()) {
-    yyjson_mut_obj_add_str(native, root, "proxyUsername",
-                           state.proxy_username.c_str());
-  }
-  if (!state.proxy_password.empty()) {
-    yyjson_mut_obj_add_str(native, root, "proxyPassword",
-                           state.proxy_password.c_str());
-  }
-  yyjson_mut_obj_add_bool(native, root, "proxyPeerConnections",
-                         state.proxy_peer_connections);
-  yyjson_mut_obj_add_uint(native, root, "uploadedBytes",
-                          state.uploaded_bytes);
-  yyjson_mut_obj_add_uint(native, root, "downloadedBytes",
-                          state.downloaded_bytes);
-  yyjson_mut_obj_add_uint(native, root, "secondsActive",
-                          state.seconds_active);
-  yyjson_mut_obj_add_uint(native, root, "sessionCount",
-                          state.session_count);
-  auto *labels_obj = yyjson_mut_obj(native);
-  yyjson_mut_obj_add_val(native, root, "labels", labels_obj);
-  for (auto const &entry : state.labels) {
-    auto *array = yyjson_mut_arr(native);
-    yyjson_mut_obj_add_val(native, labels_obj, entry.first.c_str(), array);
-    for (auto const &label : entry.second) {
-      yyjson_mut_arr_add_str(native, array, label.c_str());
+  char *err_msg = nullptr;
+  int rc = sqlite3_exec(db_, sql.c_str(), nullptr, nullptr, &err_msg);
+  if (rc != SQLITE_OK) {
+    if (err_msg != nullptr) {
+      TT_LOG_INFO("sqlite error: {}", err_msg);
+      sqlite3_free(err_msg);
     }
-  }
-
-  auto *torrents = yyjson_mut_arr(native);
-  yyjson_mut_obj_add_val(native, root, "torrents", torrents);
-  for (auto const &torrent : state.torrents) {
-    auto *entry = yyjson_mut_obj(native);
-    yyjson_mut_obj_add_str(native, entry, "hash", torrent.hash.c_str());
-    if (!torrent.download_path.empty()) {
-      yyjson_mut_obj_add_str(native, entry, "downloadPath",
-                             torrent.download_path.c_str());
-    }
-    if (!torrent.uri.empty()) {
-      yyjson_mut_obj_add_str(native, entry, "uri", torrent.uri.c_str());
-    }
-    if (!torrent.metainfo.empty()) {
-      yyjson_mut_obj_add_str(native, entry, "metainfo", torrent.metainfo.c_str());
-    }
-    yyjson_mut_obj_add_bool(native, entry, "paused", torrent.paused);
-    yyjson_mut_arr_add_val(torrents, entry);
-  }
-
-  auto payload = doc.write(R"({"result":"error"})");
-  auto tmp_path = path;
-  tmp_path.replace_extension(".json.tmp");
-  std::ofstream output(tmp_path, std::ios::binary);
-  if (!output) {
-    return false;
-  }
-  output << payload;
-  output.flush();
-  output.close();
-
-  std::error_code ec;
-  std::filesystem::rename(tmp_path, path, ec);
-  if (ec) {
-    std::filesystem::remove(tmp_path, ec);
     return false;
   }
   return true;
+}
+
+std::optional<std::string> Database::get_setting(std::string const &key) const {
+  if (!db_) {
+    return std::nullopt;
+  }
+  constexpr char const *sql =
+      "SELECT value FROM settings WHERE key = ? LIMIT 1;";
+  sqlite3_stmt *stmt = nullptr;
+  int rc =
+      sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
+  if (rc != SQLITE_OK) {
+    TT_LOG_INFO("sqlite prepare failed: {}", sqlite3_errmsg(db_));
+    return std::nullopt;
+  }
+  sqlite3_bind_text(stmt, 1, key.c_str(), -1, SQLITE_TRANSIENT);
+  std::optional<std::string> value;
+  if (sqlite3_step(stmt) == SQLITE_ROW) {
+    auto text = reinterpret_cast<char const *>(sqlite3_column_text(stmt, 0));
+    if (text != nullptr) {
+      value = std::string(text);
+    }
+  }
+  sqlite3_finalize(stmt);
+  return value;
+}
+
+bool Database::set_setting(std::string const &key, std::string const &value) {
+  if (!db_) {
+    return false;
+  }
+  constexpr char const *sql =
+      "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?);";
+  sqlite3_stmt *stmt = nullptr;
+  int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
+  if (rc != SQLITE_OK) {
+    TT_LOG_INFO("sqlite prepare failed: {}", sqlite3_errmsg(db_));
+    return false;
+  }
+  sqlite3_bind_text(stmt, 1, key.c_str(), -1, SQLITE_TRANSIENT);
+  sqlite3_bind_text(stmt, 2, value.c_str(), -1, SQLITE_TRANSIENT);
+  rc = sqlite3_step(stmt);
+  sqlite3_finalize(stmt);
+  return rc == SQLITE_DONE;
+}
+
+bool Database::remove_setting(std::string const &key) {
+  if (!db_) {
+    return false;
+  }
+  constexpr char const *sql = "DELETE FROM settings WHERE key = ?;";
+  sqlite3_stmt *stmt = nullptr;
+  int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
+  if (rc != SQLITE_OK) {
+    TT_LOG_INFO("sqlite prepare failed: {}", sqlite3_errmsg(db_));
+    return false;
+  }
+  sqlite3_bind_text(stmt, 1, key.c_str(), -1, SQLITE_TRANSIENT);
+  rc = sqlite3_step(stmt);
+  sqlite3_finalize(stmt);
+  return rc == SQLITE_DONE;
+}
+
+std::vector<PersistedTorrent> Database::load_torrents() const {
+  std::vector<PersistedTorrent> result;
+  if (!db_) {
+    return result;
+  }
+  constexpr char const *sql =
+      "SELECT info_hash, magnet_uri, save_path, resume_data, metainfo, paused,"
+      "labels, added_at, rpc_id, metadata_path FROM torrents;";
+  sqlite3_stmt *stmt = nullptr;
+  int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
+  if (rc != SQLITE_OK) {
+    TT_LOG_INFO("sqlite prepare failed: {}", sqlite3_errmsg(db_));
+    return result;
+  }
+  while (sqlite3_step(stmt) == SQLITE_ROW) {
+    PersistedTorrent entry;
+    auto *hash = reinterpret_cast<char const *>(sqlite3_column_text(stmt, 0));
+    if (hash != nullptr) {
+      entry.hash = hash;
+    }
+    if (auto *uri = reinterpret_cast<char const *>(sqlite3_column_text(stmt, 1));
+        uri != nullptr) {
+      entry.magnet_uri = std::string(uri);
+    }
+    if (auto *path = reinterpret_cast<char const *>(sqlite3_column_text(stmt, 2));
+        path != nullptr) {
+      entry.save_path = std::string(path);
+    }
+    if (auto blob = copy_column_blob(stmt, 3)) {
+      entry.resume_data = std::move(*blob);
+    }
+    if (auto blob = copy_column_blob(stmt, 4)) {
+      entry.metainfo = std::move(*blob);
+    }
+    entry.paused = sqlite3_column_int(stmt, 5) != 0;
+    if (auto *labels = reinterpret_cast<char const *>(sqlite3_column_text(stmt, 6));
+        labels != nullptr) {
+      entry.labels = std::string(labels);
+    }
+    entry.added_at = static_cast<std::uint64_t>(sqlite3_column_int64(stmt, 7));
+    entry.rpc_id = static_cast<int>(sqlite3_column_int(stmt, 8));
+    if (auto *metadata =
+            reinterpret_cast<char const *>(sqlite3_column_text(stmt, 9));
+        metadata != nullptr) {
+      entry.metadata_path = std::string(metadata);
+    }
+    if (!entry.hash.empty()) {
+      result.push_back(std::move(entry));
+    }
+  }
+  sqlite3_finalize(stmt);
+  return result;
+}
+
+bool Database::upsert_torrent(PersistedTorrent const &torrent) {
+  if (!db_) {
+    return false;
+  }
+  constexpr char const *sql =
+      "INSERT OR REPLACE INTO torrents "
+      "(info_hash, magnet_uri, save_path, resume_data, metainfo, paused, labels,"
+      "added_at, rpc_id, metadata_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);";
+  sqlite3_stmt *stmt = nullptr;
+  int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
+  if (rc != SQLITE_OK) {
+    TT_LOG_INFO("sqlite prepare failed: {}", sqlite3_errmsg(db_));
+    return false;
+  }
+  sqlite3_bind_text(stmt, 1, torrent.hash.c_str(), -1, SQLITE_TRANSIENT);
+  if (torrent.magnet_uri) {
+    sqlite3_bind_text(stmt, 2, torrent.magnet_uri->c_str(), -1, SQLITE_TRANSIENT);
+  } else {
+    sqlite3_bind_null(stmt, 2);
+  }
+  if (torrent.save_path) {
+    sqlite3_bind_text(stmt, 3, torrent.save_path->c_str(), -1, SQLITE_TRANSIENT);
+  } else {
+    sqlite3_bind_null(stmt, 3);
+  }
+  if (!torrent.resume_data.empty()) {
+    sqlite3_bind_blob(stmt, 4, torrent.resume_data.data(),
+                      static_cast<int>(torrent.resume_data.size()), SQLITE_TRANSIENT);
+  } else {
+    sqlite3_bind_null(stmt, 4);
+  }
+  if (!torrent.metainfo.empty()) {
+    sqlite3_bind_blob(stmt, 5, torrent.metainfo.data(),
+                      static_cast<int>(torrent.metainfo.size()), SQLITE_TRANSIENT);
+  } else {
+    sqlite3_bind_null(stmt, 5);
+  }
+  sqlite3_bind_int(stmt, 6, torrent.paused ? 1 : 0);
+  if (!torrent.labels.empty()) {
+    sqlite3_bind_text(stmt, 7, torrent.labels.c_str(), -1, SQLITE_TRANSIENT);
+  } else {
+    sqlite3_bind_null(stmt, 7);
+  }
+  sqlite3_bind_int64(stmt, 8, static_cast<sqlite3_int64>(torrent.added_at));
+  sqlite3_bind_int(stmt, 9, torrent.rpc_id);
+  if (!torrent.metadata_path.empty()) {
+    sqlite3_bind_text(stmt, 10, torrent.metadata_path.c_str(), -1,
+                      SQLITE_TRANSIENT);
+  } else {
+    sqlite3_bind_null(stmt, 10);
+  }
+  rc = sqlite3_step(stmt);
+  sqlite3_finalize(stmt);
+  return rc == SQLITE_DONE;
+}
+
+bool Database::delete_torrent(std::string const &hash) {
+  if (!db_) {
+    return false;
+  }
+  constexpr char const *sql = "DELETE FROM torrents WHERE info_hash = ?;";
+  sqlite3_stmt *stmt = nullptr;
+  int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
+  if (rc != SQLITE_OK) {
+    TT_LOG_INFO("sqlite prepare failed: {}", sqlite3_errmsg(db_));
+    return false;
+  }
+  sqlite3_bind_text(stmt, 1, hash.c_str(), -1, SQLITE_TRANSIENT);
+  rc = sqlite3_step(stmt);
+  sqlite3_finalize(stmt);
+  return rc == SQLITE_DONE;
+}
+
+bool Database::update_labels(std::string const &hash,
+                             std::string const &labels_json) {
+  if (!db_) {
+    return false;
+  }
+  constexpr char const *sql =
+      "UPDATE torrents SET labels = ? WHERE info_hash = ?;";
+  sqlite3_stmt *stmt = nullptr;
+  int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
+  if (rc != SQLITE_OK) {
+    TT_LOG_INFO("sqlite prepare failed: {}", sqlite3_errmsg(db_));
+    return false;
+  }
+  sqlite3_bind_text(stmt, 1, labels_json.c_str(), -1, SQLITE_TRANSIENT);
+  sqlite3_bind_text(stmt, 2, hash.c_str(), -1, SQLITE_TRANSIENT);
+  rc = sqlite3_step(stmt);
+  sqlite3_finalize(stmt);
+  return rc == SQLITE_DONE;
+}
+
+bool Database::update_resume_data(std::string const &hash,
+                                  std::vector<std::uint8_t> const &data) {
+  if (!db_) {
+    return false;
+  }
+  constexpr char const *sql =
+      "UPDATE torrents SET resume_data = ? WHERE info_hash = ?;";
+  sqlite3_stmt *stmt = nullptr;
+  int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
+  if (rc != SQLITE_OK) {
+    TT_LOG_INFO("sqlite prepare failed: {}", sqlite3_errmsg(db_));
+    return false;
+  }
+  if (!data.empty()) {
+    sqlite3_bind_blob(stmt, 1, data.data(), static_cast<int>(data.size()),
+                      SQLITE_TRANSIENT);
+  } else {
+    sqlite3_bind_null(stmt, 1);
+  }
+  sqlite3_bind_text(stmt, 2, hash.c_str(), -1, SQLITE_TRANSIENT);
+  rc = sqlite3_step(stmt);
+  sqlite3_finalize(stmt);
+  return rc == SQLITE_DONE;
+}
+
+std::optional<std::vector<std::uint8_t>> Database::resume_data(
+    std::string const &hash) const {
+  if (!db_) {
+    return std::nullopt;
+  }
+  constexpr char const *sql =
+      "SELECT resume_data FROM torrents WHERE info_hash = ? LIMIT 1;";
+  sqlite3_stmt *stmt = nullptr;
+  int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
+  if (rc != SQLITE_OK) {
+    TT_LOG_INFO("sqlite prepare failed: {}", sqlite3_errmsg(db_));
+    return std::nullopt;
+  }
+  sqlite3_bind_text(stmt, 1, hash.c_str(), -1, SQLITE_TRANSIENT);
+  std::optional<std::vector<std::uint8_t>> result;
+  if (sqlite3_step(stmt) == SQLITE_ROW) {
+    result = copy_column_blob(stmt, 0);
+  }
+  sqlite3_finalize(stmt);
+  return result;
 }
 
 } // namespace tt::storage

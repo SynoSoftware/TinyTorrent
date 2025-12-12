@@ -24,7 +24,9 @@
 #include <cctype>
 #include <cstddef>
 #include <cstdint>
+#include <exception>
 #include <filesystem>
+#include <future>
 #include <limits>
 #include <system_error>
 #include <utility>
@@ -191,6 +193,29 @@ bool bool_value(yyjson_val *value, bool default_value = false) {
     }
   }
   return default_value;
+}
+
+std::future<std::string> ready_future(std::string value) {
+  std::promise<std::string> promise;
+  auto future = promise.get_future();
+  promise.set_value(std::move(value));
+  return future;
+}
+
+template <typename Handler>
+DispatchHandler wrap_sync_handler(Handler handler) {
+  return DispatchHandler(
+      [handler = std::move(handler)](yyjson_val *arguments) mutable {
+        try {
+          return ready_future(handler(arguments));
+        } catch (std::exception const &ex) {
+          TT_LOG_INFO("RPC handler threw: {}", ex.what());
+          return ready_future(serialize_error("internal error"));
+        } catch (...) {
+          TT_LOG_INFO("RPC handler threw unknown exception");
+          return ready_future(serialize_error("internal error"));
+        }
+      });
 }
 
 std::optional<bool> parse_bool_flag(yyjson_val *value) {
@@ -1005,66 +1030,115 @@ std::string handle_blocklist_update(engine::Core *engine) {
   return serialize_blocklist_update(*entries, engine->blocklist_last_update());
 }
 
-std::string handle_fs_browse(yyjson_val *arguments) {
+std::future<std::string> handle_fs_browse_async(yyjson_val *arguments) {
   if (!arguments) {
-    return serialize_error("arguments required for fs-browse");
+    return ready_future(serialize_error("arguments required for fs-browse"));
   }
   auto target = parse_request_path(yyjson_obj_get(arguments, "path"));
   if (target.empty()) {
     target = std::filesystem::current_path();
   }
   auto normalized = target.lexically_normal();
-  if (!tt::rpc::filesystem::path_exists(normalized)) {
-    return serialize_error("path does not exist");
-  }
-  if (!tt::rpc::filesystem::is_directory(normalized)) {
-    return serialize_error("path is not a directory");
-  }
-  auto entries = tt::rpc::filesystem::collect_directory_entries(normalized);
-  auto parent = normalized.parent_path();
-  return serialize_fs_browse(path_to_string(normalized), path_to_string(parent),
-                             std::string(1, std::filesystem::path::preferred_separator),
-                             entries);
+  auto separator = std::string(1, std::filesystem::path::preferred_separator);
+  return std::async(std::launch::async,
+                    [normalized = std::move(normalized),
+                     separator = std::move(separator)]() mutable {
+                      try {
+                        if (!tt::rpc::filesystem::path_exists(normalized)) {
+                          return serialize_error("path does not exist");
+                        }
+                        if (!tt::rpc::filesystem::is_directory(normalized)) {
+                          return serialize_error("path is not a directory");
+                        }
+                        auto entries =
+                            tt::rpc::filesystem::collect_directory_entries(normalized);
+                        auto parent = normalized.parent_path();
+                        return serialize_fs_browse(path_to_string(normalized),
+                                                   path_to_string(parent), separator,
+                                                   entries);
+                      } catch (std::filesystem::filesystem_error const &ex) {
+                        TT_LOG_INFO("fs-browse failed: {}", ex.what());
+                        return serialize_error(ex.what());
+                      } catch (...) {
+                        return serialize_error("fs-browse failed");
+                      }
+                    });
 }
 
-std::string handle_fs_space(yyjson_val *arguments) {
+std::future<std::string> handle_fs_space_async(yyjson_val *arguments) {
   auto target =
       arguments ? parse_request_path(yyjson_obj_get(arguments, "path"))
                 : std::filesystem::path{};
   if (target.empty()) {
     target = std::filesystem::current_path();
   }
-  auto info = tt::rpc::filesystem::query_space(target);
-  if (!info) {
-    return serialize_error("unable to query space");
-  }
-  return serialize_fs_space(path_to_string(target), info->available, info->capacity);
+  return std::async(std::launch::async, [target = std::move(target)]() {
+    try {
+      auto info = tt::rpc::filesystem::query_space(target);
+      if (!info) {
+        return serialize_error("unable to query space");
+      }
+      return serialize_fs_space(path_to_string(target), info->available,
+                                info->capacity);
+    } catch (std::filesystem::filesystem_error const &ex) {
+      TT_LOG_INFO("fs-space failed: {}", ex.what());
+      return serialize_error(ex.what());
+    } catch (...) {
+      return serialize_error("fs-space failed");
+    }
+  });
 }
 
-std::string handle_system_reveal(yyjson_val *arguments) {
+std::future<std::string> handle_system_reveal_async(yyjson_val *arguments) {
   if (!arguments) {
-    return serialize_error("arguments required for system-reveal");
+    return ready_future(serialize_error("arguments required for system-reveal"));
   }
   auto target = parse_request_path(yyjson_obj_get(arguments, "path"));
   if (target.empty()) {
-    return serialize_error("path required");
+    return ready_future(serialize_error("path required"));
   }
-  bool success = reveal_in_file_manager(target);
-  return serialize_system_action("system-reveal", success,
-                                 success ? "" : "unable to reveal path");
+  return std::async(std::launch::async, [target = std::move(target)]() mutable {
+    bool success = reveal_in_file_manager(target);
+    return serialize_system_action("system-reveal", success,
+                                   success ? "" : "unable to reveal path");
+  });
 }
 
-std::string handle_system_open(yyjson_val *arguments) {
+std::future<std::string> handle_system_open_async(yyjson_val *arguments) {
   if (!arguments) {
-    return serialize_error("arguments required for system-open");
+    return ready_future(serialize_error("arguments required for system-open"));
   }
   auto target = parse_request_path(yyjson_obj_get(arguments, "path"));
   if (target.empty()) {
-    return serialize_error("path required");
+    return ready_future(serialize_error("path required"));
   }
-  bool success = open_with_default_app(target);
-  return serialize_system_action("system-open", success,
-                                 success ? "" : "unable to open path");
+  return std::async(std::launch::async, [target = std::move(target)]() mutable {
+    bool success = open_with_default_app(target);
+    return serialize_system_action("system-open", success,
+                                   success ? "" : "unable to open path");
+  });
+}
+
+std::future<std::string> handle_free_space_async(yyjson_val *arguments) {
+  if (!arguments) {
+    return ready_future(serialize_error("arguments missing for free-space"));
+  }
+  yyjson_val *path_value = yyjson_obj_get(arguments, "path");
+  if (path_value == nullptr || !yyjson_is_str(path_value)) {
+    return ready_future(serialize_error("path argument required"));
+  }
+  std::filesystem::path path(yyjson_get_str(path_value));
+  return std::async(std::launch::async, [path = std::move(path)]() {
+    try {
+      auto info = std::filesystem::space(path);
+      return serialize_free_space(path.string(), info.available, info.capacity);
+    } catch (std::filesystem::filesystem_error const &ex) {
+      TT_LOG_INFO("free-space failed for {}: {}", path.string(), ex.what());
+      return serialize_error(ex.what());
+    } catch (...) {
+      return serialize_error("free-space failed");
+    }
+  });
 }
 
 std::string handle_system_register_handler() {
@@ -1366,76 +1440,122 @@ Dispatcher::Dispatcher(engine::Core *engine, std::string rpc_bind)
 }
 
 void Dispatcher::register_handlers() {
-  auto add = [this](std::string method, DispatchHandler handler) {
+  auto add_sync = [this](std::string method, auto handler) {
+    handlers_.emplace(std::move(method),
+                      wrap_sync_handler(std::move(handler)));
+  };
+  auto add_async = [this](std::string method, DispatchHandler handler) {
     handlers_.emplace(std::move(method), std::move(handler));
   };
 
-  add("tt-get-capabilities", [](yyjson_val *) { return handle_tt_get_capabilities(); });
-  add("session-get", [this](yyjson_val *) { return handle_session_get(engine_, rpc_bind_); });
-  add("session-set", [this](yyjson_val *arguments) { return handle_session_set(engine_, arguments); });
-  add("session-test", [this](yyjson_val *) { return handle_session_test(engine_); });
-  add("session-stats", [this](yyjson_val *) { return handle_session_stats(engine_); });
-  add("session-close", [this](yyjson_val *) { return handle_session_close(engine_); });
-  add("blocklist-update", [this](yyjson_val *) { return handle_blocklist_update(engine_); });
-  add("fs-browse", [](yyjson_val *arguments) { return handle_fs_browse(arguments); });
-  add("fs-space", [](yyjson_val *arguments) { return handle_fs_space(arguments); });
-  add("system-reveal", [](yyjson_val *arguments) { return handle_system_reveal(arguments); });
-  add("system-open", [](yyjson_val *arguments) { return handle_system_open(arguments); });
-  add("system-register-handler", [](yyjson_val *) { return handle_system_register_handler(); });
-  add("app-shutdown", [this](yyjson_val *) { return handle_app_shutdown(engine_); });
-  add("free-space", [](yyjson_val *arguments) { return handle_free_space(arguments); });
-  add("torrent-get", [this](yyjson_val *arguments) { return handle_torrent_get(engine_, arguments); });
-  add("torrent-add", [this](yyjson_val *arguments) { return handle_torrent_add(engine_, arguments); });
-  add("torrent-start", [this](yyjson_val *arguments) { return handle_torrent_start(engine_, arguments, false); });
-  add("torrent-start-now", [this](yyjson_val *arguments) { return handle_torrent_start(engine_, arguments, true); });
-  add("torrent-stop", [this](yyjson_val *arguments) { return handle_torrent_stop(engine_, arguments); });
-  add("torrent-verify", [this](yyjson_val *arguments) { return handle_torrent_verify(engine_, arguments); });
-  add("torrent-remove", [this](yyjson_val *arguments) { return handle_torrent_remove(engine_, arguments); });
-  add("torrent-reannounce", [this](yyjson_val *arguments) { return handle_torrent_reannounce(engine_, arguments); });
-  add("queue-move-top", [this](yyjson_val *arguments) { return handle_queue_move(engine_, arguments, QueueMoveAction::Top); });
-  add("queue-move-bottom", [this](yyjson_val *arguments) { return handle_queue_move(engine_, arguments, QueueMoveAction::Bottom); });
-  add("queue-move-up", [this](yyjson_val *arguments) { return handle_queue_move(engine_, arguments, QueueMoveAction::Up); });
-  add("queue-move-down", [this](yyjson_val *arguments) { return handle_queue_move(engine_, arguments, QueueMoveAction::Down); });
-  add("torrent-set", [this](yyjson_val *arguments) { return handle_torrent_set(engine_, arguments); });
-  add("torrent-set-location", [this](yyjson_val *arguments) { return handle_torrent_set_location(engine_, arguments); });
-  add("torrent-rename-path", [this](yyjson_val *arguments) { return handle_torrent_rename_path(engine_, arguments); });
-  add("group-set", [](yyjson_val *) { return handle_group_set(); });
+  add_sync("tt-get-capabilities",
+           [](yyjson_val *) { return handle_tt_get_capabilities(); });
+  add_sync("session-get",
+           [this](yyjson_val *) { return handle_session_get(engine_, rpc_bind_); });
+  add_sync("session-set",
+           [this](yyjson_val *arguments) { return handle_session_set(engine_, arguments); });
+  add_sync("session-test",
+           [this](yyjson_val *) { return handle_session_test(engine_); });
+  add_sync("session-stats",
+           [this](yyjson_val *) { return handle_session_stats(engine_); });
+  add_sync("session-close",
+           [this](yyjson_val *) { return handle_session_close(engine_); });
+  add_sync("blocklist-update",
+           [this](yyjson_val *) { return handle_blocklist_update(engine_); });
+  add_async("fs-browse", handle_fs_browse_async);
+  add_async("fs-space", handle_fs_space_async);
+  add_async("system-reveal", handle_system_reveal_async);
+  add_async("system-open", handle_system_open_async);
+  add_sync("system-register-handler",
+           [](yyjson_val *) { return handle_system_register_handler(); });
+  add_sync("app-shutdown",
+           [this](yyjson_val *) { return handle_app_shutdown(engine_); });
+  add_async("free-space", handle_free_space_async);
+  add_sync("torrent-get",
+           [this](yyjson_val *arguments) { return handle_torrent_get(engine_, arguments); });
+  add_sync("torrent-add",
+           [this](yyjson_val *arguments) { return handle_torrent_add(engine_, arguments); });
+  add_sync("torrent-start",
+           [this](yyjson_val *arguments) {
+             return handle_torrent_start(engine_, arguments, false);
+           });
+  add_sync("torrent-start-now",
+           [this](yyjson_val *arguments) {
+             return handle_torrent_start(engine_, arguments, true);
+           });
+  add_sync("torrent-stop",
+           [this](yyjson_val *arguments) { return handle_torrent_stop(engine_, arguments); });
+  add_sync("torrent-verify",
+           [this](yyjson_val *arguments) { return handle_torrent_verify(engine_, arguments); });
+  add_sync("torrent-remove",
+           [this](yyjson_val *arguments) { return handle_torrent_remove(engine_, arguments); });
+  add_sync("torrent-reannounce",
+           [this](yyjson_val *arguments) { return handle_torrent_reannounce(engine_, arguments); });
+  add_sync("queue-move-top",
+           [this](yyjson_val *arguments) {
+             return handle_queue_move(engine_, arguments, QueueMoveAction::Top);
+           });
+  add_sync("queue-move-bottom",
+           [this](yyjson_val *arguments) {
+             return handle_queue_move(engine_, arguments, QueueMoveAction::Bottom);
+           });
+  add_sync("queue-move-up",
+           [this](yyjson_val *arguments) {
+             return handle_queue_move(engine_, arguments, QueueMoveAction::Up);
+           });
+  add_sync("queue-move-down",
+           [this](yyjson_val *arguments) {
+             return handle_queue_move(engine_, arguments, QueueMoveAction::Down);
+           });
+  add_sync("torrent-set",
+           [this](yyjson_val *arguments) { return handle_torrent_set(engine_, arguments); });
+  add_sync("torrent-set-location",
+           [this](yyjson_val *arguments) {
+             return handle_torrent_set_location(engine_, arguments);
+           });
+  add_sync("torrent-rename-path",
+           [this](yyjson_val *arguments) {
+             return handle_torrent_rename_path(engine_, arguments);
+           });
+  add_sync("group-set", [](yyjson_val *) { return handle_group_set(); });
 }
 
-std::string Dispatcher::dispatch(std::string_view payload) {
+std::future<std::string> Dispatcher::dispatch(std::string_view payload) {
   if (payload.empty()) {
-    return serialize_error("empty RPC payload");
+    return ready_future(serialize_error("empty RPC payload"));
   }
 
   auto doc = tt::json::Document::parse(payload);
   if (!doc.is_valid()) {
-    return serialize_error("invalid JSON");
+    return ready_future(serialize_error("invalid JSON"));
   }
 
   yyjson_val *root = doc.root();
   if (root == nullptr || !yyjson_is_obj(root)) {
-    return serialize_error("expected JSON object");
+    return ready_future(serialize_error("expected JSON object"));
   }
 
   yyjson_val *method_value = yyjson_obj_get(root, "method");
   if (method_value == nullptr || !yyjson_is_str(method_value)) {
-    return serialize_error("missing method");
+    return ready_future(serialize_error("missing method"));
   }
 
   std::string method(yyjson_get_str(method_value));
   TT_LOG_DEBUG("Dispatching RPC method={}", method);
 
   yyjson_val *arguments = yyjson_obj_get(root, "arguments");
-  std::string response;
   auto handler_it = handlers_.find(method);
   if (handler_it == handlers_.end()) {
-    response = serialize_error("unsupported method");
-  } else {
-    response = handler_it->second(arguments);
+    return ready_future(serialize_error("unsupported method"));
   }
-
-  TT_LOG_DEBUG("RPC method {} responded with {} bytes", method, response.size());
-  return response;
+  try {
+    return handler_it->second(arguments);
+  } catch (std::exception const &ex) {
+    TT_LOG_INFO("RPC handler failed for method {}: {}", method, ex.what());
+  } catch (...) {
+    TT_LOG_INFO("RPC handler failed for method {}", method);
+  }
+  return ready_future(serialize_error("internal error"));
 }
 
 } // namespace tt::rpc

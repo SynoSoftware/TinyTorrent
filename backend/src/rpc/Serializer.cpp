@@ -8,9 +8,13 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 #include <yyjson.h>
 
+#include <algorithm>
 #include <cstdlib>
+#include "utils/Base64.hpp"
 #include "utils/Json.hpp"
 
 namespace tt::rpc {
@@ -85,6 +89,139 @@ void attach_labels(yyjson_mut_doc *doc, yyjson_mut_val *entry,
   for (auto const &label : torrent.labels) {
     yyjson_mut_arr_add_str(doc, labels, label.c_str());
   }
+}
+
+std::string encode_piece_bitfield(std::vector<int> const &bits) {
+  std::vector<std::uint8_t> payload((bits.size() + 7) / 8);
+  for (std::size_t i = 0; i < bits.size(); ++i) {
+    if (bits[i] == 0) {
+      continue;
+    }
+    payload[i / 8] |= static_cast<std::uint8_t>(1u << (i % 8));
+  }
+  return tt::utils::encode_base64(payload);
+}
+
+std::string encode_piece_availability(std::vector<int> const &availability) {
+  std::vector<std::uint8_t> payload;
+  payload.reserve(availability.size() * 2);
+  for (int count : availability) {
+    auto clamped = static_cast<std::uint16_t>(std::clamp(count, 0, 0xFFFF));
+    payload.push_back(static_cast<std::uint8_t>(clamped & 0xFF));
+    payload.push_back(static_cast<std::uint8_t>((clamped >> 8) & 0xFF));
+  }
+  return tt::utils::encode_base64(payload);
+}
+
+void add_labels_if_changed(yyjson_mut_doc *doc, yyjson_mut_val *entry,
+                           std::vector<std::string> const &previous,
+                           std::vector<std::string> const &current) {
+  if (previous == current) {
+    return;
+  }
+  auto *labels = yyjson_mut_arr(doc);
+  yyjson_mut_obj_add_val(doc, entry, "labels", labels);
+  for (auto const &label : current) {
+    yyjson_mut_arr_add_str(doc, labels, label.c_str());
+  }
+}
+
+inline void add_if_changed_sint(yyjson_mut_doc *doc, yyjson_mut_val *entry,
+                                char const *key, std::int64_t previous,
+                                std::int64_t current) {
+  if (previous == current) {
+    return;
+  }
+  yyjson_mut_obj_add_sint(doc, entry, key, current);
+}
+
+inline void add_if_changed_uint(yyjson_mut_doc *doc, yyjson_mut_val *entry,
+                                char const *key, std::uint64_t previous,
+                                std::uint64_t current) {
+  if (previous == current) {
+    return;
+  }
+  yyjson_mut_obj_add_uint(doc, entry, key, current);
+}
+
+inline void add_if_changed_real(yyjson_mut_doc *doc, yyjson_mut_val *entry,
+                                char const *key, double previous, double current) {
+  if (previous == current) {
+    return;
+  }
+  yyjson_mut_obj_add_real(doc, entry, key, current);
+}
+
+inline void add_if_changed_bool(yyjson_mut_doc *doc, yyjson_mut_val *entry,
+                                char const *key, bool previous, bool current) {
+  if (previous == current) {
+    return;
+  }
+  yyjson_mut_obj_add_bool(doc, entry, key, current);
+}
+
+inline void add_if_changed_str(yyjson_mut_doc *doc, yyjson_mut_val *entry,
+                               char const *key, std::string const &previous,
+                               std::string const &current) {
+  if (previous == current) {
+    return;
+  }
+  yyjson_mut_obj_add_str(doc, entry, key, current.c_str());
+}
+
+void add_torrent_delta(yyjson_mut_doc *doc, yyjson_mut_val *entry,
+                       engine::TorrentSnapshot const &previous,
+                       engine::TorrentSnapshot const &current) {
+  yyjson_mut_obj_add_sint(doc, entry, "id", current.id);
+  add_if_changed_str(doc, entry, "hashString", previous.hash, current.hash);
+  add_if_changed_str(doc, entry, "name", previous.name, current.name);
+  add_if_changed_sint(doc, entry, "totalSize", previous.total_size,
+                      current.total_size);
+  add_if_changed_real(doc, entry, "percentDone", previous.progress,
+                      current.progress);
+  add_if_changed_sint(doc, entry, "status", previous.status, current.status);
+  add_if_changed_uint(doc, entry, "rateDownload", previous.download_rate,
+                      current.download_rate);
+  add_if_changed_uint(doc, entry, "rateUpload", previous.upload_rate,
+                      current.upload_rate);
+  add_if_changed_sint(doc, entry, "peersConnected", previous.peers_connected,
+                      current.peers_connected);
+  add_if_changed_sint(doc, entry, "peersSendingToUs",
+                      previous.peers_sending_to_us, current.peers_sending_to_us);
+  add_if_changed_sint(doc, entry, "peersGettingFromUs",
+                      previous.peers_getting_from_us,
+                      current.peers_getting_from_us);
+  add_if_changed_sint(doc, entry, "eta", previous.eta, current.eta);
+  add_if_changed_sint(doc, entry, "addedDate", previous.added_time,
+                      current.added_time);
+  add_if_changed_sint(doc, entry, "queuePosition", previous.queue_position,
+                      current.queue_position);
+  add_if_changed_real(doc, entry, "uploadRatio", previous.ratio,
+                      current.ratio);
+  add_if_changed_sint(doc, entry, "uploadedEver", previous.uploaded,
+                      current.uploaded);
+  add_if_changed_sint(doc, entry, "downloadedEver", previous.downloaded,
+                      current.downloaded);
+  add_if_changed_str(doc, entry, "downloadDir", previous.download_dir,
+                     current.download_dir);
+  add_if_changed_sint(doc, entry, "leftUntilDone", previous.left_until_done,
+                      current.left_until_done);
+  add_if_changed_sint(doc, entry, "sizeWhenDone", previous.size_when_done,
+                      current.size_when_done);
+  add_if_changed_sint(doc, entry, "error", previous.error, current.error);
+  add_if_changed_str(doc, entry, "errorString", previous.error_string,
+                     current.error_string);
+  add_if_changed_bool(doc, entry, "sequentialDownload",
+                      previous.sequential_download,
+                      current.sequential_download);
+  add_if_changed_bool(doc, entry, "superSeeding", previous.super_seeding,
+                      current.super_seeding);
+  add_if_changed_bool(doc, entry, "isFinished", previous.is_finished,
+                      current.is_finished);
+  add_labels_if_changed(doc, entry, previous.labels, current.labels);
+  add_if_changed_sint(doc, entry, "bandwidthPriority",
+                      previous.bandwidth_priority,
+                      current.bandwidth_priority);
 }
 
 std::string serialize_ws_event_base(
@@ -555,18 +692,12 @@ std::string serialize_torrent_detail(
     yyjson_mut_obj_add_uint(native, entry, "pieceCount", detail.piece_count);
     yyjson_mut_obj_add_uint(native, entry, "pieceSize", detail.piece_size);
 
-    auto *states = yyjson_mut_arr(native);
-    yyjson_mut_obj_add_val(native, entry, "pieceStates", states);
-    for (int value : detail.piece_states) {
-      yyjson_mut_arr_add_uint(native, states, static_cast<std::uint64_t>(value));
-    }
+    auto const state_bits = encode_piece_bitfield(detail.piece_states);
+    yyjson_mut_obj_add_str(native, entry, "pieceStates", state_bits.c_str());
 
-    auto *availability = yyjson_mut_arr(native);
-    yyjson_mut_obj_add_val(native, entry, "pieceAvailability", availability);
-    for (int value : detail.piece_availability) {
-      yyjson_mut_arr_add_uint(native, availability,
-                              static_cast<std::uint64_t>(value));
-    }
+    auto const availability_payload = encode_piece_availability(detail.piece_availability);
+    yyjson_mut_obj_add_str(native, entry, "pieceAvailability",
+                           availability_payload.c_str());
 
     yyjson_mut_arr_add_val(array, entry);
   }
@@ -733,12 +864,9 @@ std::string serialize_ws_patch(engine::SessionSnapshot const &snapshot,
 
   auto *updated_arr = yyjson_mut_arr(native);
   yyjson_mut_obj_add_val(native, torrents, "updated", updated_arr);
-  for (auto const &torrent : updated) {
+  for (auto const &update : updated) {
     auto *entry = yyjson_mut_obj(native);
-    add_torrent_summary(native, entry, torrent);
-    attach_labels(native, entry, torrent);
-    yyjson_mut_obj_add_sint(native, entry, "bandwidthPriority",
-                            torrent.bandwidth_priority);
+    add_torrent_delta(native, entry, update.first, update.second);
     yyjson_mut_arr_add_val(updated_arr, entry);
   }
 

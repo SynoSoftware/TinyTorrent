@@ -1,5 +1,6 @@
 #include "engine/Core.hpp"
 #include "rpc/Server.hpp"
+#include "utils/Endpoint.hpp"
 #include "utils/FS.hpp"
 #include "utils/Log.hpp"
 #include "utils/Shutdown.hpp"
@@ -209,8 +210,83 @@ int main(int argc, char *argv[]) {
   auto root = tt::utils::data_root();
   auto download_path = root / "downloads";
 
-  auto state_path = root / "state.json";
-  auto session_state = tt::storage::load_session_state(state_path);
+  auto state_path = settings.state_path;
+  if (state_path.empty()) {
+    state_path = root / "tinytorrent.db";
+  }
+  settings.state_path = state_path;
+  tt::storage::Database db(state_path);
+
+  auto read_db_string = [&](char const *key) -> std::optional<std::string> {
+    if (!db.is_valid()) {
+      return std::nullopt;
+    }
+    return db.get_setting(key);
+  };
+
+  auto parse_int_value = [](std::optional<std::string> const &value) -> std::optional<int> {
+    if (!value) {
+      return std::nullopt;
+    }
+    try {
+      return std::stoi(*value);
+    } catch (...) {
+      return std::nullopt;
+    }
+  };
+
+  auto parse_double_value =
+      [](std::optional<std::string> const &value) -> std::optional<double> {
+    if (!value) {
+      return std::nullopt;
+    }
+    try {
+      return std::stod(*value);
+    } catch (...) {
+      return std::nullopt;
+    }
+  };
+
+  auto parse_bool_value = [](std::optional<std::string> const &value) -> bool {
+    if (!value) {
+      return false;
+    }
+    auto const &content = *value;
+    if (content == "1" || content == "true" || content == "True") {
+      return true;
+    }
+    return false;
+  };
+
+  auto set_db_setting = [&](char const *key, std::string const &value) {
+    if (db.is_valid()) {
+      db.set_setting(key, value);
+    }
+  };
+
+  std::string listen_interface =
+      read_db_string("listenInterface").value_or("0.0.0.0:6881");
+  if (auto env = read_env("TT_PEER_INTERFACE"); env) {
+    listen_interface = *env;
+  }
+  if (auto env_port = read_env("TT_PEER_PORT"); env_port) {
+    listen_interface = replace_endpoint_port(listen_interface, *env_port);
+  }
+  set_db_setting("listenInterface", listen_interface);
+
+  std::string rpc_bind = read_db_string("rpcBind").value_or("http://127.0.0.1:0");
+  if (auto env = read_env("TT_RPC_BIND"); env) {
+    rpc_bind = *env;
+  } else if (auto env_port = read_env("TT_RPC_PORT"); env_port) {
+    rpc_bind = replace_url_port(rpc_bind, *env_port);
+  }
+  set_db_setting("rpcBind", rpc_bind);
+
+  auto persisted_download =
+      read_db_string("downloadPath").value_or(download_path.string());
+  download_path = std::filesystem::path(persisted_download);
+  std::filesystem::create_directories(download_path);
+  set_db_setting("downloadPath", download_path.string());
 
   auto replace_endpoint_port = [](std::string value, std::string const &port) {
     if (value.empty() || port.empty()) {
@@ -250,36 +326,6 @@ int main(int argc, char *argv[]) {
     return url.substr(0, host_start) + replaced + url.substr(host_end);
   };
 
-  std::string listen_interface =
-      session_state.listen_interface.empty()
-          ? "0.0.0.0:6881"
-          : session_state.listen_interface;
-  if (auto env = read_env("TT_PEER_INTERFACE"); env) {
-    listen_interface = *env;
-  }
-  if (auto env_port = read_env("TT_PEER_PORT"); env_port) {
-    listen_interface = replace_endpoint_port(listen_interface, *env_port);
-  }
-  session_state.listen_interface = listen_interface;
-
-  std::string rpc_bind =
-      session_state.rpc_bind.empty() ? "http://127.0.0.1:0"
-                                     : session_state.rpc_bind;
-  if (auto env = read_env("TT_RPC_BIND"); env) {
-    rpc_bind = *env;
-  } else if (auto env_port = read_env("TT_RPC_PORT"); env_port) {
-    rpc_bind = replace_url_port(rpc_bind, *env_port);
-  }
-  session_state.rpc_bind = rpc_bind;
-
-  auto persisted_download =
-      session_state.download_path.empty() ? download_path.string()
-                                          : session_state.download_path;
-  download_path = std::filesystem::path(persisted_download);
-  session_state.download_path = persisted_download;
-  std::filesystem::create_directories(download_path);
-  tt::storage::save_session_state(state_path, session_state);
-
   auto blocklist_dir = root / "blocklists";
   std::filesystem::create_directories(blocklist_dir);
 
@@ -288,22 +334,34 @@ int main(int argc, char *argv[]) {
 
   tt::engine::CoreSettings settings;
   settings.download_path = download_path;
-  settings.listen_interface = session_state.listen_interface;
+  settings.listen_interface = listen_interface;
   settings.blocklist_path = blocklist_dir / "blocklist.txt";
-  settings.download_rate_limit_kbps = session_state.speed_limit_down_kbps;
-  settings.download_rate_limit_enabled = session_state.speed_limit_down_enabled;
-  settings.upload_rate_limit_kbps = session_state.speed_limit_up_kbps;
-  settings.upload_rate_limit_enabled = session_state.speed_limit_up_enabled;
-  settings.peer_limit = session_state.peer_limit;
-  settings.peer_limit_per_torrent = session_state.peer_limit_per_torrent;
-  settings.alt_download_rate_limit_kbps = session_state.alt_speed_down_kbps;
-  settings.alt_upload_rate_limit_kbps = session_state.alt_speed_up_kbps;
-  settings.alt_speed_enabled = session_state.alt_speed_enabled;
-  settings.alt_speed_time_enabled = session_state.alt_speed_time_enabled;
-  settings.alt_speed_time_begin = session_state.alt_speed_time_begin;
-  settings.alt_speed_time_end = session_state.alt_speed_time_end;
-  settings.alt_speed_time_day = session_state.alt_speed_time_day;
-  switch (session_state.encryption) {
+  settings.download_rate_limit_kbps =
+      parse_int_value(read_db_string("speedLimitDown")).value_or(0);
+  settings.download_rate_limit_enabled =
+      parse_bool_value(read_db_string("speedLimitDownEnabled"));
+  settings.upload_rate_limit_kbps =
+      parse_int_value(read_db_string("speedLimitUp")).value_or(0);
+  settings.upload_rate_limit_enabled =
+      parse_bool_value(read_db_string("speedLimitUpEnabled"));
+  settings.peer_limit = parse_int_value(read_db_string("peerLimit")).value_or(0);
+  settings.peer_limit_per_torrent =
+      parse_int_value(read_db_string("peerLimitPerTorrent")).value_or(0);
+  settings.alt_download_rate_limit_kbps =
+      parse_int_value(read_db_string("altSpeedDown")).value_or(0);
+  settings.alt_upload_rate_limit_kbps =
+      parse_int_value(read_db_string("altSpeedUp")).value_or(0);
+  settings.alt_speed_enabled =
+      parse_bool_value(read_db_string("altSpeedEnabled"));
+  settings.alt_speed_time_enabled =
+      parse_bool_value(read_db_string("altSpeedTimeEnabled"));
+  settings.alt_speed_time_begin =
+      parse_int_value(read_db_string("altSpeedTimeBegin")).value_or(0);
+  settings.alt_speed_time_end =
+      parse_int_value(read_db_string("altSpeedTimeEnd")).value_or(0);
+  settings.alt_speed_time_day =
+      parse_int_value(read_db_string("altSpeedTimeDay")).value_or(0);
+  switch (parse_int_value(read_db_string("encryption")).value_or(0)) {
     case 1:
       settings.encryption = tt::engine::EncryptionMode::Preferred;
       break;
@@ -314,32 +372,51 @@ int main(int argc, char *argv[]) {
       settings.encryption = tt::engine::EncryptionMode::Tolerated;
       break;
   }
-  settings.dht_enabled = session_state.dht_enabled;
-  settings.pex_enabled = session_state.pex_enabled;
-  settings.lpd_enabled = session_state.lpd_enabled;
-  settings.utp_enabled = session_state.utp_enabled;
-  settings.download_queue_size = session_state.download_queue_size;
-  settings.seed_queue_size = session_state.seed_queue_size;
-  settings.queue_stalled_enabled = session_state.queue_stalled_enabled;
-  if (!session_state.incomplete_dir.empty()) {
-    settings.incomplete_dir = std::filesystem::path(session_state.incomplete_dir);
+  settings.dht_enabled = parse_bool_value(read_db_string("dhtEnabled"));
+  settings.pex_enabled = parse_bool_value(read_db_string("pexEnabled"));
+  settings.lpd_enabled = parse_bool_value(read_db_string("lpdEnabled"));
+  settings.utp_enabled = parse_bool_value(read_db_string("utpEnabled"));
+  settings.download_queue_size =
+      parse_int_value(read_db_string("downloadQueueSize")).value_or(0);
+  settings.seed_queue_size =
+      parse_int_value(read_db_string("seedQueueSize")).value_or(0);
+  settings.queue_stalled_enabled =
+      parse_bool_value(read_db_string("queueStalledEnabled"));
+  if (auto value = read_db_string("incompleteDir"); value && !value->empty()) {
+    settings.incomplete_dir = std::filesystem::path(*value);
   }
-  settings.incomplete_dir_enabled = session_state.incomplete_dir_enabled;
-  if (!session_state.watch_dir.empty()) {
-    settings.watch_dir = std::filesystem::path(session_state.watch_dir);
+  settings.incomplete_dir_enabled =
+      parse_bool_value(read_db_string("incompleteDirEnabled"));
+  if (auto value = read_db_string("watchDir"); value && !value->empty()) {
+    settings.watch_dir = std::filesystem::path(*value);
   }
-  settings.watch_dir_enabled = session_state.watch_dir_enabled;
-  settings.seed_ratio_limit = session_state.seed_ratio_limit;
-  settings.seed_ratio_enabled = session_state.seed_ratio_enabled;
-  settings.seed_idle_limit_minutes = session_state.seed_idle_limit;
-  settings.seed_idle_enabled = session_state.seed_idle_enabled;
-  settings.proxy_type = session_state.proxy_type;
-  settings.proxy_hostname = session_state.proxy_hostname;
-  settings.proxy_port = session_state.proxy_port;
-  settings.proxy_auth_enabled = session_state.proxy_auth_enabled;
-  settings.proxy_username = session_state.proxy_username;
-  settings.proxy_password = session_state.proxy_password;
-  settings.proxy_peer_connections = session_state.proxy_peer_connections;
+  settings.watch_dir_enabled =
+      parse_bool_value(read_db_string("watchDirEnabled"));
+  if (auto value = read_db_string("seedRatioLimit");
+      auto parsed = parse_double_value(value)) {
+    settings.seed_ratio_limit = *parsed;
+  }
+  settings.seed_ratio_enabled =
+      parse_bool_value(read_db_string("seedRatioLimited"));
+  settings.seed_idle_limit_minutes =
+      parse_int_value(read_db_string("seedIdleLimit")).value_or(0);
+  settings.seed_idle_enabled =
+      parse_bool_value(read_db_string("seedIdleLimited"));
+  settings.proxy_type = parse_int_value(read_db_string("proxyType")).value_or(0);
+  if (auto value = read_db_string("proxyHost"); value) {
+    settings.proxy_hostname = *value;
+  }
+  settings.proxy_port = parse_int_value(read_db_string("proxyPort")).value_or(0);
+  settings.proxy_auth_enabled =
+      parse_bool_value(read_db_string("proxyAuthEnabled"));
+  if (auto value = read_db_string("proxyUsername"); value) {
+    settings.proxy_username = *value;
+  }
+  if (auto value = read_db_string("proxyPassword"); value) {
+    settings.proxy_password = *value;
+  }
+  settings.proxy_peer_connections =
+      parse_bool_value(read_db_string("proxyPeerConnections"));
   settings.state_path = state_path;
 
   TT_LOG_INFO("Engine listen interface: {}", settings.listen_interface);
@@ -438,8 +515,8 @@ int main(int argc, char *argv[]) {
   } else {
     TT_LOG_INFO("Connection info unavailable; secure launcher cannot start.");
   }
-  TT_LOG_INFO("RPC layer ready; POST requests should hit {}/transmission/rpc",
-              rpc_bind);
+  TT_LOG_INFO("RPC layer ready; POST requests should hit {}{}",
+              rpc_bind, rpc_options.rpc_path);
 
   tt::log::print_status("TinyTorrent daemon running; CTRL+C to stop.");
 

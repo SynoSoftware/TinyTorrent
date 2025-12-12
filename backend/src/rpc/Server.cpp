@@ -17,9 +17,12 @@
 #include <cctype>
 #include <cstdint>
 #include <chrono>
+#include <cstring>
+#include <future>
 #include <limits>
 #include <optional>
 #include <unordered_map>
+#include <utility>
 #include <memory>
 #include <random>
 #include <string>
@@ -27,8 +30,6 @@
 #include <vector>
 
 namespace {
-constexpr char kSessionHeaderName[] = "X-Transmission-Session-Id";
-
 std::string generate_session_id() {
   static constexpr char kHexDigits[] = "0123456789abcdef";
   std::mt19937_64 rng(static_cast<std::uint64_t>(
@@ -210,12 +211,13 @@ namespace tt::rpc {
 
 Server::Server(engine::Core *engine, std::string bind_url, ServerOptions options)
     : bind_url_(std::move(bind_url)),
-      rpc_path_("/transmission/rpc"),
       engine_(engine),
       dispatcher_(engine, bind_url_),
       listener_(nullptr),
       session_id_(generate_session_id()),
       options_(std::move(options)) {
+  rpc_path_ = options_.rpc_path;
+  ws_path_ = options_.ws_path;
   if (options_.token) {
     connection_info_.emplace();
     connection_info_->token = *options_.token;
@@ -273,6 +275,7 @@ void Server::run_loop() {
          !tt::runtime::should_shutdown()) {
     //TT_LOG_DEBUG("Polling Mongoose event loop");
     mg_mgr_poll(&mgr_, 50);
+    process_pending_http_responses();
     broadcast_websocket_updates();
   }
   running_.store(false, std::memory_order_relaxed);
@@ -294,7 +297,7 @@ void Server::broadcast_websocket_updates() {
   struct SnapshotDiff {
     std::vector<int> removed;
     std::vector<engine::TorrentSnapshot> added;
-    std::vector<engine::TorrentSnapshot> updated;
+    std::vector<std::pair<engine::TorrentSnapshot, engine::TorrentSnapshot>> updated;
     std::vector<int> finished;
     bool session_changed = false;
   };
@@ -324,7 +327,7 @@ void Server::broadcast_websocket_updates() {
         diff.added.push_back(torrent);
       } else {
         if (prev_it->second.revision != torrent.revision) {
-          diff.updated.push_back(torrent);
+          diff.updated.emplace_back(prev_it->second, torrent);
         }
         if (!prev_it->second.is_finished && torrent.is_finished) {
           diff.finished.push_back(torrent.id);
@@ -388,7 +391,7 @@ void Server::broadcast_websocket_updates() {
   }
 }
 
-std::string Server::dispatch(std::string_view payload) {
+std::future<std::string> Server::dispatch(std::string_view payload) {
   return dispatcher_.dispatch(payload);
 }
 
@@ -611,7 +614,8 @@ void Server::handle_http_message(struct mg_connection *conn,
     return;
   }
 
-  auto *session_header = mg_http_get_header(hm, kSessionHeaderName);
+  auto const &session_header_name = self->options_.session_header;
+  auto *session_header = mg_http_get_header(hm, session_header_name.c_str());
   bool session_ok = session_header != nullptr &&
                     static_cast<std::size_t>(session_header->len) ==
                         self->session_id_.size() &&
@@ -619,7 +623,7 @@ void Server::handle_http_message(struct mg_connection *conn,
                                 self->session_id_.size()) == 0;
   if (!session_ok) {
     std::string headers = std::string("Content-Type: application/json\r\n") +
-                          kSessionHeaderName + ": " + self->session_id_ +
+                          session_header_name + ": " + self->session_id_ +
                           "\r\n";
     auto payload = serialize_error("session id required");
     mg_http_reply(conn, 409, headers.c_str(), "%s", payload.c_str());
@@ -630,9 +634,11 @@ void Server::handle_http_message(struct mg_connection *conn,
   if (hm->body.len > 0 && hm->body.buf != nullptr) {
     body.assign(hm->body.buf, hm->body.len);
   }
-  auto payload = self->dispatch(body);
-  mg_http_reply(conn, 200, "Content-Type: application/json\r\n", "%s",
-                payload.c_str());
+  auto response_future = self->dispatch(body);
+  PendingHttpRequest pending{
+      conn, std::make_shared<std::future<std::string>>(std::move(response_future))};
+  self->pending_http_requests_.push_back(std::move(pending));
+  self->process_pending_http_responses();
 }
 
 void Server::handle_ws_open(struct mg_connection *conn,
@@ -668,6 +674,34 @@ void Server::send_ws_message(struct mg_connection *conn,
       mg_ws_send(conn, payload.data(), payload.size(), WEBSOCKET_OP_TEXT);
   if (sent == 0) {
     conn->is_closing = 1;
+  }
+}
+
+void Server::process_pending_http_responses() {
+  for (auto it = pending_http_requests_.begin(); it != pending_http_requests_.end();) {
+    auto &entry = *it;
+    if (entry.conn == nullptr || entry.conn->is_closing || entry.future == nullptr) {
+      it = pending_http_requests_.erase(it);
+      continue;
+    }
+    if (entry.future->wait_for(std::chrono::milliseconds(0)) !=
+        std::future_status::ready) {
+      ++it;
+      continue;
+    }
+    std::string response;
+    try {
+      response = entry.future->get();
+    } catch (std::exception const &ex) {
+      TT_LOG_INFO("RPC future threw: {}", ex.what());
+      response = serialize_error("internal error");
+    } catch (...) {
+      TT_LOG_INFO("RPC future threw unknown exception");
+      response = serialize_error("internal error");
+    }
+    mg_http_reply(entry.conn, 200, "Content-Type: application/json\r\n", "%s",
+                  response.c_str());
+    it = pending_http_requests_.erase(it);
   }
 }
 
