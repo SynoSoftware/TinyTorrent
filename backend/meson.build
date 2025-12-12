@@ -23,6 +23,9 @@ endif
 tt_cpp_args = ['/EHsc']
 tt_c_args = []
 tt_link_args = ['Ws2_32.lib']
+if host_machine.system() == 'windows'
+  tt_link_args += 'Advapi32.lib'
+endif
 if is_minsize
   tt_cpp_args += ['/Os', '/GL', '/MT']
   tt_c_args += ['/Os', '/GL', '/MT']
@@ -57,8 +60,10 @@ tt_sources = [
   'src/rpc/Server.cpp',
   'src/rpc/Dispatcher.cpp',
   'src/rpc/Serializer.cpp',
+  'src/rpc/FsHooks.cpp',
   'src/utils/FS.cpp',
   'src/utils/StateStore.cpp',
+  'src/utils/Shutdown.cpp',
   'src/vendor/mongoose.c',
 ]
 

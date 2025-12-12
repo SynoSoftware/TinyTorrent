@@ -151,6 +151,7 @@ struct TorrentSnapshot {
   std::int64_t size_when_done = 0;
   std::vector<std::string> labels;
   int bandwidth_priority = 0;
+  std::uint64_t revision = 0;
 };
 
 struct TorrentFileInfo {
@@ -192,6 +193,13 @@ struct TorrentDetail {
   std::vector<int> piece_availability;
 };
 
+struct SessionStatistics {
+  std::uint64_t uploaded_bytes = 0;
+  std::uint64_t downloaded_bytes = 0;
+  std::uint64_t seconds_active = 0;
+  std::uint64_t session_count = 0;
+};
+
 struct SessionSnapshot {
   std::vector<TorrentSnapshot> torrents;
   std::uint64_t download_rate = 0;
@@ -200,6 +208,8 @@ struct SessionSnapshot {
   std::size_t active_torrent_count = 0;
   std::size_t paused_torrent_count = 0;
   std::uint64_t dht_nodes = 0;
+  SessionStatistics cumulative_stats;
+  SessionStatistics current_stats;
 };
 
 class Core {

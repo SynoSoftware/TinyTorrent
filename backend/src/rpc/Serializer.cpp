@@ -382,19 +382,27 @@ std::string serialize_session_stats(engine::SessionSnapshot const &snapshot) {
   yyjson_mut_obj_add_uint(native, arguments, "dhtNodes", snapshot.dht_nodes);
 
   auto *cumulative = yyjson_mut_obj(native);
-  yyjson_mut_obj_add_uint(native, cumulative, "uploadedBytes", 0);
-  yyjson_mut_obj_add_uint(native, cumulative, "downloadedBytes", 0);
+  yyjson_mut_obj_add_uint(native, cumulative, "uploadedBytes",
+                          snapshot.cumulative_stats.uploaded_bytes);
+  yyjson_mut_obj_add_uint(native, cumulative, "downloadedBytes",
+                          snapshot.cumulative_stats.downloaded_bytes);
   yyjson_mut_obj_add_uint(native, cumulative, "filesAdded", 0);
-  yyjson_mut_obj_add_uint(native, cumulative, "secondsActive", 0);
-  yyjson_mut_obj_add_uint(native, cumulative, "sessionCount", 0);
+  yyjson_mut_obj_add_uint(native, cumulative, "secondsActive",
+                          snapshot.cumulative_stats.seconds_active);
+  yyjson_mut_obj_add_uint(native, cumulative, "sessionCount",
+                          snapshot.cumulative_stats.session_count);
   yyjson_mut_obj_add_val(native, arguments, "cumulativeStats", cumulative);
 
   auto *current = yyjson_mut_obj(native);
-  yyjson_mut_obj_add_uint(native, current, "uploadedBytes", 0);
-  yyjson_mut_obj_add_uint(native, current, "downloadedBytes", 0);
+  yyjson_mut_obj_add_uint(native, current, "uploadedBytes",
+                          snapshot.current_stats.uploaded_bytes);
+  yyjson_mut_obj_add_uint(native, current, "downloadedBytes",
+                          snapshot.current_stats.downloaded_bytes);
   yyjson_mut_obj_add_uint(native, current, "filesAdded", 0);
-  yyjson_mut_obj_add_uint(native, current, "secondsActive", 0);
-  yyjson_mut_obj_add_uint(native, current, "sessionCount", 0);
+  yyjson_mut_obj_add_uint(native, current, "secondsActive",
+                          snapshot.current_stats.seconds_active);
+  yyjson_mut_obj_add_uint(native, current, "sessionCount",
+                          snapshot.current_stats.session_count);
   yyjson_mut_obj_add_val(native, arguments, "currentStats", current);
 
   return doc.write(R"({"result":"error"})");

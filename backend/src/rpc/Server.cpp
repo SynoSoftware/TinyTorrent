@@ -2,6 +2,7 @@
 
 #include "rpc/Serializer.hpp"
 #include "utils/Log.hpp"
+#include "utils/Shutdown.hpp"
 
 #if defined(_WIN32)
 #include <winsock2.h>
@@ -201,30 +202,6 @@ bool session_snapshot_equal(tt::engine::SessionSnapshot const &a,
          a.dht_nodes == b.dht_nodes;
 }
 
-bool torrent_snapshot_equal_local(tt::engine::TorrentSnapshot const &a,
-                                   tt::engine::TorrentSnapshot const &b) {
-  return a.hash == b.hash && a.name == b.name && a.state == b.state &&
-         a.progress == b.progress && a.total_wanted == b.total_wanted &&
-         a.total_done == b.total_done && a.total_size == b.total_size &&
-         a.downloaded == b.downloaded && a.uploaded == b.uploaded &&
-         a.download_rate == b.download_rate && a.upload_rate == b.upload_rate &&
-         a.status == b.status && a.queue_position == b.queue_position &&
-         a.peers_connected == b.peers_connected &&
-         a.seeds_connected == b.seeds_connected &&
-         a.peers_sending_to_us == b.peers_sending_to_us &&
-         a.peers_getting_from_us == b.peers_getting_from_us &&
-         a.eta == b.eta && a.total_wanted_done == b.total_wanted_done &&
-         a.added_time == b.added_time && a.ratio == b.ratio &&
-         a.is_finished == b.is_finished &&
-         a.sequential_download == b.sequential_download &&
-         a.super_seeding == b.super_seeding &&
-         a.download_dir == b.download_dir && a.error == b.error &&
-         a.error_string == b.error_string &&
-         a.left_until_done == b.left_until_done &&
-         a.size_when_done == b.size_when_done && a.labels == b.labels &&
-         a.bandwidth_priority == b.bandwidth_priority;
-}
-
 } // namespace
 
 namespace tt::rpc {
@@ -288,11 +265,13 @@ void Server::stop() {
 }
 
 void Server::run_loop() {
-  while (running_.load(std::memory_order_relaxed)) {
+  while (running_.load(std::memory_order_relaxed) &&
+         !tt::runtime::should_shutdown()) {
     //TT_LOG_DEBUG("Polling Mongoose event loop");
     mg_mgr_poll(&mgr_, 50);
     broadcast_websocket_updates();
   }
+  running_.store(false, std::memory_order_relaxed);
 }
 
 void Server::broadcast_websocket_updates() {
@@ -341,7 +320,7 @@ void Server::broadcast_websocket_updates() {
       if (prev_it == previous_map.end()) {
         diff.added.push_back(torrent);
       } else {
-        if (!torrent_snapshot_equal_local(prev_it->second, torrent)) {
+        if (prev_it->second.revision != torrent.revision) {
           diff.updated.push_back(torrent);
         }
         if (!prev_it->second.is_finished && torrent.is_finished) {
@@ -458,6 +437,17 @@ bool Server::authorize_ws_upgrade(struct mg_http_message *hm,
   }
   if (options_.token) {
     if (token && *token == *options_.token) {
+      return true;
+    }
+    auto matches_header = [&](char const *header_name) {
+      if (auto *header = mg_http_get_header(hm, header_name); header != nullptr) {
+        std::string_view value(header->buf, header->len);
+        return value == *options_.token;
+      }
+      return false;
+    };
+    if (matches_header(options_.token_header.c_str()) ||
+        matches_header(kLegacyTokenHeader)) {
       return true;
     }
     if (auto *header = mg_http_get_header(hm, "Authorization"); header != nullptr) {

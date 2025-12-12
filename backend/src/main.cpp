@@ -2,9 +2,9 @@
 #include "rpc/Server.hpp"
 #include "utils/FS.hpp"
 #include "utils/Log.hpp"
+#include "utils/Shutdown.hpp"
 #include "utils/StateStore.hpp"
 
-#include <atomic>
 #include <chrono>
 #include <csignal>
 #include <cctype>
@@ -24,16 +24,91 @@
 #include <vector>
 
 #if defined(_WIN32)
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <Windows.h>
+#include <Aclapi.h>
 #include <process.h>
 #else
 #include <unistd.h>
 #endif
 
-std::atomic_bool keep_running{true};
+#if defined(_WIN32)
+bool secure_connection_permissions(std::filesystem::path const &path) {
+  if (path.empty()) {
+    return false;
+  }
+  auto native_path = path.native();
+  HANDLE token = nullptr;
+  if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token)) {
+    return false;
+  }
+  DWORD buffer_size = 0;
+  GetTokenInformation(token, TokenUser, nullptr, 0, &buffer_size);
+  if (buffer_size == 0) {
+    CloseHandle(token);
+    return false;
+  }
+  std::vector<BYTE> token_data(buffer_size);
+  if (!GetTokenInformation(token, TokenUser, token_data.data(), buffer_size,
+                           &buffer_size)) {
+    CloseHandle(token);
+    return false;
+  }
+  PSID user_sid = reinterpret_cast<PSID>(token_data.data());
+  SID_IDENTIFIER_AUTHORITY nt_authority = SECURITY_NT_AUTHORITY;
+  PSID system_sid = nullptr;
+  if (!AllocateAndInitializeSid(&nt_authority, 1, SECURITY_LOCAL_SYSTEM_RID, 0, 0, 0,
+                               0, 0, 0, 0, &system_sid)) {
+    CloseHandle(token);
+    return false;
+  }
+  EXPLICIT_ACCESSW entries[2];
+  ZeroMemory(entries, sizeof(entries));
+  entries[0].grfAccessPermissions = GENERIC_READ | GENERIC_WRITE | DELETE;
+  entries[0].grfAccessMode = SET_ACCESS;
+  entries[0].grfInheritance = NO_INHERITANCE;
+  entries[0].Trustee.TrusteeForm = TRUSTEE_IS_SID;
+  entries[0].Trustee.TrusteeType = TRUSTEE_IS_USER;
+  entries[0].Trustee.ptstrName = reinterpret_cast<LPWSTR>(user_sid);
+  entries[1].grfAccessPermissions = GENERIC_READ | GENERIC_WRITE | DELETE;
+  entries[1].grfAccessMode = SET_ACCESS;
+  entries[1].grfInheritance = NO_INHERITANCE;
+  entries[1].Trustee.TrusteeForm = TRUSTEE_IS_SID;
+  entries[1].Trustee.TrusteeType = TRUSTEE_IS_USER;
+  entries[1].Trustee.ptstrName = reinterpret_cast<LPWSTR>(system_sid);
+  PACL acl = nullptr;
+  DWORD status =
+      SetEntriesInAclW(2, entries, nullptr, &acl);
+  if (status != ERROR_SUCCESS) {
+    FreeSid(system_sid);
+    CloseHandle(token);
+    return false;
+  }
+  status = SetNamedSecurityInfoW(
+      const_cast<LPWSTR>(native_path.c_str()), SE_FILE_OBJECT,
+      DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION, nullptr,
+      nullptr, acl, nullptr);
+  LocalFree(acl);
+  FreeSid(system_sid);
+  CloseHandle(token);
+  return status == ERROR_SUCCESS;
+}
+#else
+bool secure_connection_permissions(std::filesystem::path const &path) {
+  std::error_code ec;
+  std::filesystem::permissions(
+      path,
+      std::filesystem::perms::owner_read | std::filesystem::perms::owner_write,
+      std::filesystem::perm_options::replace, ec);
+  return !ec;
+}
+#endif
 
 int main() {
-  std::signal(SIGINT, [](int) { keep_running.store(false, std::memory_order_relaxed); });
-  std::signal(SIGTERM, [](int) { keep_running.store(false, std::memory_order_relaxed); });
+  std::signal(SIGINT, [](int) { tt::runtime::request_shutdown(); });
+  std::signal(SIGTERM, [](int) { tt::runtime::request_shutdown(); });
 
   auto read_env = [](char const *key) -> std::optional<std::string> {
     auto value = std::getenv(key);
@@ -126,11 +201,7 @@ int main() {
           std::filesystem::remove(tmp_path, ec);
           return false;
         }
-        std::filesystem::permissions(
-            path,
-            std::filesystem::perms::owner_read | std::filesystem::perms::owner_write,
-            std::filesystem::perm_options::replace, ec);
-        return true;
+        return secure_connection_permissions(path);
       };
 
   auto root = tt::utils::data_root();
@@ -315,7 +386,7 @@ int main() {
 
   tt::log::print_status("TinyTorrent daemon running; CTRL+C to stop.");
 
-  while (keep_running.load(std::memory_order_relaxed)) {
+  while (!tt::runtime::should_shutdown()) {
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
   }
 
