@@ -1,6 +1,6 @@
 # TinyTorrent
 
-**A modern BitTorrent client. No frameworks needed. ~3 MB (Transmission-based) and ~6 MB (Libtorrent-based). Fully capable.**
+**A modern BitTorrent client. No frameworks needed. ~1 MB (Transmission-based) and ~3 MB (Libtorrent-based). Fully capable.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![C++](https://img.shields.io/badge/C++-17-blue)](https://en.cppreference.com/w/cpp/17)
@@ -125,7 +125,12 @@ While the ~3 MB target is achievable only with Transmission’s engine, that cod
 
 We will continue to **support Transmission RPC compatibility**, but the shipped executable will be our own daemon. It already implements the extensions defined in **rpc-tinytorrent-expanded**, which are required for our goals.
 
-A static libtorrent build results in a larger binary — the current release-mode executable is ~9.5 MB and may reach ~10 MB as features stabilize (≈6 MB when packed). This is an acceptable tradeoff: **functionality now takes priority over the size demonstration**, and ~6 MB is good enough for the first production release.
+A static libtorrent build results in a larger binary — the current release-mode executable is ~9.5 MB and may reach ~10 MB as features stabilize (~3 MB when UPX packed, plus ~400 KB of gzipped JavaScript code). This is an acceptable tradeoff: **functionality takes priority over the size technical demonstration**, and the ~3 MB packaged footprint is more than good enough for the first production release.
+
+For the full protocol and engine details, see:
+
+- `docs/TinyTorrent_RPC_Extended.md`
+- `docs/TinyTorrent_Specification.md`
 
 ---
 
