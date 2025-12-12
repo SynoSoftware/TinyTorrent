@@ -5,6 +5,7 @@
 #include "utils/Shutdown.hpp"
 #include "utils/StateStore.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <csignal>
 #include <cctype>
@@ -14,6 +15,7 @@
 #include <filesystem>
 #include <format>
 #include <fstream>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <random>
@@ -106,7 +108,7 @@ bool secure_connection_permissions(std::filesystem::path const &path) {
 }
 #endif
 
-int main() {
+int main(int argc, char *argv[]) {
   std::signal(SIGINT, [](int) { tt::runtime::request_shutdown(); });
   std::signal(SIGTERM, [](int) { tt::runtime::request_shutdown(); });
 
@@ -343,8 +345,63 @@ int main() {
   TT_LOG_INFO("Engine listen interface: {}", settings.listen_interface);
 
   auto engine = tt::engine::Core::create(settings);
+  auto enqueue_startup_torrent = [&](std::string const &raw) {
+    if (raw.empty()) {
+      return;
+    }
+    std::string value(raw);
+    std::string normalized(value);
+    std::transform(normalized.begin(), normalized.end(), normalized.begin(),
+                   [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+    tt::engine::TorrentAddRequest request;
+    if (normalized.rfind("magnet:", 0) == 0) {
+      request.uri = value;
+    } else {
+      std::filesystem::path candidate(value);
+      if (candidate.empty()) {
+        TT_LOG_INFO("startup torrent argument empty (ignored)");
+        return;
+      }
+      if (!candidate.is_absolute()) {
+        candidate = std::filesystem::absolute(candidate);
+      }
+      std::error_code ec;
+      if (!std::filesystem::exists(candidate, ec) || ec) {
+        TT_LOG_INFO("startup torrent {} not found ({})", candidate.string(),
+                    ec.message());
+        return;
+      }
+      std::ifstream input(candidate, std::ios::binary);
+      if (!input) {
+        TT_LOG_INFO("unable to read startup torrent {}", candidate.string());
+        return;
+      }
+      std::vector<std::uint8_t> buffer(
+          (std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+      if (buffer.empty()) {
+        TT_LOG_INFO("startup torrent {} is empty", candidate.string());
+        return;
+      }
+      request.metainfo = std::move(buffer);
+    }
+    request.download_path = settings.download_path;
+    auto status = engine->enqueue_add_torrent(std::move(request));
+    if (status != tt::engine::Core::AddTorrentStatus::Ok) {
+      TT_LOG_INFO("startup torrent {} failed to queue", value);
+    } else {
+      TT_LOG_INFO("startup torrent queued from {}", value);
+    }
+  };
+  auto enqueue_startup_args = [&](int argc, char *argv[]) {
+    for (int index = 1; index < argc; ++index) {
+      enqueue_startup_torrent(argv[index]);
+    }
+  };
   std::thread engine_thread([core = engine.get()] { core->run(); });
   TT_LOG_INFO("Engine thread started");
+  if (argc > 1) {
+    enqueue_startup_args(argc, argv);
+  }
 
   tt::rpc::ServerOptions rpc_options;
   if (auto user = read_env("TT_RPC_BASIC_USERNAME"); user) {
