@@ -69,6 +69,11 @@ constexpr auto kResumeAlertTimeout = std::chrono::seconds(5);
 
 constexpr int kSha1Bytes = static_cast<int>(libtorrent::sha1_hash::size());
 
+struct SessionTotals {
+  std::uint64_t uploaded = 0;
+  std::uint64_t downloaded = 0;
+};
+
 std::string info_hash_to_hex(libtorrent::sha1_hash const &hash) {
   constexpr char kHexDigits[] = "0123456789abcdef";
   std::string result;
@@ -412,6 +417,14 @@ struct Core::Impl {
   int next_id = 1;
   std::filesystem::path state_path;
   std::filesystem::path resume_dir;
+  std::chrono::steady_clock::time_point session_start_time =
+      std::chrono::steady_clock::now();
+  std::uint64_t session_start_downloaded = 0;
+  std::uint64_t session_start_uploaded = 0;
+  std::chrono::steady_clock::time_point stats_last_update =
+      std::chrono::steady_clock::now();
+  std::uint64_t last_total_downloaded = 0;
+  std::uint64_t last_total_uploaded = 0;
   tt::storage::SessionState persisted_state;
   mutable std::mutex state_mutex;
   std::filesystem::path blocklist_path;
@@ -422,6 +435,13 @@ struct Core::Impl {
   std::unordered_map<std::string, std::vector<std::string>> torrent_labels;
   std::unordered_map<std::string, std::filesystem::path> final_paths;
   std::unordered_map<int, int> torrent_priorities;
+  std::unordered_map<int, std::uint64_t> torrent_revisions;
+  std::uint64_t next_torrent_revision = 1;
+  struct WatchFileSnapshot {
+    std::uintmax_t size = 0;
+    std::filesystem::file_time_type mtime;
+  };
+  std::unordered_map<std::filesystem::path, WatchFileSnapshot> watch_dir_snapshots;
   std::atomic_bool shutdown_requested{false};
   bool save_resume_in_progress = false;
   int pending_resume_requests = 0;
@@ -445,6 +465,7 @@ struct Core::Impl {
     }
     persisted_state = tt::storage::load_session_state(state_path);
     torrent_labels = persisted_state.labels;
+    ++persisted_state.session_count;
 
     libtorrent::settings_pack pack;
     pack.set_int(libtorrent::settings_pack::alert_mask, libtorrent::alert::all_categories);
@@ -494,6 +515,7 @@ struct Core::Impl {
     session = std::make_unique<libtorrent::session>(params);
     refresh_active_speed_limits(true);
     replay_saved_torrents();
+    initialize_session_statistics();
     persist_state();
   }
 
@@ -658,20 +680,26 @@ private:
     for (auto const *alert : alerts) {
       if (auto *finished = libtorrent::alert_cast<libtorrent::torrent_finished_alert>(alert)) {
         handle_torrent_finished(*finished);
-      } else if (auto *resume =
-                     libtorrent::alert_cast<libtorrent::save_resume_data_alert>(alert)) {
-        handle_save_resume_data_alert(*resume);
-      } else if (auto *failed =
-                     libtorrent::alert_cast<libtorrent::save_resume_data_failed_alert>(alert)) {
-        handle_save_resume_data_failed_alert(*failed);
-      } else if (auto *metadata =
-                     libtorrent::alert_cast<libtorrent::metadata_received_alert>(alert)) {
-        auto const &handle = metadata->handle;
-        auto info = handle.info_hashes().get_best();
-        TT_LOG_DEBUG("metadata received for {}", info_hash_to_hex(info));
+    } else if (auto *resume =
+                   libtorrent::alert_cast<libtorrent::save_resume_data_alert>(alert)) {
+      handle_save_resume_data_alert(*resume);
+    } else if (auto *failed =
+                   libtorrent::alert_cast<libtorrent::save_resume_data_failed_alert>(alert)) {
+      handle_save_resume_data_failed_alert(*failed);
+    } else if (auto *metadata =
+                   libtorrent::alert_cast<libtorrent::metadata_received_alert>(alert)) {
+      auto const &handle = metadata->handle;
+      auto info = handle.info_hashes().get_best();
+      TT_LOG_DEBUG("metadata received for {}", info_hash_to_hex(info));
+    } else if (auto *state =
+                   libtorrent::alert_cast<libtorrent::state_update_alert>(alert)) {
+      for (auto const &status : state->status) {
+        auto id = assign_rpc_id(status.info_hashes.get_best());
+        mark_torrent_dirty(id);
       }
     }
   }
+}
 
   void handle_torrent_finished(libtorrent::torrent_finished_alert const &alert) {
     if (!session) {
@@ -683,6 +711,8 @@ private:
     }
     auto status = handle.status();
     move_completed_from_incomplete(handle, status);
+    auto id = assign_rpc_id(status.info_hashes.get_best());
+    mark_torrent_dirty(id);
   }
 
   void handle_save_resume_data_alert(libtorrent::save_resume_data_alert const &alert) {
@@ -735,6 +765,9 @@ private:
     if (state_path.empty()) {
       return;
     }
+    auto totals = capture_session_totals();
+    auto now = std::chrono::steady_clock::now();
+    accumulate_session_stats_locked(totals, now);
     persisted_state.listen_interface = settings.listen_interface;
     persisted_state.download_path = settings.download_path.string();
     persisted_state.speed_limit_down_kbps = settings.download_rate_limit_kbps;
@@ -781,6 +814,62 @@ private:
     }
   }
 
+  void initialize_session_statistics() {
+    session_start_time = std::chrono::steady_clock::now();
+    stats_last_update = session_start_time;
+    auto totals = capture_session_totals();
+    session_start_uploaded = totals.uploaded;
+    session_start_downloaded = totals.downloaded;
+    last_total_uploaded = totals.uploaded;
+    last_total_downloaded = totals.downloaded;
+  }
+
+  SessionTotals capture_session_totals() const {
+    SessionTotals totals;
+    if (!session) {
+      return totals;
+    }
+    auto handles = session->get_torrents();
+    for (auto const &handle : handles) {
+      auto status = handle.status();
+      if (status.total_upload > 0) {
+        totals.uploaded += static_cast<std::uint64_t>(status.total_upload);
+      }
+      if (status.total_download > 0) {
+        totals.downloaded += static_cast<std::uint64_t>(status.total_download);
+      }
+    }
+    return totals;
+  }
+
+  void accumulate_session_stats_locked(SessionTotals const &totals,
+                                       std::chrono::steady_clock::time_point now) {
+    if (now < stats_last_update) {
+      stats_last_update = now;
+    }
+    auto elapsed = now - stats_last_update;
+    if (elapsed.count() > 0) {
+      auto seconds =
+          static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::seconds>(elapsed).count());
+      if (seconds > 0) {
+        persisted_state.seconds_active += seconds;
+      }
+    }
+    if (totals.uploaded >= last_total_uploaded) {
+      persisted_state.uploaded_bytes += totals.uploaded - last_total_uploaded;
+    } else {
+      persisted_state.uploaded_bytes += totals.uploaded;
+    }
+    if (totals.downloaded >= last_total_downloaded) {
+      persisted_state.downloaded_bytes += totals.downloaded - last_total_downloaded;
+    } else {
+      persisted_state.downloaded_bytes += totals.downloaded;
+    }
+    last_total_uploaded = totals.uploaded;
+    last_total_downloaded = totals.downloaded;
+    stats_last_update = now;
+  }
+
   void perform_housekeeping() {
     auto now = std::chrono::steady_clock::now();
     if (now < next_housekeeping) {
@@ -801,6 +890,7 @@ private:
                   ec.message());
       return;
     }
+    std::unordered_set<std::filesystem::path> seen;
     for (auto const &entry :
          std::filesystem::directory_iterator(settings.watch_dir, ec)) {
       if (ec) {
@@ -808,11 +898,31 @@ private:
         break;
       }
       auto path = entry.path();
+      seen.insert(path);
       std::error_code file_ec;
       if (!entry.is_regular_file(file_ec) || file_ec) {
         continue;
       }
       if (path.extension() != ".torrent") {
+        continue;
+      }
+      auto size = entry.file_size(file_ec);
+      if (file_ec) {
+        continue;
+      }
+      auto mtime = entry.last_write_time(file_ec);
+      if (file_ec) {
+        continue;
+      }
+      WatchFileSnapshot snapshot{size, mtime};
+      auto existing = watch_dir_snapshots.find(path);
+      bool stable = false;
+      if (existing != watch_dir_snapshots.end()) {
+        stable = existing->second.size == snapshot.size &&
+                 existing->second.mtime == snapshot.mtime;
+      }
+      watch_dir_snapshots[path] = snapshot;
+      if (!stable) {
         continue;
       }
       std::ifstream input(path, std::ios::binary);
@@ -832,12 +942,20 @@ private:
       enqueue_torrent(std::move(request));
       mark_watch_file(path, ".added");
     }
+    for (auto it = watch_dir_snapshots.begin(); it != watch_dir_snapshots.end();) {
+      if (seen.contains(it->first)) {
+        ++it;
+        continue;
+      }
+      it = watch_dir_snapshots.erase(it);
+    }
   }
 
   void mark_watch_file(std::filesystem::path const &source,
                        char const *suffix) {
     std::error_code ec;
     auto target = source;
+    watch_dir_snapshots.erase(source);
     target += suffix;
     std::filesystem::remove(target, ec);
     std::filesystem::rename(source, target, ec);
@@ -911,19 +1029,48 @@ private:
     persist_state_unlocked();
   }
 
-  void remove_persisted_torrent(std::string const &hash) {
-    if (hash.empty()) {
+  void update_persisted_download_path(std::string const &hash,
+                                      std::filesystem::path const &path) {
+    if (hash.empty() || path.empty()) {
       return;
     }
     std::lock_guard<std::mutex> lock(state_mutex);
-    auto it = std::remove_if(
+    auto it = std::find_if(
         persisted_state.torrents.begin(), persisted_state.torrents.end(),
         [&hash](tt::storage::PersistedTorrent const &entry) {
           return entry.hash == hash;
         });
-    if (it != persisted_state.torrents.end()) {
-      persisted_state.torrents.erase(it, persisted_state.torrents.end());
-      persist_state_unlocked();
+    if (it == persisted_state.torrents.end()) {
+      return;
+    }
+    it->download_path = path.string();
+    persist_state_unlocked();
+  }
+
+  void remove_persisted_torrent(std::string const &hash) {
+    if (hash.empty()) {
+      return;
+    }
+    bool removed_entry = false;
+    bool removed_label = false;
+    {
+      std::lock_guard<std::mutex> lock(state_mutex);
+      auto it = std::remove_if(
+          persisted_state.torrents.begin(), persisted_state.torrents.end(),
+          [&hash](tt::storage::PersistedTorrent const &entry) {
+            return entry.hash == hash;
+          });
+      if (it != persisted_state.torrents.end()) {
+        persisted_state.torrents.erase(it, persisted_state.torrents.end());
+        removed_entry = true;
+      }
+      if (persisted_state.labels.erase(hash) > 0) {
+        removed_label = true;
+      }
+      torrent_labels.erase(hash);
+      if (removed_entry || removed_label) {
+        persist_state_unlocked();
+      }
     }
     final_paths.erase(hash);
   }
@@ -988,6 +1135,35 @@ private:
 
     auto handles = session->get_torrents();
     auto new_snapshot = std::make_shared<SessionSnapshot>();
+    auto totals = capture_session_totals();
+    auto now = std::chrono::steady_clock::now();
+    SessionStatistics cumulative_stats{};
+    {
+      std::lock_guard<std::mutex> lock(state_mutex);
+      accumulate_session_stats_locked(totals, now);
+      cumulative_stats.uploaded_bytes = persisted_state.uploaded_bytes;
+      cumulative_stats.downloaded_bytes = persisted_state.downloaded_bytes;
+      cumulative_stats.seconds_active = persisted_state.seconds_active;
+      cumulative_stats.session_count = persisted_state.session_count;
+    }
+    std::uint64_t elapsed_seconds = 0;
+    if (now >= session_start_time) {
+      elapsed_seconds = static_cast<std::uint64_t>(
+          std::chrono::duration_cast<std::chrono::seconds>(now - session_start_time).count());
+    }
+    SessionStatistics current_stats{};
+    current_stats.uploaded_bytes =
+        totals.uploaded >= session_start_uploaded
+            ? totals.uploaded - session_start_uploaded
+            : totals.uploaded;
+    current_stats.downloaded_bytes =
+        totals.downloaded >= session_start_downloaded
+            ? totals.downloaded - session_start_downloaded
+            : totals.downloaded;
+    current_stats.seconds_active = elapsed_seconds;
+    current_stats.session_count = 1;
+    new_snapshot->cumulative_stats = cumulative_stats;
+    new_snapshot->current_stats = current_stats;
     new_snapshot->torrents.reserve(handles.size());
     new_snapshot->torrent_count = handles.size();
     std::uint64_t total_download_rate = 0;
@@ -1025,6 +1201,7 @@ private:
     for (auto it = id_to_hash.begin(); it != id_to_hash.end();) {
       if (seen_ids.find(it->first) == seen_ids.end()) {
         hash_to_id.erase(it->second);
+        torrent_revisions.erase(it->first);
         it = id_to_hash.erase(it);
       } else {
         ++it;
@@ -1072,6 +1249,26 @@ private:
     hash_to_id.emplace(hash, id);
     id_to_hash.emplace(id, hash);
     return id;
+  }
+
+  void mark_torrent_dirty(int id) {
+    if (id <= 0) {
+      return;
+    }
+    torrent_revisions[id] = next_torrent_revision++;
+  }
+
+  std::uint64_t ensure_torrent_revision(int id) {
+    if (id <= 0) {
+      return 0;
+    }
+    auto it = torrent_revisions.find(id);
+    if (it == torrent_revisions.end()) {
+      auto [new_it, inserted] =
+          torrent_revisions.emplace(id, next_torrent_revision++);
+      return new_it->second;
+    }
+    return it->second;
   }
 
   std::optional<libtorrent::torrent_handle> handle_for_id(int id) {
@@ -1589,6 +1786,7 @@ private:
     priority = std::clamp(priority, 0, 255);
     for (int id : ids) {
       torrent_priorities[id] = priority;
+      mark_torrent_dirty(id);
     }
   }
 
@@ -1641,6 +1839,9 @@ private:
       }
     }
     if (changed) {
+      for (int id : ids) {
+        mark_torrent_dirty(id);
+      }
       persist_state_unlocked();
     }
   }
@@ -1759,7 +1960,83 @@ private:
     if (final_path.empty() || final_path == settings.incomplete_dir) {
       return;
     }
-    handle.move_storage(final_path.string());
+    auto destination = determine_completion_destination(final_path, status, hash);
+    if (destination.empty()) {
+      TT_LOG_INFO("move-complete skipped for {}: unable to determine safe destination", hash);
+      return;
+    }
+    std::filesystem::path current_save(status.save_path);
+    if (destination == current_save) {
+      return;
+    }
+    TT_LOG_INFO("moving {} from {} to {}", hash, status.save_path,
+                destination.string());
+    handle.move_storage(destination.string());
+    final_paths[hash] = destination;
+    update_persisted_download_path(hash, destination);
+  }
+
+  std::filesystem::path determine_completion_destination(
+      std::filesystem::path const &base, libtorrent::torrent_status const &status,
+      std::string const &hash) {
+    if (base.empty()) {
+      return {};
+    }
+    std::error_code ec;
+    bool base_exists = std::filesystem::exists(base, ec);
+    if (ec) {
+      TT_LOG_INFO("completion base unavailable {}: {}", base.string(), ec.message());
+      return {};
+    }
+    auto candidate = base;
+    if (base_exists && std::filesystem::is_directory(base, ec) && !ec) {
+      auto name = status.name.empty() ? hash : status.name;
+      candidate /= name;
+    }
+    std::filesystem::path current_save(status.save_path);
+    return resolve_unique_completion_target(candidate, current_save);
+  }
+
+  std::filesystem::path resolve_unique_completion_target(
+      std::filesystem::path const &target, std::filesystem::path const &current) {
+    if (target.empty()) {
+      return {};
+    }
+    if (target == current) {
+      return target;
+    }
+    std::error_code ec;
+    bool exists = std::filesystem::exists(target, ec);
+    if (ec) {
+      TT_LOG_INFO("failed to inspect {}: {}", target.string(), ec.message());
+      return {};
+    }
+    if (!exists) {
+      return target;
+    }
+    auto parent = target.parent_path();
+    auto stem = target.stem().string();
+    if (stem.empty()) {
+      stem = target.filename().string();
+    }
+    auto extension = target.extension().string();
+    for (int index = 1; index <= 32; ++index) {
+      std::string candidate_name = stem + " (" + std::to_string(index) + ")";
+      if (!extension.empty()) {
+        candidate_name += extension;
+      }
+      auto candidate = parent / candidate_name;
+      std::error_code exists_ec;
+      if (!std::filesystem::exists(candidate, exists_ec)) {
+        if (exists_ec) {
+          TT_LOG_INFO("failed to inspect {}: {}", candidate.string(), exists_ec.message());
+          return {};
+        }
+        return candidate;
+      }
+    }
+    TT_LOG_INFO("unable to find unique completion destination for {}", target.string());
+    return {};
   }
 
   bool rename_path(int id, std::string const &current, std::string const &replacement) {
@@ -1855,9 +2132,10 @@ private:
     info.error_string = status.errc.message();
     info.left_until_done =
         std::max<std::int64_t>(0, status.total_wanted - status.total_wanted_done);
-    info.size_when_done = status.total_wanted;
-    return info;
-  }
+  info.size_when_done = status.total_wanted;
+  info.revision = ensure_torrent_revision(rpc_id);
+  return info;
+}
 
   TorrentDetail collect_detail(int rpc_id, libtorrent::torrent_handle const &handle,
                                libtorrent::torrent_status const &status) {

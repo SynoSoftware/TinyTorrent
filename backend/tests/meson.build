@@ -1,9 +1,11 @@
 tt_test_common_sources = [
   '../src/rpc/Dispatcher.cpp',
   '../src/rpc/Serializer.cpp',
+  '../src/rpc/FsHooks.cpp',
   '../src/engine/Core.cpp',
   '../src/utils/FS.cpp',
   '../src/utils/StateStore.cpp',
+  '../src/utils/Shutdown.cpp',
   '../src/vendor/mongoose.c',
 ]
 
@@ -23,3 +25,20 @@ rpc_endpoint_test_exe = executable('rpc-endpoint-test',
 
 test('dispatcher-test', dispatcher_test_exe)
 test('rpc-endpoint-test', rpc_endpoint_test_exe)
+
+rpc_filesystem_test_exe = executable('rpc-filesystem-test',
+  tt_test_common_sources + ['main_test.cpp', 'RpcFilesystemTest.cpp', '../src/rpc/Server.cpp'],
+  dependencies: [tt_common_dep, doctest_dep],
+  cpp_args: tt_cpp_args,
+  c_args: tt_c_args,
+)
+
+serializer_test_exe = executable('serializer-test',
+  tt_test_common_sources + ['main_test.cpp', 'SerializerTest.cpp'],
+  dependencies: [tt_common_dep, doctest_dep],
+  cpp_args: tt_cpp_args,
+  c_args: tt_c_args,
+)
+
+test('rpc-filesystem-test', rpc_filesystem_test_exe)
+test('serializer-test', serializer_test_exe)

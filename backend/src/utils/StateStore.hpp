@@ -1,6 +1,7 @@
 #pragma once
 
 #include <filesystem>
+#include <cstdint>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -57,6 +58,10 @@ struct SessionState {
   std::string proxy_password;
   bool proxy_peer_connections = false;
   std::unordered_map<std::string, std::vector<std::string>> labels;
+  std::uint64_t uploaded_bytes = 0;
+  std::uint64_t downloaded_bytes = 0;
+  std::uint64_t seconds_active = 0;
+  std::uint64_t session_count = 0;
 };
 
 SessionState load_session_state(std::filesystem::path const &path);

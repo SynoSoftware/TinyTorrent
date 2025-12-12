@@ -69,6 +69,24 @@ bool read_bool(yyjson_val *root, char const *key) {
   return false;
 }
 
+std::uint64_t read_uint64(yyjson_val *root, char const *key) {
+  auto *value = yyjson_obj_get(root, key);
+  if (value == nullptr) {
+    return 0;
+  }
+  if (yyjson_is_uint(value)) {
+    return yyjson_get_uint(value);
+  }
+  if (yyjson_is_sint(value)) {
+    auto signed_value = yyjson_get_sint(value);
+    if (signed_value < 0) {
+      return 0;
+    }
+    return static_cast<std::uint64_t>(signed_value);
+  }
+  return 0;
+}
+
 } // namespace
 
 SessionState load_session_state(std::filesystem::path const &path) {
@@ -134,6 +152,10 @@ SessionState load_session_state(std::filesystem::path const &path) {
   state.proxy_username = std::string(read_string(root, "proxyUsername"));
   state.proxy_password = std::string(read_string(root, "proxyPassword"));
   state.proxy_peer_connections = read_bool(root, "proxyPeerConnections");
+  state.uploaded_bytes = read_uint64(root, "uploadedBytes");
+  state.downloaded_bytes = read_uint64(root, "downloadedBytes");
+  state.seconds_active = read_uint64(root, "secondsActive");
+  state.session_count = read_uint64(root, "sessionCount");
 
   auto *labels = yyjson_obj_get(root, "labels");
   if (labels != nullptr && yyjson_is_obj(labels)) {
@@ -276,6 +298,14 @@ bool save_session_state(std::filesystem::path const &path,
   }
   yyjson_mut_obj_add_bool(native, root, "proxyPeerConnections",
                          state.proxy_peer_connections);
+  yyjson_mut_obj_add_uint(native, root, "uploadedBytes",
+                          state.uploaded_bytes);
+  yyjson_mut_obj_add_uint(native, root, "downloadedBytes",
+                          state.downloaded_bytes);
+  yyjson_mut_obj_add_uint(native, root, "secondsActive",
+                          state.seconds_active);
+  yyjson_mut_obj_add_uint(native, root, "sessionCount",
+                          state.session_count);
   auto *labels_obj = yyjson_mut_obj(native);
   yyjson_mut_obj_add_val(native, root, "labels", labels_obj);
   for (auto const &entry : state.labels) {

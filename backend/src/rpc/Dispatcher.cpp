@@ -1,9 +1,11 @@
 #include "rpc/Dispatcher.hpp"
 
+#include "rpc/FsHooks.hpp"
 #include "rpc/Serializer.hpp"
 #include "utils/Base64.hpp"
 #include "utils/Json.hpp"
 #include "utils/Log.hpp"
+#include "utils/Shutdown.hpp"
 
 #if defined(_WIN32)
 #ifndef NOMINMAX
@@ -11,6 +13,8 @@
 #endif
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#include <windows.h>
+#include <winreg.h>
 #include <shellapi.h>
 #endif
 
@@ -83,6 +87,8 @@ std::vector<int> parse_ids(yyjson_val *arguments) {
   }
   return result;
 }
+
+constexpr std::size_t kMaxRequestPathLength = 4096;
 
 std::vector<int> parse_int_array(yyjson_val *arguments, char const *key) {
   std::vector<int> result;
@@ -267,38 +273,127 @@ std::filesystem::path parse_request_path(yyjson_val *value) {
   if (value == nullptr || !yyjson_is_str(value)) {
     return {};
   }
-  return std::filesystem::path(yyjson_get_str(value));
+  auto raw = yyjson_get_str(value);
+  if (raw == nullptr) {
+    return {};
+  }
+  std::string text(raw);
+  if (text.empty() || text.size() > kMaxRequestPathLength) {
+    return {};
+  }
+  if (text.find('\0') != std::string::npos) {
+    return {};
+  }
+  try {
+#if defined(_WIN32)
+    return std::filesystem::u8path(text);
+#else
+    return std::filesystem::path(text);
+#endif
+  } catch (...) {
+    return {};
+  }
 }
 
-std::vector<tt::rpc::FsEntry> collect_directory_entries(
-    std::filesystem::path const &path) {
-  std::vector<tt::rpc::FsEntry> result;
-  try {
-    for (auto const &entry : std::filesystem::directory_iterator(path)) {
-      tt::rpc::FsEntry info;
-      info.name = entry.path().filename().string();
-      if (entry.is_directory()) {
-        info.type = "directory";
-      } else if (entry.is_regular_file()) {
-        info.type = "file";
-      } else {
-        info.type = "other";
-      }
-      if (entry.is_regular_file()) {
-        info.size = entry.file_size();
-      }
-      result.push_back(std::move(info));
+#if defined(_WIN32)
+struct SystemHandlerResult {
+  bool success = false;
+  bool permission_denied = false;
+  std::string message;
+};
+
+std::optional<std::filesystem::path> current_executable_path() {
+  std::vector<wchar_t> buffer(32768);
+  while (true) {
+    DWORD length =
+        GetModuleFileNameW(nullptr, buffer.data(), static_cast<DWORD>(buffer.size()));
+    if (length == 0) {
+      return std::nullopt;
     }
-    std::sort(result.begin(), result.end(), [](auto const &a, auto const &b) {
-      if (a.type != b.type) {
-        return a.type < b.type;
-      }
-      return a.name < b.name;
-    });
-  } catch (...) {
+    if (length < buffer.size()) {
+      return std::filesystem::path(buffer.data(), buffer.data() + length);
+    }
+    if (buffer.size() >= (1 << 16)) {
+      return std::nullopt;
+    }
+    buffer.resize(buffer.size() * 2);
   }
+}
+
+SystemHandlerResult register_windows_handler() {
+  SystemHandlerResult result;
+  auto exe_path = current_executable_path();
+  if (!exe_path) {
+    result.message = "unable to determine executable path";
+    return result;
+  }
+
+  std::wstring command = L"\"" + exe_path->wstring() + L"\" \"%1\"";
+  auto set_value = [&](std::wstring const &subkey, std::wstring const &value_name,
+                       std::wstring const &value) -> DWORD {
+    HKEY handle = nullptr;
+    DWORD disposition = 0;
+    auto status = RegCreateKeyExW(HKEY_CURRENT_USER, subkey.c_str(), 0, nullptr,
+                                  REG_OPTION_NON_VOLATILE, KEY_WRITE, nullptr, &handle,
+                                  &disposition);
+    if (status != ERROR_SUCCESS) {
+      return status;
+    }
+    auto name_ptr = value_name.empty() ? nullptr : value_name.c_str();
+    auto data_ptr = reinterpret_cast<const BYTE *>(value.c_str());
+    auto data_size = static_cast<DWORD>((value.size() + 1) * sizeof(wchar_t));
+    status = RegSetValueExW(handle, name_ptr, 0, REG_SZ, data_ptr, data_size);
+    RegCloseKey(handle);
+    return status;
+  };
+
+  auto fail = [&](std::string const &context, DWORD code) -> SystemHandlerResult {
+    SystemHandlerResult failure;
+    failure.permission_denied = code == ERROR_ACCESS_DENIED;
+    if (failure.permission_denied) {
+      failure.message = "permission-denied";
+    } else {
+      std::error_code ec(static_cast<int>(code), std::system_category());
+      failure.message = context + ": " + ec.message();
+    }
+    return failure;
+  };
+
+  auto apply = [&](std::wstring const &key, std::wstring const &name,
+                   std::wstring const &value) -> DWORD {
+    return set_value(key, name, value);
+  };
+
+  if (auto status = apply(L"Software\\Classes\\magnet", {}, L"URL:magnet Protocol");
+      status != ERROR_SUCCESS) {
+    return fail("magnet registration failed", status);
+  }
+  if (auto status = apply(L"Software\\Classes\\magnet", L"URL Protocol", L"");
+      status != ERROR_SUCCESS) {
+    return fail("magnet registration failed", status);
+  }
+  if (auto status =
+          apply(L"Software\\Classes\\magnet\\shell\\open\\command", {}, command);
+      status != ERROR_SUCCESS) {
+    return fail("magnet handler registration failed", status);
+  }
+  if (auto status = apply(L"Software\\Classes\\.torrent", {}, L"TinyTorrent.torrent");
+      status != ERROR_SUCCESS) {
+    return fail("torrent extension registration failed", status);
+  }
+  if (auto status = apply(
+          L"Software\\Classes\\TinyTorrent.torrent\\shell\\open\\command", {},
+          command);
+      status != ERROR_SUCCESS) {
+    return fail("torrent handler registration failed", status);
+  }
+
+  TT_LOG_INFO("registered magnet/.torrent handler ({})", exe_path->string());
+  result.success = true;
+  result.message = "system handler registered";
   return result;
 }
+#endif
 
 std::string to_lower_view(std::string_view value) {
   std::string result(value);
@@ -676,10 +771,636 @@ std::string handle_torrent_add(engine::Core *engine, yyjson_val *arguments) {
   return serialize_add_result(status);
 }
 
+std::string handle_tt_get_capabilities() {
+  return serialize_capabilities();
+}
+
+std::string handle_session_get(engine::Core *engine, std::string const &rpc_bind) {
+  auto settings = engine ? engine->settings() : engine::CoreSettings{};
+  auto entries = engine ? engine->blocklist_entry_count() : 0;
+  auto updated = engine ? engine->blocklist_last_update()
+                        : std::optional<std::chrono::system_clock::time_point>{};
+  return serialize_session_settings(settings, entries, updated, rpc_bind);
+}
+
+std::string handle_session_set(engine::Core *engine, yyjson_val *arguments) {
+  if (!engine) {
+    return serialize_success();
+  }
+  bool applied = false;
+  bool ok = true;
+  if (auto download = parse_download_dir(arguments)) {
+    TT_LOG_DEBUG("session-set download-dir={}", download->string());
+    engine->set_download_path(*download);
+    applied = true;
+  }
+  if (auto port = parse_peer_port(arguments)) {
+    TT_LOG_DEBUG("session-set peer-port={}", static_cast<unsigned>(*port));
+    applied = true;
+    if (!engine->set_listen_port(*port)) {
+      ok = false;
+    }
+  }
+  auto download_limit =
+      parse_int_value(yyjson_obj_get(arguments, "speed-limit-down"));
+  auto download_enabled =
+      parse_bool_flag(yyjson_obj_get(arguments, "speed-limit-down-enabled"));
+  auto upload_limit =
+      parse_int_value(yyjson_obj_get(arguments, "speed-limit-up"));
+  auto upload_enabled =
+      parse_bool_flag(yyjson_obj_get(arguments, "speed-limit-up-enabled"));
+  if (download_limit || download_enabled || upload_limit || upload_enabled) {
+    TT_LOG_DEBUG(
+        "session-set speed-limit-down={} enabled={} speed-limit-up={} enabled={}",
+        download_limit.value_or(-1), download_enabled.value_or(false),
+        upload_limit.value_or(-1), upload_enabled.value_or(false));
+    engine->set_speed_limits(download_limit, download_enabled, upload_limit,
+                             upload_enabled);
+    applied = true;
+  }
+  auto peer_limit = parse_int_value(yyjson_obj_get(arguments, "peer-limit"));
+  auto peer_limit_per_torrent =
+      parse_int_value(yyjson_obj_get(arguments, "peer-limit-per-torrent"));
+  if (peer_limit || peer_limit_per_torrent) {
+    TT_LOG_DEBUG("session-set peer-limit={} peer-limit-per-torrent={}",
+                 peer_limit.value_or(-1), peer_limit_per_torrent.value_or(-1));
+    engine->set_peer_limits(peer_limit, peer_limit_per_torrent);
+    applied = true;
+  }
+
+  tt::engine::SessionUpdate session_update;
+  bool session_update_needed = false;
+  if (auto value = parse_int_value(yyjson_obj_get(arguments, "alt-speed-down"))) {
+    session_update.alt_speed_down_kbps = *value;
+    session_update_needed = true;
+  }
+  if (auto value = parse_int_value(yyjson_obj_get(arguments, "alt-speed-up"))) {
+    session_update.alt_speed_up_kbps = *value;
+    session_update_needed = true;
+  }
+  if (auto value = parse_bool_flag(yyjson_obj_get(arguments, "alt-speed-enabled"))) {
+    session_update.alt_speed_enabled = *value;
+    session_update_needed = true;
+  }
+  if (auto value = parse_bool_flag(yyjson_obj_get(arguments, "alt-speed-time-enabled"))) {
+    session_update.alt_speed_time_enabled = *value;
+    session_update_needed = true;
+  }
+  if (auto value = parse_int_value(yyjson_obj_get(arguments, "alt-speed-time-begin"))) {
+    session_update.alt_speed_time_begin = *value;
+    session_update_needed = true;
+  }
+  if (auto value = parse_int_value(yyjson_obj_get(arguments, "alt-speed-time-end"))) {
+    session_update.alt_speed_time_end = *value;
+    session_update_needed = true;
+  }
+  if (auto value = parse_int_value(yyjson_obj_get(arguments, "alt-speed-time-day"))) {
+    session_update.alt_speed_time_day = *value;
+    session_update_needed = true;
+  }
+  if (auto enc = parse_encryption(yyjson_obj_get(arguments, "encryption"))) {
+    session_update.encryption = *enc;
+    session_update_needed = true;
+  }
+  if (auto value = parse_bool_flag(yyjson_obj_get(arguments, "dht-enabled"))) {
+    session_update.dht_enabled = *value;
+    session_update_needed = true;
+  }
+  if (auto value = parse_bool_flag(yyjson_obj_get(arguments, "pex-enabled"))) {
+    session_update.pex_enabled = *value;
+    session_update_needed = true;
+  }
+  if (auto value = parse_bool_flag(yyjson_obj_get(arguments, "lpd-enabled"))) {
+    session_update.lpd_enabled = *value;
+    session_update_needed = true;
+  }
+  if (auto value = parse_bool_flag(yyjson_obj_get(arguments, "utp-enabled"))) {
+    session_update.utp_enabled = *value;
+    session_update_needed = true;
+  }
+  if (auto value = parse_int_value(yyjson_obj_get(arguments, "download-queue-size"))) {
+    session_update.download_queue_size = *value;
+    session_update_needed = true;
+  }
+  if (auto value = parse_int_value(yyjson_obj_get(arguments, "seed-queue-size"))) {
+    session_update.seed_queue_size = *value;
+    session_update_needed = true;
+  }
+  if (auto value =
+          parse_bool_flag(yyjson_obj_get(arguments, "queue-stalled-enabled"))) {
+    session_update.queue_stalled_enabled = *value;
+    session_update_needed = true;
+  }
+  if (auto *incomplete = yyjson_obj_get(arguments, "incomplete-dir")) {
+    if (yyjson_is_str(incomplete)) {
+      session_update.incomplete_dir =
+          std::filesystem::path(yyjson_get_str(incomplete));
+      session_update_needed = true;
+    }
+  }
+  if (auto value =
+          parse_bool_flag(yyjson_obj_get(arguments, "incomplete-dir-enabled"))) {
+    session_update.incomplete_dir_enabled = *value;
+    session_update_needed = true;
+  }
+  if (auto *watch_dir = yyjson_obj_get(arguments, "watch-dir")) {
+    if (yyjson_is_str(watch_dir)) {
+      session_update.watch_dir = std::filesystem::path(yyjson_get_str(watch_dir));
+      session_update_needed = true;
+    }
+  }
+  if (auto value = parse_bool_flag(yyjson_obj_get(arguments, "watch-dir-enabled"))) {
+    session_update.watch_dir_enabled = *value;
+    session_update_needed = true;
+  }
+  if (auto value = parse_double_value(yyjson_obj_get(arguments, "seed-ratio-limit"))) {
+    session_update.seed_ratio_limit = *value;
+    session_update_needed = true;
+  }
+  if (auto value = parse_bool_flag(yyjson_obj_get(arguments, "seed-ratio-limited"))) {
+    session_update.seed_ratio_enabled = *value;
+    session_update_needed = true;
+  }
+  if (auto value = parse_int_value(yyjson_obj_get(arguments, "seed-idle-limit"))) {
+    session_update.seed_idle_limit = *value;
+    session_update_needed = true;
+  }
+  if (auto value = parse_bool_flag(yyjson_obj_get(arguments, "seed-idle-limited"))) {
+    session_update.seed_idle_enabled = *value;
+    session_update_needed = true;
+  }
+  if (auto value = parse_int_value(yyjson_obj_get(arguments, "proxy-type"))) {
+    session_update.proxy_type = *value;
+    session_update_needed = true;
+  }
+  if (auto *proxy_host = yyjson_obj_get(arguments, "proxy-host")) {
+    if (yyjson_is_str(proxy_host)) {
+      session_update.proxy_hostname = std::string(yyjson_get_str(proxy_host));
+      session_update_needed = true;
+    }
+  }
+  if (auto value = parse_int_value(yyjson_obj_get(arguments, "proxy-port"))) {
+    session_update.proxy_port = *value;
+    session_update_needed = true;
+  }
+  if (auto value = parse_bool_flag(yyjson_obj_get(arguments, "proxy-auth-enabled"))) {
+    session_update.proxy_auth_enabled = *value;
+    session_update_needed = true;
+  }
+  if (auto *proxy_user = yyjson_obj_get(arguments, "proxy-username")) {
+    if (yyjson_is_str(proxy_user)) {
+      session_update.proxy_username = std::string(yyjson_get_str(proxy_user));
+      session_update_needed = true;
+    }
+  }
+  if (auto *proxy_pass = yyjson_obj_get(arguments, "proxy-password")) {
+    if (yyjson_is_str(proxy_pass)) {
+      session_update.proxy_password = std::string(yyjson_get_str(proxy_pass));
+      session_update_needed = true;
+    }
+  }
+  if (auto value =
+          parse_bool_flag(yyjson_obj_get(arguments, "proxy-peer-connections"))) {
+    session_update.proxy_peer_connections = *value;
+    session_update_needed = true;
+  }
+  if (session_update_needed) {
+    engine->update_session_settings(std::move(session_update));
+    applied = true;
+  }
+  if (!ok) {
+    return serialize_error("failed to update session settings");
+  }
+  return serialize_success();
+}
+
+std::string handle_session_test(engine::Core *engine) {
+  auto port_interface = engine ? engine->settings().listen_interface : std::string{};
+  bool port_open = !port_interface.empty() && check_session_port(port_interface);
+  return serialize_session_test(port_open);
+}
+
+std::string handle_session_stats(engine::Core *engine) {
+  auto snapshot =
+      engine ? engine->snapshot() : std::make_shared<engine::SessionSnapshot>();
+  return serialize_session_stats(*snapshot);
+}
+
+std::string handle_session_close(engine::Core *engine) {
+  TT_LOG_INFO("session-close requested");
+  if (engine) {
+    engine->stop();
+  }
+  return serialize_success();
+}
+
+std::string handle_blocklist_update(engine::Core *engine) {
+  if (!engine) {
+    return serialize_error("engine unavailable");
+  }
+  auto entries = engine->reload_blocklist();
+  if (!entries) {
+    return serialize_error("blocklist update failed");
+  }
+  return serialize_blocklist_update(*entries, engine->blocklist_last_update());
+}
+
+std::string handle_fs_browse(yyjson_val *arguments) {
+  if (!arguments) {
+    return serialize_error("arguments required for fs-browse");
+  }
+  auto target = parse_request_path(yyjson_obj_get(arguments, "path"));
+  if (target.empty()) {
+    target = std::filesystem::current_path();
+  }
+  auto normalized = target.lexically_normal();
+  if (!tt::rpc::filesystem::path_exists(normalized)) {
+    return serialize_error("path does not exist");
+  }
+  if (!tt::rpc::filesystem::is_directory(normalized)) {
+    return serialize_error("path is not a directory");
+  }
+  auto entries = tt::rpc::filesystem::collect_directory_entries(normalized);
+  auto parent = normalized.parent_path();
+  return serialize_fs_browse(path_to_string(normalized), path_to_string(parent),
+                             std::string(1, std::filesystem::path::preferred_separator),
+                             entries);
+}
+
+std::string handle_fs_space(yyjson_val *arguments) {
+  auto target =
+      arguments ? parse_request_path(yyjson_obj_get(arguments, "path"))
+                : std::filesystem::path{};
+  if (target.empty()) {
+    target = std::filesystem::current_path();
+  }
+  auto info = tt::rpc::filesystem::query_space(target);
+  if (!info) {
+    return serialize_error("unable to query space");
+  }
+  return serialize_fs_space(path_to_string(target), info->available, info->capacity);
+}
+
+std::string handle_system_reveal(yyjson_val *arguments) {
+  if (!arguments) {
+    return serialize_error("arguments required for system-reveal");
+  }
+  auto target = parse_request_path(yyjson_obj_get(arguments, "path"));
+  if (target.empty()) {
+    return serialize_error("path required");
+  }
+  bool success = reveal_in_file_manager(target);
+  return serialize_system_action("system-reveal", success,
+                                 success ? "" : "unable to reveal path");
+}
+
+std::string handle_system_open(yyjson_val *arguments) {
+  if (!arguments) {
+    return serialize_error("arguments required for system-open");
+  }
+  auto target = parse_request_path(yyjson_obj_get(arguments, "path"));
+  if (target.empty()) {
+    return serialize_error("path required");
+  }
+  bool success = open_with_default_app(target);
+  return serialize_system_action("system-open", success,
+                                 success ? "" : "unable to open path");
+}
+
+std::string handle_system_register_handler() {
+#if defined(_WIN32)
+  auto result = register_windows_handler();
+  return serialize_system_action("system-register-handler", result.success,
+                                 result.message);
+#else
+  return serialize_system_action("system-register-handler", false,
+                                 "system register handler unsupported");
+#endif
+}
+
+std::string handle_app_shutdown(engine::Core *engine) {
+  if (engine) {
+    engine->stop();
+  }
+  tt::runtime::request_shutdown();
+  return serialize_success();
+}
+
+std::string handle_free_space(yyjson_val *arguments) {
+  if (!arguments) {
+    return serialize_error("arguments missing for free-space");
+  }
+  yyjson_val *path_value = yyjson_obj_get(arguments, "path");
+  if (path_value == nullptr || !yyjson_is_str(path_value)) {
+    return serialize_error("path argument required");
+  }
+  std::filesystem::path path(yyjson_get_str(path_value));
+  try {
+    auto info = std::filesystem::space(path);
+    return serialize_free_space(path.string(), info.available, info.capacity);
+  } catch (std::filesystem::filesystem_error const &ex) {
+    TT_LOG_INFO("free-space failed for {}: {}", path.string(), ex.what());
+    return serialize_error(ex.what());
+  }
+}
+
+std::string handle_torrent_get(engine::Core *engine, yyjson_val *arguments) {
+  if (!engine) {
+    return serialize_error("engine unavailable");
+  }
+  auto ids = parse_ids(arguments);
+  yyjson_val *fields = arguments ? yyjson_obj_get(arguments, "fields") : nullptr;
+  if (needs_detail(fields)) {
+    auto details = gather_torrent_details(engine, ids);
+    return serialize_torrent_detail(details);
+  }
+  auto snapshots = filter_torrents(engine, ids);
+  return serialize_torrent_list(snapshots);
+}
+
+std::string handle_torrent_start(engine::Core *engine, yyjson_val *arguments,
+                                 bool now) {
+  auto ids = parse_ids(arguments);
+  if (ids.empty()) {
+    return serialize_error("ids required");
+  }
+  if (!engine) {
+    return serialize_error("engine unavailable");
+  }
+  engine->start_torrents(ids, now);
+  return serialize_success();
+}
+
+std::string handle_torrent_stop(engine::Core *engine, yyjson_val *arguments) {
+  auto ids = parse_ids(arguments);
+  if (ids.empty()) {
+    return serialize_error("ids required");
+  }
+  if (!engine) {
+    return serialize_error("engine unavailable");
+  }
+  engine->stop_torrents(ids);
+  return serialize_success();
+}
+
+std::string handle_torrent_verify(engine::Core *engine, yyjson_val *arguments) {
+  auto ids = parse_ids(arguments);
+  if (ids.empty()) {
+    return serialize_error("ids required");
+  }
+  if (!engine) {
+    return serialize_error("engine unavailable");
+  }
+  engine->verify_torrents(ids);
+  return serialize_success();
+}
+
+std::string handle_torrent_remove(engine::Core *engine, yyjson_val *arguments) {
+  auto ids = parse_ids(arguments);
+  if (ids.empty()) {
+    return serialize_error("ids required");
+  }
+  if (!engine) {
+    return serialize_error("engine unavailable");
+  }
+  bool delete_data = bool_value(yyjson_obj_get(arguments, "delete-local-data"));
+  engine->remove_torrents(ids, delete_data);
+  return serialize_success();
+}
+
+std::string handle_torrent_reannounce(engine::Core *engine, yyjson_val *arguments) {
+  auto ids = parse_ids(arguments);
+  if (ids.empty()) {
+    return serialize_error("ids required");
+  }
+  if (!engine) {
+    return serialize_error("engine unavailable");
+  }
+  engine->reannounce_torrents(ids);
+  return serialize_success();
+}
+
+enum class QueueMoveAction { Top, Bottom, Up, Down };
+
+std::string handle_queue_move(engine::Core *engine, yyjson_val *arguments,
+                              QueueMoveAction action) {
+  auto ids = parse_ids(arguments);
+  if (ids.empty()) {
+    return serialize_error("ids required");
+  }
+  if (!engine) {
+    return serialize_error("engine unavailable");
+  }
+  switch (action) {
+    case QueueMoveAction::Top:
+      engine->queue_move_top(ids);
+      break;
+    case QueueMoveAction::Bottom:
+      engine->queue_move_bottom(ids);
+      break;
+    case QueueMoveAction::Up:
+      engine->queue_move_up(ids);
+      break;
+    case QueueMoveAction::Down:
+      engine->queue_move_down(ids);
+      break;
+  }
+  return serialize_success();
+}
+
+std::string handle_torrent_set(engine::Core *engine, yyjson_val *arguments) {
+  auto ids = parse_ids(arguments);
+  if (ids.empty()) {
+    return serialize_error("ids required");
+  }
+  if (!engine) {
+    return serialize_error("engine unavailable");
+  }
+  bool handled = false;
+  auto wanted = parse_int_array(arguments, "files-wanted");
+  if (!wanted.empty()) {
+    engine->toggle_file_selection(ids, wanted, true);
+    handled = true;
+  }
+  auto unwanted = parse_int_array(arguments, "files-unwanted");
+  if (!unwanted.empty()) {
+    engine->toggle_file_selection(ids, unwanted, false);
+    handled = true;
+  }
+  auto tracker_add =
+      parse_tracker_entries(yyjson_obj_get(arguments, "trackerAdd"));
+  if (!tracker_add.empty()) {
+    engine->add_trackers(ids, tracker_add);
+    handled = true;
+  }
+  auto tracker_remove =
+      parse_tracker_announces(yyjson_obj_get(arguments, "trackerRemove"));
+  if (!tracker_remove.empty()) {
+    engine->remove_trackers(ids, tracker_remove);
+    handled = true;
+  }
+  auto tracker_replace =
+      parse_tracker_entries(yyjson_obj_get(arguments, "trackerReplace"));
+  if (!tracker_replace.empty()) {
+    engine->replace_trackers(ids, tracker_replace);
+    handled = true;
+  }
+  if (auto priority =
+          parse_bandwidth_priority(yyjson_obj_get(arguments, "bandwidthPriority"));
+      priority) {
+    engine->set_torrent_bandwidth_priority(ids, *priority);
+    handled = true;
+  }
+  auto download_limit =
+      parse_int_value(yyjson_obj_get(arguments, "downloadLimit"));
+  auto download_limited =
+      parse_bool_flag(yyjson_obj_get(arguments, "downloadLimited"));
+  auto upload_limit = parse_int_value(yyjson_obj_get(arguments, "uploadLimit"));
+  auto upload_limited =
+      parse_bool_flag(yyjson_obj_get(arguments, "uploadLimited"));
+  if (download_limit || download_limited || upload_limit || upload_limited) {
+    engine->set_torrent_bandwidth_limits(ids, download_limit, download_limited,
+                                         upload_limit, upload_limited);
+    handled = true;
+  }
+  engine::TorrentSeedLimit seed_limits;
+  bool seed_limit_set = false;
+  if (auto ratio_limit =
+          parse_double_value(yyjson_obj_get(arguments, "seedRatioLimit"))) {
+    seed_limits.ratio_limit = *ratio_limit;
+    seed_limit_set = true;
+  }
+  if (auto ratio_enabled =
+          parse_bool_flag(yyjson_obj_get(arguments, "seedRatioLimited"))) {
+    seed_limits.ratio_enabled = *ratio_enabled;
+    seed_limit_set = true;
+  }
+  if (auto ratio_mode = parse_int_value(yyjson_obj_get(arguments, "seedRatioMode"))) {
+    seed_limits.ratio_mode = *ratio_mode;
+    seed_limit_set = true;
+  }
+  if (auto idle_limit =
+          parse_int_value(yyjson_obj_get(arguments, "seedIdleLimit"))) {
+    seed_limits.idle_limit = std::max(0, *idle_limit) * 60;
+    seed_limit_set = true;
+  }
+  if (auto idle_enabled =
+          parse_bool_flag(yyjson_obj_get(arguments, "seedIdleLimited"))) {
+    seed_limits.idle_enabled = *idle_enabled;
+    seed_limit_set = true;
+  }
+  if (auto idle_mode = parse_int_value(yyjson_obj_get(arguments, "seedIdleMode"))) {
+    seed_limits.idle_mode = *idle_mode;
+    seed_limit_set = true;
+  }
+  if (seed_limit_set) {
+    engine->set_torrent_seed_limits(ids, seed_limits);
+    handled = true;
+  }
+  if (auto labels = parse_labels(yyjson_obj_get(arguments, "labels"))) {
+    engine->set_torrent_labels(ids, *labels);
+    handled = true;
+  }
+  if (!handled) {
+    return serialize_error("unsupported torrent-set arguments");
+  }
+  return serialize_success();
+}
+
+std::string handle_torrent_set_location(engine::Core *engine, yyjson_val *arguments) {
+  auto ids = parse_ids(arguments);
+  yyjson_val *location =
+      arguments ? yyjson_obj_get(arguments, "location") : nullptr;
+  if (ids.empty() || location == nullptr || !yyjson_is_str(location)) {
+    return serialize_error("location and ids required");
+  }
+  if (!engine) {
+    return serialize_error("engine unavailable");
+  }
+  std::string destination(yyjson_get_str(location));
+  bool move_data = bool_value(yyjson_obj_get(arguments, "move"), true);
+  for (int id : ids) {
+    engine->move_torrent_location(id, destination, move_data);
+  }
+  return serialize_success();
+}
+
+std::string handle_torrent_rename_path(engine::Core *engine, yyjson_val *arguments) {
+  auto ids = parse_ids(arguments);
+  yyjson_val *path_value =
+      arguments ? yyjson_obj_get(arguments, "path") : nullptr;
+  yyjson_val *name_value =
+      arguments ? yyjson_obj_get(arguments, "name") : nullptr;
+  if (ids.empty() || path_value == nullptr || !yyjson_is_str(path_value) ||
+      name_value == nullptr || !yyjson_is_str(name_value)) {
+    return serialize_error("ids, path and name required");
+  }
+  if (!engine) {
+    return serialize_error("engine unavailable");
+  }
+  std::string path(yyjson_get_str(path_value));
+  std::string name(yyjson_get_str(name_value));
+  bool renamed = false;
+  for (int id : ids) {
+    if (engine->rename_torrent_path(id, path, name)) {
+      renamed = true;
+      break;
+    }
+  }
+  if (!renamed) {
+    return serialize_error("rename failed");
+  }
+  return serialize_torrent_rename(ids.front(), name, path);
+}
+
+std::string handle_group_set() {
+  TT_LOG_DEBUG("group-set ignored in this implementation");
+  return serialize_success();
+}
+
 } // namespace
 
 Dispatcher::Dispatcher(engine::Core *engine, std::string rpc_bind)
-    : engine_(engine), rpc_bind_(std::move(rpc_bind)) {}
+    : engine_(engine), rpc_bind_(std::move(rpc_bind)) {
+  register_handlers();
+}
+
+void Dispatcher::register_handlers() {
+  auto add = [this](std::string method, DispatchHandler handler) {
+    handlers_.emplace(std::move(method), std::move(handler));
+  };
+
+  add("tt-get-capabilities", [](yyjson_val *) { return handle_tt_get_capabilities(); });
+  add("session-get", [this](yyjson_val *) { return handle_session_get(engine_, rpc_bind_); });
+  add("session-set", [this](yyjson_val *arguments) { return handle_session_set(engine_, arguments); });
+  add("session-test", [this](yyjson_val *) { return handle_session_test(engine_); });
+  add("session-stats", [this](yyjson_val *) { return handle_session_stats(engine_); });
+  add("session-close", [this](yyjson_val *) { return handle_session_close(engine_); });
+  add("blocklist-update", [this](yyjson_val *) { return handle_blocklist_update(engine_); });
+  add("fs-browse", [](yyjson_val *arguments) { return handle_fs_browse(arguments); });
+  add("fs-space", [](yyjson_val *arguments) { return handle_fs_space(arguments); });
+  add("system-reveal", [](yyjson_val *arguments) { return handle_system_reveal(arguments); });
+  add("system-open", [](yyjson_val *arguments) { return handle_system_open(arguments); });
+  add("system-register-handler", [](yyjson_val *) { return handle_system_register_handler(); });
+  add("app-shutdown", [this](yyjson_val *) { return handle_app_shutdown(engine_); });
+  add("free-space", [](yyjson_val *arguments) { return handle_free_space(arguments); });
+  add("torrent-get", [this](yyjson_val *arguments) { return handle_torrent_get(engine_, arguments); });
+  add("torrent-add", [this](yyjson_val *arguments) { return handle_torrent_add(engine_, arguments); });
+  add("torrent-start", [this](yyjson_val *arguments) { return handle_torrent_start(engine_, arguments, false); });
+  add("torrent-start-now", [this](yyjson_val *arguments) { return handle_torrent_start(engine_, arguments, true); });
+  add("torrent-stop", [this](yyjson_val *arguments) { return handle_torrent_stop(engine_, arguments); });
+  add("torrent-verify", [this](yyjson_val *arguments) { return handle_torrent_verify(engine_, arguments); });
+  add("torrent-remove", [this](yyjson_val *arguments) { return handle_torrent_remove(engine_, arguments); });
+  add("torrent-reannounce", [this](yyjson_val *arguments) { return handle_torrent_reannounce(engine_, arguments); });
+  add("queue-move-top", [this](yyjson_val *arguments) { return handle_queue_move(engine_, arguments, QueueMoveAction::Top); });
+  add("queue-move-bottom", [this](yyjson_val *arguments) { return handle_queue_move(engine_, arguments, QueueMoveAction::Bottom); });
+  add("queue-move-up", [this](yyjson_val *arguments) { return handle_queue_move(engine_, arguments, QueueMoveAction::Up); });
+  add("queue-move-down", [this](yyjson_val *arguments) { return handle_queue_move(engine_, arguments, QueueMoveAction::Down); });
+  add("torrent-set", [this](yyjson_val *arguments) { return handle_torrent_set(engine_, arguments); });
+  add("torrent-set-location", [this](yyjson_val *arguments) { return handle_torrent_set_location(engine_, arguments); });
+  add("torrent-rename-path", [this](yyjson_val *arguments) { return handle_torrent_rename_path(engine_, arguments); });
+  add("group-set", [](yyjson_val *) { return handle_group_set(); });
+}
 
 std::string Dispatcher::dispatch(std::string_view payload) {
   if (payload.empty()) {
@@ -706,570 +1427,11 @@ std::string Dispatcher::dispatch(std::string_view payload) {
 
   yyjson_val *arguments = yyjson_obj_get(root, "arguments");
   std::string response;
-
-  if (method == "tt-get-capabilities") {
-    response = serialize_capabilities();
-  } else if (method == "session-get") {
-    auto settings = engine_ ? engine_->settings() : engine::CoreSettings{};
-    auto entries = engine_ ? engine_->blocklist_entry_count() : 0;
-    auto updated = engine_ ? engine_->blocklist_last_update() : std::optional<std::chrono::system_clock::time_point>{};
-    response = serialize_session_settings(settings, entries, updated, rpc_bind_);
-  } else if (method == "session-set") {
-    if (!engine_) {
-      response = serialize_success();
-    } else {
-      bool applied = false;
-      bool ok = true;
-      if (auto download = parse_download_dir(arguments)) {
-        TT_LOG_DEBUG("session-set download-dir={}", download->string());
-        engine_->set_download_path(*download);
-        applied = true;
-      }
-      if (auto port = parse_peer_port(arguments)) {
-        TT_LOG_DEBUG("session-set peer-port={}", static_cast<unsigned>(*port));
-        applied = true;
-        if (!engine_->set_listen_port(*port)) {
-          ok = false;
-        }
-      }
-      auto download_limit =
-          parse_int_value(yyjson_obj_get(arguments, "speed-limit-down"));
-      auto download_enabled =
-          parse_bool_flag(yyjson_obj_get(arguments, "speed-limit-down-enabled"));
-      auto upload_limit =
-          parse_int_value(yyjson_obj_get(arguments, "speed-limit-up"));
-      auto upload_enabled =
-          parse_bool_flag(yyjson_obj_get(arguments, "speed-limit-up-enabled"));
-      if (download_limit || download_enabled || upload_limit ||
-          upload_enabled) {
-        TT_LOG_DEBUG("session-set speed-limit-down={} enabled={} speed-limit-up={} enabled={}",
-                     download_limit.value_or(-1),
-                     download_enabled.value_or(false),
-                     upload_limit.value_or(-1),
-                     upload_enabled.value_or(false));
-        engine_->set_speed_limits(download_limit, download_enabled, upload_limit,
-                                  upload_enabled);
-        applied = true;
-      }
-      auto peer_limit = parse_int_value(yyjson_obj_get(arguments, "peer-limit"));
-      auto peer_limit_per_torrent =
-          parse_int_value(yyjson_obj_get(arguments, "peer-limit-per-torrent"));
-      if (peer_limit || peer_limit_per_torrent) {
-        TT_LOG_DEBUG("session-set peer-limit={} peer-limit-per-torrent={}",
-                     peer_limit.value_or(-1),
-                     peer_limit_per_torrent.value_or(-1));
-        engine_->set_peer_limits(peer_limit, peer_limit_per_torrent);
-        applied = true;
-      }
-
-      tt::engine::SessionUpdate session_update;
-      bool session_update_needed = false;
-      if (auto value = parse_int_value(yyjson_obj_get(arguments, "alt-speed-down"))) {
-        session_update.alt_speed_down_kbps = *value;
-        session_update_needed = true;
-      }
-      if (auto value = parse_int_value(yyjson_obj_get(arguments, "alt-speed-up"))) {
-        session_update.alt_speed_up_kbps = *value;
-        session_update_needed = true;
-      }
-      if (auto value = parse_bool_flag(yyjson_obj_get(arguments, "alt-speed-enabled"))) {
-        session_update.alt_speed_enabled = *value;
-        session_update_needed = true;
-      }
-      if (auto value =
-              parse_bool_flag(yyjson_obj_get(arguments, "alt-speed-time-enabled"))) {
-        session_update.alt_speed_time_enabled = *value;
-        session_update_needed = true;
-      }
-      if (auto value =
-              parse_int_value(yyjson_obj_get(arguments, "alt-speed-time-begin"))) {
-        session_update.alt_speed_time_begin = *value;
-        session_update_needed = true;
-      }
-      if (auto value =
-              parse_int_value(yyjson_obj_get(arguments, "alt-speed-time-end"))) {
-        session_update.alt_speed_time_end = *value;
-        session_update_needed = true;
-      }
-      if (auto value = parse_int_value(yyjson_obj_get(arguments, "alt-speed-time-day"))) {
-        session_update.alt_speed_time_day = *value;
-        session_update_needed = true;
-      }
-      if (auto enc = parse_encryption(yyjson_obj_get(arguments, "encryption"))) {
-        session_update.encryption = *enc;
-        session_update_needed = true;
-      }
-      if (auto value = parse_bool_flag(yyjson_obj_get(arguments, "dht-enabled"))) {
-        session_update.dht_enabled = *value;
-        session_update_needed = true;
-      }
-      if (auto value = parse_bool_flag(yyjson_obj_get(arguments, "pex-enabled"))) {
-        session_update.pex_enabled = *value;
-        session_update_needed = true;
-      }
-      if (auto value = parse_bool_flag(yyjson_obj_get(arguments, "lpd-enabled"))) {
-        session_update.lpd_enabled = *value;
-        session_update_needed = true;
-      }
-      if (auto value = parse_bool_flag(yyjson_obj_get(arguments, "utp-enabled"))) {
-        session_update.utp_enabled = *value;
-        session_update_needed = true;
-      }
-      if (auto value =
-              parse_int_value(yyjson_obj_get(arguments, "download-queue-size"))) {
-        session_update.download_queue_size = *value;
-        session_update_needed = true;
-      }
-      if (auto value =
-              parse_int_value(yyjson_obj_get(arguments, "seed-queue-size"))) {
-        session_update.seed_queue_size = *value;
-        session_update_needed = true;
-      }
-      if (auto value = parse_bool_flag(yyjson_obj_get(arguments,
-                                                      "queue-stalled-enabled"))) {
-        session_update.queue_stalled_enabled = *value;
-        session_update_needed = true;
-      }
-      if (auto *incomplete =
-              yyjson_obj_get(arguments, "incomplete-dir")) {
-        if (yyjson_is_str(incomplete)) {
-          session_update.incomplete_dir =
-              std::filesystem::path(yyjson_get_str(incomplete));
-          session_update_needed = true;
-        }
-      }
-      if (auto value =
-              parse_bool_flag(yyjson_obj_get(arguments, "incomplete-dir-enabled"))) {
-        session_update.incomplete_dir_enabled = *value;
-        session_update_needed = true;
-      }
-      if (auto *watch_dir =
-              yyjson_obj_get(arguments, "watch-dir")) {
-        if (yyjson_is_str(watch_dir)) {
-          session_update.watch_dir =
-              std::filesystem::path(yyjson_get_str(watch_dir));
-          session_update_needed = true;
-        }
-      }
-      if (auto value =
-              parse_bool_flag(yyjson_obj_get(arguments, "watch-dir-enabled"))) {
-        session_update.watch_dir_enabled = *value;
-        session_update_needed = true;
-      }
-      if (auto value =
-              parse_double_value(yyjson_obj_get(arguments, "seed-ratio-limit"))) {
-        session_update.seed_ratio_limit = *value;
-        session_update_needed = true;
-      }
-      if (auto value =
-              parse_bool_flag(yyjson_obj_get(arguments, "seed-ratio-limited"))) {
-        session_update.seed_ratio_enabled = *value;
-        session_update_needed = true;
-      }
-      if (auto value =
-              parse_int_value(yyjson_obj_get(arguments, "seed-idle-limit"))) {
-        session_update.seed_idle_limit = *value;
-        session_update_needed = true;
-      }
-      if (auto value =
-              parse_bool_flag(yyjson_obj_get(arguments, "seed-idle-limited"))) {
-        session_update.seed_idle_enabled = *value;
-        session_update_needed = true;
-      }
-      if (auto value = parse_int_value(yyjson_obj_get(arguments, "proxy-type"))) {
-        session_update.proxy_type = *value;
-        session_update_needed = true;
-      }
-      if (auto *proxy_host = yyjson_obj_get(arguments, "proxy-host")) {
-        if (yyjson_is_str(proxy_host)) {
-          session_update.proxy_hostname = std::string(yyjson_get_str(proxy_host));
-          session_update_needed = true;
-        }
-      }
-      if (auto value = parse_int_value(yyjson_obj_get(arguments, "proxy-port"))) {
-        session_update.proxy_port = *value;
-        session_update_needed = true;
-      }
-      if (auto value =
-              parse_bool_flag(yyjson_obj_get(arguments, "proxy-auth-enabled"))) {
-        session_update.proxy_auth_enabled = *value;
-        session_update_needed = true;
-      }
-      if (auto *proxy_user = yyjson_obj_get(arguments, "proxy-username")) {
-        if (yyjson_is_str(proxy_user)) {
-          session_update.proxy_username =
-              std::string(yyjson_get_str(proxy_user));
-          session_update_needed = true;
-        }
-      }
-      if (auto *proxy_pass = yyjson_obj_get(arguments, "proxy-password")) {
-        if (yyjson_is_str(proxy_pass)) {
-          session_update.proxy_password =
-              std::string(yyjson_get_str(proxy_pass));
-          session_update_needed = true;
-        }
-      }
-      if (auto value =
-              parse_bool_flag(yyjson_obj_get(arguments, "proxy-peer-connections"))) {
-        session_update.proxy_peer_connections = *value;
-        session_update_needed = true;
-      }
-      if (session_update_needed) {
-        engine_->update_session_settings(std::move(session_update));
-        applied = true;
-      }
-      if (!ok) {
-        response = serialize_error("failed to update session settings");
-      } else {
-        response = serialize_success();
-      }
-    }
-  } else if (method == "session-test") {
-    auto port_interface = engine_ ? engine_->settings().listen_interface : std::string{};
-    bool port_open = !port_interface.empty() && check_session_port(port_interface);
-    response = serialize_session_test(port_open);
-  } else if (method == "session-stats") {
-    auto snapshot = engine_ ? engine_->snapshot()
-                            : std::make_shared<engine::SessionSnapshot>();
-    response = serialize_session_stats(*snapshot);
-  } else if (method == "session-close") {
-    TT_LOG_INFO("session-close requested");
-    if (engine_) {
-      engine_->stop();
-    }
-    response = serialize_success();
-  } else if (method == "blocklist-update") {
-    if (!engine_) {
-      response = serialize_error("engine unavailable");
-    } else {
-      auto entries = engine_->reload_blocklist();
-      if (!entries) {
-        response = serialize_error("blocklist update failed");
-      } else {
-        response = serialize_blocklist_update(
-            *entries, engine_->blocklist_last_update());
-      }
-    }
-  } else if (method == "fs-browse") {
-    if (!arguments) {
-      response = serialize_error("arguments required for fs-browse");
-    } else {
-      auto target = parse_request_path(yyjson_obj_get(arguments, "path"));
-      if (target.empty()) {
-        target = std::filesystem::current_path();
-      }
-      auto normalized = target.lexically_normal();
-      std::error_code ec;
-      if (!std::filesystem::exists(normalized, ec)) {
-        response = serialize_error("path does not exist");
-      } else if (!std::filesystem::is_directory(normalized, ec)) {
-        response = serialize_error("path is not a directory");
-      } else {
-        auto entries = collect_directory_entries(normalized);
-        auto parent = normalized.parent_path();
-        response = serialize_fs_browse(
-            path_to_string(normalized), path_to_string(parent),
-            std::string(1, std::filesystem::path::preferred_separator),
-            entries);
-      }
-    }
-  } else if (method == "fs-space") {
-    auto target = arguments ? parse_request_path(yyjson_obj_get(arguments, "path"))
-                            : std::filesystem::path{};
-    if (target.empty()) {
-      target = std::filesystem::current_path();
-    }
-    std::error_code ec;
-    auto info = std::filesystem::space(target, ec);
-    if (ec) {
-      response = serialize_error("unable to query space");
-    } else {
-      response = serialize_fs_space(path_to_string(target), info.available,
-                                   info.capacity);
-    }
-  } else if (method == "system-reveal") {
-    if (!arguments) {
-      response = serialize_error("arguments required for system-reveal");
-    } else {
-      auto target = parse_request_path(yyjson_obj_get(arguments, "path"));
-      if (target.empty()) {
-        response = serialize_error("path required");
-      } else {
-        bool success = reveal_in_file_manager(target);
-        response = serialize_system_action("system-reveal", success,
-                                           success ? "" : "unable to reveal path");
-      }
-    }
-  } else if (method == "system-open") {
-    if (!arguments) {
-      response = serialize_error("arguments required for system-open");
-    } else {
-      auto target = parse_request_path(yyjson_obj_get(arguments, "path"));
-      if (target.empty()) {
-        response = serialize_error("path required");
-      } else {
-        bool success = open_with_default_app(target);
-        response = serialize_system_action("system-open", success,
-                                           success ? "" : "unable to open path");
-      }
-    }
-  } else if (method == "system-register-handler") {
-    response = serialize_system_action("system-register-handler", false,
-                                       "not implemented");
-  } else if (method == "free-space") {
-    if (!arguments) {
-      response = serialize_error("arguments missing for free-space");
-    } else {
-      yyjson_val *path_value = yyjson_obj_get(arguments, "path");
-      if (path_value == nullptr || !yyjson_is_str(path_value)) {
-        response = serialize_error("path argument required");
-      } else {
-        std::filesystem::path path(yyjson_get_str(path_value));
-        try {
-          auto info = std::filesystem::space(path);
-          response = serialize_free_space(path.string(), info.available,
-                                          info.capacity);
-        } catch (std::filesystem::filesystem_error const &ex) {
-          TT_LOG_INFO("free-space failed for {}: {}", path.string(), ex.what());
-          response = serialize_error(ex.what());
-        }
-      }
-    }
-  } else if (method == "torrent-get") {
-    if (!engine_) {
-      response = serialize_error("engine unavailable");
-    } else {
-      auto ids = parse_ids(arguments);
-      yyjson_val *fields = arguments ? yyjson_obj_get(arguments, "fields") : nullptr;
-      if (needs_detail(fields)) {
-        auto details = gather_torrent_details(engine_, ids);
-        response = serialize_torrent_detail(details);
-      } else {
-        auto snapshots = filter_torrents(engine_, ids);
-        response = serialize_torrent_list(snapshots);
-      }
-    }
-  } else if (method == "torrent-add") {
-    response = handle_torrent_add(engine_, arguments);
-  } else if (method == "torrent-start" || method == "torrent-start-now") {
-    auto ids = parse_ids(arguments);
-    if (ids.empty()) {
-      response = serialize_error("ids required");
-    } else if (!engine_) {
-      response = serialize_error("engine unavailable");
-    } else {
-      engine_->start_torrents(ids, method == "torrent-start-now");
-      response = serialize_success();
-    }
-  } else if (method == "torrent-stop") {
-    auto ids = parse_ids(arguments);
-    if (ids.empty()) {
-      response = serialize_error("ids required");
-    } else if (!engine_) {
-      response = serialize_error("engine unavailable");
-    } else {
-      engine_->stop_torrents(ids);
-      response = serialize_success();
-    }
-  } else if (method == "torrent-verify") {
-    auto ids = parse_ids(arguments);
-    if (ids.empty()) {
-      response = serialize_error("ids required");
-    } else if (!engine_) {
-      response = serialize_error("engine unavailable");
-    } else {
-      engine_->verify_torrents(ids);
-      response = serialize_success();
-    }
-  } else if (method == "torrent-remove") {
-    auto ids = parse_ids(arguments);
-    if (ids.empty()) {
-      response = serialize_error("ids required");
-    } else if (!engine_) {
-      response = serialize_error("engine unavailable");
-    } else {
-      bool delete_data =
-          bool_value(yyjson_obj_get(arguments, "delete-local-data"));
-      engine_->remove_torrents(ids, delete_data);
-      response = serialize_success();
-    }
-  } else if (method == "torrent-reannounce") {
-    auto ids = parse_ids(arguments);
-    if (ids.empty()) {
-      response = serialize_error("ids required");
-    } else if (!engine_) {
-      response = serialize_error("engine unavailable");
-    } else {
-      engine_->reannounce_torrents(ids);
-      response = serialize_success();
-    }
-  } else if (method == "queue-move-top" || method == "queue-move-bottom" ||
-             method == "queue-move-up" || method == "queue-move-down") {
-    auto ids = parse_ids(arguments);
-    if (ids.empty()) {
-      response = serialize_error("ids required");
-    } else if (!engine_) {
-      response = serialize_error("engine unavailable");
-    } else {
-      if (method == "queue-move-top") {
-        engine_->queue_move_top(ids);
-      } else if (method == "queue-move-bottom") {
-        engine_->queue_move_bottom(ids);
-      } else if (method == "queue-move-up") {
-        engine_->queue_move_up(ids);
-      } else {
-        engine_->queue_move_down(ids);
-      }
-      response = serialize_success();
-    }
-  } else if (method == "torrent-set") {
-    auto ids = parse_ids(arguments);
-    if (ids.empty()) {
-      response = serialize_error("ids required");
-    } else if (!engine_) {
-      response = serialize_error("engine unavailable");
-    } else {
-      bool handled = false;
-      auto wanted = parse_int_array(arguments, "files-wanted");
-      if (!wanted.empty()) {
-        engine_->toggle_file_selection(ids, wanted, true);
-        handled = true;
-      }
-      auto unwanted = parse_int_array(arguments, "files-unwanted");
-      if (!unwanted.empty()) {
-        engine_->toggle_file_selection(ids, unwanted, false);
-        handled = true;
-      }
-      auto tracker_add =
-          parse_tracker_entries(yyjson_obj_get(arguments, "trackerAdd"));
-      if (!tracker_add.empty()) {
-        engine_->add_trackers(ids, tracker_add);
-        handled = true;
-      }
-      auto tracker_remove =
-          parse_tracker_announces(yyjson_obj_get(arguments, "trackerRemove"));
-      if (!tracker_remove.empty()) {
-        engine_->remove_trackers(ids, tracker_remove);
-        handled = true;
-      }
-      auto tracker_replace =
-          parse_tracker_entries(yyjson_obj_get(arguments, "trackerReplace"));
-      if (!tracker_replace.empty()) {
-        engine_->replace_trackers(ids, tracker_replace);
-        handled = true;
-      }
-      if (auto priority =
-              parse_bandwidth_priority(yyjson_obj_get(arguments, "bandwidthPriority"));
-          priority) {
-        engine_->set_torrent_bandwidth_priority(ids, *priority);
-        handled = true;
-      }
-      auto download_limit =
-          parse_int_value(yyjson_obj_get(arguments, "downloadLimit"));
-      auto download_limited =
-          parse_bool_flag(yyjson_obj_get(arguments, "downloadLimited"));
-      auto upload_limit =
-          parse_int_value(yyjson_obj_get(arguments, "uploadLimit"));
-      auto upload_limited =
-          parse_bool_flag(yyjson_obj_get(arguments, "uploadLimited"));
-      if (download_limit || download_limited || upload_limit ||
-          upload_limited) {
-        engine_->set_torrent_bandwidth_limits(ids, download_limit,
-                                              download_limited, upload_limit,
-                                              upload_limited);
-        handled = true;
-      }
-      engine::TorrentSeedLimit seed_limits;
-      bool seed_limit_set = false;
-      if (auto ratio_limit =
-              parse_double_value(yyjson_obj_get(arguments, "seedRatioLimit"))) {
-        seed_limits.ratio_limit = *ratio_limit;
-        seed_limit_set = true;
-      }
-      if (auto ratio_enabled =
-              parse_bool_flag(yyjson_obj_get(arguments, "seedRatioLimited"))) {
-        seed_limits.ratio_enabled = *ratio_enabled;
-        seed_limit_set = true;
-      }
-      if (auto ratio_mode =
-              parse_int_value(yyjson_obj_get(arguments, "seedRatioMode"))) {
-        seed_limits.ratio_mode = *ratio_mode;
-        seed_limit_set = true;
-      }
-      if (auto idle_limit =
-              parse_int_value(yyjson_obj_get(arguments, "seedIdleLimit"))) {
-        seed_limits.idle_limit = std::max(0, *idle_limit) * 60;
-        seed_limit_set = true;
-      }
-      if (auto idle_enabled =
-              parse_bool_flag(yyjson_obj_get(arguments, "seedIdleLimited"))) {
-        seed_limits.idle_enabled = *idle_enabled;
-        seed_limit_set = true;
-      }
-      if (auto idle_mode =
-              parse_int_value(yyjson_obj_get(arguments, "seedIdleMode"))) {
-        seed_limits.idle_mode = *idle_mode;
-        seed_limit_set = true;
-      }
-      if (seed_limit_set) {
-        engine_->set_torrent_seed_limits(ids, seed_limits);
-        handled = true;
-      }
-      if (auto labels = parse_labels(yyjson_obj_get(arguments, "labels"))) {
-        engine_->set_torrent_labels(ids, *labels);
-        handled = true;
-      }
-      if (!handled) {
-        response = serialize_error("unsupported torrent-set arguments");
-      } else {
-        response = serialize_success();
-      }
-    }
-  } else if (method == "torrent-set-location") {
-    auto ids = parse_ids(arguments);
-    yyjson_val *location = arguments ? yyjson_obj_get(arguments, "location") : nullptr;
-    if (ids.empty() || location == nullptr || !yyjson_is_str(location)) {
-      response = serialize_error("location and ids required");
-    } else if (!engine_) {
-      response = serialize_error("engine unavailable");
-    } else {
-      std::string destination(yyjson_get_str(location));
-      bool move_data = bool_value(yyjson_obj_get(arguments, "move"), true);
-      for (int id : ids) {
-        engine_->move_torrent_location(id, destination, move_data);
-      }
-      response = serialize_success();
-    }
-  } else if (method == "torrent-rename-path") {
-    auto ids = parse_ids(arguments);
-    yyjson_val *path_value = arguments ? yyjson_obj_get(arguments, "path") : nullptr;
-    yyjson_val *name_value = arguments ? yyjson_obj_get(arguments, "name") : nullptr;
-    if (ids.empty() || path_value == nullptr || !yyjson_is_str(path_value) ||
-        name_value == nullptr || !yyjson_is_str(name_value)) {
-      response = serialize_error("ids, path and name required");
-    } else if (!engine_) {
-      response = serialize_error("engine unavailable");
-    } else {
-      std::string path(yyjson_get_str(path_value));
-      std::string name(yyjson_get_str(name_value));
-      bool renamed = false;
-      for (int id : ids) {
-        if (engine_->rename_torrent_path(id, path, name)) {
-          renamed = true;
-          break;
-        }
-      }
-      if (!renamed) {
-        response = serialize_error("rename failed");
-      } else {
-        response = serialize_torrent_rename(ids.front(), name, path);
-      }
-    }
-  } else if (method == "group-set") {
-    TT_LOG_DEBUG("group-set ignored in this implementation");
-    response = serialize_success();
-  } else {
+  auto handler_it = handlers_.find(method);
+  if (handler_it == handlers_.end()) {
     response = serialize_error("unsupported method");
+  } else {
+    response = handler_it->second(arguments);
   }
 
   TT_LOG_DEBUG("RPC method {} responded with {} bytes", method, response.size());
