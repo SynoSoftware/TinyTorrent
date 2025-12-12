@@ -437,6 +437,7 @@ struct Core::Impl {
   std::unordered_map<int, int> torrent_priorities;
   std::unordered_map<int, std::uint64_t> torrent_revisions;
   std::uint64_t next_torrent_revision = 1;
+  std::unordered_map<int, TorrentSnapshot> snapshot_cache;
   struct WatchFileSnapshot {
     std::uintmax_t size = 0;
     std::filesystem::file_time_type mtime;
@@ -939,8 +940,16 @@ private:
       TorrentAddRequest request;
       request.metainfo = std::move(buffer);
       request.download_path = settings.download_path;
-      enqueue_torrent(std::move(request));
-      mark_watch_file(path, ".added");
+      auto status = enqueue_torrent(std::move(request));
+      if (status == Core::AddTorrentStatus::Ok) {
+        mark_watch_file(path, ".added");
+      } else {
+        auto reason = status == Core::AddTorrentStatus::InvalidUri
+                          ? "invalid torrent metadata"
+                          : "failed to queue torrent";
+        TT_LOG_INFO("watch-dir enqueue failed for {}: {}", path.string(), reason);
+        mark_watch_file(path, ".invalid");
+      }
     }
     for (auto it = watch_dir_snapshots.begin(); it != watch_dir_snapshots.end();) {
       if (seen.contains(it->first)) {
@@ -1170,6 +1179,7 @@ private:
     std::uint64_t total_upload_rate = 0;
     std::size_t paused_count = 0;
     std::unordered_set<int> seen_ids;
+    std::unordered_map<int, TorrentSnapshot> updated_cache;
 
     for (auto const &handle : handles) {
       auto status = handle.status();
@@ -1178,16 +1188,29 @@ private:
       seen_ids.insert(id);
       enforce_torrent_seed_limits(id, handle, status);
       move_completed_from_incomplete(handle, status);
-      new_snapshot->torrents.push_back(build_snapshot(id, status));
-      auto &entry = new_snapshot->torrents.back();
+      std::uint64_t revision = ensure_torrent_revision(id);
+      TorrentSnapshot entry;
+      auto cache_it = snapshot_cache.find(id);
+      if (cache_it != snapshot_cache.end() &&
+          cache_it->second.revision == revision) {
+        entry = cache_it->second;
+      } else {
+        entry = build_snapshot(id, status, revision);
+      }
       if (auto labels_it = torrent_labels.find(hash);
           labels_it != torrent_labels.end()) {
         entry.labels = labels_it->second;
+      } else {
+        entry.labels.clear();
       }
       if (auto prio_it = torrent_priorities.find(id);
           prio_it != torrent_priorities.end()) {
         entry.bandwidth_priority = prio_it->second;
+      } else {
+        entry.bandwidth_priority = 0;
       }
+      updated_cache[id] = entry;
+      new_snapshot->torrents.push_back(entry);
 
       const auto download_payload = status.download_payload_rate > 0 ? status.download_payload_rate : 0;
       const auto upload_payload = status.upload_payload_rate > 0 ? status.upload_payload_rate : 0;
@@ -1229,6 +1252,8 @@ private:
     new_snapshot->download_rate = total_download_rate;
     new_snapshot->upload_rate = total_upload_rate;
     new_snapshot->dht_nodes = 0;
+
+    snapshot_cache = std::move(updated_cache);
 
     TT_LOG_DEBUG(
         "Snapshot updated: {} torrents ({} active, {} paused) down={} up={}",
@@ -2095,7 +2120,8 @@ private:
     return entries;
   }
 
-  TorrentSnapshot build_snapshot(int rpc_id, libtorrent::torrent_status const &status) {
+  TorrentSnapshot build_snapshot(int rpc_id, libtorrent::torrent_status const &status,
+                                 std::uint64_t revision = 0) {
     TorrentSnapshot info;
     info.id = rpc_id;
     info.hash = info_hash_to_hex(status.info_hashes);
@@ -2133,9 +2159,12 @@ private:
     info.left_until_done =
         std::max<std::int64_t>(0, status.total_wanted - status.total_wanted_done);
   info.size_when_done = status.total_wanted;
-  info.revision = ensure_torrent_revision(rpc_id);
-  return info;
-}
+    if (revision == 0) {
+      revision = ensure_torrent_revision(rpc_id);
+    }
+    info.revision = revision;
+    return info;
+  }
 
   TorrentDetail collect_detail(int rpc_id, libtorrent::torrent_handle const &handle,
                                libtorrent::torrent_status const &status) {
