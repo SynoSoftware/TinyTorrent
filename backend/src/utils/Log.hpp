@@ -45,7 +45,11 @@ inline void print_status(std::format_string<Args...> fmt, Args &&...args) {
 #if defined(TT_ENABLE_LOGGING) && !defined(TT_BUILD_MINIMAL)
 #define TT_LOG_INFO(fmt, ...) tt::log::write_line('I', fmt, ##__VA_ARGS__)
 #define TT_LOG_DEBUG(fmt, ...) tt::log::write_line('D', fmt, ##__VA_ARGS__)
+#define TT_LOG_WARN(fmt, ...) tt::log::write_line('W', fmt, ##__VA_ARGS__)
+#define TT_LOG_ERROR(fmt, ...) tt::log::write_line('E', fmt, ##__VA_ARGS__)
 #else
 #define TT_LOG_INFO(fmt, ...) (void)0
 #define TT_LOG_DEBUG(fmt, ...) (void)0
+#define TT_LOG_WARN(fmt, ...) (void)0
+#define TT_LOG_ERROR(fmt, ...) (void)0
 #endif
