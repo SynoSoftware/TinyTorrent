@@ -31,6 +31,7 @@ export interface SettingsConfig {
     seedRatioLimited: boolean;
     idleSeedingLimit: number;
     idleSeedingLimited: boolean;
+    table_watermark_enabled: boolean;
     refresh_interval_ms: number;
     request_timeout_ms: number;
 }

@@ -81,7 +81,8 @@
             "language_helper": "The HUD updates immediately after you change it.",
             "config_export": "Copy the raw settings JSON for backups or automation.",
             "config_details": "Includes both engine telemetry and UI preferences in a single snapshot.",
-            "connection_profiles": "Manage the RPC endpoints and credentials TinyTorrent talks to."
+            "connection_profiles": "Manage the RPC endpoints and credentials TinyTorrent talks to.",
+            "table_watermark": "Display the ghosted TinyTorrent logo behind the torrent table."
         },
         "headers": {
             "gui": "Interface",
@@ -124,6 +125,7 @@
             "refreshInterval": "Refresh Interval (ms)",
             "renamePartial": "Rename Partial Files",
             "requestTimeout": "Request Timeout (ms)",
+            "tableWatermark": "Show torrent table watermark",
             "seedRatioLimit": "Seed Ratio Limit",
             "seedRatioToggle": "Enforce Seed Ratio",
             "startAdded": "Start Added Torrents",
@@ -157,6 +159,7 @@
             "connectionLimits": "Connection Limits",
             "connection_profiles": "Connections",
             "dashboard": "Dashboard",
+            "visuals": "Visuals",
             "localization": "Localization",
             "advanced": "Advanced",
             "encryption": "Encryption",

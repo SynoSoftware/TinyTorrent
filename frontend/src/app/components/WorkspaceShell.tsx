@@ -139,6 +139,7 @@ interface WorkspaceShellProps {
     handleSaveSettings: (config: SettingsConfig) => Promise<void>;
     handleTestPort: () => Promise<void>;
     restoreHudCards: () => void;
+    tableWatermarkEnabled: boolean;
     torrentClient: EngineAdapter;
 }
 
@@ -202,6 +203,7 @@ export function WorkspaceShell({
     handleSaveSettings,
     handleTestPort,
     restoreHudCards,
+    tableWatermarkEnabled,
     torrentClient,
 }: WorkspaceShellProps) {
     const { t } = useTranslation();
@@ -271,6 +273,7 @@ export function WorkspaceShell({
                 isDropActive={isDragActive}
                 onSelectionChange={handleSelectionChange}
                 onOpenFolder={handleOpenFolder}
+                tableWatermarkEnabled={tableWatermarkEnabled}
             />
     );
 
