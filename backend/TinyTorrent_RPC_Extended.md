@@ -26,7 +26,7 @@ Before attempting WebSocket upgrades or extended methods, the client **must** ve
     "rpc-version": 17,
     "websocket-endpoint": "/ws",
     "platform": "win32",
-    "features": ["fs-browse", "system-integration", "sequential-download", "proxy-configuration", "labels"]
+    "features": ["fs-browse", "system-integration", "traffic-history", "sequential-download", "proxy-configuration", "labels"]
   }
 }
 ```
@@ -145,9 +145,56 @@ To ensure type safety in the frontend, the `event` message type uses strict nami
 
 ---
 
-## **5. Engine Configuration (`session-set` / `session-get`)**
+## **5. Historical Traffic API (`history-*`)**
 
-### **5.1 Proxy Configuration (Secure)**
+**Concept:** Time-series data with server-side aggregation.
+**Transport:** HTTP RPC Only (Excluded from WebSocket snapshots to prevent head-of-line blocking).
+
+### **5.1 Retrieve History**
+
+**Method:** `history-get`
+**Arguments:**
+
+- `start` (int, required): Unix Epoch (Inclusive).
+- `end` (int, optional): Unix Epoch (Exclusive). Defaults to Now.
+- `step` (int, optional): Aggregation window in seconds.
+  - **Behavior:** Server snaps this to the nearest multiple of the recording interval.
+  - **Logic:** If `step` > `recording_interval`, the server sums bytes (Volume) and finds the max bytes (Peak Speed) for the bucket.
+
+**Response:**
+Returns a dense array of tuples for bandwidth efficiency.
+
+```json
+{
+  "result": "success",
+  "arguments": {
+    "step": 3600, // The effective step used by server
+    "recording-interval": 300, // Base resolution (for Peak calc)
+    "data": [
+      // [ Timestamp, SumDown, SumUp, PeakDown, PeakUp ]
+      [ 1715000000, 52428800, 1048576, 5000000, 20000 ],
+      ...
+    ]
+  }
+}
+```
+
+- **Volume (Bar Chart):** Use `SumDown`.
+- **Average Speed (Line):** `SumDown / step`.
+- **Peak Speed (Shadow):** `PeakDown / recording-interval`.
+
+### **5.2 Clear History**
+
+**Method:** `history-clear`
+**Arguments:**
+
+- `older-than` (int, optional): Unix Epoch. If omitted, clears ALL history.
+
+---
+
+## **6. Engine Configuration (`session-set` / `session-get`)**
+
+### **6.1 Proxy Configuration (Secure)**
 
 To achieve qBittorrent parity while maintaining security:
 
@@ -163,12 +210,12 @@ To achieve qBittorrent parity while maintaining security:
 - **Read Fields (`session-get`):**
   - **Redaction Rule:** The `proxy-password` field **must** return `<REDACTED>` or `null` in the response. It must **never** be sent in cleartext, even to an authenticated client.
 
-### **5.2 Path Handling**
+### **6.2 Path Handling**
 
 - **Fields:** `download-dir`, `incomplete-dir`, `watch-dir`.
 - **Normalization:** The Backend **must** normalize path separators (converting `/` to `\` on Windows) upon receipt, before storing in `settings.json`.
 
-### **5.3 Queueing & Automation**
+### **6.3 Queueing & Automation**
 
 - `queue-download-enabled` / `queue-download-size`
 - `queue-seed-enabled` / `queue-seed-size`
@@ -176,11 +223,20 @@ To achieve qBittorrent parity while maintaining security:
 - `incomplete-dir-enabled` / `incomplete-dir`
 - `watch-dir-enabled` / `watch-dir`
 
+### **6.4 Traffic History Configuration**
+
+These keys are available in `session-set` and `session-get`.
+
+- `history-enabled` (Bool): Master switch. Default `true`.
+- `history-interval` (Int): Recording resolution in seconds.
+  - **Constraint:** Minimum `60`. Default `300` (5 minutes).
+- `history-retention-days` (Int): Auto-deletion threshold. Default `30` (0 = Infinite).
+
 ---
 
-## **6. Torrent Management (`torrent-set` / `torrent-get`)**
+## **7. Torrent Management (`torrent-set` / `torrent-get`)**
 
-### **6.1 Extended Properties**
+### **7.1 Extended Properties**
 
 - `sequential-download` (Bool): Stream priority.
 - `super-seeding` (Bool): Initial seeder mode.
@@ -190,7 +246,7 @@ To achieve qBittorrent parity while maintaining security:
   - **Implementation:** Backend must store these in a sidecar map (Hash -> Labels).
   - **Behavior:** Labels persist across restarts via `state.json`.
 
-### **6.2 Extended Status Fields**
+### **7.2 Extended Status Fields**
 
 - `metadata-percent-complete` (Double):
   - Range: 0.0 to 1.0.
@@ -200,7 +256,7 @@ To achieve qBittorrent parity while maintaining security:
 
 ---
 
-## **7. Error Handling Standards**
+## **8. Error Handling Standards**
 
 To ensure the Frontend can localize errors correctly, extended methods must return standard Transmission-style errors.
 
