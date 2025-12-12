@@ -6,6 +6,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace tt::rpc {
@@ -49,10 +50,11 @@ std::string serialize_blocklist_update(
     std::size_t entries,
     std::optional<std::chrono::system_clock::time_point> last_updated);
 std::string serialize_ws_snapshot(engine::SessionSnapshot const &snapshot);
-std::string serialize_ws_patch(engine::SessionSnapshot const &snapshot,
-                               std::vector<engine::TorrentSnapshot> const &added,
-                               std::vector<engine::TorrentSnapshot> const &updated,
-                               std::vector<int> const &removed);
+std::string serialize_ws_patch(
+    engine::SessionSnapshot const &snapshot,
+    std::vector<engine::TorrentSnapshot> const &added,
+    std::vector<std::pair<engine::TorrentSnapshot, engine::TorrentSnapshot>> const &updated,
+    std::vector<int> const &removed);
 std::string serialize_ws_event_torrent_added(int id);
 std::string serialize_ws_event_torrent_finished(int id);
 std::string serialize_ws_event_blocklist_updated(std::size_t count);

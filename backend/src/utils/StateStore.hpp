@@ -2,70 +2,58 @@
 
 #include <filesystem>
 #include <cstdint>
+#include <optional>
 #include <string>
-#include <unordered_map>
 #include <vector>
+
+#include <sqlite3.h>
 
 namespace tt::storage {
 
 struct PersistedTorrent {
   std::string hash;
-  std::string download_path;
+  std::optional<std::string> magnet_uri;
+  std::optional<std::string> save_path;
+  std::vector<std::uint8_t> resume_data;
+  std::vector<std::uint8_t> metainfo;
   bool paused = false;
-  std::string uri;
-  std::string metainfo;
+  std::string labels;
+  std::uint64_t added_at = 0;
+  int rpc_id = 0;
+  std::string metadata_path;
 };
 
-struct SessionState {
-  std::string listen_interface;
-  std::string rpc_bind;
-  std::string download_path;
-  int speed_limit_down_kbps = 0;
-  bool speed_limit_down_enabled = false;
-  int speed_limit_up_kbps = 0;
-  bool speed_limit_up_enabled = false;
-  int peer_limit = 0;
-  int peer_limit_per_torrent = 0;
-  int alt_speed_down_kbps = 0;
-  int alt_speed_up_kbps = 0;
-  bool alt_speed_enabled = false;
-  bool alt_speed_time_enabled = false;
-  int alt_speed_time_begin = 0;
-  int alt_speed_time_end = 0;
-  int alt_speed_time_day = 0;
-  int encryption = 0;
-  bool dht_enabled = true;
-  bool pex_enabled = true;
-  bool lpd_enabled = true;
-  bool utp_enabled = true;
-  int download_queue_size = 0;
-  int seed_queue_size = 0;
-  bool queue_stalled_enabled = false;
-  std::string incomplete_dir;
-  bool incomplete_dir_enabled = false;
-  std::vector<PersistedTorrent> torrents;
-  bool watch_dir_enabled = false;
-  std::string watch_dir;
-  bool seed_ratio_enabled = false;
-  double seed_ratio_limit = 0.0;
-  bool seed_idle_enabled = false;
-  int seed_idle_limit = 0;
-  int proxy_type = 0;
-  std::string proxy_hostname;
-  int proxy_port = 0;
-  bool proxy_auth_enabled = false;
-  std::string proxy_username;
-  std::string proxy_password;
-  bool proxy_peer_connections = false;
-  std::unordered_map<std::string, std::vector<std::string>> labels;
-  std::uint64_t uploaded_bytes = 0;
-  std::uint64_t downloaded_bytes = 0;
-  std::uint64_t seconds_active = 0;
-  std::uint64_t session_count = 0;
-};
+std::string serialize_label_list(std::vector<std::string> const &labels);
+std::vector<std::string> deserialize_label_list(std::string const &payload);
 
-SessionState load_session_state(std::filesystem::path const &path);
-bool save_session_state(std::filesystem::path const &path,
-                        SessionState const &state);
+class Database {
+public:
+  explicit Database(std::filesystem::path path);
+  ~Database();
+
+  Database(Database const &) = delete;
+  Database &operator=(Database const &) = delete;
+
+  bool is_valid() const noexcept { return db_ != nullptr; }
+
+  std::optional<std::string> get_setting(std::string const &key) const;
+  bool set_setting(std::string const &key, std::string const &value);
+  bool remove_setting(std::string const &key);
+
+  std::vector<PersistedTorrent> load_torrents() const;
+  bool upsert_torrent(PersistedTorrent const &torrent);
+  bool delete_torrent(std::string const &hash);
+  bool update_labels(std::string const &hash, std::string const &labels_json);
+  bool update_resume_data(std::string const &hash,
+                          std::vector<std::uint8_t> const &data);
+  std::optional<std::vector<std::uint8_t>> resume_data(
+      std::string const &hash) const;
+
+private:
+  bool ensure_schema();
+  bool execute(std::string const &sql) const;
+
+  sqlite3 *db_ = nullptr;
+};
 
 } // namespace tt::storage

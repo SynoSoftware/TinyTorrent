@@ -3,6 +3,7 @@
 #include "engine/Core.hpp"
 
 #include <functional>
+#include <future>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -10,12 +11,12 @@
 struct yyjson_val;
 
 namespace tt::rpc {
-using DispatchHandler = std::function<std::string(yyjson_val *)>;
+using DispatchHandler = std::function<std::future<std::string>(yyjson_val *)>;
 
 class Dispatcher {
 public:
   Dispatcher(engine::Core *engine, std::string rpc_bind = {});
-  std::string dispatch(std::string_view payload);
+  std::future<std::string> dispatch(std::string_view payload);
 
 private:
   void register_handlers();

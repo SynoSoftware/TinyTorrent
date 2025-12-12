@@ -47,7 +47,7 @@ TEST_CASE("session-get redacts proxy password after session-set updates it") {
 
   tt::rpc::Dispatcher dispatcher(engine.get());
   auto set_response = dispatcher.dispatch(
-      R"({"method":"session-set","arguments":{"proxy-password":"hunter2","proxy-auth-enabled":true}})");
+      R"({"method":"session-set","arguments":{"proxy-password":"hunter2","proxy-auth-enabled":true}})").get();
   ResponseView set_view{set_response};
   CHECK(set_view.result() == "success");
 
@@ -59,7 +59,7 @@ TEST_CASE("session-get redacts proxy password after session-set updates it") {
   REQUIRE(engine->settings().proxy_password == "hunter2");
 
   auto get_response =
-      dispatcher.dispatch(R"({"method":"session-get","arguments":{}})");
+      dispatcher.dispatch(R"({"method":"session-get","arguments":{}})").get();
   ResponseView get_view{get_response};
   auto *password = get_view.argument("proxy-password");
   REQUIRE(password != nullptr);

@@ -5,6 +5,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstdint>
+#include <future>
 #include <memory>
 #include <optional>
 #include <string>
@@ -24,6 +25,9 @@ struct ServerOptions {
   std::string token_header = "X-TT-Auth";
   std::string basic_realm = "TinyTorrent RPC";
   std::vector<std::string> trusted_origins = {"tt://app", "http://localhost:3000"};
+  std::string rpc_path = "/transmission/rpc";
+  std::string ws_path = "/ws";
+  std::string session_header = "X-Transmission-Session-Id";
 };
 
 struct ConnectionInfo {
@@ -52,7 +56,7 @@ private:
   void handle_ws_open(struct mg_connection *conn, struct mg_http_message *hm);
   void handle_ws_message(struct mg_connection *conn, struct mg_ws_message *message);
   void handle_connection_closed(struct mg_connection *conn, int ev);
-  std::string dispatch(std::string_view payload);
+  std::future<std::string> dispatch(std::string_view payload);
   static void handle_event(struct mg_connection *conn, int ev, void *ev_data);
   bool authorize_request(struct mg_http_message *hm);
   bool authorize_ws_upgrade(struct mg_http_message *hm, std::optional<std::string> const &token);
@@ -60,6 +64,7 @@ private:
   void broadcast_websocket_updates();
   void broadcast_event(std::string const &payload);
   void send_ws_message(struct mg_connection *conn, std::string const &payload);
+  void process_pending_http_responses();
 
   std::string bind_url_;
   std::string rpc_path_;
@@ -74,11 +79,17 @@ private:
   ServerOptions options_;
   std::string ws_path_ = "/ws";
 
+  struct PendingHttpRequest {
+    struct mg_connection *conn = nullptr;
+    std::shared_ptr<std::future<std::string>> future;
+  };
+
   struct WsClient {
     struct mg_connection *conn = nullptr;
     std::shared_ptr<engine::SessionSnapshot> last_known_snapshot;
   };
   std::vector<WsClient> ws_clients_;
+  std::vector<PendingHttpRequest> pending_http_requests_;
   std::shared_ptr<engine::SessionSnapshot> last_patch_snapshot_;
   std::shared_ptr<engine::SessionSnapshot> pending_snapshot_;
   std::size_t last_blocklist_entries_ = 0;
