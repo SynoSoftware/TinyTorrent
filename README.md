@@ -121,7 +121,7 @@ npm run dev
 ## Backend Note
 
 The final TinyTorrent backend will not stay tied to the original Transmission daemon.
-While the ~3 MB target is achievable only with Transmission’s engine, that code occasionally enters unrecoverable wait states. Because of this, we are developing a **Transmission-daemon–like backend implemented on top of the latest libtorrent**.
+While the ~1 MB target is achievable only with Transmission’s engine, that code occasionally enters unrecoverable wait states. Because of this, we are developing a **Transmission-daemon–like backend implemented on top of the latest libtorrent**.
 
 We will continue to **support Transmission RPC compatibility**, but the shipped executable will be our own daemon. It already implements the extensions defined in **rpc-tinytorrent-expanded**, which are required for our goals.
 
