@@ -109,7 +109,7 @@ export function Navbar({
             <div className="flex items-center gap-6">
                 {/* Brand */}
                 <div className="flex items-center gap-3 pr-2">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary-500 to-primary-700 text-white shadow-lg shadow-primary/25 ring-1 ring-white/10">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl">
                         <img
                             src="/tinyTorrent.svg"
                             alt={t("brand.name")}
@@ -178,22 +178,22 @@ export function Navbar({
             {/* RIGHT ZONE: Action Center */}
             <div className="flex items-center gap-3">
                 {/* Search - Pushed to start of right zone */}
-                    <Input
-                        classNames={{
-                            base: "w-40 lg:w-56 h-9 transition-all hover:w-60 focus-within:w-60",
+                <Input
+                    classNames={{
+                        base: "w-40 lg:w-56 h-9 transition-all hover:w-60 focus-within:w-60",
                         mainWrapper: "h-full",
                         input: "text-small text-foreground/90 whitespace-nowrap overflow-hidden text-ellipsis placeholder:opacity-70",
                         inputWrapper:
                             "h-full flex items-center gap-2 flex-nowrap font-normal text-default-500 bg-default-100/50 hover:bg-default-200/50 border-transparent focus-within:bg-default-100 focus-within:border-primary/20 shadow-inner rounded-full transition-colors",
-                        }}
-                        placeholder={t("nav.search_placeholder")}
-                        size="sm"
-                        value={searchQuery}
-                        data-command-search="true"
-                        onFocus={() => setActivePart("search")}
-                        onChange={(event) =>
-                            setSearchQuery(event.currentTarget.value)
-                        }
+                    }}
+                    placeholder={t("nav.search_placeholder")}
+                    size="sm"
+                    value={searchQuery}
+                    data-command-search="true"
+                    onFocus={() => setActivePart("search")}
+                    onChange={(event) =>
+                        setSearchQuery(event.currentTarget.value)
+                    }
                     startContent={
                         <Search
                             size={15}
