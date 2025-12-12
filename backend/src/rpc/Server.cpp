@@ -101,6 +101,8 @@ std::optional<std::string> decode_basic_credentials(std::string_view header) {
 constexpr std::array<std::string_view, 5> kLoopbackHosts = {
     "127.0.0.1", "localhost", "[::1]", "::1", "0:0:0:0:0:0:0:1"};
 constexpr char kLegacyTokenHeader[] = "X-TinyTorrent-Token";
+constexpr auto kWebsocketPatchInterval =
+    std::chrono::milliseconds(500);
 
 std::optional<std::string> header_value(struct mg_http_message *hm,
                                         char const *name) {
@@ -224,6 +226,8 @@ Server::Server(engine::Core *engine, std::string bind_url, ServerOptions options
   } else {
     last_patch_snapshot_ = std::make_shared<engine::SessionSnapshot>();
   }
+  last_patch_sent_time_ =
+      std::chrono::steady_clock::now() - kWebsocketPatchInterval;
   mg_mgr_init(&mgr_);
   mgr_.userdata = this;
 }
@@ -285,7 +289,6 @@ void Server::broadcast_websocket_updates() {
   if (!last_patch_snapshot_) {
     last_patch_snapshot_ = snapshot;
     last_blocklist_entries_ = engine_->blocklist_entry_count();
-    return;
   }
 
   struct SnapshotDiff {
@@ -334,27 +337,41 @@ void Server::broadcast_websocket_updates() {
   auto diff = compute_diff(*last_patch_snapshot_, *snapshot);
   bool has_changes = diff.session_changed || !diff.added.empty() ||
                      !diff.updated.empty() || !diff.removed.empty();
-  if (has_changes && !ws_clients_.empty()) {
-    auto payload = serialize_ws_patch(*snapshot, diff.added, diff.updated,
-                                      diff.removed);
+  if (!ws_clients_.empty() && has_changes) {
+    pending_snapshot_ = snapshot;
+  } else if (ws_clients_.empty()) {
+    pending_snapshot_.reset();
+  }
+  auto now = std::chrono::steady_clock::now();
+  bool ready = now - last_patch_sent_time_ >= kWebsocketPatchInterval;
+
+  if (!ws_clients_.empty() && pending_snapshot_ && ready) {
+    auto patch_diff =
+        compute_diff(*last_patch_snapshot_, *pending_snapshot_);
+    auto payload = serialize_ws_patch(*pending_snapshot_, patch_diff.added,
+                                      patch_diff.updated, patch_diff.removed);
     for (auto &client : ws_clients_) {
       if (client.conn == nullptr || client.conn->is_closing) {
         continue;
       }
       if (client.last_known_snapshot == last_patch_snapshot_) {
         send_ws_message(client.conn, payload);
-        client.last_known_snapshot = snapshot;
+        client.last_known_snapshot = pending_snapshot_;
       }
     }
-  } else {
+    last_patch_snapshot_ = pending_snapshot_;
+    last_patch_sent_time_ = now;
+    pending_snapshot_.reset();
+  } else if (!has_changes) {
     for (auto &client : ws_clients_) {
       if (client.last_known_snapshot == last_patch_snapshot_) {
         client.last_known_snapshot = snapshot;
       }
     }
+    last_patch_snapshot_ = snapshot;
+  } else if (ws_clients_.empty()) {
+    last_patch_snapshot_ = snapshot;
   }
-
-  last_patch_snapshot_ = snapshot;
 
   for (auto const &torrent : diff.added) {
     broadcast_event(serialize_ws_event_torrent_added(torrent.id));
