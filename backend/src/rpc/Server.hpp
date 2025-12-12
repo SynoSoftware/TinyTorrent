@@ -80,7 +80,9 @@ private:
   };
   std::vector<WsClient> ws_clients_;
   std::shared_ptr<engine::SessionSnapshot> last_patch_snapshot_;
+  std::shared_ptr<engine::SessionSnapshot> pending_snapshot_;
   std::size_t last_blocklist_entries_ = 0;
+  std::chrono::steady_clock::time_point last_patch_sent_time_;
 };
 
 } // namespace tt::rpc
