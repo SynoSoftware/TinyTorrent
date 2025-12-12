@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <cstdlib>
 #include "utils/Base64.hpp"
+#include "utils/Endpoint.hpp"
 #include "utils/Json.hpp"
 
 namespace tt::rpc {
@@ -304,25 +305,9 @@ std::pair<std::string, std::string> parse_rpc_bind(std::string const &value) {
   if (host_port.empty()) {
     return {"", ""};
   }
-  std::string host = host_port;
-  std::string port;
-  if (host.front() == '[') {
-    auto closing = host.find(']');
-    if (closing != std::string::npos) {
-      if (closing + 1 < host.size() && host[closing + 1] == ':') {
-        port = host.substr(closing + 2);
-      }
-      host = host.substr(0, closing + 1);
-    }
-  } else {
-    auto colon = host.find_last_of(':');
-    if (colon != std::string::npos && host.find(':') == colon) {
-      port = host.substr(colon + 1);
-      host = host.substr(0, colon);
-    }
-  }
-  host = normalize_rpc_host(host);
-  return {host, port};
+  auto parts = tt::net::parse_host_port(host_port);
+  auto host = normalize_rpc_host(parts.host);
+  return {host, parts.port};
 }
 
 std::string serialize_capabilities() {

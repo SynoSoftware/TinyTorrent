@@ -16,6 +16,10 @@
 #include <windows.h>
 #include <winreg.h>
 #include <shellapi.h>
+#elif defined(__APPLE__)
+#include <mach-o/dyld.h>
+#else
+#include <unistd.h>
 #endif
 
 #include <array>
@@ -36,9 +40,60 @@
 #include <string_view>
 #include <unordered_set>
 #include <vector>
+#include <fstream>
+#include <format>
 #include <yyjson.h>
 
 namespace tt::rpc {
+
+struct SystemHandlerResult {
+  bool success = false;
+  bool permission_denied = false;
+  std::string message;
+};
+
+std::optional<std::filesystem::path> current_executable_path() {
+#if defined(_WIN32)
+  std::vector<wchar_t> buffer(32768);
+  while (true) {
+    DWORD length =
+        GetModuleFileNameW(nullptr, buffer.data(), static_cast<DWORD>(buffer.size()));
+    if (length == 0) {
+      return std::nullopt;
+    }
+    if (length < buffer.size()) {
+      return std::filesystem::path(buffer.data(), buffer.data() + length);
+    }
+    if (buffer.size() >= (1 << 16)) {
+      return std::nullopt;
+    }
+    buffer.resize(buffer.size() * 2);
+  }
+#elif defined(__APPLE__)
+  uint32_t size = 0;
+  _NSGetExecutablePath(nullptr, &size);
+  if (size == 0) {
+    return std::nullopt;
+  }
+  std::vector<char> buffer(size);
+  if (_NSGetExecutablePath(buffer.data(), &size) != 0) {
+    return std::nullopt;
+  }
+  return std::filesystem::path(buffer.data());
+#else
+  std::vector<char> buffer(4096);
+  while (true) {
+    ssize_t length = readlink("/proc/self/exe", buffer.data(), buffer.size());
+    if (length == -1) {
+      return std::nullopt;
+    }
+    if (static_cast<std::size_t>(length) < buffer.size()) {
+      return std::filesystem::path(buffer.data(), buffer.data() + length);
+    }
+    buffer.resize(buffer.size() * 2);
+  }
+#endif
+}
 
 namespace {
 
@@ -321,30 +376,6 @@ std::filesystem::path parse_request_path(yyjson_val *value) {
 }
 
 #if defined(_WIN32)
-struct SystemHandlerResult {
-  bool success = false;
-  bool permission_denied = false;
-  std::string message;
-};
-
-std::optional<std::filesystem::path> current_executable_path() {
-  std::vector<wchar_t> buffer(32768);
-  while (true) {
-    DWORD length =
-        GetModuleFileNameW(nullptr, buffer.data(), static_cast<DWORD>(buffer.size()));
-    if (length == 0) {
-      return std::nullopt;
-    }
-    if (length < buffer.size()) {
-      return std::filesystem::path(buffer.data(), buffer.data() + length);
-    }
-    if (buffer.size() >= (1 << 16)) {
-      return std::nullopt;
-    }
-    buffer.resize(buffer.size() * 2);
-  }
-}
-
 SystemHandlerResult register_windows_handler() {
   SystemHandlerResult result;
   auto exe_path = current_executable_path();
@@ -416,6 +447,96 @@ SystemHandlerResult register_windows_handler() {
   TT_LOG_INFO("registered magnet/.torrent handler ({})", exe_path->string());
   result.success = true;
   result.message = "system handler registered";
+  return result;
+}
+#endif
+
+namespace {
+constexpr std::array<char const *, 2> kRegisterMimeCommands = {
+    "xdg-mime default tinytorrent.desktop x-scheme-handler/magnet",
+    "xdg-mime default tinytorrent.desktop application/x-bittorrent"};
+} // namespace
+
+#if defined(__linux__)
+SystemHandlerResult register_linux_handler() {
+  SystemHandlerResult result;
+  auto exe_path = current_executable_path();
+  if (!exe_path) {
+    result.message = "unable to determine executable path";
+    return result;
+  }
+  char const *home = std::getenv("HOME");
+  if (home == nullptr || home[0] == '\0') {
+    result.message = "HOME environment variable is not set";
+    return result;
+  }
+  std::filesystem::path data_home;
+  if (char const *xdg = std::getenv("XDG_DATA_HOME"); xdg && xdg[0] != '\0') {
+    data_home = xdg;
+  } else {
+    data_home = std::filesystem::path(home) / ".local/share";
+  }
+  auto applications = data_home / "applications";
+  std::error_code ec;
+  std::filesystem::create_directories(applications, ec);
+  if (ec) {
+    result.permission_denied = (ec == std::errc::permission_denied);
+    result.message =
+        std::format("unable to ensure {}: {}", applications.string(), ec.message());
+    return result;
+  }
+  auto desktop_file = applications / "tinytorrent.desktop";
+  auto tmp_file = desktop_file;
+  tmp_file += ".tmp";
+  std::ofstream output(tmp_file, std::ios::trunc);
+  if (!output) {
+    result.message = std::format("unable to write {}", tmp_file.string());
+    return result;
+  }
+  output << "[Desktop Entry]\n";
+  output << "Type=Application\n";
+  output << "Name=TinyTorrent\n";
+  output << std::format("Exec=\"{}\" \"%u\"\n", exe_path->string());
+  output << "MimeType=application/x-bittorrent;x-scheme-handler/magnet;\n";
+  output << "Categories=Network;FileTransfer;\n";
+  output << "Terminal=false\n";
+  output << "StartupNotify=false\n";
+  output << "Icon=tinytorrent\n";
+  output.close();
+  if (!output) {
+    result.message = std::format("failed to write {}", tmp_file.string());
+    return result;
+  }
+  std::filesystem::rename(tmp_file, desktop_file, ec);
+  if (ec) {
+    result.permission_denied = (ec == std::errc::permission_denied);
+    result.message =
+        std::format("unable to store {}: {}", desktop_file.string(), ec.message());
+    return result;
+  }
+  auto run_command = [](std::string command) {
+    return !command.empty() && std::system(command.c_str()) == 0;
+  };
+  bool mime_success = true;
+  for (auto const *command : kRegisterMimeCommands) {
+    mime_success &= run_command(command);
+  }
+  result.success = true;
+  if (mime_success) {
+    result.message = "system handler registered";
+  } else {
+    result.message =
+        "desktop entry created; xdg-mime failed (ensure xdg-utils installed)";
+  }
+  return result;
+}
+#endif
+
+#if defined(__APPLE__)
+SystemHandlerResult register_mac_handler() {
+  SystemHandlerResult result;
+  result.message =
+      "system-register-handler requires a GUI bundle on macOS; install TinyTorrent.app to register handlers";
   return result;
 }
 #endif
@@ -1142,14 +1263,21 @@ std::future<std::string> handle_free_space_async(yyjson_val *arguments) {
 }
 
 std::string handle_system_register_handler() {
+  SystemHandlerResult result;
 #if defined(_WIN32)
-  auto result = register_windows_handler();
+  result = register_windows_handler();
+#elif defined(__linux__)
+  result = register_linux_handler();
+#elif defined(__APPLE__)
+  result = register_mac_handler();
+#else
+  result.message = "system register handler unsupported";
+#endif
+  if (result.message.empty()) {
+    result.message = "system register handler unsupported";
+  }
   return serialize_system_action("system-register-handler", result.success,
                                  result.message);
-#else
-  return serialize_system_action("system-register-handler", false,
-                                 "system register handler unsupported");
-#endif
 }
 
 std::string handle_app_shutdown(engine::Core *engine) {
