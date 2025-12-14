@@ -13,6 +13,7 @@
 #include "vendor/mongoose.h"
 
 #include <algorithm>
+#include <exception>
 #include <array>
 #include <cctype>
 #include <cstdint>
@@ -30,6 +31,9 @@
 #include <vector>
 
 namespace {
+constexpr std::size_t kMaxHttpPayloadSize = 1 << 20;
+constexpr std::uintmax_t kMaxWatchFileSize = 64ull * 1024 * 1024;
+
 std::string generate_session_id() {
   static constexpr char kHexDigits[] = "0123456789abcdef";
   std::mt19937_64 rng(static_cast<std::uint64_t>(
@@ -271,12 +275,18 @@ void Server::stop() {
 }
 
 void Server::run_loop() {
-  while (running_.load(std::memory_order_relaxed) &&
-         !tt::runtime::should_shutdown()) {
-    //TT_LOG_DEBUG("Polling Mongoose event loop");
-    mg_mgr_poll(&mgr_, 50);
-    process_pending_http_responses();
-    broadcast_websocket_updates();
+  try {
+    while (running_.load(std::memory_order_relaxed) &&
+           !tt::runtime::should_shutdown()) {
+      //TT_LOG_DEBUG("Polling Mongoose event loop");
+      mg_mgr_poll(&mgr_, 50);
+      process_pending_http_responses();
+      broadcast_websocket_updates();
+    }
+  } catch (std::exception const &ex) {
+    TT_LOG_INFO("RPC worker exception: {}", ex.what());
+  } catch (...) {
+    TT_LOG_INFO("RPC worker exception");
   }
   running_.store(false, std::memory_order_relaxed);
 }
@@ -627,6 +637,15 @@ void Server::handle_http_message(struct mg_connection *conn,
                           "\r\n";
     auto payload = serialize_error("session id required");
     mg_http_reply(conn, 409, headers.c_str(), "%s", payload.c_str());
+    return;
+  }
+
+  if (hm->body.len == static_cast<size_t>(-1) ||
+      hm->body.len > kMaxHttpPayloadSize) {
+    TT_LOG_INFO("RPC payload too large: {} bytes", hm->body.len);
+    auto payload = serialize_error("payload too large");
+    mg_http_reply(conn, 413, "Content-Type: application/json\r\n", "%s",
+                  payload.c_str());
     return;
   }
 

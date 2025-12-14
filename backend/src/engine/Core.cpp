@@ -4,6 +4,7 @@
 #include <array>
 #include <cctype>
 #include <cstddef>
+#include <cstdint>
 #include <libtorrent/add_torrent_params.hpp>
 #include <libtorrent/bdecode.hpp>
 #include <libtorrent/alert.hpp>
@@ -50,6 +51,7 @@
 #include <memory>
 #include <optional>
 #include <mutex>
+#include <shared_mutex>
 #include <string>
 #include <thread>
 #include <type_traits>
@@ -68,6 +70,9 @@ constexpr char const *kUserAgent = "TinyTorrent/0.1.0";
 constexpr auto kHousekeepingInterval = std::chrono::seconds(2);
 constexpr auto kResumeAlertTimeout = std::chrono::seconds(5);
 constexpr auto kStateFlushInterval = std::chrono::seconds(5);
+constexpr auto kShutdownTimeout = std::chrono::seconds(10);
+constexpr std::uintmax_t kMaxWatchFileSize = 64ull * 1024 * 1024;
+constexpr auto kWatchFileStabilityThreshold = std::chrono::seconds(3);
 constexpr int kMinHistoryIntervalSeconds = 60;
 constexpr auto kHistoryRetentionCheckInterval = std::chrono::hours(1);
 
@@ -467,6 +472,7 @@ struct Core::Impl {
   std::condition_variable wake_cv;
   std::mutex wake_mutex;
   std::atomic_bool running{true};
+  std::atomic<std::chrono::steady_clock::duration::rep> shutdown_start_ticks{0};
   std::atomic<std::shared_ptr<SessionSnapshot>> snapshot{std::make_shared<SessionSnapshot>()};
   std::unordered_map<int, libtorrent::sha1_hash> id_to_hash;
   std::unordered_map<libtorrent::sha1_hash, int, Sha1HashHash> hash_to_id;
@@ -487,8 +493,10 @@ struct Core::Impl {
   std::unique_ptr<tt::storage::Database> database;
   std::unique_ptr<tt::storage::Database> history_database;
   std::unordered_map<std::string, tt::storage::PersistedTorrent> persisted_torrents;
+  std::vector<tt::storage::PersistedTorrent> startup_entries;
   SessionStatistics persisted_stats;
   mutable std::mutex state_mutex;
+  mutable std::shared_mutex settings_mutex;
   std::filesystem::path blocklist_path;
   std::size_t blocklist_entries = 0;
   std::optional<std::chrono::system_clock::time_point> blocklist_last_update;
@@ -506,6 +514,8 @@ struct Core::Impl {
   struct WatchFileSnapshot {
     std::uintmax_t size = 0;
     std::filesystem::file_time_type mtime;
+    std::chrono::steady_clock::time_point last_change =
+        std::chrono::steady_clock::time_point::min();
   };
   std::unordered_map<std::filesystem::path, WatchFileSnapshot> watch_dir_snapshots;
   std::atomic_bool shutdown_requested{false};
@@ -616,29 +626,46 @@ struct Core::Impl {
   ~Impl() { stop_history_worker(); }
 
   void run() {
-    while (running.load(std::memory_order_relaxed)) {
-      if (shutdown_requested.load(std::memory_order_relaxed) && !save_resume_in_progress) {
-        persist_resume_data();
-      }
-      refresh_active_speed_limits();
-      process_tasks();
-      process_alerts();
-      update_snapshot();
-      perform_housekeeping();
-      if (shutdown_requested.load(std::memory_order_relaxed)) {
+    try {
+      while (running.load(std::memory_order_relaxed)) {
         auto now = std::chrono::steady_clock::now();
-        if (!save_resume_in_progress || pending_resume_hashes.empty() ||
-            now >= resume_deadline) {
-          running.store(false, std::memory_order_relaxed);
-          continue;
+        if (shutdown_requested.load(std::memory_order_relaxed) && !save_resume_in_progress) {
+          persist_resume_data();
         }
+        refresh_active_speed_limits();
+        process_tasks();
+        process_alerts();
+        update_snapshot();
+        perform_housekeeping();
+        if (shutdown_requested.load(std::memory_order_relaxed)) {
+          if (!save_resume_in_progress || pending_resume_hashes.empty() ||
+              now >= resume_deadline) {
+            running.store(false, std::memory_order_relaxed);
+            continue;
+          }
+          auto start_ticks =
+              shutdown_start_ticks.load(std::memory_order_acquire);
+          if (start_ticks > 0) {
+            auto start_time = std::chrono::steady_clock::time_point(
+                std::chrono::steady_clock::duration(start_ticks));
+            if (now - start_time >= kShutdownTimeout) {
+              TT_LOG_INFO("shutdown timeout reached; forcing exit");
+              running.store(false, std::memory_order_relaxed);
+              continue;
+            }
+          }
+        }
+        std::unique_lock<std::mutex> lock(wake_mutex);
+        wake_cv.wait_for(lock, std::chrono::milliseconds(settings.idle_sleep_ms),
+                         [this] {
+                           return !tasks.empty() ||
+                                  shutdown_requested.load(std::memory_order_relaxed);
+                         });
       }
-      std::unique_lock<std::mutex> lock(wake_mutex);
-      wake_cv.wait_for(lock, std::chrono::milliseconds(settings.idle_sleep_ms),
-                       [this] {
-                         return !tasks.empty() ||
-                                shutdown_requested.load(std::memory_order_relaxed);
-                       });
+    } catch (std::exception const &ex) {
+      TT_LOG_INFO("engine loop exception: {}", ex.what());
+    } catch (...) {
+      TT_LOG_INFO("engine loop exception");
     }
     auto now = std::chrono::steady_clock::now();
     if (history_enabled &&
@@ -649,6 +676,11 @@ struct Core::Impl {
   }
 
   void stop() noexcept {
+    auto now = std::chrono::steady_clock::now();
+    auto ticks = now.time_since_epoch().count();
+    auto expected = std::chrono::steady_clock::duration::rep(0);
+    shutdown_start_ticks.compare_exchange_strong(
+        expected, ticks, std::memory_order_release, std::memory_order_relaxed);
     shutdown_requested.store(true, std::memory_order_relaxed);
     wake_cv.notify_one();
   }
@@ -992,45 +1024,17 @@ private:
       return;
     }
     auto entries = database->load_torrents();
+    startup_entries = std::move(entries);
     int highest_rpc_id = next_id - 1;
-    std::lock_guard<std::mutex> lock(state_mutex);
-    for (auto const &entry : entries) {
+    for (auto const &entry : startup_entries) {
       if (entry.hash.empty()) {
         continue;
       }
-      persisted_torrents.emplace(entry.hash, entry);
-      if (!entry.labels.empty()) {
-        torrent_labels[entry.hash] =
-            tt::storage::deserialize_label_list(entry.labels);
-      }
-      auto target_path = entry.save_path.has_value()
-                             ? std::filesystem::path(*entry.save_path)
-                             : settings.download_path;
-      final_paths[entry.hash] = target_path;
-      if (entry.rpc_id > 0) {
-        if (auto hash = sha1_from_hex(entry.hash); hash) {
-          if (!hash_to_id.contains(*hash)) {
-            hash_to_id.emplace(*hash, entry.rpc_id);
-            id_to_hash.emplace(entry.rpc_id, *hash);
-            highest_rpc_id = std::max(highest_rpc_id, entry.rpc_id);
-          }
-        }
-      }
+      highest_rpc_id = std::max(highest_rpc_id, entry.rpc_id);
     }
     if (highest_rpc_id >= next_id) {
       next_id = highest_rpc_id + 1;
     }
-  }
-
-  void commit_persisted_entry_locked(std::string const &hash) {
-    if (!database || !database->is_valid()) {
-      return;
-    }
-    auto it = persisted_torrents.find(hash);
-    if (it == persisted_torrents.end()) {
-      return;
-    }
-    database->upsert_torrent(it->second);
   }
 
   void update_persisted_resume_data(std::string const &hash,
@@ -1043,12 +1047,6 @@ private:
       return;
     }
     std::vector<std::uint8_t> data(buffer.begin(), buffer.end());
-    std::lock_guard<std::mutex> lock(state_mutex);
-    auto it = persisted_torrents.find(hash);
-    if (it == persisted_torrents.end()) {
-      return;
-    }
-    it->second.resume_data = data;
     database->update_resume_data(hash, data);
   }
 
@@ -1056,61 +1054,85 @@ private:
     if (!database || !database->is_valid()) {
       return;
     }
-    auto set_bool = [this](char const *key, bool value) {
-      database->set_setting(key, value ? "1" : "0");
+    CoreSettings snapshot;
+    {
+      std::shared_lock<std::shared_mutex> lock(settings_mutex);
+      snapshot = settings;
+    }
+    if (!database->begin_transaction()) {
+      TT_LOG_INFO("failed to begin settings transaction");
+      return;
+    }
+    bool success = true;
+    auto set_bool = [&](char const *key, bool value) {
+      success = success && database->set_setting(key, value ? "1" : "0");
     };
-    auto set_int = [this](char const *key, int value) {
-      database->set_setting(key, std::to_string(value));
+    auto set_int = [&](char const *key, int value) {
+      success = success && database->set_setting(key, std::to_string(value));
     };
-    auto set_double = [this](char const *key, double value) {
-      database->set_setting(key, std::to_string(value));
+    auto set_double = [&](char const *key, double value) {
+      success = success && database->set_setting(key, std::to_string(value));
     };
-    database->set_setting("listenInterface", settings.listen_interface);
-    database->set_setting("downloadPath", settings.download_path.string());
-    set_int("speedLimitDown", settings.download_rate_limit_kbps);
-    set_bool("speedLimitDownEnabled", settings.download_rate_limit_enabled);
-    set_int("speedLimitUp", settings.upload_rate_limit_kbps);
-    set_bool("speedLimitUpEnabled", settings.upload_rate_limit_enabled);
-    set_int("peerLimit", settings.peer_limit);
-    set_int("peerLimitPerTorrent", settings.peer_limit_per_torrent);
-    set_int("altSpeedDown", settings.alt_download_rate_limit_kbps);
-    set_int("altSpeedUp", settings.alt_upload_rate_limit_kbps);
-    set_bool("altSpeedEnabled", settings.alt_speed_enabled);
-    set_bool("altSpeedTimeEnabled", settings.alt_speed_time_enabled);
-    set_int("altSpeedTimeBegin", settings.alt_speed_time_begin);
-    set_int("altSpeedTimeEnd", settings.alt_speed_time_end);
-    set_int("altSpeedTimeDay", settings.alt_speed_time_day);
-    set_int("encryption", static_cast<int>(settings.encryption));
-    set_bool("dhtEnabled", settings.dht_enabled);
-    set_bool("pexEnabled", settings.pex_enabled);
-    set_bool("lpdEnabled", settings.lpd_enabled);
-    set_bool("utpEnabled", settings.utp_enabled);
-    set_int("downloadQueueSize", settings.download_queue_size);
-    set_int("seedQueueSize", settings.seed_queue_size);
-    set_bool("queueStalledEnabled", settings.queue_stalled_enabled);
-    database->set_setting(
-        "incompleteDir", settings.incomplete_dir.empty()
-                             ? std::string{}
-                             : settings.incomplete_dir.string());
-    set_bool("incompleteDirEnabled", settings.incomplete_dir_enabled);
-    database->set_setting(
-        "watchDir",
-        settings.watch_dir.empty() ? std::string{} : settings.watch_dir.string());
-    set_bool("watchDirEnabled", settings.watch_dir_enabled);
-    set_double("seedRatioLimit", settings.seed_ratio_limit);
-    set_bool("seedRatioLimited", settings.seed_ratio_enabled);
-    set_int("seedIdleLimit", settings.seed_idle_limit_minutes);
-    set_bool("seedIdleLimited", settings.seed_idle_enabled);
-    set_int("proxyType", settings.proxy_type);
-    database->set_setting("proxyHost", settings.proxy_hostname);
-    set_int("proxyPort", settings.proxy_port);
-    set_bool("proxyAuthEnabled", settings.proxy_auth_enabled);
-    database->set_setting("proxyUsername", settings.proxy_username);
-    database->set_setting("proxyPassword", settings.proxy_password);
-    set_bool("proxyPeerConnections", settings.proxy_peer_connections);
-    set_bool("historyEnabled", settings.history_enabled);
-    set_int("historyInterval", settings.history_interval_seconds);
-    set_int("historyRetentionDays", settings.history_retention_days);
+    success = success && database->set_setting("listenInterface",
+                                               snapshot.listen_interface);
+    success = success && database->set_setting(
+                          "downloadPath", snapshot.download_path.string());
+    set_int("speedLimitDown", snapshot.download_rate_limit_kbps);
+    set_bool("speedLimitDownEnabled", snapshot.download_rate_limit_enabled);
+    set_int("speedLimitUp", snapshot.upload_rate_limit_kbps);
+    set_bool("speedLimitUpEnabled", snapshot.upload_rate_limit_enabled);
+    set_int("peerLimit", snapshot.peer_limit);
+    set_int("peerLimitPerTorrent", snapshot.peer_limit_per_torrent);
+    set_int("altSpeedDown", snapshot.alt_download_rate_limit_kbps);
+    set_int("altSpeedUp", snapshot.alt_upload_rate_limit_kbps);
+    set_bool("altSpeedEnabled", snapshot.alt_speed_enabled);
+    set_bool("altSpeedTimeEnabled", snapshot.alt_speed_time_enabled);
+    set_int("altSpeedTimeBegin", snapshot.alt_speed_time_begin);
+    set_int("altSpeedTimeEnd", snapshot.alt_speed_time_end);
+    set_int("altSpeedTimeDay", snapshot.alt_speed_time_day);
+    set_int("encryption", static_cast<int>(snapshot.encryption));
+    set_bool("dhtEnabled", snapshot.dht_enabled);
+    set_bool("pexEnabled", snapshot.pex_enabled);
+    set_bool("lpdEnabled", snapshot.lpd_enabled);
+    set_bool("utpEnabled", snapshot.utp_enabled);
+    set_int("downloadQueueSize", snapshot.download_queue_size);
+    set_int("seedQueueSize", snapshot.seed_queue_size);
+    set_bool("queueStalledEnabled", snapshot.queue_stalled_enabled);
+    success = success && database->set_setting(
+                          "incompleteDir",
+                          snapshot.incomplete_dir.empty()
+                              ? std::string{}
+                              : snapshot.incomplete_dir.string());
+    set_bool("incompleteDirEnabled", snapshot.incomplete_dir_enabled);
+    success = success && database->set_setting(
+                          "watchDir",
+                          snapshot.watch_dir.empty() ? std::string{}
+                                                     : snapshot.watch_dir.string());
+    set_bool("watchDirEnabled", snapshot.watch_dir_enabled);
+    set_double("seedRatioLimit", snapshot.seed_ratio_limit);
+    set_bool("seedRatioLimited", snapshot.seed_ratio_enabled);
+    set_int("seedIdleLimit", snapshot.seed_idle_limit_minutes);
+    set_bool("seedIdleLimited", snapshot.seed_idle_enabled);
+    set_int("proxyType", snapshot.proxy_type);
+    success = success && database->set_setting("proxyHost", snapshot.proxy_hostname);
+    set_int("proxyPort", snapshot.proxy_port);
+    set_bool("proxyAuthEnabled", snapshot.proxy_auth_enabled);
+    success = success && database->set_setting("proxyUsername",
+                                               snapshot.proxy_username);
+    success = success && database->set_setting("proxyPassword",
+                                               snapshot.proxy_password);
+    set_bool("proxyPeerConnections", snapshot.proxy_peer_connections);
+    set_bool("historyEnabled", snapshot.history_enabled);
+    set_int("historyInterval", snapshot.history_interval_seconds);
+    set_int("historyRetentionDays", snapshot.history_retention_days);
+    if (!success) {
+      TT_LOG_INFO("failed to persist session settings");
+      database->rollback_transaction();
+      return;
+    }
+    if (!database->commit_transaction()) {
+      TT_LOG_INFO("failed to commit session settings");
+    }
   }
 
   int normalized_history_interval(int value) const {
@@ -1317,6 +1339,11 @@ private:
     return config;
   }
 
+  CoreSettings settings_copy() const {
+    std::shared_lock<std::shared_mutex> lock(settings_mutex);
+    return settings;
+  }
+
   void initialize_session_statistics() {
     session_start_time = std::chrono::steady_clock::now();
     stats_last_update = session_start_time;
@@ -1420,19 +1447,30 @@ private:
       if (file_ec) {
         continue;
       }
+      if (size > kMaxWatchFileSize) {
+        TT_LOG_INFO("watch-dir skipping oversized file {} ({} bytes)",
+                    path.string(), size);
+        continue;
+      }
       auto mtime = entry.last_write_time(file_ec);
       if (file_ec) {
         continue;
       }
-      WatchFileSnapshot snapshot{size, mtime};
-      auto existing = watch_dir_snapshots.find(path);
-      bool stable = false;
-      if (existing != watch_dir_snapshots.end()) {
-        stable = existing->second.size == snapshot.size &&
-                 existing->second.mtime == snapshot.mtime;
+      auto now = std::chrono::steady_clock::now();
+      auto it = watch_dir_snapshots.find(path);
+      if (it == watch_dir_snapshots.end()) {
+        watch_dir_snapshots.emplace(
+            path, WatchFileSnapshot{size, mtime, now});
+        continue;
       }
-      watch_dir_snapshots[path] = snapshot;
-      if (!stable) {
+      auto &snapshot = it->second;
+      if (snapshot.size != size || snapshot.mtime != mtime) {
+        snapshot.size = size;
+        snapshot.mtime = mtime;
+        snapshot.last_change = now;
+        continue;
+      }
+      if (now - snapshot.last_change < kWatchFileStabilityThreshold) {
         continue;
       }
       std::ifstream input(path, std::ios::binary);
@@ -1494,15 +1532,35 @@ private:
       if (entry.hash.empty()) {
         return;
       }
-      std::lock_guard<std::mutex> lock(state_mutex);
       auto hash = entry.hash;
-      auto it = persisted_torrents.find(hash);
-      if (it == persisted_torrents.end()) {
-        it = persisted_torrents.emplace(hash, std::move(entry)).first;
-      } else {
-        it->second = std::move(entry);
+      tt::storage::PersistedTorrent sanitized = entry;
+      sanitized.resume_data.clear();
+      sanitized.metainfo.clear();
+      sanitized.resume_data.shrink_to_fit();
+      sanitized.metainfo.shrink_to_fit();
+      {
+        std::lock_guard<std::mutex> lock(state_mutex);
+        persisted_torrents[hash] = sanitized;
+        auto &stored = persisted_torrents[hash];
+        if (!stored.labels.empty()) {
+          torrent_labels[hash] = tt::storage::deserialize_label_list(stored.labels);
+        } else {
+          torrent_labels.erase(hash);
+        }
+        auto target_path = stored.save_path.has_value()
+                               ? std::filesystem::path(*stored.save_path)
+                               : settings.download_path;
+        final_paths[hash] = target_path;
+        if (stored.rpc_id > 0) {
+          if (auto sha1 = sha1_from_hex(hash); sha1) {
+            hash_to_id[*sha1] = stored.rpc_id;
+            id_to_hash[stored.rpc_id] = *sha1;
+          }
+        }
       }
-      commit_persisted_entry_locked(hash);
+      if (database && database->is_valid()) {
+        database->upsert_torrent(entry);
+      }
     }
 
     void update_persisted_download_path(std::string const &hash,
@@ -1510,13 +1568,19 @@ private:
       if (hash.empty() || path.empty()) {
         return;
       }
-      std::lock_guard<std::mutex> lock(state_mutex);
-      auto it = persisted_torrents.find(hash);
-      if (it == persisted_torrents.end()) {
-        return;
+      std::string normalized = path.string();
+      {
+        std::lock_guard<std::mutex> lock(state_mutex);
+        auto it = persisted_torrents.find(hash);
+        if (it == persisted_torrents.end()) {
+          return;
+        }
+        it->second.save_path = normalized;
+        final_paths[hash] = std::filesystem::path(normalized);
       }
-      it->second.save_path = path.string();
-      commit_persisted_entry_locked(hash);
+      if (database && database->is_valid()) {
+        database->update_save_path(hash, normalized);
+      }
     }
 
     void remove_persisted_torrent(std::string const &hash) {
@@ -1539,16 +1603,29 @@ private:
       if (hash.empty() || id <= 0) {
         return;
       }
-      std::lock_guard<std::mutex> lock(state_mutex);
-      auto it = persisted_torrents.find(hash);
-      if (it == persisted_torrents.end()) {
-        return;
+      int previous_id = 0;
+      {
+        std::lock_guard<std::mutex> lock(state_mutex);
+        auto it = persisted_torrents.find(hash);
+        if (it == persisted_torrents.end()) {
+          return;
+        }
+        if (it->second.rpc_id == id) {
+          return;
+        }
+        previous_id = it->second.rpc_id;
+        it->second.rpc_id = id;
+        if (auto sha1 = sha1_from_hex(hash); sha1) {
+          hash_to_id[*sha1] = id;
+          id_to_hash[id] = *sha1;
+          if (previous_id > 0) {
+            id_to_hash.erase(previous_id);
+          }
+        }
       }
-      if (it->second.rpc_id == id) {
-        return;
+      if (database && database->is_valid()) {
+        database->update_rpc_id(hash, id);
       }
-      it->second.rpc_id = id;
-      commit_persisted_entry_locked(hash);
     }
 
     void update_persisted_metadata(std::string const &hash,
@@ -1557,20 +1634,18 @@ private:
       if (hash.empty() || path.empty()) {
         return;
       }
-      std::lock_guard<std::mutex> lock(state_mutex);
-      auto it = persisted_torrents.find(hash);
-      if (it == persisted_torrents.end()) {
-        return;
-      }
       auto normalized = path.string();
-      if (it->second.metadata_path == normalized && it->second.metainfo == metadata) {
-        return;
+      {
+        std::lock_guard<std::mutex> lock(state_mutex);
+        auto it = persisted_torrents.find(hash);
+        if (it == persisted_torrents.end()) {
+          return;
+        }
+        it->second.metadata_path = normalized;
       }
-      it->second.metadata_path = normalized;
-      if (!metadata.empty()) {
-        it->second.metainfo = metadata;
+      if (database && database->is_valid()) {
+        database->update_metadata(hash, normalized, metadata);
       }
-      commit_persisted_entry_locked(hash);
     }
 
     void register_persisted_torrent(std::string const &hash,
@@ -1591,24 +1666,18 @@ private:
           std::chrono::duration_cast<std::chrono::seconds>(
               std::chrono::system_clock::now().time_since_epoch())
               .count());
-      auto final_path = request.download_path.empty() ? settings.download_path
-                                                      : request.download_path;
-      final_paths[hash] = final_path;
       add_or_update_persisted(std::move(entry));
     }
 
   void replay_saved_torrents() {
-    std::vector<tt::storage::PersistedTorrent> entries;
-    {
-      std::lock_guard<std::mutex> lock(state_mutex);
-      entries.reserve(persisted_torrents.size());
-      for (auto const &pair : persisted_torrents) {
-        entries.push_back(pair.second);
-      }
+    if (startup_entries.empty()) {
+      return;
     }
     std::vector<TorrentAddRequest> pending;
-    pending.reserve(entries.size());
-    for (auto const &entry : entries) {
+    pending.reserve(startup_entries.size());
+    std::vector<tt::storage::PersistedTorrent> sanitized_entries;
+    sanitized_entries.reserve(startup_entries.size());
+    for (auto &entry : startup_entries) {
       if (entry.hash.empty()) {
         continue;
       }
@@ -1644,13 +1713,52 @@ private:
         request.uri = *entry.magnet_uri;
         has_metadata = true;
       }
+      bool queued = true;
       if (!has_metadata) {
+        queued = false;
+      } else {
+        if (!entry.resume_data.empty()) {
+          request.resume_data = entry.resume_data;
+        }
+        pending.push_back(std::move(request));
+      }
+      entry.resume_data.clear();
+      entry.metainfo.clear();
+      entry.resume_data.shrink_to_fit();
+      entry.metainfo.shrink_to_fit();
+      sanitized_entries.push_back(std::move(entry));
+      if (!queued) {
         continue;
       }
-      if (!entry.resume_data.empty()) {
-        request.resume_data = entry.resume_data;
+    }
+    startup_entries.clear();
+    if (!sanitized_entries.empty()) {
+      std::lock_guard<std::mutex> lock(state_mutex);
+      for (auto &entry : sanitized_entries) {
+        if (entry.hash.empty()) {
+          continue;
+        }
+        auto &stored = persisted_torrents[entry.hash];
+        stored = std::move(entry);
+        if (!stored.labels.empty()) {
+          torrent_labels[stored.hash] =
+              tt::storage::deserialize_label_list(stored.labels);
+        } else {
+          torrent_labels.erase(stored.hash);
+        }
+        auto target_path = stored.save_path.has_value()
+                               ? std::filesystem::path(*stored.save_path)
+                               : settings.download_path;
+        final_paths[stored.hash] = target_path;
+        if (stored.rpc_id > 0) {
+          if (auto hash = sha1_from_hex(stored.hash); hash) {
+            if (!hash_to_id.contains(*hash)) {
+              hash_to_id.emplace(*hash, stored.rpc_id);
+              id_to_hash.emplace(stored.rpc_id, *hash);
+            }
+          }
+        }
       }
-      pending.push_back(std::move(request));
     }
     for (auto &request : pending) {
       enqueue_torrent(std::move(request));
@@ -1848,7 +1956,11 @@ private:
       return;
     }
     std::filesystem::create_directories(path);
-    settings.download_path = std::move(path);
+    {
+      std::lock_guard<std::mutex> state_lock(state_mutex);
+      std::lock_guard<std::shared_mutex> settings_lock(settings_mutex);
+      settings.download_path = std::move(path);
+    }
     persist_settings_to_db();
   }
 
@@ -1866,7 +1978,11 @@ private:
     } else if (!settings.listen_interface.empty()) {
       host = settings.listen_interface;
     }
-    settings.listen_interface = host + ":" + std::to_string(port);
+    {
+      std::lock_guard<std::mutex> state_lock(state_mutex);
+      std::lock_guard<std::shared_mutex> settings_lock(settings_mutex);
+      settings.listen_interface = host + ":" + std::to_string(port);
+    }
     TT_LOG_INFO("recorded listen interface {} for peer-port {}",
                 settings.listen_interface, static_cast<unsigned>(port));
     persist_settings_to_db();
@@ -1877,18 +1993,26 @@ private:
                           std::optional<bool> download_enabled,
                           std::optional<int> upload_kbps,
                           std::optional<bool> upload_enabled) {
+    CoreSettings snapshot_settings;
+    {
+      std::shared_lock<std::shared_mutex> shared_lock(settings_mutex);
+      snapshot_settings = settings;
+    }
     auto download_enabled_flag =
-        download_enabled.value_or(settings.download_rate_limit_enabled);
+        download_enabled.value_or(snapshot_settings.download_rate_limit_enabled);
     auto upload_enabled_flag =
-        upload_enabled.value_or(settings.upload_rate_limit_enabled);
+        upload_enabled.value_or(snapshot_settings.upload_rate_limit_enabled);
     auto download_value =
-        download_kbps.value_or(settings.download_rate_limit_kbps);
-    auto upload_value = upload_kbps.value_or(settings.upload_rate_limit_kbps);
+        download_kbps.value_or(snapshot_settings.download_rate_limit_kbps);
+    auto upload_value = upload_kbps.value_or(snapshot_settings.upload_rate_limit_kbps);
 
-    settings.download_rate_limit_enabled = download_enabled_flag;
-    settings.upload_rate_limit_enabled = upload_enabled_flag;
-    settings.download_rate_limit_kbps = download_value;
-    settings.upload_rate_limit_kbps = upload_value;
+    {
+      std::lock_guard<std::shared_mutex> settings_lock(settings_mutex);
+      settings.download_rate_limit_enabled = download_enabled_flag;
+      settings.upload_rate_limit_enabled = upload_enabled_flag;
+      settings.download_rate_limit_kbps = download_value;
+      settings.upload_rate_limit_kbps = upload_value;
+    }
 
     refresh_active_speed_limits(true);
     persist_settings_to_db();
@@ -1898,17 +2022,18 @@ private:
     if (!session) {
       return;
     }
-    bool active = should_use_alt_speed(settings);
+    CoreSettings snapshot = settings_copy();
+    bool active = should_use_alt_speed(snapshot);
     if (!force && active == alt_speed_active) {
       return;
     }
     alt_speed_active = active;
-    int download_value = active ? settings.alt_download_rate_limit_kbps
-                                : settings.download_rate_limit_kbps;
-    bool download_enabled = active ? true : settings.download_rate_limit_enabled;
-    int upload_value = active ? settings.alt_upload_rate_limit_kbps
-                              : settings.upload_rate_limit_kbps;
-    bool upload_enabled = active ? true : settings.upload_rate_limit_enabled;
+    int download_value = active ? snapshot.alt_download_rate_limit_kbps
+                                : snapshot.download_rate_limit_kbps;
+    bool download_enabled = active ? true : snapshot.download_rate_limit_enabled;
+    int upload_value = active ? snapshot.alt_upload_rate_limit_kbps
+                              : snapshot.upload_rate_limit_kbps;
+    bool upload_enabled = active ? true : snapshot.upload_rate_limit_enabled;
     apply_rate_limits(download_value, download_enabled, upload_value, upload_enabled);
   }
 
@@ -1928,28 +2053,43 @@ private:
 
   void apply_peer_limits(std::optional<int> global_limit,
                          std::optional<int> per_torrent_limit) {
-    libtorrent::settings_pack pack;
+    int updated_global = -1;
+    int updated_per_torrent = -1;
     bool updated = false;
-    if (global_limit) {
-      int limit = std::max(0, *global_limit);
-      settings.peer_limit = limit;
-      pack.set_int(libtorrent::settings_pack::connections_limit, limit);
-      current_settings.set_int(libtorrent::settings_pack::connections_limit, limit);
-      updated = true;
-    }
-    if (per_torrent_limit) {
-      int limit = std::max(0, *per_torrent_limit);
-      settings.peer_limit_per_torrent = limit;
-      pack.set_int(libtorrent::settings_pack::unchoke_slots_limit, limit);
-      current_settings.set_int(libtorrent::settings_pack::unchoke_slots_limit, limit);
-      updated = true;
-    }
-    if (updated) {
-      if (session) {
-        session->apply_settings(pack);
+    {
+      std::lock_guard<std::shared_mutex> lock(settings_mutex);
+      if (global_limit) {
+        int limit = std::max(0, *global_limit);
+        settings.peer_limit = limit;
+        updated_global = limit;
+        updated = true;
       }
-      persist_settings_to_db();
+      if (per_torrent_limit) {
+        int limit = std::max(0, *per_torrent_limit);
+        settings.peer_limit_per_torrent = limit;
+        updated_per_torrent = limit;
+        updated = true;
+      }
     }
+    if (!updated) {
+      return;
+    }
+    libtorrent::settings_pack pack;
+    if (updated_global >= 0) {
+      pack.set_int(libtorrent::settings_pack::connections_limit, updated_global);
+      current_settings.set_int(libtorrent::settings_pack::connections_limit,
+                               updated_global);
+    }
+    if (updated_per_torrent >= 0) {
+      pack.set_int(libtorrent::settings_pack::unchoke_slots_limit,
+                   updated_per_torrent);
+      current_settings.set_int(libtorrent::settings_pack::unchoke_slots_limit,
+                               updated_per_torrent);
+    }
+    if (session) {
+      session->apply_settings(pack);
+    }
+    persist_settings_to_db();
   }
 
   void apply_session_update(SessionUpdate update) {
@@ -1959,189 +2099,200 @@ private:
     bool queue_changed = false;
     bool alt_changed = false;
     bool proxy_changed = false;
+    bool pex_changed = false;
+    bool flush_history_after = false;
+    bool configure_history_after = false;
 
-    if (update.alt_speed_down_kbps) {
-      settings.alt_download_rate_limit_kbps = *update.alt_speed_down_kbps;
-      alt_changed = true;
-      persist = true;
-    }
-    if (update.alt_speed_up_kbps) {
-      settings.alt_upload_rate_limit_kbps = *update.alt_speed_up_kbps;
-      alt_changed = true;
-      persist = true;
-    }
-    if (update.alt_speed_enabled) {
-      settings.alt_speed_enabled = *update.alt_speed_enabled;
-      alt_changed = true;
-      persist = true;
-    }
-    if (update.alt_speed_time_enabled) {
-      settings.alt_speed_time_enabled = *update.alt_speed_time_enabled;
-      alt_changed = true;
-      persist = true;
-    }
-    if (update.alt_speed_time_begin) {
-      settings.alt_speed_time_begin = *update.alt_speed_time_begin;
-      alt_changed = true;
-      persist = true;
-    }
-    if (update.alt_speed_time_end) {
-      settings.alt_speed_time_end = *update.alt_speed_time_end;
-      alt_changed = true;
-      persist = true;
-    }
-    if (update.alt_speed_time_day) {
-      settings.alt_speed_time_day = *update.alt_speed_time_day;
-      alt_changed = true;
-      persist = true;
-    }
-    if (update.encryption) {
-      settings.encryption = *update.encryption;
-      encryption_changed = true;
-      persist = true;
-    }
-    if (update.dht_enabled) {
-      settings.dht_enabled = *update.dht_enabled;
-      network_changed = true;
-      persist = true;
-    }
-    if (update.lpd_enabled) {
-      settings.lpd_enabled = *update.lpd_enabled;
-      network_changed = true;
-      persist = true;
-    }
-    if (update.utp_enabled) {
-      settings.utp_enabled = *update.utp_enabled;
-      network_changed = true;
-      persist = true;
-    }
-    if (update.pex_enabled) {
-      settings.pex_enabled = *update.pex_enabled;
-      apply_pex_flags();
-      persist = true;
-    }
-    if (update.download_queue_size) {
-      settings.download_queue_size = *update.download_queue_size;
-      queue_changed = true;
-      persist = true;
-    }
-    if (update.seed_queue_size) {
-      settings.seed_queue_size = *update.seed_queue_size;
-      queue_changed = true;
-      persist = true;
-    }
-    if (update.queue_stalled_enabled) {
-      settings.queue_stalled_enabled = *update.queue_stalled_enabled;
-      queue_changed = true;
-      persist = true;
-    }
-    if (update.incomplete_dir) {
-      settings.incomplete_dir = *update.incomplete_dir;
-      persist = true;
-    }
-    if (update.incomplete_dir_enabled) {
-      settings.incomplete_dir_enabled = *update.incomplete_dir_enabled;
-      persist = true;
-    }
-    if (update.watch_dir) {
-      settings.watch_dir = *update.watch_dir;
-      persist = true;
-      if (settings.watch_dir_enabled && !settings.watch_dir.empty()) {
-        std::filesystem::create_directories(settings.watch_dir);
+    {
+      std::lock_guard<std::shared_mutex> settings_lock(settings_mutex);
+      if (update.alt_speed_down_kbps) {
+        settings.alt_download_rate_limit_kbps = *update.alt_speed_down_kbps;
+        alt_changed = true;
+        persist = true;
+      }
+      if (update.alt_speed_up_kbps) {
+        settings.alt_upload_rate_limit_kbps = *update.alt_speed_up_kbps;
+        alt_changed = true;
+        persist = true;
+      }
+      if (update.alt_speed_enabled) {
+        settings.alt_speed_enabled = *update.alt_speed_enabled;
+        alt_changed = true;
+        persist = true;
+      }
+      if (update.alt_speed_time_enabled) {
+        settings.alt_speed_time_enabled = *update.alt_speed_time_enabled;
+        alt_changed = true;
+        persist = true;
+      }
+      if (update.alt_speed_time_begin) {
+        settings.alt_speed_time_begin = *update.alt_speed_time_begin;
+        alt_changed = true;
+        persist = true;
+      }
+      if (update.alt_speed_time_end) {
+        settings.alt_speed_time_end = *update.alt_speed_time_end;
+        alt_changed = true;
+        persist = true;
+      }
+      if (update.alt_speed_time_day) {
+        settings.alt_speed_time_day = *update.alt_speed_time_day;
+        alt_changed = true;
+        persist = true;
+      }
+      if (update.encryption) {
+        settings.encryption = *update.encryption;
+        encryption_changed = true;
+        persist = true;
+      }
+      if (update.dht_enabled) {
+        settings.dht_enabled = *update.dht_enabled;
+        network_changed = true;
+        persist = true;
+      }
+      if (update.lpd_enabled) {
+        settings.lpd_enabled = *update.lpd_enabled;
+        network_changed = true;
+        persist = true;
+      }
+      if (update.utp_enabled) {
+        settings.utp_enabled = *update.utp_enabled;
+        network_changed = true;
+        persist = true;
+      }
+      if (update.pex_enabled) {
+        settings.pex_enabled = *update.pex_enabled;
+        pex_changed = true;
+        persist = true;
+      }
+      if (update.download_queue_size) {
+        settings.download_queue_size = *update.download_queue_size;
+        queue_changed = true;
+        persist = true;
+      }
+      if (update.seed_queue_size) {
+        settings.seed_queue_size = *update.seed_queue_size;
+        queue_changed = true;
+        persist = true;
+      }
+      if (update.queue_stalled_enabled) {
+        settings.queue_stalled_enabled = *update.queue_stalled_enabled;
+        queue_changed = true;
+        persist = true;
+      }
+      if (update.incomplete_dir) {
+        settings.incomplete_dir = *update.incomplete_dir;
+        persist = true;
+      }
+      if (update.incomplete_dir_enabled) {
+        settings.incomplete_dir_enabled = *update.incomplete_dir_enabled;
+        persist = true;
+      }
+      if (update.watch_dir) {
+        settings.watch_dir = *update.watch_dir;
+        persist = true;
+        if (settings.watch_dir_enabled && !settings.watch_dir.empty()) {
+          std::filesystem::create_directories(settings.watch_dir);
+        }
+      }
+      if (update.watch_dir_enabled) {
+        settings.watch_dir_enabled = *update.watch_dir_enabled;
+        persist = true;
+        if (settings.watch_dir_enabled && !settings.watch_dir.empty()) {
+          std::filesystem::create_directories(settings.watch_dir);
+        }
+      }
+      if (update.seed_ratio_limit) {
+        settings.seed_ratio_limit = *update.seed_ratio_limit;
+        persist = true;
+      }
+      if (update.seed_ratio_enabled) {
+        settings.seed_ratio_enabled = *update.seed_ratio_enabled;
+        persist = true;
+      }
+      if (update.seed_idle_limit) {
+        settings.seed_idle_limit_minutes = *update.seed_idle_limit;
+        persist = true;
+      }
+      if (update.seed_idle_enabled) {
+        settings.seed_idle_enabled = *update.seed_idle_enabled;
+        persist = true;
+      }
+      if (update.proxy_type) {
+        settings.proxy_type = *update.proxy_type;
+        proxy_changed = true;
+        persist = true;
+      }
+      if (update.proxy_hostname) {
+        settings.proxy_hostname = *update.proxy_hostname;
+        proxy_changed = true;
+        persist = true;
+      }
+      if (update.proxy_port) {
+        settings.proxy_port = *update.proxy_port;
+        proxy_changed = true;
+        persist = true;
+      }
+      if (update.proxy_auth_enabled) {
+        settings.proxy_auth_enabled = *update.proxy_auth_enabled;
+        proxy_changed = true;
+        persist = true;
+      }
+      if (update.proxy_username) {
+        settings.proxy_username = *update.proxy_username;
+        proxy_changed = true;
+        persist = true;
+      }
+      if (update.proxy_password) {
+        settings.proxy_password = *update.proxy_password;
+        proxy_changed = true;
+        persist = true;
+      }
+      if (update.proxy_peer_connections) {
+        settings.proxy_peer_connections = *update.proxy_peer_connections;
+        proxy_changed = true;
+        persist = true;
+      }
+      if (update.history_enabled) {
+        bool new_value = *update.history_enabled;
+        if (settings.history_enabled != new_value) {
+          if (!new_value) {
+            flush_history_after = true;
+          } else if (history_interval_seconds > 0) {
+            configure_history_after = true;
+          }
+          settings.history_enabled = new_value;
+          history_enabled = new_value;
+          persist = true;
+        }
+      }
+      if (update.history_interval_seconds) {
+        int interval = normalized_history_interval(*update.history_interval_seconds);
+        if (settings.history_interval_seconds != interval) {
+          flush_history_after = true;
+          configure_history_after = true;
+          settings.history_interval_seconds = interval;
+          history_interval_seconds = interval;
+          persist = true;
+        }
+      }
+      if (update.history_retention_days) {
+        int retention = std::max(0, *update.history_retention_days);
+        if (settings.history_retention_days != retention) {
+          settings.history_retention_days = retention;
+          history_retention_days = retention;
+          next_history_retention = std::chrono::steady_clock::now();
+          persist = true;
+        }
       }
     }
-    if (update.watch_dir_enabled) {
-      settings.watch_dir_enabled = *update.watch_dir_enabled;
-      persist = true;
-      if (settings.watch_dir_enabled && !settings.watch_dir.empty()) {
-        std::filesystem::create_directories(settings.watch_dir);
-      }
-    }
-    if (update.seed_ratio_limit) {
-      settings.seed_ratio_limit = *update.seed_ratio_limit;
-      persist = true;
-    }
-    if (update.seed_ratio_enabled) {
-      settings.seed_ratio_enabled = *update.seed_ratio_enabled;
-      persist = true;
-    }
-    if (update.seed_idle_limit) {
-      settings.seed_idle_limit_minutes = *update.seed_idle_limit;
-      persist = true;
-    }
-    if (update.seed_idle_enabled) {
-      settings.seed_idle_enabled = *update.seed_idle_enabled;
-      persist = true;
-    }
-    if (update.proxy_type) {
-      settings.proxy_type = *update.proxy_type;
-      proxy_changed = true;
-      persist = true;
-    }
-    if (update.proxy_hostname) {
-      settings.proxy_hostname = *update.proxy_hostname;
-      proxy_changed = true;
-      persist = true;
-    }
-    if (update.proxy_port) {
-      settings.proxy_port = *update.proxy_port;
-      proxy_changed = true;
-      persist = true;
-    }
-    if (update.proxy_auth_enabled) {
-      settings.proxy_auth_enabled = *update.proxy_auth_enabled;
-      proxy_changed = true;
-      persist = true;
-    }
-    if (update.proxy_username) {
-      settings.proxy_username = *update.proxy_username;
-      proxy_changed = true;
-      persist = true;
-    }
-    if (update.proxy_password) {
-      settings.proxy_password = *update.proxy_password;
-      proxy_changed = true;
-      persist = true;
-    }
-    if (update.proxy_peer_connections) {
-      settings.proxy_peer_connections = *update.proxy_peer_connections;
-      proxy_changed = true;
-      persist = true;
-    }
-    if (update.history_enabled) {
-      bool new_value = *update.history_enabled;
-      if (settings.history_enabled != new_value) {
-      if (!new_value) {
-        flush_history_if_due(std::chrono::steady_clock::now(), true);
-      } else if (history_interval_seconds > 0) {
-        configure_history_window(std::chrono::system_clock::now());
-      }
-      settings.history_enabled = new_value;
-      history_enabled = new_value;
-      persist = true;
-    }
-  }
-  if (update.history_interval_seconds) {
-    int interval =
-        normalized_history_interval(*update.history_interval_seconds);
-    if (settings.history_interval_seconds != interval) {
+
+    if (flush_history_after) {
       flush_history_if_due(std::chrono::steady_clock::now(), true);
-      settings.history_interval_seconds = interval;
-      history_interval_seconds = interval;
+    }
+    if (configure_history_after) {
       configure_history_window(std::chrono::system_clock::now());
-      persist = true;
     }
-  }
-  if (update.history_retention_days) {
-    int retention = std::max(0, *update.history_retention_days);
-    if (settings.history_retention_days != retention) {
-      settings.history_retention_days = retention;
-      history_retention_days = retention;
-      next_history_retention = std::chrono::steady_clock::now();
-      persist = true;
-    }
-  }
-
     if (encryption_changed) {
       apply_encryption_settings();
     }
@@ -2157,6 +2308,9 @@ private:
     if (proxy_changed) {
       apply_proxy_settings();
     }
+    if (pex_changed) {
+      apply_pex_flags();
+    }
     if (persist) {
       persist_settings_to_db();
     }
@@ -2167,8 +2321,9 @@ private:
       return;
     }
     libtorrent::settings_pack pack;
-    configure_encryption(pack, settings.encryption);
-    configure_encryption(current_settings, settings.encryption);
+    CoreSettings snapshot = settings_copy();
+    configure_encryption(pack, snapshot.encryption);
+    configure_encryption(current_settings, snapshot.encryption);
     session->apply_settings(pack);
   }
 
@@ -2176,21 +2331,22 @@ private:
     if (!session) {
       return;
     }
+    CoreSettings snapshot = settings_copy();
     libtorrent::settings_pack pack;
-    pack.set_bool(libtorrent::settings_pack::enable_dht, settings.dht_enabled);
-    pack.set_bool(libtorrent::settings_pack::enable_lsd, settings.lpd_enabled);
+    pack.set_bool(libtorrent::settings_pack::enable_dht, snapshot.dht_enabled);
+    pack.set_bool(libtorrent::settings_pack::enable_lsd, snapshot.lpd_enabled);
     pack.set_bool(libtorrent::settings_pack::enable_incoming_utp,
-                  settings.utp_enabled);
+                  snapshot.utp_enabled);
     pack.set_bool(libtorrent::settings_pack::enable_outgoing_utp,
-                  settings.utp_enabled);
+                  snapshot.utp_enabled);
     current_settings.set_bool(libtorrent::settings_pack::enable_dht,
-                              settings.dht_enabled);
+                              snapshot.dht_enabled);
     current_settings.set_bool(libtorrent::settings_pack::enable_lsd,
-                              settings.lpd_enabled);
+                              snapshot.lpd_enabled);
     current_settings.set_bool(libtorrent::settings_pack::enable_incoming_utp,
-                              settings.utp_enabled);
+                              snapshot.utp_enabled);
     current_settings.set_bool(libtorrent::settings_pack::enable_outgoing_utp,
-                              settings.utp_enabled);
+                              snapshot.utp_enabled);
     session->apply_settings(pack);
     apply_pex_flags();
   }
@@ -2199,39 +2355,40 @@ private:
     if (!session) {
       return;
     }
+    CoreSettings snapshot = settings_copy();
     libtorrent::settings_pack pack;
-    pack.set_int(libtorrent::settings_pack::proxy_type, settings.proxy_type);
+    pack.set_int(libtorrent::settings_pack::proxy_type, snapshot.proxy_type);
     pack.set_str(libtorrent::settings_pack::proxy_hostname,
-                 settings.proxy_hostname);
-    pack.set_int(libtorrent::settings_pack::proxy_port, settings.proxy_port);
+                 snapshot.proxy_hostname);
+    pack.set_int(libtorrent::settings_pack::proxy_port, snapshot.proxy_port);
     pack.set_bool(libtorrent::settings_pack::proxy_peer_connections,
-                  settings.proxy_peer_connections);
+                  snapshot.proxy_peer_connections);
     pack.set_bool(libtorrent::settings_pack::proxy_tracker_connections,
-                  settings.proxy_peer_connections);
+                  snapshot.proxy_peer_connections);
     pack.set_bool(libtorrent::settings_pack::proxy_hostnames,
-                  !settings.proxy_hostname.empty());
+                  !snapshot.proxy_hostname.empty());
     pack.set_str(libtorrent::settings_pack::proxy_username,
-                 settings.proxy_auth_enabled ? settings.proxy_username : "");
+                 snapshot.proxy_auth_enabled ? snapshot.proxy_username : "");
     pack.set_str(libtorrent::settings_pack::proxy_password,
-                 settings.proxy_auth_enabled ? settings.proxy_password : "");
+                 snapshot.proxy_auth_enabled ? snapshot.proxy_password : "");
 
     current_settings.set_int(libtorrent::settings_pack::proxy_type,
-                             settings.proxy_type);
+                             snapshot.proxy_type);
     current_settings.set_str(libtorrent::settings_pack::proxy_hostname,
-                             settings.proxy_hostname);
+                             snapshot.proxy_hostname);
     current_settings.set_int(libtorrent::settings_pack::proxy_port,
-                             settings.proxy_port);
+                             snapshot.proxy_port);
     current_settings.set_bool(libtorrent::settings_pack::proxy_peer_connections,
-                              settings.proxy_peer_connections);
+                              snapshot.proxy_peer_connections);
     current_settings.set_bool(libtorrent::settings_pack::proxy_tracker_connections,
-                              settings.proxy_peer_connections);
+                              snapshot.proxy_peer_connections);
     current_settings.set_bool(libtorrent::settings_pack::proxy_hostnames,
-                              !settings.proxy_hostname.empty());
+                              !snapshot.proxy_hostname.empty());
     current_settings.set_str(libtorrent::settings_pack::proxy_username,
-                             settings.proxy_auth_enabled ? settings.proxy_username
+                             snapshot.proxy_auth_enabled ? snapshot.proxy_username
                                                          : "");
     current_settings.set_str(libtorrent::settings_pack::proxy_password,
-                             settings.proxy_auth_enabled ? settings.proxy_password
+                             snapshot.proxy_auth_enabled ? snapshot.proxy_password
                                                          : "");
 
     session->apply_settings(pack);
@@ -2241,19 +2398,20 @@ private:
     if (!session) {
       return;
     }
+    CoreSettings snapshot = settings_copy();
     libtorrent::settings_pack pack;
     pack.set_int(libtorrent::settings_pack::active_downloads,
-                 settings.download_queue_size);
+                 snapshot.download_queue_size);
     current_settings.set_int(libtorrent::settings_pack::active_downloads,
-                             settings.download_queue_size);
+                             snapshot.download_queue_size);
     pack.set_int(libtorrent::settings_pack::active_seeds,
-                 settings.seed_queue_size);
+                 snapshot.seed_queue_size);
     current_settings.set_int(libtorrent::settings_pack::active_seeds,
-                             settings.seed_queue_size);
+                             snapshot.seed_queue_size);
     pack.set_bool(libtorrent::settings_pack::dont_count_slow_torrents,
-                  settings.queue_stalled_enabled);
+                  snapshot.queue_stalled_enabled);
     current_settings.set_bool(libtorrent::settings_pack::dont_count_slow_torrents,
-                              settings.queue_stalled_enabled);
+                              snapshot.queue_stalled_enabled);
     session->apply_settings(pack);
   }
 
@@ -2261,13 +2419,14 @@ private:
     if (!session) {
       return;
     }
+    CoreSettings snapshot = settings_copy();
     auto handles = session->get_torrents();
     for (auto const &handle : handles) {
       if (!handle.is_valid()) {
         continue;
       }
       auto flag = libtorrent::torrent_flags::disable_pex;
-      if (settings.pex_enabled) {
+      if (snapshot.pex_enabled) {
         handle.unset_flags(flag);
       } else {
         handle.set_flags(flag);
@@ -2401,13 +2560,7 @@ private:
       return;
     }
     bool changed = false;
-    for (auto const &update : updates) {
-      if (update.value) {
-        torrent_labels[update.hash] = *update.value;
-      } else {
-        torrent_labels.erase(update.hash);
-      }
-    }
+    std::vector<std::pair<std::string, std::string>> db_updates;
     {
       std::lock_guard<std::mutex> lock(state_mutex);
       for (auto const &update : updates) {
@@ -2422,9 +2575,20 @@ private:
         if (it->second.labels == new_payload) {
           continue;
         }
-        it->second.labels = std::move(new_payload);
-        commit_persisted_entry_locked(update.hash);
+        it->second.labels = new_payload;
+        if (!it->second.labels.empty()) {
+          torrent_labels[update.hash] =
+              tt::storage::deserialize_label_list(it->second.labels);
+        } else {
+          torrent_labels.erase(update.hash);
+        }
+        db_updates.emplace_back(update.hash, it->second.labels);
         changed = true;
+      }
+    }
+    if (database && database->is_valid()) {
+      for (auto const &entry : db_updates) {
+        database->update_labels(entry.first, entry.second);
       }
     }
     if (changed) {
@@ -2921,7 +3085,7 @@ CoreSettings Core::settings() const noexcept {
   if (!impl_) {
     return CoreSettings{};
   }
-  return impl_->settings;
+  return impl_->settings_copy();
 }
 
 std::vector<TorrentSnapshot> Core::torrent_list() const {
