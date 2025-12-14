@@ -258,6 +258,6 @@ build.ps1
 
 A task is complete when:
 
-1.  The code compiles in **Debug Mode**
+1.  The code compiles in **Debug Mode** - error free and, if reasonably possible, warning free.
 2.  The automated tests pass (`build.ps1` returns success).
 3.  Architectural boundaries (Engine vs. RPC) are respected.

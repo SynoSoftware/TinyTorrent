@@ -322,7 +322,8 @@ if (-not $useStaticVcpkg) {
   $runtimeRoot = Join-Path $repoRoot 'vcpkg_installed\x64-windows'
   $runtimeSourceDir = if ($Configuration -eq 'Debug') {
     Join-Path $runtimeRoot 'debug\bin'
-  } else {
+  }
+  else {
     Join-Path $runtimeRoot 'bin'
   }
   if (Test-Path $runtimeSourceDir) {
@@ -332,10 +333,12 @@ if (-not $useStaticVcpkg) {
         Copy-Item -Path $source -Destination $mesonBuildDir -Force
       }
     }
-  } else {
+  }
+  else {
     Write-Host "Warning: runtime dependency directory missing: $runtimeSourceDir"
   }
-} else {
+}
+else {
   Write-Host "Static vcpkg triplet in use; runtime DLLs are linked statically."
 }
 
@@ -364,7 +367,7 @@ $exePath = Join-Path $mesonBuildDir $fileName
 if (Test-Path $exePath) {
   $lengthKb = (Get-Item $exePath).Length / 1024.0
   Write-Host $exePath
-  Write-Host ("└── {0}    {1:N2} kb" -f $fileName, $lengthKb)
+  Write-Host ("\- {0}    {1:N2} kb" -f $fileName, $lengthKb)
   $mapPath = Join-Path $mesonBuildDir 'tt-engine.map'
   if (Test-Path $mapPath) {
     $mapSizeKb = (Get-Item $mapPath).Length / 1024.0

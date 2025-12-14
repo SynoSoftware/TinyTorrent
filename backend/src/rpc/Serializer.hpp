@@ -35,7 +35,9 @@ std::string serialize_session_settings(
     std::string const &rpc_bind, std::string const &listen_error);
 std::string serialize_session_stats(engine::SessionSnapshot const &snapshot);
 std::string serialize_add_result(engine::Core::AddTorrentStatus status);
-std::string serialize_error(std::string_view message);
+std::string serialize_error(std::string_view message,
+                            std::optional<std::string_view> details =
+                                std::nullopt);
 std::string serialize_torrent_list(
     std::vector<engine::TorrentSnapshot> const &torrents);
 std::string serialize_torrent_detail(

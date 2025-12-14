@@ -76,10 +76,25 @@ public:
 private:
   bool ensure_schema();
   bool execute(std::string const &sql) const;
+  bool run_migrations();
+  bool ensure_schema_version_row() const;
+  std::optional<int> schema_version() const;
+  bool set_schema_version(int version) const;
+  bool apply_migration_v1() const;
   sqlite3_stmt *prepare_cached(std::string const &sql) const;
+  bool table_exists(std::string const &name) const;
+  std::vector<std::string> columns_for_table(std::string const &table) const;
+  bool rename_table(std::string const &old_name, std::string const &new_name) const;
+  bool copy_table_data(std::string const &target, std::string const &source,
+                       std::vector<std::string> const &columns) const;
+  bool drop_backup_tables(std::vector<std::string> const &tables,
+                          std::string const &suffix) const;
+  bool recover_schema_from_existing() const;
+  bool backup_database() const;
 
   sqlite3 *db_ = nullptr;
   mutable std::unordered_map<std::string, sqlite3_stmt *> stmt_cache_;
+  std::filesystem::path path_;
 };
 
 } // namespace tt::storage

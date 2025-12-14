@@ -4,6 +4,10 @@
 #include "utils/Log.hpp"
 #include <yyjson.h>
 
+#include <algorithm>
+#include <array>
+#include <chrono>
+#include <format>
 #include <filesystem>
 #include <system_error>
 
@@ -49,6 +53,9 @@ std::vector<std::string> deserialize_label_list(std::string const &payload) {
 namespace {
 
 constexpr int kDatabaseBusyTimeoutMs = 5000;
+constexpr char const *kRecoverySuffix = "_old";
+constexpr std::array<std::string_view, 3> kPersistentTables = {
+    {"settings", "torrents", "speed_history"}};
 
 std::optional<std::vector<std::uint8_t>> copy_column_blob(sqlite3_stmt *stmt,
                                                            int index) {
@@ -67,15 +74,15 @@ std::optional<std::vector<std::uint8_t>> copy_column_blob(sqlite3_stmt *stmt,
 
 } // namespace
 
-Database::Database(std::filesystem::path path) {
-  if (path.empty()) {
+Database::Database(std::filesystem::path path) : path_(std::move(path)) {
+  if (path_.empty()) {
     return;
   }
-  auto parent = path.parent_path();
+  auto parent = path_.parent_path();
   if (!parent.empty()) {
     std::filesystem::create_directories(parent);
   }
-  int rc = sqlite3_open_v2(path.string().c_str(), &db_,
+  int rc = sqlite3_open_v2(path_.string().c_str(), &db_,
                            SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX,
                            nullptr);
   if (rc != SQLITE_OK) {
@@ -119,6 +126,107 @@ bool Database::ensure_schema() {
   if (!db_) {
     return false;
   }
+  constexpr char const *kSchemaVersionSql =
+      "CREATE TABLE IF NOT EXISTS schema_version ("
+      "id INTEGER PRIMARY KEY CHECK(id = 1),"
+      "version INTEGER NOT NULL);";
+  if (!execute(kSchemaVersionSql)) {
+    return false;
+  }
+  return run_migrations();
+}
+
+bool Database::execute(std::string const &sql) const {
+  if (!db_) {
+    return false;
+  }
+  char *err_msg = nullptr;
+  int rc = sqlite3_exec(db_, sql.c_str(), nullptr, nullptr, &err_msg);
+  if (rc != SQLITE_OK) {
+    if (err_msg != nullptr) {
+      TT_LOG_INFO("sqlite error: {}", err_msg);
+      sqlite3_free(err_msg);
+    }
+    return false;
+  }
+  return true;
+}
+
+bool Database::run_migrations() {
+  if (!ensure_schema_version_row()) {
+    return false;
+  }
+  auto current = schema_version().value_or(0);
+  struct Migration {
+    int version;
+    bool (Database::*apply)() const;
+  };
+  static constexpr Migration kMigrations[] = {
+      {1, &Database::apply_migration_v1},
+  };
+  for (auto const &migration : kMigrations) {
+    if (current >= migration.version) {
+      continue;
+    }
+    if (!(this->*migration.apply)()) {
+      TT_LOG_INFO("schema migration v{} failed, attempting recovery", migration.version);
+      if (!recover_schema_from_existing()) {
+        TT_LOG_INFO("schema recovery failed");
+        return false;
+      }
+      return run_migrations();
+    }
+    if (!set_schema_version(migration.version)) {
+      return false;
+    }
+    current = migration.version;
+  }
+  return true;
+}
+
+bool Database::ensure_schema_version_row() const {
+  constexpr char const *sql =
+      "INSERT OR IGNORE INTO schema_version (id, version) VALUES (1, 0);";
+  return execute(sql);
+}
+
+std::optional<int> Database::schema_version() const {
+  if (!db_) {
+    return std::nullopt;
+  }
+  constexpr char const *sql =
+      "SELECT version FROM schema_version WHERE id = 1 LIMIT 1;";
+  auto *stmt = prepare_cached(sql);
+  if (stmt == nullptr) {
+    return std::nullopt;
+  }
+  std::optional<int> result;
+  if (sqlite3_step(stmt) == SQLITE_ROW) {
+    result = static_cast<int>(sqlite3_column_int(stmt, 0));
+  }
+  sqlite3_reset(stmt);
+  sqlite3_clear_bindings(stmt);
+  return result;
+}
+
+bool Database::set_schema_version(int version) const {
+  if (!db_) {
+    return false;
+  }
+  constexpr char const *sql =
+      "INSERT OR REPLACE INTO schema_version (id, version) VALUES (1, ?);";
+  auto *stmt = prepare_cached(sql);
+  if (stmt == nullptr) {
+    return false;
+  }
+  sqlite3_bind_int(stmt, 1, version);
+  int rc = sqlite3_step(stmt);
+  sqlite3_reset(stmt);
+  sqlite3_clear_bindings(stmt);
+  return rc == SQLITE_DONE;
+}
+
+bool Database::apply_migration_v1() const {
   constexpr char const *kSettingsSql =
       "CREATE TABLE IF NOT EXISTS settings ("
       "key TEXT PRIMARY KEY,"
@@ -142,22 +250,6 @@ bool Database::ensure_schema() {
       "up_bytes INTEGER NOT NULL);";
   return execute(kSettingsSql) && execute(kTorrentsSql) &&
          execute(kSpeedHistorySql);
-}
-
-bool Database::execute(std::string const &sql) const {
-  if (!db_) {
-    return false;
-  }
-  char *err_msg = nullptr;
-  int rc = sqlite3_exec(db_, sql.c_str(), nullptr, nullptr, &err_msg);
-  if (rc != SQLITE_OK) {
-    if (err_msg != nullptr) {
-      TT_LOG_INFO("sqlite error: {}", err_msg);
-      sqlite3_free(err_msg);
-    }
-    return false;
-  }
-  return true;
 }
 
 sqlite3_stmt *Database::prepare_cached(std::string const &sql) const {
@@ -601,6 +693,192 @@ bool Database::delete_speed_history_all() const {
   }
   constexpr char const *sql = "DELETE FROM speed_history;";
   return execute(sql);
+}
+
+bool Database::table_exists(std::string const &name) const {
+  if (!db_) {
+    return false;
+  }
+  constexpr char const *sql =
+      "SELECT 1 FROM sqlite_master WHERE type='table' AND name = ? LIMIT 1;";
+  auto *stmt = prepare_cached(sql);
+  if (stmt == nullptr) {
+    return false;
+  }
+  sqlite3_bind_text(stmt, 1, name.c_str(), -1, SQLITE_TRANSIENT);
+  bool exists = sqlite3_step(stmt) == SQLITE_ROW;
+  sqlite3_reset(stmt);
+  sqlite3_clear_bindings(stmt);
+  return exists;
+}
+
+std::vector<std::string> Database::columns_for_table(
+    std::string const &table) const {
+  std::vector<std::string> result;
+  if (!db_) {
+    return result;
+  }
+  auto sql = std::format("PRAGMA table_info({});", table);
+  sqlite3_stmt *stmt = nullptr;
+  int rc = sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, nullptr);
+  if (rc != SQLITE_OK) {
+    if (stmt != nullptr) {
+      sqlite3_finalize(stmt);
+    }
+    return result;
+  }
+  while (sqlite3_step(stmt) == SQLITE_ROW) {
+    auto *name = reinterpret_cast<char const *>(sqlite3_column_text(stmt, 1));
+    if (name != nullptr) {
+      result.emplace_back(name);
+    }
+  }
+  sqlite3_finalize(stmt);
+  return result;
+}
+
+bool Database::rename_table(std::string const &old_name,
+                            std::string const &new_name) const {
+  if (!table_exists(old_name)) {
+    return true;
+  }
+  auto sql = std::format("ALTER TABLE {} RENAME TO {};", old_name, new_name);
+  return execute(sql);
+}
+
+bool Database::copy_table_data(std::string const &target,
+                               std::string const &source,
+                               std::vector<std::string> const &columns) const {
+  if (!db_ || columns.empty()) {
+    return true;
+  }
+  std::string column_list;
+  column_list.reserve(columns.size() * 16);
+  for (size_t i = 0; i < columns.size(); ++i) {
+    column_list += columns[i];
+    if (i + 1 < columns.size()) {
+      column_list += ", ";
+    }
+  }
+  auto sql = std::format(
+      "INSERT OR IGNORE INTO {} ({}) SELECT {} FROM {};",
+      target, column_list, column_list, source);
+  return execute(sql);
+}
+
+bool Database::drop_backup_tables(std::vector<std::string> const &tables,
+                                  std::string const &suffix) const {
+  if (!db_) {
+    return false;
+  }
+  bool success = true;
+  for (auto const &table : tables) {
+    auto name = table + suffix;
+    if (!table_exists(name)) {
+      continue;
+    }
+    auto sql = std::format("DROP TABLE IF EXISTS {};", name);
+    if (!execute(sql)) {
+      success = false;
+      TT_LOG_INFO("failed to drop backup table {}", name);
+    }
+  }
+  return success;
+}
+
+bool Database::recover_schema_from_existing() const {
+  if (!db_) {
+    return false;
+  }
+  if (!backup_database()) {
+    return false;
+  }
+  if (!begin_transaction()) {
+    return false;
+  }
+  std::vector<std::string> tables;
+  tables.reserve(kPersistentTables.size());
+  for (auto const &table : kPersistentTables) {
+    tables.emplace_back(table);
+  }
+  bool success = false;
+  do {
+    drop_backup_tables(tables, kRecoverySuffix);
+    bool rename_failed = false;
+    for (auto const &table : tables) {
+      auto current_backup = table + kRecoverySuffix;
+      if (!table_exists(table)) {
+        continue;
+      }
+      if (!rename_table(table, current_backup)) {
+        TT_LOG_INFO("failed to rename {} to {}", table, current_backup);
+        rename_failed = true;
+        break;
+      }
+    }
+    if (rename_failed) {
+      break;
+    }
+    if (!apply_migration_v1()) {
+      break;
+    }
+    for (auto const &table : tables) {
+      auto source = table + kRecoverySuffix;
+      if (!table_exists(source)) {
+        continue;
+      }
+      auto destination_columns = columns_for_table(table);
+      auto source_columns = columns_for_table(source);
+      std::vector<std::string> common;
+      for (auto const &column : destination_columns) {
+        if (std::find(source_columns.begin(), source_columns.end(),
+                      column) != source_columns.end()) {
+          common.push_back(column);
+        }
+      }
+      if (common.empty()) {
+        continue;
+      }
+      if (!copy_table_data(table, source, common)) {
+        TT_LOG_INFO("failed to migrate data from {} to {}", source, table);
+      }
+    }
+    drop_backup_tables(tables, kRecoverySuffix);
+    success = true;
+  } while (false);
+  if (success) {
+    if (!commit_transaction()) {
+      success = false;
+      rollback_transaction();
+    }
+  } else {
+    rollback_transaction();
+  }
+  return success;
+}
+
+bool Database::backup_database() const {
+  if (path_.empty()) {
+    return false;
+  }
+  try {
+    auto now = std::chrono::system_clock::now();
+    auto seconds =
+        std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch())
+            .count();
+    auto parent = path_.parent_path();
+    auto backup_name =
+        std::format("{}-recovery-{}.db", path_.stem().string(), seconds);
+    auto backup_path = parent.empty() ? std::filesystem::path(backup_name)
+                                      : parent / backup_name;
+    std::filesystem::copy_file(path_, backup_path,
+                               std::filesystem::copy_options::skip_existing);
+    TT_LOG_INFO("created database backup: {}", backup_path.string());
+    return true;
+  } catch (std::filesystem::filesystem_error const &ex) {
+    TT_LOG_INFO("database backup failed: {}", ex.what());
+    return false;
+  }
 }
 
 } // namespace tt::storage

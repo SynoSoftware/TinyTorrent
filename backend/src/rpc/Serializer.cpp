@@ -1065,7 +1065,8 @@ std::string serialize_add_result(engine::Core::AddTorrentStatus status) {
   return doc.write(R"({"result":"error"})");
 }
 
-std::string serialize_error(std::string_view message) {
+std::string serialize_error(std::string_view message,
+                            std::optional<std::string_view> details) {
   tt::json::MutableDocument doc;
   if (!doc.is_valid()) {
     return "{}";
@@ -1080,6 +1081,12 @@ std::string serialize_error(std::string_view message) {
   yyjson_mut_obj_add_val(native, root, "arguments", arguments);
   yyjson_mut_obj_add_strn(native, arguments, "message", message.data(),
                           message.size());
+#ifndef NDEBUG
+  if (details && !details->empty()) {
+    yyjson_mut_obj_add_strn(native, arguments, "detail", details->data(),
+                            details->size());
+  }
+#endif
 
   return doc.write(R"({"result":"error"})");
 }

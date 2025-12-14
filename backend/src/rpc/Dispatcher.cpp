@@ -1791,6 +1791,7 @@ std::future<std::string> Dispatcher::dispatch(std::string_view payload) {
     return handler_it->second(arguments);
   } catch (std::exception const &ex) {
     TT_LOG_INFO("RPC handler failed for method {}: {}", method, ex.what());
+    return ready_future(serialize_error("internal error", ex.what()));
   } catch (...) {
     TT_LOG_INFO("RPC handler failed for method {}", method);
   }
