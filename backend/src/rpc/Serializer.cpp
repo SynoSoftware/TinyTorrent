@@ -845,9 +845,11 @@ std::string serialize_ws_snapshot(engine::SessionSnapshot const &snapshot) {
 }
 
 std::string serialize_ws_patch(engine::SessionSnapshot const &snapshot,
-                               std::vector<engine::TorrentSnapshot> const &added,
-                               std::vector<engine::TorrentSnapshot> const &updated,
-                               std::vector<int> const &removed) {
+                              std::vector<engine::TorrentSnapshot> const &added,
+                              std::vector<std::pair<engine::TorrentSnapshot,
+                                                    engine::TorrentSnapshot>> const
+                                  &updated,
+                              std::vector<int> const &removed) {
   tt::json::MutableDocument doc;
   if (!doc.is_valid()) {
     return "{}";
