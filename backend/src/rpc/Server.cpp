@@ -1,6 +1,7 @@
 #include "rpc/Server.hpp"
 
 #include "rpc/Serializer.hpp"
+#include "utils/Endpoint.hpp"
 #include "utils/Log.hpp"
 #include "utils/Shutdown.hpp"
 
@@ -108,6 +109,8 @@ constexpr std::array<std::string_view, 5> kLoopbackHosts = {
 constexpr char kLegacyTokenHeader[] = "X-TinyTorrent-Token";
 constexpr auto kWebsocketPatchInterval =
     std::chrono::milliseconds(500);
+constexpr auto kWebsocketPingInterval =
+    std::chrono::seconds(15);
 
 std::optional<std::string> header_value(struct mg_http_message *hm,
                                         char const *name) {
@@ -164,9 +167,14 @@ std::optional<std::string> normalized_host(struct mg_http_message *hm) {
   return std::nullopt;
 }
 
-bool host_allowed(std::string const &host) {
+bool host_allowed(std::string const &host,
+                  std::vector<std::string> const &allowed_hosts) {
   if (host.empty()) {
     return false;
+  }
+  if (!allowed_hosts.empty()) {
+    return std::any_of(allowed_hosts.begin(), allowed_hosts.end(),
+                       [&](std::string const &candidate) { return host == candidate; });
   }
   return std::any_of(kLoopbackHosts.begin(), kLoopbackHosts.end(),
                      [&](std::string_view candidate) { return host == candidate; });
@@ -257,6 +265,8 @@ SnapshotDiff compute_diff(tt::engine::SessionSnapshot const &previous,
 
 namespace tt::rpc {
 
+void send_ws_ping(struct mg_connection *conn);
+
 Server::Server(engine::Core *engine, std::string bind_url, ServerOptions options)
     : bind_url_(std::move(bind_url)),
       engine_(engine),
@@ -266,6 +276,35 @@ Server::Server(engine::Core *engine, std::string bind_url, ServerOptions options
       options_(std::move(options)) {
   rpc_path_ = options_.rpc_path;
   ws_path_ = options_.ws_path;
+  auto add_allowed_host = [&](std::string host) {
+    if (host.empty()) {
+      return;
+    }
+    if (std::find(allowed_hosts_.begin(), allowed_hosts_.end(), host) ==
+        allowed_hosts_.end()) {
+      allowed_hosts_.push_back(std::move(host));
+    }
+  };
+  auto host_segment = bind_url_;
+  if (auto scheme = host_segment.find("://"); scheme != std::string::npos) {
+    host_segment = host_segment.substr(scheme + 3);
+  }
+  auto slash = host_segment.find('/');
+  if (slash != std::string::npos) {
+    host_segment.resize(slash);
+  }
+  if (!host_segment.empty()) {
+    auto canonical = canonicalize_host(host_segment);
+    add_allowed_host(canonical);
+    if (canonical == "127.0.0.1" || canonical == "localhost" ||
+        canonical == "[::1]" || canonical == "::1" ||
+        canonical == "0:0:0:0:0:0:0:1") {
+      for (auto const &loop : kLoopbackHosts) {
+        add_allowed_host(std::string(loop));
+      }
+    }
+  }
+  last_ping_time_ = std::chrono::steady_clock::now();
   if (options_.token) {
     connection_info_.emplace();
     connection_info_->token = *options_.token;
@@ -406,6 +445,13 @@ void Server::broadcast_websocket_updates() {
     last_blocklist_entries_ = blocklist_entries;
     broadcast_event(
         serialize_ws_event_blocklist_updated(blocklist_entries));
+  }
+
+  if (now - last_ping_time_ >= kWebsocketPingInterval) {
+    last_ping_time_ = now;
+    for (auto &client : ws_clients_) {
+      send_ws_ping(client.conn);
+    }
   }
 }
 
@@ -567,7 +613,7 @@ void Server::handle_http_message(struct mg_connection *conn,
 
   if (is_ws) {
     auto normalized = normalized_host(hm);
-    if (!normalized || !host_allowed(*normalized)) {
+    if (!normalized || !host_allowed(*normalized, allowed_hosts_)) {
       TT_LOG_INFO("WebSocket upgrade rejected; unsupported host header {}",
                   normalized ? *normalized : "<missing>");
       auto payload = serialize_error("invalid host header");
@@ -603,7 +649,7 @@ void Server::handle_http_message(struct mg_connection *conn,
   }
 
   auto normalized = normalized_host(hm);
-  if (!normalized || !host_allowed(*normalized)) {
+  if (!normalized || !host_allowed(*normalized, allowed_hosts_)) {
     TT_LOG_INFO("RPC request rejected; unsupported host header {}",
                 normalized ? *normalized : "<missing>");
     auto payload = serialize_error("invalid host header");
@@ -699,6 +745,16 @@ void Server::send_ws_message(struct mg_connection *conn,
   }
   size_t sent =
       mg_ws_send(conn, payload.data(), payload.size(), WEBSOCKET_OP_TEXT);
+  if (sent == 0) {
+    conn->is_closing = 1;
+  }
+}
+
+void send_ws_ping(struct mg_connection *conn) {
+  if (conn == nullptr || conn->is_closing) {
+    return;
+  }
+  size_t sent = mg_ws_send(conn, nullptr, 0, WEBSOCKET_OP_PING);
   if (sent == 0) {
     conn->is_closing = 1;
   }

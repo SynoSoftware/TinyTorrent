@@ -351,7 +351,7 @@ std::string serialize_capabilities() {
 std::string serialize_session_settings(
     engine::CoreSettings const &settings, std::size_t blocklist_entries,
     std::optional<std::chrono::system_clock::time_point> blocklist_updated,
-    std::string const &rpc_bind) {
+    std::string const &rpc_bind, std::string const &listen_error) {
   tt::json::MutableDocument doc;
   if (!doc.is_valid()) {
     return "{}";
@@ -475,6 +475,10 @@ std::string serialize_session_settings(
   }
   if (auto port = parse_listen_port(settings.listen_interface)) {
     yyjson_mut_obj_add_uint(native, arguments, "peer-port", *port);
+  }
+  if (!listen_error.empty()) {
+    yyjson_mut_obj_add_str(native, arguments, "listen-error",
+                           listen_error.c_str());
   }
   auto [rpc_host, rpc_port] = parse_rpc_bind(rpc_bind);
   if (!rpc_host.empty()) {

@@ -290,6 +290,7 @@ public:
   std::vector<HistoryBucket> history_data(std::int64_t start, std::int64_t end,
                                           std::int64_t step) const;
   bool history_clear(std::optional<std::int64_t> older_than);
+  std::string listen_error() const;
 
 private:
   struct Impl;

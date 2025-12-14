@@ -32,7 +32,7 @@ std::string serialize_capabilities();
 std::string serialize_session_settings(
     engine::CoreSettings const &settings, std::size_t blocklist_entries,
     std::optional<std::chrono::system_clock::time_point> blocklist_updated,
-    std::string const &rpc_bind);
+    std::string const &rpc_bind, std::string const &listen_error);
 std::string serialize_session_stats(engine::SessionSnapshot const &snapshot);
 std::string serialize_add_result(engine::Core::AddTorrentStatus status);
 std::string serialize_error(std::string_view message);
