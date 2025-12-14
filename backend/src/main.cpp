@@ -37,6 +37,13 @@
 #include <unistd.h>
 #endif
 
+#ifdef max
+#undef max
+#endif
+#ifdef min
+#undef min
+#endif
+
 namespace {
 
 std::string replace_endpoint_port(std::string value, std::string const &port) {
@@ -100,7 +107,8 @@ bool secure_connection_permissions(std::filesystem::path const &path) {
     CloseHandle(token);
     return false;
   }
-  EXPLICIT_ACCESSW entries[2];
+  static constexpr wchar_t kBuiltinUsers[] = L"BUILTIN\\Users";
+  EXPLICIT_ACCESSW entries[3];
   ZeroMemory(entries, sizeof(entries));
   entries[0].grfAccessPermissions = GENERIC_READ | GENERIC_WRITE | DELETE;
   entries[0].grfAccessMode = SET_ACCESS;
@@ -114,9 +122,14 @@ bool secure_connection_permissions(std::filesystem::path const &path) {
   entries[1].Trustee.TrusteeForm = TRUSTEE_IS_SID;
   entries[1].Trustee.TrusteeType = TRUSTEE_IS_USER;
   entries[1].Trustee.ptstrName = reinterpret_cast<LPWSTR>(system_sid);
+  entries[2].grfAccessPermissions = GENERIC_READ | GENERIC_WRITE | DELETE;
+  entries[2].grfAccessMode = SET_ACCESS;
+  entries[2].grfInheritance = NO_INHERITANCE;
+  entries[2].Trustee.TrusteeForm = TRUSTEE_IS_NAME;
+  entries[2].Trustee.TrusteeType = TRUSTEE_IS_GROUP;
+  entries[2].Trustee.ptstrName = const_cast<LPWSTR>(kBuiltinUsers);
   PACL acl = nullptr;
-  DWORD status =
-      SetEntriesInAclW(2, entries, nullptr, &acl);
+  DWORD status = SetEntriesInAclW(3, entries, nullptr, &acl);
   if (status != ERROR_SUCCESS) {
     FreeSid(system_sid);
     CloseHandle(token);
@@ -221,27 +234,35 @@ int main(int argc, char *argv[]) {
         }
         auto payload = std::format(R"({{"port":{},"token":"{}","pid":{}}})",
                                    info.port, info.token, pid);
-        auto tmp_path = path;
-        tmp_path.replace_extension(".json.tmp");
-        std::filesystem::create_directories(tmp_path.parent_path());
-        std::ofstream output(tmp_path, std::ios::binary);
-        if (!output) {
-          return false;
-        }
-        output << payload;
-        output.flush();
-        output.close();
-        std::error_code ec;
-        std::filesystem::rename(tmp_path, path, ec);
-        if (ec) {
-          std::filesystem::remove(tmp_path, ec);
-          return false;
-        }
-        return secure_connection_permissions(path);
+      auto tmp_path = path;
+      tmp_path.replace_extension(".json.tmp");
+      std::filesystem::create_directories(tmp_path.parent_path());
+      std::ofstream output(tmp_path, std::ios::binary);
+      if (!output) {
+        return false;
+      }
+      output << payload;
+      output.flush();
+      output.close();
+      std::error_code remove_ec;
+      std::filesystem::remove(path, remove_ec);
+      if (remove_ec && remove_ec != std::errc::no_such_file_or_directory) {
+        TT_LOG_INFO("failed to remove stale connection file {}: {}",
+                    path.string(), remove_ec.message());
+      }
+      std::error_code ec;
+      std::filesystem::rename(tmp_path, path, ec);
+      if (ec) {
+        std::filesystem::remove(tmp_path, ec);
+        return false;
+      }
+      return secure_connection_permissions(path);
       };
 
   auto root = tt::utils::data_root();
   auto download_path = root / "downloads";
+
+  tt::engine::CoreSettings settings;
 
   auto state_path = settings.state_path;
   if (state_path.empty()) {
@@ -327,7 +348,6 @@ int main(int argc, char *argv[]) {
   TT_LOG_INFO("Data root: {}", root.string());
   TT_LOG_INFO("Download path: {}", download_path.string());
 
-  tt::engine::CoreSettings settings;
   settings.download_path = download_path;
   settings.listen_interface = listen_interface;
   settings.blocklist_path = blocklist_dir / "blocklist.txt";

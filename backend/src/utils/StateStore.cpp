@@ -48,6 +48,8 @@ std::vector<std::string> deserialize_label_list(std::string const &payload) {
 
 namespace {
 
+constexpr int kDatabaseBusyTimeoutMs = 5000;
+
 std::optional<std::vector<std::uint8_t>> copy_column_blob(sqlite3_stmt *stmt,
                                                            int index) {
   auto size = sqlite3_column_bytes(stmt, index);
@@ -93,6 +95,7 @@ Database::Database(std::filesystem::path path) {
   } else if (err_msg != nullptr) {
     sqlite3_free(err_msg);
   }
+  sqlite3_busy_timeout(db_, kDatabaseBusyTimeoutMs);
   if (!ensure_schema()) {
     sqlite3_close(db_);
     db_ = nullptr;

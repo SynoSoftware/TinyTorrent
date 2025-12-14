@@ -38,6 +38,7 @@
 #include "utils/StateStore.hpp"
 
 #include <ctime>
+#include <exception>
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -484,6 +485,7 @@ struct Core::Impl {
   std::chrono::steady_clock::time_point last_state_flush =
       std::chrono::steady_clock::now();
   std::unique_ptr<tt::storage::Database> database;
+  std::unique_ptr<tt::storage::Database> history_database;
   std::unordered_map<std::string, tt::storage::PersistedTorrent> persisted_torrents;
   SessionStatistics persisted_stats;
   mutable std::mutex state_mutex;
@@ -520,6 +522,12 @@ struct Core::Impl {
       std::chrono::steady_clock::now();
   std::chrono::steady_clock::time_point next_history_retention =
       std::chrono::steady_clock::now();
+  std::thread history_worker_thread;
+  std::mutex history_task_mutex;
+  std::condition_variable history_task_cv;
+  std::deque<std::function<void()>> history_tasks;
+  std::atomic<bool> history_worker_running{false};
+  std::atomic<bool> history_worker_exit_requested{false};
 
   explicit Impl(CoreSettings settings) : settings(std::move(settings)) {
     std::filesystem::create_directories(this->settings.download_path);
@@ -540,6 +548,11 @@ struct Core::Impl {
     } else {
       TT_LOG_INFO("sqlite state database unavailable; falling back to ephemeral state");
       persisted_stats.session_count = 1;
+    }
+
+    history_database = std::make_unique<tt::storage::Database>(state_path);
+    if (history_database && history_database->is_valid()) {
+      start_history_worker();
     }
 
     history_enabled = this->settings.history_enabled;
@@ -599,6 +612,8 @@ struct Core::Impl {
     initialize_session_statistics();
     mark_state_dirty();
   }
+
+  ~Impl() { stop_history_worker(); }
 
   void run() {
     while (running.load(std::memory_order_relaxed)) {
@@ -1143,10 +1158,12 @@ private:
       bucket_timestamp = align_to_history_interval(std::chrono::system_clock::now(),
                                                   history_interval_seconds);
     }
-    if (database && database->is_valid()) {
-      if (!database->insert_speed_history(bucket_timestamp, down_bytes, up_bytes)) {
-        TT_LOG_INFO("failed to record history bucket {}", bucket_timestamp);
-      }
+    if (history_database && history_database->is_valid()) {
+      schedule_history_task([this, bucket_timestamp, down_bytes, up_bytes]() {
+        if (!history_database->insert_speed_history(bucket_timestamp, down_bytes, up_bytes)) {
+          TT_LOG_INFO("failed to record history bucket {}", bucket_timestamp);
+        }
+      });
     }
     history_bucket_start = bucket_timestamp + history_interval_seconds;
     history_last_flush = now;
@@ -1160,7 +1177,7 @@ private:
       return;
     }
     next_history_retention = now + kHistoryRetentionCheckInterval;
-    if (!database || !database->is_valid()) {
+    if (!history_database || !history_database->is_valid()) {
       return;
     }
     auto cutoff = static_cast<std::int64_t>(
@@ -1173,39 +1190,123 @@ private:
     if (cutoff < 0) {
       cutoff = 0;
     }
-    if (!database->delete_speed_history_before(cutoff)) {
-      TT_LOG_INFO("history retention delete failed");
+    schedule_history_task([this, cutoff]() {
+      if (history_database && !history_database->delete_speed_history_before(cutoff)) {
+        TT_LOG_INFO("history retention delete failed");
+      }
+    });
+  }
+
+  template <typename Fn>
+  auto schedule_history_task(Fn &&fn)
+      -> std::future<std::invoke_result_t<Fn>> {
+    using result_t = std::invoke_result_t<Fn>;
+    auto task =
+        std::make_shared<std::packaged_task<result_t()>>(std::forward<Fn>(fn));
+    auto future = task->get_future();
+    if (!history_worker_running.load(std::memory_order_acquire) ||
+        history_worker_exit_requested.load(std::memory_order_acquire)) {
+      (*task)();
+      return future;
     }
+    {
+      std::lock_guard<std::mutex> lock(history_task_mutex);
+      history_tasks.emplace_back([task]() mutable { (*task)(); });
+    }
+    history_task_cv.notify_one();
+    return future;
+  }
+
+  void start_history_worker() {
+    if (history_worker_thread.joinable()) {
+      return;
+    }
+    history_worker_exit_requested.store(false, std::memory_order_release);
+    history_worker_running.store(true, std::memory_order_release);
+    history_worker_thread = std::thread([this] { history_worker_loop(); });
+  }
+
+  void stop_history_worker() {
+    history_worker_exit_requested.store(true, std::memory_order_release);
+    history_task_cv.notify_all();
+    if (history_worker_thread.joinable()) {
+      history_worker_thread.join();
+    }
+  }
+
+  void history_worker_loop() {
+    while (true) {
+      std::function<void()> task;
+      {
+        std::unique_lock<std::mutex> lock(history_task_mutex);
+        history_task_cv.wait(
+            lock, [this] {
+              return !history_tasks.empty() ||
+                     history_worker_exit_requested.load(std::memory_order_acquire);
+            });
+        if (history_tasks.empty()) {
+          if (history_worker_exit_requested.load(std::memory_order_acquire)) {
+            break;
+          }
+          continue;
+        }
+        task = std::move(history_tasks.front());
+        history_tasks.pop_front();
+      }
+      try {
+        task();
+      } catch (std::exception const &ex) {
+        TT_LOG_INFO("history worker task exception: {}", ex.what());
+      } catch (...) {
+        TT_LOG_INFO("history worker task exception");
+      }
+    }
+    history_worker_running.store(false, std::memory_order_release);
   }
 
   std::vector<HistoryBucket> history_query(std::int64_t start, std::int64_t end,
-                                           std::int64_t step) const {
-    std::vector<HistoryBucket> result;
-    if (!database || !database->is_valid()) {
-      return result;
+                                           std::int64_t step) {
+    if (!history_database || !history_database->is_valid()) {
+      return {};
     }
-    auto entries = database->query_speed_history(start, end, step);
-    result.reserve(entries.size());
-    for (auto const &entry : entries) {
-      HistoryBucket bucket;
-      bucket.timestamp = entry.timestamp;
-      bucket.total_down = entry.total_down;
-      bucket.total_up = entry.total_up;
-      bucket.peak_down = entry.peak_down;
-      bucket.peak_up = entry.peak_up;
-      result.push_back(bucket);
+    try {
+      auto future = schedule_history_task(
+          [this, start, end, step]() -> std::vector<HistoryBucket> {
+            std::vector<HistoryBucket> result;
+            auto entries = history_database->query_speed_history(start, end, step);
+            result.reserve(entries.size());
+            for (auto const &entry : entries) {
+              HistoryBucket bucket;
+              bucket.timestamp = entry.timestamp;
+              bucket.total_down = entry.total_down;
+              bucket.total_up = entry.total_up;
+              bucket.peak_down = entry.peak_down;
+              bucket.peak_up = entry.peak_up;
+              result.push_back(bucket);
+            }
+            return result;
+          });
+      return future.get();
+    } catch (...) {
+      return {};
     }
-    return result;
   }
 
   bool history_clear(std::optional<std::int64_t> older_than) {
-    if (!database || !database->is_valid()) {
+    if (!history_database || !history_database->is_valid()) {
       return false;
     }
-    if (older_than) {
-      return database->delete_speed_history_before(*older_than);
+    try {
+      auto future = schedule_history_task([this, older_than]() -> bool {
+        if (older_than) {
+          return history_database->delete_speed_history_before(*older_than);
+        }
+        return history_database->delete_speed_history_all();
+      });
+      return future.get();
+    } catch (...) {
+      return false;
     }
-    return database->delete_speed_history_all();
   }
 
   HistoryConfig history_config_impl() const {
