@@ -209,6 +209,50 @@ bool session_snapshot_equal(tt::engine::SessionSnapshot const &a,
          a.dht_nodes == b.dht_nodes;
 }
 
+struct SnapshotDiff {
+  std::vector<int> removed;
+  std::vector<tt::engine::TorrentSnapshot> added;
+  std::vector<std::pair<tt::engine::TorrentSnapshot, tt::engine::TorrentSnapshot>>
+      updated;
+  std::vector<int> finished;
+  bool session_changed = false;
+};
+
+SnapshotDiff compute_diff(tt::engine::SessionSnapshot const &previous,
+                          tt::engine::SessionSnapshot const &current) {
+  SnapshotDiff diff;
+  diff.session_changed = !session_snapshot_equal(previous, current);
+  std::unordered_map<int, tt::engine::TorrentSnapshot> previous_map;
+  previous_map.reserve(previous.torrents.size());
+  for (auto const &torrent : previous.torrents) {
+    previous_map.emplace(torrent.id, torrent);
+  }
+  std::unordered_map<int, tt::engine::TorrentSnapshot> current_map;
+  current_map.reserve(current.torrents.size());
+  for (auto const &torrent : current.torrents) {
+    current_map.emplace(torrent.id, torrent);
+  }
+  for (auto const &torrent : previous.torrents) {
+    if (current_map.find(torrent.id) == current_map.end()) {
+      diff.removed.push_back(torrent.id);
+    }
+  }
+  for (auto const &torrent : current.torrents) {
+    auto prev_it = previous_map.find(torrent.id);
+    if (prev_it == previous_map.end()) {
+      diff.added.push_back(torrent);
+    } else {
+      if (prev_it->second.revision != torrent.revision) {
+        diff.updated.emplace_back(prev_it->second, torrent);
+      }
+      if (!prev_it->second.is_finished && torrent.is_finished) {
+        diff.finished.push_back(torrent.id);
+      }
+    }
+  }
+  return diff;
+}
+
 } // namespace
 
 namespace tt::rpc {
@@ -299,102 +343,66 @@ void Server::broadcast_websocket_updates() {
   if (!snapshot) {
     snapshot = std::make_shared<engine::SessionSnapshot>();
   }
+  auto blocklist_entries = engine_->blocklist_entry_count();
+  bool blocklist_changed = blocklist_entries != last_blocklist_entries_;
+
   if (!last_patch_snapshot_) {
     last_patch_snapshot_ = snapshot;
-    last_blocklist_entries_ = engine_->blocklist_entry_count();
+    last_blocklist_entries_ = blocklist_entries;
   }
 
-  struct SnapshotDiff {
-    std::vector<int> removed;
-    std::vector<engine::TorrentSnapshot> added;
-    std::vector<std::pair<engine::TorrentSnapshot, engine::TorrentSnapshot>> updated;
-    std::vector<int> finished;
-    bool session_changed = false;
-  };
-
-  auto compute_diff = [](engine::SessionSnapshot const &previous,
-                         engine::SessionSnapshot const &current) {
-    SnapshotDiff diff;
-    diff.session_changed = !session_snapshot_equal(previous, current);
-    std::unordered_map<int, engine::TorrentSnapshot> previous_map;
-    previous_map.reserve(previous.torrents.size());
-    for (auto const &torrent : previous.torrents) {
-      previous_map.emplace(torrent.id, torrent);
-    }
-    std::unordered_map<int, engine::TorrentSnapshot> current_map;
-    current_map.reserve(current.torrents.size());
-    for (auto const &torrent : current.torrents) {
-      current_map.emplace(torrent.id, torrent);
-    }
-    for (auto const &torrent : previous.torrents) {
-      if (current_map.find(torrent.id) == current_map.end()) {
-        diff.removed.push_back(torrent.id);
-      }
-    }
-    for (auto const &torrent : current.torrents) {
-      auto prev_it = previous_map.find(torrent.id);
-      if (prev_it == previous_map.end()) {
-        diff.added.push_back(torrent);
-      } else {
-        if (prev_it->second.revision != torrent.revision) {
-          diff.updated.emplace_back(prev_it->second, torrent);
-        }
-        if (!prev_it->second.is_finished && torrent.is_finished) {
-          diff.finished.push_back(torrent.id);
-        }
-      }
-    }
-    return diff;
-  };
-
-  auto diff = compute_diff(*last_patch_snapshot_, *snapshot);
-  bool has_changes = diff.session_changed || !diff.added.empty() ||
-                     !diff.updated.empty() || !diff.removed.empty();
-  if (!ws_clients_.empty() && has_changes) {
-    pending_snapshot_ = snapshot;
-  } else if (ws_clients_.empty()) {
-    pending_snapshot_.reset();
-  }
   auto now = std::chrono::steady_clock::now();
   bool ready = now - last_patch_sent_time_ >= kWebsocketPatchInterval;
+  bool has_clients = !ws_clients_.empty();
 
-  if (!ws_clients_.empty() && pending_snapshot_ && ready) {
+  if (!has_clients) {
+    pending_snapshot_.reset();
+    last_patch_snapshot_ = snapshot;
+  } else {
+    bool snapshot_changed =
+        !session_snapshot_equal(*last_patch_snapshot_, *snapshot);
+    if (snapshot_changed) {
+      pending_snapshot_ = snapshot;
+    }
+  }
+
+  if (has_clients && ready && pending_snapshot_) {
     auto patch_diff =
         compute_diff(*last_patch_snapshot_, *pending_snapshot_);
-    auto payload = serialize_ws_patch(*pending_snapshot_, patch_diff.added,
-                                      patch_diff.updated, patch_diff.removed);
-    for (auto &client : ws_clients_) {
-      if (client.conn == nullptr || client.conn->is_closing) {
-        continue;
+    bool has_changes = patch_diff.session_changed || !patch_diff.added.empty() ||
+                       !patch_diff.updated.empty() || !patch_diff.removed.empty();
+    if (has_changes) {
+      auto payload = serialize_ws_patch(*pending_snapshot_, patch_diff.added,
+                                        patch_diff.updated, patch_diff.removed);
+      for (auto &client : ws_clients_) {
+        if (client.conn == nullptr || client.conn->is_closing) {
+          continue;
+        }
+        if (client.last_known_snapshot == last_patch_snapshot_) {
+          send_ws_message(client.conn, payload);
+          client.last_known_snapshot = pending_snapshot_;
+        }
       }
-      if (client.last_known_snapshot == last_patch_snapshot_) {
-        send_ws_message(client.conn, payload);
-        client.last_known_snapshot = pending_snapshot_;
+      last_patch_snapshot_ = pending_snapshot_;
+      last_patch_sent_time_ = now;
+      for (auto const &torrent : patch_diff.added) {
+        broadcast_event(serialize_ws_event_torrent_added(torrent.id));
       }
+      for (int id : patch_diff.finished) {
+        broadcast_event(serialize_ws_event_torrent_finished(id));
+      }
+    } else {
+      for (auto &client : ws_clients_) {
+        if (client.last_known_snapshot == last_patch_snapshot_) {
+          client.last_known_snapshot = snapshot;
+        }
+      }
+      last_patch_snapshot_ = snapshot;
     }
-    last_patch_snapshot_ = pending_snapshot_;
-    last_patch_sent_time_ = now;
     pending_snapshot_.reset();
-  } else if (!has_changes) {
-    for (auto &client : ws_clients_) {
-      if (client.last_known_snapshot == last_patch_snapshot_) {
-        client.last_known_snapshot = snapshot;
-      }
-    }
-    last_patch_snapshot_ = snapshot;
-  } else if (ws_clients_.empty()) {
-    last_patch_snapshot_ = snapshot;
   }
 
-  for (auto const &torrent : diff.added) {
-    broadcast_event(serialize_ws_event_torrent_added(torrent.id));
-  }
-  for (int id : diff.finished) {
-    broadcast_event(serialize_ws_event_torrent_finished(id));
-  }
-
-  auto blocklist_entries = engine_->blocklist_entry_count();
-  if (blocklist_entries != last_blocklist_entries_) {
+  if (blocklist_changed) {
     last_blocklist_entries_ = blocklist_entries;
     broadcast_event(
         serialize_ws_event_blocklist_updated(blocklist_entries));

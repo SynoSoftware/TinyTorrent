@@ -474,6 +474,7 @@ struct Core::Impl {
   std::atomic_bool running{true};
   std::atomic<std::chrono::steady_clock::duration::rep> shutdown_start_ticks{0};
   std::atomic<std::shared_ptr<SessionSnapshot>> snapshot{std::make_shared<SessionSnapshot>()};
+  std::vector<libtorrent::alert *> alert_buffer;
   std::unordered_map<int, libtorrent::sha1_hash> id_to_hash;
   std::unordered_map<libtorrent::sha1_hash, int, Sha1HashHash> hash_to_id;
   int next_id = 1;
@@ -517,6 +518,11 @@ struct Core::Impl {
     std::chrono::steady_clock::time_point last_change =
         std::chrono::steady_clock::time_point::min();
   };
+  struct WatchEntryInfo {
+    std::filesystem::path path;
+    std::uintmax_t size = 0;
+    std::filesystem::file_time_type mtime;
+  };
   std::unordered_map<std::filesystem::path, WatchFileSnapshot> watch_dir_snapshots;
   std::atomic_bool shutdown_requested{false};
   bool save_resume_in_progress = false;
@@ -538,6 +544,13 @@ struct Core::Impl {
   std::deque<std::function<void()>> history_tasks;
   std::atomic<bool> history_worker_running{false};
   std::atomic<bool> history_worker_exit_requested{false};
+  std::thread io_worker_thread;
+  std::mutex io_task_mutex;
+  std::condition_variable io_task_cv;
+  std::deque<std::function<void()>> io_tasks;
+  std::atomic<bool> io_worker_running{false};
+  std::atomic<bool> io_worker_exit_requested{false};
+  bool replaying_saved_torrents = false;
 
   explicit Impl(CoreSettings settings) : settings(std::move(settings)) {
     std::filesystem::create_directories(this->settings.download_path);
@@ -564,6 +577,8 @@ struct Core::Impl {
     if (history_database && history_database->is_valid()) {
       start_history_worker();
     }
+    start_io_worker();
+    alert_buffer.reserve(128);
 
     history_enabled = this->settings.history_enabled;
     history_interval_seconds = std::max(kMinHistoryIntervalSeconds, this->settings.history_interval_seconds);
@@ -623,7 +638,10 @@ struct Core::Impl {
     mark_state_dirty();
   }
 
-  ~Impl() { stop_history_worker(); }
+  ~Impl() {
+    stop_io_worker();
+    stop_history_worker();
+  }
 
   void run() {
     try {
@@ -807,9 +825,9 @@ private:
     if (!session) {
       return;
     }
-    std::vector<libtorrent::alert *> alerts;
-    session->pop_alerts(&alerts);
-    for (auto const *alert : alerts) {
+    alert_buffer.clear();
+    session->pop_alerts(&alert_buffer);
+    for (auto const *alert : alert_buffer) {
       if (auto *finished = libtorrent::alert_cast<libtorrent::torrent_finished_alert>(alert)) {
         handle_torrent_finished(*finished);
     } else if (auto *resume =
@@ -1286,6 +1304,63 @@ private:
     history_worker_running.store(false, std::memory_order_release);
   }
 
+  void start_io_worker() {
+    if (io_worker_thread.joinable()) {
+      return;
+    }
+    io_worker_exit_requested.store(false, std::memory_order_release);
+    io_worker_running.store(true, std::memory_order_release);
+    io_worker_thread = std::thread([this] { io_worker_loop(); });
+  }
+
+  void stop_io_worker() {
+    io_worker_exit_requested.store(true, std::memory_order_release);
+    io_task_cv.notify_all();
+    if (io_worker_thread.joinable()) {
+      io_worker_thread.join();
+    }
+  }
+
+  void io_worker_loop() {
+    while (true) {
+      std::function<void()> task;
+      {
+        std::unique_lock<std::mutex> lock(io_task_mutex);
+        io_task_cv.wait(lock, [this] {
+          return !io_tasks.empty() ||
+                 io_worker_exit_requested.load(std::memory_order_acquire);
+        });
+        if (io_tasks.empty()) {
+          if (io_worker_exit_requested.load(std::memory_order_acquire)) {
+            break;
+          }
+          continue;
+        }
+        task = std::move(io_tasks.front());
+        io_tasks.pop_front();
+      }
+      try {
+        task();
+      } catch (std::exception const &ex) {
+        TT_LOG_INFO("io worker task exception: {}", ex.what());
+      } catch (...) {
+        TT_LOG_INFO("io worker task exception");
+      }
+    }
+    io_worker_running.store(false, std::memory_order_release);
+  }
+
+  void schedule_io_task(std::function<void()> task) {
+    if (io_worker_exit_requested.load(std::memory_order_acquire)) {
+      return;
+    }
+    {
+      std::lock_guard<std::mutex> lock(io_task_mutex);
+      io_tasks.push_back(std::move(task));
+    }
+    io_task_cv.notify_one();
+  }
+
   std::vector<HistoryBucket> history_query(std::int64_t start, std::int64_t end,
                                            std::int64_t step) {
     if (!history_database || !history_database->is_valid()) {
@@ -1417,29 +1492,48 @@ private:
   }
 
   void scan_watch_directory() {
-    if (!settings.watch_dir_enabled || settings.watch_dir.empty()) {
-      return;
+    std::filesystem::path watch_dir;
+    {
+      std::shared_lock<std::shared_mutex> lock(settings_mutex);
+      if (!settings.watch_dir_enabled || settings.watch_dir.empty()) {
+        watch_dir_snapshots.clear();
+        return;
+      }
+      watch_dir = settings.watch_dir;
+    }
+    schedule_io_task([this, watch_dir = std::move(watch_dir)]() mutable {
+      auto entries = collect_watch_entries(watch_dir);
+      enqueue_task([this, watch_dir = std::move(watch_dir), entries =
+                                                std::move(entries)]() mutable {
+        process_watch_entries(watch_dir, std::move(entries));
+      });
+    });
+  }
+
+  static std::vector<WatchEntryInfo> collect_watch_entries(
+      std::filesystem::path const &watch_dir) {
+    std::vector<WatchEntryInfo> result;
+    if (watch_dir.empty()) {
+      return result;
     }
     std::error_code ec;
-    std::filesystem::create_directories(settings.watch_dir, ec);
+    std::filesystem::create_directories(watch_dir, ec);
     if (ec) {
-      TT_LOG_INFO("failed to create watch-dir {}: {}", settings.watch_dir.string(),
+      TT_LOG_INFO("failed to create watch-dir {}: {}", watch_dir.string(),
                   ec.message());
-      return;
+      return result;
     }
-    std::unordered_set<std::filesystem::path> seen;
     for (auto const &entry :
-         std::filesystem::directory_iterator(settings.watch_dir, ec)) {
+         std::filesystem::directory_iterator(watch_dir, ec)) {
       if (ec) {
         TT_LOG_INFO("watch-dir iteration failed: {}", ec.message());
         break;
       }
-      auto path = entry.path();
-      seen.insert(path);
       std::error_code file_ec;
       if (!entry.is_regular_file(file_ec) || file_ec) {
         continue;
       }
+      auto path = entry.path();
       if (path.extension() != ".torrent") {
         continue;
       }
@@ -1456,46 +1550,68 @@ private:
       if (file_ec) {
         continue;
       }
-      auto now = std::chrono::steady_clock::now();
-      auto it = watch_dir_snapshots.find(path);
+      result.push_back(WatchEntryInfo{path, size, mtime});
+    }
+    return result;
+  }
+
+  void process_watch_entries(std::filesystem::path const &watch_dir,
+                             std::vector<WatchEntryInfo> entries) {
+    std::filesystem::path download_path;
+    {
+      std::shared_lock<std::shared_mutex> lock(settings_mutex);
+      if (!settings.watch_dir_enabled || settings.watch_dir != watch_dir) {
+        watch_dir_snapshots.clear();
+        return;
+      }
+      download_path = settings.download_path;
+    }
+    auto now = std::chrono::steady_clock::now();
+    std::unordered_set<std::filesystem::path> seen;
+    seen.reserve(entries.size());
+    for (auto const &entry : entries) {
+      seen.insert(entry.path);
+      auto it = watch_dir_snapshots.find(entry.path);
       if (it == watch_dir_snapshots.end()) {
         watch_dir_snapshots.emplace(
-            path, WatchFileSnapshot{size, mtime, now});
+            entry.path,
+            WatchFileSnapshot{entry.size, entry.mtime, now});
         continue;
       }
       auto &snapshot = it->second;
-      if (snapshot.size != size || snapshot.mtime != mtime) {
-        snapshot.size = size;
-        snapshot.mtime = mtime;
+      if (snapshot.size != entry.size || snapshot.mtime != entry.mtime) {
+        snapshot.size = entry.size;
+        snapshot.mtime = entry.mtime;
         snapshot.last_change = now;
         continue;
       }
       if (now - snapshot.last_change < kWatchFileStabilityThreshold) {
         continue;
       }
-      std::ifstream input(path, std::ios::binary);
+      std::ifstream input(entry.path, std::ios::binary);
       if (!input) {
-        mark_watch_file(path, ".invalid");
+        mark_watch_file(entry.path, ".invalid");
         continue;
       }
       std::vector<std::uint8_t> buffer(
           (std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
       if (buffer.empty()) {
-        mark_watch_file(path, ".invalid");
+        mark_watch_file(entry.path, ".invalid");
         continue;
       }
       TorrentAddRequest request;
       request.metainfo = std::move(buffer);
-      request.download_path = settings.download_path;
+      request.download_path = download_path;
       auto status = enqueue_torrent(std::move(request));
       if (status == Core::AddTorrentStatus::Ok) {
-        mark_watch_file(path, ".added");
+        mark_watch_file(entry.path, ".added");
       } else {
         auto reason = status == Core::AddTorrentStatus::InvalidUri
                           ? "invalid torrent metadata"
                           : "failed to queue torrent";
-        TT_LOG_INFO("watch-dir enqueue failed for {}: {}", path.string(), reason);
-        mark_watch_file(path, ".invalid");
+        TT_LOG_INFO("watch-dir enqueue failed for {}: {}", entry.path.string(),
+                    reason);
+        mark_watch_file(entry.path, ".invalid");
       }
     }
     for (auto it = watch_dir_snapshots.begin(); it != watch_dir_snapshots.end();) {
@@ -1558,7 +1674,7 @@ private:
           }
         }
       }
-      if (database && database->is_valid()) {
+      if (!replaying_saved_torrents && database && database->is_valid()) {
         database->upsert_torrent(entry);
       }
     }
@@ -1673,6 +1789,7 @@ private:
     if (startup_entries.empty()) {
       return;
     }
+    replaying_saved_torrents = true;
     std::vector<TorrentAddRequest> pending;
     pending.reserve(startup_entries.size());
     std::vector<tt::storage::PersistedTorrent> sanitized_entries;
@@ -1763,6 +1880,7 @@ private:
     for (auto &request : pending) {
       enqueue_torrent(std::move(request));
     }
+    replaying_saved_torrents = false;
   }
 
   void update_snapshot() {
@@ -2712,25 +2830,43 @@ private:
     if (final_path.empty() || final_path == settings.incomplete_dir) {
       return;
     }
-    auto destination = determine_completion_destination(final_path, status, hash);
-    if (destination.empty()) {
-      TT_LOG_INFO("move-complete skipped for {}: unable to determine safe destination", hash);
-      return;
-    }
-    std::filesystem::path current_save(status.save_path);
-    if (destination == current_save) {
-      return;
-    }
-    TT_LOG_INFO("moving {} from {} to {}", hash, status.save_path,
-                destination.string());
-    handle.move_storage(destination.string());
-    final_paths[hash] = destination;
-    update_persisted_download_path(hash, destination);
+    auto current_save = std::filesystem::path(status.save_path);
+    auto candidate_name = status.name.empty() ? hash : status.name;
+    auto handle_for_move = handle;
+    auto source_path = status.save_path;
+    schedule_io_task([this, final_path = std::move(final_path),
+                      current_save = std::move(current_save),
+                      candidate_name = std::move(candidate_name), hash,
+                      source_path = std::move(source_path),
+                      handle_for_move = std::move(handle_for_move)]() mutable {
+      auto destination = determine_completion_destination(final_path, current_save,
+                                                          candidate_name, hash);
+      if (destination.empty()) {
+        TT_LOG_INFO("move-complete skipped for {}: unable to determine safe destination",
+                    hash);
+        return;
+      }
+      if (destination == current_save) {
+        return;
+      }
+      enqueue_task([this, handle = std::move(handle_for_move),
+                    destination = std::move(destination), hash,
+                    source_path = std::move(source_path)]() mutable {
+        if (!handle.is_valid()) {
+          return;
+        }
+        TT_LOG_INFO("moving {} from {} to {}", hash, source_path,
+                    destination.string());
+        handle.move_storage(destination.string());
+        final_paths[hash] = destination;
+        update_persisted_download_path(hash, destination);
+      });
+    });
   }
 
   std::filesystem::path determine_completion_destination(
-      std::filesystem::path const &base, libtorrent::torrent_status const &status,
-      std::string const &hash) {
+      std::filesystem::path const &base, std::filesystem::path const &current,
+      std::string const &name, std::string const &hash) {
     if (base.empty()) {
       return {};
     }
@@ -2742,11 +2878,10 @@ private:
     }
     auto candidate = base;
     if (base_exists && std::filesystem::is_directory(base, ec) && !ec) {
-      auto name = status.name.empty() ? hash : status.name;
-      candidate /= name;
+      auto safe_name = name.empty() ? hash : name;
+      candidate /= safe_name;
     }
-    std::filesystem::path current_save(status.save_path);
-    return resolve_unique_completion_target(candidate, current_save);
+    return resolve_unique_completion_target(candidate, current);
   }
 
   std::filesystem::path resolve_unique_completion_target(
@@ -2828,25 +2963,30 @@ private:
     return false;
   }
 
-  std::optional<std::size_t> reload_blocklist_internal() {
+  bool schedule_blocklist_reload() {
     if (blocklist_path.empty()) {
       TT_LOG_INFO("blocklist path not configured; skipping reload");
-      return std::nullopt;
+      return false;
     }
-    libtorrent::ip_filter filter;
-    std::size_t entries = 0;
-    if (!load_blocklist(blocklist_path, filter, entries)) {
-      TT_LOG_INFO("failed to load blocklist from {}", blocklist_path.string());
-      return std::nullopt;
-    }
-    if (session) {
-      session->set_ip_filter(filter);
-    }
-    blocklist_entries = entries;
-    blocklist_last_update = std::chrono::system_clock::now();
-    TT_LOG_INFO("loaded blocklist ({} entries) from {}", entries,
-                blocklist_path.string());
-    return entries;
+    auto path = blocklist_path;
+    schedule_io_task([this, path]() {
+      libtorrent::ip_filter filter;
+      std::size_t entries = 0;
+      if (!load_blocklist(path, filter, entries)) {
+        TT_LOG_INFO("failed to load blocklist from {}", path.string());
+        return;
+      }
+      enqueue_task([this, filter = std::move(filter), entries, path]() mutable {
+        if (session) {
+          session->set_ip_filter(filter);
+        }
+        blocklist_entries = entries;
+        blocklist_last_update = std::chrono::system_clock::now();
+        TT_LOG_INFO("loaded blocklist ({} entries) from {}", entries,
+                    path.string());
+      });
+    });
+    return true;
   }
 
   TorrentSnapshot build_snapshot(int rpc_id, libtorrent::torrent_status const &status,
@@ -3511,14 +3651,14 @@ void Core::set_torrent_labels(std::vector<int> ids,
   }
 }
 
-std::optional<std::size_t> Core::reload_blocklist() {
+bool Core::request_blocklist_reload() {
   if (!impl_) {
-    return std::nullopt;
+    return false;
   }
   try {
-    return impl_->run_task([this]() { return impl_->reload_blocklist_internal(); }).get();
+    return impl_->schedule_blocklist_reload();
   } catch (...) {
-    return std::nullopt;
+    return false;
   }
 }
 

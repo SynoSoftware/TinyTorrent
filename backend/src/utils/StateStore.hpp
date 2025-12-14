@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include <sqlite3.h>
@@ -75,8 +76,10 @@ public:
 private:
   bool ensure_schema();
   bool execute(std::string const &sql) const;
+  sqlite3_stmt *prepare_cached(std::string const &sql) const;
 
   sqlite3 *db_ = nullptr;
+  mutable std::unordered_map<std::string, sqlite3_stmt *> stmt_cache_;
 };
 
 } // namespace tt::storage

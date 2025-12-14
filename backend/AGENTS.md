@@ -28,6 +28,22 @@ Agents must choose algorithms and libraries that are correct, modern, lean, and 
 - **No Template Bloat:** We avoid heavy C++ template libraries (like `nlohmann/json` or `Boost.Beast`) because they bloat binary size structurally.
 - **Architecture:** The binary remains small because we chose the right dependencies (C-libs + standard library), not because we wrote obscure code or hand-optimized every byte.
 
+### Structural Simplicity Rule
+
+Minimalism applies to **responsibility**, not file count.
+
+- No class, namespace, or translation unit may own more than **one primary responsibility**.
+- Any component that:
+
+  - owns a libtorrent session **and**
+  - performs persistence **or**
+  - performs automation **or**
+  - performs RPC-facing serialization
+
+  is **architecturally invalid**.
+
+Composition is mandatory. Coordination is allowed. Centralized behavior is not.
+
 ---
 
 # **2. Architecture**
@@ -41,6 +57,8 @@ We use a standard, robust **Producer/Consumer** model.
   - Owns the `lt::session`.
   - Executes logic (Add, Pause, Remove).
   - Periodically publishes a **State Snapshot**.
+  - Must remain non-blocking with respect to I/O-heavy work.
+  - Disk, database, and filesystem operations must not execute on alert-handling paths.
 
 ### **Thread 2: The RPC Server (The Interface)**
 
@@ -50,12 +68,27 @@ We use a standard, robust **Producer/Consumer** model.
   - Validates data structure.
   - Pushes commands to the Engine Queue.
   - Reads the latest **State Snapshot** to serve clients instantly.
+  - RPC handlers may validate and enqueue work only.
+  - RPC handlers must not perform engine mutations directly.
 
 ### **Synchronization**
 
 - **Queue:** Thread-safe command queue (RPC → Engine).
 - **Snapshot:** Mutex-protected swap of the State struct (Engine → RPC).
 - **Why:** Simple, correct, and prevents the UI from freezing.
+
+### State Propagation Rule
+
+State updates must be **event-driven**.
+
+- Periodic full-state scans are prohibited once initial bootstrap completes.
+- Components must emit explicit change events.
+- Snapshots may only rebuild data that is marked dirty by events.
+
+Polling is acceptable only for:
+
+- Startup reconciliation
+- External systems with no event surface
 
 ---
 
@@ -143,6 +176,35 @@ root/
 - **Exceptions:** Allowed and expected from `libtorrent`.
 - **Boundary:** Exceptions must be caught before entering C-callbacks (Mongoose) or crossing threads.
 - **Stability:** The daemon should log an error and continue, not crash, unless the state is unrecoverable.
+
+### 5.4 RPC Input Normalization
+
+RPC request parsing must be centralized.
+
+- Argument extraction and validation must not be duplicated per method.
+- Shared request shapes (e.g. torrent ID sets) must have a single parser.
+- RPC handlers should read as declarative mappings, not procedural parsing code.
+
+### 5.5 RAII Enforcement
+
+Any resource with a lifetime longer than a function call must be RAII-managed.
+
+This includes:
+
+- Database transactions
+- Mutexes and locks
+- File descriptors
+- Worker thread ownership
+
+Manual begin/end, open/close, or lock/unlock patterns are forbidden outside RAII guards.
+
+### Persistence Boundary Rule
+
+Engine logic must not issue raw SQL or database-specific calls.
+
+- All persistence goes through a dedicated repository/DAO interface.
+- Engine code expresses intent (save, load, update), not storage mechanics.
+- Schema details are forbidden outside persistence modules.
 
 ---
 
