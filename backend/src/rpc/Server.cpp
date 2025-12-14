@@ -37,8 +37,7 @@ constexpr std::uintmax_t kMaxWatchFileSize = 64ull * 1024 * 1024;
 
 std::string generate_session_id() {
   static constexpr char kHexDigits[] = "0123456789abcdef";
-  std::mt19937_64 rng(static_cast<std::uint64_t>(
-      std::chrono::high_resolution_clock::now().time_since_epoch().count()));
+  thread_local std::mt19937_64 rng(std::random_device{}());
   std::uniform_int_distribution<std::uint64_t> dist;
   std::string token;
   token.reserve(32);

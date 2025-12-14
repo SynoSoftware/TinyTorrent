@@ -62,9 +62,18 @@
 #include <iterator>
 #include <fstream>
 #include <system_error>
+#include <cerrno>
+#if defined(_WIN32)
+#include <fcntl.h>
+#include <io.h>
+#else
+#include <fcntl.h>
+#include <unistd.h>
+#endif
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
+#include <span>
 
 namespace tt::engine {
 
@@ -79,6 +88,8 @@ constexpr std::uintmax_t kMaxWatchFileSize = 64ull * 1024 * 1024;
 constexpr auto kWatchFileStabilityThreshold = std::chrono::seconds(3);
 constexpr int kMinHistoryIntervalSeconds = 60;
 constexpr auto kHistoryRetentionCheckInterval = std::chrono::hours(1);
+constexpr std::size_t kMaxPendingTasks = 4096;
+constexpr int kAlertQueueSizeLimit = 8192;
 constexpr auto kSettingsPersistInterval = std::chrono::milliseconds(500);
 
 constexpr int kSha1Bytes = static_cast<int>(libtorrent::sha1_hash::size());
@@ -98,6 +109,14 @@ std::int64_t align_to_history_interval(std::chrono::system_clock::time_point now
   return (seconds / interval_seconds) * interval_seconds;
 }
 
+std::string to_utf8_string(std::u8string const &value) {
+  return std::string(value.begin(), value.end());
+}
+
+std::string to_utf8_string(std::filesystem::path const &path) {
+  return to_utf8_string(path.u8string());
+}
+
 std::string info_hash_to_hex(libtorrent::sha1_hash const &hash) {
   constexpr char kHexDigits[] = "0123456789abcdef";
   std::string result;
@@ -112,6 +131,99 @@ std::string info_hash_to_hex(libtorrent::sha1_hash const &hash) {
 
 std::string info_hash_to_hex(libtorrent::info_hash_t const &info) {
   return info_hash_to_hex(info.get_best());
+}
+
+#if defined(_WIN32)
+int open_metadata_temp(std::filesystem::path const &path) {
+  return _wopen(path.c_str(), _O_WRONLY | _O_CREAT | _O_TRUNC | _O_BINARY,
+                _S_IREAD | _S_IWRITE);
+}
+
+bool sync_descriptor(int fd) {
+  return _commit(fd) == 0;
+}
+
+void close_descriptor(int fd) {
+  _close(fd);
+}
+#else
+int open_metadata_temp(std::filesystem::path const &path) {
+  return ::open(path.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+}
+
+bool sync_descriptor(int fd) {
+  return ::fsync(fd) == 0;
+}
+
+void close_descriptor(int fd) {
+  ::close(fd);
+}
+#endif
+
+bool write_metadata_with_fsync(std::filesystem::path const &target,
+                               std::span<std::uint8_t const> data) {
+  std::error_code ec;
+  auto tmp = target;
+  tmp += ".tmp";
+  auto parent = tmp.parent_path();
+  if (!parent.empty()) {
+    std::filesystem::create_directories(parent, ec);
+    if (ec) {
+      TT_LOG_INFO("failed to create metadata directory {}: {}", parent.string(),
+                  ec.message());
+      return false;
+    }
+  }
+  int fd = open_metadata_temp(tmp);
+  if (fd < 0) {
+    TT_LOG_INFO("failed to open metadata temp file {}: {}",
+                tmp.string(),
+                std::error_code(errno, std::generic_category()).message());
+    return false;
+  }
+  const char *bytes = reinterpret_cast<const char *>(data.data());
+  std::size_t remaining = data.size();
+  bool success = true;
+  while (remaining > 0) {
+#if defined(_WIN32)
+    int chunk = _write(fd, bytes + (data.size() - remaining),
+                       static_cast<unsigned>(remaining));
+    if (chunk <= 0) {
+      success = false;
+      break;
+    }
+    remaining -= static_cast<std::size_t>(chunk);
+#else
+    auto chunk = ::write(fd, bytes + (data.size() - remaining),
+                         static_cast<std::size_t>(remaining));
+    if (chunk <= 0) {
+      success = false;
+      break;
+    }
+    remaining -= static_cast<std::size_t>(chunk);
+#endif
+  }
+  if (remaining != 0) {
+    success = false;
+  }
+  if (success) {
+    success = sync_descriptor(fd);
+  }
+  close_descriptor(fd);
+  if (!success) {
+    std::error_code ignore_ec;
+    std::filesystem::remove(tmp, ignore_ec);
+    return false;
+  }
+  std::filesystem::rename(tmp, target, ec);
+  if (ec) {
+    std::error_code ignore_ec;
+    std::filesystem::remove(tmp, ignore_ec);
+    TT_LOG_INFO("failed to rename metadata file {} -> {}: {}", tmp.string(),
+                target.string(), ec.message());
+    return false;
+  }
+  return true;
 }
 
 int hex_digit_value(char ch) {
@@ -475,6 +587,7 @@ struct Core::Impl {
   std::deque<std::function<void()>> tasks;
   mutable std::mutex task_mutex;
   std::condition_variable wake_cv;
+  std::condition_variable task_space_cv;
   std::mutex wake_mutex;
   std::atomic_bool running{true};
   std::atomic<std::chrono::steady_clock::duration::rep> shutdown_start_ticks{0};
@@ -631,6 +744,8 @@ struct Core::Impl {
                   this->settings.utp_enabled);
     pack.set_bool(libtorrent::settings_pack::enable_outgoing_utp,
                   this->settings.utp_enabled);
+    pack.set_int(libtorrent::settings_pack::alert_queue_size,
+                 kAlertQueueSizeLimit);
     if (this->settings.download_queue_size > 0) {
       pack.set_int(libtorrent::settings_pack::active_downloads,
                    this->settings.download_queue_size);
@@ -822,7 +937,14 @@ struct Core::Impl {
 
   void enqueue_task(std::function<void()> task) {
     {
-      std::lock_guard<std::mutex> lock(task_mutex);
+      std::unique_lock<std::mutex> lock(task_mutex);
+      while (tasks.size() >= kMaxPendingTasks) {
+        TT_LOG_INFO("task queue maxed out ({}); waiting for engine to catch up",
+                    tasks.size());
+        task_space_cv.wait(lock, [this] {
+          return tasks.size() < kMaxPendingTasks;
+        });
+      }
       tasks.push_back(std::move(task));
     }
     wake_cv.notify_one();
@@ -835,6 +957,7 @@ private:
       std::lock_guard<std::mutex> lock(task_mutex);
       pending.swap(tasks);
     }
+    task_space_cv.notify_all();
 
     TT_LOG_DEBUG("Processing {} pending engine commands", pending.size());
 
@@ -888,6 +1011,10 @@ private:
     } else if (auto *storage_failed =
                    libtorrent::alert_cast<libtorrent::storage_moved_failed_alert>(alert)) {
       handle_storage_moved_failed_alert(*storage_failed);
+    } else if (auto *fastresume =
+                   libtorrent::alert_cast<libtorrent::fastresume_rejected_alert>(
+                       alert)) {
+      handle_fastresume_rejected(*fastresume);
     }
   }
 }
@@ -940,18 +1067,11 @@ private:
                     ec.message());
         return;
       }
-      std::ofstream output(path, std::ios::binary);
-      if (!output) {
+      std::vector<std::uint8_t> metadata(payload.begin(), payload.end());
+      if (!write_metadata_with_fsync(path, metadata)) {
         TT_LOG_INFO("failed to write metadata for {} to {}", hash, path.string());
         return;
       }
-      output.write(payload.data(), static_cast<std::streamsize>(payload.size()));
-      output.flush();
-      if (!output) {
-        TT_LOG_INFO("failed to flush metadata for {} to {}", hash, path.string());
-        return;
-      }
-      std::vector<std::uint8_t> metadata(payload.begin(), payload.end());
       update_persisted_metadata(hash, path, metadata);
     } catch (std::system_error const &ex) {
       TT_LOG_INFO("failed to serialize metadata for {}: {}", hash, ex.what());
@@ -1198,7 +1318,7 @@ private:
     if (auto hash = hash_from_handle(alert.handle); hash) {
       auto message = std::format("file error: {}", alert.message());
       record_torrent_error(*hash, message);
-      TT_LOG_INFO("{}: {}", hash, message);
+      TT_LOG_INFO("{}: {}", *hash, message);
     }
   }
 
@@ -1208,7 +1328,7 @@ private:
       auto label = tracker && *tracker ? tracker : "<unknown>";
       auto message = std::format("tracker {}: {}", label, alert.message());
       record_torrent_error(*hash, message);
-      TT_LOG_INFO("{}: {}", hash, message);
+      TT_LOG_INFO("{}: {}", *hash, message);
     }
   }
 
@@ -1225,7 +1345,7 @@ private:
         return;
       }
       finalize_pending_move(*hash, std::filesystem::path(path));
-      TT_LOG_INFO("{} storage moved to {}", hash, path);
+      TT_LOG_INFO("{} storage moved to {}", *hash, path);
     }
   }
 
@@ -1235,7 +1355,16 @@ private:
       auto message = std::format("storage move failed: {}", alert.message());
       record_torrent_error(*hash, message);
       cancel_pending_move(*hash);
-      TT_LOG_INFO("{}: {}", hash, message);
+      TT_LOG_INFO("{}: {}", *hash, message);
+    }
+  }
+
+  void handle_fastresume_rejected(
+      libtorrent::fastresume_rejected_alert const &alert) {
+    if (auto hash = hash_from_handle(alert.handle); hash) {
+      TT_LOG_INFO("{}: fastresume rejected: {}", *hash, alert.message());
+    } else {
+      TT_LOG_INFO("fastresume rejected: {}", alert.message());
     }
   }
 
@@ -1275,10 +1404,11 @@ private:
     auto set_double = [&](char const *key, double value) {
       success = success && database->set_setting(key, std::to_string(value));
     };
+    auto download_path_value = to_utf8_string(snapshot.download_path);
     success = success && database->set_setting("listenInterface",
                                                snapshot.listen_interface);
-    success = success && database->set_setting(
-                          "downloadPath", snapshot.download_path.string());
+    success = success &&
+              database->set_setting("downloadPath", download_path_value);
     set_int("speedLimitDown", snapshot.download_rate_limit_kbps);
     set_bool("speedLimitDownEnabled", snapshot.download_rate_limit_enabled);
     set_int("speedLimitUp", snapshot.upload_rate_limit_kbps);
@@ -1300,16 +1430,16 @@ private:
     set_int("downloadQueueSize", snapshot.download_queue_size);
     set_int("seedQueueSize", snapshot.seed_queue_size);
     set_bool("queueStalledEnabled", snapshot.queue_stalled_enabled);
-    success = success && database->set_setting(
-                          "incompleteDir",
-                          snapshot.incomplete_dir.empty()
-                              ? std::string{}
-                              : snapshot.incomplete_dir.string());
+    auto incomplete_dir_value = snapshot.incomplete_dir.empty()
+                                     ? std::string{}
+                                     : to_utf8_string(snapshot.incomplete_dir);
+    success = success && database->set_setting("incompleteDir",
+                                               incomplete_dir_value);
     set_bool("incompleteDirEnabled", snapshot.incomplete_dir_enabled);
-    success = success && database->set_setting(
-                          "watchDir",
-                          snapshot.watch_dir.empty() ? std::string{}
-                                                     : snapshot.watch_dir.string());
+    auto watch_dir_value = snapshot.watch_dir.empty()
+                               ? std::string{}
+                               : to_utf8_string(snapshot.watch_dir);
+    success = success && database->set_setting("watchDir", watch_dir_value);
     set_bool("watchDirEnabled", snapshot.watch_dir_enabled);
     set_double("seedRatioLimit", snapshot.seed_ratio_limit);
     set_bool("seedRatioLimited", snapshot.seed_ratio_enabled);
@@ -1950,7 +2080,7 @@ private:
           torrent_labels.erase(hash);
         }
         auto target_path = stored.save_path.has_value()
-                               ? std::filesystem::path(*stored.save_path)
+                               ? std::filesystem::u8path(*stored.save_path)
                                : settings.download_path;
         final_paths[hash] = target_path;
         if (stored.rpc_id > 0) {
@@ -1970,7 +2100,7 @@ private:
       if (hash.empty() || path.empty()) {
         return;
       }
-      std::string normalized = path.string();
+    std::string normalized = to_utf8_string(path);
       {
         std::lock_guard<std::mutex> lock(state_mutex);
         auto it = persisted_torrents.find(hash);
@@ -1978,7 +2108,7 @@ private:
           return;
         }
         it->second.save_path = normalized;
-        final_paths[hash] = std::filesystem::path(normalized);
+        final_paths[hash] = std::filesystem::u8path(normalized);
       }
       if (database && database->is_valid()) {
         database->update_save_path(hash, normalized);
@@ -2067,7 +2197,7 @@ private:
       }
       tt::storage::PersistedTorrent entry;
       entry.hash = hash;
-      entry.save_path = request.download_path.string();
+      entry.save_path = to_utf8_string(request.download_path);
       entry.paused = request.paused;
       if (request.uri) {
         entry.magnet_uri = *request.uri;
@@ -2097,7 +2227,7 @@ private:
       TorrentAddRequest request;
       request.download_path =
           entry.save_path.has_value()
-              ? std::filesystem::path(*entry.save_path)
+              ? std::filesystem::u8path(*entry.save_path)
               : settings.download_path;
       request.paused = entry.paused;
       bool has_metadata = false;
@@ -2105,7 +2235,8 @@ private:
         request.metainfo = entry.metainfo;
         has_metadata = true;
       } else if (!entry.metadata_path.empty()) {
-        std::ifstream input(entry.metadata_path, std::ios::binary);
+        auto metadata_path = std::filesystem::u8path(entry.metadata_path);
+        std::ifstream input(metadata_path, std::ios::binary);
         if (input) {
           std::vector<std::uint8_t> buffer(
               (std::istreambuf_iterator<char>(input)),
@@ -2114,11 +2245,11 @@ private:
             request.metainfo = std::move(buffer);
             has_metadata = true;
           } else {
-            TT_LOG_INFO("metadata file {} for {} is empty", entry.metadata_path,
+            TT_LOG_INFO("metadata file {} for {} is empty", metadata_path.string(),
                         entry.hash);
           }
         } else {
-          TT_LOG_INFO("failed to read metadata file {} for {}", entry.metadata_path,
+          TT_LOG_INFO("failed to read metadata file {} for {}", metadata_path.string(),
                       entry.hash);
         }
       }
@@ -2239,10 +2370,11 @@ private:
       auto cache_it = snapshot_cache.find(id);
       if (cache_it != snapshot_cache.end() &&
           cache_it->second.revision == revision) {
-        entry = cache_it->second;
+        entry = std::move(cache_it->second);
       } else {
         entry = build_snapshot(id, status, revision);
       }
+      entry.revision = revision;
       if (auto labels_it = torrent_labels.find(hash);
           labels_it != torrent_labels.end()) {
         entry.labels = labels_it->second;
@@ -2255,7 +2387,7 @@ private:
       } else {
         entry.bandwidth_priority = 0;
       }
-      updated_cache[id] = entry;
+      updated_cache[id] = std::move(entry);
       new_snapshot->torrents.push_back(entry);
 
       const auto download_payload = status.download_payload_rate > 0 ? status.download_payload_rate : 0;
@@ -2291,7 +2423,6 @@ private:
         ++it;
       }
     }
-
     new_snapshot->paused_torrent_count = paused_count;
     new_snapshot->active_torrent_count =
         new_snapshot->torrent_count > paused_count ? new_snapshot->torrent_count - paused_count : 0;
@@ -2322,6 +2453,7 @@ private:
     update_persisted_rpc_id(info_hash_to_hex(hash), id);
     return id;
   }
+
 
   void mark_torrent_dirty(int id) {
     if (id <= 0) {
@@ -3301,6 +3433,7 @@ private:
     TorrentSnapshot info;
     info.id = rpc_id;
     info.hash = info_hash_to_hex(status.info_hashes);
+    auto const hash = info.hash;
     info.name = status.name;
     info.state = to_state_string(status.state);
     info.progress = status.progress;

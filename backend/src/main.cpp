@@ -203,8 +203,7 @@ int main(int argc, char *argv[]) {
 
   auto generate_rpc_token = []() -> std::string {
     static constexpr char kHexDigits[] = "0123456789abcdef";
-    std::mt19937_64 rng(static_cast<std::uint64_t>(
-        std::chrono::high_resolution_clock::now().time_since_epoch().count()));
+    thread_local std::mt19937_64 rng(std::random_device{}());
     std::uniform_int_distribution<std::uint64_t> dist;
     std::string token;
     token.reserve(32);
@@ -312,6 +311,11 @@ int main(int argc, char *argv[]) {
     return false;
   };
 
+  auto path_to_utf8 = [](std::filesystem::path const &path) -> std::string {
+    auto value = path.u8string();
+    return std::string(value.begin(), value.end());
+  };
+
   auto set_db_setting = [&](char const *key, std::string const &value) {
     if (db.is_valid()) {
       db.set_setting(key, value);
@@ -337,10 +341,10 @@ int main(int argc, char *argv[]) {
   set_db_setting("rpcBind", rpc_bind);
 
   auto persisted_download =
-      read_db_string("downloadPath").value_or(download_path.string());
-  download_path = std::filesystem::path(persisted_download);
+      read_db_string("downloadPath").value_or(path_to_utf8(download_path));
+  download_path = std::filesystem::u8path(persisted_download);
   std::filesystem::create_directories(download_path);
-  set_db_setting("downloadPath", download_path.string());
+  set_db_setting("downloadPath", path_to_utf8(download_path));
 
   auto blocklist_dir = root / "blocklists";
   std::filesystem::create_directories(blocklist_dir);
@@ -398,12 +402,12 @@ int main(int argc, char *argv[]) {
   settings.queue_stalled_enabled =
       parse_bool_value(read_db_string("queueStalledEnabled"));
   if (auto value = read_db_string("incompleteDir"); value && !value->empty()) {
-    settings.incomplete_dir = std::filesystem::path(*value);
+    settings.incomplete_dir = std::filesystem::u8path(*value);
   }
   settings.incomplete_dir_enabled =
       parse_bool_value(read_db_string("incompleteDirEnabled"));
   if (auto value = read_db_string("watchDir"); value && !value->empty()) {
-    settings.watch_dir = std::filesystem::path(*value);
+    settings.watch_dir = std::filesystem::u8path(*value);
   }
   settings.watch_dir_enabled =
       parse_bool_value(read_db_string("watchDirEnabled"));
