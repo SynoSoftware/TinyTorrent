@@ -47,11 +47,18 @@ public:
   std::optional<std::string> get_setting(std::string const &key) const;
   bool set_setting(std::string const &key, std::string const &value);
   bool remove_setting(std::string const &key);
+  bool begin_transaction() const;
+  bool commit_transaction() const;
+  bool rollback_transaction() const;
 
   std::vector<PersistedTorrent> load_torrents() const;
   bool upsert_torrent(PersistedTorrent const &torrent);
   bool delete_torrent(std::string const &hash);
   bool update_labels(std::string const &hash, std::string const &labels_json);
+  bool update_save_path(std::string const &hash, std::string const &path) const;
+  bool update_rpc_id(std::string const &hash, int rpc_id) const;
+  bool update_metadata(std::string const &hash, std::string const &path,
+                       std::vector<std::uint8_t> const &metadata) const;
   bool update_resume_data(std::string const &hash,
                           std::vector<std::uint8_t> const &data);
   std::optional<std::vector<std::uint8_t>> resume_data(
