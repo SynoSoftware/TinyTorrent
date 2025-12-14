@@ -952,7 +952,9 @@ std::string handle_session_get(engine::Core *engine, std::string const &rpc_bind
   auto entries = engine ? engine->blocklist_entry_count() : 0;
   auto updated = engine ? engine->blocklist_last_update()
                         : std::optional<std::chrono::system_clock::time_point>{};
-  return serialize_session_settings(settings, entries, updated, rpc_bind);
+  auto listen_error = engine ? engine->listen_error() : std::string{};
+  return serialize_session_settings(settings, entries, updated, rpc_bind,
+                                    listen_error);
 }
 
 std::string handle_session_set(engine::Core *engine, yyjson_val *arguments) {

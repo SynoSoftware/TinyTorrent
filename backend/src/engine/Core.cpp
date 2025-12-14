@@ -17,7 +17,9 @@
 #include <libtorrent/announce_entry.hpp>
 #include <libtorrent/peer_info.hpp>
 #include <libtorrent/session.hpp>
+#include <libtorrent/session_handle.hpp>
 #include <libtorrent/session_params.hpp>
+#include <libtorrent/kademlia/dht_state.hpp>
 #include <boost/asio/ip/network_v4.hpp>
 #include <boost/asio/ip/network_v6.hpp>
 #include <libtorrent/settings_pack.hpp>
@@ -36,6 +38,7 @@
 #include "utils/Log.hpp"
 #include "utils/Base64.hpp"
 #include "utils/FS.hpp"
+#include "utils/Endpoint.hpp"
 #include "utils/StateStore.hpp"
 
 #include <ctime>
@@ -45,6 +48,7 @@
 #include <condition_variable>
 #include <deque>
 #include <filesystem>
+#include <format>
 #include <functional>
 #include <future>
 #include <limits>
@@ -480,6 +484,7 @@ struct Core::Impl {
   int next_id = 1;
   std::filesystem::path state_path;
   std::filesystem::path metadata_dir;
+  std::filesystem::path dht_state_path;
   std::chrono::steady_clock::time_point session_start_time =
       std::chrono::steady_clock::now();
   std::uint64_t session_start_downloaded = 0;
@@ -538,6 +543,7 @@ struct Core::Impl {
       std::chrono::steady_clock::now();
   std::chrono::steady_clock::time_point next_history_retention =
       std::chrono::steady_clock::now();
+  std::string listen_error;
   std::thread history_worker_thread;
   std::mutex history_task_mutex;
   std::condition_variable history_task_cv;
@@ -564,6 +570,8 @@ struct Core::Impl {
     if (state_path.empty()) {
       state_path = tt::utils::data_root() / "tinytorrent.db";
     }
+    dht_state_path = state_path;
+    dht_state_path.replace_extension(".dht");
     database = std::make_unique<tt::storage::Database>(state_path);
     if (database && database->is_valid()) {
       load_persisted_torrents_from_db();
@@ -586,6 +594,7 @@ struct Core::Impl {
     history_retention_days = std::max(0, this->settings.history_retention_days);
     configure_history_window(std::chrono::system_clock::now());
 
+    auto dht_state = load_dht_state();
     libtorrent::settings_pack pack;
     pack.set_int(libtorrent::settings_pack::alert_mask, libtorrent::alert::all_categories);
     pack.set_str(libtorrent::settings_pack::user_agent, kUserAgent);
@@ -631,6 +640,9 @@ struct Core::Impl {
     current_settings = pack;
     blocklist_path = this->settings.blocklist_path;
     libtorrent::session_params params(pack);
+    if (dht_state) {
+      params.dht_state = std::move(*dht_state);
+    }
     session = std::make_unique<libtorrent::session>(params);
     refresh_active_speed_limits(true);
     replay_saved_torrents();
@@ -690,6 +702,7 @@ struct Core::Impl {
         now - history_last_flush >= std::chrono::seconds(10)) {
       flush_history_if_due(now, true);
     }
+    persist_dht_state();
     persist_state();
   }
 
@@ -839,12 +852,18 @@ private:
     } else if (auto *metadata =
                    libtorrent::alert_cast<libtorrent::metadata_received_alert>(alert)) {
       handle_metadata_received_alert(*metadata);
-    } else if (auto *state =
+      } else if (auto *state =
                    libtorrent::alert_cast<libtorrent::state_update_alert>(alert)) {
       for (auto const &status : state->status) {
         auto id = assign_rpc_id(status.info_hashes.get_best());
         mark_torrent_dirty(id);
       }
+    } else if (auto *listen =
+                   libtorrent::alert_cast<libtorrent::listen_succeeded_alert>(alert)) {
+      handle_listen_succeeded(*listen);
+    } else if (auto *failed =
+                   libtorrent::alert_cast<libtorrent::listen_failed_alert>(alert)) {
+      handle_listen_failed(*failed);
     }
   }
 }
@@ -1053,6 +1072,100 @@ private:
     if (highest_rpc_id >= next_id) {
       next_id = highest_rpc_id + 1;
     }
+  }
+
+  std::optional<libtorrent::dht::dht_state> load_dht_state() const {
+    if (dht_state_path.empty() || !std::filesystem::exists(dht_state_path)) {
+      return std::nullopt;
+    }
+    std::ifstream input(dht_state_path, std::ios::binary);
+    if (!input) {
+      return std::nullopt;
+    }
+    std::vector<char> buffer((std::istreambuf_iterator<char>(input)),
+                             std::istreambuf_iterator<char>());
+    if (buffer.empty()) {
+      return std::nullopt;
+    }
+    try {
+      auto params = libtorrent::read_session_params(
+          libtorrent::span<char const>(buffer.data(), buffer.size()),
+          libtorrent::session_handle::save_dht_state);
+      return params.dht_state;
+    } catch (...) {
+      TT_LOG_INFO("failed to load DHT state from {}", dht_state_path.string());
+    }
+    return std::nullopt;
+  }
+
+  void persist_dht_state() {
+    if (!session || dht_state_path.empty()) {
+      return;
+    }
+    auto params =
+        session->session_state(libtorrent::session_handle::save_dht_state);
+    auto buffer = libtorrent::write_session_params_buf(
+        params, libtorrent::session_handle::save_dht_state);
+    if (buffer.empty()) {
+      return;
+    }
+    std::error_code ec;
+    auto parent = dht_state_path.parent_path();
+    if (!parent.empty() && !std::filesystem::exists(parent, ec)) {
+      std::filesystem::create_directories(parent, ec);
+    }
+    if (ec) {
+      TT_LOG_INFO("failed to ensure DHT state directory {}: {}",
+                  parent.string(), ec.message());
+      return;
+    }
+    std::ofstream output(dht_state_path, std::ios::binary);
+    if (!output) {
+      TT_LOG_INFO("failed to write DHT state to {}", dht_state_path.string());
+      return;
+    }
+    output.write(buffer.data(), static_cast<std::streamsize>(buffer.size()));
+    if (!output) {
+      TT_LOG_INFO("failed to write DHT state to {}", dht_state_path.string());
+    }
+  }
+
+  std::string listen_error_impl() const {
+    std::shared_lock<std::shared_mutex> guard(settings_mutex);
+    return listen_error;
+  }
+
+  void handle_listen_succeeded(libtorrent::listen_succeeded_alert const &alert) {
+    if (alert.socket_type != libtorrent::socket_type_t::tcp) {
+      return;
+    }
+    auto host = alert.address.to_string();
+    tt::net::HostPort host_port{host, std::to_string(alert.port)};
+    host_port.bracketed = tt::net::is_ipv6_literal(host);
+    auto interface = tt::net::format_host_port(host_port);
+    {
+      std::lock_guard<std::shared_mutex> guard(settings_mutex);
+      settings.listen_interface = interface;
+      listen_error.clear();
+    }
+    TT_LOG_INFO("listen succeeded on {}", interface);
+  }
+
+  void handle_listen_failed(libtorrent::listen_failed_alert const &alert) {
+    if (alert.socket_type != libtorrent::socket_type_t::tcp) {
+      return;
+    }
+    auto host = alert.address.to_string();
+    tt::net::HostPort host_port{host, std::to_string(alert.port)};
+    host_port.bracketed = tt::net::is_ipv6_literal(host);
+    auto endpoint = tt::net::format_host_port(host_port);
+    auto message =
+        std::format("listen failed on {}: {}", endpoint, alert.message());
+    {
+      std::lock_guard<std::shared_mutex> guard(settings_mutex);
+      listen_error = message;
+    }
+    TT_LOG_INFO("{}", message);
   }
 
   void update_persisted_resume_data(std::string const &hash,
@@ -3672,6 +3785,13 @@ Core::blocklist_last_update() const noexcept {
     return std::nullopt;
   }
   return impl_->blocklist_last_update;
+}
+
+std::string Core::listen_error() const {
+  if (!impl_) {
+    return {};
+  }
+  return impl_->listen_error_impl();
 }
 
 HistoryConfig Core::history_config() const {

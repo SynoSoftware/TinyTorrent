@@ -94,6 +94,8 @@ private:
   std::shared_ptr<engine::SessionSnapshot> pending_snapshot_;
   std::size_t last_blocklist_entries_ = 0;
   std::chrono::steady_clock::time_point last_patch_sent_time_;
+  std::vector<std::string> allowed_hosts_;
+  std::chrono::steady_clock::time_point last_ping_time_;
 };
 
 } // namespace tt::rpc
