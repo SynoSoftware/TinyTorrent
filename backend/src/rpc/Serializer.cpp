@@ -2,6 +2,7 @@
 
 #include <array>
 #include <chrono>
+#include <cmath>
 #include <cstdint>
 #include <functional>
 #include <limits>
@@ -127,6 +128,8 @@ void add_labels_if_changed(yyjson_mut_doc *doc, yyjson_mut_val *entry,
   }
 }
 
+constexpr double kSerializerRealEpsilon = 1e-6;
+
 inline void add_if_changed_sint(yyjson_mut_doc *doc, yyjson_mut_val *entry,
                                 char const *key, std::int64_t previous,
                                 std::int64_t current) {
@@ -147,7 +150,7 @@ inline void add_if_changed_uint(yyjson_mut_doc *doc, yyjson_mut_val *entry,
 
 inline void add_if_changed_real(yyjson_mut_doc *doc, yyjson_mut_val *entry,
                                 char const *key, double previous, double current) {
-  if (previous == current) {
+  if (std::fabs(previous - current) <= kSerializerRealEpsilon) {
     return;
   }
   yyjson_mut_obj_add_real(doc, entry, key, current);

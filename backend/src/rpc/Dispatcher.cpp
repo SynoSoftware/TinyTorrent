@@ -1183,11 +1183,11 @@ std::string handle_blocklist_update(engine::Core *engine) {
   if (!engine) {
     return serialize_error("engine unavailable");
   }
-  auto entries = engine->reload_blocklist();
-  if (!entries) {
+  if (!engine->request_blocklist_reload()) {
     return serialize_error("blocklist update failed");
   }
-  return serialize_blocklist_update(*entries, engine->blocklist_last_update());
+  return serialize_blocklist_update(engine->blocklist_entry_count(),
+                                   engine->blocklist_last_update());
 }
 
 std::future<std::string> handle_fs_browse_async(yyjson_val *arguments) {

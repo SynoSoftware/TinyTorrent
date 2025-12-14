@@ -271,7 +271,7 @@ public:
                         std::optional<bool> upload_enabled);
   void set_peer_limits(std::optional<int> global_limit,
                        std::optional<int> per_torrent_limit);
-  std::optional<std::size_t> reload_blocklist();
+  bool request_blocklist_reload();
   std::size_t blocklist_entry_count() const noexcept;
   std::optional<std::chrono::system_clock::time_point> blocklist_last_update() const noexcept;
   void update_session_settings(SessionUpdate update);

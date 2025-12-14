@@ -103,6 +103,12 @@ Database::Database(std::filesystem::path path) {
 }
 
 Database::~Database() {
+  for (auto &entry : stmt_cache_) {
+    if (entry.second != nullptr) {
+      sqlite3_finalize(entry.second);
+    }
+  }
+  stmt_cache_.clear();
   if (db_) {
     sqlite3_close(db_);
     db_ = nullptr;
@@ -154,6 +160,30 @@ bool Database::execute(std::string const &sql) const {
   return true;
 }
 
+sqlite3_stmt *Database::prepare_cached(std::string const &sql) const {
+  if (!db_) {
+    return nullptr;
+  }
+  auto it = stmt_cache_.find(sql);
+  if (it != stmt_cache_.end()) {
+    if (it->second != nullptr) {
+      sqlite3_reset(it->second);
+      sqlite3_clear_bindings(it->second);
+    }
+    return it->second;
+  }
+  sqlite3_stmt *stmt = nullptr;
+  int rc = sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, nullptr);
+  if (rc != SQLITE_OK) {
+    TT_LOG_INFO("sqlite prepare failed: {}", sqlite3_errmsg(db_));
+    return nullptr;
+  }
+  sqlite3_reset(stmt);
+  sqlite3_clear_bindings(stmt);
+  stmt_cache_.emplace(sql, stmt);
+  return stmt;
+}
+
 bool Database::begin_transaction() const {
   return execute("BEGIN TRANSACTION;");
 }
@@ -172,11 +202,8 @@ std::optional<std::string> Database::get_setting(std::string const &key) const {
   }
   constexpr char const *sql =
       "SELECT value FROM settings WHERE key = ? LIMIT 1;";
-  sqlite3_stmt *stmt = nullptr;
-  int rc =
-      sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
-  if (rc != SQLITE_OK) {
-    TT_LOG_INFO("sqlite prepare failed: {}", sqlite3_errmsg(db_));
+  auto *stmt = prepare_cached(sql);
+  if (stmt == nullptr) {
     return std::nullopt;
   }
   sqlite3_bind_text(stmt, 1, key.c_str(), -1, SQLITE_TRANSIENT);
@@ -187,7 +214,8 @@ std::optional<std::string> Database::get_setting(std::string const &key) const {
       value = std::string(text);
     }
   }
-  sqlite3_finalize(stmt);
+  sqlite3_reset(stmt);
+  sqlite3_clear_bindings(stmt);
   return value;
 }
 
@@ -197,16 +225,15 @@ bool Database::set_setting(std::string const &key, std::string const &value) {
   }
   constexpr char const *sql =
       "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?);";
-  sqlite3_stmt *stmt = nullptr;
-  int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
-  if (rc != SQLITE_OK) {
-    TT_LOG_INFO("sqlite prepare failed: {}", sqlite3_errmsg(db_));
+  auto *stmt = prepare_cached(sql);
+  if (stmt == nullptr) {
     return false;
   }
   sqlite3_bind_text(stmt, 1, key.c_str(), -1, SQLITE_TRANSIENT);
   sqlite3_bind_text(stmt, 2, value.c_str(), -1, SQLITE_TRANSIENT);
-  rc = sqlite3_step(stmt);
-  sqlite3_finalize(stmt);
+  int rc = sqlite3_step(stmt);
+  sqlite3_reset(stmt);
+  sqlite3_clear_bindings(stmt);
   return rc == SQLITE_DONE;
 }
 
@@ -215,15 +242,14 @@ bool Database::remove_setting(std::string const &key) {
     return false;
   }
   constexpr char const *sql = "DELETE FROM settings WHERE key = ?;";
-  sqlite3_stmt *stmt = nullptr;
-  int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
-  if (rc != SQLITE_OK) {
-    TT_LOG_INFO("sqlite prepare failed: {}", sqlite3_errmsg(db_));
+  auto *stmt = prepare_cached(sql);
+  if (stmt == nullptr) {
     return false;
   }
   sqlite3_bind_text(stmt, 1, key.c_str(), -1, SQLITE_TRANSIENT);
-  rc = sqlite3_step(stmt);
-  sqlite3_finalize(stmt);
+  int rc = sqlite3_step(stmt);
+  sqlite3_reset(stmt);
+  sqlite3_clear_bindings(stmt);
   return rc == SQLITE_DONE;
 }
 
@@ -235,10 +261,8 @@ std::vector<PersistedTorrent> Database::load_torrents() const {
   constexpr char const *sql =
       "SELECT info_hash, magnet_uri, save_path, resume_data, metainfo, paused,"
       "labels, added_at, rpc_id, metadata_path FROM torrents;";
-  sqlite3_stmt *stmt = nullptr;
-  int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
-  if (rc != SQLITE_OK) {
-    TT_LOG_INFO("sqlite prepare failed: {}", sqlite3_errmsg(db_));
+  auto *stmt = prepare_cached(sql);
+  if (stmt == nullptr) {
     return result;
   }
   while (sqlite3_step(stmt) == SQLITE_ROW) {
@@ -277,7 +301,8 @@ std::vector<PersistedTorrent> Database::load_torrents() const {
       result.push_back(std::move(entry));
     }
   }
-  sqlite3_finalize(stmt);
+  sqlite3_reset(stmt);
+  sqlite3_clear_bindings(stmt);
   return result;
 }
 
@@ -289,10 +314,8 @@ bool Database::upsert_torrent(PersistedTorrent const &torrent) {
       "INSERT OR REPLACE INTO torrents "
       "(info_hash, magnet_uri, save_path, resume_data, metainfo, paused, labels,"
       "added_at, rpc_id, metadata_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);";
-  sqlite3_stmt *stmt = nullptr;
-  int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
-  if (rc != SQLITE_OK) {
-    TT_LOG_INFO("sqlite prepare failed: {}", sqlite3_errmsg(db_));
+  auto *stmt = prepare_cached(sql);
+  if (stmt == nullptr) {
     return false;
   }
   sqlite3_bind_text(stmt, 1, torrent.hash.c_str(), -1, SQLITE_TRANSIENT);
@@ -332,8 +355,9 @@ bool Database::upsert_torrent(PersistedTorrent const &torrent) {
   } else {
     sqlite3_bind_null(stmt, 10);
   }
-  rc = sqlite3_step(stmt);
-  sqlite3_finalize(stmt);
+  int rc = sqlite3_step(stmt);
+  sqlite3_reset(stmt);
+  sqlite3_clear_bindings(stmt);
   return rc == SQLITE_DONE;
 }
 
@@ -344,16 +368,15 @@ bool Database::update_save_path(std::string const &hash,
   }
   constexpr char const *sql =
       "UPDATE torrents SET save_path = ? WHERE info_hash = ?;";
-  sqlite3_stmt *stmt = nullptr;
-  int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
-  if (rc != SQLITE_OK) {
-    TT_LOG_INFO("sqlite prepare failed: {}", sqlite3_errmsg(db_));
+  auto *stmt = prepare_cached(sql);
+  if (stmt == nullptr) {
     return false;
   }
   sqlite3_bind_text(stmt, 1, path.c_str(), -1, SQLITE_TRANSIENT);
   sqlite3_bind_text(stmt, 2, hash.c_str(), -1, SQLITE_TRANSIENT);
-  rc = sqlite3_step(stmt);
-  sqlite3_finalize(stmt);
+  int rc = sqlite3_step(stmt);
+  sqlite3_reset(stmt);
+  sqlite3_clear_bindings(stmt);
   return rc == SQLITE_DONE;
 }
 
@@ -363,16 +386,15 @@ bool Database::update_rpc_id(std::string const &hash, int rpc_id) const {
   }
   constexpr char const *sql =
       "UPDATE torrents SET rpc_id = ? WHERE info_hash = ?;";
-  sqlite3_stmt *stmt = nullptr;
-  int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
-  if (rc != SQLITE_OK) {
-    TT_LOG_INFO("sqlite prepare failed: {}", sqlite3_errmsg(db_));
+  auto *stmt = prepare_cached(sql);
+  if (stmt == nullptr) {
     return false;
   }
   sqlite3_bind_int(stmt, 1, rpc_id);
   sqlite3_bind_text(stmt, 2, hash.c_str(), -1, SQLITE_TRANSIENT);
-  rc = sqlite3_step(stmt);
-  sqlite3_finalize(stmt);
+  int rc = sqlite3_step(stmt);
+  sqlite3_reset(stmt);
+  sqlite3_clear_bindings(stmt);
   return rc == SQLITE_DONE;
 }
 
@@ -382,33 +404,33 @@ bool Database::update_metadata(std::string const &hash,
   if (!db_) {
     return false;
   }
-  sqlite3_stmt *stmt = nullptr;
-  int rc = SQLITE_ERROR;
   if (!metadata.empty()) {
     constexpr char const *sql =
         "UPDATE torrents SET metadata_path = ?, metainfo = ? WHERE info_hash = ?;";
-    rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
-    if (rc != SQLITE_OK) {
-      TT_LOG_INFO("sqlite prepare failed: {}", sqlite3_errmsg(db_));
+    auto *stmt = prepare_cached(sql);
+    if (stmt == nullptr) {
       return false;
     }
     sqlite3_bind_text(stmt, 1, path.c_str(), -1, SQLITE_TRANSIENT);
     sqlite3_bind_blob(stmt, 2, metadata.data(),
                       static_cast<int>(metadata.size()), SQLITE_TRANSIENT);
     sqlite3_bind_text(stmt, 3, hash.c_str(), -1, SQLITE_TRANSIENT);
-  } else {
-    constexpr char const *sql =
-        "UPDATE torrents SET metadata_path = ? WHERE info_hash = ?;";
-    rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
-    if (rc != SQLITE_OK) {
-      TT_LOG_INFO("sqlite prepare failed: {}", sqlite3_errmsg(db_));
-      return false;
-    }
-    sqlite3_bind_text(stmt, 1, path.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 2, hash.c_str(), -1, SQLITE_TRANSIENT);
+    int rc = sqlite3_step(stmt);
+    sqlite3_reset(stmt);
+    sqlite3_clear_bindings(stmt);
+    return rc == SQLITE_DONE;
   }
-  rc = sqlite3_step(stmt);
-  sqlite3_finalize(stmt);
+  constexpr char const *sql =
+      "UPDATE torrents SET metadata_path = ? WHERE info_hash = ?;";
+  auto *stmt = prepare_cached(sql);
+  if (stmt == nullptr) {
+    return false;
+  }
+  sqlite3_bind_text(stmt, 1, path.c_str(), -1, SQLITE_TRANSIENT);
+  sqlite3_bind_text(stmt, 2, hash.c_str(), -1, SQLITE_TRANSIENT);
+  int rc = sqlite3_step(stmt);
+  sqlite3_reset(stmt);
+  sqlite3_clear_bindings(stmt);
   return rc == SQLITE_DONE;
 }
 
@@ -417,15 +439,14 @@ bool Database::delete_torrent(std::string const &hash) {
     return false;
   }
   constexpr char const *sql = "DELETE FROM torrents WHERE info_hash = ?;";
-  sqlite3_stmt *stmt = nullptr;
-  int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
-  if (rc != SQLITE_OK) {
-    TT_LOG_INFO("sqlite prepare failed: {}", sqlite3_errmsg(db_));
+  auto *stmt = prepare_cached(sql);
+  if (stmt == nullptr) {
     return false;
   }
   sqlite3_bind_text(stmt, 1, hash.c_str(), -1, SQLITE_TRANSIENT);
-  rc = sqlite3_step(stmt);
-  sqlite3_finalize(stmt);
+  int rc = sqlite3_step(stmt);
+  sqlite3_reset(stmt);
+  sqlite3_clear_bindings(stmt);
   return rc == SQLITE_DONE;
 }
 
@@ -436,16 +457,15 @@ bool Database::update_labels(std::string const &hash,
   }
   constexpr char const *sql =
       "UPDATE torrents SET labels = ? WHERE info_hash = ?;";
-  sqlite3_stmt *stmt = nullptr;
-  int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
-  if (rc != SQLITE_OK) {
-    TT_LOG_INFO("sqlite prepare failed: {}", sqlite3_errmsg(db_));
+  auto *stmt = prepare_cached(sql);
+  if (stmt == nullptr) {
     return false;
   }
   sqlite3_bind_text(stmt, 1, labels_json.c_str(), -1, SQLITE_TRANSIENT);
   sqlite3_bind_text(stmt, 2, hash.c_str(), -1, SQLITE_TRANSIENT);
-  rc = sqlite3_step(stmt);
-  sqlite3_finalize(stmt);
+  int rc = sqlite3_step(stmt);
+  sqlite3_reset(stmt);
+  sqlite3_clear_bindings(stmt);
   return rc == SQLITE_DONE;
 }
 
@@ -456,10 +476,8 @@ bool Database::update_resume_data(std::string const &hash,
   }
   constexpr char const *sql =
       "UPDATE torrents SET resume_data = ? WHERE info_hash = ?;";
-  sqlite3_stmt *stmt = nullptr;
-  int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
-  if (rc != SQLITE_OK) {
-    TT_LOG_INFO("sqlite prepare failed: {}", sqlite3_errmsg(db_));
+  auto *stmt = prepare_cached(sql);
+  if (stmt == nullptr) {
     return false;
   }
   if (!data.empty()) {
@@ -469,8 +487,9 @@ bool Database::update_resume_data(std::string const &hash,
     sqlite3_bind_null(stmt, 1);
   }
   sqlite3_bind_text(stmt, 2, hash.c_str(), -1, SQLITE_TRANSIENT);
-  rc = sqlite3_step(stmt);
-  sqlite3_finalize(stmt);
+  int rc = sqlite3_step(stmt);
+  sqlite3_reset(stmt);
+  sqlite3_clear_bindings(stmt);
   return rc == SQLITE_DONE;
 }
 
@@ -481,10 +500,8 @@ std::optional<std::vector<std::uint8_t>> Database::resume_data(
   }
   constexpr char const *sql =
       "SELECT resume_data FROM torrents WHERE info_hash = ? LIMIT 1;";
-  sqlite3_stmt *stmt = nullptr;
-  int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
-  if (rc != SQLITE_OK) {
-    TT_LOG_INFO("sqlite prepare failed: {}", sqlite3_errmsg(db_));
+  auto *stmt = prepare_cached(sql);
+  if (stmt == nullptr) {
     return std::nullopt;
   }
   sqlite3_bind_text(stmt, 1, hash.c_str(), -1, SQLITE_TRANSIENT);
@@ -492,7 +509,8 @@ std::optional<std::vector<std::uint8_t>> Database::resume_data(
   if (sqlite3_step(stmt) == SQLITE_ROW) {
     result = copy_column_blob(stmt, 0);
   }
-  sqlite3_finalize(stmt);
+  sqlite3_reset(stmt);
+  sqlite3_clear_bindings(stmt);
   return result;
 }
 
@@ -504,17 +522,16 @@ bool Database::insert_speed_history(std::int64_t timestamp, std::uint64_t down_b
   constexpr char const *sql =
       "INSERT OR REPLACE INTO speed_history (timestamp, down_bytes, up_bytes)"
       " VALUES (?, ?, ?);";
-  sqlite3_stmt *stmt = nullptr;
-  int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
-  if (rc != SQLITE_OK) {
-    TT_LOG_INFO("sqlite prepare failed: {}", sqlite3_errmsg(db_));
+  auto *stmt = prepare_cached(sql);
+  if (stmt == nullptr) {
     return false;
   }
   sqlite3_bind_int64(stmt, 1, static_cast<sqlite3_int64>(timestamp));
   sqlite3_bind_int64(stmt, 2, static_cast<sqlite3_int64>(down_bytes));
   sqlite3_bind_int64(stmt, 3, static_cast<sqlite3_int64>(up_bytes));
-  rc = sqlite3_step(stmt);
-  sqlite3_finalize(stmt);
+  int rc = sqlite3_step(stmt);
+  sqlite3_reset(stmt);
+  sqlite3_clear_bindings(stmt);
   return rc == SQLITE_DONE;
 }
 
@@ -535,10 +552,8 @@ std::vector<SpeedHistoryEntry> Database::query_speed_history(std::int64_t start,
       " WHERE timestamp >= ? AND timestamp < ?"
       " GROUP BY bucket"
       " ORDER BY bucket ASC;";
-  sqlite3_stmt *stmt = nullptr;
-  int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
-  if (rc != SQLITE_OK) {
-    TT_LOG_INFO("sqlite prepare failed: {}", sqlite3_errmsg(db_));
+  auto *stmt = prepare_cached(sql);
+  if (stmt == nullptr) {
     return result;
   }
   sqlite3_bind_int64(stmt, 1, step);
@@ -558,7 +573,8 @@ std::vector<SpeedHistoryEntry> Database::query_speed_history(std::int64_t start,
     entry.peak_up = peak_up < 0 ? 0 : static_cast<std::uint64_t>(peak_up);
     result.push_back(entry);
   }
-  sqlite3_finalize(stmt);
+  sqlite3_reset(stmt);
+  sqlite3_clear_bindings(stmt);
   return result;
 }
 
@@ -568,15 +584,14 @@ bool Database::delete_speed_history_before(std::int64_t timestamp) const {
   }
   constexpr char const *sql =
       "DELETE FROM speed_history WHERE timestamp < ?;";
-  sqlite3_stmt *stmt = nullptr;
-  int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
-  if (rc != SQLITE_OK) {
-    TT_LOG_INFO("sqlite prepare failed: {}", sqlite3_errmsg(db_));
+  auto *stmt = prepare_cached(sql);
+  if (stmt == nullptr) {
     return false;
   }
   sqlite3_bind_int64(stmt, 1, timestamp);
-  rc = sqlite3_step(stmt);
-  sqlite3_finalize(stmt);
+  int rc = sqlite3_step(stmt);
+  sqlite3_reset(stmt);
+  sqlite3_clear_bindings(stmt);
   return rc == SQLITE_DONE;
 }
 
