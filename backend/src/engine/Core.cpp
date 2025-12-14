@@ -79,6 +79,7 @@ constexpr std::uintmax_t kMaxWatchFileSize = 64ull * 1024 * 1024;
 constexpr auto kWatchFileStabilityThreshold = std::chrono::seconds(3);
 constexpr int kMinHistoryIntervalSeconds = 60;
 constexpr auto kHistoryRetentionCheckInterval = std::chrono::hours(1);
+constexpr auto kSettingsPersistInterval = std::chrono::milliseconds(500);
 
 constexpr int kSha1Bytes = static_cast<int>(libtorrent::sha1_hash::size());
 
@@ -517,6 +518,8 @@ struct Core::Impl {
   std::unordered_map<int, std::uint64_t> torrent_revisions;
   std::uint64_t next_torrent_revision = 1;
   std::unordered_map<int, TorrentSnapshot> snapshot_cache;
+  std::unordered_map<std::string, std::filesystem::path> pending_move_paths;
+  std::unordered_map<std::string, std::string> torrent_error_messages;
   struct WatchFileSnapshot {
     std::uintmax_t size = 0;
     std::filesystem::file_time_type mtime;
@@ -543,6 +546,10 @@ struct Core::Impl {
       std::chrono::steady_clock::now();
   std::chrono::steady_clock::time_point next_history_retention =
       std::chrono::steady_clock::now();
+  std::atomic_bool settings_dirty{false};
+  std::chrono::steady_clock::time_point next_settings_persist =
+      std::chrono::steady_clock::time_point::min();
+  std::mutex settings_persist_mutex;
   std::string listen_error;
   std::thread history_worker_thread;
   std::mutex history_task_mutex;
@@ -667,6 +674,7 @@ struct Core::Impl {
         process_alerts();
         update_snapshot();
         perform_housekeeping();
+        flush_settings_if_due(now);
         if (shutdown_requested.load(std::memory_order_relaxed)) {
           if (!save_resume_in_progress || pending_resume_hashes.empty() ||
               now >= resume_deadline) {
@@ -704,6 +712,7 @@ struct Core::Impl {
     }
     persist_dht_state();
     persist_state();
+    flush_settings_now();
   }
 
   void stop() noexcept {
@@ -864,6 +873,21 @@ private:
     } else if (auto *failed =
                    libtorrent::alert_cast<libtorrent::listen_failed_alert>(alert)) {
       handle_listen_failed(*failed);
+    } else if (auto *file_error =
+                   libtorrent::alert_cast<libtorrent::file_error_alert>(alert)) {
+      handle_file_error_alert(*file_error);
+    } else if (auto *tracker_error =
+                   libtorrent::alert_cast<libtorrent::tracker_error_alert>(alert)) {
+      handle_tracker_error_alert(*tracker_error);
+    } else if (auto *portmap_failed =
+                   libtorrent::alert_cast<libtorrent::portmap_error_alert>(alert)) {
+      handle_portmap_error_alert(*portmap_failed);
+    } else if (auto *moved =
+                   libtorrent::alert_cast<libtorrent::storage_moved_alert>(alert)) {
+      handle_storage_moved_alert(*moved);
+    } else if (auto *storage_failed =
+                   libtorrent::alert_cast<libtorrent::storage_moved_failed_alert>(alert)) {
+      handle_storage_moved_failed_alert(*storage_failed);
     }
   }
 }
@@ -990,7 +1014,6 @@ private:
     if (!session) {
       return;
     }
-    session->pause();
     auto handles = session->get_torrents();
     pending_resume_hashes.clear();
     for (auto const &handle : handles) {
@@ -1135,6 +1158,11 @@ private:
     return listen_error;
   }
 
+  void set_listen_error(std::string value) {
+    std::lock_guard<std::shared_mutex> guard(settings_mutex);
+    listen_error = std::move(value);
+  }
+
   void handle_listen_succeeded(libtorrent::listen_succeeded_alert const &alert) {
     if (alert.socket_type != libtorrent::socket_type_t::tcp) {
       return;
@@ -1148,6 +1176,7 @@ private:
       settings.listen_interface = interface;
       listen_error.clear();
     }
+    mark_settings_dirty();
     TT_LOG_INFO("listen succeeded on {}", interface);
   }
 
@@ -1161,11 +1190,53 @@ private:
     auto endpoint = tt::net::format_host_port(host_port);
     auto message =
         std::format("listen failed on {}: {}", endpoint, alert.message());
-    {
-      std::lock_guard<std::shared_mutex> guard(settings_mutex);
-      listen_error = message;
-    }
+    set_listen_error(message);
     TT_LOG_INFO("{}", message);
+  }
+
+  void handle_file_error_alert(libtorrent::file_error_alert const &alert) {
+    if (auto hash = hash_from_handle(alert.handle); hash) {
+      auto message = std::format("file error: {}", alert.message());
+      record_torrent_error(*hash, message);
+      TT_LOG_INFO("{}: {}", hash, message);
+    }
+  }
+
+  void handle_tracker_error_alert(libtorrent::tracker_error_alert const &alert) {
+    if (auto hash = hash_from_handle(alert.handle); hash) {
+      auto tracker = alert.tracker_url();
+      auto label = tracker && *tracker ? tracker : "<unknown>";
+      auto message = std::format("tracker {}: {}", label, alert.message());
+      record_torrent_error(*hash, message);
+      TT_LOG_INFO("{}: {}", hash, message);
+    }
+  }
+
+  void handle_portmap_error_alert(libtorrent::portmap_error_alert const &alert) {
+    auto message = std::format("portmap failed: {}", alert.message());
+    set_listen_error(message);
+    TT_LOG_INFO("{}", message);
+  }
+
+  void handle_storage_moved_alert(libtorrent::storage_moved_alert const &alert) {
+    if (auto hash = hash_from_handle(alert.handle); hash) {
+      auto path = alert.storage_path();
+      if (path == nullptr || *path == '\0') {
+        return;
+      }
+      finalize_pending_move(*hash, std::filesystem::path(path));
+      TT_LOG_INFO("{} storage moved to {}", hash, path);
+    }
+  }
+
+  void handle_storage_moved_failed_alert(
+      libtorrent::storage_moved_failed_alert const &alert) {
+    if (auto hash = hash_from_handle(alert.handle); hash) {
+      auto message = std::format("storage move failed: {}", alert.message());
+      record_torrent_error(*hash, message);
+      cancel_pending_move(*hash);
+      TT_LOG_INFO("{}: {}", hash, message);
+    }
   }
 
   void update_persisted_resume_data(std::string const &hash,
@@ -1264,6 +1335,108 @@ private:
     if (!database->commit_transaction()) {
       TT_LOG_INFO("failed to commit session settings");
     }
+  }
+
+  void mark_settings_dirty() {
+    auto now = std::chrono::steady_clock::now();
+    std::lock_guard<std::mutex> guard(settings_persist_mutex);
+    settings_dirty.store(true, std::memory_order_release);
+    next_settings_persist = now + kSettingsPersistInterval;
+  }
+
+  void flush_settings_if_due(std::chrono::steady_clock::time_point now) {
+    bool should_flush = false;
+    {
+      std::lock_guard<std::mutex> guard(settings_persist_mutex);
+      if (!settings_dirty.load(std::memory_order_acquire)) {
+        return;
+      }
+      if (now < next_settings_persist) {
+        return;
+      }
+      settings_dirty.store(false, std::memory_order_release);
+      next_settings_persist = std::chrono::steady_clock::time_point::min();
+      should_flush = true;
+    }
+    if (should_flush) {
+      persist_settings_to_db();
+    }
+  }
+
+  void flush_settings_now() {
+    bool should_flush = false;
+    {
+      std::lock_guard<std::mutex> guard(settings_persist_mutex);
+      if (!settings_dirty.load(std::memory_order_acquire)) {
+        return;
+      }
+      settings_dirty.store(false, std::memory_order_release);
+      next_settings_persist = std::chrono::steady_clock::time_point::min();
+      should_flush = true;
+    }
+    if (should_flush) {
+      persist_settings_to_db();
+    }
+  }
+
+  void record_torrent_error(std::string const &hash, std::string message) {
+    if (hash.empty()) {
+      return;
+    }
+    int dirty_id = 0;
+    {
+      std::lock_guard<std::mutex> guard(state_mutex);
+      if (message.empty()) {
+        torrent_error_messages.erase(hash);
+      } else {
+        torrent_error_messages[hash] = std::move(message);
+      }
+      if (auto sha1 = sha1_from_hex(hash); sha1) {
+        auto it = hash_to_id.find(*sha1);
+        if (it != hash_to_id.end()) {
+          dirty_id = it->second;
+        }
+      }
+    }
+    if (dirty_id > 0) {
+      mark_torrent_dirty(dirty_id);
+    }
+  }
+
+  std::string torrent_error_string(std::string const &hash) const {
+    if (hash.empty()) {
+      return {};
+    }
+    std::lock_guard<std::mutex> guard(state_mutex);
+    if (auto it = torrent_error_messages.find(hash); it != torrent_error_messages.end()) {
+      return it->second;
+    }
+    return {};
+  }
+
+  void queue_pending_move(std::string const &hash, std::filesystem::path destination) {
+    if (hash.empty() || destination.empty()) {
+      return;
+    }
+    std::lock_guard<std::mutex> guard(state_mutex);
+    pending_move_paths[hash] = std::move(destination);
+  }
+
+  void cancel_pending_move(std::string const &hash) {
+    if (hash.empty()) {
+      return;
+    }
+    std::lock_guard<std::mutex> guard(state_mutex);
+    pending_move_paths.erase(hash);
+  }
+
+  void finalize_pending_move(std::string const &hash,
+                             std::filesystem::path destination) {
+    if (hash.empty() || destination.empty()) {
+      return;
+    }
+    cancel_pending_move(hash);
+    update_persisted_download_path(hash, destination);
   }
 
   int normalized_history_interval(int value) const {
@@ -1812,21 +1985,31 @@ private:
       }
     }
 
-    void remove_persisted_torrent(std::string const &hash) {
-      if (hash.empty()) {
-        return;
-      }
-      bool removed_label = false;
-      {
-        std::lock_guard<std::mutex> lock(state_mutex);
-        persisted_torrents.erase(hash);
-        removed_label = torrent_labels.erase(hash) > 0;
-      }
-      if (database && database->is_valid()) {
-        database->delete_torrent(hash);
-      }
-      final_paths.erase(hash);
+  void remove_persisted_torrent(std::string const &hash) {
+    if (hash.empty()) {
+      return;
     }
+    bool removed_label = false;
+    {
+      std::lock_guard<std::mutex> lock(state_mutex);
+      persisted_torrents.erase(hash);
+      removed_label = torrent_labels.erase(hash) > 0;
+      torrent_error_messages.erase(hash);
+      pending_move_paths.erase(hash);
+    }
+    if (database && database->is_valid()) {
+      database->delete_torrent(hash);
+    }
+    final_paths.erase(hash);
+    if (auto metadata_path = metadata_file_path(hash); !metadata_path.empty()) {
+      std::error_code ec;
+      std::filesystem::remove(metadata_path, ec);
+      if (ec) {
+        TT_LOG_INFO("failed to remove metadata {}: {}", metadata_path.string(),
+                    ec.message());
+      }
+    }
+  }
 
     void update_persisted_rpc_id(std::string const &hash, int id) {
       if (hash.empty() || id <= 0) {
@@ -2192,7 +2375,7 @@ private:
       std::lock_guard<std::shared_mutex> settings_lock(settings_mutex);
       settings.download_path = std::move(path);
     }
-    persist_settings_to_db();
+    mark_settings_dirty();
   }
 
   bool update_listen_port(std::uint16_t port) {
@@ -2209,14 +2392,16 @@ private:
     } else if (!settings.listen_interface.empty()) {
       host = settings.listen_interface;
     }
+    std::string recorded_interface;
     {
       std::lock_guard<std::mutex> state_lock(state_mutex);
       std::lock_guard<std::shared_mutex> settings_lock(settings_mutex);
       settings.listen_interface = host + ":" + std::to_string(port);
+      recorded_interface = settings.listen_interface;
     }
     TT_LOG_INFO("recorded listen interface {} for peer-port {}",
-                settings.listen_interface, static_cast<unsigned>(port));
-    persist_settings_to_db();
+                recorded_interface, static_cast<unsigned>(port));
+    mark_settings_dirty();
     return true;
   }
 
@@ -2246,7 +2431,7 @@ private:
     }
 
     refresh_active_speed_limits(true);
-    persist_settings_to_db();
+    mark_settings_dirty();
   }
 
   void refresh_active_speed_limits(bool force = false) {
@@ -2320,7 +2505,7 @@ private:
     if (session) {
       session->apply_settings(pack);
     }
-    persist_settings_to_db();
+    mark_settings_dirty();
   }
 
   void apply_session_update(SessionUpdate update) {
@@ -2543,7 +2728,7 @@ private:
       apply_pex_flags();
     }
     if (persist) {
-      persist_settings_to_db();
+      mark_settings_dirty();
     }
   }
 
@@ -2938,8 +3123,18 @@ private:
     }
     auto default_path = settings.download_path;
     auto hash = info_hash_to_hex(status.info_hashes);
-    auto it = final_paths.find(hash);
-    auto final_path = it != final_paths.end() ? it->second : default_path;
+    if (hash.empty()) {
+      return;
+    }
+    std::filesystem::path final_path;
+    {
+      std::lock_guard<std::mutex> guard(state_mutex);
+      if (pending_move_paths.contains(hash)) {
+        return;
+      }
+      auto it = final_paths.find(hash);
+      final_path = it != final_paths.end() ? it->second : default_path;
+    }
     if (final_path.empty() || final_path == settings.incomplete_dir) {
       return;
     }
@@ -2970,9 +3165,8 @@ private:
         }
         TT_LOG_INFO("moving {} from {} to {}", hash, source_path,
                     destination.string());
+        queue_pending_move(hash, destination);
         handle.move_storage(destination.string());
-        final_paths[hash] = destination;
-        update_persisted_download_path(hash, destination);
       });
     });
   }
@@ -3138,6 +3332,9 @@ private:
     info.download_dir = status.save_path;
     info.error = status.errc.value();
     info.error_string = status.errc.message();
+    if (auto override = torrent_error_string(hash); !override.empty()) {
+      info.error_string = std::move(override);
+    }
     info.left_until_done =
         std::max<std::int64_t>(0, status.total_wanted - status.total_wanted_done);
   info.size_when_done = status.total_wanted;
@@ -3565,12 +3762,17 @@ void Core::move_torrent_location(int id, std::string path, bool move) {
   }
   impl_->run_task([this, id, path = std::move(path), move]() {
     if (auto handle = impl_->handle_for_id(id); handle) {
+      auto hash = info_hash_to_hex(handle->status().info_hashes);
+      if (hash.empty()) {
+        return;
+      }
+      std::filesystem::path destination(path);
+      impl_->queue_pending_move(hash, destination);
       if (move) {
         handle->move_storage(path);
       } else {
         handle->move_storage(path, libtorrent::move_flags_t::reset_save_path);
       }
-      impl_->set_final_path(*handle, std::filesystem::path(path));
     }
   }).get();
 }
