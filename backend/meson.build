@@ -57,6 +57,10 @@ tt_common_dep = declare_dependency(
 tt_sources = [
   'src/main.cpp',
   'src/engine/Core.cpp',
+  'src/engine/AutomationAgent.cpp',
+  'src/engine/HistoryAgent.cpp',
+  'src/engine/PersistenceManager.cpp',
+  'src/engine/TorrentManager.cpp',
   'src/rpc/Server.cpp',
   'src/rpc/Dispatcher.cpp',
   'src/rpc/Serializer.cpp',

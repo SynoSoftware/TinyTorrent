@@ -206,6 +206,11 @@ struct SessionStatistics {
   std::uint64_t session_count = 0;
 };
 
+struct SessionTotals {
+  std::uint64_t uploaded = 0;
+  std::uint64_t downloaded = 0;
+};
+
 struct HistoryBucket {
   std::int64_t timestamp = 0;
   std::uint64_t total_down = 0;
