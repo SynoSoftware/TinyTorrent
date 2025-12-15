@@ -3,7 +3,11 @@ param(
   [string]$Configuration = 'Debug',
   [string]$MesonPath = '',
   [string]$NinjaPath = '',
-  [string]$VsWherePath = ''
+  [string]$VsWherePath = '',
+  [switch]$LoopTests,
+  [int]$MaxLoopIterations = 0,
+  [switch]$CaptureDumps,
+  [string]$DumpToolPath = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -226,6 +230,7 @@ Write-Host "Building ($Configuration)..."
 & $ninjaExe -C $mesonBuildDir
 
 $testsEnabled = $testsArg -eq 'true'
+
 if ($testsEnabled) {
   Write-Host "Running tests..."
   $testBinDirs = @()
@@ -246,43 +251,96 @@ if ($testsEnabled) {
   $testResults = @()
   $runSucceeded = $true
   $failureMessage = ''
+  $iteration = 0
+  $loopLimit = [int]$MaxLoopIterations
+  if (-not $LoopTests -and $loopLimit -gt 0) {
+    Write-Host ("Warning: -MaxLoopIterations requires -LoopTests; ignoring target of {0} iterations." -f $loopLimit)
+  }
+  $dumpToolExe = ''
+  $dumpRoot = ''
+  if ($CaptureDumps) {
+    $sysInternalsPaths = @()
+    if ($env:ProgramFiles) {
+      $sysInternalsPaths += (Join-Path $env:ProgramFiles 'Sysinternals')
+    }
+    if (${env:ProgramFiles(x86)}) {
+      $sysInternalsPaths += (Join-Path ${env:ProgramFiles(x86)} 'Sysinternals')
+    }
+    $dumpToolExe = Resolve-Executable $DumpToolPath 'procdump' $sysInternalsPaths
+    $dumpRoot = Join-Path $mesonBuildDir 'test-dumps'
+    New-Item -Path $dumpRoot -ItemType Directory -Force | Out-Null
+    Write-Host ("  Capturing crash dumps via {0} -> {1}" -f $dumpToolExe, $dumpRoot)
+  }
   try {
-    foreach ($testExe in $testExecutables) {
-      $testPath = Join-Path $testDir $testExe
-      if (-not (Test-Path $testPath)) {
-        throw "Test executable not found: $testPath"
+    while ($true) {
+      $iteration++
+      if ($LoopTests) {
+        Write-Host ("  Loop iteration {0}" -f $iteration)
       }
-      Write-Host "  > $testExe"
-      $previousErrorAction = $ErrorActionPreference
-      try {
-        $ErrorActionPreference = 'Continue'
-        $testOutput = & $testPath 2>&1 | Out-String
-      }
-      finally {
-        $ErrorActionPreference = $previousErrorAction
-      }
-      $testExitCode = $LASTEXITCODE
-      $trimmedOutput = $testOutput.Trim()
-      $testResults += [pscustomobject]@{
-        Name     = $testExe
-        ExitCode = $testExitCode
-        Output   = $trimmedOutput
-      }
-      if ($testExitCode -ne 0) {
-        Write-Host ("    FAIL (exit code {0})" -f $testExitCode)
-        Write-Host "    -- captured output --"
-        if ($trimmedOutput) {
-          Write-Host $trimmedOutput
+      foreach ($testExe in $testExecutables) {
+        $testPath = Join-Path $testDir $testExe
+        if (-not (Test-Path $testPath)) {
+          throw "Test executable not found: $testPath"
+        }
+        $iterationSuffix = ''
+        if ($LoopTests) {
+          $iterationSuffix = (" (iteration {0})" -f $iteration)
+        }
+        Write-Host ("  > {0}{1}" -f $testExe, $iterationSuffix)
+        $testDumpDir = ''
+        $testOutput = ''
+        $previousErrorAction = $ErrorActionPreference
+        try {
+          $ErrorActionPreference = 'Continue'
+          if ($CaptureDumps) {
+            $iterationDumpRoot = Join-Path $dumpRoot ("iter-{0}" -f $iteration)
+            $testDumpDir = Join-Path $iterationDumpRoot $testExe
+            New-Item -ItemType Directory -Force -Path $testDumpDir | Out-Null
+            $dumpArgs = @('-accepteula','-ma','-e','-n','1','-x',$testDumpDir,$testPath)
+            $testOutput = & $dumpToolExe @dumpArgs 2>&1 | Out-String
+          }
+          else {
+            $testOutput = & $testPath 2>&1 | Out-String
+          }
+        }
+        finally {
+          $ErrorActionPreference = $previousErrorAction
+        }
+        $testExitCode = $LASTEXITCODE
+        $trimmedOutput = $testOutput.Trim()
+        $testResults += [pscustomobject]@{
+          Name     = $testExe
+          ExitCode = $testExitCode
+          Output   = $trimmedOutput
+          Iteration = $iteration
+          DumpDir  = $testDumpDir
+        }
+        if ($testExitCode -ne 0) {
+          Write-Host ("    FAIL (exit code {0})" -f $testExitCode)
+          Write-Host "    -- captured output --"
+          if ($trimmedOutput) {
+            Write-Host $trimmedOutput
+          }
+          else {
+            Write-Host "    <no output captured>"
+          }
+          $runSucceeded = $false
+          $failureMessage = "Test $testExe failed (exit code $testExitCode) on iteration $iteration"
+          break
         }
         else {
-          Write-Host "    <no output captured>"
+          Write-Host "    PASS"
         }
-        $runSucceeded = $false
-        $failureMessage = "Test $testExe failed (exit code $testExitCode)"
+      }
+      if (-not $runSucceeded) {
         break
       }
-      else {
-        Write-Host "    PASS"
+      if (-not $LoopTests) {
+        break
+      }
+      if ($loopLimit -gt 0 -and $iteration -ge $loopLimit) {
+        Write-Host ("  Loop limit reached ({0} iterations); stopping without failure." -f $loopLimit)
+        break
       }
     }
   }
@@ -294,7 +352,11 @@ if ($testsEnabled) {
     $logLines += $entryLine
     foreach ($entry in $testResults) {
       $status = if ($entry.ExitCode -eq 0) { 'PASS' } else { 'FAIL' }
-      $logLines += "$status $($entry.Name) exit=$($entry.ExitCode)"
+      $statusLine = "$status $($entry.Name) iter=$($entry.Iteration) exit=$($entry.ExitCode)"
+      if ($entry.DumpDir) {
+        $statusLine += " dumps=$($entry.DumpDir)"
+      }
+      $logLines += $statusLine
       if ($entry.ExitCode -ne 0 -and $entry.Output) {
         $logLines += "  Output: $($entry.Output)"
       }
