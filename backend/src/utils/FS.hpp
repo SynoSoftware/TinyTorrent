@@ -2,7 +2,8 @@
 
 #include <filesystem>
 
-namespace tt::utils {
+namespace tt::utils
+{
 
 std::filesystem::path data_root();
 

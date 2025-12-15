@@ -1,6 +1,15 @@
 project('tinytorrent-daemon', ['cpp', 'c'], version : '0.1.0',
   default_options : ['cpp_std=c++20'])
 
+if host_machine.system() == 'windows'
+  add_project_arguments(
+    '/D_WIN32_WINNT=0x0A00',
+    '/DWINVER=0x0A00',
+    language: ['cpp', 'c']
+  )
+endif
+
+
 tt_enable_logging = get_option('tt_enable_logging')
 tt_enable_tests = get_option('tt_enable_tests')
 build_type = get_option('buildtype')
@@ -43,7 +52,7 @@ tt_c_args += tt_define_args
 tt_includes = include_directories('src', 'src/vendor')
 
 tt_deps = [
-  dependency('LibtorrentRasterbar', method: 'cmake', modules: ['LibtorrentRasterbar::torrent-rasterbar']),
+  dependency(  'LibtorrentRasterbar',  method: 'cmake',  modules: ['LibtorrentRasterbar::torrent-rasterbar'],  cmake_args: ['-DCMAKE_POLICY_DEFAULT_CMP0091=NEW']),
   dependency('yyjson', method: 'cmake', modules: ['yyjson::yyjson']),
   dependency('unofficial-sqlite3', method: 'cmake', modules: ['unofficial::sqlite3::sqlite3']),
 ]
@@ -58,6 +67,8 @@ tt_sources = [
   'src/main.cpp',
   'src/engine/Core.cpp',
   'src/engine/AutomationAgent.cpp',
+  'src/engine/AsyncTaskService.cpp',   
+  'src/engine/BlocklistManager.cpp',  
   'src/engine/HistoryAgent.cpp',
   'src/engine/PersistenceManager.cpp',
   'src/engine/TorrentManager.cpp',
