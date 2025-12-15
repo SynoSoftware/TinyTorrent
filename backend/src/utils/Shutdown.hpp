@@ -2,7 +2,8 @@
 
 #include <atomic>
 
-namespace tt::runtime {
+namespace tt::runtime
+{
 
 void request_shutdown() noexcept;
 bool should_shutdown() noexcept;

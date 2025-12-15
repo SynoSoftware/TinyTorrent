@@ -10,20 +10,22 @@
 
 struct yyjson_val;
 
-namespace tt::rpc {
+namespace tt::rpc
+{
 using DispatchHandler = std::function<std::future<std::string>(yyjson_val *)>;
 
-class Dispatcher {
-public:
-  Dispatcher(engine::Core *engine, std::string rpc_bind = {});
-  std::future<std::string> dispatch(std::string_view payload);
+class Dispatcher
+{
+  public:
+    Dispatcher(engine::Core *engine, std::string rpc_bind = {});
+    std::future<std::string> dispatch(std::string_view payload);
 
-private:
-  void register_handlers();
+  private:
+    void register_handlers();
 
-  engine::Core *engine_;
-  std::string rpc_bind_;
-  std::unordered_map<std::string, DispatchHandler> handlers_;
+    engine::Core *engine_;
+    std::string rpc_bind_;
+    std::unordered_map<std::string, DispatchHandler> handlers_;
 };
 
 } // namespace tt::rpc

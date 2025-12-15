@@ -4,6 +4,8 @@ tt_test_common_sources = [
   '../src/rpc/FsHooks.cpp',
   '../src/engine/Core.cpp',
   '../src/engine/AutomationAgent.cpp',
+  '../src/engine/BlocklistManager.cpp',  
+  '../src/engine/AsyncTaskService.cpp',
   '../src/engine/HistoryAgent.cpp',
   '../src/engine/PersistenceManager.cpp',
   '../src/engine/TorrentManager.cpp',

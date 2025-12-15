@@ -7,19 +7,19 @@
 #include <optional>
 #include <vector>
 
-namespace tt::rpc::filesystem {
+namespace tt::rpc::filesystem
+{
 
 using DirectoryEntriesFn =
     std::function<std::vector<FsEntry>(std::filesystem::path const &)>;
 using PathCheckFn = std::function<bool(std::filesystem::path const &)>;
-using SpaceQueryFn =
-    std::function<std::optional<std::filesystem::space_info>(
-        std::filesystem::path const &)>;
+using SpaceQueryFn = std::function<std::optional<std::filesystem::space_info>(
+    std::filesystem::path const &)>;
 
-std::vector<FsEntry> collect_directory_entries(
-    std::filesystem::path const &path);
-std::optional<std::filesystem::space_info> query_space(
-    std::filesystem::path const &path);
+std::vector<FsEntry>
+collect_directory_entries(std::filesystem::path const &path);
+std::optional<std::filesystem::space_info>
+query_space(std::filesystem::path const &path);
 bool path_exists(std::filesystem::path const &path);
 bool is_directory(std::filesystem::path const &path);
 
