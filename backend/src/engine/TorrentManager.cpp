@@ -15,10 +15,10 @@
 #include <system_error>
 #include <vector>
 #if defined(__has_include)
-#  if __has_include(<sanitizer/common_interface_defs.h>)
-#    include <sanitizer/common_interface_defs.h>
-#    define TT_HAS_SANITIZER_COMMON_INTERFACE 1
-#  endif
+#if __has_include(<sanitizer/common_interface_defs.h>)
+#include <sanitizer/common_interface_defs.h>
+#define TT_HAS_SANITIZER_COMMON_INTERFACE 1
+#endif
 #endif
 
 namespace
@@ -26,8 +26,7 @@ namespace
 
 #if defined(TT_HAS_SANITIZER_COMMON_INTERFACE)
 void annotate_alert_buffer(std::vector<libtorrent::alert *> const &buffer,
-                           std::size_t old_size,
-                           std::size_t new_size)
+                           std::size_t old_size, std::size_t new_size)
 {
     auto const capacity = buffer.capacity();
     if (capacity == 0)
@@ -43,8 +42,7 @@ void annotate_alert_buffer(std::vector<libtorrent::alert *> const &buffer,
 }
 #else
 void annotate_alert_buffer(std::vector<libtorrent::alert *> const &,
-                           std::size_t,
-                           std::size_t)
+                           std::size_t, std::size_t)
 {
 }
 #endif
@@ -365,8 +363,10 @@ void TorrentManager::process_alerts()
     {
         return;
     }
-    annotate_alert_buffer(alert_buffer_, alert_buffer_annotated_size_, 0);
+    auto const previous_annotated_size = alert_buffer_annotated_size_;
+    annotate_alert_buffer(alert_buffer_, previous_annotated_size, 0);
     alert_buffer_.clear();
+    annotate_alert_buffer(alert_buffer_, 0, alert_buffer_.capacity());
     alert_buffer_annotated_size_ = 0;
     session_->pop_alerts(&alert_buffer_);
     annotate_alert_buffer(alert_buffer_, 0, alert_buffer_.size());

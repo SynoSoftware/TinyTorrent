@@ -4,6 +4,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <filesystem>
 #include <functional>
 #include <limits>
 #include <optional>
@@ -42,6 +43,12 @@ std::uint64_t to_epoch_seconds(std::chrono::system_clock::time_point tp)
     return static_cast<std::uint64_t>(
         std::chrono::duration_cast<std::chrono::seconds>(tp.time_since_epoch())
             .count());
+}
+
+std::string to_utf8(std::filesystem::path const &path)
+{
+    auto encoded = path.generic_u8string();
+    return std::string(encoded.begin(), encoded.end());
 }
 
 void add_session_stats(yyjson_mut_doc *doc, yyjson_mut_val *session,
@@ -435,8 +442,9 @@ std::string serialize_session_settings(
     yyjson_mut_obj_add_str(native, arguments, "version", "TinyTorrent 0.1.0");
     yyjson_mut_obj_add_uint(native, arguments, "rpc-version", 17);
     yyjson_mut_obj_add_uint(native, arguments, "rpc-version-min", 1);
+    auto download_dir = to_utf8(settings.download_path);
     yyjson_mut_obj_add_str(native, arguments, "download-dir",
-                           settings.download_path.string().c_str());
+                           download_dir.c_str());
     yyjson_mut_obj_add_sint(native, arguments, "speed-limit-down",
                             settings.download_rate_limit_kbps);
     yyjson_mut_obj_add_bool(native, arguments, "speed-limit-down-enabled",
@@ -481,15 +489,17 @@ std::string serialize_session_settings(
                             settings.queue_stalled_enabled);
     if (!settings.incomplete_dir.empty())
     {
+        auto incomplete_dir = to_utf8(settings.incomplete_dir);
         yyjson_mut_obj_add_str(native, arguments, "incomplete-dir",
-                               settings.incomplete_dir.string().c_str());
+                               incomplete_dir.c_str());
     }
     yyjson_mut_obj_add_bool(native, arguments, "incomplete-dir-enabled",
                             settings.incomplete_dir_enabled);
     if (!settings.watch_dir.empty())
     {
+        auto watch_dir = to_utf8(settings.watch_dir);
         yyjson_mut_obj_add_str(native, arguments, "watch-dir",
-                               settings.watch_dir.string().c_str());
+                               watch_dir.c_str());
     }
     yyjson_mut_obj_add_bool(native, arguments, "watch-dir-enabled",
                             settings.watch_dir_enabled);
@@ -546,8 +556,9 @@ std::string serialize_session_settings(
     }
     if (blocklist_enabled)
     {
+        auto blocklist_path = to_utf8(settings.blocklist_path);
         yyjson_mut_obj_add_str(native, arguments, "blocklist-path",
-                               settings.blocklist_path.string().c_str());
+                               blocklist_path.c_str());
     }
     if (auto port = parse_listen_port(settings.listen_interface))
     {
@@ -569,7 +580,7 @@ std::string serialize_session_settings(
         yyjson_mut_obj_add_uint(native, arguments, "rpc-port", *port);
     }
 
-    return doc.write("{}");
+    return doc.write();
 }
 
 std::string serialize_session_stats(engine::SessionSnapshot const &snapshot)
