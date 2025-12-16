@@ -27,6 +27,7 @@
 #include <random>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -391,7 +392,18 @@ Server::Server(engine::Core *engine, std::string bind_url,
 
 Server::~Server()
 {
+    // Set the destroying flag BEFORE stopping to prevent any callbacks
+    // from accessing member variables during shutdown
+    destroying_.store(true, std::memory_order_release);
+
     stop();
+
+    // Clear connection-dependent state before mg_mgr_free
+    // The destroying flag will prevent callbacks from running
+    ws_clients_.clear();
+    pending_http_requests_.clear();
+
+    // Free the mongoose manager - callbacks are prevented by destroying flag
     mg_mgr_free(&mgr_);
 }
 
@@ -425,7 +437,13 @@ void Server::stop()
         return;
     }
 
-    broadcast_event(serialize_ws_event_app_shutdown());
+    // Only broadcast shutdown event if we're not destroying the Server
+    // During destruction, the destroying flag is already set and connections
+    // will be closed by mg_mgr_free anyway
+    if (!destroying_.load(std::memory_order_acquire))
+    {
+        broadcast_event(serialize_ws_event_app_shutdown());
+    }
 
     TT_LOG_INFO("Stopping RPC worker thread");
     if (worker_.joinable())
@@ -433,7 +451,6 @@ void Server::stop()
         worker_.join();
     }
 }
-
 void Server::run_loop()
 {
     try
@@ -460,6 +477,12 @@ void Server::run_loop()
 
 void Server::broadcast_websocket_updates()
 {
+    // Don't access ws_clients_ during destruction
+    if (destroying_.load(std::memory_order_acquire))
+    {
+        return;
+    }
+
     if (engine_ == nullptr)
     {
         return;
@@ -480,7 +503,14 @@ void Server::broadcast_websocket_updates()
 
     auto now = std::chrono::steady_clock::now();
     bool ready = now - last_patch_sent_time_ >= kWebsocketPatchInterval;
-    bool has_clients = !ws_clients_.empty();
+
+    std::vector<WsClient> clients_snapshot;
+    {
+        std::lock_guard<std::mutex> lock(ws_clients_mtx_);
+        clients_snapshot = ws_clients_;
+    }
+
+    bool has_clients = !clients_snapshot.empty();
 
     if (!has_clients)
     {
@@ -509,17 +539,29 @@ void Server::broadcast_websocket_updates()
             auto payload =
                 serialize_ws_patch(*pending_snapshot_, patch_diff.added,
                                    patch_diff.updated, patch_diff.removed);
-            for (auto &client : ws_clients_)
+            std::vector<struct mg_connection *> clients_to_update;
             {
-                if (client.conn == nullptr || client.conn->is_closing)
+                std::lock_guard<std::mutex> lock(ws_clients_mtx_);
+                for (auto it = ws_clients_.begin(); it != ws_clients_.end();)
                 {
-                    continue;
+                    auto &client = *it;
+                    if (client.conn == nullptr)
+                    {
+                        it = ws_clients_.erase(it);
+                        continue;
+                    }
+                    if (client.last_known_snapshot == last_patch_snapshot_)
+                    {
+                        clients_to_update.push_back(client.conn);
+                        client.last_known_snapshot = pending_snapshot_;
+                    }
+                    ++it;
                 }
-                if (client.last_known_snapshot == last_patch_snapshot_)
-                {
-                    send_ws_message(client.conn, payload);
-                    client.last_known_snapshot = pending_snapshot_;
-                }
+            }
+            // Send messages without holding the lock
+            for (auto conn : clients_to_update)
+            {
+                send_ws_message(conn, payload);
             }
             last_patch_snapshot_ = pending_snapshot_;
             last_patch_sent_time_ = now;
@@ -534,6 +576,7 @@ void Server::broadcast_websocket_updates()
         }
         else
         {
+            std::lock_guard<std::mutex> lock(ws_clients_mtx_);
             for (auto &client : ws_clients_)
             {
                 if (client.last_known_snapshot == last_patch_snapshot_)
@@ -556,6 +599,7 @@ void Server::broadcast_websocket_updates()
     if (now - last_ping_time_ >= kWebsocketPingInterval)
     {
         last_ping_time_ = now;
+        std::lock_guard<std::mutex> lock(ws_clients_mtx_);
         for (auto &client : ws_clients_)
         {
             send_ws_ping(client.conn);
@@ -718,6 +762,12 @@ void Server::handle_event(struct mg_connection *conn, int ev, void *ev_data)
         return;
     }
 
+    // If the Server is being destroyed, do not access any member variables
+    if (self->destroying_.load(std::memory_order_acquire))
+    {
+        return;
+    }
+
     switch (ev)
     {
     case MG_EV_HTTP_MSG:
@@ -754,6 +804,11 @@ void Server::handle_http_message(struct mg_connection *conn,
         return;
     }
 
+    // Don't process HTTP requests during destruction
+    if (self->destroying_.load(std::memory_order_acquire))
+    {
+        return;
+    }
     std::string_view uri(hm->uri.buf, hm->uri.len);
     std::string_view method(hm->method.buf, hm->method.len);
     TT_LOG_DEBUG("HTTP request {} {}", method, uri);
@@ -882,6 +937,12 @@ void Server::handle_http_message(struct mg_connection *conn,
 void Server::handle_ws_open(struct mg_connection *conn,
                             struct mg_http_message * /*hm*/)
 {
+    // Don't accept new WebSocket connections during destruction
+    if (destroying_.load(std::memory_order_acquire))
+    {
+        return;
+    }
+
     if (conn == nullptr)
     {
         return;
@@ -889,7 +950,10 @@ void Server::handle_ws_open(struct mg_connection *conn,
     auto snapshot = engine_ ? engine_->snapshot()
                             : std::make_shared<engine::SessionSnapshot>();
     send_ws_message(conn, serialize_ws_snapshot(*snapshot));
-    ws_clients_.push_back({conn, std::move(snapshot)});
+    {
+        std::lock_guard<std::mutex> lock(ws_clients_mtx_);
+        ws_clients_.push_back({conn, std::move(snapshot)});
+    }
 }
 
 void Server::handle_ws_message(struct mg_connection * /*conn*/,
@@ -900,6 +964,13 @@ void Server::handle_ws_message(struct mg_connection * /*conn*/,
 
 void Server::handle_connection_closed(struct mg_connection *conn, int /*ev*/)
 {
+    // Don't modify ws_clients_ during destruction
+    if (destroying_.load(std::memory_order_acquire))
+    {
+        return;
+    }
+
+    std::lock_guard<std::mutex> lock(ws_clients_mtx_);
     ws_clients_.erase(std::remove_if(ws_clients_.begin(), ws_clients_.end(),
                                      [conn](WsClient const &client)
                                      { return client.conn == conn; }),
@@ -909,39 +980,50 @@ void Server::handle_connection_closed(struct mg_connection *conn, int /*ev*/)
 void Server::send_ws_message(struct mg_connection *conn,
                              std::string const &payload)
 {
-    if (conn == nullptr || conn->is_closing)
+    // Don't send messages during destruction
+    if (destroying_.load(std::memory_order_acquire))
     {
         return;
     }
+
+    if (conn == nullptr)
+    {
+        return;
+    }
+    // Try to send; if it fails, close the connection
     size_t sent =
         mg_ws_send(conn, payload.data(), payload.size(), WEBSOCKET_OP_TEXT);
     if (sent == 0)
     {
-        conn->is_closing = 1;
+        // Connection is dead or closed; mongoose will handle cleanup
+        // We don't need to manually mark it as closing
     }
 }
 
 void send_ws_ping(struct mg_connection *conn)
 {
-    if (conn == nullptr || conn->is_closing)
+    if (conn == nullptr)
     {
         return;
     }
+    // Send ping; if it fails, mongoose will handle cleanup
     size_t sent = mg_ws_send(conn, nullptr, 0, WEBSOCKET_OP_PING);
-    if (sent == 0)
-    {
-        conn->is_closing = 1;
-    }
+    (void)sent; // Mongoose handles connection closure on failure
 }
 
 void Server::process_pending_http_responses()
 {
+    // Don't process pending requests during destruction
+    if (destroying_.load(std::memory_order_acquire))
+    {
+        return;
+    }
+
     for (auto it = pending_http_requests_.begin();
          it != pending_http_requests_.end();)
     {
         auto &entry = *it;
-        if (entry.conn == nullptr || entry.conn->is_closing ||
-            entry.future == nullptr)
+        if (entry.conn == nullptr || entry.future == nullptr)
         {
             it = pending_http_requests_.erase(it);
             continue;
@@ -975,15 +1057,24 @@ void Server::process_pending_http_responses()
 
 void Server::broadcast_event(std::string const &payload)
 {
-    for (auto it = ws_clients_.begin(); it != ws_clients_.end();)
+    // Don't broadcast events during destruction
+    if (destroying_.load(std::memory_order_acquire))
     {
-        if (it->conn == nullptr || it->conn->is_closing)
+        return;
+    }
+
+    std::vector<WsClient> clients_snapshot;
+    {
+        std::lock_guard<std::mutex> lock(ws_clients_mtx_);
+        clients_snapshot = ws_clients_;
+    }
+
+    for (auto &client : clients_snapshot)
+    {
+        if (client.conn != nullptr)
         {
-            it = ws_clients_.erase(it);
-            continue;
+            send_ws_message(client.conn, payload);
         }
-        send_ws_message(it->conn, payload);
-        ++it;
     }
 }
 

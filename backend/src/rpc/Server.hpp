@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <future>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <thread>
@@ -88,6 +89,7 @@ class Server
     std::thread worker_;
     ServerOptions options_;
     std::string ws_path_ = "/ws";
+    std::atomic_bool destroying_{false};
 
     struct PendingHttpRequest
     {
@@ -101,6 +103,7 @@ class Server
         std::shared_ptr<engine::SessionSnapshot> last_known_snapshot;
     };
     std::vector<WsClient> ws_clients_;
+    std::mutex ws_clients_mtx_; // Protects ws_clients_ from concurrent access
     std::vector<PendingHttpRequest> pending_http_requests_;
     std::shared_ptr<engine::SessionSnapshot> last_patch_snapshot_;
     std::shared_ptr<engine::SessionSnapshot> pending_snapshot_;

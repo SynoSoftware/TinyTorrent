@@ -141,7 +141,17 @@ namespace tt::engine
 
 TorrentManager::TorrentManager() = default;
 
-TorrentManager::~TorrentManager() = default;
+TorrentManager::~TorrentManager()
+{
+    // Ensure session is destroyed before other members
+    // libtorrent session must be destroyed cleanly to avoid
+    // potential callbacks accessing freed memory
+    if (session_)
+    {
+        session_->pause();
+        session_.reset();
+    }
+}
 
 void TorrentManager::start_session(libtorrent::session_params params)
 {
@@ -223,6 +233,7 @@ TorrentManager::build_snapshot(SnapshotBuildCallbacks const &callbacks)
     std::uint64_t total_download_rate = 0;
     std::uint64_t total_upload_rate = 0;
     std::size_t paused_count = 0;
+
     for (auto const &handle : handles)
     {
         if (!handle.is_valid())
@@ -232,13 +243,17 @@ TorrentManager::build_snapshot(SnapshotBuildCallbacks const &callbacks)
         auto status = handle.status();
         auto const hash = info_hash_to_hex(status.info_hashes);
         int id = assign_rpc_id(status.info_hashes.get_best());
+
         result.seen_ids.insert(id);
+
         if (callbacks.on_torrent_visit)
         {
             callbacks.on_torrent_visit(id, handle, status);
         }
+
         std::uint64_t revision =
             callbacks.ensure_revision ? callbacks.ensure_revision(id) : 0;
+
         TorrentSnapshot entry;
         if (auto cached = cached_snapshot(id, revision))
         {
@@ -252,25 +267,22 @@ TorrentManager::build_snapshot(SnapshotBuildCallbacks const &callbacks)
         {
             continue;
         }
+
         entry.revision = revision;
+
         if (callbacks.labels_for_torrent)
         {
             entry.labels = callbacks.labels_for_torrent(id, hash);
         }
-        else
-        {
-            entry.labels.clear();
-        }
+
         if (callbacks.priority_for_torrent)
         {
             entry.bandwidth_priority = callbacks.priority_for_torrent(id);
         }
-        else
-        {
-            entry.bandwidth_priority = 0;
-        }
+
         updated_cache[id] = entry;
         snapshot->torrents.push_back(entry);
+
         const auto download_payload =
             status.download_payload_rate > 0 ? status.download_payload_rate : 0;
         const auto upload_payload =
@@ -282,6 +294,7 @@ TorrentManager::build_snapshot(SnapshotBuildCallbacks const &callbacks)
             ++paused_count;
         }
     }
+
     snapshot->torrent_count = snapshot->torrents.size();
     snapshot->paused_torrent_count = paused_count;
     snapshot->active_torrent_count =
@@ -291,12 +304,12 @@ TorrentManager::build_snapshot(SnapshotBuildCallbacks const &callbacks)
     snapshot->download_rate = total_download_rate;
     snapshot->upload_rate = total_upload_rate;
     snapshot->dht_nodes = 0;
+
     snapshot_cache_ = std::move(updated_cache);
     store_snapshot(snapshot);
     result.snapshot = std::move(snapshot);
     return result;
 }
-
 void TorrentManager::notify()
 {
     wake_cv_.notify_one();

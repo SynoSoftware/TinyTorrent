@@ -21,12 +21,23 @@ This folder captures the TinyTorrent micro-engine described in `AGENTS.md`. The 
    powershell -File build.ps1 -Configuration Debug
    ```
    This script installs the manifest, runs `meson setup` into `build/debug`, and then builds everything with `ninja`.
+
 ### Visual Studio 2026
-Open the repository with VS2026 (File → Open → Folder). After running the build script, Visual Studio sees the generated `build/debug/build.ninja` file and you can build/debug `tt-engine` directly from the IDE (the debugger attaches to the same binary under `build/debug`).
-4. When you need the size-optimized binary, rerun the wrapper with `MinSizeRel`. That configuration flips the macros/logging, uses the static CRT (`/MT`) with `/Os`, `/GL`, `/LTCG`, runs LTO/strip, links against the static `x64-windows-static` artifacts, and keeps the tests disabled:
-   ```
-   powershell -File build.ps1 -Configuration MinSizeRel
-   ```
+
+Open the repository with VS2026 (File → Open → Folder). After running the build script, Visual Studio sees the generated `build/debug/build.ninja` file and you can build/debug `tt-engine` directly from the IDE (the debugger attaches to the same binary under `build/debug`). 4. When you need the size-optimized binary, rerun the wrapper with `MinSizeRel`. That configuration flips the macros/logging, uses the static CRT (`/MT`) with `/Os`, `/GL`, `/LTCG`, runs LTO/strip, links against the static `x64-windows-static` artifacts, and keeps the tests disabled:
+
+```
+powershell -File build.ps1 -Configuration MinSizeRel
+```
+
+## Unified helper (`tt.ps1`)
+
+- `powershell -File tt.ps1 build -Configuration Debug` — build only (respects `-Clean`).
+- `powershell -File tt.ps1 test -SkipBuild` — run all test binaries once, sequentially.
+- `powershell -File tt.ps1 loop -Iterations 50` — sequential loop until failure or the iteration limit (or add `-Duration 5m`).
+- `powershell -File tt.ps1 parallel -MaxConcurrent 8 -RunsPerJob 5 -Duration 10m` — queue tests across worker jobs with unique ports.
+
+The legacy parallel/stress scripts have been removed to keep a single, lean entry point.
 
 > **Tip:** Run these scripts from the Visual Studio 2026 Developer Command Prompt so the MSVC toolchain (`cl.exe`, `link.exe`, …) is already on PATH; otherwise install Meson/Ninja into an environment that already sees the compiler.
 

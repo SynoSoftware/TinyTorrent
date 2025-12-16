@@ -37,3 +37,8 @@ package-lock.json
 .vshistory
 vcpkg_installed/
 vcpkg/
+backend/data/tinytorrent.db
+backend/data/tinytorrent.db-wal
+backend/data/tinytorrent.db-shm
+*.dmp
+dump*.txt
