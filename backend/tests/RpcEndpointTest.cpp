@@ -139,6 +139,7 @@ struct WsTestContext
     std::atomic<bool> message_signaled{false};
     bool message_received = false;
     std::string message_payload;
+    std::atomic<bool> connection_alive{false};
 
     void signal_completion(bool success)
     {
@@ -174,6 +175,7 @@ void ws_client_handler(struct mg_connection *conn, int ev, void *ev_data)
     }
     if (ev == MG_EV_WS_OPEN)
     {
+        ctx->connection_alive.store(true, std::memory_order_release);
         ctx->signal_completion(true);
     }
     else if (ev == MG_EV_WS_MSG)
@@ -191,6 +193,7 @@ void ws_client_handler(struct mg_connection *conn, int ev, void *ev_data)
     }
     else if (ev == MG_EV_CLOSE || ev == MG_EV_ERROR)
     {
+        ctx->connection_alive.store(false, std::memory_order_release);
         ctx->signal_completion(false);
     }
 }
@@ -350,7 +353,7 @@ void run_ws_client(WsTestContext &context, std::string const &url,
         }
     }
 
-    if (conn != nullptr)
+    if (conn != nullptr && context.connection_alive.load(std::memory_order_acquire))
     {
         conn->is_closing = 1;
     }

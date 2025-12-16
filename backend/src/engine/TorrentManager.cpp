@@ -14,6 +14,42 @@
 #include <span>
 #include <system_error>
 #include <vector>
+#if defined(__has_include)
+#  if __has_include(<sanitizer/common_interface_defs.h>)
+#    include <sanitizer/common_interface_defs.h>
+#    define TT_HAS_SANITIZER_COMMON_INTERFACE 1
+#  endif
+#endif
+
+namespace
+{
+
+#if defined(TT_HAS_SANITIZER_COMMON_INTERFACE)
+void annotate_alert_buffer(std::vector<libtorrent::alert *> const &buffer,
+                           std::size_t old_size,
+                           std::size_t new_size)
+{
+    auto const capacity = buffer.capacity();
+    if (capacity == 0)
+    {
+        return;
+    }
+    auto const element_size = sizeof(libtorrent::alert *);
+    auto const begin = reinterpret_cast<char const *>(buffer.data());
+    auto const end = begin + capacity * element_size;
+    auto const old_mid = begin + old_size * element_size;
+    auto const new_mid = begin + new_size * element_size;
+    __sanitizer_annotate_contiguous_container(begin, end, old_mid, new_mid);
+}
+#else
+void annotate_alert_buffer(std::vector<libtorrent::alert *> const &,
+                           std::size_t,
+                           std::size_t)
+{
+}
+#endif
+
+} // namespace
 #if defined(_WIN32)
 #include <fcntl.h>
 #include <io.h>
@@ -139,7 +175,10 @@ bool write_metadata_with_fsync(std::filesystem::path const &target,
 namespace tt::engine
 {
 
-TorrentManager::TorrentManager() = default;
+TorrentManager::TorrentManager()
+{
+    alert_buffer_.reserve(kAlertBufferCapacity);
+}
 
 TorrentManager::~TorrentManager()
 {
@@ -326,10 +365,13 @@ void TorrentManager::process_alerts()
     {
         return;
     }
-    std::vector<libtorrent::alert *> alert_buffer;
-    alert_buffer.reserve(128);
-    session_->pop_alerts(&alert_buffer);
-    for (auto const *alert : alert_buffer)
+    annotate_alert_buffer(alert_buffer_, alert_buffer_annotated_size_, 0);
+    alert_buffer_.clear();
+    alert_buffer_annotated_size_ = 0;
+    session_->pop_alerts(&alert_buffer_);
+    annotate_alert_buffer(alert_buffer_, 0, alert_buffer_.size());
+    alert_buffer_annotated_size_ = alert_buffer_.size();
+    for (auto const *alert : alert_buffer_)
     {
         if (auto *finished =
                 libtorrent::alert_cast<libtorrent::torrent_finished_alert>(

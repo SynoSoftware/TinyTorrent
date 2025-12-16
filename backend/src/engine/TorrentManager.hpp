@@ -3,6 +3,7 @@
 #include "engine/Core.hpp"
 
 #include <libtorrent/add_torrent_params.hpp>
+#include <libtorrent/alert.hpp>
 #include <libtorrent/ip_filter.hpp>
 #include <libtorrent/session.hpp>
 #include <libtorrent/session_handle.hpp>
@@ -188,6 +189,9 @@ class TorrentManager
     std::unordered_map<std::string, std::filesystem::path> pending_move_paths_;
 
     static constexpr std::size_t kMaxPendingTasks = 4096;
+    static constexpr std::size_t kAlertBufferCapacity = 65536;
+    std::vector<libtorrent::alert *> alert_buffer_;
+    std::size_t alert_buffer_annotated_size_ = 0;
 };
 
 } // namespace tt::engine
