@@ -3,10 +3,21 @@
 
 #include <doctest/doctest.h>
 
+#include <atomic>
 #include <chrono>
+#include <cstdint>
+#include <filesystem>
+#include <functional>
 #include <memory>
+#include <string>
 #include <thread>
 #include <vector>
+
+#if defined(_WIN32)
+#include <process.h>
+#else
+#include <unistd.h>
+#endif
 
 namespace
 {
@@ -37,8 +48,26 @@ struct EngineRunner
 tt::engine::CoreSettings make_test_settings()
 {
     tt::engine::CoreSettings settings;
-    settings.download_path = std::filesystem::temp_directory_path() / "tt_test";
-    settings.state_path = std::filesystem::temp_directory_path() / "tt_test.db";
+    auto temp_root = std::filesystem::temp_directory_path();
+    static std::atomic<std::uint64_t> unique_counter{0};
+    auto now_value =
+        std::chrono::steady_clock::now().time_since_epoch().count();
+    auto thread_value =
+        std::hash<std::thread::id>{}(std::this_thread::get_id());
+    auto process_id = []() -> std::uint32_t
+    {
+#if defined(_WIN32)
+        return static_cast<std::uint32_t>(_getpid());
+#else
+        return static_cast<std::uint32_t>(getpid());
+#endif
+    }();
+    auto counter_value = unique_counter.fetch_add(1, std::memory_order_relaxed);
+    auto unique_tag =
+        std::to_string(now_value) + "_" + std::to_string(thread_value) + "_" +
+        std::to_string(process_id) + "_" + std::to_string(counter_value);
+    settings.download_path = temp_root / ("tt_test_" + unique_tag);
+    settings.state_path = temp_root / ("tt_test_" + unique_tag + ".db");
     settings.download_rate_limit_kbps = 100;
     settings.upload_rate_limit_kbps = 50;
     settings.listen_interface = "127.0.0.1:0"; // Random port
