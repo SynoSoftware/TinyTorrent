@@ -71,6 +71,7 @@ tt_sources = [
   'src/engine/BlocklistManager.cpp',  
   'src/engine/HistoryAgent.cpp',
   'src/engine/PersistenceManager.cpp',
+  'src/engine/SettingsManager.cpp',
   'src/engine/TorrentManager.cpp',
   'src/rpc/Server.cpp',
   'src/rpc/Dispatcher.cpp',

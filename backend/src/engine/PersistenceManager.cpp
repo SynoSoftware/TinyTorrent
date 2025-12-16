@@ -18,15 +18,43 @@ bool PersistenceManager::is_valid() const noexcept
     return database_ != nullptr && database_->is_valid();
 }
 
-std::vector<storage::PersistedTorrent> PersistenceManager::load_torrents() const
+std::vector<storage::PersistedTorrent> PersistenceManager::load_torrents()
 {
     if (!is_valid())
     {
         return {};
     }
-    return database_->load_torrents();
-}
 
+    auto loaded = database_->load_torrents();
+
+    {
+        std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+        torrents_.clear();
+        labels_.clear();
+
+        for (auto const &entry : loaded)
+        {
+            if (entry.hash.empty())
+            {
+                continue;
+            }
+
+            auto cached = entry;
+            cached.resume_data.clear();
+            cached.metainfo.clear();
+
+            torrents_[entry.hash] = cached;
+
+            if (!entry.labels.empty())
+            {
+                labels_[entry.hash] =
+                    storage::deserialize_label_list(entry.labels);
+            }
+        }
+    }
+
+    return loaded;
+}
 SessionStatistics PersistenceManager::load_session_statistics()
 {
     SessionStatistics stats{};
@@ -47,33 +75,24 @@ SessionStatistics PersistenceManager::load_session_statistics()
 bool PersistenceManager::persist_session_stats(SessionStatistics const &stats)
 {
     if (!is_valid())
-    {
         return false;
-    }
     bool success = true;
-    success =
-        success && database_->set_setting("secondsActive",
-                                          std::to_string(stats.seconds_active));
-    success =
-        success && database_->set_setting("uploadedBytes",
-                                          std::to_string(stats.uploaded_bytes));
-    success = success &&
-              database_->set_setting("downloadedBytes",
-                                     std::to_string(stats.downloaded_bytes));
+    success &= database_->set_setting("secondsActive",
+                                      std::to_string(stats.seconds_active));
+    success &= database_->set_setting("uploadedBytes",
+                                      std::to_string(stats.uploaded_bytes));
+    success &= database_->set_setting("downloadedBytes",
+                                      std::to_string(stats.downloaded_bytes));
     return success;
 }
 
 bool PersistenceManager::persist_settings(CoreSettings const &settings)
 {
     if (!is_valid())
-    {
         return false;
-    }
     if (!database_->begin_transaction())
-    {
-        TT_LOG_INFO("failed to begin settings transaction");
         return false;
-    }
+
     bool success = true;
     auto set_bool = [&](char const *key, bool value)
     { success = success && database_->set_setting(key, value ? "1" : "0"); };
@@ -133,92 +152,180 @@ bool PersistenceManager::persist_settings(CoreSettings const &settings)
     return database_->commit_transaction();
 }
 
-bool PersistenceManager::upsert_torrent(
-    storage::PersistedTorrent const &torrent)
+void PersistenceManager::add_or_update_torrent(
+    storage::PersistedTorrent torrent)
 {
-    if (!is_valid())
+    if (torrent.hash.empty())
     {
-        return false;
+        return;
     }
-    return database_->upsert_torrent(torrent);
+
+    // 1. Sanitize for memory cache (don't store massive buffers in RAM)
+    auto copy_for_cache = torrent;
+    copy_for_cache.resume_data.clear();
+    copy_for_cache.metainfo.clear();
+
+    {
+        std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+        torrents_[torrent.hash] = copy_for_cache;
+
+        if (!torrent.labels.empty())
+        {
+            labels_[torrent.hash] =
+                storage::deserialize_label_list(torrent.labels);
+        }
+        else
+        {
+            labels_.erase(torrent.hash);
+        }
+    }
+
+    // 2. Persist to DB
+    if (is_valid())
+    {
+        database_->upsert_torrent(torrent);
+    }
+}
+void PersistenceManager::remove_torrent(std::string const &hash)
+{
+    if (hash.empty())
+        return;
+    {
+        std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+        torrents_.erase(hash);
+        labels_.erase(hash);
+    }
+    if (is_valid())
+    {
+        database_->delete_torrent(hash);
+    }
 }
 
-bool PersistenceManager::delete_torrent(std::string const &hash)
-{
-    if (!is_valid())
-    {
-        return false;
-    }
-    return database_->delete_torrent(hash);
-}
-
-bool PersistenceManager::update_save_path(std::string const &hash,
+void PersistenceManager::update_save_path(std::string const &hash,
                                           std::string const &path)
 {
-    if (!is_valid())
+    if (hash.empty())
+        return;
     {
-        return false;
+        std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+        if (auto it = torrents_.find(hash); it != torrents_.end())
+        {
+            it->second.save_path = path;
+        }
     }
-    return database_->update_save_path(hash, path);
+    if (is_valid())
+        database_->update_save_path(hash, path);
 }
 
-bool PersistenceManager::update_rpc_id(std::string const &hash, int rpc_id)
+void PersistenceManager::update_rpc_id(std::string const &hash, int rpc_id)
 {
-    if (!is_valid())
+    if (hash.empty())
+        return;
     {
-        return false;
+        std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+        if (auto it = torrents_.find(hash); it != torrents_.end())
+        {
+            it->second.rpc_id = rpc_id;
+        }
     }
-    return database_->update_rpc_id(hash, rpc_id);
+    if (is_valid())
+        database_->update_rpc_id(hash, rpc_id);
 }
 
-bool PersistenceManager::update_metadata(
+void PersistenceManager::update_metadata(
     std::string const &hash, std::string const &path,
     std::vector<std::uint8_t> const &metadata)
 {
-    if (!is_valid())
+    if (hash.empty())
+        return;
     {
-        return false;
+        std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+        if (auto it = torrents_.find(hash); it != torrents_.end())
+        {
+            it->second.metadata_path = path;
+        }
     }
-    return database_->update_metadata(hash, path, metadata);
+    if (is_valid())
+        database_->update_metadata(hash, path, metadata);
 }
 
-bool PersistenceManager::update_resume_data(
+void PersistenceManager::update_resume_data(
     std::string const &hash, std::vector<std::uint8_t> const &data)
 {
-    if (!is_valid())
+    if (hash.empty())
     {
-        return false;
+        return;
     }
-    return database_->update_resume_data(hash, data);
+    if (is_valid())
+    {
+        database_->update_resume_data(hash, data);
+    }
 }
 
-std::optional<std::vector<std::uint8_t>>
-PersistenceManager::resume_data(std::string const &hash) const
-{
-    if (!is_valid())
-    {
-        return std::nullopt;
-    }
-    return database_->resume_data(hash);
-}
-
-bool PersistenceManager::update_labels(std::string const &hash,
+void PersistenceManager::update_labels(std::string const &hash,
                                        std::string const &labels)
 {
-    if (!is_valid())
+    if (hash.empty())
+        return;
     {
-        return false;
+        std::unique_lock<std::shared_mutex> lock(cache_mutex_);
+        if (auto it = torrents_.find(hash); it != torrents_.end())
+        {
+            it->second.labels = labels;
+        }
+        if (!labels.empty())
+        {
+            labels_[hash] = storage::deserialize_label_list(labels);
+        }
+        else
+        {
+            labels_.erase(hash);
+        }
     }
-    return database_->update_labels(hash, labels);
+    if (is_valid())
+        database_->update_labels(hash, labels);
+}
+
+std::vector<std::string>
+PersistenceManager::get_labels(std::string const &hash) const
+{
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (auto it = labels_.find(hash); it != labels_.end())
+    {
+        return it->second;
+    }
+    return {};
+}
+
+std::filesystem::path PersistenceManager::get_save_path(
+    std::string const &hash, std::filesystem::path const &default_path) const
+{
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (auto it = torrents_.find(hash); it != torrents_.end())
+    {
+        if (it->second.save_path.has_value())
+        {
+            return std::filesystem::u8path(*it->second.save_path);
+        }
+    }
+    return default_path;
+}
+
+std::optional<int> PersistenceManager::get_rpc_id(std::string const &hash) const
+{
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (auto it = torrents_.find(hash); it != torrents_.end())
+    {
+        return it->second.rpc_id;
+    }
+    return std::nullopt;
 }
 
 std::uint64_t
 PersistenceManager::read_uint64_setting(std::string const &key) const
 {
     if (!is_valid())
-    {
         return 0;
-    }
     if (auto value = database_->get_setting(key); value)
     {
         try
@@ -227,7 +334,6 @@ PersistenceManager::read_uint64_setting(std::string const &key) const
         }
         catch (...)
         {
-            return 0;
         }
     }
     return 0;

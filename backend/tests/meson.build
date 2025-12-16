@@ -6,6 +6,7 @@ tt_test_common_sources = [
   '../src/engine/AutomationAgent.cpp',
   '../src/engine/BlocklistManager.cpp',  
   '../src/engine/AsyncTaskService.cpp',
+  '../src/engine/SettingsManager.cpp',
   '../src/engine/HistoryAgent.cpp',
   '../src/engine/PersistenceManager.cpp',
   '../src/engine/TorrentManager.cpp',
@@ -46,5 +47,13 @@ serializer_test_exe = executable('serializer-test',
   c_args: tt_c_args,
 )
 
+memory_leak_test_exe = executable('memory-leak-test',
+  tt_test_common_sources + ['main_test.cpp', 'MemoryLeakTest.cpp'],
+  dependencies: [tt_common_dep, doctest_dep],
+  cpp_args: tt_cpp_args,
+  c_args: tt_c_args,
+)
+
 test('rpc-filesystem-test', rpc_filesystem_test_exe)
 test('serializer-test', serializer_test_exe)
+test('memory-leak-test', memory_leak_test_exe)

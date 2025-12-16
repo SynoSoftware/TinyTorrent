@@ -21,8 +21,22 @@ namespace
 using namespace tt::tests;
 
 constexpr std::string_view kRpcPath = "/transmission/rpc";
-constexpr std::string_view kHostHeader = "127.0.0.1:8086";
-constexpr std::string_view kServerUrl = "http://127.0.0.1:8086";
+
+// Support dynamic port via environment variable TT_TEST_PORT
+// Defaults to 8086 for backward compatibility
+std::string get_test_port()
+{
+    const char *env_port = std::getenv("TT_TEST_PORT");
+    return env_port ? std::string(env_port) : "8086";
+}
+
+std::string kHostHeader = "127.0.0.1:" + get_test_port();
+std::string kServerUrl = "http://127.0.0.1:" + get_test_port();
+
+std::string get_ws_url(const std::string &path = "")
+{
+    return "ws://127.0.0.1:" + get_test_port() + "/ws" + path;
+}
 
 struct HttpTestContext
 {
@@ -408,11 +422,11 @@ TEST_CASE("websocket handshake enforces token authentication")
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
     WsTestContext missing_token;
-    run_ws_client(missing_token, "ws://127.0.0.1:8086/ws");
+    run_ws_client(missing_token, get_ws_url());
     CHECK(!missing_token.handshake_success);
 
     WsTestContext with_token;
-    run_ws_client(with_token, "ws://127.0.0.1:8086/ws?token=rpc-secret");
+    run_ws_client(with_token, get_ws_url("?token=rpc-secret"));
     CHECK(with_token.handshake_success);
 }
 
@@ -424,7 +438,7 @@ TEST_CASE("websocket snapshot is delivered on connect")
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
     WsTestContext ctx;
-    run_ws_client(ctx, "ws://127.0.0.1:8086/ws", std::nullopt, true);
+    run_ws_client(ctx, get_ws_url(), std::nullopt, true);
     CHECK(ctx.handshake_success);
     CHECK(ctx.message_received);
 

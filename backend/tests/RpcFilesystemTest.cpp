@@ -22,8 +22,27 @@ namespace
 using namespace tt::tests;
 
 constexpr std::string_view kRpcPath = "/transmission/rpc";
-constexpr std::string_view kHostHeader = "127.0.0.1:8092";
-constexpr std::string_view kServerUrl = "http://127.0.0.1:8092";
+
+std::string get_test_port()
+{
+    const char *env_port = std::getenv("TT_TEST_PORT");
+    return env_port ? std::string(env_port) : "8086";
+}
+
+std::string get_host_header()
+{
+    return std::string("127.0.0.1:") + get_test_port();
+}
+
+std::string get_server_url()
+{
+    return std::string("http://127.0.0.1:") + get_test_port();
+}
+
+std::string get_ws_url()
+{
+    return std::string("ws://127.0.0.1:") + get_test_port() + "/ws";
+}
 
 struct HttpTestContext
 {
@@ -118,7 +137,7 @@ std::string build_http_request(std::string_view payload,
     request += "POST ";
     request += kRpcPath;
     request += " HTTP/1.1\r\nHost: ";
-    request += kHostHeader;
+    request += get_host_header();
     request += "\r\nContent-Type: application/json\r\nContent-Length: ";
     request += std::to_string(payload.size());
     if (!session_id.empty())
@@ -157,8 +176,9 @@ RpcResponse send_rpc_request_once(std::string_view payload,
     HttpTestContext context(std::move(request));
     mg_mgr mgr;
     mg_mgr_init(&mgr);
+    auto url = get_server_url();
     struct mg_connection *conn =
-        mg_http_connect(&mgr, kServerUrl.data(), http_client_handler, &context);
+        mg_http_connect(&mgr, url.c_str(), http_client_handler, &context);
     if (conn != nullptr)
     {
         conn->fn_data = &context;
@@ -446,7 +466,7 @@ TEST_CASE("fs-browse honors mocked directory entries")
         [](std::filesystem::path const &) { return true; },
         [](std::filesystem::path const &) { return true; });
 
-    tt::rpc::Server server{nullptr, std::string{kServerUrl}};
+    tt::rpc::Server server{nullptr, get_server_url()};
     server.start();
     ServerGuard guard{server};
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
@@ -487,7 +507,7 @@ TEST_CASE("fs-space reports mocked metrics")
             return std::optional<std::filesystem::space_info>(info);
         });
 
-    tt::rpc::Server server{nullptr, std::string{kServerUrl}};
+    tt::rpc::Server server{nullptr, get_server_url()};
     server.start();
     ServerGuard guard{server};
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
@@ -511,13 +531,13 @@ TEST_CASE("websocket handshake accepts X-TT-Auth header")
 {
     tt::rpc::ServerOptions options;
     options.token = "rpc-secret";
-    tt::rpc::Server server{nullptr, std::string{kServerUrl}, options};
+    tt::rpc::Server server{nullptr, get_server_url(), options};
     server.start();
     ServerGuard guard{server};
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
     WsTestContext ctx;
-    run_ws_client(ctx, "ws://127.0.0.1:8092/ws", std::nullopt, false,
+    run_ws_client(ctx, get_ws_url(), std::nullopt, false,
                   std::string("X-TT-Auth: rpc-secret\r\n"));
     CHECK(ctx.handshake_success);
 }
