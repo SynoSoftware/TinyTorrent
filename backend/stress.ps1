@@ -103,7 +103,23 @@ function Start-TestProcess {
     $psi.WorkingDirectory = $testDir
     $psi.UseShellExecute = $false
     $psi.CreateNoWindow = $true
+        
+    # The DLLs are in build/debug, but tests are in build/debug/tests
+    # We must add build/debug to the PATH so the test exe can find torrent-rasterbar.dll
+    $dllDir = Split-Path -Parent $testDir
     
+    # Also add vcpkg debug bin just in case they weren't copied
+    $vcpkgDebugBin = Join-Path $repoRoot 'vcpkg_installed\x64-windows\debug\bin'
+    
+    $newPath = "$dllDir;$vcpkgDebugBin;" + $env:PATH
+    
+    if ($psi.EnvironmentVariables.ContainsKey('PATH')) {
+        $psi.EnvironmentVariables['PATH'] = $newPath
+    }
+    else {
+        $psi.EnvironmentVariables.Add('PATH', $newPath)
+    }
+
     # Set environment variable for this specific process instance
     if ($psi.EnvironmentVariables.ContainsKey('TT_TEST_PORT')) {
         $psi.EnvironmentVariables['TT_TEST_PORT'] = $port.ToString()
@@ -129,7 +145,6 @@ function Start-TestProcess {
 
     return [System.Diagnostics.Process]::Start($psi)
 }
-
 # --- Main Loop ---
 $runNumber = 0
 while ($Runs -eq 0 -or $runNumber -lt $Runs) {
