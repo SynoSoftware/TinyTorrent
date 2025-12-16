@@ -41,6 +41,20 @@ if is_minsize
   tt_link_args += ['/LTCG', '/MAP:tt-engine.map', '/MAPINFO:EXPORTS']
 endif
 
+if build_type == 'debug'
+  add_project_arguments(
+    '/fsanitize=address',
+    '/Zi',
+    '/Oy-',
+    language: 'cpp'
+  )
+  add_project_link_arguments(
+    '/INCREMENTAL:NO',
+    '/DEBUG',
+    language: 'cpp'
+  )
+endif
+
 tt_define_args = []
 foreach def : tt_defines
   tt_define_args += '/D' + def
