@@ -22,6 +22,13 @@ namespace tt::engine
 class PersistenceManager
 {
   public:
+    struct ReplayTorrent
+    {
+        TorrentAddRequest request;
+        std::string hash;
+        int rpc_id = 0;
+    };
+
     explicit PersistenceManager(std::filesystem::path path);
     ~PersistenceManager();
 
@@ -33,6 +40,9 @@ class PersistenceManager
     // Startup / Load
     // This now populates internal cache AND returns the list for TorrentManager
     std::vector<storage::PersistedTorrent> load_torrents();
+    std::vector<ReplayTorrent>
+    load_replay_torrents(CoreSettings const &settings);
+    std::vector<std::pair<std::string, int>> persisted_rpc_mappings() const;
 
     // Stats & Settings
     SessionStatistics load_session_statistics();
@@ -50,6 +60,10 @@ class PersistenceManager
     void update_resume_data(std::string const &hash,
                             std::vector<std::uint8_t> const &data);
     void update_labels(std::string const &hash, std::string const &labels);
+    void set_labels(std::string const &hash,
+            std::vector<std::string> const &labels);
+    std::optional<std::filesystem::path>
+    cached_save_path(std::string const &hash) const;
 
     // Read Access (Thread-safe)
     std::vector<std::string> get_labels(std::string const &hash) const;

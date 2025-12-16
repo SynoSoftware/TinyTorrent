@@ -23,12 +23,17 @@ class AutomationAgent
     using TaskScheduler = std::function<void(std::function<void()>)>;
     using TorrentEnqueueFn =
         std::function<Core::AddTorrentStatus(TorrentAddRequest)>;
-    using MoveStorageFn = std::function<void(
+    using MoveQueueFn = std::function<void(
+        std::string const &hash, std::filesystem::path const &path)>;
+    using MoveCancelFn =
+        std::function<void(std::string const &hash)>;
+    using MoveCompleteFn = std::function<void(
         std::string const &hash, std::filesystem::path const &path)>;
 
     AutomationAgent(TaskScheduler schedule_io, TaskScheduler enqueue_task,
                     TorrentEnqueueFn enqueue_torrent,
-                    MoveStorageFn move_storage_callback);
+                    MoveQueueFn queue_move, MoveCancelFn cancel_move,
+                    MoveCompleteFn complete_move);
 
     AutomationAgent(AutomationAgent const &) = delete;
     AutomationAgent &operator=(AutomationAgent const &) = delete;
@@ -43,6 +48,12 @@ class AutomationAgent
 
     void process_completion(libtorrent::torrent_handle const &handle,
                             libtorrent::torrent_status const &status);
+
+    void track_pending_move(std::string const &hash,
+                            std::filesystem::path const &destination);
+    void handle_storage_moved(std::string const &hash,
+                              std::filesystem::path const &destination);
+    void handle_storage_move_failed(std::string const &hash);
 
   private:
     struct WatchFileSnapshot
@@ -79,7 +90,9 @@ class AutomationAgent
     TaskScheduler schedule_io_;
     TaskScheduler enqueue_task_;
     TorrentEnqueueFn enqueue_torrent_;
-    MoveStorageFn move_storage_callback_;
+    MoveQueueFn queue_move_callback_;
+    MoveCancelFn cancel_move_callback_;
+    MoveCompleteFn complete_move_callback_;
 
     bool watch_enabled_ = false;
     std::filesystem::path watch_dir_;
