@@ -3,6 +3,52 @@
 #include "utils/Log.hpp"
 #include "utils/StateStore.hpp"
 
+#include <fstream>
+#include <iterator>
+
+namespace
+{
+
+tt::engine::TorrentAddRequest make_add_request(
+    tt::storage::PersistedTorrent const &entry,
+    tt::engine::CoreSettings const &settings)
+{
+    tt::engine::TorrentAddRequest request;
+
+    request.download_path = entry.save_path
+                                ? std::filesystem::u8path(*entry.save_path)
+                                : settings.download_path;
+    request.paused = entry.paused;
+
+    if (!entry.metainfo.empty())
+    {
+        request.metainfo = entry.metainfo;
+    }
+    else if (entry.magnet_uri)
+    {
+        request.uri = *entry.magnet_uri;
+    }
+    else if (!entry.metadata_path.empty())
+    {
+        auto path = std::filesystem::u8path(entry.metadata_path);
+        std::ifstream input(path, std::ios::binary);
+        if (input)
+        {
+            request.metainfo.assign(std::istreambuf_iterator<char>(input),
+                                    std::istreambuf_iterator<char>());
+        }
+    }
+
+    if (!entry.resume_data.empty())
+    {
+        request.resume_data = entry.resume_data;
+    }
+
+    return request;
+}
+
+} // namespace
+
 namespace tt::engine
 {
 
@@ -54,6 +100,52 @@ std::vector<storage::PersistedTorrent> PersistenceManager::load_torrents()
     }
 
     return loaded;
+}
+
+std::vector<PersistenceManager::ReplayTorrent>
+PersistenceManager::load_replay_torrents(CoreSettings const &settings)
+{
+    auto persisted = load_torrents();
+    std::vector<ReplayTorrent> result;
+    result.reserve(persisted.size());
+
+    for (auto const &entry : persisted)
+    {
+        if (entry.hash.empty())
+        {
+            continue;
+        }
+
+        auto request = make_add_request(entry, settings);
+        if (request.metainfo.empty() && !request.uri)
+        {
+            continue;
+        }
+
+        ReplayTorrent replay;
+        replay.hash = entry.hash;
+        replay.rpc_id = entry.rpc_id;
+        replay.request = std::move(request);
+        result.push_back(std::move(replay));
+    }
+
+    return result;
+}
+
+std::vector<std::pair<std::string, int>>
+PersistenceManager::persisted_rpc_mappings() const
+{
+    std::vector<std::pair<std::string, int>> mappings;
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    mappings.reserve(torrents_.size());
+    for (auto const &entry : torrents_)
+    {
+        if (entry.second.rpc_id > 0)
+        {
+            mappings.emplace_back(entry.first, entry.second.rpc_id);
+        }
+    }
+    return mappings;
 }
 SessionStatistics PersistenceManager::load_session_statistics()
 {
@@ -286,6 +378,19 @@ void PersistenceManager::update_labels(std::string const &hash,
         database_->update_labels(hash, labels);
 }
 
+void PersistenceManager::set_labels(std::string const &hash,
+                                    std::vector<std::string> const &labels)
+{
+    if (hash.empty())
+    {
+        return;
+    }
+
+    auto serialized = labels.empty() ? std::string{}
+                                     : storage::serialize_label_list(labels);
+    update_labels(hash, serialized);
+}
+
 std::vector<std::string>
 PersistenceManager::get_labels(std::string const &hash) const
 {
@@ -309,6 +414,20 @@ std::filesystem::path PersistenceManager::get_save_path(
         }
     }
     return default_path;
+}
+
+std::optional<std::filesystem::path>
+PersistenceManager::cached_save_path(std::string const &hash) const
+{
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (auto it = torrents_.find(hash); it != torrents_.end())
+    {
+        if (it->second.save_path)
+        {
+            return std::filesystem::u8path(*it->second.save_path);
+        }
+    }
+    return std::nullopt;
 }
 
 std::optional<int> PersistenceManager::get_rpc_id(std::string const &hash) const

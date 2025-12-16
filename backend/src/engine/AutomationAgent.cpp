@@ -38,11 +38,15 @@ std::string sha1_to_hex(libtorrent::sha1_hash const &hash)
 AutomationAgent::AutomationAgent(TaskScheduler schedule_io,
                                  TaskScheduler enqueue_task,
                                  TorrentEnqueueFn enqueue_torrent,
-                                 MoveStorageFn move_storage_callback)
+                       MoveQueueFn queue_move_callback,
+                       MoveCancelFn cancel_move_callback,
+                       MoveCompleteFn complete_move_callback)
     : schedule_io_(std::move(schedule_io)),
       enqueue_task_(std::move(enqueue_task)),
       enqueue_torrent_(std::move(enqueue_torrent)),
-      move_storage_callback_(std::move(move_storage_callback))
+    queue_move_callback_(std::move(queue_move_callback)),
+    cancel_move_callback_(std::move(cancel_move_callback)),
+    complete_move_callback_(std::move(complete_move_callback))
 {
 }
 
@@ -160,14 +164,49 @@ void AutomationAgent::process_completion(
                     TT_LOG_INFO("moving {} from {} to {}", hash_str,
                                 source_path, destination.string());
 
-                    if (move_storage_callback_)
-                    {
-                        move_storage_callback_(hash_str, destination);
-                    }
+                    track_pending_move(hash_str, destination);
 
                     handle.move_storage(destination.string());
                 });
         });
+}
+
+void AutomationAgent::track_pending_move(
+    std::string const &hash, std::filesystem::path const &destination)
+{
+    if (hash.empty() || destination.empty())
+    {
+        return;
+    }
+    if (queue_move_callback_)
+    {
+        queue_move_callback_(hash, destination);
+    }
+}
+
+void AutomationAgent::handle_storage_moved(
+    std::string const &hash, std::filesystem::path const &destination)
+{
+    if (hash.empty())
+    {
+        return;
+    }
+    if (complete_move_callback_)
+    {
+        complete_move_callback_(hash, destination);
+    }
+}
+
+void AutomationAgent::handle_storage_move_failed(std::string const &hash)
+{
+    if (hash.empty())
+    {
+        return;
+    }
+    if (cancel_move_callback_)
+    {
+        cancel_move_callback_(hash);
+    }
 }
 
 std::vector<AutomationAgent::WatchEntryInfo>
