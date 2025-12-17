@@ -735,8 +735,21 @@ void Core::toggle_file_selection(std::vector<int> ids,
                 {
                     auto prio = wanted ? libtorrent::default_priority
                                        : libtorrent::dont_download;
+                    auto const *ti = h.torrent_file().get();
+                    if (!ti)
+                    {
+                        return;
+                    }
+                    int const file_count = ti->num_files();
                     for (int idx : file_indexes)
                     {
+                        if (idx < 0 || idx >= file_count)
+                        {
+                            TT_LOG_INFO(
+                                "file priority index {} out of range ({} files)",
+                                idx, file_count);
+                            continue;
+                        }
                         h.file_priority(libtorrent::file_index_t(idx), prio);
                     }
                 });

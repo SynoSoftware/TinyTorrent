@@ -75,6 +75,12 @@ struct StorageMoveFailedEvent
     libtorrent::torrent_handle handle;
 };
 
+struct TorrentAddFailedEvent
+{
+    std::string hash;
+    std::string message;
+};
+
 struct TorrentErrorEvent
 {
     std::string hash;

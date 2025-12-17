@@ -71,7 +71,11 @@ void AlertRouter::wire_callbacks()
     cb.on_tracker_error = [this](auto const &a) { handle_tracker_error(a); };
     cb.on_torrent_delete_failed = [this](auto const &a)
     { handle_torrent_delete_failed(a); };
+    cb.on_torrent_add_failed = [this](auto const &a)
+    { handle_torrent_add_failed(a); };
     cb.on_portmap_error = [this](auto const &a) { handle_portmap_error(a); };
+    cb.on_metadata_failed = [this](auto const &a)
+    { handle_metadata_failed(a); };
     cb.on_fastresume_rejected = [this](auto const &a)
     { handle_fastresume_rejected(a); };
 
@@ -188,6 +192,33 @@ void AlertRouter::handle_portmap_error(
     TT_LOG_INFO("{}", message);
     // Could define a PortmapErrorEvent if needed, reusing ListenFailed for now
     // or just logging as above.
+}
+
+void AlertRouter::handle_torrent_add_failed(
+    libtorrent::add_torrent_alert const &alert)
+{
+    auto info = alert.params.info_hashes.get_best();
+    if (!hash_is_nonzero(info))
+    {
+        return;
+    }
+    auto hash = info_hash_to_hex(info);
+    auto message = std::format("add torrent failed: {}",
+                               alert.error.message());
+    TT_LOG_INFO("{}: {}", hash, message);
+    bus_->publish(TorrentAddFailedEvent{hash, message});
+    bus_->publish(TorrentErrorEvent{hash, message, "add"});
+}
+
+void AlertRouter::handle_metadata_failed(
+    libtorrent::metadata_failed_alert const &alert)
+{
+    if (auto hash = hash_from_handle(alert.handle); hash)
+    {
+        auto message = std::format("metadata failed: {}", alert.message());
+        TT_LOG_INFO("{}: {}", *hash, message);
+        bus_->publish(TorrentErrorEvent{*hash, message, "metadata"});
+    }
 }
 
 void AlertRouter::handle_fastresume_rejected(

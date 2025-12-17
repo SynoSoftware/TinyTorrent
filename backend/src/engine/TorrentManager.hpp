@@ -74,6 +74,10 @@ class TorrentManager
             on_portmap_error;
         std::function<void(libtorrent::torrent_delete_failed_alert const &)>
             on_torrent_delete_failed;
+        std::function<void(libtorrent::add_torrent_alert const &)>
+            on_torrent_add_failed;
+        std::function<void(libtorrent::metadata_failed_alert const &)>
+            on_metadata_failed;
         std::function<void(libtorrent::storage_moved_alert const &)>
             on_storage_moved;
         std::function<void(libtorrent::storage_moved_failed_alert const &)>

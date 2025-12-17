@@ -59,6 +59,16 @@ SessionService::SessionService(TorrentManager *manager,
             }
         });
 
+    bus_->subscribe<TorrentAddFailedEvent>(
+        [this](auto const &e)
+        {
+            TT_LOG_INFO("removing failed torrent {} from persistence", e.hash);
+            if (persistence_)
+            {
+                persistence_->remove_torrent(e.hash);
+            }
+        });
+
     // IMPORTANT: Handle settings changes on the Engine Thread to avoid racing
     // with tick()
     bus_->subscribe<SettingsChangedEvent>(

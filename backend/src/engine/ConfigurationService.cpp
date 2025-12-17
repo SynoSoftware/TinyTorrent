@@ -117,13 +117,14 @@ void ConfigurationService::persist_now()
         return;
 
     CoreSettings copy = get();
-    if (!persistence_->persist_settings(copy))
+    if (persistence_->persist_settings(copy))
+    {
+        dirty_.store(false, std::memory_order_release);
+    }
+    else
     {
         TT_LOG_INFO("failed to persist settings");
-        return;
     }
-
-    dirty_.store(false, std::memory_order_release);
 }
 
 void ConfigurationService::notify_listeners()
