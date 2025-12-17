@@ -150,7 +150,7 @@ class TorrentManager
     std::vector<libtorrent::torrent_handle> torrent_handles() const;
     std::vector<libtorrent::torrent_handle>
     handles_for_ids(std::vector<int> const &ids) const;
-    void set_ip_filter(libtorrent::ip_filter const &filter);
+    void set_ip_filter(libtorrent::ip_filter &&filter);
     void remove_torrent(libtorrent::torrent_handle const &handle,
                         bool delete_data);
     std::vector<char>

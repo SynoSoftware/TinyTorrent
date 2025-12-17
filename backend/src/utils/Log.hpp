@@ -22,7 +22,11 @@ inline void write_line(char level, std::format_string<Args...> fmt,
         1000);
     auto const time = std::chrono::system_clock::to_time_t(now);
     std::tm tm{};
+#if defined(_WIN32)
     localtime_s(&tm, &time);
+#else
+    localtime_r(&time, &tm);
+#endif
     char time_buffer[16]{};
     std::strftime(time_buffer, sizeof(time_buffer), "%H:%M:%S", &tm);
 

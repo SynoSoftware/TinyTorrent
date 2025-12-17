@@ -42,3 +42,4 @@ backend/data/tinytorrent.db-wal
 backend/data/tinytorrent.db-shm
 *.dmp
 dump*.txt
+.aider*

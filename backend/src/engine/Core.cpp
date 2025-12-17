@@ -17,7 +17,7 @@
 #include "engine/StateService.hpp"
 #include "engine/TorrentManager.hpp"
 #include "engine/TorrentUtils.hpp"
-#include "utils/FS.hpp"
+#include "utils/Endpoint.hpp"
 #include "utils/Log.hpp"
 
 #include <algorithm>
@@ -33,8 +33,9 @@
 #include <vector>
 
 // Libtorrent includes for tracker manipulation
-#include <libtorrent/announce_entry.hpp>
-#include <libtorrent/kademlia/dht_state.hpp>
+#include "utils/Endpoint.hpp"
+#include "utils/FS.hpp"
+#include "utils/Log.hpp"
 #include <libtorrent/session_handle.hpp>
 #include <libtorrent/session_params.hpp>
 #include <libtorrent/span.hpp>
@@ -204,6 +205,23 @@ struct Core::Impl
             });
         event_bus->subscribe<ListenFailedEvent>(
             [this](auto const &event) { set_listen_error(event.message); });
+        event_bus->subscribe<StorageMovedEvent>(
+            [this](auto const &event)
+            {
+                if (automation_agent)
+                {
+                    automation_agent->handle_storage_moved(event.hash,
+                                                           event.path);
+                }
+            });
+        event_bus->subscribe<StorageMoveFailedEvent>(
+            [this](auto const &event)
+            {
+                if (automation_agent)
+                {
+                    automation_agent->handle_storage_move_failed(event.hash);
+                }
+            });
 
         // Load State
         auto replays = persistence->load_replay_torrents(settings_);
@@ -541,16 +559,13 @@ void Core::set_download_path(std::filesystem::path path)
 bool Core::set_listen_port(uint16_t port)
 {
     auto current = impl_->config_service->get().listen_interface;
-    std::string updated = current;
-    auto pos = updated.rfind(':');
-    if (pos == std::string::npos)
+    auto parts = tt::net::parse_host_port(current);
+    if (parts.host.empty())
     {
-        updated = std::string("0.0.0.0:") + std::to_string(port);
+        parts.host = "0.0.0.0";
     }
-    else
-    {
-        updated.replace(pos + 1, std::string::npos, std::to_string(port));
-    }
+    parts.port = std::to_string(port);
+    auto updated = tt::net::format_host_port(parts);
     impl_->torrent_manager->enqueue_task(
         [this, updated]
         { impl_->config_service->set_listen_interface(updated); });
@@ -844,6 +859,14 @@ void Core::history_data(int64_t start, int64_t end, int64_t step,
             }
             cb(std::move(buckets));
         });
+}
+
+void Core::submit_io_task(std::function<void()> task)
+{
+    if (impl_)
+    {
+        impl_->task_service.submit(std::move(task));
+    }
 }
 
 bool Core::history_clear(std::optional<int64_t> older_than)

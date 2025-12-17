@@ -275,9 +275,24 @@ int main(int argc, char *argv[])
         {
             return false;
         }
+        if (!secure_connection_permissions(tmp_path))
+        {
+            output.close();
+            std::error_code cleanup_ec;
+            std::filesystem::remove(tmp_path, cleanup_ec);
+            TT_LOG_INFO("unable to secure {}", tmp_path.string());
+            return false;
+        }
         output << payload;
         output.flush();
         output.close();
+        if (!secure_connection_permissions(tmp_path))
+        {
+            std::error_code cleanup_ec;
+            std::filesystem::remove(tmp_path, cleanup_ec);
+            TT_LOG_INFO("unable to secure {}", tmp_path.string());
+            return false;
+        }
         std::error_code remove_ec;
         std::filesystem::remove(path, remove_ec);
         if (remove_ec && remove_ec != std::errc::no_such_file_or_directory)
@@ -292,7 +307,7 @@ int main(int argc, char *argv[])
             std::filesystem::remove(tmp_path, ec);
             return false;
         }
-        return secure_connection_permissions(path);
+        return true;
     };
 
     auto root = tt::utils::data_root();

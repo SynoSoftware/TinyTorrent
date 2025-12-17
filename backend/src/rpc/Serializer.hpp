@@ -70,4 +70,7 @@ std::string serialize_ws_event_blocklist_updated(std::size_t count);
 std::string serialize_ws_event_app_shutdown();
 std::string serialize_ws_event_error(std::string const &message, int code);
 
+bool torrent_snapshot_equal(engine::TorrentSnapshot const &a,
+                            engine::TorrentSnapshot const &b);
+
 } // namespace tt::rpc

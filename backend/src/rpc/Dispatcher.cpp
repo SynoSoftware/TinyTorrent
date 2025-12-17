@@ -1,173 +1,3 @@
-/*
-
-This file **definitely needs refactoring**. While the code is
-functional, it suffers from several architectural "smells" that will make
-maintenance a nightmare as the project grows.
-
-Here is a breakdown of the issues and the recommended architectural changes.
-
-### 1. The "God File" Problem
-**Issue:** `Dispatcher.cpp` contains **everything**:
-1.  JSON Parsing helpers.
-2.  Windows Registry modification logic.
-3.  Linux `.desktop` file creation logic.
-4.  File system iteration logic.
-5.  RPC Routing logic.
-6.  The implementation of every single RPC command.
-
-**Refactoring:**
-Split the logic into specialized modules. The `Dispatcher` should only be
-responsible for **routing** requests, not executing the business logic or
-interacting with the OS.
-
-*   **`src/rpc/JsonUtils.hpp`**: Move all `parse_int_value`,
-`parse_download_dir`, `bool_value` helpers here.
-*   **`src/utils/Platform.cpp`**: Move `register_windows_handler`,
-`register_linux_handler`, `open_with_default_app` here.
-*   **`src/rpc/handlers/`**: Create separate files for groups of commands:
-    *   `SessionHandlers.cpp` (`session-get`, `set`, `stats`)
-    *   `TorrentHandlers.cpp` (`torrent-get`, `add`, `action`)
-    *   `SystemHandlers.cpp` (`fs-browse`, `open`, `register`)
-
-### 2. Unbounded Concurrency (The `std::thread(...).detach()` trap)
-**Issue:**
-In `handle_fs_browse_async` and `handle_fs_space_async`, you are spawning a new
-thread and detaching it for every request.
-```cpp
-std::thread([cb](){ ... }).detach();
-```
-If a client spams `fs-browse` requests, you will spawn hundreds of threads,
-potentially exhausting system resources.
-
-**Refactoring:**
-Use a **Thread Pool** for I/O bound operations that shouldn't block the Engine
-thread.
-1.  Add a `ThreadPool` to `tt::engine::Core` or `tt::rpc::Server`.
-2.  Submit these tasks to the pool: `thread_pool_->submit([...] { ... });`.
-
-### 3. Leakage of OS APIs into RPC Layer
-**Issue:**
-The top of the file is cluttered with `#include <Windows.h>`, `<shellapi.h>`,
-`<unistd.h>`, etc. The RPC layer (which deals with JSON) should not know about
-Win32 registry keys or XDG MIME types.
-
-**Refactoring:**
-Create an abstraction for System operations.
-
-**Interface (`src/engine/SystemInterface.hpp`):**
-```cpp
-struct SystemHandlerResult { bool success; std::string message; };
-
-class SystemInterface {
-public:
-    virtual SystemHandlerResult register_handler() = 0;
-    virtual bool open_path(std::filesystem::path const& path) = 0;
-    virtual bool reveal_path(std::filesystem::path const& path) = 0;
-};
-```
-Implement this in `src/utils` and inject it into the handlers.
-
----
-
-### Proposed File Structure Implementation
-
-Here is how you should break this up:
-
-#### A. Move JSON Helpers (`src/rpc/JsonUtils.hpp`)
-```cpp
-#pragma once
-#include <yyjson.h>
-#include <optional>
-#include <vector>
-#include <string>
-
-namespace tt::rpc::json {
-    std::optional<int> parse_int(yyjson_val* val);
-    std::optional<bool> parse_bool(yyjson_val* val);
-    std::vector<int> parse_ids(yyjson_val* args);
-    // ... move all parser helpers here
-}
-```
-
-#### B. Move Platform Logic (`src/utils/PlatformUtils.cpp`)
-```cpp
-#include "utils/PlatformUtils.hpp"
-#ifdef _WIN32
-#include <Windows.h>
-// ...
-#endif
-
-namespace tt::utils {
-    SystemHandlerResult register_os_handler() {
-        #ifdef _WIN32
-        // ... paste register_windows_handler logic here ...
-        #elif __linux__
-        // ... paste register_linux_handler logic here ...
-        #endif
-    }
-
-    bool shell_open(std::filesystem::path const& path) {
-        // ... paste open/reveal logic here ...
-    }
-}
-```
-
-#### C. Clean up `Dispatcher.cpp`
-The dispatcher becomes a clean mapping table.
-
-```cpp
-#include "rpc/Dispatcher.hpp"
-#include "rpc/handlers/SessionHandlers.hpp"
-#include "rpc/handlers/TorrentHandlers.hpp"
-#include "rpc/handlers/SystemHandlers.hpp"
-
-namespace tt::rpc {
-
-void Dispatcher::register_handlers() {
-    // Session
-    add_sync("session-get", handlers::session_get);
-    add_sync("session-set", handlers::session_set);
-
-    // Torrent
-    add_sync("torrent-get", handlers::torrent_get);
-    add_sync("torrent-add", handlers::torrent_add);
-
-    // System (Async via ThreadPool, assuming 'engine' exposes one)
-    add_async("fs-browse", [this](auto args, auto cb) {
-        engine_->get_io_pool().submit([args, cb] {
-            handlers::fs_browse(args, cb);
-        });
-    });
-}
-
-// ... dispatch method remains strictly for routing ...
-
-}
-```
-
-### 4. Code Cleanup: `parse_ids` vs `parse_int_array`
-**Issue:**
-There is logic duplication between parsing specific integer arrays and general
-IDs.
-**Fix:**
-Standardize on a generic template or utility in `JsonUtils`:
-```cpp
-template <typename T>
-std::vector<T> parse_array(yyjson_val* parent, const char* key);
-```
-
-### Summary of Action Items
-
-1.  **Extract** all `yyjson` helper functions to a header-only or static utility
-library.
-2.  **Move** OS-specific logic (Windows/Linux handlers) to `src/utils/`.
-3.  **Split** the handlers into logical C++ files (`SessionHandlers`,
-`TorrentHandlers`, etc.) so developers don't step on each other's toes when
-modifying different features.
-4.  **Replace** `std::thread(...).detach()` with a dedicated `ThreadPool` for
-filesystem operations.
-
-*/
 
 #if defined(_WIN32)
 #ifndef WIN32_LEAN_AND_MEAN
@@ -185,6 +15,7 @@ filesystem operations.
 #include "rpc/FsHooks.hpp"
 #include "rpc/Serializer.hpp"
 #include "utils/Base64.hpp"
+#include "utils/FS.hpp"
 #include "utils/Json.hpp"
 #include "utils/Log.hpp"
 #include "utils/Shutdown.hpp"
@@ -198,10 +29,6 @@ filesystem operations.
 #include <winreg.h>
 #include <winsock2.h>
 #include <ws2tcpip.h>
-#elif defined(__APPLE__)
-#include <mach-o/dyld.h>
-#else
-#include <unistd.h>
 #endif
 
 #include <algorithm>
@@ -236,60 +63,6 @@ struct SystemHandlerResult
     bool permission_denied = false;
     std::string message;
 };
-
-std::optional<std::filesystem::path> current_executable_path()
-{
-#if defined(_WIN32)
-    std::vector<wchar_t> buffer(32768);
-    while (true)
-    {
-        DWORD length = GetModuleFileNameW(nullptr, buffer.data(),
-                                          static_cast<DWORD>(buffer.size()));
-        if (length == 0)
-        {
-            return std::nullopt;
-        }
-        if (length < buffer.size())
-        {
-            return std::filesystem::path(buffer.data(), buffer.data() + length);
-        }
-        if (buffer.size() >= (1 << 16))
-        {
-            return std::nullopt;
-        }
-        buffer.resize(buffer.size() * 2);
-    }
-#elif defined(__APPLE__)
-    uint32_t size = 0;
-    _NSGetExecutablePath(nullptr, &size);
-    if (size == 0)
-    {
-        return std::nullopt;
-    }
-    std::vector<char> buffer(size);
-    if (_NSGetExecutablePath(buffer.data(), &size) != 0)
-    {
-        return std::nullopt;
-    }
-    return std::filesystem::path(buffer.data());
-#else
-    std::vector<char> buffer(4096);
-    while (true)
-    {
-        ssize_t length =
-            readlink("/proc/self/exe", buffer.data(), buffer.size());
-        if (length == -1)
-        {
-            return std::nullopt;
-        }
-        if (static_cast<std::size_t>(length) < buffer.size())
-        {
-            return std::filesystem::path(buffer.data(), buffer.data() + length);
-        }
-        buffer.resize(buffer.size() * 2);
-    }
-#endif
-}
 
 namespace
 {
@@ -564,17 +337,18 @@ std::optional<bool> parse_bool_flag(yyjson_val *value)
 std::string escape_shell_argument(std::string const &value)
 {
     std::string result;
-    result.reserve(value.size() + 2);
-    result.push_back('"');
+    result.reserve(value.size() + 4);
+    result.push_back('\'');
     for (char ch : value)
     {
-        if (ch == '"' || ch == '\\')
+        if (ch == '\'')
         {
-            result.push_back('\\');
+            result += "'\\''";
+            continue;
         }
         result.push_back(ch);
     }
-    result.push_back('"');
+    result.push_back('\'');
     return result;
 }
 
@@ -682,7 +456,7 @@ std::filesystem::path parse_request_path(yyjson_val *value)
 SystemHandlerResult register_windows_handler()
 {
     SystemHandlerResult result;
-    auto exe_path = current_executable_path();
+    auto exe_path = tt::utils::executable_path();
     if (!exe_path)
     {
         result.message = "unable to determine executable path";
@@ -783,7 +557,7 @@ constexpr std::array<char const *, 2> kRegisterMimeCommands = {
 SystemHandlerResult register_linux_handler()
 {
     SystemHandlerResult result;
-    auto exe_path = current_executable_path();
+    auto exe_path = tt::utils::executable_path();
     if (!exe_path)
     {
         result.message = "unable to determine executable path";
@@ -1614,9 +1388,12 @@ std::string handle_session_set(engine::Core *engine, yyjson_val *arguments)
     {
         if (yyjson_is_str(proxy_pass))
         {
-            session_update.proxy_password =
-                std::string(yyjson_get_str(proxy_pass));
-            session_update_needed = true;
+            auto value = std::string(yyjson_get_str(proxy_pass));
+            if (value != "<REDACTED>")
+            {
+                session_update.proxy_password = std::move(value);
+                session_update_needed = true;
+            }
         }
     }
     if (auto value = parse_bool_flag(
@@ -1695,7 +1472,8 @@ std::string handle_blocklist_update(engine::Core *engine)
                                       engine->blocklist_last_update());
 }
 
-void handle_fs_browse_async(yyjson_val *arguments, ResponseCallback cb)
+void handle_fs_browse_async(engine::Core *engine, yyjson_val *arguments,
+                            ResponseCallback cb)
 {
     if (!arguments)
     {
@@ -1709,43 +1487,50 @@ void handle_fs_browse_async(yyjson_val *arguments, ResponseCallback cb)
     }
     auto normalized = target.lexically_normal();
     auto separator = std::string(1, std::filesystem::path::preferred_separator);
-    std::thread(
-        [normalized = std::move(normalized), separator = std::move(separator),
-         cb = std::move(cb)]() mutable
+    auto work = [normalized = std::move(normalized),
+                 separator = std::move(separator), cb = std::move(cb)]() mutable
+    {
+        try
         {
-            try
+            if (!tt::rpc::filesystem::path_exists(normalized))
             {
-                if (!tt::rpc::filesystem::path_exists(normalized))
-                {
-                    cb(serialize_error("path does not exist"));
-                    return;
-                }
-                if (!tt::rpc::filesystem::is_directory(normalized))
-                {
-                    cb(serialize_error("path is not a directory"));
-                    return;
-                }
-                auto entries =
-                    tt::rpc::filesystem::collect_directory_entries(normalized);
-                auto parent = normalized.parent_path();
-                cb(serialize_fs_browse(path_to_string(normalized),
-                                       path_to_string(parent), separator,
-                                       entries));
+                cb(serialize_error("path does not exist"));
+                return;
             }
-            catch (std::filesystem::filesystem_error const &ex)
+            if (!tt::rpc::filesystem::is_directory(normalized))
             {
-                TT_LOG_INFO("fs-browse failed: {}", ex.what());
-                cb(serialize_error(ex.what()));
+                cb(serialize_error("path is not a directory"));
+                return;
             }
-            catch (...)
-            {
-                cb(serialize_error("fs-browse failed"));
-            }
-        })
-        .detach();
+            auto entries =
+                tt::rpc::filesystem::collect_directory_entries(normalized);
+            auto parent = normalized.parent_path();
+            cb(serialize_fs_browse(path_to_string(normalized),
+                                   path_to_string(parent), separator,
+                                   entries));
+        }
+        catch (std::filesystem::filesystem_error const &ex)
+        {
+            TT_LOG_INFO("fs-browse failed: {}", ex.what());
+            cb(serialize_error(ex.what()));
+        }
+        catch (...)
+        {
+            cb(serialize_error("fs-browse failed"));
+        }
+    };
+    if (engine)
+    {
+        engine->submit_io_task(std::move(work));
+    }
+    else
+    {
+        work();
+    }
 }
 
-void handle_fs_space_async(yyjson_val *arguments, ResponseCallback cb)
+void handle_fs_space_async(engine::Core *engine, yyjson_val *arguments,
+                           ResponseCallback cb)
 {
     auto target = arguments
                       ? parse_request_path(yyjson_obj_get(arguments, "path"))
@@ -1754,31 +1539,37 @@ void handle_fs_space_async(yyjson_val *arguments, ResponseCallback cb)
     {
         target = std::filesystem::current_path();
     }
-    std::thread(
-        [target = std::move(target), cb = std::move(cb)]()
+    auto work = [target = std::move(target), cb = std::move(cb)]()
+    {
+        try
         {
-            try
+            auto info = tt::rpc::filesystem::query_space(target);
+            if (!info)
             {
-                auto info = tt::rpc::filesystem::query_space(target);
-                if (!info)
-                {
-                    cb(serialize_error("unable to query space"));
-                    return;
-                }
-                cb(serialize_fs_space(path_to_string(target), info->available,
-                                      info->capacity));
+                cb(serialize_error("unable to query space"));
+                return;
             }
-            catch (std::filesystem::filesystem_error const &ex)
-            {
-                TT_LOG_INFO("fs-space failed: {}", ex.what());
-                cb(serialize_error(ex.what()));
-            }
-            catch (...)
-            {
-                cb(serialize_error("fs-space failed"));
-            }
-        })
-        .detach();
+            cb(serialize_fs_space(path_to_string(target), info->available,
+                                  info->capacity));
+        }
+        catch (std::filesystem::filesystem_error const &ex)
+        {
+            TT_LOG_INFO("fs-space failed: {}", ex.what());
+            cb(serialize_error(ex.what()));
+        }
+        catch (...)
+        {
+            cb(serialize_error("fs-space failed"));
+        }
+    };
+    if (engine)
+    {
+        engine->submit_io_task(std::move(work));
+    }
+    else
+    {
+        work();
+    }
 }
 
 void handle_history_get(engine::Core *engine, yyjson_val *arguments,
@@ -1877,8 +1668,14 @@ std::string handle_history_clear(engine::Core *engine, yyjson_val *arguments)
     return serialize_success();
 }
 
-void handle_system_reveal_async(yyjson_val *arguments, ResponseCallback cb)
+void handle_system_reveal_async(engine::Core *engine, yyjson_val *arguments,
+                                ResponseCallback cb)
 {
+    if (!engine)
+    {
+        cb(serialize_error("engine unavailable"));
+        return;
+    }
     if (!arguments)
     {
         cb(serialize_error("arguments required for system-reveal"));
@@ -1890,18 +1687,23 @@ void handle_system_reveal_async(yyjson_val *arguments, ResponseCallback cb)
         cb(serialize_error("path required"));
         return;
     }
-    std::thread(
+    engine->submit_io_task(
         [target = std::move(target), cb = std::move(cb)]() mutable
         {
             bool success = reveal_in_file_manager(target);
             cb(serialize_system_action("system-reveal", success,
                                        success ? "" : "unable to reveal path"));
-        })
-        .detach();
+        });
 }
 
-void handle_system_open_async(yyjson_val *arguments, ResponseCallback cb)
+void handle_system_open_async(engine::Core *engine, yyjson_val *arguments,
+                              ResponseCallback cb)
 {
+    if (!engine)
+    {
+        cb(serialize_error("engine unavailable"));
+        return;
+    }
     if (!arguments)
     {
         cb(serialize_error("arguments required for system-open"));
@@ -1913,17 +1715,17 @@ void handle_system_open_async(yyjson_val *arguments, ResponseCallback cb)
         cb(serialize_error("path required"));
         return;
     }
-    std::thread(
+    engine->submit_io_task(
         [target = std::move(target), cb = std::move(cb)]() mutable
         {
             bool success = open_with_default_app(target);
             cb(serialize_system_action("system-open", success,
                                        success ? "" : "unable to open path"));
-        })
-        .detach();
+        });
 }
 
-void handle_free_space_async(yyjson_val *arguments, ResponseCallback cb)
+void handle_free_space_async(engine::Core *engine, yyjson_val *arguments,
+                             ResponseCallback cb)
 {
     if (!arguments)
     {
@@ -1937,27 +1739,33 @@ void handle_free_space_async(yyjson_val *arguments, ResponseCallback cb)
         return;
     }
     std::filesystem::path path(yyjson_get_str(path_value));
-    std::thread(
-        [path = std::move(path), cb = std::move(cb)]()
+    auto work = [path = std::move(path), cb = std::move(cb)]()
+    {
+        try
         {
-            try
-            {
-                auto info = std::filesystem::space(path);
-                cb(serialize_free_space(path.string(), info.available,
-                                        info.capacity));
-            }
-            catch (std::filesystem::filesystem_error const &ex)
-            {
-                TT_LOG_INFO("free-space failed for {}: {}", path.string(),
-                            ex.what());
-                cb(serialize_error(ex.what()));
-            }
-            catch (...)
-            {
-                cb(serialize_error("free-space failed"));
-            }
-        })
-        .detach();
+            auto info = std::filesystem::space(path);
+            cb(serialize_free_space(path.string(), info.available,
+                                    info.capacity));
+        }
+        catch (std::filesystem::filesystem_error const &ex)
+        {
+            TT_LOG_INFO("free-space failed for {}: {}", path.string(),
+                        ex.what());
+            cb(serialize_error(ex.what()));
+        }
+        catch (...)
+        {
+            cb(serialize_error("free-space failed"));
+        }
+    };
+    if (engine)
+    {
+        engine->submit_io_task(std::move(work));
+    }
+    else
+    {
+        work();
+    }
 }
 
 std::string handle_system_register_handler()
@@ -2368,15 +2176,21 @@ void Dispatcher::register_handlers()
              [this](yyjson_val *) { return handle_session_close(engine_); });
     add_sync("blocklist-update",
              [this](yyjson_val *) { return handle_blocklist_update(engine_); });
-    add_async("fs-browse", handle_fs_browse_async);
-    add_async("fs-space", handle_fs_space_async);
-    add_async("system-reveal", handle_system_reveal_async);
-    add_async("system-open", handle_system_open_async);
+    add_async("fs-browse", [this](yyjson_val *arguments, ResponseCallback cb)
+              { handle_fs_browse_async(engine_, arguments, std::move(cb)); });
+    add_async("fs-space", [this](yyjson_val *arguments, ResponseCallback cb)
+              { handle_fs_space_async(engine_, arguments, std::move(cb)); });
+    add_async(
+        "system-reveal", [this](yyjson_val *arguments, ResponseCallback cb)
+        { handle_system_reveal_async(engine_, arguments, std::move(cb)); });
+    add_async("system-open", [this](yyjson_val *arguments, ResponseCallback cb)
+              { handle_system_open_async(engine_, arguments, std::move(cb)); });
     add_sync("system-register-handler",
              [](yyjson_val *) { return handle_system_register_handler(); });
     add_sync("app-shutdown",
              [this](yyjson_val *) { return handle_app_shutdown(engine_); });
-    add_async("free-space", handle_free_space_async);
+    add_async("free-space", [this](yyjson_val *arguments, ResponseCallback cb)
+              { handle_free_space_async(engine_, arguments, std::move(cb)); });
     add_async("history-get", [this](yyjson_val *arguments, ResponseCallback cb)
               { handle_history_get(engine_, arguments, std::move(cb)); });
     add_sync("history-clear", [this](yyjson_val *arguments)

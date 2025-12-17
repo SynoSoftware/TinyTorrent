@@ -540,7 +540,7 @@ TorrentManager::handles_for_ids(std::vector<int> const &ids) const
     return result;
 }
 
-void TorrentManager::set_ip_filter(libtorrent::ip_filter const &filter)
+void TorrentManager::set_ip_filter(libtorrent::ip_filter &&filter)
 {
     if (!session_)
     {

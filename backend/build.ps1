@@ -66,7 +66,12 @@ for path in candidates:
     if path:
         print(path)
 '@
-        $output = & $LauncherCommand $LauncherVersion '-c' $script 2>$null
+        if ($LauncherVersion) {
+            $output = & $LauncherCommand $LauncherVersion '-c' $script 2>$null
+        }
+        else {
+            $output = & $LauncherCommand '-c' $script 2>$null
+        }
         if (-not $output) { return @() }
 
         $paths = $output -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ }
@@ -145,8 +150,8 @@ $vswhereExe = Resolve-VsWhere $VsWherePath
 Import-VsEnvironment $vswhereExe
 
 $pythonLaunchers = @(
-    [pscustomobject]@{ Command = 'py'; Version = '-3.12' },
-    [pscustomobject]@{ Command = 'py'; Version = '-3' }
+    [pscustomobject]@{ Command = 'py'; Version = '-3' },
+    [pscustomobject]@{ Command = 'py'; Version = '' }
 )
 $pythonScriptEntries = @()
 foreach ($launcher in $pythonLaunchers) {

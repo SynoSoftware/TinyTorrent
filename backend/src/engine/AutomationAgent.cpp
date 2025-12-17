@@ -270,6 +270,8 @@ void AutomationAgent::process_watch_entries(
     auto now = std::chrono::steady_clock::now();
     std::unordered_set<std::filesystem::path> seen;
     seen.reserve(entries.size());
+    std::vector<WatchEntryInfo> stable_entries;
+    stable_entries.reserve(entries.size());
     for (auto const &entry : entries)
     {
         seen.insert(entry.path);
@@ -292,35 +294,7 @@ void AutomationAgent::process_watch_entries(
         {
             continue;
         }
-        std::ifstream input(entry.path, std::ios::binary);
-        if (!input)
-        {
-            mark_watch_file(entry.path, ".invalid");
-            continue;
-        }
-        std::vector<std::uint8_t> buffer(
-            (std::istreambuf_iterator<char>(input)),
-            std::istreambuf_iterator<char>());
-        if (buffer.empty())
-        {
-            mark_watch_file(entry.path, ".invalid");
-            continue;
-        }
-        TorrentAddRequest request;
-        request.metainfo = std::move(buffer);
-        request.download_path = download_path;
-        auto status = enqueue_torrent_(std::move(request));
-        if (status == Core::AddTorrentStatus::Ok)
-        {
-            mark_watch_file(entry.path, ".added");
-            continue;
-        }
-        auto reason = status == Core::AddTorrentStatus::InvalidUri
-                          ? "invalid torrent metadata"
-                          : "failed to queue torrent";
-        TT_LOG_INFO("watch-dir enqueue failed for {}: {}", entry.path.string(),
-                    reason);
-        mark_watch_file(entry.path, ".invalid");
+        stable_entries.push_back(entry);
     }
     for (auto it = watch_dir_snapshots_.begin();
          it != watch_dir_snapshots_.end();)
@@ -332,7 +306,71 @@ void AutomationAgent::process_watch_entries(
         }
         it = watch_dir_snapshots_.erase(it);
     }
+
+    if (stable_entries.empty())
+    {
+        return;
+    }
+
+    schedule_io_(
+        [this, download_path = std::move(download_path),
+         stable_entries = std::move(stable_entries)]() mutable
+        {
+            std::vector<std::pair<WatchEntryInfo, std::vector<std::uint8_t>>>
+                buffers;
+            buffers.reserve(stable_entries.size());
+            for (auto const &entry : stable_entries)
+            {
+                std::vector<std::uint8_t> buffer;
+                std::ifstream input(entry.path, std::ios::binary);
+                if (input)
+                {
+                    buffer.assign(std::istreambuf_iterator<char>(input),
+                                  std::istreambuf_iterator<char>());
+                }
+                buffers.emplace_back(entry, std::move(buffer));
+            }
+            enqueue_task_(
+                [this, download_path = std::move(download_path),
+                 buffers = std::move(buffers)]() mutable
+                {
+                    finish_watch_entries(std::move(download_path),
+                                         std::move(buffers));
+                });
+        });
 }
+
+void AutomationAgent::finish_watch_entries(
+    std::filesystem::path download_path,
+    std::vector<std::pair<WatchEntryInfo, std::vector<std::uint8_t>>> entries)
+{
+    for (auto &entry : entries)
+    {
+        auto const &info = entry.first;
+        auto &buffer = entry.second;
+        if (buffer.empty())
+        {
+            mark_watch_file(info.path, ".invalid");
+            continue;
+        }
+        TorrentAddRequest request;
+        request.metainfo = std::move(buffer);
+        request.download_path = download_path;
+        auto status = enqueue_torrent_(std::move(request));
+        if (status == Core::AddTorrentStatus::Ok)
+        {
+            mark_watch_file(info.path, ".added");
+            continue;
+        }
+        auto reason = status == Core::AddTorrentStatus::InvalidUri
+                          ? "invalid torrent metadata"
+                          : "failed to queue torrent";
+        TT_LOG_INFO("watch-dir enqueue failed for {}: {}",
+                    info.path.string(), reason);
+        mark_watch_file(info.path, ".invalid");
+    }
+}
+
 
 void AutomationAgent::mark_watch_file(std::filesystem::path const &source,
                                       char const *suffix)

@@ -11,6 +11,8 @@
 #include "engine/TorrentUtils.hpp"
 #include "utils/Log.hpp"
 
+#include <algorithm>
+
 #include <libtorrent/magnet_uri.hpp>
 #include <libtorrent/session_params.hpp>
 #include <libtorrent/torrent_info.hpp>
@@ -267,9 +269,11 @@ void SessionService::update_snapshot(std::chrono::steady_clock::time_point now)
     if (history_)
         history_->record(now, down, up);
 
+    std::vector<int> pending_pause_ids;
     TorrentManager::SnapshotBuildCallbacks cb;
-    cb.on_torrent_visit = [this](int id, auto const &h, auto const &s)
-    { enforce_limits(id, h, s); };
+    cb.on_torrent_visit =
+        [this, &pending_pause_ids](int id, auto const &h, auto const &s)
+    { enforce_limits(id, h, s, &pending_pause_ids); };
 
     cb.build_snapshot_entry = [this](int id, auto const &s, uint64_t r)
     { return snapshot_builder_->build_snapshot(id, s, r); };
@@ -314,6 +318,15 @@ void SessionService::update_snapshot(std::chrono::steady_clock::time_point now)
                 ++it;
         }
     }
+
+    if (!pending_pause_ids.empty())
+    {
+        std::sort(pending_pause_ids.begin(), pending_pause_ids.end());
+        pending_pause_ids.erase(
+            std::unique(pending_pause_ids.begin(), pending_pause_ids.end()),
+            pending_pause_ids.end());
+        perform_action(pending_pause_ids, [](auto &handle) { handle.pause(); });
+    }
 }
 
 void SessionService::check_speed_limits()
@@ -338,7 +351,8 @@ void SessionService::check_speed_limits()
 }
 
 void SessionService::enforce_limits(int id, libtorrent::torrent_handle const &h,
-                                    libtorrent::v2::torrent_status const &s)
+                                    libtorrent::v2::torrent_status const &s,
+                                    std::vector<int> *pending_pause_ids)
 {
     std::lock_guard<std::mutex> l(data_mutex_);
     auto it = seed_limits_.find(id);
@@ -355,6 +369,16 @@ void SessionService::enforce_limits(int id, libtorrent::torrent_handle const &h,
     if (!finished)
         return;
 
+    auto mark_pause = [id, pending_pause_ids]()
+    {
+        if (!pending_pause_ids)
+            return;
+        auto exists =
+            std::find(pending_pause_ids->begin(), pending_pause_ids->end(), id);
+        if (exists == pending_pause_ids->end())
+            pending_pause_ids->push_back(id);
+    };
+
     if (lim.ratio_enabled && lim.ratio_limit && *lim.ratio_limit > 0.0)
     {
         double dl =
@@ -362,13 +386,7 @@ void SessionService::enforce_limits(int id, libtorrent::torrent_handle const &h,
         double ul = static_cast<double>(s.all_time_upload);
         if ((ul / dl) >= *lim.ratio_limit)
         {
-            try
-            {
-                const_cast<libtorrent::torrent_handle &>(h).pause();
-            }
-            catch (...)
-            {
-            }
+            mark_pause();
             return;
         }
     }
@@ -380,13 +398,7 @@ void SessionService::enforce_limits(int id, libtorrent::torrent_handle const &h,
             now - lim.last_activity);
         if (idle_for.count() >= *lim.idle_limit)
         {
-            try
-            {
-                const_cast<libtorrent::torrent_handle &>(h).pause();
-            }
-            catch (...)
-            {
-            }
+            mark_pause();
         }
     }
 }
