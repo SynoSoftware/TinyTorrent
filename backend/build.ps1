@@ -23,6 +23,68 @@ $ErrorActionPreference = 'Stop'
 # Default: 500MB
 $PromptOnDeleteAboveBytes = 500MB
 
+function Format-Bytes {
+    param([long]$Bytes)
+    if ($Bytes -lt 1024) { return "$Bytes B" }
+    $units = @('KB', 'MB', 'GB', 'TB')
+    $size = [double]$Bytes
+    $unitIndex = -1
+    while ($size -ge 1024 -and $unitIndex -lt ($units.Count - 1)) {
+        $size /= 1024
+        $unitIndex++
+    }
+    return ("{0:N2} {1}" -f $size, $units[$unitIndex])
+}
+
+function Get-FolderSizeBytes {
+    param([string]$Path)
+    if (-not (Test-Path $Path)) { return 0 }
+    $m = Get-ChildItem -LiteralPath $Path -Recurse -File -Force -ErrorAction SilentlyContinue |
+    Measure-Object -Property Length -Sum
+    if ($null -eq $m.Sum) { return 0 }
+    return [long]$m.Sum
+}
+
+function Remove-FolderSafe {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$DisplayName,
+        [Parameter(Mandatory = $true)][long]$PromptAboveBytes,
+        [switch]$ForcePrompt
+    )
+
+    if (-not (Test-Path $Path)) {
+        Write-Host "$DisplayName not found: $Path" -ForegroundColor DarkGray
+        return
+    }
+
+    Write-Host "`nDeletion requested: $DisplayName" -ForegroundColor Yellow
+    Write-Host "  Path: $Path" -ForegroundColor Yellow
+    Write-Host "  Calculating size..." -ForegroundColor DarkGray
+    $bytes = Get-FolderSizeBytes $Path
+    Write-Host "  Size: $(Format-Bytes $bytes)" -ForegroundColor Yellow
+
+    $needsPrompt = $ForcePrompt -or ($bytes -ge $PromptAboveBytes)
+    if ($needsPrompt) {
+        Write-Host "  Threshold: $(Format-Bytes $PromptAboveBytes)" -ForegroundColor Yellow
+
+        # Avoid hanging in CI/non-interactive environments.
+        if ($env:CI -eq 'true') {
+            throw "Refusing to delete $DisplayName in CI (size requires confirmation). Delete it manually if needed: $Path"
+        }
+
+        $answer = Read-Host "Type YES to permanently delete $DisplayName (anything else = cancel)"
+        if ($answer -ne 'YES') {
+            Write-Host "Cancelled deletion of $DisplayName." -ForegroundColor Cyan
+            return
+        }
+    }
+
+    Write-Host "Deleting $DisplayName..." -ForegroundColor Yellow
+    Remove-Item -LiteralPath $Path -Recurse -Force
+    Write-Host "Deleted $DisplayName." -ForegroundColor Green
+}
+
 if ($Help) {
     Write-Host "TinyTorrent Build Script (Final)"
     Write-Host "Features: Auto-Discovery (User+System), Auto-Clean (Marker), Full Logging."
@@ -196,7 +258,7 @@ $ConfigMarker = "$Configuration|$VcpkgTrip|$VsCrt|$Sanitize"
 $MarkerFile = Join-Path $BuildDir "tt-config.marker"
 
 if (Test-Path $BuildDir) {
-    $OldMarker = if (Test-Path $MarkerFile) { Get-Content $MarkerFile -Raw } else { "" }
+    $OldMarker = if (Test-Path $MarkerFile) { (Get-Content $MarkerFile -Raw).Trim() } else { "" }
     if ($Clean -or ($OldMarker -ne $ConfigMarker)) {
         $Reason = if ($Clean) { "Manual Clean" } else { "Configuration Changed" }
         Write-Host "Cleaning build directory ($Reason)..." -ForegroundColor Yellow
@@ -407,46 +469,6 @@ function Confirm-And-DeleteFolder {
     if ($answer -ne 'YES') {
         Write-Host "Cancelled deletion of $DisplayName." -ForegroundColor Cyan
         return
-    }
-
-    Write-Host "Deleting $DisplayName..." -ForegroundColor Yellow
-    Remove-Item -LiteralPath $Path -Recurse -Force
-    Write-Host "Deleted $DisplayName." -ForegroundColor Green
-}
-
-function Remove-FolderSafe {
-    param(
-        [Parameter(Mandatory = $true)][string]$Path,
-        [Parameter(Mandatory = $true)][string]$DisplayName,
-        [Parameter(Mandatory = $true)][long]$PromptAboveBytes,
-        [switch]$ForcePrompt
-    )
-
-    if (-not (Test-Path $Path)) {
-        Write-Host "$DisplayName not found: $Path" -ForegroundColor DarkGray
-        return
-    }
-
-    Write-Host "`nDeletion requested: $DisplayName" -ForegroundColor Yellow
-    Write-Host "  Path: $Path" -ForegroundColor Yellow
-    Write-Host "  Calculating size..." -ForegroundColor DarkGray
-    $bytes = Get-FolderSizeBytes $Path
-    Write-Host "  Size: $(Format-Bytes $bytes)" -ForegroundColor Yellow
-
-    $needsPrompt = $ForcePrompt -or ($bytes -ge $PromptAboveBytes)
-    if ($needsPrompt) {
-        Write-Host "  Threshold: $(Format-Bytes $PromptAboveBytes)" -ForegroundColor Yellow
-
-        # Avoid hanging in CI/non-interactive environments.
-        if ($env:CI -eq 'true') {
-            throw "Refusing to delete $DisplayName in CI (size requires confirmation). Delete it manually if needed: $Path"
-        }
-
-        $answer = Read-Host "Type YES to permanently delete $DisplayName (anything else = cancel)"
-        if ($answer -ne 'YES') {
-            Write-Host "Cancelled deletion of $DisplayName." -ForegroundColor Cyan
-            return
-        }
     }
 
     Write-Host "Deleting $DisplayName..." -ForegroundColor Yellow
