@@ -1,4 +1,4 @@
-# <img src="frontend/public/tinyTorrent.svg" width="32" alt="" /> TinyTorrent
+# <img src="frontend/public/tinyTorrent.svg" width="48" alt="" /> TinyTorrent
 
 **A modern BitTorrent client. No frameworks needed. ~1 MB (Transmission-based) and ~3 MB (Libtorrent-based). Fully capable.**
 
