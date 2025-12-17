@@ -9,15 +9,24 @@ param(
     
     # Actions
     [switch]$Clean,
+    # Safety: vcpkg is never deleted automatically. If you request deletion,
+    # the script will show its size and require interactive confirmation.
+    [switch]$DeleteVcpkg,
     [switch]$SkipTests,
     [switch]$Help
 )
 
 $ErrorActionPreference = 'Stop'
 
+# Deletion safety threshold:
+# If any folder deletion target exceeds this size, require interactive confirmation.
+# Default: 500MB
+$PromptOnDeleteAboveBytes = 500MB
+
 if ($Help) {
     Write-Host "TinyTorrent Build Script (Final)"
     Write-Host "Features: Auto-Discovery (User+System), Auto-Clean (Marker), Full Logging."
+    Write-Host "Safety: vcpkg is never deleted automatically; use -DeleteVcpkg to request deletion (interactive confirm)."
     exit 0
 }
 
@@ -148,7 +157,11 @@ switch ($Configuration) {
     'Debug' {
         $BuildSubDir = "debug"
         $MesonType = "debug"
-        $VcpkgTrip = "x64-windows"
+        # NOTE: MSVC ASan requires /MD. Mixing /MD app code with /MDd vcpkg debug
+        # libs is an ABI/CRT mismatch (esp. std::string) and can crash inside
+        # libtorrent settings_pack::set_str.
+        # Use a release-only dynamic triplet to keep CRT + STL ABI consistent.
+        $VcpkgTrip = "x64-windows-asan"
         $VsCrt = "md"
         $Sanitize = "address"
         $Logging = "true"
@@ -174,6 +187,10 @@ $BuildDir = Join-Path $RepoRoot "build\$BuildSubDir"
 $VcpkgDir = Join-Path $RepoRoot "vcpkg"
 $VcpkgExe = Join-Path $VcpkgDir "vcpkg.exe"
 
+if ($DeleteVcpkg) {
+    Remove-FolderSafe -Path $VcpkgDir -DisplayName 'vcpkg' -PromptAboveBytes $PromptOnDeleteAboveBytes -ForcePrompt
+}
+
 # FIX: Automatic Invalidation (Marker File)
 $ConfigMarker = "$Configuration|$VcpkgTrip|$VsCrt|$Sanitize"
 $MarkerFile = Join-Path $BuildDir "tt-config.marker"
@@ -183,7 +200,7 @@ if (Test-Path $BuildDir) {
     if ($Clean -or ($OldMarker -ne $ConfigMarker)) {
         $Reason = if ($Clean) { "Manual Clean" } else { "Configuration Changed" }
         Write-Host "Cleaning build directory ($Reason)..." -ForegroundColor Yellow
-        Remove-Item $BuildDir -Recurse -Force
+        Remove-FolderSafe -Path $BuildDir -DisplayName "build directory ($BuildSubDir)" -PromptAboveBytes $PromptOnDeleteAboveBytes
     }
 }
 
@@ -266,8 +283,15 @@ if (-not $SkipTests) {
     $OldPath = $env:PATH
     
     if (-not $IsStatic) {
-        $DllSource = Join-Path $TripletInstallDir "debug\bin"
-        if (Test-Path $DllSource) { $env:PATH = "$DllSource;$OldPath" }
+        $DllCandidates = @(
+            (Join-Path $TripletInstallDir "bin"),
+            (Join-Path $TripletInstallDir "debug\bin")
+        )
+        foreach ($c in $DllCandidates) {
+            if (Test-Path $c) {
+                $env:PATH = "$c;$env:PATH"
+            }
+        }
     }
 
     try {
@@ -314,10 +338,15 @@ if (-not $SkipTests) {
 # ==============================================================================
 
 if (-not $IsStatic) {
-    $BinDir = Join-Path $TripletInstallDir "debug\bin"
-    if (Test-Path $BinDir) {
-        Get-ChildItem -Path $BinDir -Filter "*.dll" | ForEach-Object {
-            Copy-Item -Path $_.FullName -Destination $BuildDir -Force
+    $BinCandidates = @(
+        (Join-Path $TripletInstallDir "bin"),
+        (Join-Path $TripletInstallDir "debug\bin")
+    )
+    foreach ($BinDir in $BinCandidates) {
+        if (Test-Path $BinDir) {
+            Get-ChildItem -Path $BinDir -Filter "*.dll" | ForEach-Object {
+                Copy-Item -Path $_.FullName -Destination $BuildDir -Force
+            }
         }
     }
 }
@@ -328,4 +357,99 @@ if (Test-Path $ExePath) {
     Write-Host "`nSUCCESS: $Configuration Build Complete" -ForegroundColor Green
     Write-Host "Artifact: $ExePath"
     Write-Host ("Size:     {0:N0} KB" -f $SizeKB)
+}
+
+function Format-Bytes {
+    param([long]$Bytes)
+    if ($Bytes -lt 1024) { return "$Bytes B" }
+    $units = @('KB', 'MB', 'GB', 'TB')
+    $size = [double]$Bytes
+    $unitIndex = -1
+    while ($size -ge 1024 -and $unitIndex -lt ($units.Count - 1)) {
+        $size /= 1024
+        $unitIndex++
+    }
+    return ("{0:N2} {1}" -f $size, $units[$unitIndex])
+}
+
+function Get-FolderSizeBytes {
+    param([string]$Path)
+    if (-not (Test-Path $Path)) { return 0 }
+    $m = Get-ChildItem -LiteralPath $Path -Recurse -File -Force -ErrorAction SilentlyContinue |
+    Measure-Object -Property Length -Sum
+    if ($null -eq $m.Sum) { return 0 }
+    return [long]$m.Sum
+}
+
+function Confirm-And-DeleteFolder {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$DisplayName
+    )
+
+    if (-not (Test-Path $Path)) {
+        Write-Host "$DisplayName not found: $Path" -ForegroundColor DarkGray
+        return
+    }
+
+    # Avoid hanging in CI/non-interactive environments.
+    if ($env:CI -eq 'true') {
+        throw "Refusing to delete $DisplayName in CI. Delete it manually if needed: $Path"
+    }
+
+    Write-Host "`nDeletion requested: $DisplayName" -ForegroundColor Yellow
+    Write-Host "  Path: $Path" -ForegroundColor Yellow
+    Write-Host "  Calculating size..." -ForegroundColor DarkGray
+    $bytes = Get-FolderSizeBytes $Path
+    Write-Host "  Size: $(Format-Bytes $bytes)" -ForegroundColor Yellow
+
+    $answer = Read-Host "Type YES to permanently delete $DisplayName (anything else = cancel)"
+    if ($answer -ne 'YES') {
+        Write-Host "Cancelled deletion of $DisplayName." -ForegroundColor Cyan
+        return
+    }
+
+    Write-Host "Deleting $DisplayName..." -ForegroundColor Yellow
+    Remove-Item -LiteralPath $Path -Recurse -Force
+    Write-Host "Deleted $DisplayName." -ForegroundColor Green
+}
+
+function Remove-FolderSafe {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$DisplayName,
+        [Parameter(Mandatory = $true)][long]$PromptAboveBytes,
+        [switch]$ForcePrompt
+    )
+
+    if (-not (Test-Path $Path)) {
+        Write-Host "$DisplayName not found: $Path" -ForegroundColor DarkGray
+        return
+    }
+
+    Write-Host "`nDeletion requested: $DisplayName" -ForegroundColor Yellow
+    Write-Host "  Path: $Path" -ForegroundColor Yellow
+    Write-Host "  Calculating size..." -ForegroundColor DarkGray
+    $bytes = Get-FolderSizeBytes $Path
+    Write-Host "  Size: $(Format-Bytes $bytes)" -ForegroundColor Yellow
+
+    $needsPrompt = $ForcePrompt -or ($bytes -ge $PromptAboveBytes)
+    if ($needsPrompt) {
+        Write-Host "  Threshold: $(Format-Bytes $PromptAboveBytes)" -ForegroundColor Yellow
+
+        # Avoid hanging in CI/non-interactive environments.
+        if ($env:CI -eq 'true') {
+            throw "Refusing to delete $DisplayName in CI (size requires confirmation). Delete it manually if needed: $Path"
+        }
+
+        $answer = Read-Host "Type YES to permanently delete $DisplayName (anything else = cancel)"
+        if ($answer -ne 'YES') {
+            Write-Host "Cancelled deletion of $DisplayName." -ForegroundColor Cyan
+            return
+        }
+    }
+
+    Write-Host "Deleting $DisplayName..." -ForegroundColor Yellow
+    Remove-Item -LiteralPath $Path -Recurse -Force
+    Write-Host "Deleted $DisplayName." -ForegroundColor Green
 }
