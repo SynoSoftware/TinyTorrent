@@ -1,3 +1,7 @@
+SPDX-License-Identifier: Apache-2.0
+
+Licensed under the Apache License, Version 2.0. See `LICENSES.md` for details.
+
 # **TinyTorrent RPC-Extended Specification**
 
 **Version:** 1.0.0 (Gold)
