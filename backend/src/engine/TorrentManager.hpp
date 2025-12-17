@@ -49,7 +49,7 @@ class TorrentManager
     struct AlertCallbacks
     {
         std::function<void(libtorrent::torrent_handle const &,
-                           libtorrent::torrent_status const &)>
+                           libtorrent::v2::torrent_status const &)>
             on_torrent_finished;
         std::function<std::filesystem::path(std::string const &)>
             metadata_file_path;
@@ -61,7 +61,7 @@ class TorrentManager
             on_resume_data;
         std::function<void(std::string const &)> on_resume_hash_completed;
         std::function<void()> extend_resume_deadline;
-        std::function<void(std::vector<libtorrent::torrent_status> const &)>
+        std::function<void(std::vector<libtorrent::v2::torrent_status> const &)>
             on_state_update;
         std::function<void(libtorrent::listen_succeeded_alert const &)>
             on_listen_succeeded;
@@ -82,11 +82,11 @@ class TorrentManager
 
     struct SnapshotBuildCallbacks
     {
-        std::function<TorrentSnapshot(int, libtorrent::torrent_status const &,
-                                      std::uint64_t)>
+        std::function<TorrentSnapshot(
+            int, libtorrent::v2::torrent_status const &, std::uint64_t)>
             build_snapshot_entry;
         std::function<void(int, libtorrent::torrent_handle const &,
-                           libtorrent::torrent_status const &)>
+                           libtorrent::v2::torrent_status const &)>
             on_torrent_visit;
         std::function<std::vector<std::string>(int, std::string const &)>
             labels_for_torrent;
@@ -105,7 +105,7 @@ class TorrentManager
     TorrentManager &operator=(TorrentManager const &) = delete;
     ~TorrentManager();
 
-    void start_session(libtorrent::session_params params);
+    void start_session(libtorrent::v2::session_params params);
     libtorrent::session *session() const noexcept;
 
     void enqueue_task(std::function<void()> task);

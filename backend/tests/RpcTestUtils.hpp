@@ -1,13 +1,25 @@
 #pragma once
 
+#include <future>
 #include <stdexcept>
 #include <string>
 #include <string_view>
 
+#include "rpc/Dispatcher.hpp"
 #include <yyjson.h>
 
 namespace tt::tests
 {
+
+inline std::string dispatch_sync(tt::rpc::Dispatcher &dispatcher,
+                                 std::string const &request)
+{
+    std::promise<std::string> promise;
+    auto future = promise.get_future();
+    dispatcher.dispatch(request, [&promise](std::string response)
+                        { promise.set_value(std::move(response)); });
+    return future.get();
+}
 
 class ResponseView
 {

@@ -3,6 +3,7 @@
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <future>
 #include <memory>
 #include <optional>
@@ -320,11 +321,13 @@ class Core
     void set_torrent_seed_limits(std::vector<int> ids, TorrentSeedLimit limits);
     void set_torrent_labels(std::vector<int> ids,
                             std::vector<std::string> const &labels);
+    using HistoryCallback = std::function<void(std::vector<HistoryBucket>)>;
     HistoryConfig history_config() const;
-    std::vector<HistoryBucket>
-    history_data(std::int64_t start, std::int64_t end, std::int64_t step) const;
+    void history_data(std::int64_t start, std::int64_t end, std::int64_t step,
+                      HistoryCallback callback) const;
     bool history_clear(std::optional<std::int64_t> older_than);
     std::string listen_error() const;
+    void set_listen_error_for_testing(std::string message);
 
   private:
     struct Impl;

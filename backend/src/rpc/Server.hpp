@@ -5,12 +5,14 @@
 #include <atomic>
 #include <chrono>
 #include <cstdint>
+#include <functional>
 #include <future>
 #include <memory>
 #include <mutex>
 #include <optional>
 #include <string>
 #include <thread>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -65,7 +67,8 @@ class Server
     void handle_ws_message(struct mg_connection *conn,
                            struct mg_ws_message *message);
     void handle_connection_closed(struct mg_connection *conn, int ev);
-    std::future<std::string> dispatch(std::string_view payload);
+    void dispatch(std::string_view payload,
+                  std::function<void(std::string)> cb);
     static void handle_event(struct mg_connection *conn, int ev, void *ev_data);
     bool authorize_request(struct mg_http_message *hm);
     bool authorize_ws_upgrade(struct mg_http_message *hm,
@@ -75,7 +78,9 @@ class Server
     void broadcast_event(std::string const &payload);
     void send_ws_message(struct mg_connection *conn,
                          std::string const &payload);
-    void process_pending_http_responses();
+    void process_pending_tasks();
+    void enqueue_task(std::function<void()> task);
+    void send_response(std::uint64_t req_id, std::string const &response);
 
     std::string bind_url_;
     std::string rpc_path_;
@@ -91,11 +96,12 @@ class Server
     std::string ws_path_ = "/ws";
     std::atomic_bool destroying_{false};
 
-    struct PendingHttpRequest
-    {
-        struct mg_connection *conn = nullptr;
-        std::shared_ptr<std::future<std::string>> future;
-    };
+    using RequestId = std::uint64_t;
+    RequestId next_request_id_ = 1;
+    std::unordered_map<RequestId, struct mg_connection *> active_requests_;
+
+    std::vector<std::function<void()>> pending_tasks_;
+    std::mutex tasks_mtx_;
 
     struct WsClient
     {
@@ -104,7 +110,6 @@ class Server
     };
     std::vector<WsClient> ws_clients_;
     std::mutex ws_clients_mtx_; // Protects ws_clients_ from concurrent access
-    std::vector<PendingHttpRequest> pending_http_requests_;
     std::shared_ptr<engine::SessionSnapshot> last_patch_snapshot_;
     std::shared_ptr<engine::SessionSnapshot> pending_snapshot_;
     std::size_t last_blocklist_entries_ = 0;

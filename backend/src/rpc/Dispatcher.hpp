@@ -12,13 +12,14 @@ struct yyjson_val;
 
 namespace tt::rpc
 {
-using DispatchHandler = std::function<std::future<std::string>(yyjson_val *)>;
+using ResponseCallback = std::function<void(std::string)>;
+using DispatchHandler = std::function<void(yyjson_val *, ResponseCallback)>;
 
 class Dispatcher
 {
   public:
     Dispatcher(engine::Core *engine, std::string rpc_bind = {});
-    std::future<std::string> dispatch(std::string_view payload);
+    void dispatch(std::string_view payload, ResponseCallback cb);
 
   private:
     void register_handlers();
