@@ -4,9 +4,9 @@
 
 [![License: MPL-2.0](https://img.shields.io/badge/License-MPL--2.0-orange.svg)](https://www.mozilla.org/MPL/2.0/)
 [![Protocol: Apache-2.0](https://img.shields.io/badge/Protocol-Apache--2.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
-[![C++](https://img.shields.io/badge/C++-17-blue)](https://en.cppreference.com/w/cpp/17)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)](https://www.typescriptlang.org/)
-[![React](https://img.shields.io/badge/React-19-cyan)](https://react.dev/)
+[![C++](https://img.shields.io/badge/C++-20-blue)](https://en.cppreference.com/w/cpp/20)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9.x-blue)](https://www.typescriptlang.org/)
+[![React](https://img.shields.io/badge/React-19.2.x-cyan)](https://react.dev/)
 [![UI](https://img.shields.io/badge/UI-HeroUI%20%2B%20TailwindCSS-8b5cf6)](https://www.heroui.com/)
 [![Motion](https://img.shields.io/badge/Motion-Framer%20Motion-pink)](https://www.framer.com/motion/)
 [![Build](https://img.shields.io/badge/Build-Vite-646cff)](https://vitejs.dev/)
@@ -110,7 +110,7 @@ TinyTorrent/
 
 ### Backend Tech
 
-- C / C++17 (no exceptions, no RTTI)
+- C / C++20 (no exceptions, no RTTI)
 - libtransmission
 - Mongoose (embedded web server)
 - Static asset bundling for optional embedded UI in the future
