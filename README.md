@@ -74,7 +74,7 @@ TinyTorrent is not tied to a single engine.
 
 ---
 
-## Licensing rationale
+## ⚖️ Licensing Rationale
 
 TinyTorrent is licensed under **MPL-2.0** for the code because I want this project to stay true to the spirit that in my eyes made uTorrent great (small, practical, user-respecting), and to avoid the “uTorrent way” where a great tool drifts into a closed, adware/bloat-heavy direction.
 
