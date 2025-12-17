@@ -1,4 +1,5 @@
 #include "engine/SchedulerService.hpp"
+#include "utils/Log.hpp"
 
 namespace tt::engine
 {
@@ -26,8 +27,20 @@ size_t SchedulerService::tick(Clock::time_point now)
         // 2. Execute
         if (task.callback)
         {
-            task.callback();
-            executed++;
+            try
+            {
+                task.callback();
+                executed++;
+            }
+            catch (std::exception const &ex)
+            {
+                TT_LOG_INFO("scheduler task {} threw: {}", task.id, ex.what());
+            }
+            catch (...)
+            {
+                TT_LOG_INFO("scheduler task {} threw an unknown exception",
+                            task.id);
+            }
         }
 
         // 3. Reschedule

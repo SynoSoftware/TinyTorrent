@@ -83,7 +83,8 @@ class SessionService
     void update_snapshot(std::chrono::steady_clock::time_point now);
     void check_speed_limits();
     void enforce_limits(int id, libtorrent::torrent_handle const &h,
-                        libtorrent::v2::torrent_status const &s);
+                        libtorrent::v2::torrent_status const &s,
+                        std::vector<int> *pending_pause_ids = nullptr);
     void mark_dirty(int id);
     std::uint64_t ensure_revision(int id);
 

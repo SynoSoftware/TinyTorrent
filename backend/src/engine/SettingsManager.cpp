@@ -60,7 +60,7 @@ int SettingsManager::kbps_to_bytes(int limit_kbps, bool enabled)
     {
         return 0;
     }
-    return static_cast<int>(limit_kbps * 1024 / 8);
+    return static_cast<int>(limit_kbps * 1024);
 }
 
 void SettingsManager::apply_encryption(CoreSettings const &s,
@@ -113,10 +113,8 @@ void SettingsManager::apply_network(CoreSettings const &s,
                   s.utp_enabled);
     if (current)
     {
-        current->set_bool(libtorrent::settings_pack::enable_dht,
-                          s.dht_enabled);
-        current->set_bool(libtorrent::settings_pack::enable_lsd,
-                          s.lpd_enabled);
+        current->set_bool(libtorrent::settings_pack::enable_dht, s.dht_enabled);
+        current->set_bool(libtorrent::settings_pack::enable_lsd, s.lpd_enabled);
         current->set_bool(libtorrent::settings_pack::enable_incoming_utp,
                           s.utp_enabled);
         current->set_bool(libtorrent::settings_pack::enable_outgoing_utp,
@@ -147,13 +145,11 @@ void SettingsManager::apply_proxy(CoreSettings const &s,
         current->set_int(libtorrent::settings_pack::proxy_type, s.proxy_type);
         current->set_str(libtorrent::settings_pack::proxy_hostname,
                          s.proxy_hostname);
-        current->set_int(libtorrent::settings_pack::proxy_port,
-                         s.proxy_port);
+        current->set_int(libtorrent::settings_pack::proxy_port, s.proxy_port);
         current->set_bool(libtorrent::settings_pack::proxy_peer_connections,
                           s.proxy_peer_connections);
-        current->set_bool(
-            libtorrent::settings_pack::proxy_tracker_connections,
-            s.proxy_peer_connections);
+        current->set_bool(libtorrent::settings_pack::proxy_tracker_connections,
+                          s.proxy_peer_connections);
         current->set_bool(libtorrent::settings_pack::proxy_hostnames,
                           !s.proxy_hostname.empty());
         current->set_str(libtorrent::settings_pack::proxy_username,
@@ -231,8 +227,8 @@ bool SettingsManager::should_use_alt_speed(
 }
 
 void SettingsManager::apply_rate_limits(int download_kbps,
-                                        bool download_enabled,
-                                        int upload_kbps, bool upload_enabled,
+                                        bool download_enabled, int upload_kbps,
+                                        bool upload_enabled,
                                         libtorrent::settings_pack &pack,
                                         libtorrent::settings_pack *current)
 {
@@ -251,7 +247,8 @@ void SettingsManager::apply_rate_limits(int download_kbps,
 }
 
 SettingsManager::ApplyResult
-SettingsManager::apply_update(CoreSettings settings, SessionUpdate const &update)
+SettingsManager::apply_update(CoreSettings settings,
+                              SessionUpdate const &update)
 {
     ApplyResult result{};
     auto &s = settings;

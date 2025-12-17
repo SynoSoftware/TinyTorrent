@@ -1,8 +1,9 @@
 #pragma once
 
+#include <atomic>
 #include <chrono>
-#include <functional>
 #include <filesystem>
+#include <functional>
 #include <optional>
 
 namespace tt::engine
@@ -28,15 +29,16 @@ class BlocklistService
         std::function<void(std::string const &)> log_error;
     };
 
-    BlocklistService(BlocklistManager *manager,
-                     AsyncTaskService *tasks,
-                     TorrentManager *torrents,
-                     Callbacks callbacks = {});
+    BlocklistService(BlocklistManager *manager, AsyncTaskService *tasks,
+                     TorrentManager *torrents, Callbacks callbacks = {});
 
     // Schedule a reload if a path is configured. Non-blocking.
     bool reload_async();
 
-    std::size_t entries() const noexcept { return entries_; }
+    std::size_t entries() const noexcept
+    {
+        return entries_;
+    }
     std::optional<std::chrono::system_clock::time_point> last_update() const
     {
         return last_update_;
@@ -50,6 +52,7 @@ class BlocklistService
 
     std::size_t entries_ = 0;
     std::optional<std::chrono::system_clock::time_point> last_update_;
+    std::atomic_bool updating_{false};
 };
 
 } // namespace tt::engine

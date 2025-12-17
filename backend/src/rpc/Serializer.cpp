@@ -1,155 +1,5 @@
-/*
-
-This file **needs refactoring**.
-
-While the code is performant (using `yyjson`) and currently functional, it
-exhibits several architectural anti-patterns that will make maintenance
-difficult as the application grows.
-
-### The Problems
-
-1.  **"God Object" for Serialization**: This single file knows about every data
-structure in your application (`CoreSettings`, `SessionSnapshot`,
-`TorrentSnapshot`, `HistoryBucket`, `FsEntry`). If you change *any* logic in the
-engine, you likely have to recompile this file.
-2.  **Stringly-Typed API Contract**: JSON keys (e.g., `"download-dir"`,
-`"dht-nodes"`) are hardcoded string literals scattered inside function bodies.
-This makes it impossible to ensure consistency between serialization (GET) and
-deserialization (SET) logic elsewhere in the app.
-3.  **Boilerplate Repetition**: Almost every function repeats the same `yyjson`
-setup: check doc validity, create root, add `"result": "success"`, create
-`"arguments"`.
-4.  **Procedural Wall of Code**: `serialize_session_settings` is a massive,
-brittle block of procedural assignments. Adding a new setting requires manually
-writing the line to add it to the JSON object.
-
----
-
-### Refactoring Plan
-
-Here is how you should restructure this to improve architecture.
-
-#### 1. Create a `JsonBuilder` Abstraction
-Encapsulate the `yyjson` boilerplate. This removes the repetitive setup code
-from every function.
-
-**`src/rpc/JsonBuilder.hpp`**
-```cpp
-class JsonResponseBuilder {
-public:
-    explicit JsonResponseBuilder(const char* result_status = "success");
-
-    // Returns the "arguments" object where data should be written
-    yyjson_mut_val* args();
-
-    // Finalizes and returns string
-    std::string write();
-
-    // Helper for common types
-    void add_str(const char* key, const std::string& val);
-    void add_int(const char* key, int val);
-    // ...
-private:
-    tt::json::MutableDocument doc_;
-    yyjson_mut_val* args_root_;
-};
-```
-
-#### 2. Split by Domain
-Break the file into smaller, cohesive units based on the subsystem they serve.
-
-*   `src/rpc/serializers/SessionSerializer.cpp` (Settings, Stats)
-*   `src/rpc/serializers/TorrentSerializer.cpp` (Lists, Details, Updates)
-*   `src/rpc/serializers/SystemSerializer.cpp` (Filesystem, OS actions)
-
-#### 3. Data-Driven Settings Serialization
-Instead of writing 100 lines of `yyjson_mut_obj_add_*`, use a mapping table.
-This allows you to define the relationship between a C++ struct field and a JSON
-key once.
-
-**Example Refactoring of `serialize_session_settings`:**
-
-```cpp
-// Define a descriptor for settings
-template <typename T>
-struct SettingMap {
-    const char* json_key;
-    T engine::CoreSettings::* member;
-};
-
-// In implementation
-std::string serialize_session_settings(const engine::CoreSettings& s, ...) {
-    JsonResponseBuilder builder;
-    auto* args = builder.args();
-    auto* doc = builder.doc();
-
-    static constexpr auto kIntSettings = std::to_array<SettingMap<int>>({
-        {"download-queue-size", &engine::CoreSettings::download_queue_size},
-        {"peer-limit", &engine::CoreSettings::peer_limit},
-        // ... add others here
-    });
-
-    for (const auto& map : kIntSettings) {
-        yyjson_mut_obj_add_sint(doc, args, map.json_key, s.*(map.member));
-    }
-
-    // Handle bools, strings, etc. similarly...
-
-    return builder.write();
-}
-```
-
-#### 4. Consolidate "Delta" Logic
-The function `add_torrent_delta` contains complex logic for comparing fields to
-determine what changed. This logic belongs in the `Engine` or a dedicated `Diff`
-utility, not in the RPC serializer.
-
-**Better Architecture:**
-1.  **Engine:** Calculates the diff (`struct TorrentDiff`).
-2.  **Serializer:** Dumbly serializes the `TorrentDiff` struct.
-
-### Refactored File Structure Example
-
-**`src/rpc/Serializer.hpp`** (The public interface remains similar, but includes
-are reduced)
-```cpp
-#pragma once
-// Forward declarations only
-namespace tt::engine { struct CoreSettings; struct SessionSnapshot; ... }
-
-namespace tt::rpc {
-    std::string serialize_session_settings(const engine::CoreSettings& settings,
-...);
-    // ...
-}
-```
-
-**`src/rpc/serializers/TorrentSerializer.cpp`**
-```cpp
-#include "rpc/Serializer.hpp"
-#include "rpc/JsonHelpers.hpp"
-
-namespace tt::rpc {
-    // Only logic related to Torrents
-    static void add_torrent_summary(...) { ... }
-
-    std::string serialize_torrent_list(...) {
-        // Implementation
-    }
-}
-```
-
-### Recommendation
-
-**Refactor.** Start with **Step 3 (Data-Driven Settings)** as it yields the
-highest code-reduction-to-effort ratio. Then move to **Step 2 (Splitting
-files)** to stop the file from growing further.
-
-*/
-
 #include "rpc/Serializer.hpp"
 
-#include <array>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
@@ -226,32 +76,6 @@ bool session_stats_equal(engine::SessionSnapshot const &a,
            a.active_torrent_count == b.active_torrent_count &&
            a.paused_torrent_count == b.paused_torrent_count &&
            a.dht_nodes == b.dht_nodes;
-}
-
-bool torrent_snapshot_equal(engine::TorrentSnapshot const &a,
-                            engine::TorrentSnapshot const &b)
-{
-    return a.hash == b.hash && a.name == b.name && a.state == b.state &&
-           a.progress == b.progress && a.total_wanted == b.total_wanted &&
-           a.total_done == b.total_done && a.total_size == b.total_size &&
-           a.downloaded == b.downloaded && a.uploaded == b.uploaded &&
-           a.download_rate == b.download_rate &&
-           a.upload_rate == b.upload_rate && a.status == b.status &&
-           a.queue_position == b.queue_position &&
-           a.peers_connected == b.peers_connected &&
-           a.seeds_connected == b.seeds_connected &&
-           a.peers_sending_to_us == b.peers_sending_to_us &&
-           a.peers_getting_from_us == b.peers_getting_from_us &&
-           a.eta == b.eta && a.total_wanted_done == b.total_wanted_done &&
-           a.added_time == b.added_time && a.ratio == b.ratio &&
-           a.is_finished == b.is_finished &&
-           a.sequential_download == b.sequential_download &&
-           a.super_seeding == b.super_seeding &&
-           a.download_dir == b.download_dir && a.error == b.error &&
-           a.error_string == b.error_string &&
-           a.left_until_done == b.left_until_done &&
-           a.size_when_done == b.size_when_done && a.labels == b.labels &&
-           a.bandwidth_priority == b.bandwidth_priority;
 }
 
 void attach_labels(yyjson_mut_doc *doc, yyjson_mut_val *entry,
@@ -451,6 +275,32 @@ std::string serialize_ws_event_base(
 }
 
 } // namespace
+
+bool torrent_snapshot_equal(engine::TorrentSnapshot const &a,
+                            engine::TorrentSnapshot const &b)
+{
+    return a.hash == b.hash && a.name == b.name && a.state == b.state &&
+           a.progress == b.progress && a.total_wanted == b.total_wanted &&
+           a.total_done == b.total_done && a.total_size == b.total_size &&
+           a.downloaded == b.downloaded && a.uploaded == b.uploaded &&
+           a.download_rate == b.download_rate &&
+           a.upload_rate == b.upload_rate && a.status == b.status &&
+           a.queue_position == b.queue_position &&
+           a.peers_connected == b.peers_connected &&
+           a.seeds_connected == b.seeds_connected &&
+           a.peers_sending_to_us == b.peers_sending_to_us &&
+           a.peers_getting_from_us == b.peers_getting_from_us &&
+           a.eta == b.eta && a.total_wanted_done == b.total_wanted_done &&
+           a.added_time == b.added_time && a.ratio == b.ratio &&
+           a.is_finished == b.is_finished &&
+           a.sequential_download == b.sequential_download &&
+           a.super_seeding == b.super_seeding &&
+           a.download_dir == b.download_dir && a.error == b.error &&
+           a.error_string == b.error_string &&
+           a.left_until_done == b.left_until_done &&
+           a.size_when_done == b.size_when_done && a.labels == b.labels &&
+           a.bandwidth_priority == b.bandwidth_priority;
+}
 
 std::optional<std::uint16_t> parse_listen_port(std::string_view interface)
 {

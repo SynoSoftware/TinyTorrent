@@ -7,6 +7,7 @@
 #include <libtorrent/torrent_status.hpp>
 
 #include <chrono>
+#include <cstdint>
 #include <filesystem>
 #include <functional>
 #include <unordered_map>
@@ -74,6 +75,10 @@ class AutomationAgent
     void process_watch_entries(std::filesystem::path const &watch_dir,
                                std::filesystem::path download_path,
                                std::vector<WatchEntryInfo> entries);
+    void finish_watch_entries(
+        std::filesystem::path download_path,
+        std::vector<std::pair<WatchEntryInfo, std::vector<std::uint8_t>>>
+            entries);
     void mark_watch_file(std::filesystem::path const &source,
                          char const *suffix);
 

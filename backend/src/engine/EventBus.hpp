@@ -2,6 +2,8 @@
 
 #include <any>
 #include <functional>
+
+#include <memory>
 #include <shared_mutex>
 #include <typeindex>
 #include <typeinfo>
@@ -19,17 +21,18 @@ class EventBus
     template <typename T> void subscribe(Handler<T> handler)
     {
         std::unique_lock lock(handlers_mutex_);
-        auto &handlers = handlers_[std::type_index(typeid(T))];
-        handlers.push_back([handler](std::any const &event)
+        auto &entry = handlers_[std::type_index(typeid(T))];
+        auto updated =
+            entry ? std::make_shared<std::vector<TypeErasedHandler>>(*entry)
+                  : std::make_shared<std::vector<TypeErasedHandler>>();
+        updated->push_back([handler](std::any const &event)
                            { handler(std::any_cast<T const &>(event)); });
+        entry = std::move(updated);
     }
 
     template <typename T> void publish(T const &event) const
     {
-        // Copy handlers locally to avoid holding the lock during execution.
-        // This prevents deadlocks if a handler calls subscribe() or acquires
-        // other locks.
-        std::vector<TypeErasedHandler> handlers_copy;
+        std::shared_ptr<std::vector<TypeErasedHandler>> handlers_copy;
         {
             std::shared_lock lock(handlers_mutex_);
             auto it = handlers_.find(std::type_index(typeid(T)));
@@ -39,7 +42,10 @@ class EventBus
             }
         }
 
-        for (auto const &handler : handlers_copy)
+        if (!handlers_copy)
+            return;
+
+        for (auto const &handler : *handlers_copy)
         {
             handler(event);
         }
@@ -47,7 +53,8 @@ class EventBus
 
   private:
     using TypeErasedHandler = std::function<void(std::any const &)>;
-    std::unordered_map<std::type_index, std::vector<TypeErasedHandler>>
+    std::unordered_map<std::type_index,
+                       std::shared_ptr<std::vector<TypeErasedHandler>>>
         handlers_;
     mutable std::shared_mutex handlers_mutex_;
 };

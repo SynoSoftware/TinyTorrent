@@ -328,6 +328,7 @@ class Core
     bool history_clear(std::optional<std::int64_t> older_than);
     std::string listen_error() const;
     void set_listen_error_for_testing(std::string message);
+    void submit_io_task(std::function<void()> task);
 
   private:
     struct Impl;
