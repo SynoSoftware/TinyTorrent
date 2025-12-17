@@ -82,6 +82,12 @@ struct TorrentErrorEvent
     std::string source;
 };
 
+struct TorrentDeleteFailedEvent
+{
+    std::string hash;
+    std::string message;
+};
+
 struct SettingsChangedEvent
 {
 };

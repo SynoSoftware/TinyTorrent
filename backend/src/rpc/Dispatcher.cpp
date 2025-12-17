@@ -9,6 +9,7 @@
 #endif
 #include <Windows.h>
 #include <shellapi.h>
+#include <objbase.h>
 #endif
 #include "rpc/Dispatcher.hpp"
 
@@ -26,6 +27,7 @@
 #endif
 #include <shellapi.h>
 #include <windows.h>
+#include <objbase.h>
 #include <winreg.h>
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -66,6 +68,41 @@ struct SystemHandlerResult
 
 namespace
 {
+
+#if defined(_WIN32)
+class ScopedCOM
+{
+  public:
+    ScopedCOM() noexcept
+        : initialized_(SUCCEEDED(CoInitializeEx(
+              nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE)))
+    {
+    }
+
+    ~ScopedCOM()
+    {
+        if (initialized_)
+        {
+            CoUninitialize();
+        }
+    }
+
+    [[nodiscard]] bool initialized() const noexcept
+    {
+        return initialized_;
+    }
+
+  private:
+    bool initialized_ = false;
+};
+#else
+class ScopedCOM
+{
+  public:
+    ScopedCOM() noexcept = default;
+    ~ScopedCOM() noexcept = default;
+};
+#endif
 
 std::optional<int> parse_int_value(yyjson_val *value)
 {
@@ -1689,9 +1726,43 @@ void handle_system_reveal_async(engine::Core *engine, yyjson_val *arguments,
     engine->submit_io_task(
         [target = std::move(target), cb = std::move(cb)]() mutable
         {
-            bool success = reveal_in_file_manager(target);
-            cb(serialize_system_action("system-reveal", success,
-                                       success ? "" : "unable to reveal path"));
+            bool success = false;
+            std::string message;
+            auto const path_str = target.string();
+            try
+            {
+                ScopedCOM com;
+                if (!com.initialized())
+                {
+                    TT_LOG_INFO(
+                        "system-reveal: COM initialization failed for {}",
+                        path_str);
+                }
+                success = reveal_in_file_manager(target);
+                if (!success)
+                {
+                    message = "unable to reveal path";
+                    TT_LOG_INFO("system-reveal: helper reported failure for {}",
+                                path_str);
+                }
+                else
+                {
+                    TT_LOG_INFO("system-reveal: succeeded for {}", path_str);
+                }
+            }
+            catch (std::exception const &ex)
+            {
+                message = ex.what();
+                TT_LOG_INFO("system-reveal: exception for {}: {}", path_str,
+                            message);
+            }
+            catch (...)
+            {
+                message = "unknown error";
+                TT_LOG_INFO("system-reveal: unknown exception for {}",
+                            path_str);
+            }
+            cb(serialize_system_action("system-reveal", success, message));
         });
 }
 
@@ -1717,9 +1788,41 @@ void handle_system_open_async(engine::Core *engine, yyjson_val *arguments,
     engine->submit_io_task(
         [target = std::move(target), cb = std::move(cb)]() mutable
         {
-            bool success = open_with_default_app(target);
-            cb(serialize_system_action("system-open", success,
-                                       success ? "" : "unable to open path"));
+            bool success = false;
+            std::string message;
+            auto const path_str = target.string();
+            try
+            {
+                ScopedCOM com;
+                if (!com.initialized())
+                {
+                    TT_LOG_INFO("system-open: COM initialization failed for {}",
+                                path_str);
+                }
+                success = open_with_default_app(target);
+                if (!success)
+                {
+                    message = "unable to open path";
+                    TT_LOG_INFO("system-open: helper reported failure for {}",
+                                path_str);
+                }
+                else
+                {
+                    TT_LOG_INFO("system-open: succeeded for {}", path_str);
+                }
+            }
+            catch (std::exception const &ex)
+            {
+                message = ex.what();
+                TT_LOG_INFO("system-open: exception for {}: {}", path_str,
+                            message);
+            }
+            catch (...)
+            {
+                message = "unknown error";
+                TT_LOG_INFO("system-open: unknown exception for {}", path_str);
+            }
+            cb(serialize_system_action("system-open", success, message));
         });
 }
 

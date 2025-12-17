@@ -76,7 +76,7 @@ class Server
     void refresh_connection_port();
     void broadcast_websocket_updates();
     void broadcast_event(std::string const &payload);
-    void send_ws_message(struct mg_connection *conn,
+    bool send_ws_message(struct mg_connection *conn,
                          std::string const &payload);
     void process_pending_tasks();
     void enqueue_task(std::function<void()> task);

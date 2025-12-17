@@ -575,12 +575,50 @@ void Server::broadcast_websocket_updates()
         }
         else
         {
-            std::lock_guard<std::mutex> lock(ws_clients_mtx_);
-            for (auto &client : ws_clients_)
+            std::vector<struct mg_connection *> snapshot_clients;
             {
-                if (client.last_known_snapshot == last_patch_snapshot_)
+                std::lock_guard<std::mutex> lock(ws_clients_mtx_);
+                for (auto &client : ws_clients_)
                 {
-                    client.last_known_snapshot = snapshot;
+                    if (client.last_known_snapshot == last_patch_snapshot_)
+                    {
+                        client.last_known_snapshot = snapshot;
+                        continue;
+                    }
+                    if (client.conn == nullptr)
+                    {
+                        continue;
+                    }
+                    snapshot_clients.push_back(client.conn);
+                }
+            }
+            if (!snapshot_clients.empty())
+            {
+                auto payload = serialize_ws_snapshot(*snapshot);
+                std::vector<struct mg_connection *> sent_clients;
+                sent_clients.reserve(snapshot_clients.size());
+                for (auto conn : snapshot_clients)
+                {
+                    if (send_ws_message(conn, payload))
+                    {
+                        sent_clients.push_back(conn);
+                    }
+                }
+                if (!sent_clients.empty())
+                {
+                    std::lock_guard<std::mutex> lock(ws_clients_mtx_);
+                    for (auto &client : ws_clients_)
+                    {
+                        if (client.conn == nullptr)
+                        {
+                            continue;
+                        }
+                        if (std::find(sent_clients.begin(), sent_clients.end(),
+                                      client.conn) != sent_clients.end())
+                        {
+                            client.last_known_snapshot = snapshot;
+                        }
+                    }
                 }
             }
             last_patch_snapshot_ = snapshot;
@@ -998,18 +1036,18 @@ void Server::handle_connection_closed(struct mg_connection *conn, int /*ev*/)
     }
 }
 
-void Server::send_ws_message(struct mg_connection *conn,
+bool Server::send_ws_message(struct mg_connection *conn,
                              std::string const &payload)
 {
     // Don't send messages during destruction
     if (destroying_.load(std::memory_order_acquire))
     {
-        return;
+        return false;
     }
 
     if (conn == nullptr)
     {
-        return;
+        return false;
     }
     // Try to send; if it fails, close the connection
     size_t sent =
@@ -1018,7 +1056,9 @@ void Server::send_ws_message(struct mg_connection *conn,
     {
         // Connection is dead or closed; mongoose will handle cleanup
         // We don't need to manually mark it as closing
+        return false;
     }
+    return true;
 }
 
 void send_ws_ping(struct mg_connection *conn)

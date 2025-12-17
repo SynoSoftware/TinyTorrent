@@ -440,6 +440,14 @@ void TorrentManager::process_alerts()
                 callbacks_.on_tracker_error(*tracker_error);
             }
         }
+        else if (auto *delete_failed = libtorrent::alert_cast<
+                     libtorrent::torrent_delete_failed_alert>(alert))
+        {
+            if (callbacks_.on_torrent_delete_failed)
+            {
+                callbacks_.on_torrent_delete_failed(*delete_failed);
+            }
+        }
         else if (auto *portmap_failed =
                      libtorrent::alert_cast<libtorrent::portmap_error_alert>(
                          alert))
