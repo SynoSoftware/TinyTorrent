@@ -395,6 +395,23 @@ void TorrentManager::process_alerts()
         {
             handle_metadata_received_alert(*metadata);
         }
+        else if (auto *add_failed =
+                     libtorrent::alert_cast<libtorrent::add_torrent_alert>(alert))
+        {
+            if (add_failed->error && callbacks_.on_torrent_add_failed)
+            {
+                callbacks_.on_torrent_add_failed(*add_failed);
+            }
+        }
+        else if (auto *metadata_failed =
+                     libtorrent::alert_cast<libtorrent::metadata_failed_alert>(
+                         alert))
+        {
+            if (callbacks_.on_metadata_failed)
+            {
+                callbacks_.on_metadata_failed(*metadata_failed);
+            }
+        }
         else if (auto *state =
                      libtorrent::alert_cast<libtorrent::state_update_alert>(
                          alert))

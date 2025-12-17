@@ -46,6 +46,18 @@ SettingsManager::build_settings_pack(CoreSettings const &s)
         pack.set_int(libtorrent::settings_pack::active_seeds,
                      s.seed_queue_size);
     }
+    {
+        int active_downloads = s.download_queue_size > 0
+                                   ? s.download_queue_size
+                                   : 0;
+        int active_seeds = s.seed_queue_size > 0 ? s.seed_queue_size : 0;
+        int active_limit = active_downloads + active_seeds;
+        if (active_limit > 0)
+        {
+            pack.set_int(libtorrent::settings_pack::active_limit,
+                         active_limit);
+        }
+    }
     pack.set_bool(libtorrent::settings_pack::dont_count_slow_torrents,
                   s.queue_stalled_enabled);
 
@@ -176,6 +188,16 @@ void SettingsManager::apply_queue(CoreSettings const &s,
                          s.seed_queue_size);
         current->set_bool(libtorrent::settings_pack::dont_count_slow_torrents,
                           s.queue_stalled_enabled);
+        int active_downloads = s.download_queue_size > 0
+                                   ? s.download_queue_size
+                                   : 0;
+        int active_seeds = s.seed_queue_size > 0 ? s.seed_queue_size : 0;
+        int active_limit = active_downloads + active_seeds;
+        if (active_limit > 0)
+        {
+            current->set_int(libtorrent::settings_pack::active_limit,
+                             active_limit);
+        }
     }
 }
 

@@ -44,6 +44,9 @@ class AlertRouter
     void handle_tracker_error(libtorrent::tracker_error_alert const &alert);
     void handle_torrent_delete_failed(
         libtorrent::torrent_delete_failed_alert const &alert);
+    void handle_torrent_add_failed(libtorrent::add_torrent_alert const &alert);
+    void handle_metadata_failed(
+      libtorrent::metadata_failed_alert const &alert);
     void handle_portmap_error(libtorrent::portmap_error_alert const &alert);
     void handle_fastresume_rejected(
         libtorrent::fastresume_rejected_alert const &alert);
