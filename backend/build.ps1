@@ -1,9 +1,13 @@
 param(
     [ValidateSet('Debug', 'Release', 'MinSizeRel')]
     [string]$Configuration = 'Debug',
+    
+    # Tool Overrides
     [string]$MesonPath = '',
     [string]$NinjaPath = '',
     [string]$VsWherePath = '',
+    
+    # Actions
     [switch]$Clean,
     [switch]$SkipTests,
     [switch]$Help
@@ -12,455 +16,316 @@ param(
 $ErrorActionPreference = 'Stop'
 
 if ($Help) {
-    Write-Host @"
-TinyTorrent Build Script (Ultimate Edition)
-- ABI-Safe (Forces toolchain/CRT synchronization)
-- Diagnostic (Traps all exit codes)
-- Auto-Discovery (Finds Meson/Ninja via Python)
-
-Usage: .\build.ps1 [options]
-"@
+    Write-Host "TinyTorrent Build Script (Final)"
+    Write-Host "Features: Auto-Discovery (User+System), Auto-Clean (Marker), Full Logging."
     exit 0
 }
 
-# -------------------------------------------------------------------------
-# 1. Robust Execution Helper
-# -------------------------------------------------------------------------
+# ==============================================================================
+# 1. ROBUST DISCOVERY (Fixed User Paths)
+# ==============================================================================
+
 function Exec-Checked {
-    param(
-        [string]$Command,
-        [string[]]$Arguments,
-        [string]$ErrorMessage = "Command failed."
-    )
-
+    param([string]$Command, [string[]]$Arguments, [string]$ErrorMessage = "Command failed.")
     Write-Host "[$Command] $Arguments" -ForegroundColor Gray
-    
-    # We use & to stream output directly.
     & $Command @Arguments
-    
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "`nERROR: $ErrorMessage" -ForegroundColor Red
-        Write-Host "Exit Code: $LASTEXITCODE" -ForegroundColor Red
-        throw "Build halted due to external command failure."
-    }
+    if ($LASTEXITCODE -ne 0) { throw "$ErrorMessage (Exit Code: $LASTEXITCODE)" }
 }
 
-# -------------------------------------------------------------------------
-# 2. Advanced Tool Discovery (Python/Meson/Ninja)
-# -------------------------------------------------------------------------
 function Resolve-Executable {
-    param($overridePath, $name, $candidateEntries, $installLauncher)
-
-    if ($overridePath) {
-        if (Test-Path $overridePath) { return $overridePath }
-        throw "Override path for $name not found: $overridePath"
+    param($Name, $OverridePath)
+    if ($OverridePath) {
+        if (Test-Path $OverridePath -PathType Leaf) { return $OverridePath }
+        throw "Override path for $Name must be a file: $OverridePath"
     }
-
-    foreach ($entry in $candidateEntries) {
-        if (-not $entry.Path) { continue }
-        $candidate = Join-Path $entry.Path "$name.exe"
-        if (Test-Path $candidate) { return $candidate }
-    }
-    
-    # Fallback to PATH lookup if Python lookup fails
-    $cmd = Get-Command "$name.exe" -ErrorAction SilentlyContinue
+    $cmd = Get-Command "$Name.exe" -ErrorAction SilentlyContinue
     if ($cmd) { return $cmd.Source }
-
-    throw "$name not installed; run '$installLauncher -m pip install --user $name'."
+    return $null
 }
 
-function Get-PythonScriptsPath {
-    param(
-        [string]$LauncherCommand,
-        [string]$LauncherVersion
-    )
-
-    try {
-        $script = @'
-import os, site, sysconfig, sys
-base = site.USER_BASE
-versioned = f"Python{sys.version_info.major}{sys.version_info.minor}"
-candidates = [
-    sysconfig.get_path("scripts"),
-    os.path.join(base, versioned, "Scripts"),
-    os.path.join(base, "Scripts"),
-    os.path.join(base, "bin"),
-]
-for path in candidates:
-    if path:
-        print(path)
-'@
-        if ($LauncherVersion) {
-            $output = & $LauncherCommand $LauncherVersion '-c' $script 2>$null
-        }
-        else {
-            $output = & $LauncherCommand '-c' $script 2>$null
-        }
-        if (-not $output) { return @() }
-
-        $paths = $output -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ }
-        $uniquePaths = [System.Collections.Generic.HashSet[string]]::new()
-        $validPaths = @()
-        foreach ($path in $paths) {
-            if (-not $uniquePaths.Add($path)) { continue }
-            if (Test-Path $path) { $validPaths += $path }
-        }
-        return $validPaths
-    }
-    catch {
-        return @()
-    }
-}
-
-function Resolve-VsWhere {
-    param($overridePath)
-    if ($overridePath) {
-        if (Test-Path $overridePath) { return $overridePath }
-        throw "Override path for vswhere.exe not found: $overridePath"
-    }
-    $cmd = Get-Command vswhere.exe -ErrorAction SilentlyContinue
-    if ($cmd) { return $cmd.Source }
-    $programFilesX86 = [Environment]::GetEnvironmentVariable('ProgramFiles(x86)')
-    if ($programFilesX86) {
-        $default = Join-Path $programFilesX86 'Microsoft Visual Studio\Installer\vswhere.exe'
-        if (Test-Path $default) { return $default }
-    }
-    throw 'Could not locate vswhere.exe; install Visual Studio 2017+ or provide a path via -VsWherePath.'
-}
-
-# -------------------------------------------------------------------------
-# 3. Environment Setup (MSVC)
-# -------------------------------------------------------------------------
-function Import-VsEnvironment {
-    param($vswhere)
-
-    Write-Host "Locating Visual Studio..." -ForegroundColor Cyan
-    $vsInstallArgs = @('-latest', '-products', '*', '-requires', 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64', '-property', 'installationPath')
-    $vsInstallPath = (& $vswhere @vsInstallArgs) | Where-Object { $_ -and $_.Trim() } | Select-Object -First 1
-    if (-not $vsInstallPath) {
-        throw 'Unable to locate a Visual Studio installation that contains the MSVC toolset.'
-    }
-
-    $vcvarsPath = Join-Path $vsInstallPath 'VC\Auxiliary\Build\vcvars64.bat'
-    if (-not (Test-Path $vcvarsPath)) {
-        throw "Could not find vcvars64.bat under $vsInstallPath."
-    }
-
-    Write-Host "Activating VS Environment..."
-    $cmd = "`"$vcvarsPath`" amd64 && set"
-    $envOutput = & cmd /c $cmd
-    foreach ($line in ($envOutput -split "`r?`n")) {
-        if (-not $line) { continue }
-        $parts = $line -split ('=', 2)
-        if ($parts.Count -ne 2) { continue }
-        Set-Item -Path ("Env:" + $parts[0]) -Value $parts[1]
-    }
+function Resolve-PythonScript {
+    param($ScriptName, $OverridePath)
     
-    try {
-        $clVer = & cl.exe 2>&1 | Select-String "Version" | Select-Object -First 1
-        Write-Host "Active Toolset: $clVer" -ForegroundColor Green
-    }
-    catch {
-        throw "Environment activation failed; cl.exe not found."
-    }
-}
+    # 1. Override / PATH
+    $exe = Resolve-Executable $ScriptName $OverridePath
+    if ($exe) { return $exe }
 
-# -------------------------------------------------------------------------
-# Main Logic
-# -------------------------------------------------------------------------
+    # 2. Heuristic Scan (System AND User Scripts)
+    Write-Host "Scanning for $ScriptName..." -ForegroundColor DarkGray
+    $candidates = @()
+    $pyLaunchers = @("py", "python3", "python")
+    
+    foreach ($py in $pyLaunchers) {
+        if (Get-Command $py -ErrorAction SilentlyContinue) {
+            try {
+                # FIX: Ask for BOTH 'scripts' (System) and 'nt_user' (Roaming/User)
+                $code = "import sys, sysconfig; print(sys.version_info.major); print(sys.version_info.minor); print(sysconfig.get_path('scripts')); print(sysconfig.get_path('scripts', 'nt_user'))"
+                $res = & $py -c $code 2>$null
+                
+                if ($res.Count -ge 3) {
+                    $ver = [int]$res[0] * 100 + [int]$res[1]
+                    $pathsToCheck = @()
+                    if ($res[2]) { $pathsToCheck += $res[2] } # System
+                    if ($res.Count -ge 4 -and $res[3]) { $pathsToCheck += $res[3] } # User (Roaming)
 
-$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Definition
-$repoRoot = Resolve-Path $scriptRoot
-$vcpkgDir = Join-Path $repoRoot 'vcpkg'
-$vcpkgExe = Join-Path $vcpkgDir 'vcpkg.exe'
-$buildDir = Join-Path $repoRoot 'build'
-
-if (-not (Test-Path $vcpkgDir)) { throw 'vcpkg directory not found. Run setup.ps1 first.' }
-if (-not (Test-Path $vcpkgExe)) { throw 'vcpkg.exe not found; run setup.ps1 first.' }
-
-# Setup VS Env
-$vswhereExe = Resolve-VsWhere $VsWherePath
-Import-VsEnvironment $vswhereExe
-
-# Python/Meson Discovery
-$pythonLaunchers = @(
-    [pscustomobject]@{ Command = 'py'; Version = '-3' },
-    [pscustomobject]@{ Command = 'py'; Version = '' },
-    [pscustomobject]@{ Command = 'python3'; Version = '' },
-    [pscustomobject]@{ Command = 'python'; Version = '' }
-)
-
-$pythonScriptEntries = @()
-foreach ($launcher in $pythonLaunchers) {
-    if (Get-Command $launcher.Command -ErrorAction SilentlyContinue) {
-        $candidatePaths = Get-PythonScriptsPath -LauncherCommand $launcher.Command -LauncherVersion $launcher.Version
-        foreach ($path in $candidatePaths) {
-            $pythonScriptEntries += [pscustomobject]@{
-                LauncherCommand = $launcher.Command
-                LauncherVersion = $launcher.Version
-                Path            = $path
+                    foreach ($p in $pathsToCheck) {
+                        if (Test-Path $p) {
+                            $target = Join-Path $p "$ScriptName.exe"
+                            if (Test-Path $target -PathType Leaf) {
+                                $candidates += [pscustomobject]@{ Path = $target; Score = $ver }
+                            }
+                        }
+                    }
+                }
             }
+            catch {}
         }
+    }
+
+    # Deterministic Winner: Highest Python Version
+    $winner = $candidates | Sort-Object Score -Descending | Select-Object -First 1
+    if ($winner) { return $winner.Path }
+    
+    throw "Could not find '$ScriptName'. Run: pip install --user $ScriptName"
+}
+
+function Get-FirstCommandLine {
+    param(
+        [scriptblock]$Command,
+        [string]$Fallback = 'Unavailable'
+    )
+    try {
+        $line = & $Command 2>&1 | Select-Object -First 1
+        if ($line -ne $null) { return $line.ToString().Trim() }
+    }
+    catch {
+        return $_.Exception.Message
+    }
+    return $Fallback
+}
+
+# ==============================================================================
+# 2. TOOLCHAIN & ENVIRONMENT
+# ==============================================================================
+
+# -- Visual Studio --
+if (-not (Get-Command "cl.exe" -ErrorAction SilentlyContinue)) {
+    Write-Host "Locating Visual Studio..." -ForegroundColor Cyan
+    $vswhereExe = Resolve-Executable "vswhere" $VsWherePath
+    if (-not $vswhereExe) {
+        $default = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+        if (Test-Path $default) { $vswhereExe = $default }
+        else { throw "vswhere.exe not found." }
+    }
+    $vsPath = & $vswhereExe -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+    if (-not $vsPath) { throw "No VS installation found." }
+    $vcvars = Join-Path $vsPath "VC\Auxiliary\Build\vcvars64.bat"
+    cmd /c "`"$vcvars`" && set" | ForEach-Object {
+        if ($_ -match "^(.*?)=(.*)$") { Set-Content "Env:\$($matches[1])" $matches[2] }
     }
 }
 
-if ($pythonScriptEntries.Count -eq 0) {
-    # Fallback: assume user might have meson on PATH even if python discovery fails
-    Write-Host "Warning: Could not discover Python scripts path via launcher. Relying on PATH." -ForegroundColor Yellow
-}
+# -- Tool Discovery --
+$MesonExe = Resolve-PythonScript "meson" $MesonPath
+$NinjaExe = Resolve-PythonScript "ninja" $NinjaPath
 
-$preferredLauncher = if ($pythonScriptEntries.Count -gt 0) { $pythonScriptEntries[0] } else { $null }
-$installLauncher = if ($preferredLauncher) { ("{0} {1}" -f $preferredLauncher.LauncherCommand, $preferredLauncher.LauncherVersion).Trim() } else { "pip" }
+# -- Version Reporting --
+Write-Host "`nToolchain Verification:" -ForegroundColor Cyan
+$clVersion = Get-FirstCommandLine { cl.exe }
+$mesonVersion = Get-FirstCommandLine { & $MesonExe --version }
+$ninjaVersion = Get-FirstCommandLine { & $NinjaExe --version }
+Write-Host "  CL:    $clVersion"
+Write-Host "  Meson: $mesonVersion ($MesonExe)"
+Write-Host "  Ninja: $ninjaVersion ($NinjaExe)"
 
-$mesonExe = Resolve-Executable $MesonPath 'meson' $pythonScriptEntries $installLauncher
-$ninjaExe = Resolve-Executable $NinjaPath 'ninja' $pythonScriptEntries $installLauncher
+# ==============================================================================
+# 3. CONFIGURATION & AUTO-CLEAN
+# ==============================================================================
 
-# -------------------------------------------------------------------------
-# Configuration
-# -------------------------------------------------------------------------
-$mesonBuildType = ''
-$configSubdir = ''
-$loggingArg = 'true'
-$testsArg = 'true'
-$vscrt = 'md'
+if ($Configuration -eq 'Release') { $Configuration = 'MinSizeRel' }
 
 switch ($Configuration) {
     'Debug' {
-        $mesonBuildType = 'debug'
-        $configSubdir = 'debug'
-    }
-    'Release' {
-        $mesonBuildType = 'minsize'
-        $configSubdir = 'release'
-        $loggingArg = 'false'
-        $testsArg = 'false'
-        $vscrt = 'mt'
+        $BuildSubDir = "debug"
+        $MesonType = "debug"
+        $VcpkgTrip = "x64-windows"
+        $VsCrt = "md"
+        $Sanitize = "address"
+        $Logging = "true"
+        $UseLto = "false"
+        $Strip = "false"
+        $IsStatic = $false
     }
     'MinSizeRel' {
-        $mesonBuildType = 'minsize'
-        $configSubdir = 'minsize'
-        $loggingArg = 'false'
-        $testsArg = 'false'
-        $vscrt = 'mt'
+        $BuildSubDir = "release"
+        $MesonType = "minsize"
+        $VcpkgTrip = "x64-windows-static"
+        $VsCrt = "mt"
+        $Sanitize = "none"
+        $Logging = "false"
+        $UseLto = "true"
+        $Strip = "true"
+        $IsStatic = $true
     }
 }
 
-if ($SkipTests) { $testsArg = 'false' }
+$RepoRoot = $PSScriptRoot
+$BuildDir = Join-Path $RepoRoot "build\$BuildSubDir"
+$VcpkgDir = Join-Path $RepoRoot "vcpkg"
+$VcpkgExe = Join-Path $VcpkgDir "vcpkg.exe"
 
-$mesonBuildDir = Join-Path $buildDir $configSubdir
+# FIX: Automatic Invalidation (Marker File)
+$ConfigMarker = "$Configuration|$VcpkgTrip|$VsCrt|$Sanitize"
+$MarkerFile = Join-Path $BuildDir "tt-config.marker"
 
-if ($Clean -and (Test-Path $mesonBuildDir)) {
-    Write-Host "Cleaning build directory: $mesonBuildDir"
-    Remove-Item $mesonBuildDir -Recurse -Force -ErrorAction SilentlyContinue
+if (Test-Path $BuildDir) {
+    $OldMarker = if (Test-Path $MarkerFile) { Get-Content $MarkerFile -Raw } else { "" }
+    if ($Clean -or ($OldMarker -ne $ConfigMarker)) {
+        $Reason = if ($Clean) { "Manual Clean" } else { "Configuration Changed" }
+        Write-Host "Cleaning build directory ($Reason)..." -ForegroundColor Yellow
+        Remove-Item $BuildDir -Recurse -Force
+    }
 }
 
-# -------------------------------------------------------------------------
-# 4. VCPKG Dependencies (ABI-Safe + Checked Execution)
-# -------------------------------------------------------------------------
-$vcpkgTriplet = if ($Configuration -eq 'Debug') { 'x64-windows-asandebug' } else { 'x64-windows-static' }
-$useStaticVcpkg = $vcpkgTriplet -eq 'x64-windows-static'
-$env:VCPKG_DEFAULT_TRIPLET = $vcpkgTriplet
+if (-not (Test-Path $BuildDir)) { New-Item -ItemType Directory -Path $BuildDir | Out-Null }
+Set-Content -Path $MarkerFile -Value $ConfigMarker
 
-# Clean builddir if switching triplet types (avoids cache collisions)
-if ($useStaticVcpkg -and (Test-Path $mesonBuildDir)) {
-    Remove-Item $mesonBuildDir -Recurse -Force -ErrorAction SilentlyContinue
+# ==============================================================================
+# 4. DEPENDENCY MANAGEMENT
+# ==============================================================================
+
+Write-Host "`nVerifying Dependencies ($VcpkgTrip)..." -ForegroundColor Cyan
+if (-not (Test-Path $VcpkgDir)) {
+    Write-Host "Cloning Vcpkg..."
+    Exec-Checked "git" @("clone", "https://github.com/microsoft/vcpkg.git", $VcpkgDir, "--depth", "1")
 }
 
-Write-Host ("Installing manifest dependencies via vcpkg ({0})..." -f $vcpkgTriplet) -ForegroundColor Cyan
-Push-Location $vcpkgDir
+# FIX: Check VcpkgDir exists before checking Exe (Git might have failed)
+if (Test-Path $VcpkgDir) {
+    if (-not (Test-Path $VcpkgExe)) {
+        Write-Host "Bootstrapping Vcpkg..." -ForegroundColor Yellow
+        Start-Process -FilePath (Join-Path $VcpkgDir "bootstrap-vcpkg.bat") -ArgumentList "-disableMetrics" -Wait -NoNewWindow
+        if (-not (Test-Path $VcpkgExe)) { throw "Bootstrap failed." }
+    }
+}
+else { throw "Vcpkg directory missing." }
+
+$env:VCPKG_DEFAULT_TRIPLET = $VcpkgTrip
+$VcpkgInstallRoot = Join-Path $RepoRoot "vcpkg_installed"
+
+Push-Location $VcpkgDir
 try {
-    # CRITICAL: --no-binarycaching to enforce ABI match
-    # CRITICAL: Exec-Checked to catch build failures immediately
-    Exec-Checked $vcpkgExe @('install', '--triplet', $vcpkgTriplet, '--recurse', '--no-binarycaching') `
-        -ErrorMessage "Vcpkg installation/build failed."
+    Exec-Checked $VcpkgExe @('install', "--triplet=$VcpkgTrip", "--x-install-root=$VcpkgInstallRoot", '--recurse', '--no-binarycaching') `
+        -ErrorMessage "Vcpkg install failed."
 }
-finally {
-    Pop-Location
-}
+finally { Pop-Location }
 
-# Setup CMake prefix for Meson
-Set-Location $repoRoot
-$vcpkgTripletRoot = Join-Path $repoRoot 'vcpkg_installed'
-$vcpkgTripletRoot = Join-Path $vcpkgTripletRoot $vcpkgTriplet
-$vcpkgShare = Join-Path $vcpkgTripletRoot 'share'
-$prefixPaths = @()
-if (Test-Path $vcpkgShare) { $prefixPaths += $vcpkgShare }
-if (Test-Path $vcpkgTripletRoot) { $prefixPaths += $vcpkgTripletRoot }
+# ==============================================================================
+# 5. MESON SETUP
+# ==============================================================================
 
-if ($prefixPaths.Count -gt 0) {
-    $newPrefixValue = $prefixPaths -join ';'
-    $env:CMAKE_PREFIX_PATH = "$newPrefixValue;$env:CMAKE_PREFIX_PATH"
-}
+$TripletInstallDir = Join-Path $VcpkgInstallRoot $VcpkgTrip
+$env:CMAKE_PREFIX_PATH = "$TripletInstallDir;$TripletInstallDir\share;$env:CMAKE_PREFIX_PATH"
 
-# -------------------------------------------------------------------------
-# 5. Meson Configuration (Checked)
-# -------------------------------------------------------------------------
-$mesonArgs = @('setup', '--backend=ninja')
-if (-not $useStaticVcpkg) {
-    $mesonInfo = Join-Path $mesonBuildDir 'meson-info'
-    if (Test-Path $mesonInfo) {
-        $mesonArgs += '--reconfigure'
-    }
-}
-$mesonArgs += "--buildtype=$mesonBuildType"
-$mesonArgs += "-Dtt_enable_logging=$loggingArg"
-$mesonArgs += "-Dtt_enable_tests=$testsArg"
-$mesonArgs += "-Db_vscrt=$vscrt"
-# Enable ASAN for Debug builds to match the user's request
-if ($mesonBuildType -eq 'debug') {
-    $mesonArgs += "-Db_sanitize=address"
+$MesonArgs = @(
+    "setup", $BuildDir,
+    "--backend=ninja",
+    "--buildtype=$MesonType",
+    "-Db_vscrt=$VsCrt",
+    "-Db_sanitize=$Sanitize",
+    "-Db_lto=$UseLto",
+    "-Dtt_enable_logging=$Logging",
+    "-Dtt_enable_tests=$($(-not $SkipTests).ToString().ToLower())",
+    "-Dstrip=$Strip"
+)
+
+if (Test-Path "$BuildDir\build.ninja") {
+    Write-Host "Reconfiguring..." -ForegroundColor Cyan
+    Exec-Checked $MesonExe ($MesonArgs + "--reconfigure")
 }
 else {
-    $mesonArgs += "-Db_sanitize=none"
+    Write-Host "Configuring..." -ForegroundColor Cyan
+    Exec-Checked $MesonExe $MesonArgs
 }
 
-if ($mesonBuildType -ne 'debug') {
-    $mesonArgs += '-Db_lto=true'
-    $mesonArgs += '-Dstrip=true'
-}
-$mesonArgs += $mesonBuildDir
-$mesonArgs += $repoRoot
+if (-not (Test-Path "$BuildDir\build.ninja")) { throw "Meson completed but 'build.ninja' is missing." }
 
-Write-Host "Configuring ($Configuration) with Meson..." -ForegroundColor Cyan
-Exec-Checked $mesonExe $mesonArgs -ErrorMessage "Meson configuration failed."
+# ==============================================================================
+# 6. BUILD
+# ==============================================================================
 
-# -------------------------------------------------------------------------
-# 6. Build (Checked)
-# -------------------------------------------------------------------------
-Write-Host "Building ($Configuration)..." -ForegroundColor Cyan
-Exec-Checked $ninjaExe @('-C', $mesonBuildDir) -ErrorMessage "Build failed."
+Write-Host "`nCompiling ($Configuration)..." -ForegroundColor Cyan
+Exec-Checked $NinjaExe @('-C', $BuildDir)
 
-# -------------------------------------------------------------------------
-# 7. Detailed Test Harness
-# -------------------------------------------------------------------------
-$testsEnabled = ($testsArg -eq 'true') -and (-not $SkipTests)
+# ==============================================================================
+# 7. TEST HARNESS
+# ==============================================================================
 
-if ($testsEnabled) {
-    Write-Host "Running tests..." -ForegroundColor Cyan
+if (-not $SkipTests) {
+    Write-Host "`nRunning Tests..." -ForegroundColor Cyan
+    $OldPath = $env:PATH
     
-    # Graceful PATH augmentation for DLLs
-    $testBinDirs = @()
-    $releaseBin = Join-Path $repoRoot 'vcpkg_installed\x64-windows\bin'
-    $debugBin = Join-Path $repoRoot 'vcpkg_installed\x64-windows\debug\bin'
-    if (Test-Path $releaseBin) { $testBinDirs += $releaseBin }
-    if (Test-Path $debugBin) { $testBinDirs += $debugBin }
-
-    $originalPath = $env:PATH
-    if ($testBinDirs.Count -gt 0) {
-        $env:PATH = ($testBinDirs -join ';') + ';' + $env:PATH
+    if (-not $IsStatic) {
+        $DllSource = Join-Path $TripletInstallDir "debug\bin"
+        if (Test-Path $DllSource) { $env:PATH = "$DllSource;$OldPath" }
     }
 
-    $testResults = @()
-    $runSucceeded = $true
     try {
-        $testDir = Join-Path $mesonBuildDir 'tests'
-        $testExecutables = @(
-            'dispatcher-test.exe',
-            'rpc-endpoint-test.exe',
-            'memory-leak-test.exe',
-            'rpc-filesystem-test.exe',
-            'serializer-test.exe'
-        )
+        $TestDir = Join-Path $BuildDir "tests"
+        if (Test-Path $TestDir) {
+            $Tests = Get-ChildItem -Path $TestDir -Filter "*-test.exe"
+            $LogSummary = @()
+            $AnyFailed = $false
 
-        foreach ($testExe in $testExecutables) {
-            $testPath = Join-Path $testDir $testExe
-            if (-not (Test-Path $testPath)) {
-                Write-Host "Warning: $testExe not found (skipped)" -ForegroundColor Yellow
-                continue
-            }
-            Write-Host "  Running $testExe"
-            
-            # Capture output AND check exit code
-            $testOutput = & $testPath 2>&1 | Out-String
-            $testExitCode = $LASTEXITCODE
-            $trimmedOutput = $testOutput.Trim()
-            
-            $testResults += [pscustomobject]@{
-                Name     = $testExe
-                ExitCode = $testExitCode
-                Output   = $trimmedOutput
-            }
-            
-            if ($testExitCode -ne 0) {
-                Write-Host ("    FAIL (exit code {0})" -f $testExitCode) -ForegroundColor Red
-                if ($trimmedOutput) {
-                    Write-Host "    -- captured output --"
-                    Write-Host $trimmedOutput
+            foreach ($Test in $Tests) {
+                Write-Host "  Exec: $($Test.Name) ... " -NoNewline
+                $OutLog = "$($Test.FullName).stdout.log"
+                $ErrLog = "$($Test.FullName).stderr.log"
+                
+                $Process = Start-Process -FilePath $Test.FullName -NoNewWindow -PassThru -Wait `
+                    -RedirectStandardOutput $OutLog -RedirectStandardError $ErrLog
+                
+                $Status = if ($Process.ExitCode -eq 0) { "PASS" } else { "FAIL" }
+                $LogSummary += "$Status : $($Test.Name) (Exit: $($Process.ExitCode))"
+
+                if ($Status -eq "PASS") {
+                    Write-Host "PASS" -ForegroundColor Green
                 }
-                $runSucceeded = $false
-                # Stop on first failure
-                break 
+                else {
+                    Write-Host "FAIL (Exit: $($Process.ExitCode))" -ForegroundColor Red
+                    $AnyFailed = $true
+                    $FullOutput = (Get-Content $OutLog -Raw) + "`n" + (Get-Content $ErrLog -Raw)
+                    if ($FullOutput.Trim()) {
+                        Write-Host "    --- OUTPUT ---" -ForegroundColor DarkRed
+                        Write-Host $FullOutput.Trim() -ForegroundColor DarkRed
+                    }
+                }
             }
-            Write-Host "    PASS" -ForegroundColor Green
-        }
-
-        if (-not $runSucceeded) {
-            throw "One or more tests failed; check the log."
+            $SummaryFile = Join-Path $BuildDir "test-results.log"
+            $LogSummary | Set-Content $SummaryFile
+            if ($AnyFailed) { throw "One or more tests failed." }
         }
     }
-    finally {
-        $env:PATH = $originalPath
-        
-        # Log generation
-        $logLines = @()
-        $timestamp = Get-Date -Format o
-        $logLines += "[ {0} - {1} ]" -f $timestamp, $Configuration
-        foreach ($entry in $testResults) {
-            $status = if ($entry.ExitCode -eq 0) { 'PASS' } else { 'FAIL' }
-            $statusLine = "{0} {1} exit={2}" -f $status, $entry.Name, $entry.ExitCode
-            $logLines += $statusLine
-            if ($entry.ExitCode -ne 0 -and $entry.Output) {
-                $logLines += "  Output: $($entry.Output)"
-            }
-        }
-        if ($logLines.Count -gt 0) {
-            $testLogFile = Join-Path $mesonBuildDir 'test-results.log'
-            Add-Content -Path $testLogFile -Value $logLines
-        }
-    }
-}
-else {
-    Write-Host "Tests are disabled for configuration $Configuration; skipping."
+    finally { $env:PATH = $OldPath }
 }
 
-# -------------------------------------------------------------------------
-# 8. Runtime Artifact Copying (DLLs)
-# -------------------------------------------------------------------------
-if (-not $useStaticVcpkg) {
-    $runtimeDlls = @(
-        'torrent-rasterbar.dll',
-        'yyjson.dll',
-        'libssl-3-x64.dll',
-        'libcrypto-3-x64.dll'
-    )
-    $runtimeRoot = Join-Path $repoRoot 'vcpkg_installed\x64-windows'
-    $runtimeSourceDir = if ($Configuration -eq 'Debug') {
-        Join-Path $runtimeRoot 'debug\bin'
-    }
-    else {
-        Join-Path $runtimeRoot 'bin'
-    }
-    
-    if (Test-Path $runtimeSourceDir) {
-        foreach ($dll in $runtimeDlls) {
-            $source = Join-Path $runtimeSourceDir $dll
-            if (Test-Path $source) {
-                Copy-Item -Path $source -Destination $mesonBuildDir -Force
-            }
+# ==============================================================================
+# 8. DEPLOYMENT
+# ==============================================================================
+
+if (-not $IsStatic) {
+    $BinDir = Join-Path $TripletInstallDir "debug\bin"
+    if (Test-Path $BinDir) {
+        Get-ChildItem -Path $BinDir -Filter "*.dll" | ForEach-Object {
+            Copy-Item -Path $_.FullName -Destination $BuildDir -Force
         }
     }
 }
 
-# -------------------------------------------------------------------------
-# 9. Summary
-# -------------------------------------------------------------------------
-$fileName = 'tt-engine.exe'
-$exePath = Join-Path $mesonBuildDir $fileName
-if (Test-Path $exePath) {
-    $lengthKb = (Get-Item $exePath).Length / 1024.0
-    Write-Host $exePath -ForegroundColor Green
-    Write-Host ("\- {0}    {1:N2} kb" -f $fileName, $lengthKb)
-}
-else {
-    Write-Host "Warning: Executable not found at $exePath" -ForegroundColor Yellow
+$ExePath = Join-Path $BuildDir "tt-engine.exe"
+if (Test-Path $ExePath) {
+    $SizeKB = (Get-Item $ExePath).Length / 1KB
+    Write-Host "`nSUCCESS: $Configuration Build Complete" -ForegroundColor Green
+    Write-Host "Artifact: $ExePath"
+    Write-Host ("Size:     {0:N0} KB" -f $SizeKB)
 }

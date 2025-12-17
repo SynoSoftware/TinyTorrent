@@ -547,13 +547,18 @@ int main(int argc, char *argv[])
 
     // Diagnostic: print key settings values before creating engine (helps debug
     // AddressSanitizer crashes during startup)
-    std::cerr << "[diag] settings.listen_interface='"
-              << settings.listen_interface
-              << "' len=" << settings.listen_interface.size() << "\n";
-    std::cerr << "[diag] settings.proxy_hostname='" << settings.proxy_hostname
-              << "' len=" << settings.proxy_hostname.size() << "\n";
-    std::cerr << "[diag] settings.proxy_username='" << settings.proxy_username
-              << "' len=" << settings.proxy_username.size() << "\n";
+
+#if 0
+    std::fprintf(stderr, "[diag] settings.listen_interface='%s' len=%zu\n",
+                 settings.listen_interface.c_str(),
+                 settings.listen_interface.size());
+    std::fprintf(stderr, "[diag] settings.proxy_hostname='%s' len=%zu\n",
+                 settings.proxy_hostname.c_str(),
+                 settings.proxy_hostname.size());
+    std::fprintf(stderr, "[diag] settings.proxy_username='%s' len=%zu\n",
+                 settings.proxy_username.c_str(),
+                 settings.proxy_username.size());
+#endif
 
     auto engine = tt::engine::Core::create(settings);
     auto enqueue_startup_torrent = [&](std::string const &raw)
