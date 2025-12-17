@@ -69,6 +69,8 @@ void AlertRouter::wire_callbacks()
     // Errors
     cb.on_file_error = [this](auto const &a) { handle_file_error(a); };
     cb.on_tracker_error = [this](auto const &a) { handle_tracker_error(a); };
+    cb.on_torrent_delete_failed = [this](auto const &a)
+    { handle_torrent_delete_failed(a); };
     cb.on_portmap_error = [this](auto const &a) { handle_portmap_error(a); };
     cb.on_fastresume_rejected = [this](auto const &a)
     { handle_fastresume_rejected(a); };
@@ -164,6 +166,18 @@ void AlertRouter::handle_tracker_error(
         auto message = std::format("tracker {}: {}", label, alert.message());
         TT_LOG_INFO("{}: {}", *hash, message);
         bus_->publish(TorrentErrorEvent{*hash, message, "tracker"});
+    }
+}
+
+void AlertRouter::handle_torrent_delete_failed(
+    libtorrent::torrent_delete_failed_alert const &alert)
+{
+    if (auto hash = hash_from_handle(alert.handle); hash)
+    {
+        auto message = std::format("delete failed: {}", alert.message());
+        TT_LOG_INFO("{}: {}", *hash, message);
+        bus_->publish(TorrentDeleteFailedEvent{*hash, message});
+        bus_->publish(TorrentErrorEvent{*hash, message, "delete"});
     }
 }
 

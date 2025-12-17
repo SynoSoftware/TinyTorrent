@@ -4,6 +4,7 @@
 #include "engine/TorrentUtils.hpp"
 
 #include <algorithm>
+#include <limits>
 #include <shared_mutex>
 
 #include <libtorrent/file_storage.hpp>
@@ -54,8 +55,22 @@ std::string to_state_string(libtorrent::v2::torrent_status::state_t state)
 
 int to_transmission_status(libtorrent::v2::torrent_status const &status)
 {
-    if (status.flags & libtorrent::torrent_flags::paused)
+    bool const paused =
+        static_cast<bool>(status.flags & libtorrent::torrent_flags::paused);
+    bool const auto_managed = static_cast<bool>(
+        status.flags & libtorrent::torrent_flags::auto_managed);
+    if (paused)
     {
+        if (auto_managed)
+        {
+            bool const is_seed =
+                status.state ==
+                    libtorrent::v2::torrent_status::state_t::seeding ||
+                status.state ==
+                    libtorrent::v2::torrent_status::state_t::finished ||
+                status.total_wanted_done >= status.total_wanted;
+            return is_seed ? 5 : 3;
+        }
         return 0;
     }
     switch (status.state)
@@ -119,10 +134,23 @@ SnapshotBuilder::build_snapshot(int rpc_id,
     snapshot.eta = estimate_eta(status);
     snapshot.total_wanted_done = status.total_wanted_done;
     snapshot.added_time = status.added_time;
-    snapshot.ratio =
-        status.total_download > 0
-            ? static_cast<double>(status.total_upload) / status.total_download
-            : 0.0;
+    double ratio = 0.0;
+    if (status.total_download > 0)
+    {
+        ratio = static_cast<double>(status.total_upload) /
+                static_cast<double>(status.total_download);
+    }
+    else if (status.total_wanted_done >= status.total_wanted &&
+             status.total > 0)
+    {
+        ratio = static_cast<double>(status.total_upload) /
+            static_cast<double>(status.total);
+    }
+    else if (status.total_upload > 0)
+    {
+        ratio = std::numeric_limits<double>::infinity();
+    }
+    snapshot.ratio = ratio;
     snapshot.is_finished = status.is_finished;
     snapshot.sequential_download = static_cast<bool>(
         status.flags & libtorrent::torrent_flags::sequential_download);

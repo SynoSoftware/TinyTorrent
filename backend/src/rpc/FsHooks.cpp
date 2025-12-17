@@ -14,15 +14,24 @@ std::vector<FsEntry>
 default_collect_directory_entries(std::filesystem::path const &path)
 {
     std::vector<FsEntry> result;
-    std::error_code ec;
-    for (auto const &entry : std::filesystem::directory_iterator(path, ec))
+    std::error_code iter_ec;
+    std::filesystem::directory_iterator iter(path, iter_ec);
+    if (iter_ec)
     {
-        if (ec)
+        return result;
+    }
+    for (; iter != std::filesystem::directory_iterator();
+         iter.increment(iter_ec))
+    {
+        if (iter_ec)
         {
-            break;
+            iter_ec.clear();
+            continue;
         }
+        auto const &entry = *iter;
         FsEntry info;
         info.name = entry.path().filename().string();
+        std::error_code ec;
         bool is_dir = entry.is_directory(ec);
         if (!ec && is_dir)
         {
@@ -30,8 +39,9 @@ default_collect_directory_entries(std::filesystem::path const &path)
         }
         else
         {
-            bool is_file = entry.is_regular_file(ec);
-            if (!ec && is_file)
+            std::error_code file_ec;
+            bool is_file = entry.is_regular_file(file_ec);
+            if (!file_ec && is_file)
             {
                 info.type = "file";
             }
@@ -39,7 +49,7 @@ default_collect_directory_entries(std::filesystem::path const &path)
             {
                 info.type = "other";
             }
-            if (!ec && is_file)
+            if (!file_ec && is_file)
             {
                 auto size_ec = std::error_code{};
                 info.size = entry.file_size(size_ec);
