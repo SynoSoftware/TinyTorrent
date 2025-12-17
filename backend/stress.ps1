@@ -1,5 +1,7 @@
 param(
-    [ValidateSet('debug', 'release', 'minsize')]
+    # Kept for backwards compatibility.
+    # Note: build.ps1 maps Release -> MinSizeRel and outputs to build\release.
+    [ValidateSet('debug', 'release', 'minsize', 'Debug', 'Release', 'MinSizeRel')]
     [string]$Configuration = 'debug',
     [string]$TestExe = 'memory-leak-test.exe',
     [int]$Instances = 0,
@@ -12,6 +14,25 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+function Write-Section {
+    param([string]$Title)
+    Write-Host "`n=== $Title ===" -ForegroundColor DarkCyan
+}
+
+function Format-TimeSpan {
+    param([TimeSpan]$Span)
+    if ($Span.TotalMilliseconds -lt 1000) { return "${([int]($Span.TotalMilliseconds))}ms" }
+    if ($Span.TotalMinutes -lt 1) { return "${($Span.TotalSeconds):F2}s" }
+    return "${($Span.TotalMinutes):F2}m ${($Span.Seconds):D2}s"
+}
+
+function Write-Detail {
+    param([string]$Label, [string]$Value)
+    Write-Host ("  {0}:`t{1}" -f $Label, $Value)
+}
+
+$scriptStartTime = Get-Date
 
 if ($Help) {
     Write-Host @"
@@ -35,7 +56,17 @@ Options:
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $repoRoot = Resolve-Path $scriptRoot
 $buildDir = Join-Path $repoRoot 'build'
-$testDir = Join-Path $buildDir $Configuration
+
+$configNorm = $Configuration.ToLowerInvariant()
+$buildSubDir = switch ($configNorm) {
+    'debug' { 'debug' }
+    'release' { 'release' }
+    'minsize' { 'release' }
+    'minsizerel' { 'release' }
+    default { $configNorm }
+}
+
+$testDir = Join-Path $buildDir $buildSubDir
 $testDir = Join-Path $testDir 'tests'
 $testPath = Join-Path $testDir $TestExe
 
@@ -43,15 +74,29 @@ if (-not (Test-Path $testPath)) {
     throw "Test executable not found: $testPath"
 }
 
+$cpuCount = [Environment]::ProcessorCount
 # --- Defaults ---
 if ($Instances -le 0) {
-    $Instances = [Environment]::ProcessorCount
+    $Instances = $cpuCount
 }
 if ($Instances -lt 1) { $Instances = 1 }
 
 if (-not $DumpRoot) {
     $DumpRoot = Join-Path $buildDir 'test-dumps'
 }
+
+$runLabel = if ($Runs -eq 0) { 'infinite' } else { "$Runs" }
+Write-Section 'Stress configuration'
+Write-Detail 'Configuration' "$Configuration -> build/$buildSubDir"
+Write-Detail 'Test executable' $testPath
+Write-Detail 'Instances' $Instances
+Write-Detail 'Runs requested' $runLabel
+Write-Detail 'ProcDump enabled' $(if ($UseProcDump) { 'Yes' } else { 'No' })
+Write-Detail 'Dump root' $DumpRoot
+Write-Section 'Environment'
+Write-Detail 'Machine' $env:COMPUTERNAME
+Write-Detail 'CPU cores' $cpuCount
+Write-Detail 'Start time' $scriptStartTime
 
 # --- Resolve ProcDump ---
 if ($UseProcDump) {
@@ -108,8 +153,20 @@ function Start-TestProcess {
     # We must add build/debug to the PATH so the test exe can find torrent-rasterbar.dll
     $dllDir = Split-Path -Parent $testDir
     
-    # Also add vcpkg debug bin just in case they weren't copied
-    $vcpkgDebugBin = Join-Path $repoRoot 'vcpkg_installed\x64-windows\debug\bin'
+    # Also add vcpkg bin dirs just in case they weren't copied.
+    # IMPORTANT: avoid mixing triplets (this can reintroduce ABI/CRT issues).
+    $vcpkgBins = @()
+    if ($buildSubDir -eq 'debug') {
+        $triplet = 'x64-windows-asan'
+        $tripletRoot = Join-Path $repoRoot "vcpkg_installed\$triplet"
+        $candidates = @(
+            (Join-Path $tripletRoot 'bin'),
+            (Join-Path $tripletRoot 'debug\bin')
+        )
+        foreach ($c in $candidates) {
+            if (Test-Path $c) { $vcpkgBins += $c }
+        }
+    }
     
     # Try to locate Visual Studio MSVC bin (contains clang_rt.asan_dynamic etc.)
     $msvcBin = $null
@@ -143,12 +200,13 @@ function Start-TestProcess {
         }
     }
 
-    if ($msvcBin) {
-        $newPath = "$msvcBin;$dllDir;$vcpkgDebugBin;" + $env:PATH
-    }
-    else {
-        $newPath = "$dllDir;$vcpkgDebugBin;" + $env:PATH
-    }
+    $prefixParts = @()
+    if ($msvcBin) { $prefixParts += $msvcBin }
+    $prefixParts += $dllDir
+    $prefixParts += $vcpkgBins
+    $prefix = ($prefixParts -join ';')
+    if ($prefix) { $prefix += ';' }
+    $newPath = $prefix + $env:PATH
     
     if ($psi.EnvironmentVariables.ContainsKey('PATH')) {
         $psi.EnvironmentVariables['PATH'] = $newPath
@@ -184,9 +242,14 @@ function Start-TestProcess {
 }
 # --- Main Loop ---
 $runNumber = 0
+$batchTimes = @()
+$totalProcesses = 0
 while ($Runs -eq 0 -or $runNumber -lt $Runs) {
     $runNumber++
-    Write-Host "Starting batch ${runNumber}: launching $Instances parallel instances of $TestExe"
+    $batchStartTime = Get-Date
+    Write-Section "Batch #$runNumber"
+    Write-Detail 'Start time' $batchStartTime
+    Write-Detail 'Launching' "$Instances instances of $TestExe"
 
     $processes = @()
     for ($idx = 0; $idx -lt $Instances; $idx++) {
@@ -207,6 +270,20 @@ while ($Runs -eq 0 -or $runNumber -lt $Runs) {
         Write-Host "Batch $runNumber failed." -ForegroundColor Red
         exit 1
     }
+    $batchDuration = (Get-Date) - $batchStartTime
+    $batchTimes += $batchDuration
+    $totalProcesses += $processes.Count
+    Write-Detail 'Duration' (Format-TimeSpan $batchDuration)
+    Write-Detail 'Completed at' (Get-Date)
 }
 
-Write-Host "Completed $runNumber batch(es) of parallel runs without failure." -ForegroundColor Green
+Write-Section 'Run summary'
+Write-Detail 'Batches completed' $runNumber
+Write-Detail 'Total processes' $totalProcesses
+if ($batchTimes.Count -gt 0) {
+    $totalTime = (Get-Date) - $scriptStartTime
+    $avgTime = ([TimeSpan]::FromTicks(($batchTimes | Measure-Object -Property Ticks -Sum).Sum / $batchTimes.Count))
+    Write-Detail 'Total duration' (Format-TimeSpan $totalTime)
+    Write-Detail 'Average batch' (Format-TimeSpan $avgTime)
+}
+Write-Host 'Completed stress run without failure.' -ForegroundColor Green

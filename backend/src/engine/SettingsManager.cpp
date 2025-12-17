@@ -2,24 +2,39 @@
 
 #include "utils/Log.hpp"
 #include <algorithm>
+#include <cstdio>
 #include <filesystem>
 #include <libtorrent/alert.hpp>
 #include <libtorrent/settings_pack.hpp>
+#include <string>
 
 namespace tt::engine
 {
 
+namespace
+{
+__declspec(noinline)
+void set_user_agent(libtorrent::settings_pack &pack)
+{
+    static std::string const user_agent = "TinyTorrent/0.1.0";
+    pack.set_str(libtorrent::settings_pack::user_agent, user_agent);
+}
+}
+
 libtorrent::settings_pack
 SettingsManager::build_settings_pack(CoreSettings const &s)
 {
-    TT_LOG_DEBUG("[diag] listen_interface.len={} proxy_hostname.len={} "
-                 "proxy_username.len={}",
+#if defined(TT_ENABLE_LOGGING) && !defined(TT_BUILD_MINIMAL)
+    std::fprintf(stderr,
+                 "[D diag] listen_interface.len=%zu proxy_hostname.len=%zu "
+                 "proxy_username.len=%zu\n",
                  s.listen_interface.size(), s.proxy_hostname.size(),
                  s.proxy_username.size());
+#endif
     libtorrent::settings_pack pack;
     pack.set_int(libtorrent::settings_pack::alert_mask,
                  libtorrent::alert::all_categories);
-    pack.set_str(libtorrent::settings_pack::user_agent, "TinyTorrent/0.1.0");
+    set_user_agent(pack);
     pack.set_str(libtorrent::settings_pack::listen_interfaces,
                  s.listen_interface);
     pack.set_int(libtorrent::settings_pack::download_rate_limit,
@@ -64,8 +79,7 @@ SettingsManager::build_settings_pack(CoreSettings const &s)
     pack.set_bool(libtorrent::settings_pack::dont_count_slow_torrents,
                   s.queue_stalled_enabled);
 
-    // TEMPORARY: skip proxy settings to avoid possible corruption during debug
-    // apply_proxy(s, pack);
+    apply_proxy(s, pack);
 
     return pack;
 }
