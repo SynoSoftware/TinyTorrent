@@ -269,27 +269,23 @@ struct Core::Impl
 
     ~Impl()
     {
-        // Persist final DHT state synchronously
+        // 1. Save state synchronously
         persist_dht_state();
 
-        // Disable alert callbacks so libtorrent won't call back into services
+        // 2. Cut off incoming alerts from libtorrent
         if (torrent_manager)
             torrent_manager->set_alert_callbacks({});
 
-        // Destroy services that may schedule async work so they cannot enqueue
-        // new tasks during shutdown. Resetting the unique_ptrs here invokes
-        // their destructors while the engine is still in control.
-        blocklist_service.reset();
-        // AutomationAgent may enqueue tasks (via provided schedulers), so
-        // destroy it before we stop the task worker.
-        automation_agent.reset();
-
-        // Stop the async task service (join worker threads and drain queued
-        // tasks). After this returns, no background tasks from
-        // AsyncTaskService will run.
+        // 3. STOP WORKERS FIRST (Fixes Use-After-Free)
+        // This processes all pending tasks while the Services (Blocklist,
+        // Automation) are still alive. If we destroyed services first, these
+        // tasks would crash.
         task_service.stop();
 
-        // Stop agents with their own worker threads.
+        // 4. Now safe to destroy services
+        blocklist_service.reset();
+        automation_agent.reset();
+
         if (history_agent)
             history_agent->stop();
     }

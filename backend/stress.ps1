@@ -111,7 +111,44 @@ function Start-TestProcess {
     # Also add vcpkg debug bin just in case they weren't copied
     $vcpkgDebugBin = Join-Path $repoRoot 'vcpkg_installed\x64-windows\debug\bin'
     
-    $newPath = "$dllDir;$vcpkgDebugBin;" + $env:PATH
+    # Try to locate Visual Studio MSVC bin (contains clang_rt.asan_dynamic etc.)
+    $msvcBin = $null
+    $vswhereCandidates = @(
+        "$env:ProgramFiles\Microsoft Visual Studio\Installer\vswhere.exe",
+        "$env:ProgramFiles(x86)\Microsoft Visual Studio\Installer\vswhere.exe"
+    )
+    foreach ($c in $vswhereCandidates) {
+        if (Test-Path $c) { $vswhere = $c; break }
+    }
+    if (-not $vswhere) {
+        $cmd = Get-Command vswhere.exe -ErrorAction SilentlyContinue
+        if ($cmd) { $vswhere = $cmd.Source }
+    }
+    if ($vswhere) {
+        try {
+            $vsRoot = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath 2>$null
+            if ($vsRoot) {
+                $msvcRoot = Join-Path $vsRoot 'VC\Tools\MSVC'
+                if (Test-Path $msvcRoot) {
+                    $versions = Get-ChildItem -Path $msvcRoot -Directory | Sort-Object Name -Descending
+                    if ($versions -and $versions.Count -gt 0) {
+                        $candidate = Join-Path $versions[0].FullName 'bin\Hostx64\x64'
+                        if (Test-Path $candidate) { $msvcBin = $candidate }
+                    }
+                }
+            }
+        }
+        catch {
+            # ignore errors locating VS; we'll still try other paths
+        }
+    }
+
+    if ($msvcBin) {
+        $newPath = "$msvcBin;$dllDir;$vcpkgDebugBin;" + $env:PATH
+    }
+    else {
+        $newPath = "$dllDir;$vcpkgDebugBin;" + $env:PATH
+    }
     
     if ($psi.EnvironmentVariables.ContainsKey('PATH')) {
         $psi.EnvironmentVariables['PATH'] = $newPath

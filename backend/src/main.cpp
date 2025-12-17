@@ -545,6 +545,16 @@ int main(int argc, char *argv[])
 
     TT_LOG_INFO("Engine listen interface: {}", settings.listen_interface);
 
+    // Diagnostic: print key settings values before creating engine (helps debug
+    // AddressSanitizer crashes during startup)
+    std::cerr << "[diag] settings.listen_interface='"
+              << settings.listen_interface
+              << "' len=" << settings.listen_interface.size() << "\n";
+    std::cerr << "[diag] settings.proxy_hostname='" << settings.proxy_hostname
+              << "' len=" << settings.proxy_hostname.size() << "\n";
+    std::cerr << "[diag] settings.proxy_username='" << settings.proxy_username
+              << "' len=" << settings.proxy_username.size() << "\n";
+
     auto engine = tt::engine::Core::create(settings);
     auto enqueue_startup_torrent = [&](std::string const &raw)
     {
@@ -685,8 +695,17 @@ int main(int argc, char *argv[])
     }
 
     TT_LOG_INFO("Shutdown requested; stopping RPC and engine...");
+    // 1. Stop accepting new network requests
     rpc.stop();
+
+    // 2. Stop engine and DRAIN ALL TASKS while 'rpc' is still alive
     engine->stop();
+
+    // 3. Explicitly destroy the engine now so its destructor runs while
+    //    'rpc' (stack variable) is still valid. This avoids callbacks from
+    //    engine tasks hitting a destroyed RPC object during shutdown.
+    engine.reset();
+
     if (engine_thread.joinable())
     {
         engine_thread.join();
