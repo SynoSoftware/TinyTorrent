@@ -1,8 +1,4 @@
-# <img src="frontend/public/tinyTorrent.svg"
-
-       width="48"
-       style="vertical-align: middle; margin-bottom: 6px;"
-       alt="" /> TinyTorrent
+# <img src="frontend/public/tinyTorrent.svg"       width="48"       style="vertical-align: middle; margin-bottom: 6px;"       alt="" /> TinyTorrent
 
 **A modern BitTorrent client.**  
 No frameworks needed.  
