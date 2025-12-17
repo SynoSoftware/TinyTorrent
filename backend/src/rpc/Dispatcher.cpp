@@ -1506,8 +1506,7 @@ void handle_fs_browse_async(engine::Core *engine, yyjson_val *arguments,
                 tt::rpc::filesystem::collect_directory_entries(normalized);
             auto parent = normalized.parent_path();
             cb(serialize_fs_browse(path_to_string(normalized),
-                                   path_to_string(parent), separator,
-                                   entries));
+                                   path_to_string(parent), separator, entries));
         }
         catch (std::filesystem::filesystem_error const &ex)
         {
