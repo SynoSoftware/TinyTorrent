@@ -74,6 +74,19 @@ TinyTorrent is not tied to a single engine.
 
 ---
 
+## Licensing rationale
+
+TinyTorrent is licensed under **MPL-2.0** for the code because I want this project to stay true to the spirit that in my eyes made uTorrent great (small, practical, user-respecting), and to avoid the “uTorrent way” where a great tool drifts into a closed, adware/bloat-heavy direction.
+
+MPL-2.0 is a pragmatic middle ground: it keeps the project open and encourages improvements to flow back when code is modified and redistributed, while still being compatible with real-world integration.
+
+Notes:
+
+- Repository license texts live at the repo root: `LICENSE` (MPL-2.0) and `APACHE-2.0`.
+- Protocol/spec docs are **Apache-2.0**; branding assets are **proprietary/trademarked** (see the notices adjacent to those assets).
+
+---
+
 ## 🏗 Repository Structure
 
 ```
