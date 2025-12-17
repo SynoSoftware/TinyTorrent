@@ -3,13 +3,16 @@
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
-// FIX: Prevent Windows.h from defining min/max macros that break std::max
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
-#include <Windows.h>
-#include <shellapi.h>
+// Include winsock2 before Windows.h to avoid conflicts with winsock.h
 #include <objbase.h>
+#include <shellapi.h>
+#include <windows.h>
+#include <winreg.h>
+#include <winsock2.h>
+#include <ws2tcpip.h>
 #endif
 #include "rpc/Dispatcher.hpp"
 
@@ -20,18 +23,6 @@
 #include "utils/Json.hpp"
 #include "utils/Log.hpp"
 #include "utils/Shutdown.hpp"
-
-#if defined(_WIN32)
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include <shellapi.h>
-#include <windows.h>
-#include <objbase.h>
-#include <winreg.h>
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#endif
 
 #include <algorithm>
 #include <array>

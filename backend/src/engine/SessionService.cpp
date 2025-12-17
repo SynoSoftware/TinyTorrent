@@ -70,13 +70,15 @@ SessionService::SessionService(TorrentManager *manager,
         });
 
     // IMPORTANT: Handle settings changes on the Engine Thread to avoid racing
-    // with tick()
+    // with tick(). When settings change we must FORCE re-application of
+    // speed limits because the limits themselves may have changed even when
+    // the "active" scheduler state did not toggle.
     bus_->subscribe<SettingsChangedEvent>(
         [this](auto const &)
         {
             if (manager_)
             {
-                manager_->enqueue_task([this] { check_speed_limits(); });
+                manager_->enqueue_task([this] { check_speed_limits(true); });
             }
         });
 }
@@ -86,7 +88,7 @@ SessionService::~SessionService() = default;
 void SessionService::start(libtorrent::v2::session_params params)
 {
     manager_->start_session(std::move(params));
-    check_speed_limits();
+    check_speed_limits(true);
 }
 
 void SessionService::tick(std::chrono::steady_clock::time_point now)
@@ -339,17 +341,23 @@ void SessionService::update_snapshot(std::chrono::steady_clock::time_point now)
     }
 }
 
-void SessionService::check_speed_limits()
+void SessionService::check_speed_limits(bool force)
 {
+    // Reconfigure the running libtorrent session with the current settings.
+    // This applies rate limits (respecting Alt Speed schedule) as well as
+    // network, proxy, queue and encryption settings so RPC-driven changes
+    // are applied immediately when called with `force=true`.
     auto settings = config_->get();
     bool active = SettingsManager::should_use_alt_speed(
         settings, std::chrono::system_clock::now());
 
-    if (active == alt_speed_active_)
+    if (!force && active == alt_speed_active_)
         return;
     alt_speed_active_ = active;
 
     libtorrent::settings_pack pack;
+
+    // Rate limits (alt vs normal)
     SettingsManager::apply_rate_limits(
         active ? settings.alt_download_rate_limit_kbps
                : settings.download_rate_limit_kbps,
@@ -357,6 +365,13 @@ void SessionService::check_speed_limits()
         active ? settings.alt_upload_rate_limit_kbps
                : settings.upload_rate_limit_kbps,
         active ? true : settings.upload_rate_limit_enabled, pack);
+
+    // Apply other categories so changes via RPC take effect immediately
+    SettingsManager::apply_network(settings, pack);
+    SettingsManager::apply_queue(settings, pack);
+    SettingsManager::apply_encryption(settings, pack);
+    SettingsManager::apply_proxy(settings, pack);
+
     manager_->apply_settings(pack);
 }
 
@@ -436,8 +451,12 @@ int SessionService::get_rpc_id(std::string const &hash)
 
 std::string SessionService::get_hash(int id)
 {
-    // Not strictly needed for this refactor but good for completeness
-    return "";
+    if (auto h = manager_->handle_for_id(id))
+    {
+        if (auto hash = tt::engine::hash_from_handle(*h))
+            return *hash;
+    }
+    return std::string{};
 }
 
 } // namespace tt::engine

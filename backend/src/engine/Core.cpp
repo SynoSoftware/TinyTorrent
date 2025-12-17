@@ -189,6 +189,12 @@ struct Core::Impl
                                             config_service->persist_if_dirty();
                                     });
 
+        // DHT persistence: run periodically but offload file I/O to the
+        // AsyncTaskService to avoid blocking the engine main loop.
+        scheduler_service->schedule(
+            std::chrono::minutes(5), [this]()
+            { task_service.submit([this]() { persist_dht_state(); }); });
+
         alert_router = std::make_unique<AlertRouter>(
             torrent_manager.get(), event_bus.get(),
             [](auto hash)
@@ -263,10 +269,27 @@ struct Core::Impl
 
     ~Impl()
     {
+        // Persist final DHT state synchronously
         persist_dht_state();
+
+        // Disable alert callbacks so libtorrent won't call back into services
         if (torrent_manager)
             torrent_manager->set_alert_callbacks({});
+
+        // Destroy services that may schedule async work so they cannot enqueue
+        // new tasks during shutdown. Resetting the unique_ptrs here invokes
+        // their destructors while the engine is still in control.
+        blocklist_service.reset();
+        // AutomationAgent may enqueue tasks (via provided schedulers), so
+        // destroy it before we stop the task worker.
+        automation_agent.reset();
+
+        // Stop the async task service (join worker threads and drain queued
+        // tasks). After this returns, no background tasks from
+        // AsyncTaskService will run.
         task_service.stop();
+
+        // Stop agents with their own worker threads.
         if (history_agent)
             history_agent->stop();
     }
@@ -312,8 +335,6 @@ struct Core::Impl
                 scheduler_service->tick(now);
             if (config_service)
                 config_service->persist_if_dirty();
-
-            persist_dht_state();
 
             auto sched_wait =
                 scheduler_service
@@ -745,9 +766,9 @@ void Core::toggle_file_selection(std::vector<int> ids,
                     {
                         if (idx < 0 || idx >= file_count)
                         {
-                            TT_LOG_INFO(
-                                "file priority index {} out of range ({} files)",
-                                idx, file_count);
+                            TT_LOG_INFO("file priority index {} out of range "
+                                        "({} files)",
+                                        idx, file_count);
                             continue;
                         }
                         h.file_priority(libtorrent::file_index_t(idx), prio);
