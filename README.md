@@ -1,8 +1,9 @@
-# TinyTorrent
+# <img src="frontend/public/tinyTorrent.svg" width="32" alt="" /> TinyTorrent
 
 **A modern BitTorrent client. No frameworks needed. ~1 MB (Transmission-based) and ~3 MB (Libtorrent-based). Fully capable.**
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: MPL-2.0](https://img.shields.io/badge/License-MPL--2.0-orange.svg)](https://www.mozilla.org/MPL/2.0/)
+[![Protocol: Apache-2.0](https://img.shields.io/badge/Protocol-Apache--2.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 [![C++](https://img.shields.io/badge/C++-17-blue)](https://en.cppreference.com/w/cpp/17)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-19-cyan)](https://react.dev/)
