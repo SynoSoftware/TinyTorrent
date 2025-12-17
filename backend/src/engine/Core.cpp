@@ -88,6 +88,7 @@ struct Core::Impl
     std::atomic_bool shutdown_requested{false};
     std::chrono::steady_clock::time_point shutdown_start;
     std::filesystem::path dht_state_path;
+    std::vector<char> dht_state_buffer;
     CoreSettings settings_;
     std::string listen_error;
     mutable std::shared_mutex listen_error_mutex;
@@ -346,21 +347,22 @@ struct Core::Impl
         persist_dht_state();
     }
 
-    std::optional<libtorrent::dht::dht_state> load_dht_state() const
+    std::optional<libtorrent::dht::dht_state> load_dht_state()
     {
         if (dht_state_path.empty() || !std::filesystem::exists(dht_state_path))
             return std::nullopt;
         std::ifstream input(dht_state_path, std::ios::binary);
         if (!input)
             return std::nullopt;
-        std::vector<char> buffer((std::istreambuf_iterator<char>(input)),
-                                 std::istreambuf_iterator<char>());
-        if (buffer.empty())
+        dht_state_buffer.assign((std::istreambuf_iterator<char>(input)),
+                                std::istreambuf_iterator<char>());
+        if (dht_state_buffer.empty())
             return std::nullopt;
         try
         {
             auto params = libtorrent::read_session_params(
-                libtorrent::span<char const>(buffer.data(), buffer.size()),
+                libtorrent::span<char const>(dht_state_buffer.data(),
+                                             dht_state_buffer.size()),
                 libtorrent::session_handle::save_dht_state);
             return params.dht_state;
         }

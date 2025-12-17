@@ -3,7 +3,6 @@
 #include "utils/Log.hpp"
 #include <algorithm>
 #include <filesystem>
-#include <iostream>
 #include <libtorrent/alert.hpp>
 #include <libtorrent/settings_pack.hpp>
 
@@ -13,38 +12,16 @@ namespace tt::engine
 libtorrent::settings_pack
 SettingsManager::build_settings_pack(CoreSettings const &s)
 {
-    // Diagnostic: print raw values, addresses and a small hex prefix of each
-    auto hex_prefix = [](std::string const &v, size_t n)
-    {
-        std::ostringstream os;
-        os << std::hex;
-        for (size_t i = 0; i < v.size() && i < n; ++i)
-        {
-            os << (static_cast<int>(static_cast<unsigned char>(v[i])) & 0xFF);
-            if (i + 1 < n && i + 1 < v.size())
-                os << ":";
-        }
-        return os.str();
-    };
-    std::cerr << "[diag] &s=" << (void *)&s
-              << " listen_interface.ptr=" << (void *)s.listen_interface.c_str()
-              << " len=" << s.listen_interface.size()
-              << " prefix=" << hex_prefix(s.listen_interface, 8) << "\n";
-    std::cerr << "[diag] proxy_hostname.ptr="
-              << (void *)s.proxy_hostname.c_str()
-              << " len=" << s.proxy_hostname.size()
-              << " prefix=" << hex_prefix(s.proxy_hostname, 8) << "\n";
-    std::cerr << "[diag] proxy_username.ptr="
-              << (void *)s.proxy_username.c_str()
-              << " len=" << s.proxy_username.size()
-              << " prefix=" << hex_prefix(s.proxy_username, 8) << "\n";
+    TT_LOG_DEBUG("[diag] listen_interface.len={} proxy_hostname.len={} "
+                 "proxy_username.len={}",
+                 s.listen_interface.size(), s.proxy_hostname.size(),
+                 s.proxy_username.size());
     libtorrent::settings_pack pack;
     pack.set_int(libtorrent::settings_pack::alert_mask,
                  libtorrent::alert::all_categories);
     pack.set_str(libtorrent::settings_pack::user_agent, "TinyTorrent/0.1.0");
-    // TEMPORARY: avoid setting listen_interfaces to isolate ASAN crash
-    // pack.set_str(libtorrent::settings_pack::listen_interfaces,
-    //              s.listen_interface);
+    pack.set_str(libtorrent::settings_pack::listen_interfaces,
+                 s.listen_interface);
     pack.set_int(libtorrent::settings_pack::download_rate_limit,
                  kbps_to_bytes(s.download_rate_limit_kbps,
                                s.download_rate_limit_enabled));
