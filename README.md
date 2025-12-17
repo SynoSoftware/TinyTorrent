@@ -1,6 +1,13 @@
-# <img src="frontend/public/tinyTorrent.svg" width="48" alt="" /> TinyTorrent
+# <img src="frontend/public/tinyTorrent.svg"
 
-**A modern BitTorrent client. No frameworks needed. ~1 MB (Transmission-based) and ~3 MB (Libtorrent-based). Fully capable.**
+       width="48"
+       style="vertical-align: middle; margin-bottom: 6px;"
+       alt="" /> TinyTorrent
+
+**A modern BitTorrent client.**  
+No frameworks needed.  
+~1 MB (Transmission-based) · ~3 MB (libtorrent-based).  
+Fully capable.
 
 [![License: MPL-2.0](https://img.shields.io/badge/License-MPL--2.0-orange.svg)](https://www.mozilla.org/MPL/2.0/)
 [![Protocol: Apache-2.0](https://img.shields.io/badge/Protocol-Apache--2.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
