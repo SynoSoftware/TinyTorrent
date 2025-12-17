@@ -23,17 +23,15 @@ class AutomationAgent
     using TaskScheduler = std::function<void(std::function<void()>)>;
     using TorrentEnqueueFn =
         std::function<Core::AddTorrentStatus(TorrentAddRequest)>;
-    using MoveQueueFn = std::function<void(
-        std::string const &hash, std::filesystem::path const &path)>;
-    using MoveCancelFn =
-        std::function<void(std::string const &hash)>;
+    using MoveQueueFn = std::function<void(std::string const &hash,
+                                           std::filesystem::path const &path)>;
+    using MoveCancelFn = std::function<void(std::string const &hash)>;
     using MoveCompleteFn = std::function<void(
         std::string const &hash, std::filesystem::path const &path)>;
 
     AutomationAgent(TaskScheduler schedule_io, TaskScheduler enqueue_task,
-                    TorrentEnqueueFn enqueue_torrent,
-                    MoveQueueFn queue_move, MoveCancelFn cancel_move,
-                    MoveCompleteFn complete_move);
+                    TorrentEnqueueFn enqueue_torrent, MoveQueueFn queue_move,
+                    MoveCancelFn cancel_move, MoveCompleteFn complete_move);
 
     AutomationAgent(AutomationAgent const &) = delete;
     AutomationAgent &operator=(AutomationAgent const &) = delete;
@@ -47,7 +45,7 @@ class AutomationAgent
     void scan();
 
     void process_completion(libtorrent::torrent_handle const &handle,
-                            libtorrent::torrent_status const &status);
+                            libtorrent::v2::torrent_status const &status);
 
     void track_pending_move(std::string const &hash,
                             std::filesystem::path const &destination);

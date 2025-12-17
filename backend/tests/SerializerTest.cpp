@@ -53,11 +53,9 @@ TEST_CASE("session-get redacts proxy password after session-set updates it")
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
     tt::rpc::Dispatcher dispatcher(engine.get());
-    auto set_response =
-        dispatcher
-            .dispatch(
-                R"({"method":"session-set","arguments":{"proxy-password":"hunter2","proxy-auth-enabled":true}})")
-            .get();
+    auto set_response = tt::tests::dispatch_sync(
+        dispatcher,
+        R"({"method":"session-set","arguments":{"proxy-password":"hunter2","proxy-auth-enabled":true}})");
     ResponseView set_view{set_response};
     CHECK(set_view.result() == "success");
 
@@ -69,8 +67,8 @@ TEST_CASE("session-get redacts proxy password after session-set updates it")
     }
     REQUIRE(engine->settings().proxy_password == "hunter2");
 
-    auto get_response =
-        dispatcher.dispatch(R"({"method":"session-get","arguments":{}})").get();
+    auto get_response = tt::tests::dispatch_sync(
+        dispatcher, R"({"method":"session-get","arguments":{}})");
     ResponseView get_view{get_response};
     auto *password = get_view.argument("proxy-password");
     REQUIRE(password != nullptr);

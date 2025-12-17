@@ -1,3 +1,126 @@
+/*
+
+This file **needs refactoring**, primarily to improve **Separation of
+Concerns**.
+
+Currently, `Server.cpp` is acting as a "God Object" for the networking layer. It
+mixes transport logic (Mongoose), protocol logic (HTTP/WebSocket), business
+logic (Snapshot Diffing), and utility logic (Base64/String parsing).
+
+Here are the specific areas to refactor:
+
+### 1. Extract Snapshot Diffing Logic (The biggest architectural violation)
+**Issue:** `Server.cpp` contains complex logic (`compute_diff`, `SnapshotDiff`,
+`session_snapshot_equal`) to compare two `SessionSnapshot` objects.
+**Why it's bad:** The Networking layer shouldn't know the intricate details of
+Engine data structures or how to calculate deltas between them. This logic is
+untestable inside the private namespace of the Server.
+**Solution:** Move this to a dedicated `StateTracker` or `DiffGenerator`.
+
+**New File: `src/rpc/StateDiff.hpp`**
+```cpp
+namespace tt::rpc {
+    struct SnapshotDiff {
+        std::vector<int> removed;
+        std::vector<engine::TorrentSnapshot> added;
+        // ...
+        static SnapshotDiff compute(const engine::SessionSnapshot& a,
+                                  const engine::SessionSnapshot& b);
+    };
+}
+```
+
+### 2. Extract Authorization & HTTP Utilities
+**Issue:** Functions like `canonicalize_host`, `host_allowed`, `origin_allowed`,
+and `authorize_request` take up ~200 lines.
+**Why it's bad:** This is "Middleware" logic. It obscures the actual request
+handling flow.
+**Solution:** Move this to `src/rpc/HttpMiddleware.hpp`.
+
+```cpp
+namespace tt::rpc::middleware {
+    // Returns std::nullopt if authorized, or an error response string if not
+    std::optional<std::string> validate_request(struct mg_http_message* hm,
+                                              const ServerOptions& opts);
+}
+```
+
+### 3. Eliminate Code Duplication (Base64)
+**Issue:** The file implements `decode_base64` in an anonymous namespace.
+**Why it's bad:** You already have `src/utils/Base64.hpp`. You are compiling the
+same logic twice and maintaining two versions.
+**Solution:** `#include "utils/Base64.hpp"` and remove the local implementation.
+
+### 4. Isolate WebSocket Management
+**Issue:** `ws_clients_` management (adding, removing, broadcasting, pinging) is
+mixed with HTTP handling.
+**Solution:** Create a `WebSocketManager` class inside `Server`.
+
+```cpp
+class WebSocketManager {
+public:
+    void add_client(mg_connection* conn, std::shared_ptr<SessionSnapshot> snap);
+    void remove_client(mg_connection* conn);
+    void broadcast(const std::string& msg);
+    void broadcast_patch(const SessionSnapshot& current); // Handles the diffing
+internally private: struct Client { ... }; std::vector<Client> clients_;
+    std::mutex mutex_;
+};
+```
+
+---
+
+### Refactored `Server.cpp` structure
+
+If you apply these changes, `Server.cpp` becomes a clean coordinator:
+
+```cpp
+#include "rpc/Server.hpp"
+#include "rpc/HttpMiddleware.hpp" // New
+#include "rpc/StateDiff.hpp"      // New
+#include "utils/Base64.hpp"       // Use existing
+
+// ... imports ...
+
+namespace tt::rpc {
+
+// ... constructor / destructor ...
+
+void Server::handle_http_message(mg_connection* conn, mg_http_message* hm) {
+    // 1. Middleware Check
+    if (auto error = middleware::validate_request(hm, options_)) {
+        mg_http_reply(conn, 403, ... , error->c_str());
+        return;
+    }
+
+    // 2. Route Dispatch
+    // ... existing dispatch logic ...
+}
+
+void Server::broadcast_websocket_updates() {
+    // Logic delegated to helper class or standalone function
+    // that uses StateDiff::compute()
+    auto diff = StateDiff::compute(*last_snapshot_, *current_snapshot_);
+    if (!diff.empty()) {
+        auto payload = serialize_ws_patch(...);
+        ws_manager_->broadcast(payload);
+    }
+}
+
+}
+```
+
+### Recommendation
+**refactor.**
+1.  **Immediate:** Delete the local `decode_base64` and use `utils/Base64.hpp`.
+2.  **High Value:** Move the `compute_diff` and related structs out to a
+separate file. This logic is complex and creates a heavy dependency on Engine
+internals within the Server file.
+3.  **Medium Value:** Extract `authorize_request` and host checking logic.
+
+
+*/
+
 #include "rpc/Server.hpp"
 
 #include "rpc/Serializer.hpp"
@@ -401,7 +524,6 @@ Server::~Server()
     // Clear connection-dependent state before mg_mgr_free
     // The destroying flag will prevent callbacks from running
     ws_clients_.clear();
-    pending_http_requests_.clear();
 
     // Free the mongoose manager - callbacks are prevented by destroying flag
     mg_mgr_free(&mgr_);
@@ -460,7 +582,7 @@ void Server::run_loop()
         {
             // TT_LOG_DEBUG("Polling Mongoose event loop");
             mg_mgr_poll(&mgr_, 50);
-            process_pending_http_responses();
+            process_pending_tasks();
             broadcast_websocket_updates();
         }
     }
@@ -607,9 +729,10 @@ void Server::broadcast_websocket_updates()
     }
 }
 
-std::future<std::string> Server::dispatch(std::string_view payload)
+void Server::dispatch(std::string_view payload,
+                      std::function<void(std::string)> cb)
 {
-    return dispatcher_.dispatch(payload);
+    dispatcher_.dispatch(payload, std::move(cb));
 }
 
 void Server::refresh_connection_port()
@@ -927,11 +1050,17 @@ void Server::handle_http_message(struct mg_connection *conn,
     {
         body.assign(hm->body.buf, hm->body.len);
     }
-    auto response_future = self->dispatch(body);
-    PendingHttpRequest pending{conn, std::make_shared<std::future<std::string>>(
-                                         std::move(response_future))};
-    self->pending_http_requests_.push_back(std::move(pending));
-    self->process_pending_http_responses();
+
+    auto req_id = self->next_request_id_++;
+    self->active_requests_[req_id] = conn;
+
+    self->dispatch(body,
+                   [self, req_id](std::string response)
+                   {
+                       self->enqueue_task(
+                           [self, req_id, response = std::move(response)]
+                           { self->send_response(req_id, response); });
+                   });
 }
 
 void Server::handle_ws_open(struct mg_connection *conn,
@@ -970,11 +1099,26 @@ void Server::handle_connection_closed(struct mg_connection *conn, int /*ev*/)
         return;
     }
 
-    std::lock_guard<std::mutex> lock(ws_clients_mtx_);
-    ws_clients_.erase(std::remove_if(ws_clients_.begin(), ws_clients_.end(),
-                                     [conn](WsClient const &client)
-                                     { return client.conn == conn; }),
-                      ws_clients_.end());
+    {
+        std::lock_guard<std::mutex> lock(ws_clients_mtx_);
+        ws_clients_.erase(std::remove_if(ws_clients_.begin(), ws_clients_.end(),
+                                         [conn](WsClient const &client)
+                                         { return client.conn == conn; }),
+                          ws_clients_.end());
+    }
+
+    // Remove from active requests
+    for (auto it = active_requests_.begin(); it != active_requests_.end();)
+    {
+        if (it->second == conn)
+        {
+            it = active_requests_.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
 }
 
 void Server::send_ws_message(struct mg_connection *conn,
@@ -1011,47 +1155,34 @@ void send_ws_ping(struct mg_connection *conn)
     (void)sent; // Mongoose handles connection closure on failure
 }
 
-void Server::process_pending_http_responses()
+void Server::enqueue_task(std::function<void()> task)
 {
-    // Don't process pending requests during destruction
-    if (destroying_.load(std::memory_order_acquire))
-    {
-        return;
-    }
+    std::lock_guard<std::mutex> lock(tasks_mtx_);
+    pending_tasks_.push_back(std::move(task));
+    mg_wakeup(&mgr_, 0, nullptr, 0);
+}
 
-    for (auto it = pending_http_requests_.begin();
-         it != pending_http_requests_.end();)
+void Server::process_pending_tasks()
+{
+    std::vector<std::function<void()>> tasks;
     {
-        auto &entry = *it;
-        if (entry.conn == nullptr || entry.future == nullptr)
-        {
-            it = pending_http_requests_.erase(it);
-            continue;
-        }
-        if (entry.future->wait_for(std::chrono::milliseconds(0)) !=
-            std::future_status::ready)
-        {
-            ++it;
-            continue;
-        }
-        std::string response;
-        try
-        {
-            response = entry.future->get();
-        }
-        catch (std::exception const &ex)
-        {
-            TT_LOG_INFO("RPC future threw: {}", ex.what());
-            response = serialize_error("internal error");
-        }
-        catch (...)
-        {
-            TT_LOG_INFO("RPC future threw unknown exception");
-            response = serialize_error("internal error");
-        }
-        mg_http_reply(entry.conn, 200, "Content-Type: application/json\r\n",
+        std::lock_guard<std::mutex> lock(tasks_mtx_);
+        tasks.swap(pending_tasks_);
+    }
+    for (auto &task : tasks)
+    {
+        task();
+    }
+}
+
+void Server::send_response(std::uint64_t req_id, std::string const &response)
+{
+    auto it = active_requests_.find(req_id);
+    if (it != active_requests_.end())
+    {
+        mg_http_reply(it->second, 200, "Content-Type: application/json\r\n",
                       "%s", response.c_str());
-        it = pending_http_requests_.erase(it);
+        active_requests_.erase(it);
     }
 }
 

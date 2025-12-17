@@ -38,15 +38,15 @@ std::string sha1_to_hex(libtorrent::sha1_hash const &hash)
 AutomationAgent::AutomationAgent(TaskScheduler schedule_io,
                                  TaskScheduler enqueue_task,
                                  TorrentEnqueueFn enqueue_torrent,
-                       MoveQueueFn queue_move_callback,
-                       MoveCancelFn cancel_move_callback,
-                       MoveCompleteFn complete_move_callback)
+                                 MoveQueueFn queue_move_callback,
+                                 MoveCancelFn cancel_move_callback,
+                                 MoveCompleteFn complete_move_callback)
     : schedule_io_(std::move(schedule_io)),
       enqueue_task_(std::move(enqueue_task)),
       enqueue_torrent_(std::move(enqueue_torrent)),
-    queue_move_callback_(std::move(queue_move_callback)),
-    cancel_move_callback_(std::move(cancel_move_callback)),
-    complete_move_callback_(std::move(complete_move_callback))
+      queue_move_callback_(std::move(queue_move_callback)),
+      cancel_move_callback_(std::move(cancel_move_callback)),
+      complete_move_callback_(std::move(complete_move_callback))
 {
 }
 
@@ -100,7 +100,7 @@ void AutomationAgent::scan()
 
 void AutomationAgent::process_completion(
     libtorrent::torrent_handle const &handle,
-    libtorrent::torrent_status const &status)
+    libtorrent::v2::torrent_status const &status)
 {
     if (!incomplete_enabled_ || incomplete_dir_.empty() ||
         download_path_.empty())

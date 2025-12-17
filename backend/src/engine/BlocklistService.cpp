@@ -11,16 +11,42 @@ BlocklistService::BlocklistService(BlocklistManager *manager,
                                    AsyncTaskService *tasks,
                                    TorrentManager *torrents,
                                    Callbacks callbacks)
-  : manager_(manager), tasks_(tasks), torrents_(torrents),
-    callbacks_(std::move(callbacks))
+    : manager_(manager), tasks_(tasks), torrents_(torrents),
+      callbacks_(std::move(callbacks))
 {
 }
 
 bool BlocklistService::reload_async()
 {
-    // TODO: If manager_ has a path, run manager_->reload() on tasks_ then
-    // enqueue application of the resulting ip_filter on TorrentManager.
-    // Update entries_/last_update_ and log via callbacks_.
+    if (manager_ == nullptr || tasks_ == nullptr || torrents_ == nullptr)
+        return false;
+
+    tasks_->submit(
+        [this]
+        {
+            auto result = manager_->reload();
+            if (!result)
+            {
+                if (callbacks_.log_info)
+                    callbacks_.log_info("blocklist: no path or empty file");
+                return;
+            }
+
+            // apply on engine thread
+            torrents_->enqueue_task(
+                [this, r = *result]() mutable
+                {
+                    torrents_->set_ip_filter(r.filter);
+                    entries_ = r.entries;
+                    last_update_ = r.timestamp;
+                    if (callbacks_.log_info)
+                    {
+                        callbacks_.log_info(
+                            std::string("blocklist applied, entries=") +
+                            std::to_string(entries_));
+                    }
+                });
+        });
     return true;
 }
 

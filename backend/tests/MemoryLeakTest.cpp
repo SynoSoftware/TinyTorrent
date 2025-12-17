@@ -1,3 +1,4 @@
+#include "RpcTestUtils.hpp"
 #include "engine/Core.hpp"
 #include "rpc/Dispatcher.hpp"
 
@@ -154,14 +155,12 @@ TEST_CASE("Dispatcher with Core lifecycle stress")
         std::this_thread::sleep_for(std::chrono::milliseconds(30));
 
         // Make some RPC calls
-        auto response1 =
-            dispatcher.dispatch(R"({"method":"session-stats","arguments":{}})")
-                .get();
+        auto response1 = tt::tests::dispatch_sync(
+            dispatcher, R"({"method":"session-stats","arguments":{}})");
         CHECK(!response1.empty());
 
-        auto response2 =
-            dispatcher.dispatch(R"({"method":"session-get","arguments":{}})")
-                .get();
+        auto response2 = tt::tests::dispatch_sync(
+            dispatcher, R"({"method":"session-get","arguments":{}})");
         CHECK(!response2.empty());
     }
 

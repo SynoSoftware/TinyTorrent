@@ -190,7 +190,7 @@ TorrentManager::~TorrentManager()
     }
 }
 
-void TorrentManager::start_session(libtorrent::session_params params)
+void TorrentManager::start_session(libtorrent::v2::session_params params)
 {
     session_ = std::make_unique<libtorrent::session>(std::move(params));
 }

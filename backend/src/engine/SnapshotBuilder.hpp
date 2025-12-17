@@ -5,6 +5,7 @@
 #include "engine/Core.hpp"
 
 #include <functional>
+#include <shared_mutex>
 #include <unordered_map>
 #include <vector>
 
@@ -22,16 +23,17 @@ class SnapshotBuilder
     SnapshotBuilder(
         PersistenceManager *persistence,
         std::unordered_map<int, int> &priorities,
+        std::shared_mutex &priorities_mutex,
         std::function<std::uint64_t(int)> ensure_revision,
         std::function<std::string(std::string const &)> error_lookup);
 
     TorrentSnapshot build_snapshot(int rpc_id,
-                                   libtorrent::torrent_status const &status,
+                                   libtorrent::v2::torrent_status const &status,
                                    std::uint64_t revision = 0);
 
     TorrentDetail collect_detail(int rpc_id,
                                  libtorrent::torrent_handle const &handle,
-                                 libtorrent::torrent_status const &status);
+                                 libtorrent::v2::torrent_status const &status);
 
   private:
     std::vector<TorrentFileInfo>
@@ -45,6 +47,7 @@ class SnapshotBuilder
 
     PersistenceManager *persistence_ = nullptr;
     std::unordered_map<int, int> &priorities_;
+    std::shared_mutex &priorities_mutex_;
     std::function<std::uint64_t(int)> ensure_revision_;
     std::function<std::string(std::string const &)> error_lookup_;
 };

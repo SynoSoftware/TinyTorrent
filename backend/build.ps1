@@ -29,38 +29,59 @@ Options:
     exit 0
 }
 
-function Get-UserScriptsPath {
-    try {
-        $pythonVersioned = & python -c "import os, site, sys; base = site.USER_BASE; ver = 'Python{}{}'.format(sys.version_info.major, sys.version_info.minor); print(os.path.join(base, ver, 'Scripts'))"
-        $pythonBase = & python -c "import os, site; print(os.path.join(site.USER_BASE, 'Scripts'))"
-        $paths = @()
-        if ($pythonVersioned) { $paths += $pythonVersioned.Trim() }
-        if ($pythonBase -and $pythonBase.Trim() -ne $pythonVersioned.Trim()) { $paths += $pythonBase.Trim() }
-        return $paths
-    }
-    catch {
-        throw 'Unable to determine the Python user scripts path; ensure Python 3.9+ is on PATH.'
-    }
-}
-
 function Resolve-Executable {
-    param($overridePath, $name, $candidateDirs)
+    param($overridePath, $name, $candidateEntries, $installLauncher)
 
     if ($overridePath) {
         if (Test-Path $overridePath) { return $overridePath }
         throw "Override path for $name not found: $overridePath"
     }
 
-    $cmd = Get-Command $name -ErrorAction SilentlyContinue
-    if ($cmd) { return $cmd.Source }
-
-    foreach ($dir in $candidateDirs) {
-        if (-not $dir) { continue }
-        $candidate = Join-Path $dir "$name.exe"
+    foreach ($entry in $candidateEntries) {
+        if (-not $entry.Path) { continue }
+        $candidate = Join-Path $entry.Path "$name.exe"
         if (Test-Path $candidate) { return $candidate }
     }
 
-    throw "Could not locate $name; install it with `python -m pip install --user $name` or pass -${name}Path."
+    throw "$name not installed; run '$installLauncher -m pip install --user $name'."
+}
+
+function Get-PythonScriptsPath {
+    param(
+        [string]$LauncherCommand,
+        [string]$LauncherVersion
+    )
+
+    try {
+        $script = @'
+import os, site, sysconfig, sys
+base = site.USER_BASE
+versioned = f"Python{sys.version_info.major}{sys.version_info.minor}"
+candidates = [
+    sysconfig.get_path("scripts"),
+    os.path.join(base, versioned, "Scripts"),
+    os.path.join(base, "Scripts"),
+]
+for path in candidates:
+    if path:
+        print(path)
+'@
+        $output = & $LauncherCommand $LauncherVersion '-c' $script 2>$null
+        if (-not $output) { return @() }
+
+        $paths = $output -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ }
+        $uniquePaths = [System.Collections.Generic.HashSet[string]]::new()
+        $validPaths = @()
+        foreach ($path in $paths) {
+            if (-not $uniquePaths.Add($path)) { continue }
+            if (Test-Path $path) { $validPaths += $path }
+        }
+
+        return $validPaths
+    }
+    catch {
+        return @()
+    }
 }
 
 function Resolve-VsWhere {
@@ -123,9 +144,29 @@ if (-not (Test-Path $vcpkgExe)) {
 $vswhereExe = Resolve-VsWhere $VsWherePath
 Import-VsEnvironment $vswhereExe
 
-$userScriptDirs = Get-UserScriptsPath
-$mesonExe = Resolve-Executable $MesonPath 'meson' $userScriptDirs
-$ninjaExe = Resolve-Executable $NinjaPath 'ninja' $userScriptDirs
+$pythonLaunchers = @(
+    [pscustomobject]@{ Command = 'py'; Version = '-3.12' },
+    [pscustomobject]@{ Command = 'py'; Version = '-3' }
+)
+$pythonScriptEntries = @()
+foreach ($launcher in $pythonLaunchers) {
+    $candidatePaths = Get-PythonScriptsPath -LauncherCommand $launcher.Command -LauncherVersion $launcher.Version
+    foreach ($path in $candidatePaths) {
+        $pythonScriptEntries += [pscustomobject]@{
+            LauncherCommand = $launcher.Command
+            LauncherVersion = $launcher.Version
+            Path            = $path
+        }
+    }
+}
+if ($pythonScriptEntries.Count -eq 0) {
+    throw 'Python 3.12+ launcher not found; install Python and ensure py.exe is on PATH.'
+}
+
+$preferredLauncher = $pythonScriptEntries[0]
+$installLauncher = ("{0} {1}" -f $preferredLauncher.LauncherCommand, $preferredLauncher.LauncherVersion).Trim()
+$mesonExe = Resolve-Executable $MesonPath 'meson' $pythonScriptEntries $installLauncher
+$ninjaExe = Resolve-Executable $NinjaPath 'ninja' $pythonScriptEntries $installLauncher
 
 $mesonBuildType = ''
 $configSubdir = ''

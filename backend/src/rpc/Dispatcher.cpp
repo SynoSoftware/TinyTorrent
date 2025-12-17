@@ -1,3 +1,174 @@
+/*
+
+This file **definitely needs refactoring**. While the code is
+functional, it suffers from several architectural "smells" that will make
+maintenance a nightmare as the project grows.
+
+Here is a breakdown of the issues and the recommended architectural changes.
+
+### 1. The "God File" Problem
+**Issue:** `Dispatcher.cpp` contains **everything**:
+1.  JSON Parsing helpers.
+2.  Windows Registry modification logic.
+3.  Linux `.desktop` file creation logic.
+4.  File system iteration logic.
+5.  RPC Routing logic.
+6.  The implementation of every single RPC command.
+
+**Refactoring:**
+Split the logic into specialized modules. The `Dispatcher` should only be
+responsible for **routing** requests, not executing the business logic or
+interacting with the OS.
+
+*   **`src/rpc/JsonUtils.hpp`**: Move all `parse_int_value`,
+`parse_download_dir`, `bool_value` helpers here.
+*   **`src/utils/Platform.cpp`**: Move `register_windows_handler`,
+`register_linux_handler`, `open_with_default_app` here.
+*   **`src/rpc/handlers/`**: Create separate files for groups of commands:
+    *   `SessionHandlers.cpp` (`session-get`, `set`, `stats`)
+    *   `TorrentHandlers.cpp` (`torrent-get`, `add`, `action`)
+    *   `SystemHandlers.cpp` (`fs-browse`, `open`, `register`)
+
+### 2. Unbounded Concurrency (The `std::thread(...).detach()` trap)
+**Issue:**
+In `handle_fs_browse_async` and `handle_fs_space_async`, you are spawning a new
+thread and detaching it for every request.
+```cpp
+std::thread([cb](){ ... }).detach();
+```
+If a client spams `fs-browse` requests, you will spawn hundreds of threads,
+potentially exhausting system resources.
+
+**Refactoring:**
+Use a **Thread Pool** for I/O bound operations that shouldn't block the Engine
+thread.
+1.  Add a `ThreadPool` to `tt::engine::Core` or `tt::rpc::Server`.
+2.  Submit these tasks to the pool: `thread_pool_->submit([...] { ... });`.
+
+### 3. Leakage of OS APIs into RPC Layer
+**Issue:**
+The top of the file is cluttered with `#include <Windows.h>`, `<shellapi.h>`,
+`<unistd.h>`, etc. The RPC layer (which deals with JSON) should not know about
+Win32 registry keys or XDG MIME types.
+
+**Refactoring:**
+Create an abstraction for System operations.
+
+**Interface (`src/engine/SystemInterface.hpp`):**
+```cpp
+struct SystemHandlerResult { bool success; std::string message; };
+
+class SystemInterface {
+public:
+    virtual SystemHandlerResult register_handler() = 0;
+    virtual bool open_path(std::filesystem::path const& path) = 0;
+    virtual bool reveal_path(std::filesystem::path const& path) = 0;
+};
+```
+Implement this in `src/utils` and inject it into the handlers.
+
+---
+
+### Proposed File Structure Implementation
+
+Here is how you should break this up:
+
+#### A. Move JSON Helpers (`src/rpc/JsonUtils.hpp`)
+```cpp
+#pragma once
+#include <yyjson.h>
+#include <optional>
+#include <vector>
+#include <string>
+
+namespace tt::rpc::json {
+    std::optional<int> parse_int(yyjson_val* val);
+    std::optional<bool> parse_bool(yyjson_val* val);
+    std::vector<int> parse_ids(yyjson_val* args);
+    // ... move all parser helpers here
+}
+```
+
+#### B. Move Platform Logic (`src/utils/PlatformUtils.cpp`)
+```cpp
+#include "utils/PlatformUtils.hpp"
+#ifdef _WIN32
+#include <Windows.h>
+// ...
+#endif
+
+namespace tt::utils {
+    SystemHandlerResult register_os_handler() {
+        #ifdef _WIN32
+        // ... paste register_windows_handler logic here ...
+        #elif __linux__
+        // ... paste register_linux_handler logic here ...
+        #endif
+    }
+
+    bool shell_open(std::filesystem::path const& path) {
+        // ... paste open/reveal logic here ...
+    }
+}
+```
+
+#### C. Clean up `Dispatcher.cpp`
+The dispatcher becomes a clean mapping table.
+
+```cpp
+#include "rpc/Dispatcher.hpp"
+#include "rpc/handlers/SessionHandlers.hpp"
+#include "rpc/handlers/TorrentHandlers.hpp"
+#include "rpc/handlers/SystemHandlers.hpp"
+
+namespace tt::rpc {
+
+void Dispatcher::register_handlers() {
+    // Session
+    add_sync("session-get", handlers::session_get);
+    add_sync("session-set", handlers::session_set);
+
+    // Torrent
+    add_sync("torrent-get", handlers::torrent_get);
+    add_sync("torrent-add", handlers::torrent_add);
+
+    // System (Async via ThreadPool, assuming 'engine' exposes one)
+    add_async("fs-browse", [this](auto args, auto cb) {
+        engine_->get_io_pool().submit([args, cb] {
+            handlers::fs_browse(args, cb);
+        });
+    });
+}
+
+// ... dispatch method remains strictly for routing ...
+
+}
+```
+
+### 4. Code Cleanup: `parse_ids` vs `parse_int_array`
+**Issue:**
+There is logic duplication between parsing specific integer arrays and general
+IDs.
+**Fix:**
+Standardize on a generic template or utility in `JsonUtils`:
+```cpp
+template <typename T>
+std::vector<T> parse_array(yyjson_val* parent, const char* key);
+```
+
+### Summary of Action Items
+
+1.  **Extract** all `yyjson` helper functions to a header-only or static utility
+library.
+2.  **Move** OS-specific logic (Windows/Linux handlers) to `src/utils/`.
+3.  **Split** the handlers into logical C++ files (`SessionHandlers`,
+`TorrentHandlers`, etc.) so developers don't step on each other's toes when
+modifying different features.
+4.  **Replace** `std::thread(...).detach()` with a dedicated `ThreadPool` for
+filesystem operations.
+
+*/
+
 #if defined(_WIN32)
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -358,32 +529,25 @@ bool bool_value(yyjson_val *value, bool default_value = false)
     return default_value;
 }
 
-std::future<std::string> ready_future(std::string value)
-{
-    std::promise<std::string> promise;
-    auto future = promise.get_future();
-    promise.set_value(std::move(value));
-    return future;
-}
-
 template <typename Handler> DispatchHandler wrap_sync_handler(Handler handler)
 {
     return DispatchHandler(
-        [handler = std::move(handler)](yyjson_val *arguments) mutable
+        [handler = std::move(handler)](yyjson_val *arguments,
+                                       ResponseCallback cb) mutable
         {
             try
             {
-                return ready_future(handler(arguments));
+                cb(handler(arguments));
             }
             catch (std::exception const &ex)
             {
                 TT_LOG_INFO("RPC handler threw: {}", ex.what());
-                return ready_future(serialize_error("internal error"));
+                cb(serialize_error("internal error"));
             }
             catch (...)
             {
                 TT_LOG_INFO("RPC handler threw unknown exception");
-                return ready_future(serialize_error("internal error"));
+                cb(serialize_error("internal error"));
             }
         });
 }
@@ -1531,12 +1695,12 @@ std::string handle_blocklist_update(engine::Core *engine)
                                       engine->blocklist_last_update());
 }
 
-std::future<std::string> handle_fs_browse_async(yyjson_val *arguments)
+void handle_fs_browse_async(yyjson_val *arguments, ResponseCallback cb)
 {
     if (!arguments)
     {
-        return ready_future(
-            serialize_error("arguments required for fs-browse"));
+        cb(serialize_error("arguments required for fs-browse"));
+        return;
     }
     auto target = parse_request_path(yyjson_obj_get(arguments, "path"));
     if (target.empty())
@@ -1545,41 +1709,43 @@ std::future<std::string> handle_fs_browse_async(yyjson_val *arguments)
     }
     auto normalized = target.lexically_normal();
     auto separator = std::string(1, std::filesystem::path::preferred_separator);
-    return std::async(
-        std::launch::async,
-        [normalized = std::move(normalized),
-         separator = std::move(separator)]() mutable
+    std::thread(
+        [normalized = std::move(normalized), separator = std::move(separator),
+         cb = std::move(cb)]() mutable
         {
             try
             {
                 if (!tt::rpc::filesystem::path_exists(normalized))
                 {
-                    return serialize_error("path does not exist");
+                    cb(serialize_error("path does not exist"));
+                    return;
                 }
                 if (!tt::rpc::filesystem::is_directory(normalized))
                 {
-                    return serialize_error("path is not a directory");
+                    cb(serialize_error("path is not a directory"));
+                    return;
                 }
                 auto entries =
                     tt::rpc::filesystem::collect_directory_entries(normalized);
                 auto parent = normalized.parent_path();
-                return serialize_fs_browse(path_to_string(normalized),
-                                           path_to_string(parent), separator,
-                                           entries);
+                cb(serialize_fs_browse(path_to_string(normalized),
+                                       path_to_string(parent), separator,
+                                       entries));
             }
             catch (std::filesystem::filesystem_error const &ex)
             {
                 TT_LOG_INFO("fs-browse failed: {}", ex.what());
-                return serialize_error(ex.what());
+                cb(serialize_error(ex.what()));
             }
             catch (...)
             {
-                return serialize_error("fs-browse failed");
+                cb(serialize_error("fs-browse failed"));
             }
-        });
+        })
+        .detach();
 }
 
-std::future<std::string> handle_fs_space_async(yyjson_val *arguments)
+void handle_fs_space_async(yyjson_val *arguments, ResponseCallback cb)
 {
     auto target = arguments
                       ? parse_request_path(yyjson_obj_get(arguments, "path"))
@@ -1588,52 +1754,57 @@ std::future<std::string> handle_fs_space_async(yyjson_val *arguments)
     {
         target = std::filesystem::current_path();
     }
-    return std::async(
-        std::launch::async,
-        [target = std::move(target)]()
+    std::thread(
+        [target = std::move(target), cb = std::move(cb)]()
         {
             try
             {
                 auto info = tt::rpc::filesystem::query_space(target);
                 if (!info)
                 {
-                    return serialize_error("unable to query space");
+                    cb(serialize_error("unable to query space"));
+                    return;
                 }
-                return serialize_fs_space(path_to_string(target),
-                                          info->available, info->capacity);
+                cb(serialize_fs_space(path_to_string(target), info->available,
+                                      info->capacity));
             }
             catch (std::filesystem::filesystem_error const &ex)
             {
                 TT_LOG_INFO("fs-space failed: {}", ex.what());
-                return serialize_error(ex.what());
+                cb(serialize_error(ex.what()));
             }
             catch (...)
             {
-                return serialize_error("fs-space failed");
+                cb(serialize_error("fs-space failed"));
             }
-        });
+        })
+        .detach();
 }
 
-std::future<std::string> handle_history_get(engine::Core *engine,
-                                            yyjson_val *arguments)
+void handle_history_get(engine::Core *engine, yyjson_val *arguments,
+                        ResponseCallback cb)
 {
     if (!engine)
     {
-        return ready_future(serialize_error("engine unavailable"));
+        cb(serialize_error("engine unavailable"));
+        return;
     }
     if (arguments == nullptr)
     {
-        return ready_future(serialize_error("arguments required"));
+        cb(serialize_error("arguments required"));
+        return;
     }
     auto *start_value = yyjson_obj_get(arguments, "start");
     if (start_value == nullptr)
     {
-        return ready_future(serialize_error("start required"));
+        cb(serialize_error("start required"));
+        return;
     }
     auto start = parse_int64_value(start_value);
     if (!start)
     {
-        return ready_future(serialize_error("invalid start"));
+        cb(serialize_error("invalid start"));
+        return;
     }
     auto now = std::chrono::system_clock::now();
     std::int64_t end = static_cast<std::int64_t>(
@@ -1647,7 +1818,8 @@ std::future<std::string> handle_history_get(engine::Core *engine,
         }
         else
         {
-            return ready_future(serialize_error("invalid end"));
+            cb(serialize_error("invalid end"));
+            return;
         }
     }
     if (end < *start)
@@ -1672,8 +1844,11 @@ std::future<std::string> handle_history_get(engine::Core *engine,
     {
         step = ((step + base_interval - 1) / base_interval) * base_interval;
     }
-    auto buckets = engine->history_data(*start, end, step);
-    return ready_future(serialize_history_data(buckets, step, base_interval));
+    engine->history_data(
+        *start, end, step,
+        [cb = std::move(cb), step,
+         base_interval](std::vector<engine::HistoryBucket> buckets)
+        { cb(serialize_history_data(buckets, step, base_interval)); });
 }
 
 std::string handle_history_clear(engine::Core *engine, yyjson_val *arguments)
@@ -1702,83 +1877,87 @@ std::string handle_history_clear(engine::Core *engine, yyjson_val *arguments)
     return serialize_success();
 }
 
-std::future<std::string> handle_system_reveal_async(yyjson_val *arguments)
+void handle_system_reveal_async(yyjson_val *arguments, ResponseCallback cb)
 {
     if (!arguments)
     {
-        return ready_future(
-            serialize_error("arguments required for system-reveal"));
+        cb(serialize_error("arguments required for system-reveal"));
+        return;
     }
     auto target = parse_request_path(yyjson_obj_get(arguments, "path"));
     if (target.empty())
     {
-        return ready_future(serialize_error("path required"));
+        cb(serialize_error("path required"));
+        return;
     }
-    return std::async(std::launch::async,
-                      [target = std::move(target)]() mutable
-                      {
-                          bool success = reveal_in_file_manager(target);
-                          return serialize_system_action(
-                              "system-reveal", success,
-                              success ? "" : "unable to reveal path");
-                      });
+    std::thread(
+        [target = std::move(target), cb = std::move(cb)]() mutable
+        {
+            bool success = reveal_in_file_manager(target);
+            cb(serialize_system_action("system-reveal", success,
+                                       success ? "" : "unable to reveal path"));
+        })
+        .detach();
 }
 
-std::future<std::string> handle_system_open_async(yyjson_val *arguments)
+void handle_system_open_async(yyjson_val *arguments, ResponseCallback cb)
 {
     if (!arguments)
     {
-        return ready_future(
-            serialize_error("arguments required for system-open"));
+        cb(serialize_error("arguments required for system-open"));
+        return;
     }
     auto target = parse_request_path(yyjson_obj_get(arguments, "path"));
     if (target.empty())
     {
-        return ready_future(serialize_error("path required"));
+        cb(serialize_error("path required"));
+        return;
     }
-    return std::async(std::launch::async,
-                      [target = std::move(target)]() mutable
-                      {
-                          bool success = open_with_default_app(target);
-                          return serialize_system_action(
-                              "system-open", success,
-                              success ? "" : "unable to open path");
-                      });
+    std::thread(
+        [target = std::move(target), cb = std::move(cb)]() mutable
+        {
+            bool success = open_with_default_app(target);
+            cb(serialize_system_action("system-open", success,
+                                       success ? "" : "unable to open path"));
+        })
+        .detach();
 }
 
-std::future<std::string> handle_free_space_async(yyjson_val *arguments)
+void handle_free_space_async(yyjson_val *arguments, ResponseCallback cb)
 {
     if (!arguments)
     {
-        return ready_future(
-            serialize_error("arguments missing for free-space"));
+        cb(serialize_error("arguments missing for free-space"));
+        return;
     }
     yyjson_val *path_value = yyjson_obj_get(arguments, "path");
     if (path_value == nullptr || !yyjson_is_str(path_value))
     {
-        return ready_future(serialize_error("path argument required"));
+        cb(serialize_error("path argument required"));
+        return;
     }
     std::filesystem::path path(yyjson_get_str(path_value));
-    return std::async(std::launch::async,
-                      [path = std::move(path)]()
-                      {
-                          try
-                          {
-                              auto info = std::filesystem::space(path);
-                              return serialize_free_space(
-                                  path.string(), info.available, info.capacity);
-                          }
-                          catch (std::filesystem::filesystem_error const &ex)
-                          {
-                              TT_LOG_INFO("free-space failed for {}: {}",
-                                          path.string(), ex.what());
-                              return serialize_error(ex.what());
-                          }
-                          catch (...)
-                          {
-                              return serialize_error("free-space failed");
-                          }
-                      });
+    std::thread(
+        [path = std::move(path), cb = std::move(cb)]()
+        {
+            try
+            {
+                auto info = std::filesystem::space(path);
+                cb(serialize_free_space(path.string(), info.available,
+                                        info.capacity));
+            }
+            catch (std::filesystem::filesystem_error const &ex)
+            {
+                TT_LOG_INFO("free-space failed for {}: {}", path.string(),
+                            ex.what());
+                cb(serialize_error(ex.what()));
+            }
+            catch (...)
+            {
+                cb(serialize_error("free-space failed"));
+            }
+        })
+        .detach();
 }
 
 std::string handle_system_register_handler()
@@ -2198,8 +2377,8 @@ void Dispatcher::register_handlers()
     add_sync("app-shutdown",
              [this](yyjson_val *) { return handle_app_shutdown(engine_); });
     add_async("free-space", handle_free_space_async);
-    add_async("history-get", [this](yyjson_val *arguments)
-              { return handle_history_get(engine_, arguments); });
+    add_async("history-get", [this](yyjson_val *arguments, ResponseCallback cb)
+              { handle_history_get(engine_, arguments, std::move(cb)); });
     add_sync("history-clear", [this](yyjson_val *arguments)
              { return handle_history_clear(engine_, arguments); });
     add_sync("torrent-get", [this](yyjson_val *arguments)
@@ -2248,29 +2427,33 @@ void Dispatcher::register_handlers()
     add_sync("group-set", [](yyjson_val *) { return handle_group_set(); });
 }
 
-std::future<std::string> Dispatcher::dispatch(std::string_view payload)
+void Dispatcher::dispatch(std::string_view payload, ResponseCallback cb)
 {
     if (payload.empty())
     {
-        return ready_future(serialize_error("empty RPC payload"));
+        cb(serialize_error("empty RPC payload"));
+        return;
     }
 
     auto doc = tt::json::Document::parse(payload);
     if (!doc.is_valid())
     {
-        return ready_future(serialize_error("invalid JSON"));
+        cb(serialize_error("invalid JSON"));
+        return;
     }
 
     yyjson_val *root = doc.root();
     if (root == nullptr || !yyjson_is_obj(root))
     {
-        return ready_future(serialize_error("expected JSON object"));
+        cb(serialize_error("expected JSON object"));
+        return;
     }
 
     yyjson_val *method_value = yyjson_obj_get(root, "method");
     if (method_value == nullptr || !yyjson_is_str(method_value))
     {
-        return ready_future(serialize_error("missing method"));
+        cb(serialize_error("missing method"));
+        return;
     }
 
     std::string method(yyjson_get_str(method_value));
@@ -2280,22 +2463,23 @@ std::future<std::string> Dispatcher::dispatch(std::string_view payload)
     auto handler_it = handlers_.find(method);
     if (handler_it == handlers_.end())
     {
-        return ready_future(serialize_error("unsupported method"));
+        cb(serialize_error("unsupported method"));
+        return;
     }
     try
     {
-        return handler_it->second(arguments);
+        handler_it->second(arguments, std::move(cb));
     }
     catch (std::exception const &ex)
     {
         TT_LOG_INFO("RPC handler failed for method {}: {}", method, ex.what());
-        return ready_future(serialize_error("internal error", ex.what()));
+        cb(serialize_error("internal error", ex.what()));
     }
     catch (...)
     {
         TT_LOG_INFO("RPC handler failed for method {}", method);
+        cb(serialize_error("internal error"));
     }
-    return ready_future(serialize_error("internal error"));
 }
 
 } // namespace tt::rpc
