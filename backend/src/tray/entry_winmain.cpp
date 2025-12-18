@@ -490,14 +490,14 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
                                                -1, nullptr, 0);
                 if (need > 0)
                 {
-            std::wstring wpath;
-            wpath.resize(static_cast<size_t>(need));
-            MultiByteToWideChar(CP_UTF8, 0, download_dir.c_str(), -1,
-                                wpath.data(), need);
-            if (need > 0)
-            {
-                wpath.resize(static_cast<size_t>(need - 1));
-            }
+                    std::wstring wpath;
+                    wpath.resize(static_cast<size_t>(need));
+                    MultiByteToWideChar(CP_UTF8, 0, download_dir.c_str(), -1,
+                                        wpath.data(), need);
+                    if (need > 0)
+                    {
+                        wpath.resize(static_cast<size_t>(need - 1));
+                    }
                     ShellExecuteW(nullptr, L"open", wpath.c_str(), nullptr,
                                   nullptr, SW_SHOWNORMAL);
                 }
@@ -641,83 +641,76 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int)
             daemon_thread.join();
         return 1;
     }
+
+    TrayState state;
+    state.hwnd = hwnd;
+    state.open_url = std::move(url);
+    state.port = static_cast<unsigned short>(info.port);
+    state.token = info.token;
+
+    state.icon = tray_icon;
+    SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(&state));
+
+    build_menu(state);
+
+    state.nid.cbSize = sizeof(state.nid);
+    state.nid.hWnd = hwnd;
+    state.nid.uID = 1;
+    state.nid.uFlags = NIF_MESSAGE | NIF_TIP | NIF_ICON;
+    state.nid.uCallbackMessage = kTrayCallbackMessage;
+    state.nid.hIcon =
+        state.icon ? state.icon : LoadIconW(nullptr, MAKEINTRESOURCEW(32512));
+    wcsncpy_s(state.nid.szTip, L"TinyTorrent starting...", _TRUNCATE);
+    Shell_NotifyIconW(NIM_ADD, &state.nid);
+    show_running_notification(state);
+
+    state.running.store(true);
+    state.status_thread = std::thread(
+        [state_ptr = &state]()
+        {
+            while (state_ptr->running.load())
+            {
+                TrayStatus s = rpc_get_tray_status(*state_ptr);
+                if (!state_ptr->running.load())
+                {
+                    break;
+                }
+                auto *payload = new TrayStatus(std::move(s));
+                if (!PostMessageW(state_ptr->hwnd, kStatusUpdateMessage,
+                                  reinterpret_cast<WPARAM>(payload), 0))
+                {
+                    delete payload;
+                    break;
+                }
+                for (int i = 0; i < 10 && state_ptr->running.load(); ++i)
+                {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                }
+            }
+        });
+
+    MSG message;
+    while (GetMessageW(&message, nullptr, 0, 0) > 0)
+    {
+        TranslateMessage(&message);
+        DispatchMessageW(&message);
+    }
+
+    state.running.store(false);
+    if (state.status_thread.joinable())
+    {
+        state.status_thread.join();
+    }
+    cleanup_http_handles(state);
     tt::runtime::request_shutdown();
     if (daemon_thread.joinable())
     {
         daemon_thread.join();
     }
-    return 1;
-}
 
-TrayState state;
-state.hwnd = hwnd;
-state.open_url = std::move(url);
-state.port = static_cast<unsigned short>(info.port);
-state.token = info.token;
+    if (state.icon)
+        DestroyIcon(state.icon);
 
-state.icon = tray_icon;
-SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(&state));
-
-build_menu(state);
-
-state.nid.cbSize = sizeof(state.nid);
-state.nid.hWnd = hwnd;
-state.nid.uID = 1;
-state.nid.uFlags = NIF_MESSAGE | NIF_TIP | NIF_ICON;
-state.nid.uCallbackMessage = kTrayCallbackMessage;
-state.nid.hIcon =
-    state.icon ? state.icon : LoadIconW(nullptr, MAKEINTRESOURCEW(32512));
-wcsncpy_s(state.nid.szTip, L"TinyTorrent starting...", _TRUNCATE);
-Shell_NotifyIconW(NIM_ADD, &state.nid);
-show_running_notification(state);
-
-state.running.store(true);
-state.status_thread = std::thread(
-    [state_ptr = &state]()
-    {
-        while (state_ptr->running.load())
-        {
-            TrayStatus s = rpc_get_tray_status(*state_ptr);
-            if (!state_ptr->running.load())
-            {
-                break;
-            }
-            auto *payload = new TrayStatus(std::move(s));
-            if (!PostMessageW(state_ptr->hwnd, kStatusUpdateMessage,
-                              reinterpret_cast<WPARAM>(payload), 0))
-            {
-                delete payload;
-                break;
-            }
-            for (int i = 0; i < 10 && state_ptr->running.load(); ++i)
-            {
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
-            }
-        }
-    });
-
-MSG message;
-while (GetMessageW(&message, nullptr, 0, 0) > 0)
-{
-    TranslateMessage(&message);
-    DispatchMessageW(&message);
-}
-
-state.running.store(false);
-if (state.status_thread.joinable())
-{
-    state.status_thread.join();
-}
-cleanup_http_handles(state);
-tt::runtime::request_shutdown();
-if (daemon_thread.joinable())
-{
-    daemon_thread.join();
-}
-
-if (state.icon)
-    DestroyIcon(state.icon);
-
-return 0;
+    return 0;
 }
 #endif
