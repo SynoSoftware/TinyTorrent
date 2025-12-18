@@ -21,41 +21,51 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Definition
-$repoRoot = Split-Path -Parent $scriptRoot
-$everythingHelper = Join-Path $repoRoot 'scripts\everything.ps1'
-$helperLoaded = $false
-if (Test-Path -LiteralPath $everythingHelper) {
-    . $everythingHelper
-    $helperLoaded = $true
-    if (Get-Command Ensure-Everything -ErrorAction SilentlyContinue) {
-        Ensure-Everything
+# --- Tool Discovery & Polyfill ---
+$repoRoot = if ($PSScriptRoot) { (Resolve-Path (Join-Path $PSScriptRoot '..') -ErrorAction SilentlyContinue).Path } else { $null }
+$helper = if ($repoRoot) { Join-Path $repoRoot 'scripts\everything.ps1' } else { $null }
+if ($helper -and (Test-Path $helper)) { . $helper; if (Get-Command Ensure-Everything -ErrorAction SilentlyContinue) { [void](Ensure-Everything) } }
+
+# 2. Define the Universal Discovery Function
+if (-not (Get-Command Find-Executable -ErrorAction SilentlyContinue)) {
+    function Find-Executable {
+        param($Name, $OverridePath, $Id, $PackageId)
+        if ($OverridePath -and (Test-Path $OverridePath)) { return (Resolve-Path $OverridePath).Path }
+        $cmd = Get-Command $Name -ErrorAction SilentlyContinue | Select-Object -First 1
+        return if ($cmd) { (Resolve-Path $cmd.Source).Path } else { $null }
     }
 }
+# ==============================================================================
+# Helper: Python & Meson discovery connected to the active Python install.
+# ==============================================================================
 
-function Find-Executable {
-    param(
-        [Parameter(Mandatory)][string]$Name,
-        [string]$OverridePath,
-        [string]$Id,
-        [string]$PackageId
+function Get-PythonVersionText {
+    param([string]$PythonExe)
+    if (-not $PythonExe) { return 'python (unknown)' }
+    try {
+        $line = & $PythonExe --version 2>&1 | Select-Object -First 1
+        if ($line) { return $line.ToString().Trim() }
+    }
+    catch {}
+    return 'python (unknown)'
+}
+
+function Find-MesonNearPython {
+    param([string]$PythonExe)
+    if (-not $PythonExe) { return $null }
+    $pythonParent = Split-Path -Parent $PythonExe
+    if ($pythonParent -is [System.Array]) { $pythonParent = $pythonParent[0] }
+    $scriptsDir = [System.IO.Path]::Combine($pythonParent, 'Scripts')
+    $candidates = @(
+        [System.IO.Path]::Combine($scriptsDir, 'meson.exe'),
+        [System.IO.Path]::Combine($scriptsDir, 'meson')
     )
-
-    if ($OverridePath) {
-        $resolved = Resolve-Path -LiteralPath $OverridePath -ErrorAction SilentlyContinue
-        if ($resolved -and (Test-Path $resolved.Path)) { return $resolved.Path }
-        throw "Override path for $Name must be a file: $OverridePath"
+    foreach ($candidate in $candidates) {
+        if (Test-Path $candidate) { return $candidate }
     }
-
-    $cmd = Get-Command $Name -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($cmd) { return (Resolve-Path $cmd.Source).Path }
-
-    if ($helperLoaded -and (Get-Command Locate-Or-Install -ErrorAction SilentlyContinue)) {
-        return Locate-Or-Install -Name $Name -Id $Id -PackageId $PackageId
-    }
-
     return $null
 }
+# --- End Tool Discovery ---
 
 # Deletion safety threshold:
 # If any folder deletion target exceeds this size, require interactive confirmation.
@@ -247,7 +257,22 @@ if (-not (Get-Command "cl.exe" -ErrorAction SilentlyContinue)) {
 }
 
 # -- Tool Discovery --
-$MesonExe = Find-Executable -Name "meson" -OverridePath $MesonPath -Id "Meson" -PackageId "mesonbuild.meson"
+$PythonExe = Find-Executable -Name "python" -Id "Python" -PackageId "Python.Python"
+if (-not $PythonExe) { throw "Python executable not found. Install via winget or ensure it's on PATH." }
+$pythonVersion = Get-PythonVersionText $PythonExe
+
+$pythonDir = Split-Path -Parent $PythonExe
+if ($pythonDir -and (Test-Path $pythonDir)) {
+    $env:Path = "$pythonDir;$env:Path"
+}
+$env:PYTHON = $PythonExe
+
+$PythonExe = if ($PythonExe -is [System.Array]) { $PythonExe[0] } else { $PythonExe }
+
+$MesonExe = Find-MesonNearPython -PythonExe $PythonExe
+if (-not $MesonExe) {
+    $MesonExe = Find-Executable -Name "meson" -OverridePath $MesonPath -Id "Meson" -PackageId "mesonbuild.meson"
+}
 if (-not $MesonExe) { throw "Meson executable not found. Install via winget or ensure it's on PATH." }
 $NinjaExe = Find-Executable -Name "ninja" -OverridePath $NinjaPath -Id "Ninja" -PackageId "Ninja-build.Ninja"
 if (-not $NinjaExe) { throw "Ninja executable not found. Install via winget or ensure it's on PATH." }
@@ -258,6 +283,7 @@ $clVersion = Get-FirstCommandLine { cl.exe }
 $mesonVersion = Get-FirstCommandLine { & $MesonExe --version }
 $ninjaVersion = Get-FirstCommandLine { & $NinjaExe --version }
 Write-Host "  CL:    $clVersion"
+Write-Host "  Python: $pythonVersion ($PythonExe)"
 Write-Host "  Meson: $mesonVersion ($MesonExe)"
 Write-Host "  Ninja: $ninjaVersion ($NinjaExe)"
 

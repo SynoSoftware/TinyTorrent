@@ -35,6 +35,7 @@ import { ICON_STROKE_WIDTH } from "../../../config/logic";
 import { INTERACTION_CONFIG } from "../../../config/logic";
 import { DirectoryPicker } from "../../../shared/ui/workspace/DirectoryPicker";
 import { LanguageMenu } from "../../../shared/ui/controls/LanguageMenu";
+import { APP_VERSION } from "../../../shared/version";
 import { ChevronLeft, RotateCcw, Save, X } from "lucide-react";
 import { ConnectionManager } from "./ConnectionManager";
 import { GLASS_MODAL_SURFACE } from "../../../shared/ui/layout/glass-surface";
@@ -1087,7 +1088,7 @@ export function SettingsModal({
                         </div>
                         <div className="p-6 border-t border-content1/10 shrink-0">
                             <div className="text-[10px] text-foreground/30 font-mono tracking-widest">
-                                {t("brand.version")}
+                                {t("brand.version", { version: APP_VERSION })}
                             </div>
                         </div>
                     </div>

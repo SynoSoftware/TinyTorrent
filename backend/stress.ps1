@@ -41,41 +41,19 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Definition
-$repoRoot = Split-Path -Parent $scriptRoot
-$everythingHelper = Join-Path $repoRoot 'scripts\everything.ps1'
-$helperLoaded = $false
-if (Test-Path -LiteralPath $everythingHelper) {
-    . $everythingHelper
-    $helperLoaded = $true
-    if (Get-Command Ensure-Everything -ErrorAction SilentlyContinue) {
-        Ensure-Everything
+# --- Tool Discovery & Polyfill ---
+$repoRoot = if ($PSScriptRoot) { (Resolve-Path (Join-Path $PSScriptRoot '..') -ErrorAction SilentlyContinue).Path } else { $null }
+$helper = if ($repoRoot) { Join-Path $repoRoot 'scripts\everything.ps1' } else { $null }
+if ($helper -and (Test-Path $helper)) { . $helper; if (Get-Command Ensure-Everything -ErrorAction SilentlyContinue) { [void](Ensure-Everything) } }
+if (-not (Get-Command Find-Executable -ErrorAction SilentlyContinue)) {
+    function Find-Executable {
+        param($Name, $OverridePath, $Id, $PackageId)
+        if ($OverridePath -and (Test-Path $OverridePath)) { return (Resolve-Path $OverridePath).Path }
+        $cmd = Get-Command $Name -ErrorAction SilentlyContinue | Select-Object -First 1
+        return if ($cmd) { (Resolve-Path $cmd.Source).Path } else { $null }
     }
 }
-
-function Find-Executable {
-    param(
-        [Parameter(Mandatory)][string]$Name,
-        [string]$OverridePath,
-        [string]$Id,
-        [string]$PackageId
-    )
-
-    if ($OverridePath) {
-        $resolved = Resolve-Path -LiteralPath $OverridePath -ErrorAction SilentlyContinue
-        if ($resolved -and (Test-Path $resolved.Path)) { return $resolved.Path }
-        throw "Override path for $Name must be a file: $OverridePath"
-    }
-
-    $cmd = Get-Command $Name -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($cmd) { return (Resolve-Path $cmd.Source).Path }
-
-    if ($helperLoaded -and (Get-Command Locate-Or-Install -ErrorAction SilentlyContinue)) {
-        return Locate-Or-Install -Name $Name -Id $Id -PackageId $PackageId
-    }
-
-    return $null
-}
+# --- End Tool Discovery ---
 
 function Write-Section {
     param([string]$Title)

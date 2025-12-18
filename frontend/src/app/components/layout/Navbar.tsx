@@ -19,6 +19,7 @@ import { ICON_STROKE_WIDTH } from "../../../config/logic";
 import { ToolbarIconButton } from "../../../shared/ui/layout/toolbar-button";
 import { SmoothProgressBar } from "../../../shared/ui/components/SmoothProgressBar";
 import { useFocusState } from "../../context/FocusContext";
+import { APP_VERSION } from "../../../shared/version";
 import type {
     FeedbackMessage,
     FeedbackTone,
@@ -122,7 +123,7 @@ export function Navbar({
                             {t("brand.name")}
                         </span>
                         <span className="text-[10px] text-default-400 font-mono font-medium">
-                            {t("brand.version")}
+                            {t("brand.version", { version: APP_VERSION })}
                         </span>
                     </div>
                 </div>

@@ -5,14 +5,52 @@ $script:EverythingAsked = $false
 $script:EverythingCliPath = $null
 
 function Write-Log {
-    param([string]$Message, [string]$Level = 'Info')
-    $c = switch ($Level) { 'Info' { 'Cyan' } 'Warn' { 'Yellow' } 'Error' { 'Red' } 'Success' { 'Green' } default { 'White' } }
-    Write-Host "[$(Get-Date -Format 'HH:mm:ss')][$Level] $Message" -ForegroundColor $c
+    param(
+        [string]$Message,
+        [string]$Level = 'Info'
+    )
+    $color = switch ($Level) {
+        'Info' { 'Cyan' }
+        'Warn' { 'Yellow' }
+        'Error' { 'Red' }
+        'Success' { 'Green' }
+        default { 'White' }
+    }
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')][$Level] $Message" -ForegroundColor $color
 }
 
 function Safe-TestPath {
     param([string]$Path)
     try { return Test-Path $Path -ErrorAction Stop } catch { return $false }
+}
+
+function Refresh-EnvironmentPath {
+    $knownSegments = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    if ($env:Path) {
+        foreach ($segment in $env:Path -split ';') {
+            $segment = $segment.Trim()
+            if ($segment) { $null = $knownSegments.Add($segment) }
+        }
+    }
+    foreach ($scope in @('Machine', 'User')) {
+        $value = [System.Environment]::GetEnvironmentVariable('Path', $scope)
+        if (-not $value) { continue }
+        foreach ($segment in ($value -split ';')) {
+            $segment = $segment.Trim()
+            if (-not $segment) { continue }
+            if ($knownSegments.Contains($segment)) { continue }
+            if ($env:Path) { $env:Path += ';' + $segment }
+            else { $env:Path = $segment }
+            $null = $knownSegments.Add($segment)
+        }
+    }
+}
+
+function Find-ViaPath {
+    param([string]$Name)
+    $cmd = Get-Command $Name -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($cmd) { return (Resolve-Path $cmd.Source).Path }
+    return $null
 }
 
 function Get-PropertyValue {
@@ -23,13 +61,6 @@ function Get-PropertyValue {
     if (-not $Object) { return $null }
     $prop = $Object.PSObject.Properties[$Property]
     if ($prop) { return $prop.Value }
-    return $null
-}
-
-function Find-ViaPath {
-    param([string]$Name)
-    $cmd = Get-Command $Name -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($cmd) { return (Resolve-Path $cmd.Source).Path }
     return $null
 }
 
@@ -82,57 +113,12 @@ function Find-ViaStandardPaths {
     return $null
 }
 
-function Initialize-Everything-Silent {
-    $localAppData = $env:LOCALAPPDATA
-    $candidates = @()
-    if ($localAppData) { $candidates += Join-Path $localAppData 'voidtools\es.exe' }
-    if ($env:ProgramFiles) { $candidates += Join-Path $env:ProgramFiles 'Everything\es.exe' }
-    if (${env:ProgramFiles(x86)}) { $candidates += Join-Path ${env:ProgramFiles(x86)} 'Everything\es.exe' }
-    if ($env:ChocolateyInstall) { $candidates += Join-Path $env:ChocolateyInstall 'bin\es.exe' }
-    $candidates += Find-ViaPath "es.exe"
-    foreach ($c in $candidates) {
-        if ($c -and (Safe-TestPath $c)) {
-            $script:EverythingCliPath = $c
-            break
-        }
-    }
-    $engine = Get-Process "Everything" -ErrorAction SilentlyContinue
-        if (-not $engine -and $script:EverythingCliPath) {
-            $exeCandidates = @()
-            if ($env:ProgramFiles) { $exeCandidates += Join-Path $env:ProgramFiles 'Everything\Everything.exe' }
-            if (${env:ProgramFiles(x86)}) { $exeCandidates += Join-Path ${env:ProgramFiles(x86)} 'Everything\Everything.exe' }
-        foreach ($exe in $exeCandidates) {
-            if (Safe-TestPath $exe) {
-                Start-Process $exe -WindowStyle Hidden
-                Start-Sleep -Seconds 1
-                $engine = Get-Process "Everything" -ErrorAction SilentlyContinue
-                break
-            }
-        }
-    }
-    $script:EverythingReady = $script:EverythingCliPath -and (Get-Process "Everything" -ErrorAction SilentlyContinue)
-    $script:EverythingReady = [bool]$script:EverythingReady
-}
-
-function Install-Everything-Interactive {
-    if (-not (Get-Command "winget" -ErrorAction SilentlyContinue)) {
-        Write-Log "Winget not found. Please install Everything manually." "Error"
-        return $false
-    }
-    Start-Process "winget" -ArgumentList "install voidtools.everything -e --accept-package-agreements --accept-source-agreements --scope machine" -Wait
-    Start-Sleep -Seconds 3
-    Initialize-Everything-Silent
-    return $script:EverythingReady
-}
-
 function Ensure-Everything {
-    param(
-        [switch]$Prompt = $true
-    )
+    param([switch]$Prompt = $true)
 
     if ($script:EverythingReady) { return $true }
 
-    Initialize-Everything-Silent
+    Initialize-Everything
     if ($script:EverythingReady) {
         Write-Log "Everything search engine ready at $script:EverythingCliPath" "Success"
         return $true
@@ -140,7 +126,7 @@ function Ensure-Everything {
 
     if ($Prompt -and -not $script:EverythingAsked) {
         $script:EverythingAsked = $true
-        $reply = Read-Host "Everything search not found. Install/configure 'Everything' via Winget? (Y/N)"
+        $reply = Read-Host "Everything search not found. Install/configure via Winget? (Y/N)"
         if ($reply -match '^[yY]') {
             if (Install-Everything-Interactive) {
                 Write-Log "Everything is now ready at $script:EverythingCliPath" "Success"
@@ -153,54 +139,78 @@ function Ensure-Everything {
     return $false
 }
 
-function Resolve-Tool {
-    param(
-        [Parameter(Mandatory)][string]$Name,
-        [string]$OverridePath,
-        [string]$Id,
-        [string]$PackageId
-    )
+function Initialize-Everything {
+    $cliCandidates = @()
+    if ($env:LOCALAPPDATA) { $cliCandidates += Join-Path $env:LOCALAPPDATA 'voidtools\es.exe' }
+    if ($env:ProgramFiles) { $cliCandidates += Join-Path $env:ProgramFiles 'Everything\es.exe' }
+    if (${env:ProgramFiles(x86)}) { $cliCandidates += Join-Path ${env:ProgramFiles(x86)} 'Everything\es.exe' }
+    $cliCandidates += Find-ViaPath 'es.exe'
 
-    if ($OverridePath) {
-        $resolved = Resolve-Path -Path $OverridePath -ErrorAction SilentlyContinue
-        if ($resolved -and (Test-Path $resolved.Path)) { return $resolved.Path }
-        throw "Override path for $Name must be a file: $OverridePath"
+    foreach ($candidate in $cliCandidates) {
+        if ($candidate -and (Safe-TestPath $candidate)) {
+            $script:EverythingCliPath = $candidate
+            break
+        }
     }
 
-    $cmd = Get-Command $Name -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($cmd) { return (Resolve-Path $cmd.Source).Path }
-
-    if ($PackageId) {
-        $found = Locate-Or-Install -Name $Name -Id ($Id -or $Name) -PackageId $PackageId
-        if ($found) { return $found }
+    if (-not $script:EverythingCliPath) {
+        $script:EverythingReady = $false
+        return
     }
 
-    return $null
+    $engine = Get-Process -Name 'Everything' -ErrorAction SilentlyContinue
+    if (-not $engine) {
+        $exeCandidates = @()
+        if ($env:ProgramFiles) { $exeCandidates += Join-Path $env:ProgramFiles 'Everything\Everything.exe' }
+        if (${env:ProgramFiles(x86)}) { $exeCandidates += Join-Path ${env:ProgramFiles(x86)} 'Everything\Everything.exe' }
+        foreach ($exe in $exeCandidates) {
+            if (Safe-TestPath $exe) {
+                Start-Process -FilePath $exe -WindowStyle Hidden -ErrorAction SilentlyContinue
+                Start-Sleep -Seconds 1
+                break
+            }
+        }
+    }
+
+    $script:EverythingReady = $false
+    if (Safe-TestPath $script:EverythingCliPath) {
+        $script:EverythingReady = [bool](Get-Process -Name 'Everything' -ErrorAction SilentlyContinue)
+    }
+}
+
+function Install-Everything-Interactive {
+    if (-not (Get-Command 'winget' -ErrorAction SilentlyContinue)) {
+        Write-Log "Winget not found. Please install Everything manually." "Error"
+        return $false
+    }
+    Write-Log "Installing Everything via Winget..." "Info"
+    Start-Process -FilePath 'winget' -ArgumentList 'install', 'voidtools.everything', '-e', '--accept-package-agreements', '--accept-source-agreements', '--scope', 'machine' -Wait -NoNewWindow
+    Start-Sleep -Seconds 3
+    Refresh-EnvironmentPath
+    Initialize-Everything
+    return $script:EverythingReady
 }
 
 function Find-ViaEverything {
     param([string]$Name)
     if (-not $script:EverythingCliPath) { return $null }
-    $query = "$Name ext:exe !C:\Windows"
-    $res = & $script:EverythingCliPath $query -n 1 -w -sort-date-modified 2>&1
-    if ($res -isnot [System.Management.Automation.ErrorRecord] -and (Safe-TestPath $res)) { return $res }
-    return $null
-}
-
-function Install-Tool {
-    param([string]$Name, [string]$Id, [string]$PackageId)
-    $reply = Read-Host "Tool '$Id' ($Name) is missing. Install it via Winget? (Y/N)"
-    if ($reply -match "^[yY]") {
-        if (Get-Command "winget" -ErrorAction SilentlyContinue) {
-            Start-Process "winget" -ArgumentList "install $PackageId -e --accept-package-agreements --accept-source-agreements" -Wait
-            $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
-            return $true
-        }
-        else {
-            Write-Log "Winget not found. Please install $Id manually." "Error"
-        }
+    $args = @('-n', '5', '-sort-date-modified', $Name, 'ext:exe')
+    try {
+        $result = & $script:EverythingCliPath @args 2>$null
     }
-    return $false
+    catch {
+        return $null
+    }
+
+    $candidates = $result | Where-Object { $_ -and $_.Trim() }
+    foreach ($line in $candidates) {
+        $path = $line.Trim()
+        if (-not $path) { continue }
+        if ([System.IO.Path]::GetExtension($path).ToLowerInvariant() -ne '.exe') { continue }
+        if (Safe-TestPath $path) { return $path }
+    }
+
+    return $null
 }
 
 function Locate-Or-Install {
@@ -212,35 +222,85 @@ function Locate-Or-Install {
 
     Write-Log "Locating $Id..." "Info"
 
-    if ($p = Find-ViaPath $Name) { Write-Log "Found in PATH: $p" "Success"; return $p }
-    if ($p = Find-ViaRegistry $Id $Name) { Write-Log "Found in Registry: $p" "Success"; return $p }
-    if ($p = Find-ViaAppx $Id $Name) { Write-Log "Found in Appx: $p" "Success"; return $p }
-    if ($p = Find-ViaStandardPaths $Id $Name) { Write-Log "Found in Std Paths: $p" "Success"; return $p }
-
-    if (-not $script:EverythingReady) { Initialize-Everything-Silent }
-
-    if ($script:EverythingReady) {
-        if ($p = Find-ViaEverything $Name) { Write-Log "Found via Everything: $p" "Success"; return $p }
+    if ($path = Find-ViaPath $Name) {
+        Write-Log "Found in PATH: $path" "Success"
+        return $path
     }
-    elseif (-not $script:EverythingAsked) {
-        Write-Log "Standard search failed." "Warn"
-        $script:EverythingAsked = $true
-        $reply = Read-Host "Do you want to install/configure 'Everything' for a deep system scan? (Y/N)"
-        if ($reply -match "^[yY]") {
-            Install-Everything-Interactive
-            if ($script:EverythingReady) {
-                if ($p = Find-ViaEverything $Name) { Write-Log "Found via Everything: $p" "Success"; return $p }
-            }
+
+    if ($path = Find-ViaRegistry $Id $Name) {
+        Write-Log "Found in Registry: $path" "Success"
+        return $path
+    }
+
+    if ($path = Find-ViaAppx $Id $Name) {
+        Write-Log "Found in Appx: $path" "Success"
+        return $path
+    }
+
+    if ($path = Find-ViaStandardPaths $Id $Name) {
+        Write-Log "Found in Standard Paths: $path" "Success"
+        return $path
+    }
+
+    if (Ensure-Everything -Prompt:$false) {
+        if ($path = Find-ViaEverything $Name) {
+            Write-Log "Found via Everything: $path" "Success"
+            return $path
         }
     }
 
-    if (Install-Tool $Name $Id $PackageId) {
-        if ($p = Find-ViaPath $Name) { return $p }
-        if ($p = Find-ViaRegistry $Id $Name) { return $p }
-        if ($script:EverythingReady) {
-            if ($p = Find-ViaEverything $Name) { return $p }
+    if (-not $PackageId) { return $null }
+    if (-not (Get-Command 'winget' -ErrorAction SilentlyContinue)) {
+        Write-Log "Winget not available; cannot install $Id automatically." "Warn"
+        return $null
+    }
+
+    $confirm = Read-Host "Tool '$Id' ($Name) is missing. Install via Winget? (y/n)"
+    if ($confirm -notmatch '^[yY]') { return $null }
+
+    Write-Log "Installing $PackageId via Winget..." "Info"
+    Start-Process -FilePath 'winget' -ArgumentList 'install', $PackageId, '-e', '--accept-package-agreements', '--accept-source-agreements' -Wait -NoNewWindow
+    Refresh-EnvironmentPath
+
+    if ($path = Find-ViaPath $Name) {
+        Write-Log "Found after install (PATH): $path" "Success"
+        return $path
+    }
+
+    if ($script:EverythingReady -or (Ensure-Everything -Prompt:$false)) {
+        if ($path = Find-ViaEverything $Name) {
+            Write-Log "Found after install (Everything): $path" "Success"
+            return $path
         }
     }
+
+    Write-Log "Unable to locate $Id after installation." "Warn"
+    return $null
+}
+
+function Find-Executable {
+    param(
+        [Parameter(Mandatory)][string]$Name,
+        [string]$OverridePath,
+        [string]$Id,
+        [string]$PackageId
+    )
+
+    if ($OverridePath) {
+        $resolved = Resolve-Path -LiteralPath $OverridePath -ErrorAction SilentlyContinue
+        if ($resolved -and (Test-Path $resolved.Path)) { return $resolved.Path }
+        throw "Override path for $Name not found: $OverridePath"
+    }
+
+    # If Locate-Or-Install is available (it should be, as it's in this file), use it.
+    if (Get-Command Locate-Or-Install -ErrorAction SilentlyContinue) {
+        $finalId = if ($Id) { $Id } else { $Name }
+        return Locate-Or-Install -Name $Name -Id $finalId -PackageId $PackageId
+    }
+
+    # Fallback for when dot-sourced but somehow Locate-Or-Install is missing
+    $cmd = Get-Command $Name -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($cmd) { return (Resolve-Path $cmd.Source).Path }
 
     return $null
 }

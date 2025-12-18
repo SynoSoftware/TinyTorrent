@@ -1,5 +1,40 @@
-project('tinytorrent-daemon', ['cpp', 'c'], version : '0.1.0',
+project('tinytorrent-daemon', ['cpp', 'c'],
+  version : '0.1.0',
   default_options : ['cpp_std=c++20'])
+
+python_module = import('python')
+python_prog = python_module.find_installation()
+if not python_prog.found()
+  error('Python interpreter required to read version metadata from version.json.')
+endif
+
+version_manifest_path = join_paths(meson.source_root(), '..', 'version.json')
+version_script = '''
+import json
+import sys
+from datetime import date
+from pathlib import Path
+
+path = Path(sys.argv[1])
+data = json.loads(path.read_text())
+version = data.get("version")
+if not version:
+    raise SystemExit("version.json missing the version key")
+today = date.today()
+print(version)
+print(today.strftime("%Y%m%d"))
+print(today.isoformat())
+'''
+
+version_output = run_command(python_prog, '-c', version_script, version_manifest_path, check: true)
+version_lines = version_output.stdout().strip().splitlines()
+if version_lines.length() < 3
+  error('Version script returned incomplete metadata.')
+endif
+
+tt_semantic_version = version_lines[0]
+tt_build_date_compact = version_lines[1]
+tt_build_date_iso = version_lines[2]
 
 if host_machine.system() == 'windows'
   add_project_arguments(
@@ -15,9 +50,16 @@ tt_enable_tests = get_option('tt_enable_tests')
 build_type = get_option('buildtype')
 is_minsize = build_type == 'minsize'
 
-tt_version = meson.project_version()
+tt_version = tt_semantic_version
+tt_display_version = tt_version
+tt_v_parts = tt_version.split('.')
+if tt_v_parts.length() == 3 and tt_v_parts[2] == '0'
+  tt_display_version = tt_v_parts[0] + '.' + tt_v_parts[1]
+endif
+
 tt_defines = [
   'TT_BUILD_VERSION="' + tt_version + '"',
+  'TT_DISPLAY_VERSION="' + tt_display_version + '"',
 ]
 if is_minsize
   tt_defines += 'TT_BUILD_MINIMAL=1'
@@ -66,7 +108,7 @@ tt_c_args += tt_define_args
 
 tt_includes = include_directories('src', 'src/vendor')
 
-tt_version_components = tt_version.split('.')
+tt_version_components = tt_semantic_version.split('.')
 tt_version_number_parts = []
 foreach comp : tt_version_components
   clean = comp.split('-')[0]
@@ -108,13 +150,28 @@ foreach idx : range(4)
 endforeach
 tt_file_version_string = '.'.join(tt_file_version_segments_normalized)
 
-tt_version_rc_defines = [
-  '/DTT_VERSION_MAJOR=' + tt_version_number_parts_normalized[0],
-  '/DTT_VERSION_MINOR=' + tt_version_number_parts_normalized[1],
-  '/DTT_VERSION_PATCH=' + tt_version_number_parts_normalized[2],
-  '/DTT_VERSION_BUILD=' + tt_version_number_parts_normalized[3],
-  '/DTT_VERSION_FILEVERSION_STRING="' + tt_file_version_string + '"'
-]
+tt_version_major = tt_version_number_parts_normalized[0]
+tt_version_minor = tt_version_number_parts_normalized[1]
+tt_version_patch = tt_version_number_parts_normalized[2]
+tt_version_build = tt_version_number_parts_normalized[3]
+tt_version_fileversion_string = tt_file_version_string
+tt_product_version_string = tt_semantic_version
+
+tt_version_configuration = configuration_data()
+tt_version_configuration.set('TT_VERSION_MAJOR', tt_version_major)
+tt_version_configuration.set('TT_VERSION_MINOR', tt_version_minor)
+tt_version_configuration.set('TT_VERSION_PATCH', tt_version_patch)
+tt_version_configuration.set('TT_VERSION_BUILD', tt_version_build)
+tt_version_configuration.set('TT_VERSION_FILEVERSION_STRING', tt_version_fileversion_string)
+tt_version_configuration.set('TT_PRODUCT_VERSION_STRING', tt_product_version_string)
+tt_version_configuration.set('TT_BUILD_DATE', tt_build_date_iso)
+tt_version_configuration.set('TT_BUILD_DATE_COMPACT', tt_build_date_compact)
+
+tt_packed_fs_rc = configure_file(
+  input: 'src/vendor/tinytorrent.rc.in',
+  output: 'tt_packed_fs.rc',
+  configuration: tt_version_configuration
+)
 
 fs = import('fs')
 tt_has_packed_fs_bin = fs.exists('src/vendor/tt_packed_fs.bin')
@@ -125,12 +182,13 @@ endif
 tt_packed_fs_res = []
 if host_machine.system() == 'windows' and tt_has_packed_fs_bin
   rc_prog = find_program('rc', required: true)
+  rc_include_dirs = ['/I' + join_paths(meson.source_root(), 'src', 'vendor')]
   tt_packed_fs_res = [
       custom_target(
         'tt_packed_fs_res',
-        input: 'src/vendor/tt_packed_fs.rc',
+        input: tt_packed_fs_rc,
         output: 'tt_packed_fs.res',
-        command: [rc_prog, '/nologo'] + tt_version_rc_defines + ['/fo', '@OUTPUT@', '@INPUT@'],
+        command: [rc_prog, '/nologo'] + rc_include_dirs + ['/fo', '@OUTPUT@', '@INPUT@'],
         depend_files: ['src/vendor/tt_packed_fs.bin']
       )
   ]
