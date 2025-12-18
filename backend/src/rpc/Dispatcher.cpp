@@ -13,6 +13,8 @@
 #include <winreg.h>
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#include <shlobj.h>
+#include <shobjidl.h>
 #endif
 #include "rpc/Dispatcher.hpp"
 
@@ -84,6 +86,18 @@ namespace
 {
 constexpr std::array<char const *, 3> kDefaultShortcutLocations = {
     "desktop", "start-menu", "startup"};
+
+std::string path_to_string(std::filesystem::path const &value)
+{
+    try
+    {
+        return value.string();
+    }
+    catch (...)
+    {
+        return {};
+    }
+}
 
 #if defined(_WIN32)
 class ScopedCOM
@@ -740,18 +754,6 @@ bool reveal_in_file_manager(std::filesystem::path const &target)
 #else
     return open_with_default_app(subject);
 #endif
-}
-
-std::string path_to_string(std::filesystem::path const &value)
-{
-    try
-    {
-        return value.string();
-    }
-    catch (...)
-    {
-        return {};
-    }
 }
 
 std::filesystem::path parse_request_path(yyjson_val *value)

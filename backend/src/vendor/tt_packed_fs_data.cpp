@@ -14,13 +14,14 @@ size_t data_size = 0;
 
 void load_packed_fs_resource()
 {
+    auto const kResourceType = MAKEINTRESOURCEW(10);
     HMODULE module = GetModuleHandleW(nullptr);
     if (!module)
     {
         return;
     }
     HRSRC res = FindResourceW(module, MAKEINTRESOURCEW(IDR_TT_PACKED_FS),
-                              RT_RCDATA);
+                              kResourceType);
     if (!res)
     {
         return;
