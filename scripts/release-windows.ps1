@@ -1,12 +1,46 @@
 param(
     [ValidateSet('fast', 'ultra')][string]$UWx = 'fast',
     [switch]$ForceFrontend,
-    [switch]$SkipFrontend
+    [switch]$SkipFrontend,
+    [switch]$SkipLaunch
 )
 
 $ErrorActionPreference = 'Stop'
 
 $root = Split-Path -Parent $PSScriptRoot
+$everythingHelper = Join-Path $root 'scripts\everything.ps1'
+$helperLoaded = $false
+if (Test-Path $everythingHelper) {
+    . $everythingHelper
+    $helperLoaded = $true
+    if (Get-Command Ensure-Everything -ErrorAction SilentlyContinue) {
+        Ensure-Everything
+    }
+}
+
+function Find-Executable {
+    param(
+        [Parameter(Mandatory)][string]$Name,
+        [string]$OverridePath,
+        [string]$Id,
+        [string]$PackageId
+    )
+
+    if ($OverridePath) {
+        $resolved = Resolve-Path -LiteralPath $OverridePath -ErrorAction SilentlyContinue
+        if ($resolved -and (Test-Path $resolved.Path)) { return $resolved.Path }
+        throw "Override path for $Name must be a file: $OverridePath"
+    }
+
+    $cmd = Get-Command $Name -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($cmd) { return (Resolve-Path $cmd.Source).Path }
+
+    if ($helperLoaded -and (Get-Command Locate-Or-Install -ErrorAction SilentlyContinue)) {
+        return Locate-Or-Install -Name $Name -Id $Id -PackageId $PackageId
+    }
+
+    return $null
+}
 $frontendDir = Join-Path $root 'frontend'
 $backendDir = Join-Path $root 'backend'
 $distDir = Join-Path $frontendDir 'dist'
@@ -131,6 +165,28 @@ function Invoke-BackendBuild {
     }
 }
 
+function Report-AppReady {
+    param([Parameter(Mandatory)][string]$ExePath)
+
+    $status = "TinyTorrent (Mica-aware) ready at $ExePath"
+    if ($SkipLaunch -or ($env:CI -eq 'true')) {
+        Write-Host $status -ForegroundColor Green
+        Write-Host "Run the exe manually to see the Mica-enhanced frontend." -ForegroundColor Cyan
+        return
+    }
+
+    try {
+        $proc = Start-Process -FilePath $ExePath -WorkingDirectory (Split-Path -Parent $ExePath) -PassThru
+        Write-Host $status -ForegroundColor Green
+        Write-Host ("Launched TinyTorrent (PID {0}); the Mica-aware UI should appear shortly." -f $proc.Id) -ForegroundColor Yellow
+    }
+    catch {
+        Write-Host $status -ForegroundColor Green
+        Write-Host ("Unable to launch automatically: {0}" -f $_.Exception.Message) -ForegroundColor Yellow
+        Write-Host "Please start the executable manually to view the Mica UI." -ForegroundColor Cyan
+    }
+}
+
 Write-Host "Building backend (MinSizeRel)..." -ForegroundColor Cyan
 Push-Location $backendDir
 try {
@@ -147,24 +203,25 @@ if (-not (Test-Path -LiteralPath $buildExe)) {
     throw "Build did not produce an exe (expected TinyTorrent.exe or tt-engine.exe)."
 }
 
-$finalDir = Join-Path $root 'dist\\windows'
+$finalDir = Join-Path $root 'dist\windows'
 New-Item -ItemType Directory -Force -Path $finalDir | Out-Null
 $finalExe = Join-Path $finalDir 'TinyTorrent.exe'
 Copy-Item -LiteralPath $buildExe -Destination $finalExe -Force
 
-$upx = Get-Command upx.exe -ErrorAction SilentlyContinue
-if (-not $upx) {
-    Write-Host "UPX not found on PATH; skipping packing." -ForegroundColor Yellow
-    Write-Host "Final: $finalExe" -ForegroundColor Green
+$upxPath = Find-Executable -Name "upx" -Id "UPX" -PackageId "upx.upx"
+if (-not $upxPath) {
+    Write-Host "UPX not found (launch Everything to install or add to PATH); skipping packing." -ForegroundColor Yellow
+    Report-AppReady -ExePath $finalExe
     exit 0
 }
 
 Write-Host "Packing with UPX ($UWx)..." -ForegroundColor Cyan
 if ($UWx -eq 'ultra') {
-    & $upx.Source --ultra-brute $finalExe
+    & $upxPath --ultra-brute $finalExe
 }
 else {
-    & $upx.Source --best $finalExe
+    & $upxPath --best $finalExe
 }
 
 Write-Host "Done: $finalExe" -ForegroundColor Green
+Report-AppReady -ExePath $finalExe

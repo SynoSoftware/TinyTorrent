@@ -21,6 +21,42 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Definition
+$repoRoot = Split-Path -Parent $scriptRoot
+$everythingHelper = Join-Path $repoRoot 'scripts\everything.ps1'
+$helperLoaded = $false
+if (Test-Path -LiteralPath $everythingHelper) {
+    . $everythingHelper
+    $helperLoaded = $true
+    if (Get-Command Ensure-Everything -ErrorAction SilentlyContinue) {
+        Ensure-Everything
+    }
+}
+
+function Find-Executable {
+    param(
+        [Parameter(Mandatory)][string]$Name,
+        [string]$OverridePath,
+        [string]$Id,
+        [string]$PackageId
+    )
+
+    if ($OverridePath) {
+        $resolved = Resolve-Path -LiteralPath $OverridePath -ErrorAction SilentlyContinue
+        if ($resolved -and (Test-Path $resolved.Path)) { return $resolved.Path }
+        throw "Override path for $Name must be a file: $OverridePath"
+    }
+
+    $cmd = Get-Command $Name -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($cmd) { return (Resolve-Path $cmd.Source).Path }
+
+    if ($helperLoaded -and (Get-Command Locate-Or-Install -ErrorAction SilentlyContinue)) {
+        return Locate-Or-Install -Name $Name -Id $Id -PackageId $PackageId
+    }
+
+    return $null
+}
+
 # Deletion safety threshold:
 # If any folder deletion target exceeds this size, require interactive confirmation.
 # Default: 500MB
@@ -174,63 +210,6 @@ function Exec-Checked {
     if ($LASTEXITCODE -ne 0) { throw "$ErrorMessage (Exit Code: $LASTEXITCODE)" }
 }
 
-function Resolve-Executable {
-    param($Name, $OverridePath)
-    if ($OverridePath) {
-        if (Test-Path $OverridePath -PathType Leaf) { return $OverridePath }
-        throw "Override path for $Name must be a file: $OverridePath"
-    }
-    $cmd = Get-Command "$Name.exe" -ErrorAction SilentlyContinue
-    if ($cmd) { return $cmd.Source }
-    return $null
-}
-
-function Resolve-PythonScript {
-    param($ScriptName, $OverridePath)
-    
-    # 1. Override / PATH
-    $exe = Resolve-Executable $ScriptName $OverridePath
-    if ($exe) { return $exe }
-
-    # 2. Heuristic Scan (System AND User Scripts)
-    Write-Host "Scanning for $ScriptName..." -ForegroundColor DarkGray
-    $candidates = @()
-    $pyLaunchers = @("py", "python3", "python")
-    
-    foreach ($py in $pyLaunchers) {
-        if (Get-Command $py -ErrorAction SilentlyContinue) {
-            try {
-                # FIX: Ask for BOTH 'scripts' (System) and 'nt_user' (Roaming/User)
-                $code = "import sys, sysconfig; print(sys.version_info.major); print(sys.version_info.minor); print(sysconfig.get_path('scripts')); print(sysconfig.get_path('scripts', 'nt_user'))"
-                $res = & $py -c $code 2>$null
-                
-                if ($res.Count -ge 3) {
-                    $ver = [int]$res[0] * 100 + [int]$res[1]
-                    $pathsToCheck = @()
-                    if ($res[2]) { $pathsToCheck += $res[2] } # System
-                    if ($res.Count -ge 4 -and $res[3]) { $pathsToCheck += $res[3] } # User (Roaming)
-
-                    foreach ($p in $pathsToCheck) {
-                        if (Test-Path $p) {
-                            $target = Join-Path $p "$ScriptName.exe"
-                            if (Test-Path $target -PathType Leaf) {
-                                $candidates += [pscustomobject]@{ Path = $target; Score = $ver }
-                            }
-                        }
-                    }
-                }
-            }
-            catch {}
-        }
-    }
-
-    # Deterministic Winner: Highest Python Version
-    $winner = $candidates | Sort-Object Score -Descending | Select-Object -First 1
-    if ($winner) { return $winner.Path }
-    
-    throw "Could not find '$ScriptName'. Run: pip install --user $ScriptName"
-}
-
 function Get-FirstCommandLine {
     param(
         [scriptblock]$Command,
@@ -253,7 +232,7 @@ function Get-FirstCommandLine {
 # -- Visual Studio --
 if (-not (Get-Command "cl.exe" -ErrorAction SilentlyContinue)) {
     Write-Host "Locating Visual Studio..." -ForegroundColor Cyan
-    $vswhereExe = Resolve-Executable "vswhere" $VsWherePath
+    $vswhereExe = Find-Executable -Name "vswhere" -OverridePath $VsWherePath -Id "Visual Studio Locator" -PackageId "Microsoft.VisualStudio.Locator"
     if (-not $vswhereExe) {
         $default = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
         if (Test-Path $default) { $vswhereExe = $default }
@@ -268,8 +247,10 @@ if (-not (Get-Command "cl.exe" -ErrorAction SilentlyContinue)) {
 }
 
 # -- Tool Discovery --
-$MesonExe = Resolve-PythonScript "meson" $MesonPath
-$NinjaExe = Resolve-PythonScript "ninja" $NinjaPath
+$MesonExe = Find-Executable -Name "meson" -OverridePath $MesonPath -Id "Meson" -PackageId "mesonbuild.meson"
+if (-not $MesonExe) { throw "Meson executable not found. Install via winget or ensure it's on PATH." }
+$NinjaExe = Find-Executable -Name "ninja" -OverridePath $NinjaPath -Id "Ninja" -PackageId "Ninja-build.Ninja"
+if (-not $NinjaExe) { throw "Ninja executable not found. Install via winget or ensure it's on PATH." }
 
 # -- Version Reporting --
 Write-Host "`nToolchain Verification:" -ForegroundColor Cyan
