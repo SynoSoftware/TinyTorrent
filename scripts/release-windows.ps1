@@ -31,6 +31,9 @@ Write-Host "----------------------------------------" -ForegroundColor Cyan
 $frontendDir = Join-Path $root 'frontend'
 $backendDir = Join-Path $root 'backend'
 $distDir = Join-Path $frontendDir 'dist'
+$ReleaseVcpkgTriplet = 'x64-windows-static'
+$ReleaseVcpkgInstallRootBase = Join-Path $backendDir 'vcpkg_installed'
+$ReleaseVcpkgTripletRoot = Join-Path $ReleaseVcpkgInstallRootBase $ReleaseVcpkgTriplet
 
 # Prefer PowerShell 7 if present. Always run child shell non-interactively.
 $shellExe = (Get-Command pwsh -ErrorAction SilentlyContinue | Select-Object -First 1).Source
@@ -132,6 +135,42 @@ Write-Host "Generating embedded UI pack..." -ForegroundColor Cyan
 $outC = Join-Path $backendDir 'src\\vendor\\tt_packed_fs.c'
 & (Join-Path $root 'scripts\\gen-packed-fs.ps1') -InputDir $distDir -OutputFile $outC
 
+function Resolve-ConsoleColor {
+    param([string]$Name)
+    if ([string]::IsNullOrWhiteSpace($Name)) { return $null }
+
+    $parsed = $null
+    if ([Enum]::TryParse([System.ConsoleColor], $Name, $true, [ref]$parsed)) {
+        return $parsed
+    }
+    return $null
+}
+
+function Try-RenderColoredLine {
+    param([string]$Line)
+
+    $pattern = '^(?<text>.+?) -ForegroundColor (?<fg>\w+)(?: -BackgroundColor (?<bg>\w+))?'
+    $match = [regex]::Match($Line, $pattern)
+    if (-not $match.Success) { return $false }
+
+    $text = $match.Groups['text'].Value
+    $fgColor = Resolve-ConsoleColor $match.Groups['fg'].Value
+    $bgColor = $null
+    if ($match.Groups['bg'].Success) { $bgColor = Resolve-ConsoleColor $match.Groups['bg'].Value }
+
+    if ($fgColor -and $bgColor) {
+        Write-Host $text -ForegroundColor $fgColor -BackgroundColor $bgColor
+    }
+    elseif ($fgColor) {
+        Write-Host $text -ForegroundColor $fgColor
+    }
+    else {
+        Write-Host $text
+    }
+
+    return $true
+}
+
 function Invoke-BackendBuild {
     param(
         [int]$MaxAttempts = 3
@@ -158,8 +197,10 @@ function Invoke-BackendBuild {
             
             # IMPORTANT: use splatting so the child process receives the args.
             & $Exe @ArgumentList 2>&1 | ForEach-Object {
-                # Print to console immediately
-                Write-Host $_
+                # Print to console immediately (colorize known Write-Host metadata)
+                if (-not (Try-RenderColoredLine $_)) {
+                    Write-Host $_
+                }
                 # Store for later analysis (e.g. error detection)
                 $captured.Add($_.ToString())
             }
@@ -182,14 +223,14 @@ function Invoke-BackendBuild {
 
     # Quick pre-check: if core vcpkg headers are missing, force a vcpkg install once before building.
     try {
-        $libtorrentHeader = Join-Path $backendDir 'vcpkg_installed\x64-windows-static\include\libtorrent\add_torrent_params.hpp'
-        $yyjsonHeader = Join-Path $backendDir 'vcpkg_installed\x64-windows-static\include\yyjson.h'
-        $sqliteHeader = Join-Path $backendDir 'vcpkg_installed\x64-windows-static\include\sqlite3.h'
+        $libtorrentHeader = Join-Path $ReleaseVcpkgTripletRoot 'include\libtorrent\add_torrent_params.hpp'
+        $yyjsonHeader = Join-Path $ReleaseVcpkgTripletRoot 'include\yyjson.h'
+        $sqliteHeader = Join-Path $ReleaseVcpkgTripletRoot 'include\sqlite3.h'
         $haveAny = (Test-Path $libtorrentHeader) -or (Test-Path $yyjsonHeader) -or (Test-Path $sqliteHeader)
         if (-not $haveAny) {
             Write-Host "vcpkg headers not present; attempting forced vcpkg install before build." -ForegroundColor Yellow
             try {
-                $res = Run-ProcessCapture -Exe $shellExe -ArgumentList @('-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', '.\build.ps1', '-Configuration', 'Release', '-ForceVcpkg', '-SkipTests') -WorkingDir $backendDir
+                $res = Run-ProcessCapture -Exe $shellExe -ArgumentList @('-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', '.\build.ps1', '-Configuration', 'Release', '-ForceVcpkg', '-SkipTests', '-AutoConfirmDeletion') -WorkingDir $backendDir
                 if ($res.ExitCode -ne 0) { Write-Host "Initial vcpkg install failed (Exit $($res.ExitCode))." -ForegroundColor Yellow }
             }
             catch {
@@ -205,7 +246,7 @@ function Invoke-BackendBuild {
         }
         try {
             Write-Host "Building backend (Release) (this may take several minutes)..." -ForegroundColor Cyan
-            $res = Run-ProcessCapture -Exe $shellExe -ArgumentList @('-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', '.\build.ps1', '-Configuration', 'Release', '-SkipTests') -WorkingDir $backendDir
+            $res = Run-ProcessCapture -Exe $shellExe -ArgumentList @('-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', '.\build.ps1', '-Configuration', 'Release', '-SkipTests', '-AutoConfirmDeletion') -WorkingDir $backendDir
             
             if ($res.ExitCode -ne 0) {
                 throw "Backend build exited with code $($res.ExitCode)."
@@ -218,7 +259,7 @@ function Invoke-BackendBuild {
             if (-not $didForceVcpkg -and ($message -match 'Cannot open include file' -or $message -match 'No such file or directory' -or $message -match 'yyjson' -or $message -match 'sqlite3')) {
                 Write-Host "Detected missing vcpkg headers/libraries (message: $message). Forcing vcpkg install and retrying..." -ForegroundColor Yellow
                 try {
-                    $forced = Run-ProcessCapture -Exe $shellExe -ArgumentList @('-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', '.\build.ps1', '-Configuration', 'Release', '-ForceVcpkg', '-SkipTests') -WorkingDir $backendDir
+                    $forced = Run-ProcessCapture -Exe $shellExe -ArgumentList @('-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', '.\build.ps1', '-Configuration', 'Release', '-ForceVcpkg', '-SkipTests', '-AutoConfirmDeletion') -WorkingDir $backendDir
                     if ($forced.ExitCode -ne 0) {
                         throw "Forced vcpkg install + build exited with code $($forced.ExitCode)."
                     }
@@ -258,7 +299,7 @@ function Report-AppReady {
     try {
         $proc = Start-Process -FilePath $ExePath -WorkingDirectory (Split-Path -Parent $ExePath) -PassThru
         Write-Host $status -ForegroundColor Green
-        Write-Host ("Launched TinyTorrent (PID {0}); the Mica-aware UI should appear shortly." -f $proc.Id) -ForegroundColor Yellow
+        Write-Host ("Launched TinyTorrent (PID {0}); the should appear shortly." -f $proc.Id) -ForegroundColor Yellow
     }
     catch {
         Write-Host $status -ForegroundColor Green

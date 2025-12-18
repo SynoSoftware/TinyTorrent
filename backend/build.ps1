@@ -16,7 +16,8 @@ param(
     [switch]$ForceVcpkg,
     [switch]$SkipTests,
     [Alias('H')]
-    [switch]$Help
+    [switch]$Help,
+    [switch]$AutoConfirmDeletion
 )
 
 $ErrorActionPreference = 'Stop'
@@ -126,7 +127,8 @@ function Remove-FolderSafe {
         [Parameter(Mandatory = $true)][string]$Path,
         [Parameter(Mandatory = $true)][string]$DisplayName,
         [Parameter(Mandatory = $true)][long]$PromptAboveBytes,
-        [switch]$ForcePrompt
+        [switch]$ForcePrompt,
+        [switch]$AutoConfirm
     )
 
     if (-not (Test-Path $Path)) {
@@ -144,15 +146,24 @@ function Remove-FolderSafe {
     if ($needsPrompt) {
         Write-Host "  Threshold: $(Format-Bytes $PromptAboveBytes)" -ForegroundColor Yellow
 
-        # Avoid hanging in CI/non-interactive environments.
-        if ($env:CI -eq 'true') {
-            throw "Refusing to delete $DisplayName in CI (size requires confirmation). Delete it manually if needed: $Path"
+        if ($AutoConfirm) {
+            Write-Host "  Auto-confirming deletion (non-interactive/automated run)." -ForegroundColor DarkGray
         }
-
-        $answer = Read-Host "Type YES to permanently delete $DisplayName (anything else = cancel)"
-        if ($answer -ne 'YES') {
-            Write-Host "Cancelled deletion of $DisplayName." -ForegroundColor Cyan
-            return
+        else {
+            # Avoid hanging in CI/non-interactive environments.
+            if ($env:CI -eq 'true') {
+                throw "Refusing to delete $DisplayName in CI. Delete it manually if needed: $Path"
+            }
+            try {
+                $answer = Read-Host "Type YES to permanently delete $DisplayName (anything else = cancel)"
+            }
+            catch {
+                throw "Cannot prompt for $DisplayName deletion in this shell. Rerun interactively or pass -AutoConfirmDeletion to skip the prompt."
+            }
+            if ($answer -ne 'YES') {
+                Write-Host "Cancelled deletion of $DisplayName." -ForegroundColor Cyan
+                return
+            }
         }
     }
 
@@ -355,16 +366,17 @@ $RepoRoot = $PSScriptRoot
 $BuildDir = Join-Path $RepoRoot "build\$BuildSubDir"
 $VcpkgDir = Join-Path $RepoRoot "vcpkg"
 $VcpkgExe = Join-Path $VcpkgDir "vcpkg.exe"
-$VcpkgInstallRoot = Join-Path $RepoRoot "vcpkg_installed"
+$VcpkgInstallRootBase = Join-Path $RepoRoot "vcpkg_installed"
+$VcpkgInstallRoot = Join-Path $VcpkgInstallRootBase $VcpkgTrip
 $TripletRoot = Join-Path $VcpkgInstallRoot $VcpkgTrip
 $TripletReadyMarker = Join-Path $TripletRoot ".installed.marker"
 
 if ($DeleteVcpkg) {
-    Remove-FolderSafe -Path $VcpkgDir -DisplayName 'vcpkg' -PromptAboveBytes $PromptOnDeleteAboveBytes -ForcePrompt
+    Remove-FolderSafe -Path $VcpkgDir -DisplayName 'vcpkg' -PromptAboveBytes $PromptOnDeleteAboveBytes -ForcePrompt -AutoConfirm:$AutoConfirmDeletion
 }
 
 # FIX: Automatic Invalidation (Marker File)
-$ConfigMarker = "$Configuration|$VcpkgTrip|$VsCrt|$Sanitize"
+$ConfigMarker = "$Configuration|$VcpkgTrip|$VsCrt|$Sanitize|$VcpkgInstallRoot"
 $MarkerFile = Join-Path $BuildDir "tt-config.marker"
 
 if (Test-Path $BuildDir) {
@@ -372,7 +384,7 @@ if (Test-Path $BuildDir) {
     if ($Clean -or ($OldMarker -ne $ConfigMarker)) {
         $Reason = if ($Clean) { "Manual Clean" } else { "Configuration Changed" }
         Write-Host "Cleaning build directory ($Reason)..." -ForegroundColor Yellow
-        Remove-FolderSafe -Path $BuildDir -DisplayName "build directory ($BuildSubDir)" -PromptAboveBytes $PromptOnDeleteAboveBytes
+        Remove-FolderSafe -Path $BuildDir -DisplayName "build directory ($BuildSubDir)" -PromptAboveBytes $PromptOnDeleteAboveBytes -AutoConfirm:$AutoConfirmDeletion
     }
 }
 
@@ -489,7 +501,7 @@ finally { Pop-Location }
 # 5. MESON SETUP
 # ==============================================================================
 
-$TripletInstallDir = Join-Path $VcpkgInstallRoot $VcpkgTrip
+$TripletInstallDir = $TripletRoot
 $env:CMAKE_PREFIX_PATH = "$TripletInstallDir;$TripletInstallDir\share;$env:CMAKE_PREFIX_PATH"
 $MesonOptions = @(
     "--backend=ninja",
