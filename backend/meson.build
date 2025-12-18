@@ -66,6 +66,56 @@ tt_c_args += tt_define_args
 
 tt_includes = include_directories('src', 'src/vendor')
 
+tt_version_components = tt_version.split('.')
+tt_version_number_parts = []
+foreach comp : tt_version_components
+  clean = comp.split('-')[0]
+  if clean == ''
+    clean = '0'
+  endif
+  if '+' in clean
+    clean = clean.split('+')[0]
+  endif
+  if clean == ''
+    clean = '0'
+  endif
+  tt_version_number_parts += [clean]
+endforeach
+zeros_needed = 4 - tt_version_number_parts.length()
+if zeros_needed > 0
+  foreach idx : range(zeros_needed)
+    tt_version_number_parts += ['0']
+  endforeach
+endif
+tt_version_number_parts_normalized = []
+foreach idx : range(4)
+  tt_version_number_parts_normalized += [tt_version_number_parts[idx]]
+endforeach
+
+tt_file_version_segments = []
+foreach comp : tt_version_components
+  tt_file_version_segments += [comp]
+endforeach
+zeros_needed = 4 - tt_file_version_segments.length()
+if zeros_needed > 0
+  foreach idx : range(zeros_needed)
+    tt_file_version_segments += ['0']
+  endforeach
+endif
+tt_file_version_segments_normalized = []
+foreach idx : range(4)
+  tt_file_version_segments_normalized += [tt_file_version_segments[idx]]
+endforeach
+tt_file_version_string = '.'.join(tt_file_version_segments_normalized)
+
+tt_version_rc_defines = [
+  '/DTT_VERSION_MAJOR=' + tt_version_number_parts_normalized[0],
+  '/DTT_VERSION_MINOR=' + tt_version_number_parts_normalized[1],
+  '/DTT_VERSION_PATCH=' + tt_version_number_parts_normalized[2],
+  '/DTT_VERSION_BUILD=' + tt_version_number_parts_normalized[3],
+  '/DTT_VERSION_FILEVERSION_STRING="' + tt_file_version_string + '"'
+]
+
 fs = import('fs')
 tt_has_packed_fs_bin = fs.exists('src/vendor/tt_packed_fs.bin')
 if tt_has_packed_fs_bin
@@ -76,13 +126,13 @@ tt_packed_fs_res = []
 if host_machine.system() == 'windows' and tt_has_packed_fs_bin
   rc_prog = find_program('rc', required: true)
   tt_packed_fs_res = [
-    custom_target(
-      'tt_packed_fs_res',
-      input: 'src/vendor/tt_packed_fs.rc',
-      output: 'tt_packed_fs.res',
-      command: [rc_prog, '/nologo', '/fo', '@OUTPUT@', '@INPUT@'],
-      depend_files: ['src/vendor/tt_packed_fs.bin']
-    )
+      custom_target(
+        'tt_packed_fs_res',
+        input: 'src/vendor/tt_packed_fs.rc',
+        output: 'tt_packed_fs.res',
+        command: [rc_prog, '/nologo'] + tt_version_rc_defines + ['/fo', '@OUTPUT@', '@INPUT@'],
+        depend_files: ['src/vendor/tt_packed_fs.bin']
+      )
   ]
 endif
 

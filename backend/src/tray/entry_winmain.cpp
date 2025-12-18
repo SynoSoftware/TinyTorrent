@@ -23,14 +23,18 @@
 
 #include "app/DaemonMain.hpp"
 #include "rpc/Server.hpp"
+#include "tt_packed_fs_resource.h"
 #include "utils/Shutdown.hpp"
 
 namespace
 {
     constexpr UINT ID_OPEN_UI = 1001;
-    constexpr UINT ID_PAUSE_RESUME = 1003;
-    constexpr UINT ID_OPEN_DOWNLOADS = 1004;
-    constexpr UINT ID_EXIT = 1002;
+    constexpr UINT ID_START_ALL = 1002;
+    constexpr UINT ID_STOP_ALL = 1003;
+    constexpr UINT ID_SPEED_STATUS = 1004;
+    constexpr UINT ID_PAUSE_RESUME = 1005;
+    constexpr UINT ID_OPEN_DOWNLOADS = 1006;
+    constexpr UINT ID_EXIT = 1007;
 
     constexpr UINT kTrayCallbackMessage = WM_APP + 1;
     constexpr UINT kStatusUpdateMessage = WM_APP + 2;
@@ -42,13 +46,10 @@ namespace
         HWND hwnd = nullptr;
         NOTIFYICONDATAW nid{};
         HMENU menu = nullptr;
-        HICON icon_idle = nullptr;
-        HICON icon_active = nullptr;
-        HICON icon_error = nullptr;
+        HICON icon = nullptr;
         std::wstring open_url;
         std::atomic_bool running{true};
         std::atomic_bool paused_all{false};
-        std::atomic<int> last_icon_state{0};
         unsigned short port = 0;
         std::string token;
         HINTERNET http_session = nullptr;
@@ -59,142 +60,28 @@ namespace
         std::mutex download_dir_mutex;
     };
 
-    bool is_dark_mode()
+    HICON load_tray_icon()
     {
-        DWORD value = 1;
-        DWORD size = sizeof(value);
-        if (RegGetValueW(HKEY_CURRENT_USER,
-                         L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
-                         L"AppsUseLightTheme",
-                         RRF_RT_DWORD, nullptr, &value, &size) == ERROR_SUCCESS)
-        {
-            return value == 0;
-        }
-        return false;
-    }
-
-    struct IconColors
-    {
-        DWORD base;
-        DWORD accent;
-        DWORD alert;
-    };
-
-    IconColors icon_palette(bool dark)
-    {
-        if (dark)
-        {
-            return {0xFF0A84FF, 0xFF21D6FF, 0xFFFF6B6B};
-        }
-        return {0xFF006CFF, 0xFF00C8FF, 0xFFDA4453};
-    }
-
-    HICON make_icon(int size, DWORD fill, DWORD accent)
-    {
-        BITMAPV5HEADER bi{};
-        bi.bV5Size = sizeof(bi);
-        bi.bV5Width = size;
-        bi.bV5Height = -size; // top-down
-        bi.bV5Planes = 1;
-        bi.bV5BitCount = 32;
-        bi.bV5Compression = BI_BITFIELDS;
-        bi.bV5RedMask = 0x00FF0000;
-        bi.bV5GreenMask = 0x0000FF00;
-        bi.bV5BlueMask = 0x000000FF;
-        bi.bV5AlphaMask = 0xFF000000;
-
-        void *bits = nullptr;
-        HDC hdc = GetDC(nullptr);
-        HBITMAP color = CreateDIBSection(hdc, reinterpret_cast<BITMAPINFO *>(&bi),
-                                         DIB_RGB_COLORS, &bits, nullptr, 0);
-        ReleaseDC(nullptr, hdc);
-        if (!color || !bits)
+        HMODULE module = GetModuleHandleW(nullptr);
+        if (!module)
         {
             return nullptr;
         }
-
-        auto *dst = reinterpret_cast<DWORD *>(bits);
-        int cx = size;
-        int cy = size;
-        int cx2 = cx / 2;
-        int cy2 = cy / 2;
-        int radius = (size - 2) / 2;
-
-        for (int y = 0; y < cy; ++y)
+        int small_width = GetSystemMetrics(SM_CXSMICON);
+        int small_height = GetSystemMetrics(SM_CYSMICON);
+        auto *icon = static_cast<HICON>(
+            LoadImageW(module, MAKEINTRESOURCEW(IDI_TINYTORRENT), IMAGE_ICON,
+                       small_width, small_height,
+                       LR_DEFAULTCOLOR | LR_CREATEDIBSECTION));
+        if (!icon)
         {
-            for (int x = 0; x < cx; ++x)
-            {
-                int dx = x - cx2;
-                int dy = y - cy2;
-                int r2 = dx * dx + dy * dy;
-                int idx = y * cx + x;
-                if (r2 <= radius * radius)
-                {
-                    dst[idx] = fill;
-                }
-                else
-                {
-                    dst[idx] = 0x00000000;
-                }
-            }
+            icon = LoadIconW(module, MAKEINTRESOURCEW(IDI_TINYTORRENT));
         }
-
-        // Simple downward arrow glyph inside the circle
-        int arrow_w = size / 3;
-        int arrow_h = size / 3;
-        int ax0 = cx2 - arrow_w / 2;
-        int ay0 = cy2 - arrow_h / 2;
-        for (int y = 0; y < arrow_h; ++y)
+        if (!icon)
         {
-            int span = (y * arrow_w) / arrow_h;
-            for (int x = -span; x <= span; ++x)
-            {
-                int px = cx2 + x;
-                int py = ay0 + y;
-                if (px >= 0 && px < cx && py >= 0 && py < cy)
-                {
-                    dst[py * cx + px] = accent;
-                }
-            }
+            icon = LoadIconW(nullptr, MAKEINTRESOURCEW(32512));
         }
-        // Arrow stem
-        int stem_w = size / 8;
-        for (int y = ay0 - arrow_h / 2; y < ay0 + arrow_h / 2; ++y)
-        {
-            for (int x = cx2 - stem_w; x <= cx2 + stem_w; ++x)
-            {
-                if (x >= 0 && x < cx && y >= 0 && y < cy)
-                {
-                    dst[y * cx + x] = accent;
-                }
-            }
-        }
-
-        ICONINFO ii{};
-        ii.fIcon = TRUE;
-        ii.hbmColor = color;
-        ii.hbmMask = nullptr;
-        HICON icon = CreateIconIndirect(&ii);
-        DeleteObject(color);
         return icon;
-    }
-
-    struct IconSet
-    {
-        HICON idle = nullptr;
-        HICON active = nullptr;
-        HICON error = nullptr;
-    };
-
-    IconSet build_icon_set(bool dark)
-    {
-        IconColors c = icon_palette(dark);
-        IconSet set;
-        // Use slightly different accents per state to signal activity/error.
-        set.idle = make_icon(24, c.base, c.accent);
-        set.active = make_icon(24, c.accent, c.base);
-        set.error = make_icon(24, c.base, c.alert);
-        return set;
     }
 
     std::wstring widen(std::string const &value)
@@ -228,11 +115,16 @@ namespace
     {
         state.menu = CreatePopupMenu();
         AppendMenuW(state.menu, MF_STRING, ID_OPEN_UI, L"Open UI");
-        AppendMenuW(state.menu, MF_SEPARATOR, 0, nullptr);
-        // Pause/Resume placeholder label; updated by timer/update routine.
-        AppendMenuW(state.menu, MF_STRING, ID_PAUSE_RESUME, L"Pause All");
         AppendMenuW(state.menu, MF_STRING, ID_OPEN_DOWNLOADS,
                     L"Open Downloads Folder");
+        AppendMenuW(state.menu, MF_SEPARATOR, 0, nullptr);
+        AppendMenuW(state.menu, MF_STRING, ID_START_ALL, L"Start All");
+        AppendMenuW(state.menu, MF_STRING, ID_STOP_ALL, L"Stop All");
+        AppendMenuW(state.menu, MF_SEPARATOR, 0, nullptr);
+        AppendMenuW(state.menu, MF_STRING | MF_DISABLED | MF_GRAYED,
+                    ID_SPEED_STATUS, L"Download: 0 B/s   Upload: 0 B/s");
+        AppendMenuW(state.menu, MF_SEPARATOR, 0, nullptr);
+        AppendMenuW(state.menu, MF_STRING, ID_PAUSE_RESUME, L"Pause All");
         AppendMenuW(state.menu, MF_SEPARATOR, 0, nullptr);
         AppendMenuW(state.menu, MF_STRING, ID_EXIT, L"Exit");
     }
@@ -258,6 +150,27 @@ namespace
         }
         wcsncpy_s(state.nid.szTip, text, _TRUNCATE);
         Shell_NotifyIconW(NIM_MODIFY, &state.nid);
+    }
+
+    void show_running_notification(TrayState &state)
+    {
+        if (!state.hwnd)
+        {
+            return;
+        }
+        NOTIFYICONDATAW info = {};
+        info.cbSize = sizeof(info);
+        info.hWnd = state.hwnd;
+        info.uID = state.nid.uID;
+        info.uFlags = NIF_INFO;
+        info.dwInfoFlags = NIIF_INFO;
+        info.uTimeout = 4500;
+        wcsncpy_s(info.szInfoTitle, L"TinyTorrent running", _TRUNCATE);
+        wcsncpy_s(info.szInfo,
+                   L"TinyTorrent (Mica-aware glass UI) is ready. Use the tray icon to open the HUD.",
+                   _TRUNCATE);
+        Shell_NotifyIconW(NIM_MODIFY, &info);
+        set_tooltip(state, L"TinyTorrent (Mica-aware glass UI) is ready");
     }
 
     void set_menu_item_text(HMENU menu, UINT id, wchar_t const *text)
@@ -531,50 +444,64 @@ namespace
             {
                 return 0;
             }
-            switch (LOWORD(wparam))
+        switch (LOWORD(wparam))
+        {
+        case ID_OPEN_UI:
+            open_browser(state->open_url);
+            return 0;
+        case ID_START_ALL:
+            if (rpc_set_all_paused(*state, false))
             {
-            case ID_OPEN_UI:
-                open_browser(state->open_url);
-                return 0;
-            case ID_PAUSE_RESUME:
+                state->paused_all.store(false);
+                set_menu_item_text(state->menu, ID_PAUSE_RESUME, L"Pause All");
+            }
+            return 0;
+        case ID_STOP_ALL:
+            if (rpc_set_all_paused(*state, true))
             {
-                // Toggle pause/resume.
-                bool should_pause = !state->paused_all.load();
-                if (rpc_set_all_paused(*state, should_pause))
-                {
-                    state->paused_all.store(should_pause);
-                    set_menu_item_text(state->menu, ID_PAUSE_RESUME,
-                                       should_pause ? L"Resume All" : L"Pause All");
-                }
-                return 0;
+                state->paused_all.store(true);
+                set_menu_item_text(state->menu, ID_PAUSE_RESUME, L"Resume All");
             }
-            case ID_OPEN_DOWNLOADS:
+            return 0;
+        case ID_PAUSE_RESUME:
+        {
+            // Toggle pause/resume.
+            bool should_pause = !state->paused_all.load();
+            if (rpc_set_all_paused(*state, should_pause))
             {
-                std::string download_dir;
-                {
-                    std::lock_guard<std::mutex> lock(state->download_dir_mutex);
-                    download_dir = state->download_dir_cache;
-                }
-                if (!download_dir.empty())
-                {
-                    int need = MultiByteToWideChar(CP_UTF8, 0, download_dir.c_str(), -1, nullptr, 0);
-                    if (need > 0)
-                    {
-                        std::wstring wpath;
-                        wpath.resize(static_cast<size_t>(need - 1));
-                        MultiByteToWideChar(CP_UTF8, 0, download_dir.c_str(), -1, wpath.data(), need);
-                        ShellExecuteW(nullptr, L"open", wpath.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
-                    }
-                }
-                return 0;
+                state->paused_all.store(should_pause);
+                set_menu_item_text(state->menu, ID_PAUSE_RESUME,
+                                   should_pause ? L"Resume All" : L"Pause All");
             }
-            case ID_EXIT:
-                tt::runtime::request_shutdown();
-                DestroyWindow(hwnd);
-                return 0;
-            default:
-                return 0;
+            return 0;
+        }
+        case ID_OPEN_DOWNLOADS:
+        {
+            std::string download_dir;
+            {
+                std::lock_guard<std::mutex> lock(state->download_dir_mutex);
+                download_dir = state->download_dir_cache;
             }
+            if (!download_dir.empty())
+            {
+                int need = MultiByteToWideChar(CP_UTF8, 0, download_dir.c_str(), -1, nullptr, 0);
+                if (need > 0)
+                {
+                    std::wstring wpath;
+                    wpath.resize(static_cast<size_t>(need - 1));
+                    MultiByteToWideChar(CP_UTF8, 0, download_dir.c_str(), -1, wpath.data(), need);
+                    ShellExecuteW(nullptr, L"open", wpath.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+                }
+            }
+            return 0;
+        }
+        case ID_EXIT:
+            tt::runtime::request_shutdown();
+            DestroyWindow(hwnd);
+            return 0;
+        default:
+            return 0;
+        }
         case kStatusUpdateMessage:
             if (!state)
             {
@@ -608,33 +535,9 @@ namespace
                 }
                 set_menu_item_text(state->menu, ID_PAUSE_RESUME,
                                    s->all_paused ? L"Resume All" : L"Pause All");
-
-                int icon_state = 0;
-                if (s->any_error)
-                    icon_state = 2;
-                else if (s->down > 0 || s->up > 0 || s->active > 0)
-                    icon_state = 1;
-                if (icon_state != state->last_icon_state.load())
-                {
-                    HICON newIcon = nullptr;
-                    if (icon_state == 2)
-                        newIcon = state->icon_error;
-                    else if (icon_state == 1)
-                        newIcon = state->icon_active;
-                    else
-                        newIcon = state->icon_idle;
-                    if (newIcon)
-                    {
-                        state->nid.hIcon = newIcon;
-                        Shell_NotifyIconW(NIM_MODIFY, &state->nid);
-                        state->last_icon_state.store(icon_state);
-                    }
-                }
-
-                {
-                    std::lock_guard<std::mutex> lock(state->download_dir_mutex);
-                    state->download_dir_cache = s->download_dir;
-                }
+                std::wstring speed_label = L"Download: " + down + L" | Upload: " + up;
+                set_menu_item_text(state->menu, ID_SPEED_STATUS,
+                                   speed_label.c_str());
                 delete s;
             }
             return 0;
@@ -676,13 +579,19 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int)
         info = future.get();
     }
 
-    std::wstring url = L"http://127.0.0.1:" + std::to_wstring(info.port) + L"/#tt-token=" + widen(info.token);
+    std::wstring url =
+        L"http://127.0.0.1:" + std::to_wstring(info.port) +
+        L"/index.html#tt-token=" + widen(info.token);
+
+    HICON tray_icon = load_tray_icon();
 
     WNDCLASSEXW wc{};
     wc.cbSize = sizeof(wc);
     wc.lpfnWndProc = WndProc;
     wc.hInstance = hInstance;
     wc.lpszClassName = L"TinyTorrentTrayWindow";
+    wc.hIcon = tray_icon;
+    wc.hIconSm = tray_icon;
     RegisterClassExW(&wc);
 
     HWND hwnd = CreateWindowExW(0, wc.lpszClassName, L"TinyTorrent", 0,
@@ -703,11 +612,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int)
     state.port = static_cast<unsigned short>(info.port);
     state.token = info.token;
 
-    bool use_dark = is_dark_mode();
-    IconSet icons = build_icon_set(use_dark);
-    state.icon_idle = icons.idle;
-    state.icon_active = icons.active;
-    state.icon_error = icons.error;
+    state.icon = tray_icon;
     SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(&state));
 
     build_menu(state);
@@ -717,9 +622,10 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int)
     state.nid.uID = 1;
     state.nid.uFlags = NIF_MESSAGE | NIF_TIP | NIF_ICON;
     state.nid.uCallbackMessage = kTrayCallbackMessage;
-    state.nid.hIcon = state.icon_idle ? state.icon_idle : LoadIconW(nullptr, MAKEINTRESOURCEW(32512));
+    state.nid.hIcon = state.icon ? state.icon : LoadIconW(nullptr, MAKEINTRESOURCEW(32512));
     wcsncpy_s(state.nid.szTip, L"TinyTorrent starting...", _TRUNCATE);
     Shell_NotifyIconW(NIM_ADD, &state.nid);
+    show_running_notification(state);
 
     state.running.store(true);
     state.status_thread = std::thread([state_ptr = &state]()
@@ -763,12 +669,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int)
         daemon_thread.join();
     }
 
-    if (state.icon_idle)
-        DestroyIcon(state.icon_idle);
-    if (state.icon_active)
-        DestroyIcon(state.icon_active);
-    if (state.icon_error)
-        DestroyIcon(state.icon_error);
+    if (state.icon)
+        DestroyIcon(state.icon);
 
     return 0;
 }

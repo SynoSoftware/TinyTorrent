@@ -41,6 +41,42 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Definition
+$repoRoot = Split-Path -Parent $scriptRoot
+$everythingHelper = Join-Path $repoRoot 'scripts\everything.ps1'
+$helperLoaded = $false
+if (Test-Path -LiteralPath $everythingHelper) {
+    . $everythingHelper
+    $helperLoaded = $true
+    if (Get-Command Ensure-Everything -ErrorAction SilentlyContinue) {
+        Ensure-Everything
+    }
+}
+
+function Find-Executable {
+    param(
+        [Parameter(Mandatory)][string]$Name,
+        [string]$OverridePath,
+        [string]$Id,
+        [string]$PackageId
+    )
+
+    if ($OverridePath) {
+        $resolved = Resolve-Path -LiteralPath $OverridePath -ErrorAction SilentlyContinue
+        if ($resolved -and (Test-Path $resolved.Path)) { return $resolved.Path }
+        throw "Override path for $Name must be a file: $OverridePath"
+    }
+
+    $cmd = Get-Command $Name -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($cmd) { return (Resolve-Path $cmd.Source).Path }
+
+    if ($helperLoaded -and (Get-Command Locate-Or-Install -ErrorAction SilentlyContinue)) {
+        return Locate-Or-Install -Name $Name -Id $Id -PackageId $PackageId
+    }
+
+    return $null
+}
+
 function Write-Section {
     param([string]$Title)
     Write-Host "`n=== $Title ===" -ForegroundColor DarkCyan
@@ -219,41 +255,31 @@ Write-Detail 'CPU cores' $cpuCount
 Write-Detail 'Start time' $scriptStartTime
 Write-Detail 'Controls' "q=stop, [ or ] for bias, w=weights, v=verbosity"
 
+$script:VsWhereExe = Find-Executable -Name "vswhere" -Id "Visual Studio Locator" -PackageId "Microsoft.VisualStudio.Locator"
+if (-not $script:VsWhereExe) {
+    $defaultVsWhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+    if (Test-Path $defaultVsWhere) {
+        $script:VsWhereExe = $defaultVsWhere
+    }
+    else {
+        Write-Host "vswhere.exe not found; MSVC bin discovery will be skipped." -ForegroundColor Yellow
+        $script:VsWhereExe = $null
+    }
+}
+
 # --- Resolve ProcDump ---
 if ($UseProcDump) {
-    # 1. Check user override or PATH
-    $found = $false
-    if (Test-Path $ProcDumpPath) {
-        $procDumpExe = (Resolve-Path $ProcDumpPath).Path
-        $found = $true
+    if ($ProcDumpPath -and (Test-Path -LiteralPath $ProcDumpPath)) {
+        $procDumpExe = (Resolve-Path -LiteralPath $ProcDumpPath).Path
     }
-    elseif (Get-Command $ProcDumpPath -ErrorAction SilentlyContinue) {
-        $procDumpExe = (Get-Command $ProcDumpPath).Source
-        $found = $true
-    }
-    
-    # 2. Check standard install locations if not found
-    if (-not $found) {
-        $candidates = @(
-            "$env:ProgramFiles\procdump\procdump.exe", 
-            "$env:ProgramFiles\Sysinternals\procdump.exe",
-            "${env:ProgramFiles(x86)}\Sysinternals\procdump.exe",
-            "C:\Sysinternals\procdump.exe",
-            "C:\Tools\Sysinternals\procdump.exe"
-        )
-        foreach ($c in $candidates) {
-            if (Test-Path $c) {
-                $procDumpExe = $c
-                $found = $true
-                break
-            }
-        }
+    else {
+        $procDumpExe = Find-Executable -Name "procdump" -Id "ProcDump" -PackageId "Microsoft.Sysinternals.Suite"
     }
 
-    if (-not $found) {
+    if (-not $procDumpExe) {
         throw "Could not locate procdump.exe. Please install Sysinternals Suite or specify -ProcDumpPath."
     }
-    
+
     Write-Host "Using ProcDump: $procDumpExe" -ForegroundColor Cyan
     New-Item -Path $DumpRoot -ItemType Directory -Force | Out-Null
 }
@@ -296,20 +322,9 @@ function Start-TestProcess {
     
     # Try to locate Visual Studio MSVC bin (contains clang_rt.asan_dynamic etc.)
     $msvcBin = $null
-    $vswhereCandidates = @(
-        "$env:ProgramFiles\Microsoft Visual Studio\Installer\vswhere.exe",
-        "$env:ProgramFiles(x86)\Microsoft Visual Studio\Installer\vswhere.exe"
-    )
-    foreach ($c in $vswhereCandidates) {
-        if (Test-Path $c) { $vswhere = $c; break }
-    }
-    if (-not $vswhere) {
-        $cmd = Get-Command vswhere.exe -ErrorAction SilentlyContinue
-        if ($cmd) { $vswhere = $cmd.Source }
-    }
-    if ($vswhere) {
+    if ($script:VsWhereExe) {
         try {
-            $vsRoot = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath 2>$null
+            $vsRoot = & $script:VsWhereExe -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath 2>$null
             if ($vsRoot) {
                 $msvcRoot = Join-Path $vsRoot 'VC\Tools\MSVC'
                 if (Test-Path $msvcRoot) {
