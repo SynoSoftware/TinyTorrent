@@ -132,6 +132,8 @@ npm install
 npm run dev
 ```
 
+> **Note:** The root and backend directories are intentionally TypeScript/Node-free. All `npm`/`npx` work happens inside `frontend/` so the native build tree stays clean. See `AGENTS.md` for the full rule set.
+
 ## Backend Note
 
 The final TinyTorrent backend will not stay tied to the original Transmission daemon.
@@ -150,7 +152,7 @@ For the full protocol and engine details, see:
 
 ## 🎨 Design Philosophy
 
-Defined in **AGENTS.md**:
+Defined in **AGENTS.md** (root). That document also makes the rule explicit: only `frontend/` owns TypeScript and Node tooling, keeping the rest of the tree purely native.
 
 1. Speed
 2. Density
