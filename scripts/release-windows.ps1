@@ -122,17 +122,81 @@ function Invoke-BackendBuild {
         [int]$MaxAttempts = 3
     )
 
+    $didForceVcpkg = $false
+    # Quick pre-check: if core vcpkg headers are missing, force a vcpkg install once before building.
+    try {
+        $libtorrentHeader = Join-Path $backendDir 'vcpkg_installed\x64-windows-static\include\libtorrent\add_torrent_params.hpp'
+        $yyjsonHeader = Join-Path $backendDir 'vcpkg_installed\x64-windows-static\include\yyjson.h'
+        $sqliteHeader = Join-Path $backendDir 'vcpkg_installed\x64-windows-static\include\sqlite3.h'
+        $haveAny = (Test-Path $libtorrentHeader) -or (Test-Path $yyjsonHeader) -or (Test-Path $sqliteHeader)
+        if (-not $haveAny) {
+            Write-Host "vcpkg headers not present; attempting forced vcpkg install before build." -ForegroundColor Yellow
+            try {
+                powershell -ExecutionPolicy Bypass -NoProfile -File .\build.ps1 -Configuration MinSizeRel -ForceVcpkg -SkipTests
+                if ($LASTEXITCODE -eq 0) { $didForceVcpkg = $true }
+            }
+            catch {
+                Write-Host "Forced vcpkg install attempt failed: $($_.Exception.Message)" -ForegroundColor Yellow
+            }
+        }
+    }
+    catch {}
     for ($attempt = 1; $attempt -le $MaxAttempts; ++$attempt) {
         if ($attempt -gt 1) {
             Write-Host "Retrying backend build (attempt $attempt/$MaxAttempts)..." -ForegroundColor Yellow
         }
         try {
-            powershell -ExecutionPolicy Bypass -NoProfile -File .\build.ps1 -Configuration MinSizeRel -SkipTests
-            if ($LASTEXITCODE -ne 0) { throw "Backend build exited with code $LASTEXITCODE." }
+            # Run build in a separate PowerShell process and capture output and exit code
+            $buildOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File .\build.ps1 -Configuration MinSizeRel -SkipTests 2>&1
+            $buildExit = $LASTEXITCODE
+            if ($buildExit -ne 0) {
+                $global:buildOutput = $buildOutput
+                $combined = ($buildOutput -join "`n")
+                throw "Backend build failed with exit $buildExit" 
+            }
             return
         }
         catch {
+            # Normalize message and output depending on thrown object
             $message = $_.Exception.Message
+            $output = $null
+            if ($_.Exception -and $_.Exception.GetType().Name -eq 'RuntimeException' -and ($_.Exception.InnerException -is [hashtable])) {
+                # nothing
+            }
+            if ($_.Exception -is [System.Management.Automation.RuntimeException] -and $_.Exception.ErrorRecord -and $_.Exception.ErrorRecord.Exception -is [hashtable]) {
+                # nothing
+            }
+            # If the catch received the hashtable we threw above, extract it from $_.Exception
+            if ($_.Exception -and $_.Exception -isnot [System.String]) {
+                try {
+                    $maybe = $_.Exception.ToString() | Out-String
+                    # attempt to parse our thrown hashtable by looking for the Exit code marker in the string
+                    if ($maybe -match 'Exit =') {
+                        $output = ($maybe)
+                    }
+                }
+                catch {}
+            }
+            # Also try to get pipeline output if available
+            if (-not $output -and (Get-Variable -Name global:buildOutput -Scope Global -ErrorAction SilentlyContinue)) { $output = ($global:buildOutput -join "`n") }
+
+            # If vcpkg headers/libs are missing, attempt a forced vcpkg install once
+            if (-not $didForceVcpkg -and (($message -match 'Cannot open include file') -or ($message -match "No such file or directory") -or ($output -and $output -match 'Cannot open include file') -or ($output -and $output -match 'No such file or directory') -or ($output -and $output -match 'yyjson') -or ($output -and $output -match 'sqlite3') )) {
+                Write-Host "Detected missing vcpkg headers/libraries (message: $message). Forcing vcpkg install and retrying..." -ForegroundColor Yellow
+                try {
+                    $forcedOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File .\build.ps1 -Configuration MinSizeRel -ForceVcpkg -SkipTests 2>&1
+                    $forcedExit = $LASTEXITCODE
+                    if ($forcedExit -ne 0) { throw "Forced vcpkg install + build exited with code $forcedExit.`n$($forcedOutput -join "`n")" }
+                    # If forced build succeeded, return
+                    return
+                }
+                catch {
+                    Write-Host "Forced vcpkg attempt failed: $($_.Exception.Message)" -ForegroundColor Yellow
+                    $didForceVcpkg = $true
+                    # fallthrough to normal retry logic
+                }
+            }
+
             if ($message -match 'Failed to take the filesystem lock') {
                 if ($attempt -eq $MaxAttempts) {
                     throw
