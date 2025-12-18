@@ -392,11 +392,10 @@ void show_running_notification(TrayState &state)
     info.uTimeout = 4500;
     wcsncpy_s(info.szInfoTitle, L"TinyTorrent running", _TRUNCATE);
     wcsncpy_s(info.szInfo,
-              L"TinyTorrent (Mica-aware glass UI) is ready. Use the tray icon "
-              L"to open the HUD.",
+              L"TinyTorrent is ready. Use the tray icon to open the HUD.",
               _TRUNCATE);
     Shell_NotifyIconW(NIM_MODIFY, &info);
-    set_tooltip(state, L"TinyTorrent (Mica-aware glass UI) is ready");
+    set_tooltip(state, L"TinyTorrent is ready");
 }
 
 void set_menu_item_text(HMENU menu, UINT id, wchar_t const *text)

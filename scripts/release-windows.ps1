@@ -289,7 +289,7 @@ function Invoke-BackendBuild {
 function Report-AppReady {
     param([Parameter(Mandatory)][string]$ExePath)
 
-    $status = "TinyTorrent (Mica-aware) ready at $ExePath"
+    $status = "TinyTorrent ready at $ExePath"
     if ($SkipLaunch -or ($env:CI -eq 'true')) {
         Write-Host $status -ForegroundColor Green
         Write-Host "Run the exe manually to see the frontend." -ForegroundColor Cyan
@@ -304,11 +304,11 @@ function Report-AppReady {
     catch {
         Write-Host $status -ForegroundColor Green
         Write-Host ("Unable to launch automatically: {0}" -f $_.Exception.Message) -ForegroundColor Yellow
-        Write-Host "Please start the executable manually to view the Mica UI." -ForegroundColor Cyan
+        Write-Host "Please start the executable manually to start the server and tray app." -ForegroundColor Cyan
     }
 }
 
-Write-Host "Building backend (MinSizeRel)..." -ForegroundColor Cyan
+Write-Host "Building backend (Release)..." -ForegroundColor Cyan
 Push-Location $backendDir
 try {
     Invoke-BackendBuild

@@ -7,7 +7,7 @@ This folder captures the TinyTorrent micro-engine described in `AGENTS.md`. The 
 - `meson.build` configures the `tt-engine` executable, keeps the same source set (engine, RPC, utils, embedded `mongoose.c`), and exposes the debug/release macros that the runtime expects.
 - `meson_options.txt` exposes `tt_enable_logging` and `tt_enable_tests` so the release build can disable logging/tests without touching the sources.
 - `tests/meson.build` reuses the daemon sources plus the test cases so the dispatch/RPC test binaries inherit the same flags and dependencies.
-- `setup.ps1` bootstraps vcpkg and installs the manifest dependencies (`libtorrent`, `sqlite3`, `yyjson`), while `build.ps1` now drives Meson + Ninja for both debug and MinSizeRel flows.
+- `setup.ps1` bootstraps vcpkg and installs the manifest dependencies (`libtorrent`, `sqlite3`, `yyjson`), while `build.ps1` now drives Meson + Ninja for both debug and release flows.
 
 ## Getting started
 
@@ -24,10 +24,10 @@ This folder captures the TinyTorrent micro-engine described in `AGENTS.md`. The 
 
 ### Visual Studio 2026
 
-Open the repository with VS2026 (File → Open → Folder). After running the build script, Visual Studio sees the generated `build/debug/build.ninja` file and you can build/debug `tt-engine` directly from the IDE (the debugger attaches to the same binary under `build/debug`). 4. When you need the size-optimized binary, rerun the wrapper with `MinSizeRel`. That configuration flips the macros/logging, uses the static CRT (`/MT`) with `/Os`, `/GL`, `/LTCG`, runs LTO/strip, links against the static `x64-windows-static` artifacts, and keeps the tests disabled:
+Open the repository with VS2026 (File → Open → Folder). After running the build script, Visual Studio sees the generated `build/debug/build.ninja` file and you can build/debug `tt-engine` directly from the IDE (the debugger attaches to the same binary under `build/debug`). 4. When you need the size-optimized binary, rerun the wrapper with `Release`. That configuration flips the macros/logging, uses the static CRT (`/MT`) with `/Os`, `/GL`, `/LTCG`, runs LTO/strip, links against the static `x64-windows-static` artifacts, and keeps the tests disabled:
 
 ```
-powershell -File build.ps1 -Configuration MinSizeRel
+powershell -File build.ps1 -Configuration Release
 ```
 
 ## Unified helper (`tt.ps1`)

@@ -177,8 +177,7 @@ function Print-Help {
     Write-Host ""
     Write-Host "Configurations:"
     Write-Host "  Debug        - MSVC AddressSanitizer build (default)."
-    Write-Host "  Release      - 64-bit release build (future, not implemented)."
-    Write-Host "  MinSizeRel   - MinSizeRel build with static CRT."
+    Write-Host "  Release      - Release build with static CRT."
     Write-Host ""
     Write-Host "Special keywords:"
     Write-Host "  clean        - wipe and rebuild current configuration."
@@ -197,7 +196,7 @@ function Print-Help {
     Write-Host "Examples:"
     Write-Host "  ./build.ps1             # default Debug build."
     Write-Host "  ./build.ps1 clean       # clean + Debug rebuild."
-    Write-Host "  ./build.ps1 MinSizeRel  # smallest release build."
+    Write-Host "  ./build.ps1 release     # 64-bit release build."
     Write-Host "  ./build.ps1 -ForceVcpkg # rebuild vcpkg packages first."
     Write-Host ""
     Write-Host "This script bootstraps vcpkg, runs Meson/Ninja, and optionally runs"
@@ -211,7 +210,7 @@ if ($Configuration.StartsWith('-')) {
         '--clean' { $Clean = $true; $Configuration = 'Debug' }
         '-c' { $Clean = $true; $Configuration = 'Debug' }
         default {
-            throw "Invalid option '$Configuration'. Valid options: Debug, Release, MinSizeRel, clean, help."
+            throw "Invalid option '$Configuration'. Valid options: Debug, Release, clean, help."
         }
     }
 }
@@ -229,14 +228,13 @@ else {
             $validConfigurations = @{
                 'debug'      = 'Debug'
                 'release'    = 'Release'
-                'minsizerel' = 'MinSizeRel'
             }
             $normalized = $Configuration.ToLowerInvariant()
             if ($validConfigurations.ContainsKey($normalized)) {
                 $Configuration = $validConfigurations[$normalized]
             }
             else {
-                throw "Invalid configuration '$Configuration'. Valid values: Debug, Release, MinSizeRel, clean, help."
+                throw "Invalid configuration '$Configuration'. Valid values: Debug, Release, clean, help."
             }
         }
     }
@@ -329,7 +327,7 @@ Write-Host "  Ninja: $ninjaVersion ($NinjaExe)"
 # 3. CONFIGURATION & AUTO-CLEAN
 # ==============================================================================
 
-if ($Configuration -eq 'Release') { $Configuration = 'MinSizeRel' }
+if ($Configuration -eq 'Release') { $Configuration = 'Release' }
 
 switch ($Configuration) {
     'Debug' {
@@ -348,9 +346,9 @@ switch ($Configuration) {
         $Strip = "false"
         $IsStatic = $false
     }
-    'MinSizeRel' {
+    'Release' {
         $BuildSubDir = "release"
-        $MesonType = "minsize"
+        $MesonType = "release"
         $VcpkgTrip = "x64-windows-static"
         $env:VCPKG_BUILD_TYPE = "release"
         $VsCrt = "mt"
