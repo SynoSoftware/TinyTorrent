@@ -717,7 +717,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int)
     state.nid.uID = 1;
     state.nid.uFlags = NIF_MESSAGE | NIF_TIP | NIF_ICON;
     state.nid.uCallbackMessage = kTrayCallbackMessage;
-    state.nid.hIcon = state.icon_idle ? state.icon_idle : LoadIconW(nullptr, IDI_APPLICATION);
+    state.nid.hIcon = state.icon_idle ? state.icon_idle : LoadIconW(nullptr, MAKEINTRESOURCEW(32512));
     wcsncpy_s(state.nid.szTip, L"TinyTorrent starting...", _TRUNCATE);
     Shell_NotifyIconW(NIM_ADD, &state.nid);
 

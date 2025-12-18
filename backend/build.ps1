@@ -1,5 +1,5 @@
 param(
-    [ValidateSet('Debug', 'Release', 'MinSizeRel')]
+    [Parameter(Position = 0)]
     [string]$Configuration = 'Debug',
     
     # Tool Overrides
@@ -12,7 +12,10 @@ param(
     # Safety: vcpkg is never deleted automatically. If you request deletion,
     # the script will show its size and require interactive confirmation.
     [switch]$DeleteVcpkg,
+    # Force re-run of vcpkg install even if the triplet cache is present.
+    [switch]$ForceVcpkg,
     [switch]$SkipTests,
+    [Alias('H')]
     [switch]$Help
 )
 
@@ -85,10 +88,78 @@ function Remove-FolderSafe {
     Write-Host "Deleted $DisplayName." -ForegroundColor Green
 }
 
+function Print-Help {
+    Write-Host "Usage: build.ps1 [Configuration|clean|help] [options]"
+    Write-Host ""
+    Write-Host "Configurations:"
+    Write-Host "  Debug        - MSVC AddressSanitizer build (default)."
+    Write-Host "  Release      - 64-bit release build (future, not implemented)."
+    Write-Host "  MinSizeRel   - MinSizeRel build with static CRT."
+    Write-Host ""
+    Write-Host "Special keywords:"
+    Write-Host "  clean        - wipe and rebuild current configuration."
+    Write-Host "  help, -h, --help, --clean, -c"
+    Write-Host ""
+    Write-Host "Options:"
+    Write-Host "  -MesonPath <path>    Override Meson executable path."
+    Write-Host "  -NinjaPath <path>    Override Ninja executable path."
+    Write-Host "  -VsWherePath <path>  Override vswhere.exe location."
+    Write-Host "  -Clean               Force blowing away the build directory."
+    Write-Host "  -DeleteVcpkg         Delete the vcpkg checkout (interactive confirm)."
+    Write-Host "  -ForceVcpkg          Reinstall vcpkg packages even when cached."
+    Write-Host "  -SkipTests           Build without running the test suite."
+    Write-Host "  -Help (-H)           Print this message."
+    Write-Host ""
+    Write-Host "Examples:"
+    Write-Host "  ./build.ps1             # default Debug build."
+    Write-Host "  ./build.ps1 clean       # clean + Debug rebuild."
+    Write-Host "  ./build.ps1 MinSizeRel  # smallest release build."
+    Write-Host "  ./build.ps1 -ForceVcpkg # rebuild vcpkg packages first."
+    Write-Host ""
+    Write-Host "This script bootstraps vcpkg, runs Meson/Ninja, and optionally runs"
+    Write-Host "the doctest suite. Pass -SkipTests to avoid long runtimes."
+}
+
+if ($Configuration.StartsWith('-')) {
+    switch ($Configuration.ToLowerInvariant()) {
+        '--help' { $Help = $true; $Configuration = 'Debug' }
+        '-h'     { $Help = $true; $Configuration = 'Debug' }
+        '--clean' { $Clean = $true; $Configuration = 'Debug' }
+        '-c'     { $Clean = $true; $Configuration = 'Debug' }
+        default {
+            throw "Invalid option '$Configuration'. Valid options: Debug, Release, MinSizeRel, clean, help."
+        }
+    }
+}
+else {
+    switch ($Configuration.ToLowerInvariant()) {
+        'clean' {
+            $Clean = $true
+            $Configuration = 'Debug'
+        }
+        'help' {
+            $Help = $true
+            $Configuration = 'Debug'
+        }
+        default {
+            $validConfigurations = @{
+                'debug' = 'Debug'
+                'release' = 'Release'
+                'minsizerel' = 'MinSizeRel'
+            }
+            $normalized = $Configuration.ToLowerInvariant()
+            if ($validConfigurations.ContainsKey($normalized)) {
+                $Configuration = $validConfigurations[$normalized]
+            }
+            else {
+                throw "Invalid configuration '$Configuration'. Valid values: Debug, Release, MinSizeRel, clean, help."
+            }
+        }
+    }
+}
+
 if ($Help) {
-    Write-Host "TinyTorrent Build Script (Final)"
-    Write-Host "Features: Auto-Discovery (User+System), Auto-Clean (Marker), Full Logging."
-    Write-Host "Safety: vcpkg is never deleted automatically; use -DeleteVcpkg to request deletion (interactive confirm)."
+    Print-Help
     exit 0
 }
 
@@ -248,6 +319,9 @@ $RepoRoot = $PSScriptRoot
 $BuildDir = Join-Path $RepoRoot "build\$BuildSubDir"
 $VcpkgDir = Join-Path $RepoRoot "vcpkg"
 $VcpkgExe = Join-Path $VcpkgDir "vcpkg.exe"
+$VcpkgInstallRoot = Join-Path $RepoRoot "vcpkg_installed"
+$TripletRoot = Join-Path $VcpkgInstallRoot $VcpkgTrip
+$TripletReadyMarker = Join-Path $TripletRoot ".installed.marker"
 
 if ($DeleteVcpkg) {
     Remove-FolderSafe -Path $VcpkgDir -DisplayName 'vcpkg' -PromptAboveBytes $PromptOnDeleteAboveBytes -ForcePrompt
@@ -290,7 +364,14 @@ if (Test-Path $VcpkgDir) {
 else { throw "Vcpkg directory missing." }
 
 $env:VCPKG_DEFAULT_TRIPLET = $VcpkgTrip
-$VcpkgInstallRoot = Join-Path $RepoRoot "vcpkg_installed"
+
+function Test-VcpkgTripletReady {
+    $statusFile = Join-Path (Join-Path $VcpkgInstallRoot "vcpkg") "status"
+    $hasStatus = Test-Path -LiteralPath $statusFile
+    $hasMarker = Test-Path -LiteralPath $TripletReadyMarker
+    $hasTripletContent = Test-Path -LiteralPath $TripletRoot
+    return ($hasMarker -and $hasStatus -and $hasTripletContent)
+}
 
 function Invoke-VcpkgInstall {
     param(
@@ -336,7 +417,16 @@ function Invoke-VcpkgInstall {
 
 Push-Location $VcpkgDir
 try {
-    Invoke-VcpkgInstall
+    if ($ForceVcpkg -or -not (Test-VcpkgTripletReady)) {
+        Invoke-VcpkgInstall
+        if (-not (Test-Path -LiteralPath $TripletRoot)) {
+            New-Item -ItemType Directory -Path $TripletRoot -Force | Out-Null
+        }
+        Set-Content -LiteralPath $TripletReadyMarker -Value (Get-Date).ToString('o')
+    }
+    else {
+        Write-Host "Skipping vcpkg install (cached triplet detected: $VcpkgTrip)." -ForegroundColor Cyan
+    }
 }
 finally { Pop-Location }
 
@@ -346,9 +436,7 @@ finally { Pop-Location }
 
 $TripletInstallDir = Join-Path $VcpkgInstallRoot $VcpkgTrip
 $env:CMAKE_PREFIX_PATH = "$TripletInstallDir;$TripletInstallDir\share;$env:CMAKE_PREFIX_PATH"
-
-$MesonArgs = @(
-    "setup", $BuildDir,
+$MesonOptions = @(
     "--backend=ninja",
     "--buildtype=$MesonType",
     "-Db_vscrt=$VsCrt",
@@ -358,14 +446,16 @@ $MesonArgs = @(
     "-Dtt_enable_tests=$($(-not $SkipTests).ToString().ToLower())",
     "-Dstrip=$Strip"
 )
+$MesonBaseArgs = @("setup") + $MesonOptions
+$MesonSourceDir = $RepoRoot
 
 if (Test-Path "$BuildDir\build.ninja") {
     Write-Host "Reconfiguring..." -ForegroundColor Cyan
-    Exec-Checked $MesonExe ($MesonArgs + "--reconfigure")
+    Exec-Checked $MesonExe ($MesonBaseArgs + @("--reconfigure", $BuildDir, $MesonSourceDir))
 }
 else {
     Write-Host "Configuring..." -ForegroundColor Cyan
-    Exec-Checked $MesonExe $MesonArgs
+    Exec-Checked $MesonExe ($MesonBaseArgs + @($BuildDir, $MesonSourceDir))
 }
 
 if (-not (Test-Path "$BuildDir\build.ninja")) { throw "Meson completed but 'build.ninja' is missing." }

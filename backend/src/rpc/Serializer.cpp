@@ -1292,7 +1292,8 @@ std::string serialize_system_install(SystemInstallResult const &result)
     yyjson_mut_obj_add_val(native, arguments, "shortcuts", shortcut_obj);
     for (auto const &[location, path] : result.shortcuts)
     {
-        yyjson_mut_obj_add_str(shortcut_obj, location.c_str(), path.c_str());
+        yyjson_mut_obj_add_str(native, shortcut_obj, location.c_str(),
+                               path.c_str());
     }
 
     if (result.install_requested)

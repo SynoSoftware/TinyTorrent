@@ -547,10 +547,17 @@ Server::Server(engine::Core *engine, std::string bind_url,
         }
     }
     last_ping_time_ = std::chrono::steady_clock::now();
-    if (options_.token)
+    if (!connection_info_)
     {
         connection_info_.emplace();
+    }
+    if (options_.token)
+    {
         connection_info_->token = *options_.token;
+    }
+    else
+    {
+        connection_info_->token.clear();
     }
     if (engine_)
     {
@@ -613,11 +620,8 @@ void Server::stop()
         return;
     }
 
-    if (listener_ != nullptr)
-    {
-        mg_close_conn(listener_);
-        listener_ = nullptr;
-    }
+    auto *listener = listener_;
+    listener_ = nullptr;
     mg_wakeup(&mgr_, 0, nullptr, 0);
 
     // Only broadcast shutdown event if we're not destroying the Server
@@ -632,6 +636,11 @@ void Server::stop()
     if (worker_.joinable())
     {
         worker_.join();
+    }
+
+    if (listener != nullptr)
+    {
+        mg_close_conn(listener);
     }
 }
 void Server::run_loop()

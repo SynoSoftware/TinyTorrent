@@ -34,6 +34,7 @@ tt_c_args = ['/DMG_ENABLE_PACKED_FS=1']
 tt_link_args = ['Ws2_32.lib']
 if host_machine.system() == 'windows'
   tt_link_args += 'Advapi32.lib'
+  tt_link_args += 'Winhttp.lib'
 endif
 if is_minsize
   tt_cpp_args += ['/Os', '/GL', '/MT']

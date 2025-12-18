@@ -4,6 +4,8 @@
 
 #include <atomic>
 #include <chrono>
+#include <cstdlib>
+#include <cstdint>
 #include <exception>
 #include <future>
 #include <optional>
@@ -22,20 +24,60 @@ using namespace tt::tests;
 
 constexpr std::string_view kRpcPath = "/transmission/rpc";
 
-// Support dynamic port via environment variable TT_TEST_PORT
-// Defaults to 8086 for backward compatibility
-std::string get_test_port()
+std::uint16_t parse_test_port_env()
 {
     const char *env_port = std::getenv("TT_TEST_PORT");
-    return env_port ? std::string(env_port) : "8086";
+    if (env_port == nullptr)
+    {
+        return 0;
+    }
+    try
+    {
+        int value = std::stoi(env_port);
+        if (value >= 0 && value <= 65535)
+        {
+            return static_cast<std::uint16_t>(value);
+        }
+    }
+    catch (...)
+    {
+    }
+    return 0;
 }
 
-std::string kHostHeader = "127.0.0.1:" + get_test_port();
-std::string kServerUrl = "http://127.0.0.1:" + get_test_port();
-
-std::string get_ws_url(const std::string &path = "")
+std::string get_bind_url()
 {
-    return "ws://127.0.0.1:" + get_test_port() + "/ws" + path;
+    return std::string("http://127.0.0.1:") + std::to_string(parse_test_port_env());
+}
+
+std::string build_server_url(std::uint16_t port)
+{
+    return std::string("http://127.0.0.1:") + std::to_string(port);
+}
+
+std::string build_host_header(std::uint16_t port)
+{
+    return std::string("127.0.0.1:") + std::to_string(port);
+}
+
+std::string build_ws_url(std::uint16_t port, std::string_view suffix = {})
+{
+    std::string url = std::string("ws://127.0.0.1:") + std::to_string(port) +
+                      "/ws";
+    if (!suffix.empty())
+    {
+        url += suffix;
+    }
+    return url;
+}
+
+std::uint16_t resolve_server_port(tt::rpc::Server const &server)
+{
+    if (auto info = server.connection_info(); info && info->port != 0)
+    {
+        return info->port;
+    }
+    throw std::runtime_error("RPC server port unavailable");
 }
 
 struct HttpTestContext
@@ -198,7 +240,8 @@ void ws_client_handler(struct mg_connection *conn, int ev, void *ev_data)
     }
 }
 
-std::string build_http_request(std::string_view payload,
+std::string build_http_request(std::string const &host_header,
+                               std::string_view payload,
                                std::string const &session_id = {},
                                std::string const &extra_headers = {})
 {
@@ -207,7 +250,7 @@ std::string build_http_request(std::string_view payload,
     request += "POST ";
     request += kRpcPath;
     request += " HTTP/1.1\r\nHost: ";
-    request += kHostHeader;
+    request += host_header;
     request += "\r\nContent-Type: application/json\r\nContent-Length: ";
     request += std::to_string(payload.size());
     if (!session_id.empty())
@@ -238,16 +281,19 @@ struct RpcResponse
     std::string session_id;
 };
 
-RpcResponse send_rpc_request_once(std::string_view payload,
+RpcResponse send_rpc_request_once(std::string const &server_url,
+                                  std::string const &host_header,
+                                  std::string_view payload,
                                   std::string const &session_id = {},
                                   std::string const &extra_headers = {})
 {
-    auto request = build_http_request(payload, session_id, extra_headers);
+    auto request = build_http_request(host_header, payload, session_id,
+                                      extra_headers);
     HttpTestContext context(std::move(request));
     mg_mgr mgr;
     mg_mgr_init(&mgr);
-    struct mg_connection *conn =
-        mg_http_connect(&mgr, kServerUrl.data(), http_client_handler, &context);
+    struct mg_connection *conn = mg_http_connect(
+        &mgr, server_url.c_str(), http_client_handler, &context);
     if (conn != nullptr)
     {
         conn->fn_data = &context;
@@ -283,18 +329,21 @@ RpcResponse send_rpc_request_once(std::string_view payload,
     return response;
 }
 
-std::string send_rpc_request(std::string_view payload,
+std::string send_rpc_request(std::string const &server_url,
+                             std::string const &host_header,
+                             std::string_view payload,
                              std::string const &extra_headers = {})
 {
-    auto response = send_rpc_request_once(payload, {}, extra_headers);
+    auto response = send_rpc_request_once(server_url, host_header, payload, {},
+                                          extra_headers);
     if (response.status_code == 409)
     {
         if (response.session_id.empty())
         {
             throw std::runtime_error("session handshake missing header");
         }
-        response =
-            send_rpc_request_once(payload, response.session_id, extra_headers);
+        response = send_rpc_request_once(server_url, host_header, payload,
+                                         response.session_id, extra_headers);
     }
     if (response.status_code != 200)
     {
@@ -378,18 +427,22 @@ struct ServerGuard
 
 TEST_CASE("rpc endpoint handles session-set and unsupported method")
 {
-    tt::rpc::Server server{nullptr, std::string{kServerUrl}};
+    tt::rpc::Server server{nullptr, get_bind_url()};
     server.start();
     ServerGuard guard{server};
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    auto port = resolve_server_port(server);
+    auto server_url = build_server_url(port);
+    auto host_header = build_host_header(port);
 
     auto session_set_response = send_rpc_request(
+        server_url, host_header,
         R"({"method":"session-set","arguments":{"download-dir":"."}})");
     ResponseView set_view{session_set_response};
     CHECK(set_view.result() == "success");
 
-    auto unsupported_response =
-        send_rpc_request(R"({"method":"does-not-exist","arguments":{}})");
+    auto unsupported_response = send_rpc_request(
+        server_url, host_header, R"({"method":"does-not-exist","arguments":{}})");
     ResponseView unsupported_view{unsupported_response};
     CHECK(unsupported_view.result() == "error");
     expect_argument(unsupported_view, "message", "unsupported method");
@@ -399,18 +452,22 @@ TEST_CASE("rpc endpoint enforces token authentication when configured")
 {
     tt::rpc::ServerOptions options;
     options.token = "rpc-secret";
-    tt::rpc::Server server{nullptr, std::string{kServerUrl}, options};
+    tt::rpc::Server server{nullptr, get_bind_url(), options};
     server.start();
     ServerGuard guard{server};
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    auto port = resolve_server_port(server);
+    auto server_url = build_server_url(port);
+    auto host_header = build_host_header(port);
 
-    auto unauthenticated =
-        send_rpc_request_once(R"({"method":"session-get","arguments":{}})");
+    auto unauthenticated = send_rpc_request_once(
+        server_url, host_header,
+        R"({"method":"session-get","arguments":{}})");
     CHECK(unauthenticated.status_code == 401);
 
-    auto authorized =
-        send_rpc_request(R"({"method":"session-get","arguments":{}})",
-                         std::string("X-TT-Auth: rpc-secret\r\n"));
+    auto authorized = send_rpc_request(
+        server_url, host_header, R"({"method":"session-get","arguments":{}})",
+        std::string("X-TT-Auth: rpc-secret\r\n"));
     ResponseView auth_view{authorized};
     CHECK(auth_view.result() == "success");
 }
@@ -419,29 +476,32 @@ TEST_CASE("websocket handshake enforces token authentication")
 {
     tt::rpc::ServerOptions options;
     options.token = "rpc-secret";
-    tt::rpc::Server server{nullptr, std::string{kServerUrl}, options};
+    tt::rpc::Server server{nullptr, get_bind_url(), options};
     server.start();
     ServerGuard guard{server};
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    auto port = resolve_server_port(server);
+    auto ws_base_url = build_ws_url(port);
 
     WsTestContext missing_token;
-    run_ws_client(missing_token, get_ws_url());
+    run_ws_client(missing_token, ws_base_url);
     CHECK(!missing_token.handshake_success);
 
     WsTestContext with_token;
-    run_ws_client(with_token, get_ws_url("?token=rpc-secret"));
+    run_ws_client(with_token, build_ws_url(port, "?token=rpc-secret"));
     CHECK(with_token.handshake_success);
 }
 
 TEST_CASE("websocket snapshot is delivered on connect")
 {
-    tt::rpc::Server server{nullptr, std::string{kServerUrl}};
+    tt::rpc::Server server{nullptr, get_bind_url()};
     server.start();
     ServerGuard guard{server};
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    auto port = resolve_server_port(server);
 
     WsTestContext ctx;
-    run_ws_client(ctx, get_ws_url(), std::nullopt, true);
+    run_ws_client(ctx, build_ws_url(port), std::nullopt, true);
     CHECK(ctx.handshake_success);
     CHECK(ctx.message_received);
 

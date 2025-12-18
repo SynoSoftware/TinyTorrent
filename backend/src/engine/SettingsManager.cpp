@@ -1,5 +1,6 @@
 #include "engine/SettingsManager.hpp"
 
+#include "libtorrent/partfile_extension.hpp"
 #include "utils/Log.hpp"
 #include <algorithm>
 #include <cstdio>
@@ -196,18 +197,10 @@ void SettingsManager::apply_partfile(CoreSettings const &s,
                                      libtorrent::settings_pack &pack,
                                      libtorrent::settings_pack *current)
 {
-    auto extension =
+    auto const extension =
         s.rename_partial_files ? kPartfileExtension : kDefaultPartfileExtension;
-    pack.set_bool(libtorrent::settings_pack::use_partfile,
-                  s.rename_partial_files);
-    pack.set_str(libtorrent::settings_pack::partfile_extension, extension);
-    if (current)
-    {
-        current->set_bool(libtorrent::settings_pack::use_partfile,
-                          s.rename_partial_files);
-        current->set_str(libtorrent::settings_pack::partfile_extension,
-                         extension);
-    }
+    (void)current;
+    libtorrent::tt::set_partfile_extension(extension);
 }
 
 void SettingsManager::apply_queue(CoreSettings const &s,
