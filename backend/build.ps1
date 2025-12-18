@@ -21,6 +21,33 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+# Shim: make Write-Host also write to stdout so outer process captures it when
+# this script is run with stdout/stderr redirected (Start-Process -Redirect...).
+function Write-Host {
+    param(
+        [Parameter(ValueFromRemainingArguments = $true)]
+        [object[]]$Args
+    )
+    $named = $PSBoundParameters
+    try {
+        if ($named -and $named.Count -gt 0) {
+            & Microsoft.PowerShell.Utility\Write-Host @named @Args
+        }
+        else {
+            & Microsoft.PowerShell.Utility\Write-Host @Args
+        }
+    }
+    catch {
+        # Fall back to builtin call if splatting fails
+        & Microsoft.PowerShell.Utility\Write-Host @Args
+    }
+    # Also write a plain-text representation to stdout so redirection captures it.
+    try {
+        if ($Args) { [Console]::Out.WriteLine(($Args -join ' ')) }
+    }
+    catch {}
+}
+
 # --- Tool Discovery & Polyfill ---
 $repoRoot = if ($PSScriptRoot) { (Resolve-Path (Join-Path $PSScriptRoot '..') -ErrorAction SilentlyContinue).Path } else { $null }
 $helper = if ($repoRoot) { Join-Path $repoRoot 'scripts\everything.ps1' } else { $null }
@@ -169,9 +196,9 @@ function Print-Help {
 if ($Configuration.StartsWith('-')) {
     switch ($Configuration.ToLowerInvariant()) {
         '--help' { $Help = $true; $Configuration = 'Debug' }
-        '-h'     { $Help = $true; $Configuration = 'Debug' }
+        '-h' { $Help = $true; $Configuration = 'Debug' }
         '--clean' { $Clean = $true; $Configuration = 'Debug' }
-        '-c'     { $Clean = $true; $Configuration = 'Debug' }
+        '-c' { $Clean = $true; $Configuration = 'Debug' }
         default {
             throw "Invalid option '$Configuration'. Valid options: Debug, Release, MinSizeRel, clean, help."
         }
@@ -189,8 +216,8 @@ else {
         }
         default {
             $validConfigurations = @{
-                'debug' = 'Debug'
-                'release' = 'Release'
+                'debug'      = 'Debug'
+                'release'    = 'Release'
                 'minsizerel' = 'MinSizeRel'
             }
             $normalized = $Configuration.ToLowerInvariant()
@@ -302,6 +329,7 @@ switch ($Configuration) {
         # libtorrent settings_pack::set_str.
         # Use a release-only dynamic triplet to keep CRT + STL ABI consistent.
         $VcpkgTrip = "x64-windows-asan"
+        $env:VCPKG_BUILD_TYPE = "release"
         $VsCrt = "md"
         $Sanitize = "address"
         $Logging = "true"
@@ -313,6 +341,7 @@ switch ($Configuration) {
         $BuildSubDir = "release"
         $MesonType = "minsize"
         $VcpkgTrip = "x64-windows-static"
+        $env:VCPKG_BUILD_TYPE = "release"
         $VsCrt = "mt"
         $Sanitize = "none"
         $Logging = "false"
@@ -377,7 +406,26 @@ function Test-VcpkgTripletReady {
     $hasStatus = Test-Path -LiteralPath $statusFile
     $hasMarker = Test-Path -LiteralPath $TripletReadyMarker
     $hasTripletContent = Test-Path -LiteralPath $TripletRoot
-    return ($hasMarker -and $hasStatus -and $hasTripletContent)
+
+    if (-not ($hasMarker -and $hasStatus -and $hasTripletContent)) {
+        return $false
+    }
+
+    # Sanity check: ensure ALL expected headers from core deps exist.
+    $expectedHeaders = @(
+        "libtorrent/session.hpp",
+        "yyjson.h",
+        "sqlite3.h"
+    )
+    foreach ($h in $expectedHeaders) {
+        $p = Join-Path $TripletRoot (Join-Path 'include' $h)
+        if (-not (Test-Path -LiteralPath $p)) {
+            Write-Host "Missing expected header: $h (at $p)" -ForegroundColor Yellow
+            return $false
+        }
+    }
+
+    return $true
 }
 
 function Invoke-VcpkgInstall {
