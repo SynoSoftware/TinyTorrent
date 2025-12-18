@@ -14,6 +14,7 @@
 #include <chrono>
 #include <future>
 #include <iomanip>
+#include <memory>
 #include <mutex>
 #include <sstream>
 #include <string>
@@ -642,31 +643,32 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int)
         return 1;
     }
 
-    TrayState state;
-    state.hwnd = hwnd;
-    state.open_url = std::move(url);
-    state.port = static_cast<unsigned short>(info.port);
-    state.token = info.token;
+    auto state = std::make_unique<TrayState>();
+    state->hwnd = hwnd;
+    state->open_url = std::move(url);
+    state->port = static_cast<unsigned short>(info.port);
+    state->token = info.token;
 
-    state.icon = tray_icon;
-    SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(&state));
+    state->icon = tray_icon;
+    SetWindowLongPtrW(hwnd, GWLP_USERDATA,
+                      reinterpret_cast<LONG_PTR>(state.get()));
 
-    build_menu(state);
+    build_menu(*state);
 
-    state.nid.cbSize = sizeof(state.nid);
-    state.nid.hWnd = hwnd;
-    state.nid.uID = 1;
-    state.nid.uFlags = NIF_MESSAGE | NIF_TIP | NIF_ICON;
-    state.nid.uCallbackMessage = kTrayCallbackMessage;
-    state.nid.hIcon =
-        state.icon ? state.icon : LoadIconW(nullptr, MAKEINTRESOURCEW(32512));
-    wcsncpy_s(state.nid.szTip, L"TinyTorrent starting...", _TRUNCATE);
-    Shell_NotifyIconW(NIM_ADD, &state.nid);
-    show_running_notification(state);
+    state->nid.cbSize = sizeof(state->nid);
+    state->nid.hWnd = hwnd;
+    state->nid.uID = 1;
+    state->nid.uFlags = NIF_MESSAGE | NIF_TIP | NIF_ICON;
+    state->nid.uCallbackMessage = kTrayCallbackMessage;
+    state->nid.hIcon =
+        state->icon ? state->icon : LoadIconW(nullptr, MAKEINTRESOURCEW(32512));
+    wcsncpy_s(state->nid.szTip, L"TinyTorrent starting...", _TRUNCATE);
+    Shell_NotifyIconW(NIM_ADD, &state->nid);
+    show_running_notification(*state);
 
-    state.running.store(true);
-    state.status_thread = std::thread(
-        [state_ptr = &state]()
+    state->running.store(true);
+    state->status_thread = std::thread(
+        [state_ptr = state.get()]()
         {
             while (state_ptr->running.load())
             {
@@ -696,20 +698,22 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int)
         DispatchMessageW(&message);
     }
 
-    state.running.store(false);
-    if (state.status_thread.joinable())
+    state->running.store(false);
+    if (state->status_thread.joinable())
     {
-        state.status_thread.join();
+        state->status_thread.join();
     }
-    cleanup_http_handles(state);
+    cleanup_http_handles(*state);
     tt::runtime::request_shutdown();
     if (daemon_thread.joinable())
     {
         daemon_thread.join();
     }
 
-    if (state.icon)
-        DestroyIcon(state.icon);
+    if (state->icon)
+    {
+        DestroyIcon(state->icon);
+    }
 
     return 0;
 }

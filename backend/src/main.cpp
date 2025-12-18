@@ -399,6 +399,20 @@ int daemon_main(int argc, char *argv[],
         }
     };
 
+    auto ensure_directory = [&](std::filesystem::path const &path,
+                                char const *description) -> bool
+    {
+        std::error_code ec;
+        std::filesystem::create_directories(path, ec);
+        if (ec)
+        {
+            TT_LOG_ERROR("Failed to create {} ({}): {}", description,
+                         path.string(), ec.message());
+            return false;
+        }
+        return true;
+    };
+
     std::string listen_interface =
         read_db_string("listenInterface").value_or("0.0.0.0:6881");
     if (auto env = read_env("TT_PEER_INTERFACE"); env)
@@ -426,11 +440,15 @@ int daemon_main(int argc, char *argv[],
     auto persisted_download =
         read_db_string("downloadPath").value_or(path_to_utf8(download_path));
     download_path = std::filesystem::u8path(persisted_download);
-    std::filesystem::create_directories(download_path);
+    if (!ensure_directory(download_path, "download path"))
+    {
+        download_path = root / "downloads";
+        ensure_directory(download_path, "default download path");
+    }
     set_db_setting("downloadPath", path_to_utf8(download_path));
 
     auto blocklist_dir = root / "blocklists";
-    std::filesystem::create_directories(blocklist_dir);
+    ensure_directory(blocklist_dir, "blocklist directory");
 
     TT_LOG_INFO("Data root: {}", root.string());
     TT_LOG_INFO("Download path: {}", download_path.string());
