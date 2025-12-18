@@ -61,28 +61,78 @@ constexpr UINT kStatusUpdateMessage = WM_APP + 2;
 constexpr wchar_t kRpcHost[] = L"127.0.0.1";
 constexpr wchar_t kRpcEndpoint[] = L"/transmission/rpc";
 
+// ===== Undocumented compositor API =====
+
+enum ACCENT_STATE
+{
+    ACCENT_DISABLED = 0,
+    ACCENT_ENABLE_GRADIENT = 1,
+    ACCENT_ENABLE_TRANSPARENTGRADIENT = 2,
+    ACCENT_ENABLE_BLURBEHIND = 3,
+    ACCENT_ENABLE_ACRYLICBLURBEHIND = 4,
+    ACCENT_ENABLE_HOSTBACKDROP = 5
+};
+
+struct ACCENT_POLICY
+{
+    ACCENT_STATE AccentState;
+    DWORD AccentFlags;
+    DWORD GradientColor;
+    DWORD AnimationId;
+};
+
+enum WINDOWCOMPOSITIONATTRIB
+{
+    WCA_UNDEFINED = 0,
+    WCA_ACCENT_POLICY = 19
+};
+
+struct WINDOWCOMPOSITIONATTRIBDATA
+{
+    WINDOWCOMPOSITIONATTRIB Attrib;
+    PVOID pvData;
+    SIZE_T cbData;
+};
+
+using SetWindowCompositionAttributeFn =
+    BOOL(WINAPI *)(HWND, WINDOWCOMPOSITIONATTRIBDATA *);
+
 struct SplashWindow
 {
     HWND hwnd = nullptr;
     HICON icon = nullptr;
 };
 
-void apply_mica_backdrop(HWND hwnd)
+void apply_rounded_corners(HWND hwnd)
 {
     if (!hwnd)
         return;
 
-    // Enable dark titlebar / non-client area (Win10 1903+, Win11)
-    BOOL dark = TRUE;
-    DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &dark,
-                          sizeof(dark));
+    const DWM_WINDOW_CORNER_PREFERENCE pref = DWMWCP_ROUND;
+    DwmSetWindowAttribute(hwnd,
+                          DWMWA_WINDOW_CORNER_PREFERENCE, // = 33
+                          &pref, sizeof(pref));
+}
 
-    // Enable Mica backdrop (Win11)
-    // const DWORD backdrop = kBackdropMainWindow;
-    const DWORD backdrop = DWMSBT_TRANSIENTWINDOW;
+void enable_acrylic(HWND hwnd)
+{
+    if (!hwnd)
+        return;
+    HMODULE hUser32 = GetModuleHandleW(L"user32.dll");
+    auto fn = (SetWindowCompositionAttributeFn)GetProcAddress(
+        hUser32, "SetWindowCompositionAttribute");
 
-    DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, &backdrop,
-                          sizeof(backdrop));
+    if (!fn)
+        return;
+
+    ACCENT_POLICY policy{};
+    policy.AccentState = ACCENT_ENABLE_BLURBEHIND;
+    policy.GradientColor = 0xCCFFFFFF; // light tint, 80% opacity
+
+    WINDOWCOMPOSITIONATTRIBDATA data{WCA_ACCENT_POLICY, &policy,
+                                     sizeof(policy)};
+
+    fn(hwnd, &data);
 }
 
 LRESULT CALLBACK SplashProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
@@ -98,44 +148,20 @@ LRESULT CALLBACK SplashProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
         PAINTSTRUCT ps;
         HDC hdc = BeginPaint(hwnd, &ps);
 
-        RECT rc;
-        GetClientRect(hwnd, &rc);
-
-        // Solid black background (mica still applies behind)
-        HBRUSH brush = CreateSolidBrush(RGB(0, 0, 0));
-        FillRect(hdc, &rc, brush);
-        DeleteObject(brush);
-
-        HICON icon =
-            reinterpret_cast<HICON>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
-
+        // draw icon only
+        HICON icon = (HICON)GetWindowLongPtrW(hwnd, GWLP_USERDATA);
         if (icon)
         {
-            // Get icon intrinsic size
-            ICONINFO ii{};
-            if (GetIconInfo(icon, &ii))
-            {
-                BITMAP bm{};
-                GetObject(ii.hbmColor, sizeof(bm), &bm);
+            RECT rc;
+            GetClientRect(hwnd, &rc);
 
-                int icon_px = bm.bmWidth; // square icon
+            UINT dpi = GetDpiForWindow(hwnd);
+            int size = MulDiv(256, dpi, 96);
 
-                // DPI scale
-                UINT dpi = GetDpiForWindow(hwnd);
-                int scaled = MulDiv(icon_px, dpi, 96);
+            int x = (rc.right - size) / 2;
+            int y = (rc.bottom - size) / 2;
 
-                int width = rc.right - rc.left;
-                int height = rc.bottom - rc.top;
-
-                int x = (width - scaled) / 2;
-                int y = (height - scaled) / 2;
-
-                DrawIconEx(hdc, x, y, icon, scaled, scaled, 0, nullptr,
-                           DI_NORMAL);
-
-                DeleteObject(ii.hbmColor);
-                DeleteObject(ii.hbmMask);
-            }
+            DrawIconEx(hdc, x, y, icon, size, size, 0, NULL, DI_NORMAL);
         }
 
         EndPaint(hwnd, &ps);
@@ -163,10 +189,10 @@ SplashWindow create_splash_window(HINSTANCE instance, HICON icon)
     wc.hCursor = LoadCursorW(nullptr, MAKEINTRESOURCEW(32512));
     RegisterClassExW(&wc);
 
-    constexpr int kWidth = 520;
+    constexpr int kWidth = 320;
     constexpr int kHeight = 320;
     RECT area{0, 0, kWidth, kHeight};
-    AdjustWindowRectEx(&area, WS_POPUP, FALSE, WS_EX_TOOLWINDOW);
+    AdjustWindowRectEx(&area, WS_POPUP, FALSE, WS_EX_APPWINDOW);
     int width = area.right - area.left;
     int height = area.bottom - area.top;
 
@@ -175,9 +201,10 @@ SplashWindow create_splash_window(HINSTANCE instance, HICON icon)
     int x = (screen_w - width) / 2;
     int y = (screen_h - height) / 2;
 
-    splash.hwnd = CreateWindowExW(WS_EX_TOOLWINDOW, wc.lpszClassName,
-                                  L"TinyTorrent", WS_POPUP, x, y, width, height,
-                                  nullptr, nullptr, instance, nullptr);
+    splash.hwnd =
+        CreateWindowExW(WS_EX_APPWINDOW, wc.lpszClassName, L"TinyTorrent",
+                        WS_POPUP | WS_VISIBLE, x, y, width, height, nullptr,
+                        nullptr, instance, nullptr);
     if (!splash.hwnd)
     {
         return splash;
@@ -185,7 +212,8 @@ SplashWindow create_splash_window(HINSTANCE instance, HICON icon)
 
     SetWindowLongPtrW(splash.hwnd, GWLP_USERDATA,
                       reinterpret_cast<LONG_PTR>(icon));
-    apply_mica_backdrop(splash.hwnd);
+    apply_rounded_corners(splash.hwnd);
+    enable_acrylic(splash.hwnd);
     ShowWindow(splash.hwnd, SW_SHOWNORMAL);
     UpdateWindow(splash.hwnd);
     splash.icon = icon;
@@ -303,19 +331,17 @@ void build_menu(TrayState &state)
 
     AppendMenuW(state.menu, MF_SEPARATOR, 0, nullptr);
 
-    AppendMenuW(state.menu, MF_STRING | MF_DISABLED, ID_STATUS_ACTIVE,
-                L"● 0 Active");
-    AppendMenuW(state.menu, MF_STRING | MF_DISABLED, ID_STATUS_DOWN, L"↓ 0");
-    AppendMenuW(state.menu, MF_STRING | MF_DISABLED, ID_STATUS_UP, L"↑ 0");
-
-    AppendMenuW(state.menu, MF_SEPARATOR, 0, nullptr);
-
     AppendMenuW(state.menu, MF_STRING, ID_OPEN_UI, L"Open UI");
 
     //    AppendMenuW(state.menu, MF_SEPARATOR, 0, nullptr);
 
     AppendMenuW(state.menu, MF_STRING, ID_PAUSE_RESUME, L"Pause");
+    AppendMenuW(state.menu, MF_SEPARATOR, 0, nullptr);
 
+    AppendMenuW(state.menu, MF_STRING | MF_DISABLED, ID_STATUS_ACTIVE,
+                L"● 0   ↓ 0   ↑ 0");
+    // AppendMenuW(state.menu, MF_STRING | MF_DISABLED, ID_STATUS_DOWN, L"↓ 0");
+    // AppendMenuW(state.menu, MF_STRING | MF_DISABLED, ID_STATUS_UP, L"↑ 0");
     AppendMenuW(state.menu, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(state.menu, MF_STRING, ID_EXIT, L"Exit");
 }
@@ -725,45 +751,47 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
             return 0;
         }
     case kStatusUpdateMessage:
+    {
         if (!state)
         {
             if (wparam)
-            {
                 delete reinterpret_cast<TrayStatus *>(wparam);
-            }
             return 0;
         }
+
+        auto *s = reinterpret_cast<TrayStatus *>(wparam);
+        if (!s)
+            return 0;
+
+        std::wstring down = format_rate(s->down);
+        std::wstring up = format_rate(s->up);
+
+        // Single-line compact status (menu-width safe)
+        std::wstring status = L"● " + std::to_wstring(s->active) + L"   ↓ " +
+                              down + L"   ↑ " + up;
+
+        set_menu_item_text(state->menu, ID_STATUS_ACTIVE, status.c_str());
+
+        // Tooltip can stay richer
+        std::wostringstream tip;
+        tip << L"TinyTorrent\n";
+        tip << L"↓ " << down << L"  ↑ " << up << L"\n";
+        tip << s->active << L" active • " << s->seeding << L" seeding";
+        set_tooltip(*state, tip.str().c_str());
+
+        state->paused_all.store(s->all_paused);
+        set_menu_item_text(state->menu, ID_PAUSE_RESUME,
+                           s->all_paused ? L"Resume" : L"Pause");
+
         {
-            auto *s = reinterpret_cast<TrayStatus *>(wparam);
-            if (!s)
-            {
-                return 0;
-            }
-
-            std::wstring down = format_rate(s->down);
-            std::wstring up = format_rate(s->up);
-            std::wostringstream tip;
-            tip << L"TinyTorrent\n";
-            tip << L"↓ " << down << L"  ↑ " << up << L"\n";
-            tip << s->active << L" active • " << s->seeding << L" seeding";
-
-            std::wstring tipstr = tip.str();
-            set_tooltip(*state, tipstr.c_str());
-
-            state->paused_all.store(s->all_paused);
-            {
-                std::lock_guard<std::mutex> lock(state->download_dir_mutex);
-                state->download_dir_cache = s->download_dir;
-            }
-            set_menu_item_text(state->menu, ID_PAUSE_RESUME,
-                               s->all_paused ? L"Resume" : L"Pause");
-            std::wstring speed_label =
-                L"Download: " + down + L" | Upload: " + up;
-            set_menu_item_text(state->menu, ID_SPEED_STATUS,
-                               speed_label.c_str());
-            delete s;
+            std::lock_guard<std::mutex> lock(state->download_dir_mutex);
+            state->download_dir_cache = s->download_dir;
         }
+
+        delete s;
         return 0;
+    }
+
     case WM_DESTROY:
         if (state)
         {
