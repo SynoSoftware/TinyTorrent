@@ -6,9 +6,11 @@
 #define NOMINMAX
 #endif
 #include <Windows.h>
+#include <dwmapi.h>
 #include <shellapi.h>
 #include <winhttp.h>
 
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <chrono>
@@ -27,6 +29,19 @@
 #include "tt_packed_fs_resource.h"
 #include "utils/Shutdown.hpp"
 
+#pragma comment(lib, "Dwmapi.lib")
+
+// Backdrop attributes available on Windows 11+.
+#ifndef DWMWA_SYSTEMBACKDROP_TYPE
+#define DWMWA_SYSTEMBACKDROP_TYPE 38
+#endif
+
+#ifndef DWMWA_USE_IMMERSIVE_DARK_MODE
+#define DWMWA_USE_IMMERSIVE_DARK_MODE 20
+#endif
+
+constexpr DWORD kBackdropMainWindow = 2;
+
 namespace
 {
 constexpr UINT ID_OPEN_UI = 1001;
@@ -36,18 +51,174 @@ constexpr UINT ID_SPEED_STATUS = 1004;
 constexpr UINT ID_PAUSE_RESUME = 1005;
 constexpr UINT ID_OPEN_DOWNLOADS = 1006;
 constexpr UINT ID_EXIT = 1007;
+constexpr UINT ID_STATUS_ACTIVE = 1010;
+constexpr UINT ID_STATUS_DOWN = 1011;
+constexpr UINT ID_STATUS_UP = 1012;
+constexpr UINT ID_SHOW_SPLASH = 1015;
 
 constexpr UINT kTrayCallbackMessage = WM_APP + 1;
 constexpr UINT kStatusUpdateMessage = WM_APP + 2;
 constexpr wchar_t kRpcHost[] = L"127.0.0.1";
 constexpr wchar_t kRpcEndpoint[] = L"/transmission/rpc";
 
+struct SplashWindow
+{
+    HWND hwnd = nullptr;
+    HICON icon = nullptr;
+};
+
+void apply_mica_backdrop(HWND hwnd)
+{
+    if (!hwnd)
+        return;
+
+    // Enable dark titlebar / non-client area (Win10 1903+, Win11)
+    BOOL dark = TRUE;
+    DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &dark,
+                          sizeof(dark));
+
+    // Enable Mica backdrop (Win11)
+    // const DWORD backdrop = kBackdropMainWindow;
+    const DWORD backdrop = DWMSBT_TRANSIENTWINDOW;
+
+    DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, &backdrop,
+                          sizeof(backdrop));
+}
+
+LRESULT CALLBACK SplashProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
+{
+    switch (msg)
+    {
+    case WM_CLOSE:
+        DestroyWindow(hwnd);
+        return 0;
+
+    case WM_PAINT:
+    {
+        PAINTSTRUCT ps;
+        HDC hdc = BeginPaint(hwnd, &ps);
+
+        RECT rc;
+        GetClientRect(hwnd, &rc);
+
+        // Solid black background (mica still applies behind)
+        HBRUSH brush = CreateSolidBrush(RGB(0, 0, 0));
+        FillRect(hdc, &rc, brush);
+        DeleteObject(brush);
+
+        HICON icon =
+            reinterpret_cast<HICON>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
+
+        if (icon)
+        {
+            // Get icon intrinsic size
+            ICONINFO ii{};
+            if (GetIconInfo(icon, &ii))
+            {
+                BITMAP bm{};
+                GetObject(ii.hbmColor, sizeof(bm), &bm);
+
+                int icon_px = bm.bmWidth; // square icon
+
+                // DPI scale
+                UINT dpi = GetDpiForWindow(hwnd);
+                int scaled = MulDiv(icon_px, dpi, 96);
+
+                int width = rc.right - rc.left;
+                int height = rc.bottom - rc.top;
+
+                int x = (width - scaled) / 2;
+                int y = (height - scaled) / 2;
+
+                DrawIconEx(hdc, x, y, icon, scaled, scaled, 0, nullptr,
+                           DI_NORMAL);
+
+                DeleteObject(ii.hbmColor);
+                DeleteObject(ii.hbmMask);
+            }
+        }
+
+        EndPaint(hwnd, &ps);
+        return 0;
+    }
+
+    case WM_NCHITTEST:
+        return HTCAPTION; // draggable splash
+
+    default:
+        return DefWindowProcW(hwnd, msg, wparam, lparam);
+    }
+}
+
+SplashWindow create_splash_window(HINSTANCE instance, HICON icon)
+{
+    SplashWindow splash;
+    WNDCLASSEXW wc{};
+    wc.cbSize = sizeof(wc);
+    wc.lpfnWndProc = SplashProc;
+    wc.hInstance = instance;
+    wc.lpszClassName = L"TinyTorrentSplash";
+    wc.hIcon = icon;
+    wc.hIconSm = icon;
+    wc.hCursor = LoadCursorW(nullptr, MAKEINTRESOURCEW(32512));
+    RegisterClassExW(&wc);
+
+    constexpr int kWidth = 520;
+    constexpr int kHeight = 320;
+    RECT area{0, 0, kWidth, kHeight};
+    AdjustWindowRectEx(&area, WS_POPUP, FALSE, WS_EX_TOOLWINDOW);
+    int width = area.right - area.left;
+    int height = area.bottom - area.top;
+
+    int screen_w = GetSystemMetrics(SM_CXSCREEN);
+    int screen_h = GetSystemMetrics(SM_CYSCREEN);
+    int x = (screen_w - width) / 2;
+    int y = (screen_h - height) / 2;
+
+    splash.hwnd = CreateWindowExW(WS_EX_TOOLWINDOW, wc.lpszClassName,
+                                  L"TinyTorrent", WS_POPUP, x, y, width, height,
+                                  nullptr, nullptr, instance, nullptr);
+    if (!splash.hwnd)
+    {
+        return splash;
+    }
+
+    SetWindowLongPtrW(splash.hwnd, GWLP_USERDATA,
+                      reinterpret_cast<LONG_PTR>(icon));
+    apply_mica_backdrop(splash.hwnd);
+    ShowWindow(splash.hwnd, SW_SHOWNORMAL);
+    UpdateWindow(splash.hwnd);
+    splash.icon = icon;
+    return splash;
+}
+
+void destroy_splash_window(SplashWindow &splash)
+{
+    if (splash.hwnd)
+    {
+        DestroyWindow(splash.hwnd);
+        splash.hwnd = nullptr;
+    }
+}
+
+void pump_messages()
+{
+    MSG msg;
+    while (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE))
+    {
+        TranslateMessage(&msg);
+        DispatchMessageW(&msg);
+    }
+}
+
 struct TrayState
 {
+    HINSTANCE hInstance = nullptr;
     HWND hwnd = nullptr;
     NOTIFYICONDATAW nid{};
     HMENU menu = nullptr;
     HICON icon = nullptr;
+    HICON large_icon = nullptr;
     std::wstring open_url;
     std::atomic_bool running{true};
     std::atomic_bool paused_all{false};
@@ -60,6 +231,17 @@ struct TrayState
     std::string download_dir_cache;
     std::mutex download_dir_mutex;
 };
+
+HICON load_large_icon()
+{
+    HMODULE module = GetModuleHandleW(nullptr);
+    if (!module)
+        return nullptr;
+
+    return static_cast<HICON>(
+        LoadImageW(module, MAKEINTRESOURCEW(IDI_TINYTORRENT), IMAGE_ICON, 256,
+                   256, LR_DEFAULTCOLOR));
+}
 
 HICON load_tray_icon()
 {
@@ -115,17 +297,25 @@ void open_browser(std::wstring const &url)
 void build_menu(TrayState &state)
 {
     state.menu = CreatePopupMenu();
+
+    AppendMenuW(state.menu, MF_STRING, ID_SHOW_SPLASH, L"TinyTorrent");
+    //    AppendMenuW(state.menu, MF_STRING, ID_SHOW_SPLASH, L"Show Splash");
+
+    AppendMenuW(state.menu, MF_SEPARATOR, 0, nullptr);
+
+    AppendMenuW(state.menu, MF_STRING | MF_DISABLED, ID_STATUS_ACTIVE,
+                L"● 0 Active");
+    AppendMenuW(state.menu, MF_STRING | MF_DISABLED, ID_STATUS_DOWN, L"↓ 0");
+    AppendMenuW(state.menu, MF_STRING | MF_DISABLED, ID_STATUS_UP, L"↑ 0");
+
+    AppendMenuW(state.menu, MF_SEPARATOR, 0, nullptr);
+
     AppendMenuW(state.menu, MF_STRING, ID_OPEN_UI, L"Open UI");
-    AppendMenuW(state.menu, MF_STRING, ID_OPEN_DOWNLOADS,
-                L"Open Downloads Folder");
-    AppendMenuW(state.menu, MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(state.menu, MF_STRING, ID_START_ALL, L"Start All");
-    AppendMenuW(state.menu, MF_STRING, ID_STOP_ALL, L"Stop All");
-    AppendMenuW(state.menu, MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(state.menu, MF_STRING | MF_DISABLED | MF_GRAYED,
-                ID_SPEED_STATUS, L"Download: 0 B/s   Upload: 0 B/s");
-    AppendMenuW(state.menu, MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(state.menu, MF_STRING, ID_PAUSE_RESUME, L"Pause All");
+
+    //    AppendMenuW(state.menu, MF_SEPARATOR, 0, nullptr);
+
+    AppendMenuW(state.menu, MF_STRING, ID_PAUSE_RESUME, L"Pause");
+
     AppendMenuW(state.menu, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(state.menu, MF_STRING, ID_EXIT, L"Exit");
 }
@@ -449,6 +639,23 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
         }
         switch (LOWORD(wparam))
         {
+        case ID_SHOW_SPLASH:
+        {
+            SplashWindow dbg =
+                create_splash_window(state->hInstance, state->large_icon);
+
+            // Auto-close after 1 second (debug convenience)
+            std::thread(
+                [dbg]() mutable
+                {
+                    std::this_thread::sleep_for(std::chrono::seconds(5));
+                    PostMessageW(dbg.hwnd, WM_CLOSE, 0, 0);
+                })
+                .detach();
+
+            return 0;
+        }
+
         case ID_OPEN_UI:
             open_browser(state->open_url);
             return 0;
@@ -456,28 +663,33 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
             if (rpc_set_all_paused(*state, false))
             {
                 state->paused_all.store(false);
-                set_menu_item_text(state->menu, ID_PAUSE_RESUME, L"Pause All");
+                CheckMenuItem(state->menu, ID_PAUSE_RESUME,
+                              MF_BYCOMMAND | MF_UNCHECKED);
             }
             return 0;
+
         case ID_STOP_ALL:
             if (rpc_set_all_paused(*state, true))
             {
                 state->paused_all.store(true);
-                set_menu_item_text(state->menu, ID_PAUSE_RESUME, L"Resume All");
+                CheckMenuItem(state->menu, ID_PAUSE_RESUME,
+                              MF_BYCOMMAND | MF_CHECKED);
             }
             return 0;
+
         case ID_PAUSE_RESUME:
         {
-            // Toggle pause/resume.
-            bool should_pause = !state->paused_all.load();
-            if (rpc_set_all_paused(*state, should_pause))
+            bool pause = !state->paused_all.load();
+            if (rpc_set_all_paused(*state, pause))
             {
-                state->paused_all.store(should_pause);
-                set_menu_item_text(state->menu, ID_PAUSE_RESUME,
-                                   should_pause ? L"Resume All" : L"Pause All");
+                state->paused_all.store(pause);
+                CheckMenuItem(state->menu, ID_PAUSE_RESUME,
+                              MF_BYCOMMAND |
+                                  (pause ? MF_CHECKED : MF_UNCHECKED));
             }
             return 0;
         }
+
         case ID_OPEN_DOWNLOADS:
         {
             std::string download_dir;
@@ -544,7 +756,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
                 state->download_dir_cache = s->download_dir;
             }
             set_menu_item_text(state->menu, ID_PAUSE_RESUME,
-                               s->all_paused ? L"Resume All" : L"Pause All");
+                               s->all_paused ? L"Resume" : L"Pause");
             std::wstring speed_label =
                 L"Download: " + down + L" | Upload: " + up;
             set_menu_item_text(state->menu, ID_SPEED_STATUS,
@@ -590,6 +802,13 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int)
     std::promise<tt::rpc::ConnectionInfo> ready;
     auto future = ready.get_future();
 
+    HICON tray_icon = load_tray_icon();
+    HICON splash_icon = load_large_icon();
+
+    SplashWindow splash = create_splash_window(hInstance, splash_icon);
+
+    auto splash_shown_at = std::chrono::steady_clock::now();
+
     std::thread daemon_thread(
         [&]()
         {
@@ -601,26 +820,45 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int)
 
     // Wait for connection info so Open UI works.
     tt::rpc::ConnectionInfo info{};
-    if (future.wait_for(std::chrono::seconds(15)) == std::future_status::ready)
+    auto start_time = std::chrono::steady_clock::now();
+    while (true)
     {
-        info = future.get();
+        auto status = future.wait_for(std::chrono::milliseconds(50));
+        pump_messages();
+        if (status == std::future_status::ready)
+        {
+            info = future.get();
+            break;
+        }
+        auto elapsed = std::chrono::steady_clock::now() - start_time;
+        if (elapsed > std::chrono::seconds(15))
+        {
+            destroy_splash_window(splash);
+            MessageBoxW(
+                nullptr,
+                L"TinyTorrent daemon failed to start within 15 seconds. "
+                L"Check tinytorrent.log for details.",
+                L"TinyTorrent Error", MB_ICONERROR | MB_OK);
+            tt::runtime::request_shutdown();
+            if (daemon_thread.joinable())
+                daemon_thread.join();
+            return 1;
+        }
     }
-    else
+
+    constexpr auto kMinSplashTime = std::chrono::milliseconds(800);
+
+    auto elapsed = std::chrono::steady_clock::now() - splash_shown_at;
+    if (elapsed < kMinSplashTime)
     {
-        MessageBoxW(nullptr,
-                    L"TinyTorrent daemon failed to start within 15 seconds. "
-                    L"Check tinytorrent.log for details.",
-                    L"TinyTorrent Error", MB_ICONERROR | MB_OK);
-        tt::runtime::request_shutdown();
-        if (daemon_thread.joinable())
-            daemon_thread.join();
-        return 1;
+        std::this_thread::sleep_for(kMinSplashTime - elapsed);
+        pump_messages();
     }
+
+    destroy_splash_window(splash);
 
     std::wstring url = L"http://127.0.0.1:" + std::to_wstring(info.port) +
                        L"/index.html#tt-token=" + widen(info.token);
-
-    HICON tray_icon = load_tray_icon();
 
     WNDCLASSEXW wc{};
     wc.cbSize = sizeof(wc);
@@ -645,11 +883,13 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int)
 
     auto state = std::make_unique<TrayState>();
     state->hwnd = hwnd;
+    state->hInstance = hInstance;
     state->open_url = std::move(url);
     state->port = static_cast<unsigned short>(info.port);
     state->token = info.token;
 
     state->icon = tray_icon;
+    state->large_icon = splash_icon;
     SetWindowLongPtrW(hwnd, GWLP_USERDATA,
                       reinterpret_cast<LONG_PTR>(state.get()));
 
@@ -714,6 +954,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int)
     {
         DestroyIcon(state->icon);
     }
+
+    if (state->large_icon)
+        DestroyIcon(state->large_icon);
 
     return 0;
 }
