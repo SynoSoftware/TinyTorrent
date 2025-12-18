@@ -22,9 +22,24 @@ if (-not (Get-Command Find-Executable -ErrorAction SilentlyContinue)) {
 # --- End Tool Discovery ---
 
 $root = $repoRoot
+$versionJson = Join-Path $root 'version.json'
+$version = if (Test-Path $versionJson) { (Get-Content $versionJson | ConvertFrom-Json).version } else { '0.0.0' }
+
+Write-Host "TinyTorrent Release Pipeline (v$version)" -ForegroundColor Cyan
+Write-Host "----------------------------------------" -ForegroundColor Cyan
+
 $frontendDir = Join-Path $root 'frontend'
 $backendDir = Join-Path $root 'backend'
 $distDir = Join-Path $frontendDir 'dist'
+
+# Prefer PowerShell 7 if present. Always run child shell non-interactively.
+$shellExe = (Get-Command pwsh -ErrorAction SilentlyContinue | Select-Object -First 1).Source
+if (-not $shellExe) {
+    $shellExe = (Get-Command powershell -ErrorAction SilentlyContinue | Select-Object -First 1).Source
+}
+if (-not $shellExe) {
+    throw "Neither pwsh nor powershell is available on PATH."
+}
 $frontendBuildMarker = Join-Path $frontendDir '.last_frontend_signature'
 $frontendSourceDirs = @(
     Join-Path $frontendDir 'src';
@@ -123,6 +138,48 @@ function Invoke-BackendBuild {
     )
 
     $didForceVcpkg = $false
+
+    function Run-ProcessCapture {
+        param(
+            [string]$Exe,
+            [string[]]$ArgumentList,
+            [string]$WorkingDir = $null
+        )
+
+        $startDir = Get-Location
+        if ($WorkingDir) { Set-Location $WorkingDir }
+
+        try {
+            # We use a List to capture output while streaming it LIVE to the console.
+            # This ensures the user sees progress immediately.
+            $captured = New-Object System.Collections.Generic.List[string]
+            
+            Write-Host "  Exec: $Exe $($ArgumentList -join ' ')" -ForegroundColor DarkGray
+            
+            # IMPORTANT: use splatting so the child process receives the args.
+            & $Exe @ArgumentList 2>&1 | ForEach-Object {
+                # Print to console immediately
+                Write-Host $_
+                # Store for later analysis (e.g. error detection)
+                $captured.Add($_.ToString())
+            }
+            
+            $fullOutput = $captured -join [Environment]::NewLine
+            
+            return @{ 
+                ExitCode = $LASTEXITCODE; 
+                StdOut   = $fullOutput; 
+                StdErr   = "" 
+            }
+        }
+        catch {
+            return @{ ExitCode = -1; StdOut = ""; StdErr = $_.Exception.Message }
+        }
+        finally {
+            if ($WorkingDir) { Set-Location $startDir }
+        }
+    }
+
     # Quick pre-check: if core vcpkg headers are missing, force a vcpkg install once before building.
     try {
         $libtorrentHeader = Join-Path $backendDir 'vcpkg_installed\x64-windows-static\include\libtorrent\add_torrent_params.hpp'
@@ -132,8 +189,8 @@ function Invoke-BackendBuild {
         if (-not $haveAny) {
             Write-Host "vcpkg headers not present; attempting forced vcpkg install before build." -ForegroundColor Yellow
             try {
-                powershell -ExecutionPolicy Bypass -NoProfile -File .\build.ps1 -Configuration MinSizeRel -ForceVcpkg -SkipTests
-                if ($LASTEXITCODE -eq 0) { $didForceVcpkg = $true }
+                $res = Run-ProcessCapture -Exe $shellExe -ArgumentList @('-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', '.\build.ps1', '-Configuration', 'Release', '-ForceVcpkg', '-SkipTests') -WorkingDir $backendDir
+                if ($res.ExitCode -ne 0) { Write-Host "Initial vcpkg install failed (Exit $($res.ExitCode))." -ForegroundColor Yellow }
             }
             catch {
                 Write-Host "Forced vcpkg install attempt failed: $($_.Exception.Message)" -ForegroundColor Yellow
@@ -141,59 +198,36 @@ function Invoke-BackendBuild {
         }
     }
     catch {}
+
     for ($attempt = 1; $attempt -le $MaxAttempts; ++$attempt) {
         if ($attempt -gt 1) {
             Write-Host "Retrying backend build (attempt $attempt/$MaxAttempts)..." -ForegroundColor Yellow
         }
         try {
-            # Run build in a separate PowerShell process and capture output and exit code
-            $buildOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File .\build.ps1 -Configuration MinSizeRel -SkipTests 2>&1
-            $buildExit = $LASTEXITCODE
-            if ($buildExit -ne 0) {
-                $global:buildOutput = $buildOutput
-                $combined = ($buildOutput -join "`n")
-                throw "Backend build failed with exit $buildExit" 
+            Write-Host "Building backend (Release) (this may take several minutes)..." -ForegroundColor Cyan
+            $res = Run-ProcessCapture -Exe $shellExe -ArgumentList @('-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', '.\build.ps1', '-Configuration', 'Release', '-SkipTests') -WorkingDir $backendDir
+            
+            if ($res.ExitCode -ne 0) {
+                throw "Backend build exited with code $($res.ExitCode)."
             }
+            Write-Host "Backend build finished (exit 0)." -ForegroundColor Green
             return
         }
         catch {
-            # Normalize message and output depending on thrown object
             $message = $_.Exception.Message
-            $output = $null
-            if ($_.Exception -and $_.Exception.GetType().Name -eq 'RuntimeException' -and ($_.Exception.InnerException -is [hashtable])) {
-                # nothing
-            }
-            if ($_.Exception -is [System.Management.Automation.RuntimeException] -and $_.Exception.ErrorRecord -and $_.Exception.ErrorRecord.Exception -is [hashtable]) {
-                # nothing
-            }
-            # If the catch received the hashtable we threw above, extract it from $_.Exception
-            if ($_.Exception -and $_.Exception -isnot [System.String]) {
-                try {
-                    $maybe = $_.Exception.ToString() | Out-String
-                    # attempt to parse our thrown hashtable by looking for the Exit code marker in the string
-                    if ($maybe -match 'Exit =') {
-                        $output = ($maybe)
-                    }
-                }
-                catch {}
-            }
-            # Also try to get pipeline output if available
-            if (-not $output -and (Get-Variable -Name global:buildOutput -Scope Global -ErrorAction SilentlyContinue)) { $output = ($global:buildOutput -join "`n") }
-
-            # If vcpkg headers/libs are missing, attempt a forced vcpkg install once
-            if (-not $didForceVcpkg -and (($message -match 'Cannot open include file') -or ($message -match "No such file or directory") -or ($output -and $output -match 'Cannot open include file') -or ($output -and $output -match 'No such file or directory') -or ($output -and $output -match 'yyjson') -or ($output -and $output -match 'sqlite3') )) {
+            if (-not $didForceVcpkg -and ($message -match 'Cannot open include file' -or $message -match 'No such file or directory' -or $message -match 'yyjson' -or $message -match 'sqlite3')) {
                 Write-Host "Detected missing vcpkg headers/libraries (message: $message). Forcing vcpkg install and retrying..." -ForegroundColor Yellow
                 try {
-                    $forcedOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File .\build.ps1 -Configuration MinSizeRel -ForceVcpkg -SkipTests 2>&1
-                    $forcedExit = $LASTEXITCODE
-                    if ($forcedExit -ne 0) { throw "Forced vcpkg install + build exited with code $forcedExit.`n$($forcedOutput -join "`n")" }
-                    # If forced build succeeded, return
-                    return
+                    $forced = Run-ProcessCapture -Exe $shellExe -ArgumentList @('-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', '.\build.ps1', '-Configuration', 'Release', '-ForceVcpkg', '-SkipTests') -WorkingDir $backendDir
+                    if ($forced.ExitCode -ne 0) {
+                        throw "Forced vcpkg install + build exited with code $($forced.ExitCode)."
+                    }
+                    $didForceVcpkg = $true
+                    continue
                 }
                 catch {
                     Write-Host "Forced vcpkg attempt failed: $($_.Exception.Message)" -ForegroundColor Yellow
                     $didForceVcpkg = $true
-                    # fallthrough to normal retry logic
                 }
             }
 
