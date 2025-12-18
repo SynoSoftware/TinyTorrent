@@ -9,6 +9,8 @@ import type {
     TransmissionSessionStats,
     TransmissionBandwidthGroupOptions,
     TransmissionTorrentRenameResult,
+    SystemInstallOptions,
+    SystemInstallResult,
 } from "./types";
 import {
     getFreeSpace,
@@ -244,6 +246,11 @@ export class TransmissionAdapter implements EngineAdapter {
     private idMap = new Map<string, number>();
     private readonly heartbeat = new HeartbeatManager(this);
 
+    private getTinyTorrentAuthToken(): string | undefined {
+        const token = sessionStorage.getItem("tt-auth-token");
+        return token && token.length > 0 ? token : undefined;
+    }
+
     constructor(options?: {
         endpoint?: string;
         username?: string;
@@ -284,6 +291,10 @@ export class TransmissionAdapter implements EngineAdapter {
             const headers: Record<string, string> = {
                 "Content-Type": "application/json",
             };
+            const ttAuth = this.getTinyTorrentAuthToken();
+            if (ttAuth) {
+                headers["X-TT-Auth"] = ttAuth;
+            }
             if (this.sessionId) {
                 headers["X-Transmission-Session-Id"] = this.sessionId;
             }
@@ -489,6 +500,40 @@ export class TransmissionAdapter implements EngineAdapter {
             arguments: { path },
         });
         return getFreeSpace(result.arguments);
+    }
+
+    public async openPath(path: string): Promise<void> {
+        if (!path) {
+            return;
+        }
+        await this.mutate("system-open", { path });
+    }
+
+    public async systemInstall(
+        options: SystemInstallOptions = {}
+    ): Promise<SystemInstallResult> {
+        const args: Record<string, unknown> = {};
+        const name = options.name?.trim();
+        if (name) {
+            args.name = name;
+        }
+        if (options.args && options.args.trim()) {
+            args.args = options.args.trim();
+        }
+        if (options.locations && options.locations.length > 0) {
+            args.locations = options.locations;
+        }
+        if (options.registerHandlers !== undefined) {
+            args.registerHandlers = options.registerHandlers;
+        }
+        if (options.installToProgramFiles !== undefined) {
+            args.installToProgramFiles = options.installToProgramFiles;
+        }
+        const result = await this.send<SystemInstallResult>({
+            method: "system-install",
+            arguments: args,
+        });
+        return result.arguments;
     }
 
     private async fetchTransmissionTorrents(): Promise<TransmissionTorrent[]> {

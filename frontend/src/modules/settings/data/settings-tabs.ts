@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import {
+    DownloadCloud,
     FolderOpen,
     Globe,
     Monitor,
@@ -17,7 +18,8 @@ export type SettingsTab =
     | "peers"
     | "storage"
     | "privacy"
-    | "gui";
+    | "gui"
+    | "install";
 
 export type VisibilityCheck = (config: SettingsConfig) => boolean;
 
@@ -122,6 +124,10 @@ type ConnectionManagerBlock = {
     type: "connection-manager";
 } & BlockBase;
 
+type SystemInstallBlock = {
+    type: "system-install";
+} & BlockBase;
+
 export type SectionBlock =
     | SwitchSliderBlock
     | SwitchBlock
@@ -133,7 +139,8 @@ export type SectionBlock =
     | LanguageBlock
     | RawConfigBlock
     | DaySelectorBlock
-    | ConnectionManagerBlock;
+    | ConnectionManagerBlock
+    | SystemInstallBlock;
 
 interface SectionDefinition {
     titleKey: string;
@@ -557,6 +564,23 @@ export const SETTINGS_TABS: TabDefinition[] = [
                         type: "raw-config",
                         labelKey: "settings.labels.raw_config",
                         descriptionKey: "settings.descriptions.config_details",
+                    },
+                ],
+            },
+        ],
+    },
+    {
+        id: "install",
+        labelKey: "settings.tabs.install",
+        icon: DownloadCloud,
+        headerKey: "settings.headers.install",
+        sections: [
+            {
+                titleKey: "settings.sections.install",
+                descriptionKey: "settings.descriptions.install",
+                blocks: [
+                    {
+                        type: "system-install",
                     },
                 ],
             },

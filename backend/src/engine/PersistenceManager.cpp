@@ -9,9 +9,9 @@
 namespace
 {
 
-tt::engine::TorrentAddRequest make_add_request(
-    tt::storage::PersistedTorrent const &entry,
-    tt::engine::CoreSettings const &settings)
+tt::engine::TorrentAddRequest
+make_add_request(tt::storage::PersistedTorrent const &entry,
+                 tt::engine::CoreSettings const &settings)
 {
     tt::engine::TorrentAddRequest request;
 
@@ -224,6 +224,7 @@ bool PersistenceManager::persist_settings(CoreSettings const &settings)
     set_int("downloadQueueSize", settings.download_queue_size);
     set_int("seedQueueSize", settings.seed_queue_size);
     set_bool("queueStalledEnabled", settings.queue_stalled_enabled);
+    set_bool("renamePartialFiles", settings.rename_partial_files);
     set_string("downloadPath", settings.download_path.string());
     set_string("incompleteDir", settings.incomplete_dir.string());
     set_bool("incompleteDirEnabled", settings.incomplete_dir_enabled);
@@ -386,8 +387,8 @@ void PersistenceManager::set_labels(std::string const &hash,
         return;
     }
 
-    auto serialized = labels.empty() ? std::string{}
-                                     : storage::serialize_label_list(labels);
+    auto serialized =
+        labels.empty() ? std::string{} : storage::serialize_label_list(labels);
     update_labels(hash, serialized);
 }
 

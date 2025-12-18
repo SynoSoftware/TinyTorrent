@@ -1,0 +1,3 @@
+#include "tt_packed_fs_resource.h"
+
+IDR_TT_PACKED_FS RCDATA "tt_packed_fs.bin"

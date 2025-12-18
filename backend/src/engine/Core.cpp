@@ -505,6 +505,26 @@ void Core::stop_torrents(std::vector<int> ids)
         });
 }
 
+void Core::pause_all()
+{
+    impl_->torrent_manager->enqueue_task(
+        [this]()
+        {
+            impl_->session_service->perform_action_all([](auto &h)
+                                                       { h.pause(); });
+        });
+}
+
+void Core::resume_all()
+{
+    impl_->torrent_manager->enqueue_task(
+        [this]()
+        {
+            impl_->session_service->perform_action_all([](auto &h)
+                                                       { h.resume(); });
+        });
+}
+
 void Core::remove_torrents(std::vector<int> ids, bool delete_data)
 {
     impl_->torrent_manager->enqueue_task(

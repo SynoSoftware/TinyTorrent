@@ -1,6 +1,8 @@
 node_modules/
 dist/
 build/
+.last_frontend_signature
+.last_frontend_build_time
 .DS_Store
 *.exe
 *.obj
@@ -43,3 +45,5 @@ backend/data/tinytorrent.db-shm
 *.dmp
 dump*.txt
 .aider*
+backend/src/vendor/tt_packed_fs.c
+backend/src/vendor/tt_packed_fs.bin

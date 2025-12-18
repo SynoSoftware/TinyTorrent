@@ -36,25 +36,31 @@ class SettingsManager
                               libtorrent::settings_pack &pack,
                               libtorrent::settings_pack *current = nullptr);
 
-    static void apply_proxy(CoreSettings const &s, libtorrent::settings_pack &pack,
+    static void apply_proxy(CoreSettings const &s,
+                            libtorrent::settings_pack &pack,
                             libtorrent::settings_pack *current = nullptr);
 
-    static void apply_queue(CoreSettings const &s, libtorrent::settings_pack &pack,
+    static void apply_partfile(CoreSettings const &s,
+                               libtorrent::settings_pack &pack,
+                               libtorrent::settings_pack *current = nullptr);
+
+    static void apply_queue(CoreSettings const &s,
+                            libtorrent::settings_pack &pack,
                             libtorrent::settings_pack *current = nullptr);
 
     static int kbps_to_bytes(int limit_kbps, bool enabled);
 
     static bool should_use_alt_speed(CoreSettings const &settings,
-                     std::chrono::system_clock::time_point now);
+                                     std::chrono::system_clock::time_point now);
 
     static void apply_rate_limits(int download_kbps, bool download_enabled,
-                    int upload_kbps, bool upload_enabled,
-                    libtorrent::settings_pack &pack,
-                    libtorrent::settings_pack *current = nullptr);
+                                  int upload_kbps, bool upload_enabled,
+                                  libtorrent::settings_pack &pack,
+                                  libtorrent::settings_pack *current = nullptr);
 
     // Apply an incremental SessionUpdate to settings and report side effects
     static ApplyResult apply_update(CoreSettings settings,
-                    SessionUpdate const &update);
+                                    SessionUpdate const &update);
 };
 
 } // namespace tt::engine

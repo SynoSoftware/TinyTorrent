@@ -29,8 +29,8 @@ if tt_enable_logging
   tt_defines += 'TT_ENABLE_LOGGING=1'
 endif
 
-tt_cpp_args = ['/EHsc']
-tt_c_args = []
+tt_cpp_args = ['/EHsc', '/DMG_ENABLE_PACKED_FS=1']
+tt_c_args = ['/DMG_ENABLE_PACKED_FS=1']
 tt_link_args = ['Ws2_32.lib']
 if host_machine.system() == 'windows'
   tt_link_args += 'Advapi32.lib'
@@ -65,6 +65,27 @@ tt_c_args += tt_define_args
 
 tt_includes = include_directories('src', 'src/vendor')
 
+fs = import('fs')
+tt_has_packed_fs_bin = fs.exists('src/vendor/tt_packed_fs.bin')
+if tt_has_packed_fs_bin
+  tt_cpp_args += '-DTT_PACKED_FS_HAS_INC=1'
+endif
+
+tt_packed_fs_res = []
+if host_machine.system() == 'windows' and tt_has_packed_fs_bin
+  rc_prog = find_program('rc', required: true)
+  tt_packed_fs_res = [
+    custom_target(
+      'tt_packed_fs_res',
+      input: 'src/vendor/tt_packed_fs.rc',
+      output: 'tt_packed_fs.res',
+      command: [rc_prog, '/nologo', '/fo', '@OUTPUT@', '@INPUT@'],
+      depend_files: ['src/vendor/tt_packed_fs.bin']
+    )
+  ]
+endif
+
+
 tt_deps = [
   dependency(  'LibtorrentRasterbar',  method: 'cmake',  modules: ['LibtorrentRasterbar::torrent-rasterbar'],  cmake_args: ['-DCMAKE_POLICY_DEFAULT_CMP0091=NEW']),
   dependency('yyjson', method: 'cmake', modules: ['yyjson::yyjson']),
@@ -77,8 +98,9 @@ tt_common_dep = declare_dependency(
   link_args: tt_link_args,
 )
 
-tt_sources = [
+tt_base_sources = [
   'src/main.cpp',
+  'src/entry_console.cpp',
   'src/engine/Core.cpp',
   'src/engine/AutomationAgent.cpp',
   'src/engine/AlertRouter.cpp',
@@ -103,12 +125,37 @@ tt_sources = [
   'src/utils/StateStore.cpp',
   'src/utils/Shutdown.cpp',
   'src/vendor/mongoose.c',
+  'src/vendor/tt_packed_fs_data.cpp',
 ]
+
+if fs.exists('src/vendor/tt_packed_fs.c')
+  tt_base_sources += 'src/vendor/tt_packed_fs.c'
+endif
+
+tt_sources = tt_base_sources + tt_packed_fs_res
+
 
 executable('tt-engine', tt_sources,
   dependencies: [tt_common_dep],
   cpp_args: tt_cpp_args,
   c_args: tt_c_args)
+
+if host_machine.system() == 'windows'
+  tt_gui_sources = []
+  foreach src : tt_base_sources
+    if src != 'src/entry_console.cpp'
+      tt_gui_sources += src
+    endif
+  endforeach
+  tt_gui_sources += ['src/tray/entry_winmain.cpp']
+  tt_gui_sources += tt_packed_fs_res
+
+  executable('TinyTorrent', tt_gui_sources,
+    dependencies: [tt_common_dep],
+    cpp_args: tt_cpp_args,
+    c_args: tt_c_args,
+    win_subsystem: 'windows')
+endif
 
 if tt_enable_tests
   subdir('tests')

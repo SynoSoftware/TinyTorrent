@@ -19,6 +19,20 @@ struct FsEntry
     std::uint64_t size = 0;
 };
 
+struct SystemInstallResult
+{
+    bool success = false;
+    bool permission_denied = false;
+    std::string message;
+    std::vector<std::pair<std::string, std::string>> shortcuts;
+    bool handlers_registered = false;
+    std::string handler_message;
+    bool install_requested = false;
+    bool install_success = false;
+    std::string install_message;
+    std::optional<std::string> installed_path;
+};
+
 std::string serialize_fs_browse(std::string const &path,
                                 std::string const &parent,
                                 std::string const &separator,
@@ -29,6 +43,12 @@ std::string serialize_fs_space(std::string const &path,
 std::string serialize_system_action(std::string const &action, bool success,
                                     std::string const &message);
 
+std::string serialize_system_create_shortcuts(
+    bool success, std::string const &message,
+    std::vector<std::pair<std::string, std::string>> const &created);
+
+std::string serialize_system_install(SystemInstallResult const &result);
+
 std::string serialize_capabilities();
 
 std::string serialize_session_settings(
@@ -36,6 +56,12 @@ std::string serialize_session_settings(
     std::optional<std::chrono::system_clock::time_point> blocklist_updated,
     std::string const &rpc_bind, std::string const &listen_error);
 std::string serialize_session_stats(engine::SessionSnapshot const &snapshot);
+std::string serialize_session_tray_status(std::uint64_t download_kbps,
+                                          std::uint64_t upload_kbps,
+                                          std::size_t active_count,
+                                          std::size_t seeding_count,
+                                          bool any_error, bool all_paused,
+                                          std::string const &download_dir);
 std::string serialize_add_result(engine::Core::AddTorrentStatus status);
 std::string
 serialize_error(std::string_view message,

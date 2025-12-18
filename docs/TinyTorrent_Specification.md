@@ -207,3 +207,42 @@ The Launcher acts as the "Secure Boot" for the UI:
 3.  **PID Check:** Verify `json.pid` matches a running process to prevent using stale files from a previous crash.
 4.  Read `port` + `token`.
 5.  Inject these credentials into the Frontend environment (via Window Object injection or URL parameters).
+
+## **8. Optimisation ideeas **
+
+### Investigation: Embedded UI Memory Model
+
+Question:
+Can the embedded frontend UI be served without keeping its assets resident in memory
+when not actively requested by a client?
+
+Hypothesis:
+
+- UI assets may be served directly from the executable image (read-only sections)
+  or via transient, request-scoped buffers.
+- The server should not require a long-lived in-memory cache of UI files.
+
+Goals:
+
+- Minimize steady-state memory usage when no browser is connected.
+- Allow the OS to reclaim UI pages under memory pressure.
+- Avoid duplicate copies of UI bytes in heap memory.
+
+Open Questions:
+
+- How Mongoose handles `mg_unpacked` memory ownership and lifetime.
+- Whether additional buffering occurs inside Mongoose.
+- Impact of compression (if enabled) on memory residency.
+
+Non-Goals (for now):
+
+- Aggressive micro-optimization.
+- Premature refactors.
+- Behavior changes without measurement.
+
+Next Steps:
+
+- Look at this only when we're stable, if needed
+- Inspect memory mappings of the process before/after UI access.
+- Verify whether UI pages are demand-paged and released.
+- Decide whether explicit eviction or alternative serving is needed.
