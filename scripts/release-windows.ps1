@@ -292,7 +292,7 @@ function Report-AppReady {
     $status = "TinyTorrent (Mica-aware) ready at $ExePath"
     if ($SkipLaunch -or ($env:CI -eq 'true')) {
         Write-Host $status -ForegroundColor Green
-        Write-Host "Run the exe manually to see the Mica-enhanced frontend." -ForegroundColor Cyan
+        Write-Host "Run the exe manually to see the frontend." -ForegroundColor Cyan
         return
     }
 
@@ -329,20 +329,20 @@ New-Item -ItemType Directory -Force -Path $finalDir | Out-Null
 $finalExe = Join-Path $finalDir 'TinyTorrent.exe'
 Copy-Item -LiteralPath $buildExe -Destination $finalExe -Force
 
-$upxPath = Find-Executable -Name "upx" -Id "UPX" -PackageId "upx.upx"
-if (-not $upxPath) {
-    Write-Host "UPX not found (launch Everything to install or add to PATH); skipping packing." -ForegroundColor Yellow
-    Report-AppReady -ExePath $finalExe
-    exit 0
-}
+#$upxPath = Find-Executable -Name "upx" -Id "UPX" -PackageId "upx.upx"
+#if (-not $upxPath) {
+#    Write-Host "UPX not found (launch Everything to install or add to PATH); skipping packing." -ForegroundColor Yellow
+#    Report-AppReady -ExePath $finalExe
+#    exit 0
+#}
 
-Write-Host "Packing with UPX ($UWx)..." -ForegroundColor Cyan
-if ($UWx -eq 'ultra') {
-    & $upxPath --ultra-brute $finalExe
-}
-else {
-    & $upxPath --best $finalExe
-}
+#Write-Host "Packing with UPX ($UWx)..." -ForegroundColor Cyan
+#if ($UWx -eq 'ultra') {
+#    & $upxPath --ultra-brute $finalExe
+#}
+#else {
+#    & $upxPath --best $finalExe
+#}
 
 Write-Host "Done: $finalExe" -ForegroundColor Green
 Report-AppReady -ExePath $finalExe
