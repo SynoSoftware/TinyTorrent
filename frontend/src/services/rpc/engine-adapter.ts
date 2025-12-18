@@ -8,6 +8,8 @@ import type {
 import type {
     TransmissionSessionSettings,
     TransmissionFreeSpace,
+    SystemInstallOptions,
+    SystemInstallResult,
 } from "./types";
 import { HeartbeatManager } from "./heartbeat";
 import type {
@@ -49,4 +51,5 @@ export interface EngineAdapter {
         params: HeartbeatSubscriberParams
     ): HeartbeatSubscription;
     openPath?(path: string): Promise<void>;
+    systemInstall?(options: SystemInstallOptions): Promise<SystemInstallResult>;
 }

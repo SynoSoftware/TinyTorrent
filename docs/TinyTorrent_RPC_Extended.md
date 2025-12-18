@@ -14,6 +14,10 @@ Licensed under the Apache License, Version 2.0. See `LICENSES.md` for details.
 
 Before attempting WebSocket upgrades or extended methods, the client **must** verify the server version to prevent "undefined method" errors on standard Transmission daemons.
 
+### **1.2 Loopback Host Policy**
+
+The backend enforces a strict `Host` header policy but treats every loopback alias as equivalent. Even when the server is configured with a specific allowed host (e.g., `localhost`), `127.0.0.1`, `[::1]`, `::1`, and other standard loopback names are also accepted. This ensures launchers or helpers that target a fixed alias (like the tray using `127.0.0.1`) never hit the 403 host-restriction check while still rejecting external hosts.
+
 ### **1.1 Capability Probe**
 
 **Method:** `tt-get-capabilities`
@@ -30,7 +34,18 @@ Before attempting WebSocket upgrades or extended methods, the client **must** ve
     "rpc-version": 17,
     "websocket-endpoint": "/ws",
     "platform": "win32",
-    "features": ["fs-browse", "system-integration", "traffic-history", "sequential-download", "proxy-configuration", "labels"]
+    "features": [
+      "fs-browse",
+      "system-integration",
+      "system-install",
+      "session-tray-status",
+      "session-pause-all",
+      "session-resume-all",
+      "traffic-history",
+      "sequential-download",
+      "proxy-configuration",
+      "labels"
+    ]
   }
 }
 ```
@@ -41,6 +56,10 @@ Before attempting WebSocket upgrades or extended methods, the client **must** ve
 
 **URL:** `ws://127.0.0.1:<PORT>/ws?token=<TOKEN>`
 **Usage:** Replaces HTTP Polling. Read-Only State Sync.
+
+### **2.0 UI Asset Routing**
+
+HTTP requests for the web UI strip any `?query` component before looking up the packed resource, so hashed assets like `/main.js?v=1234` resolve to their actual bundle regardless of cache-busting parameters. Only when the query-stripped path is missing and does not look like an explicit asset (no file extension) does the server fall back to serving the packed `index.html`; requests for missing `.js`, `.css`, etc. files now return 404 instead of silently returning HTML.
 
 ### **2.1 Connection Constraints**
 
@@ -147,6 +166,44 @@ To ensure type safety in the frontend, the `event` message type uses strict nami
     3.  Wait for completion (or 3s timeout).
     4.  Exit process.
 
+### **4.4 System integration (Windows installer helpers)**
+
+- **Method:** `system-install`
+- **Transport:** HTTP RPC
+- **Auth:** Required (`X-TT-Auth`).
+- **Purpose:** Creates shortcuts, optionally registers protocol handlers, and can copy the running daemon into `Program Files` when elevation is available.
+
+**Arguments:**
+
+- `name` (string, optional): Shortcut display name. Defaults to `TinyTorrent` and is capped at 64 characters.
+- `args` (string, optional): Command-line arguments appended to each shortcut.
+- `locations` (`Array<String>`, optional): Any subset of `desktop`, `start-menu`, `startup`. When omitted or empty, all three locations are used.
+- `registerHandlers` (`Bool`, optional): When `true`, reuses `system-register-handler` to bind `magnet:` and `.torrent`.
+- `installToProgramFiles` (`Bool`, optional): When `true`, copies the current executable to `C:/Program Files/TinyTorrent/TinyTorrent.exe` (may require elevation).
+
+**Response:**
+
+```json
+{
+  "result": "success",
+  "arguments": {
+    "action": "system-install",
+    "success": true,
+    "shortcuts": {
+      "desktop": "C:/Users/<USER>/Desktop/TinyTorrent.lnk",
+      "start-menu": "C:/Users/<USER>/AppData/Roaming/Microsoft/Windows/Start Menu/Programs/TinyTorrent.lnk",
+      "startup": "C:/Users/<USER>/AppData/Roaming/Microsoft/Windows/Start Menu/Programs/Startup/TinyTorrent.lnk"
+    },
+    "installSuccess": true,
+    "installMessage": "installed to C:/Program Files/TinyTorrent/TinyTorrent.exe",
+    "installedPath": "C:/Program Files/TinyTorrent/TinyTorrent.exe",
+    "handlersRegistered": true
+  }
+}
+```
+
+For additional details (including optional messages, handler registration feedback, and permission-denied indicators) see §6.5.3.
+
 ---
 
 ## **5. Historical Traffic API (`history-*`)**
@@ -235,6 +292,81 @@ These keys are available in `session-set` and `session-get`.
 - `history-interval` (Int): Recording resolution in seconds.
   - **Constraint:** Minimum `60`. Default `300` (5 minutes).
 - `history-retention-days` (Int): Auto-deletion threshold. Default `30` (0 = Infinite).
+
+### **6.5 Tray Helpers**
+
+The Windows tray is intentionally thin. These RPC helpers expose only the data the tray needs without letting it enumerate every torrent.
+
+#### **6.5.1 session-tray-status**
+
+- **Method:** `session-tray-status` (no arguments)
+- **Auth:** Required (`X-TT-Auth`)
+- **Response:**
+
+  ```json
+  {
+    "result": "success",
+    "arguments": {
+      "downloadSpeed": 0,
+      "uploadSpeed": 0,
+      "activeTorrentCount": 0,
+      "seedingCount": 0,
+      "anyError": false,
+      "allPaused": false,
+      "downloadDir": "C:/Users/.../Downloads"
+    }
+  }
+  ```
+
+  `downloadSpeed` / `uploadSpeed` are in bytes per second, ideal for tooltip badges. The tray should show `activeTorrentCount` plus `seedingCount` and switch to the error icon when `anyError` is true. `downloadDir` is optional but, when populated, is guaranteed to be an absolute, normalized path so the tray can issue `system-open` without additional parsing. Use `allPaused` to pick which of the two RPCs below to invoke.
+
+#### **6.5.2 session-pause-all / session-resume-all**
+
+- **Method:** `session-pause-all` / `session-resume-all`
+- **Auth:** Required
+- **Arguments:** None
+- **Behavior:** Executes `torrent_handle::pause()` / `torrent_handle::resume()` on every managed torrent. These helpers are designed for the tray so it never needs to inspect IDs or statuses.
+
+  Each method returns `serialize_success()` on completion. The tray should call `session-resume-all` when `allPaused` is `true` (showing “Resume All”) and `session-pause-all` when `allPaused` is `false`. If the backend is still initializing and returns an error, retry on the next tooltip poll.
+
+#### **6.5.3 system-install**
+
+- **Method:** `system-install`
+- **Auth:** Required (`X-TT-Auth`)
+- **Arguments:**
+  - `name` (`String`, optional): Label that prefixes each shortcut. Defaults to `TinyTorrent` and is capped at 64 characters.
+  - `args` (`String`, optional): Extra command-line arguments appended to every shortcut.
+  - `locations` (`Array<String>`, optional): Any subset of `desktop`, `start-menu`, `startup`. Defaults to all three when omitted or empty.
+  - `registerHandlers` (`Bool`, optional): When `true`, reuses `system-register-handler` to bind `magnet:` and `.torrent` types.
+  - `installToProgramFiles` (`Bool`, optional): When `true`, copies the running EXE into `C:/Program Files/TinyTorrent/TinyTorrent.exe` (requires elevation and may set `permissionDenied`).
+- **Response:**
+
+  ```json
+  {
+    "result": "success",
+    "arguments": {
+      "action": "system-install",
+      "success": true,
+      "shortcuts": {
+        "desktop": "C:/Users/.../Desktop/TinyTorrent.lnk",
+        "start-menu": "C:/Users/.../AppData/Roaming/Microsoft/Windows/Start Menu/Programs/TinyTorrent.lnk",
+        "startup": "C:/Users/.../AppData/Roaming/Microsoft/Windows/Start Menu/Programs/Startup/TinyTorrent.lnk"
+      },
+      "installSuccess": true,
+      "installMessage": "installed to C:/Program Files/TinyTorrent/TinyTorrent.exe",
+      "installedPath": "C:/Program Files/TinyTorrent/TinyTorrent.exe",
+      "handlersRegistered": true
+    }
+  }
+  ```
+
+  `shortcuts` maps each requested location to the `.lnk` that was actually created. When `installToProgramFiles` was requested, the backend includes `installSuccess`, `installMessage`, and `installedPath` even if the overall RPC reports `error`. `handlersRegistered` and `handlerMessage` mirror the `system-register-handler` result. The boolean `permissionDenied` notifies callers that elevated rights are required (e.g., capturing the Program Files copy failure).
+
+- **Behavior:**
+  - Runs on the IO queue and reuses the same shortcut/COM helpers the tray already depends on.
+  - Creates `.lnk` shortcuts pointing to either the current executable or the freshly installed copy when `installToProgramFiles` succeeds. Shortcuts are safe to call even on failure because they always point to a valid path.
+  - Optionally registers `magnet:`/`.torrent` handlers via `registerHandlers`.
+  - Designed for the Windows launcher flow; non-Windows platforms will report `system-install unsupported` and propagate `permissionDenied` when the OS prevents Program Files writes.
 
 ---
 

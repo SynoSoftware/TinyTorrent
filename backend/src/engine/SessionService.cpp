@@ -198,6 +198,19 @@ void SessionService::perform_action(
     }
 }
 
+void SessionService::perform_action_all(
+    std::function<void(libtorrent::torrent_handle &)> action)
+{
+    if (!manager_)
+        return;
+    auto handles = manager_->torrent_handles();
+    for (auto &h : handles)
+    {
+        if (h.is_valid())
+            action(h);
+    }
+}
+
 std::shared_ptr<SessionSnapshot> SessionService::snapshot() const
 {
     return manager_->snapshot_copy();
@@ -371,6 +384,7 @@ void SessionService::check_speed_limits(bool force)
     SettingsManager::apply_queue(settings, pack);
     SettingsManager::apply_encryption(settings, pack);
     SettingsManager::apply_proxy(settings, pack);
+    SettingsManager::apply_partfile(settings, pack);
 
     manager_->apply_settings(pack);
 }

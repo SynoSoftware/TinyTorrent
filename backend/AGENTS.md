@@ -261,3 +261,74 @@ A task is complete when:
 1.  The code compiles in **Debug Mode** - error free and, if reasonably possible, warning free.
 2.  The automated tests pass (`build.ps1` returns success).
 3.  Architectural boundaries (Engine vs. RPC) are respected.
+
+### Commands in the terminal:
+
+1. Do **not** try to execute Linux commands. The build machine is Windows.
+2. Extra Windows executables available: `rg`, `fd`, `bat`.
+3. For code search, never use `Select-String`. Always use ripgrep:
+
+    - `rg -n -C 5 "<pattern>" <path>`
+
+4. Never write complex or nested shell one-liners. If a command requires tricky quoting or multiple pipes, move it into a script file instead. All commands must be simple, cross-platform, and Windows-safe.
+
+## Tray / Launcher (Windows-only)
+
+Provide a **minimal Win32 tray UI** for TinyTorrent on Windows 11:
+
+- **Single downloadable EXE** for users: `TinyTorrent.exe`.
+- **Portable**: no installer required.
+- Uses **Win32 API only** (no WinUI, no WPF, no frameworks).
+
+#### Runtime behavior
+
+- The process runs the backend daemon logic (engine + RPC + HTTP static UI) and also exposes a tray icon.
+- Tray menu:
+  - **Open UI**: opens default browser to `http://127.0.0.1:<port>/#tt-token=<token>`
+    - The token is placed in the URL fragment so it is **not** sent in HTTP requests.
+  - **Exit**: triggers graceful shutdown (`app-shutdown` semantics).
+- Tooltip (mouse hover): may show small status text.
+  - Future: display transfer rate + torrent count using engine snapshot.
+
+#### Tray layer responsibilities
+
+- Must be implemented as a tiny Win32 procedural component (WinMain + message loop).
+- Use only raw Win32 APIs and C-style interfaces; avoid UI frameworks, GUI toolkits, or heavy C++ abstractions.
+- Minimize STL use; keep code small, self-contained, and focused on UI duties only.
+- The tray must never "own" or operate engine logic — it only issues compact RPC calls (e.g. `session-tray-status`) and control actions; all torrent/session logic remains in the backend.
+
+#### Security contract (must follow docs)
+
+Security is defined in:
+
+- `docs/TinyTorrent_Specification.md` (section 7)
+- `docs/TinyTorrent_RPC_Extended.md`
+
+Key requirements:
+
+- Backend binds to **loopback** and chooses a **random free port**.
+- Backend generates an **ephemeral token** per run.
+- Backend writes `connection.json` with ACL restricted to current user.
+- Frontend must send `X-TT-Auth: <token>` on all RPC requests.
+
+#### Installation without an installer
+
+TinyTorrent may implement an RPC method that:
+
+- Creates `.lnk` shortcuts (Desktop / Start Menu / Startup folder)
+- Optionally registers `magnet:` and `.torrent` handlers
+- Optionally copies/moves the EXE to `Program Files\TinyTorrent\TinyTorrent.exe` (requires elevation)
+
+This is specified in the protocol docs update (see `docs/*`).
+
+#### Tray rules (simple)
+
+Tray stays thin Win32 code.
+Tray polls via session-tray-status (HTTP only).
+No WebSockets.
+Tray never infers state; it reflects backend values.
+
+#### Ownership
+
+System changes (shortcuts, handlers, install) → daemon RPC only.
+Tray only calls RPCs and shows results.

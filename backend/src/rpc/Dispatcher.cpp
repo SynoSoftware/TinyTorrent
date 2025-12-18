@@ -42,6 +42,7 @@
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <thread>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -57,8 +58,32 @@ struct SystemHandlerResult
     std::string message;
 };
 
+struct ShortcutRequest
+{
+    std::string name = "TinyTorrent";
+    std::string args;
+    std::vector<std::string> locations;
+};
+
+struct ShortcutCreationOutcome
+{
+    bool success = false;
+    std::string message;
+    std::vector<std::pair<std::string, std::string>> created;
+};
+
+struct InstallOutcome
+{
+    bool success = false;
+    bool permission_denied = false;
+    std::string message;
+    std::optional<std::filesystem::path> target_path;
+};
+
 namespace
 {
+constexpr std::array<char const *, 3> kDefaultShortcutLocations = {
+    "desktop", "start-menu", "startup"};
 
 #if defined(_WIN32)
 class ScopedCOM
@@ -94,6 +119,289 @@ class ScopedCOM
     ~ScopedCOM() noexcept = default;
 };
 #endif
+
+#if defined(_WIN32)
+std::wstring utf8_to_wide(std::string_view text)
+{
+    if (text.empty())
+    {
+        return {};
+    }
+    int required = MultiByteToWideChar(
+        CP_UTF8, 0, text.data(), static_cast<int>(text.size()), nullptr, 0);
+    if (required <= 0)
+    {
+        return {};
+    }
+    std::wstring wide;
+    wide.resize(static_cast<size_t>(required));
+    MultiByteToWideChar(CP_UTF8, 0, text.data(), static_cast<int>(text.size()),
+                        wide.data(), required);
+    return wide;
+}
+
+std::string wide_to_utf8(std::wstring_view text)
+{
+    if (text.empty())
+    {
+        return {};
+    }
+    int required = WideCharToMultiByte(CP_UTF8, 0, text.data(),
+                                       static_cast<int>(text.size()), nullptr,
+                                       0, nullptr, nullptr);
+    if (required <= 0)
+    {
+        return {};
+    }
+    std::string out;
+    out.resize(static_cast<size_t>(required));
+    WideCharToMultiByte(CP_UTF8, 0, text.data(), static_cast<int>(text.size()),
+                        out.data(), required, nullptr, nullptr);
+    return out;
+}
+
+std::optional<std::filesystem::path> known_folder(REFKNOWNFOLDERID id)
+{
+    PWSTR folder = nullptr;
+    if (FAILED(SHGetKnownFolderPath(id, KF_FLAG_DEFAULT, nullptr, &folder)))
+    {
+        return std::nullopt;
+    }
+    std::filesystem::path result(folder);
+    CoTaskMemFree(folder);
+    return result;
+}
+
+bool create_windows_shortcut(std::filesystem::path const &link_path,
+                             std::filesystem::path const &target_path,
+                             std::wstring const &args,
+                             std::wstring const &description)
+{
+    IShellLinkW *shell_link = nullptr;
+    HRESULT hr =
+        CoCreateInstance(CLSID_ShellLink, nullptr, CLSCTX_INPROC_SERVER,
+                         IID_PPV_ARGS(&shell_link));
+    if (FAILED(hr) || shell_link == nullptr)
+    {
+        return false;
+    }
+
+    shell_link->SetPath(target_path.c_str());
+    if (!args.empty())
+    {
+        shell_link->SetArguments(args.c_str());
+    }
+    if (!description.empty())
+    {
+        shell_link->SetDescription(description.c_str());
+    }
+    shell_link->SetIconLocation(target_path.c_str(), 0);
+
+    IPersistFile *persist = nullptr;
+    hr = shell_link->QueryInterface(IID_PPV_ARGS(&persist));
+    if (SUCCEEDED(hr) && persist != nullptr)
+    {
+        std::error_code ec;
+        std::filesystem::create_directories(link_path.parent_path(), ec);
+        hr = persist->Save(link_path.c_str(), TRUE);
+        persist->Release();
+    }
+
+    shell_link->Release();
+    return SUCCEEDED(hr);
+}
+#endif
+
+std::optional<ShortcutRequest>
+parse_shortcut_request(yyjson_val *arguments,
+                       std::vector<std::string> const &default_locations,
+                       std::string &error)
+{
+    ShortcutRequest request;
+    request.locations = default_locations;
+    auto get_argument = [arguments](char const *key) -> yyjson_val *
+    { return arguments ? yyjson_obj_get(arguments, key) : nullptr; };
+    if (auto *val = get_argument("name"); val && yyjson_is_str(val))
+    {
+        request.name = yyjson_get_str(val);
+    }
+    if (request.name.empty() || request.name.size() > 64)
+    {
+        error = "invalid name";
+        return std::nullopt;
+    }
+    if (auto *val = get_argument("args"); val && yyjson_is_str(val))
+    {
+        request.args = yyjson_get_str(val);
+    }
+    if (auto *val = get_argument("locations"))
+    {
+        if (!yyjson_is_arr(val))
+        {
+            error = "locations must be an array";
+            return std::nullopt;
+        }
+        request.locations.clear();
+        size_t idx = 0, limit = 0;
+        yyjson_val *item = nullptr;
+        yyjson_arr_foreach(val, idx, limit, item)
+        {
+            if (item && yyjson_is_str(item))
+            {
+                request.locations.emplace_back(yyjson_get_str(item));
+            }
+        }
+    }
+    if (request.locations.empty())
+    {
+        request.locations = default_locations;
+    }
+    return request;
+}
+
+ShortcutCreationOutcome create_shortcuts(ShortcutRequest const &request,
+                                         std::filesystem::path const &target)
+{
+    ShortcutCreationOutcome outcome;
+#if defined(_WIN32)
+    ScopedCOM com;
+    if (!com.initialized())
+    {
+        outcome.message = "COM initialization failed";
+        return outcome;
+    }
+
+    auto link_filename = std::filesystem::u8path(request.name + ".lnk");
+    auto wide_args = utf8_to_wide(request.args);
+    auto wide_desc = utf8_to_wide("TinyTorrent");
+
+    for (auto const &loc : request.locations)
+    {
+        std::optional<std::filesystem::path> base;
+        if (loc == "desktop")
+        {
+            base = known_folder(FOLDERID_Desktop);
+        }
+        else if (loc == "start-menu")
+        {
+            base = known_folder(FOLDERID_Programs);
+        }
+        else if (loc == "startup")
+        {
+            base = known_folder(FOLDERID_Startup);
+        }
+        else
+        {
+            continue;
+        }
+
+        if (!base)
+        {
+            continue;
+        }
+        auto link_path = *base / link_filename;
+        if (create_windows_shortcut(link_path, target, wide_args, wide_desc))
+        {
+            outcome.created.emplace_back(loc,
+                                         wide_to_utf8(link_path.wstring()));
+        }
+    }
+
+    outcome.success = !outcome.created.empty();
+    if (!outcome.success && outcome.message.empty())
+    {
+        outcome.message = "no shortcuts created";
+    }
+#else
+    outcome.message = "system-create-shortcuts unsupported";
+#endif
+    return outcome;
+}
+
+ShortcutCreationOutcome
+create_shortcuts_on_sta(ShortcutRequest const &request,
+                        std::filesystem::path const &target)
+{
+#if defined(_WIN32)
+    ShortcutCreationOutcome outcome;
+    std::thread sta_thread([request, target, &outcome]() mutable
+                           { outcome = create_shortcuts(request, target); });
+    sta_thread.join();
+    return outcome;
+#else
+    return create_shortcuts(request, target);
+#endif
+}
+
+InstallOutcome install_to_program_files(std::filesystem::path const &source)
+{
+    InstallOutcome outcome;
+#if defined(_WIN32)
+    auto program_files = known_folder(FOLDERID_ProgramFiles);
+    if (!program_files)
+    {
+        outcome.message = "unable to locate Program Files folder";
+        return outcome;
+    }
+    auto install_dir = *program_files / "TinyTorrent";
+    std::error_code ec;
+    std::filesystem::create_directories(install_dir, ec);
+    if (ec)
+    {
+        outcome.permission_denied = (ec == std::errc::permission_denied) ||
+                                    (ec.value() == ERROR_ACCESS_DENIED);
+        outcome.message = std::format("unable to prepare {}: {}",
+                                      install_dir.string(), ec.message());
+        return outcome;
+    }
+    auto target = install_dir / "TinyTorrent.exe";
+    if (source == target)
+    {
+        outcome.success = true;
+        outcome.target_path = target;
+        outcome.message =
+            std::format("already installed at {}", path_to_string(target));
+        return outcome;
+    }
+    try
+    {
+        std::filesystem::copy_file(
+            source, target, std::filesystem::copy_options::overwrite_existing);
+        outcome.success = true;
+        outcome.target_path = target;
+        outcome.message =
+            std::format("installed to {}", path_to_string(target));
+    }
+    catch (std::filesystem::filesystem_error const &ex)
+    {
+        outcome.permission_denied =
+            (ex.code() == std::errc::permission_denied) ||
+            (ex.code().value() == ERROR_ACCESS_DENIED);
+        outcome.message = ex.what();
+    }
+#else
+    outcome.message = "program-files install unsupported";
+#endif
+    return outcome;
+}
+
+std::string join_messages(std::vector<std::string> const &values)
+{
+    std::string result;
+    for (auto const &value : values)
+    {
+        if (result.empty())
+        {
+            result = value;
+        }
+        else
+        {
+            result += "; ";
+            result += value;
+        }
+    }
+    return result;
+}
 
 std::optional<int> parse_int_value(yyjson_val *value)
 {
@@ -678,6 +986,21 @@ SystemHandlerResult register_mac_handler()
     return result;
 }
 #endif
+
+SystemHandlerResult register_platform_handler()
+{
+#if defined(_WIN32)
+    return register_windows_handler();
+#elif defined(__linux__)
+    return register_linux_handler();
+#elif defined(__APPLE__)
+    return register_mac_handler();
+#else
+    SystemHandlerResult result;
+    result.message = "system-register-handler unsupported";
+    return result;
+#endif
+}
 
 std::string to_lower_view(std::string_view value)
 {
@@ -1355,6 +1678,12 @@ std::string handle_session_set(engine::Core *engine, yyjson_val *arguments)
         session_update_needed = true;
     }
     if (auto value =
+            parse_bool_flag(yyjson_obj_get(arguments, "rename-partial-files")))
+    {
+        session_update.rename_partial_files = *value;
+        session_update_needed = true;
+    }
+    if (auto value =
             parse_double_value(yyjson_obj_get(arguments, "seed-ratio-limit")))
     {
         session_update.seed_ratio_limit = *value;
@@ -1817,6 +2146,110 @@ void handle_system_open_async(engine::Core *engine, yyjson_val *arguments,
         });
 }
 
+void handle_system_install_async(engine::Core *engine, yyjson_val *arguments,
+                                 ResponseCallback cb)
+{
+    std::vector<std::string> default_locations(
+        kDefaultShortcutLocations.begin(), kDefaultShortcutLocations.end());
+    std::string parse_error;
+    auto request =
+        parse_shortcut_request(arguments, default_locations, parse_error);
+    if (!request)
+    {
+        cb(serialize_error(parse_error.empty() ? "invalid arguments"
+                                               : parse_error));
+        return;
+    }
+    bool register_handlers =
+        bool_value(yyjson_obj_get(arguments, "registerHandlers"));
+    bool install_to_program_files_flag =
+        bool_value(yyjson_obj_get(arguments, "installToProgramFiles"));
+
+#if !defined(_WIN32)
+    cb(serialize_error("system-install unsupported"));
+    return;
+#endif
+
+    engine->submit_io_task(
+        [request = std::move(*request), register_handlers,
+         install_to_program_files_flag, cb = std::move(cb)]() mutable
+        {
+            SystemInstallResult result;
+            result.install_requested = install_to_program_files_flag;
+
+            auto executable_path = tt::utils::executable_path();
+            if (!executable_path)
+            {
+                result.message = "unable to determine executable path";
+                cb(serialize_system_install(result));
+                return;
+            }
+
+            std::filesystem::path shortcut_target = *executable_path;
+            std::vector<std::string> error_messages;
+
+            if (install_to_program_files_flag)
+            {
+                auto install_result =
+                    install_to_program_files(*executable_path);
+                result.install_success = install_result.success;
+                result.permission_denied |= install_result.permission_denied;
+                result.install_message = install_result.message;
+                if (install_result.target_path)
+                {
+                    result.installed_path =
+                        path_to_string(*install_result.target_path);
+                    shortcut_target = *install_result.target_path;
+                }
+                if (!install_result.success && !install_result.message.empty())
+                {
+                    error_messages.push_back(install_result.message);
+                }
+            }
+
+            auto shortcuts = create_shortcuts_on_sta(request, shortcut_target);
+            result.shortcuts = shortcuts.created;
+            if (!shortcuts.success && !shortcuts.message.empty())
+            {
+                error_messages.push_back(shortcuts.message);
+            }
+
+            result.success = shortcuts.success;
+            if (install_to_program_files_flag && !result.install_success)
+            {
+                result.success = false;
+            }
+
+            if (!shortcuts.success)
+            {
+                result.success = false;
+            }
+
+            if (register_handlers)
+            {
+                auto handler_result = register_platform_handler();
+                result.handlers_registered = handler_result.success;
+                result.handler_message = handler_result.message;
+                result.permission_denied |= handler_result.permission_denied;
+                if (!handler_result.success && !handler_result.message.empty())
+                {
+                    error_messages.push_back(handler_result.message);
+                }
+                if (!handler_result.success)
+                {
+                    result.success = false;
+                }
+            }
+
+            if (!error_messages.empty())
+            {
+                result.message = join_messages(error_messages);
+            }
+
+            cb(serialize_system_install(result));
+        });
+}
+
 void handle_free_space_async(engine::Core *engine, yyjson_val *arguments,
                              ResponseCallback cb)
 {
@@ -1863,16 +2296,7 @@ void handle_free_space_async(engine::Core *engine, yyjson_val *arguments,
 
 std::string handle_system_register_handler()
 {
-    SystemHandlerResult result;
-#if defined(_WIN32)
-    result = register_windows_handler();
-#elif defined(__linux__)
-    result = register_linux_handler();
-#elif defined(__APPLE__)
-    result = register_mac_handler();
-#else
-    result.message = "system register handler unsupported";
-#endif
+    SystemHandlerResult result = register_platform_handler();
     if (result.message.empty())
     {
         result.message = "system register handler unsupported";
@@ -2278,6 +2702,9 @@ void Dispatcher::register_handlers()
         { handle_system_reveal_async(engine_, arguments, std::move(cb)); });
     add_async("system-open", [this](yyjson_val *arguments, ResponseCallback cb)
               { handle_system_open_async(engine_, arguments, std::move(cb)); });
+    add_async(
+        "system-install", [this](yyjson_val *arguments, ResponseCallback cb)
+        { handle_system_install_async(engine_, arguments, std::move(cb)); });
     add_sync("system-register-handler",
              [](yyjson_val *) { return handle_system_register_handler(); });
     add_sync("app-shutdown",

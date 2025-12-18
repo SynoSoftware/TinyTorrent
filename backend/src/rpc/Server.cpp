@@ -37,6 +37,167 @@ namespace
 constexpr std::size_t kMaxHttpPayloadSize = 1 << 20;
 constexpr std::uintmax_t kMaxWatchFileSize = 64ull * 1024 * 1024;
 
+constexpr std::string_view kUiIndexPath = "/index.html";
+
+std::string_view content_type_for_path(std::string_view path)
+{
+    auto dot = path.find_last_of('.');
+    if (dot == std::string_view::npos)
+    {
+        return "application/octet-stream";
+    }
+    auto ext = path.substr(dot + 1);
+    if (ext == "html" || ext == "htm")
+        return "text/html; charset=utf-8";
+    if (ext == "js")
+        return "text/javascript; charset=utf-8";
+    if (ext == "css")
+        return "text/css; charset=utf-8";
+    if (ext == "json")
+        return "application/json; charset=utf-8";
+    if (ext == "svg")
+        return "image/svg+xml";
+    if (ext == "png")
+        return "image/png";
+    if (ext == "jpg" || ext == "jpeg")
+        return "image/jpeg";
+    if (ext == "ico")
+        return "image/x-icon";
+    if (ext == "woff2")
+        return "font/woff2";
+    return "application/octet-stream";
+}
+
+bool path_is_safe(std::string_view path)
+{
+    if (path.empty() || path.front() != '/')
+    {
+        return false;
+    }
+    if (path.find("..") != std::string_view::npos)
+    {
+        return false;
+    }
+    return true;
+}
+
+bool should_fallback_to_index(std::string_view path)
+{
+    if (path.empty())
+    {
+        return false;
+    }
+    if (path.starts_with("/transmission") || path.starts_with("/ws"))
+    {
+        return false;
+    }
+    if (path == "/api" || path.starts_with("/api/"))
+    {
+        return false;
+    }
+    auto last_slash = path.find_last_of('/');
+    std::string_view last_segment;
+    if (last_slash == std::string_view::npos)
+    {
+        last_segment = path;
+    }
+    else
+    {
+        last_segment = path.substr(last_slash + 1);
+    }
+    if (!last_segment.empty() &&
+        last_segment.find('.') != std::string_view::npos)
+    {
+        // Treat anything that looks like a file with an extension as a real
+        // asset.
+        return false;
+    }
+    return true;
+}
+
+void reply_bytes(struct mg_connection *conn, int code,
+                 std::string_view content_type, std::string_view body,
+                 bool head_only)
+{
+    if (conn == nullptr)
+    {
+        return;
+    }
+    mg_printf(conn,
+              "HTTP/1.1 %d %s\r\n"
+              "Content-Type: %.*s\r\n"
+              "Content-Length: %zu\r\n"
+              "Cache-Control: no-store\r\n"
+              "\r\n",
+              code, (code == 200 ? "OK" : (code == 404 ? "Not Found" : "")),
+              static_cast<int>(content_type.size()), content_type.data(),
+              static_cast<size_t>(body.size()));
+    if (!head_only && !body.empty())
+    {
+        mg_send(conn, body.data(), body.size());
+    }
+}
+
+void serve_ui(struct mg_connection *conn, struct mg_http_message *hm,
+              std::string_view uri)
+{
+    if (conn == nullptr || hm == nullptr)
+    {
+        return;
+    }
+    std::string_view method(hm->method.buf, hm->method.len);
+    bool head_only = (method == "HEAD");
+    if (method != "GET" && method != "HEAD")
+    {
+        mg_http_reply(conn, 404, "Content-Type: text/plain\r\n", "not found");
+        return;
+    }
+
+    std::string_view request_path = uri;
+    auto query_pos = request_path.find('?');
+    if (query_pos != std::string_view::npos)
+    {
+        request_path.remove_suffix(request_path.size() - query_pos);
+    }
+
+    std::string path_storage;
+    if (request_path == "/")
+    {
+        path_storage = std::string(kUiIndexPath);
+    }
+    else
+    {
+        path_storage.assign(request_path);
+    }
+    std::string_view path(path_storage);
+    if (!path_is_safe(path))
+    {
+        mg_http_reply(conn, 400, "Content-Type: text/plain\r\n", "bad request");
+        return;
+    }
+
+    auto packed = mg_unpacked(path_storage.c_str());
+    if (packed.buf == nullptr || packed.len == 0)
+    {
+        if (should_fallback_to_index(path))
+        {
+            auto fallback = mg_unpacked(std::string(kUiIndexPath).c_str());
+            if (fallback.buf != nullptr && fallback.len > 0)
+            {
+                reply_bytes(conn, 200, content_type_for_path(kUiIndexPath),
+                            std::string_view(fallback.buf, fallback.len),
+                            head_only);
+                return;
+            }
+        }
+        mg_http_reply(conn, 404, "Content-Type: text/plain\r\n", "not found");
+        return;
+    }
+
+    reply_bytes(conn, 200, content_type_for_path(path),
+                std::string_view(packed.buf, packed.len), head_only);
+}
+
 std::string generate_session_id()
 {
     static constexpr char kHexDigits[] = "0123456789abcdef";
@@ -195,6 +356,13 @@ std::optional<std::string> normalized_host(struct mg_http_message *hm)
     return std::nullopt;
 }
 
+bool is_loopback_host(std::string_view host)
+{
+    return std::any_of(kLoopbackHosts.begin(), kLoopbackHosts.end(),
+                       [&](std::string_view candidate)
+                       { return host == candidate; });
+}
+
 bool host_allowed(std::string const &host,
                   std::vector<std::string> const &allowed_hosts)
 {
@@ -206,11 +374,20 @@ bool host_allowed(std::string const &host,
     {
         return std::any_of(allowed_hosts.begin(), allowed_hosts.end(),
                            [&](std::string const &candidate)
-                           { return host == candidate; });
+                           {
+                               if (host == candidate)
+                               {
+                                   return true;
+                               }
+                               if (is_loopback_host(host) &&
+                                   is_loopback_host(candidate))
+                               {
+                                   return true;
+                               }
+                               return false;
+                           });
     }
-    return std::any_of(kLoopbackHosts.begin(), kLoopbackHosts.end(),
-                       [&](std::string_view candidate)
-                       { return host == candidate; });
+    return is_loopback_host(host);
 }
 
 bool origin_allowed(struct mg_http_message *hm,
@@ -435,6 +612,13 @@ void Server::stop()
     {
         return;
     }
+
+    if (listener_ != nullptr)
+    {
+        mg_close_conn(listener_);
+        listener_ = nullptr;
+    }
+    mg_wakeup(&mgr_, 0, nullptr, 0);
 
     // Only broadcast shutdown event if we're not destroying the Server
     // During destruction, the destroying flag is already set and connections
@@ -856,19 +1040,29 @@ void Server::handle_http_message(struct mg_connection *conn,
     bool is_ws = uri.size() == ws_path_.size() &&
                  std::memcmp(uri.data(), ws_path_.data(), uri.size()) == 0;
 
-    if (is_ws)
+    // Enforce loopback Host header policy for *all* requests (UI + RPC + WS)
+    // to prevent DNS rebinding attacks.
+    auto normalized = normalized_host(hm);
+    if (!normalized || !host_allowed(*normalized, allowed_hosts_))
     {
-        auto normalized = normalized_host(hm);
-        if (!normalized || !host_allowed(*normalized, allowed_hosts_))
+        TT_LOG_INFO("HTTP request rejected; unsupported host header {}",
+                    normalized ? *normalized : "<missing>");
+        if (is_rpc || is_ws)
         {
-            TT_LOG_INFO(
-                "WebSocket upgrade rejected; unsupported host header {}",
-                normalized ? *normalized : "<missing>");
             auto payload = serialize_error("invalid host header");
             mg_http_reply(conn, 403, "Content-Type: application/json\r\n", "%s",
                           payload.c_str());
-            return;
         }
+        else
+        {
+            mg_http_reply(conn, 403, "Content-Type: text/plain\r\n",
+                          "forbidden");
+        }
+        return;
+    }
+
+    if (is_ws)
+    {
         if (!origin_allowed(hm, options_))
         {
             auto origin_value = header_value(hm, "Origin");
@@ -894,19 +1088,7 @@ void Server::handle_http_message(struct mg_connection *conn,
 
     if (!is_rpc)
     {
-        TT_LOG_INFO("HTTP request rejected; unsupported path {}", uri);
-        mg_http_reply(conn, 404, "Content-Type: text/plain\r\n", "not found");
-        return;
-    }
-
-    auto normalized = normalized_host(hm);
-    if (!normalized || !host_allowed(*normalized, allowed_hosts_))
-    {
-        TT_LOG_INFO("RPC request rejected; unsupported host header {}",
-                    normalized ? *normalized : "<missing>");
-        auto payload = serialize_error("invalid host header");
-        mg_http_reply(conn, 403, "Content-Type: application/json\r\n", "%s",
-                      payload.c_str());
+        serve_ui(conn, hm, uri);
         return;
     }
     if (!origin_allowed(hm, options_))

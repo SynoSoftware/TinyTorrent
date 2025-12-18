@@ -1,3 +1,4 @@
+#include "app/DaemonMain.hpp"
 #include "engine/Core.hpp"
 #include "rpc/Server.hpp"
 #include "utils/Endpoint.hpp"
@@ -170,7 +171,11 @@ bool secure_connection_permissions(std::filesystem::path const &path)
 }
 #endif
 
-int main(int argc, char *argv[])
+namespace tt::app
+{
+
+int daemon_main(int argc, char *argv[],
+                std::promise<tt::rpc::ConnectionInfo> *ready_promise)
 {
     std::signal(SIGINT, [](int) { tt::runtime::request_shutdown(); });
     std::signal(SIGTERM, [](int) { tt::runtime::request_shutdown(); });
@@ -493,6 +498,8 @@ int main(int argc, char *argv[])
     }
     settings.watch_dir_enabled =
         parse_bool_value(read_db_string("watchDirEnabled"));
+    settings.rename_partial_files =
+        parse_bool_value(read_db_string("renamePartialFiles"));
     if (auto value = read_db_string("seedRatioLimit");
         auto parsed = parse_double_value(value))
     {
@@ -541,6 +548,8 @@ int main(int argc, char *argv[])
                    std::to_string(settings.history_interval_seconds));
     set_db_setting("historyRetentionDays",
                    std::to_string(settings.history_retention_days));
+    set_db_setting("renamePartialFiles",
+                   settings.rename_partial_files ? "1" : "0");
     settings.state_path = state_path;
 
     TT_LOG_INFO("Engine listen interface: {}", settings.listen_interface);
@@ -672,6 +681,10 @@ int main(int argc, char *argv[])
     auto connection_file = root / "connection.json";
     if (connection_info)
     {
+        if (ready_promise)
+        {
+            ready_promise->set_value(*connection_info);
+        }
         if (write_connection_file(connection_file, *connection_info,
                                   current_pid()))
         {
@@ -720,3 +733,5 @@ int main(int argc, char *argv[])
     TT_LOG_INFO("Shutdown complete.");
     return 0;
 }
+
+} // namespace tt::app

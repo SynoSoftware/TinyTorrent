@@ -68,6 +68,7 @@ struct CoreSettings
     bool history_enabled = true;
     int history_interval_seconds = 300;
     int history_retention_days = 30;
+    bool rename_partial_files = true;
 };
 
 struct SessionUpdate
@@ -95,6 +96,7 @@ struct SessionUpdate
     std::optional<double> seed_ratio_limit;
     std::optional<bool> seed_idle_enabled;
     std::optional<int> seed_idle_limit;
+    std::optional<bool> rename_partial_files;
     std::optional<int> proxy_type;
     std::optional<std::string> proxy_hostname;
     std::optional<int> proxy_port;
@@ -279,6 +281,8 @@ class Core
     std::optional<TorrentDetail> torrent_detail(int id);
     void start_torrents(std::vector<int> ids, bool now = false);
     void stop_torrents(std::vector<int> ids);
+    void pause_all();
+    void resume_all();
     void verify_torrents(std::vector<int> ids);
     void remove_torrents(std::vector<int> ids, bool delete_data = false);
     void reannounce_torrents(std::vector<int> ids);

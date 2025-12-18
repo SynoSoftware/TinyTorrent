@@ -82,7 +82,8 @@
             "config_export": "Copy the raw settings JSON for backups or automation.",
             "config_details": "Includes both engine telemetry and UI preferences in a single snapshot.",
             "connection_profiles": "Manage the RPC endpoints and credentials TinyTorrent talks to.",
-            "table_watermark": "Display the ghosted TinyTorrent logo behind the torrent table."
+            "table_watermark": "Display the ghosted TinyTorrent logo behind the torrent table.",
+            "install": "Create shortcuts, register handlers, and optionally install TinyTorrent to Program Files."
         },
         "headers": {
             "gui": "Interface",
@@ -91,7 +92,8 @@
             "peers": "Peer Limits",
             "privacy": "Privacy",
             "speed": "Speed Limits",
-            "storage": "Storage"
+            "storage": "Storage",
+            "install": "System Integration"
         },
         "labels": {
             "altSpeedDays": "Scheduled Days",
@@ -133,6 +135,11 @@
             "uploadLimit": "Upload Limit",
             "upnp": "Enable UPnP / NAT-PMP",
             "useIncompleteFolder": "Use Incomplete Folder",
+            "installName": "Shortcut name",
+            "installArgs": "Extra command-line arguments",
+            "installLocations": "Shortcut locations",
+            "installRegisterHandlers": "Register magnet:/.torrent handlers",
+            "installProgramFiles": "Install to Program Files (requires elevation)",
             "language": "Language",
             "raw_config": "Settings JSON"
         },
@@ -168,7 +175,8 @@
             "polling": "Polling & Timeout",
             "protocol": "Protocol Features",
             "seeding": "Seeding Behavior",
-            "turtle": "Turtle Mode (Scheduled)"
+            "turtle": "Turtle Mode (Scheduled)",
+            "install": "System Integration"
         },
         "tabs": {
             "gui": "Interface",
@@ -177,7 +185,30 @@
             "peers": "Peers",
             "privacy": "Privacy",
             "speed": "Speed",
-            "storage": "Storage"
+            "storage": "Storage",
+            "install": "System"
+        },
+        "install": {
+            "button": "Run system installer",
+            "button_busy": "Running installer...",
+            "unavailable": "System install is unavailable for this backend.",
+            "result_success": "Installation completed successfully.",
+            "result_partial": "Some requested actions failed.",
+            "result_permission_denied": "Permission denied while performing an action.",
+            "result_failure": "Installation failed.",
+            "shortcuts_header": "Shortcuts",
+            "shortcuts_none": "No shortcuts were created.",
+            "program_files_label": "Program Files install",
+            "installed_path": "Installed to {{path}}.",
+            "install_not_requested": "Program Files install was not requested.",
+            "handlers_header": "Protocol handlers",
+            "handlers_registered": "Handlers registered",
+            "handlers_not_registered": "Handlers not registered",
+            "locations": {
+                "desktop": "Desktop",
+                "start-menu": "Start Menu",
+                "startup": "Startup"
+            }
         },
         "units": {
             "kbps": "{{value}} KB/s"

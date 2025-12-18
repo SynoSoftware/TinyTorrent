@@ -13,13 +13,15 @@ namespace tt::engine
 
 namespace
 {
-__declspec(noinline)
-void set_user_agent(libtorrent::settings_pack &pack)
+__declspec(noinline) void set_user_agent(libtorrent::settings_pack &pack)
 {
     static std::string const user_agent = "TinyTorrent/0.1.0";
     pack.set_str(libtorrent::settings_pack::user_agent, user_agent);
 }
-}
+
+constexpr char const kPartfileExtension[] = ".!tt";
+constexpr char const kDefaultPartfileExtension[] = ".part";
+} // namespace
 
 libtorrent::settings_pack
 SettingsManager::build_settings_pack(CoreSettings const &s)
@@ -80,6 +82,7 @@ SettingsManager::build_settings_pack(CoreSettings const &s)
                   s.queue_stalled_enabled);
 
     apply_proxy(s, pack);
+    apply_partfile(s, pack);
 
     return pack;
 }
@@ -186,6 +189,24 @@ void SettingsManager::apply_proxy(CoreSettings const &s,
                          s.proxy_auth_enabled ? s.proxy_username : "");
         current->set_str(libtorrent::settings_pack::proxy_password,
                          s.proxy_auth_enabled ? s.proxy_password : "");
+    }
+}
+
+void SettingsManager::apply_partfile(CoreSettings const &s,
+                                     libtorrent::settings_pack &pack,
+                                     libtorrent::settings_pack *current)
+{
+    auto extension =
+        s.rename_partial_files ? kPartfileExtension : kDefaultPartfileExtension;
+    pack.set_bool(libtorrent::settings_pack::use_partfile,
+                  s.rename_partial_files);
+    pack.set_str(libtorrent::settings_pack::partfile_extension, extension);
+    if (current)
+    {
+        current->set_bool(libtorrent::settings_pack::use_partfile,
+                          s.rename_partial_files);
+        current->set_str(libtorrent::settings_pack::partfile_extension,
+                         extension);
     }
 }
 
@@ -409,6 +430,11 @@ SettingsManager::apply_update(CoreSettings settings,
         {
             std::filesystem::create_directories(s.watch_dir);
         }
+    }
+    if (update.rename_partial_files)
+    {
+        s.rename_partial_files = *update.rename_partial_files;
+        result.persist = true;
     }
     if (update.seed_ratio_limit)
     {

@@ -163,3 +163,24 @@ export interface TransmissionTorrentRenameResult {
     name: string;
     path: string;
 }
+
+export interface SystemInstallOptions {
+    name?: string;
+    args?: string;
+    locations?: string[];
+    registerHandlers?: boolean;
+    installToProgramFiles?: boolean;
+}
+
+export interface SystemInstallResult {
+    action: "system-install";
+    success: boolean;
+    permissionDenied?: boolean;
+    message?: string;
+    shortcuts?: Record<string, string>;
+    installSuccess?: boolean;
+    installMessage?: string;
+    installedPath?: string;
+    handlersRegistered?: boolean;
+    handlerMessage?: string;
+}

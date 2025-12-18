@@ -404,11 +404,10 @@ std::string serialize_capabilities()
     yyjson_mut_obj_add_str(native, arguments, "websocket-path", "/ws");
     yyjson_mut_obj_add_str(native, arguments, "platform", "win32");
 
-    static constexpr std::array<char const *, 8> kFeatures = {
-        "fs-browse",           "system-integration",
-        "system-reveal",       "system-open",
-        "proxy-configuration", "proxy-support",
-        "sequential-download", "labels"};
+    static constexpr std::array<char const *, 9> kFeatures = {
+        "fs-browse",     "system-integration",      "system-reveal",
+        "system-open",   "system-create-shortcuts", "proxy-configuration",
+        "proxy-support", "sequential-download",     "labels"};
     auto *features = yyjson_mut_arr(native);
     yyjson_mut_obj_add_val(native, arguments, "features", features);
     for (auto const feature : kFeatures)
@@ -502,6 +501,8 @@ std::string serialize_session_settings(
     }
     yyjson_mut_obj_add_bool(native, arguments, "watch-dir-enabled",
                             settings.watch_dir_enabled);
+    yyjson_mut_obj_add_bool(native, arguments, "rename-partial-files",
+                            settings.rename_partial_files);
     yyjson_mut_obj_add_real(native, arguments, "seed-ratio-limit",
                             settings.seed_ratio_limit);
     yyjson_mut_obj_add_bool(native, arguments, "seed-ratio-limited",
@@ -634,6 +635,45 @@ std::string serialize_session_stats(engine::SessionSnapshot const &snapshot)
     yyjson_mut_obj_add_uint(native, current, "sessionCount",
                             snapshot.current_stats.session_count);
     yyjson_mut_obj_add_val(native, arguments, "currentStats", current);
+
+    return doc.write(R"({"result":"error"})");
+}
+
+std::string serialize_session_tray_status(std::uint64_t download_kbps,
+                                          std::uint64_t upload_kbps,
+                                          std::size_t active_count,
+                                          std::size_t seeding_count,
+                                          bool any_error, bool all_paused,
+                                          std::string const &download_dir)
+{
+    tt::json::MutableDocument doc;
+    if (!doc.is_valid())
+    {
+        return "{}";
+    }
+
+    auto *native = doc.doc();
+    auto *root = yyjson_mut_obj(native);
+    doc.set_root(root);
+    yyjson_mut_obj_add_str(native, root, "result", "success");
+
+    auto *arguments = yyjson_mut_obj(native);
+    yyjson_mut_obj_add_val(native, root, "arguments", arguments);
+    yyjson_mut_obj_add_uint(native, arguments, "downloadSpeed",
+                            static_cast<std::uint64_t>(download_kbps));
+    yyjson_mut_obj_add_uint(native, arguments, "uploadSpeed",
+                            static_cast<std::uint64_t>(upload_kbps));
+    yyjson_mut_obj_add_uint(native, arguments, "activeTorrentCount",
+                            static_cast<std::uint64_t>(active_count));
+    yyjson_mut_obj_add_uint(native, arguments, "seedingCount",
+                            static_cast<std::uint64_t>(seeding_count));
+    yyjson_mut_obj_add_bool(native, arguments, "anyError", any_error);
+    yyjson_mut_obj_add_bool(native, arguments, "allPaused", all_paused);
+    if (!download_dir.empty())
+    {
+        yyjson_mut_obj_add_str(native, arguments, "downloadDir",
+                               download_dir.c_str());
+    }
 
     return doc.write(R"({"result":"error"})");
 }
@@ -1178,6 +1218,105 @@ std::string serialize_system_action(std::string const &action, bool success,
     if (!message.empty())
     {
         yyjson_mut_obj_add_str(native, arguments, "message", message.c_str());
+    }
+
+    return doc.write(R"({"result":"error"})");
+}
+
+std::string serialize_system_create_shortcuts(
+    bool success, std::string const &message,
+    std::vector<std::pair<std::string, std::string>> const &created)
+{
+    tt::json::MutableDocument doc;
+    if (!doc.is_valid())
+    {
+        return "{}";
+    }
+
+    auto *native = doc.doc();
+    auto *root = yyjson_mut_obj(native);
+    doc.set_root(root);
+    yyjson_mut_obj_add_str(native, root, "result",
+                           success ? "success" : "error");
+
+    auto *arguments = yyjson_mut_obj(native);
+    yyjson_mut_obj_add_val(native, root, "arguments", arguments);
+    yyjson_mut_obj_add_str(native, arguments, "action",
+                           "system-create-shortcuts");
+    yyjson_mut_obj_add_bool(native, arguments, "success", success);
+    if (!message.empty())
+    {
+        yyjson_mut_obj_add_str(native, arguments, "message", message.c_str());
+    }
+
+    auto *created_obj = yyjson_mut_obj(native);
+    yyjson_mut_obj_add_val(native, arguments, "created", created_obj);
+    for (auto const &[location, path] : created)
+    {
+        yyjson_mut_obj_add_str(native, created_obj, location.c_str(),
+                               path.c_str());
+    }
+
+    return doc.write(R"({"result":"error"})");
+}
+
+std::string serialize_system_install(SystemInstallResult const &result)
+{
+    tt::json::MutableDocument doc;
+    if (!doc.is_valid())
+    {
+        return "{}";
+    }
+
+    auto *native = doc.doc();
+    auto *root = yyjson_mut_obj(native);
+    doc.set_root(root);
+    yyjson_mut_obj_add_str(native, root, "result",
+                           result.success ? "success" : "error");
+
+    auto *arguments = yyjson_mut_obj(native);
+    yyjson_mut_obj_add_val(native, root, "arguments", arguments);
+    yyjson_mut_obj_add_str(native, arguments, "action", "system-install");
+    yyjson_mut_obj_add_bool(native, arguments, "success", result.success);
+    if (result.permission_denied)
+    {
+        yyjson_mut_obj_add_bool(native, arguments, "permissionDenied", true);
+    }
+    if (!result.message.empty())
+    {
+        yyjson_mut_obj_add_str(native, arguments, "message",
+                               result.message.c_str());
+    }
+
+    auto *shortcut_obj = yyjson_mut_obj(native);
+    yyjson_mut_obj_add_val(native, arguments, "shortcuts", shortcut_obj);
+    for (auto const &[location, path] : result.shortcuts)
+    {
+        yyjson_mut_obj_add_str(shortcut_obj, location.c_str(), path.c_str());
+    }
+
+    if (result.install_requested)
+    {
+        yyjson_mut_obj_add_bool(native, arguments, "installSuccess",
+                                result.install_success);
+        if (!result.install_message.empty())
+        {
+            yyjson_mut_obj_add_str(native, arguments, "installMessage",
+                                   result.install_message.c_str());
+        }
+        if (result.installed_path)
+        {
+            yyjson_mut_obj_add_str(native, arguments, "installedPath",
+                                   result.installed_path->c_str());
+        }
+    }
+
+    yyjson_mut_obj_add_bool(native, arguments, "handlersRegistered",
+                            result.handlers_registered);
+    if (!result.handler_message.empty())
+    {
+        yyjson_mut_obj_add_str(native, arguments, "handlerMessage",
+                               result.handler_message.c_str());
     }
 
     return doc.write(R"({"result":"error"})");

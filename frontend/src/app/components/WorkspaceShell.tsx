@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import type { HTMLAttributes, InputHTMLAttributes } from "react";
 import { AnimatePresence, motion, type Transition } from "framer-motion";
 import { useTranslation } from "react-i18next";
@@ -13,6 +14,10 @@ import {
 import { AlertTriangle, Link2, MousePointer, PlugZap, X } from "lucide-react";
 
 import type { EngineAdapter } from "../../services/rpc/engine-adapter";
+import type {
+    SystemInstallOptions,
+    SystemInstallResult,
+} from "../../services/rpc/types";
 import { ModeLayout } from "../../modules/dashboard/components/ModeLayout";
 import { AddTorrentModal } from "../../modules/torrent-add/components/AddTorrentModal";
 import { SettingsModal } from "../../modules/settings/components/SettingsModal";
@@ -32,19 +37,23 @@ import type {
     FileExplorerContextAction,
     FileExplorerEntry,
 } from "../../shared/ui/workspace/FileExplorerTree";
-import type { Torrent, TorrentDetail } from "../../modules/dashboard/types/torrent";
+import type {
+    Torrent,
+    TorrentDetail,
+} from "../../modules/dashboard/types/torrent";
 import type {
     OptimisticStatusMap,
     TorrentTableAction,
 } from "../../modules/dashboard/components/TorrentTable";
-import type {
-    PeerContextAction,
-} from "../../modules/dashboard/components/details/tabs/PeersTab";
+import type { PeerContextAction } from "../../modules/dashboard/components/details/tabs/PeersTab";
 import type {
     DetailTab,
     PeerSortStrategy,
 } from "../../modules/dashboard/components/TorrentDetailView";
-import type { SessionStats, TorrentPeerEntity } from "../../services/rpc/entities";
+import type {
+    SessionStats,
+    TorrentPeerEntity,
+} from "../../services/rpc/entities";
 import type { RpcStatus } from "../../shared/types/rpc";
 import type { AddTorrentContext } from "../hooks/useAddTorrent";
 import type { WorkspaceStyle } from "../hooks/useWorkspaceShell";
@@ -218,6 +227,18 @@ export function WorkspaceShell({
                   defaultValue: "Switch to immersive shell",
               });
 
+    const handleSystemInstall = useCallback(
+        (options: SystemInstallOptions): Promise<SystemInstallResult> => {
+            if (!torrentClient.systemInstall) {
+                return Promise.reject(
+                    new Error("System install not supported")
+                );
+            }
+            return torrentClient.systemInstall(options);
+        },
+        [torrentClient]
+    );
+
     const renderNavbar = () => (
         <Navbar
             filter={filter}
@@ -248,33 +269,33 @@ export function WorkspaceShell({
     );
 
     const renderModeLayoutSection = () => (
-            <ModeLayout
-                torrents={torrents}
-                filter={filter}
-                searchQuery={searchQuery}
-                isTableLoading={isTableLoading}
-                onAction={handleTorrentAction}
-                onRequestDetails={handleRequestDetails}
-                detailData={detailData}
-                onCloseDetail={closeDetail}
-                onFilesToggle={handleFileSelectionChange}
-                onFileContextAction={onFileContextAction}
-                onPeerContextAction={onPeerContextAction}
-                onSequentialToggle={sequentialToggleHandler}
-                onSuperSeedingToggle={superSeedingToggleHandler}
-                onForceTrackerReannounce={handleForceTrackerReannounce}
-                sequentialSupported={sequentialSupported}
-                superSeedingSupported={superSeedingSupported}
-                optimisticStatuses={optimisticStatuses}
-                peerSortStrategy={peerSortStrategy}
-                inspectorTabCommand={inspectorTabCommand}
-                onInspectorTabCommandHandled={onInspectorTabCommandHandled}
-                ghostTorrents={ghostTorrents}
-                isDropActive={isDragActive}
-                onSelectionChange={handleSelectionChange}
-                onOpenFolder={handleOpenFolder}
-                tableWatermarkEnabled={tableWatermarkEnabled}
-            />
+        <ModeLayout
+            torrents={torrents}
+            filter={filter}
+            searchQuery={searchQuery}
+            isTableLoading={isTableLoading}
+            onAction={handleTorrentAction}
+            onRequestDetails={handleRequestDetails}
+            detailData={detailData}
+            onCloseDetail={closeDetail}
+            onFilesToggle={handleFileSelectionChange}
+            onFileContextAction={onFileContextAction}
+            onPeerContextAction={onPeerContextAction}
+            onSequentialToggle={sequentialToggleHandler}
+            onSuperSeedingToggle={superSeedingToggleHandler}
+            onForceTrackerReannounce={handleForceTrackerReannounce}
+            sequentialSupported={sequentialSupported}
+            superSeedingSupported={superSeedingSupported}
+            optimisticStatuses={optimisticStatuses}
+            peerSortStrategy={peerSortStrategy}
+            inspectorTabCommand={inspectorTabCommand}
+            onInspectorTabCommandHandled={onInspectorTabCommandHandled}
+            ghostTorrents={ghostTorrents}
+            isDropActive={isDragActive}
+            onSelectionChange={handleSelectionChange}
+            onOpenFolder={handleOpenFolder}
+            tableWatermarkEnabled={tableWatermarkEnabled}
+        />
     );
 
     const renderStatusBarSection = () => (
@@ -531,6 +552,11 @@ export function WorkspaceShell({
                 onSave={handleSaveSettings}
                 onTestPort={handleTestPort}
                 onRestoreInsights={restoreHudCards}
+                onSystemInstall={
+                    torrentClient.systemInstall
+                        ? handleSystemInstall
+                        : undefined
+                }
             />
         </div>
     );

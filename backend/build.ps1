@@ -292,10 +292,51 @@ else { throw "Vcpkg directory missing." }
 $env:VCPKG_DEFAULT_TRIPLET = $VcpkgTrip
 $VcpkgInstallRoot = Join-Path $RepoRoot "vcpkg_installed"
 
+function Invoke-VcpkgInstall {
+    param(
+        [int]$MaxAttempts = 3
+    )
+
+    $lockPath = Join-Path $VcpkgDir '.vcpkg-root'
+    function Wait-ForVcpkgLock {
+        param([timeSpan]$Timeout = [timeSpan]::FromSeconds(120))
+
+        $deadline = (Get-Date).Add($Timeout)
+        while ((Get-Date) -lt $deadline) {
+            try {
+                $stream = [System.IO.File]::Open($lockPath, [System.IO.FileMode]::OpenOrCreate, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
+                $stream.Close()
+                return
+            }
+            catch [System.IO.IOException] {
+                Write-Host "Waiting for vcpkg lock..." -ForegroundColor Yellow
+                Start-Sleep -Seconds 2
+            }
+        }
+        throw "Timed out waiting for vcpkg lock ($lockPath)."
+    }
+
+    for ($attempt = 1; $attempt -le $MaxAttempts; ++$attempt) {
+        Wait-ForVcpkgLock
+        try {
+            Exec-Checked $VcpkgExe @('install', "--triplet=$VcpkgTrip", "--x-install-root=$VcpkgInstallRoot", '--recurse', '--no-binarycaching') `
+                -ErrorMessage "Vcpkg install failed."
+            return
+        }
+        catch {
+            if ($attempt -eq $MaxAttempts) {
+                throw
+            }
+            $delay = 5 * $attempt
+            Write-Host "vcpkg install attempt $attempt/$MaxAttempts failed; sleeping $delay seconds before retry." -ForegroundColor Yellow
+            Start-Sleep -Seconds $delay
+        }
+    }
+}
+
 Push-Location $VcpkgDir
 try {
-    Exec-Checked $VcpkgExe @('install', "--triplet=$VcpkgTrip", "--x-install-root=$VcpkgInstallRoot", '--recurse', '--no-binarycaching') `
-        -ErrorMessage "Vcpkg install failed."
+    Invoke-VcpkgInstall
 }
 finally { Pop-Location }
 

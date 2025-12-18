@@ -2,6 +2,7 @@
 
 #include "engine/Core.hpp"
 #include <atomic>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <shared_mutex>
@@ -60,6 +61,8 @@ class SessionService
     void
     perform_action(std::vector<int> const &ids,
                    std::function<void(libtorrent::torrent_handle &)> action);
+    void perform_action_all(
+        std::function<void(libtorrent::torrent_handle &)> action);
 
     // Query Interface (Thread Safe)
     std::shared_ptr<SessionSnapshot> snapshot() const;
