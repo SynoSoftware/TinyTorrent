@@ -60,6 +60,7 @@ constexpr UINT kTrayCallbackMessage = WM_APP + 1;
 constexpr UINT kStatusUpdateMessage = WM_APP + 2;
 constexpr wchar_t kRpcHost[] = L"127.0.0.1";
 constexpr wchar_t kRpcEndpoint[] = L"/transmission/rpc";
+static std::atomic<HWND> g_splash_hwnd{nullptr};
 
 // ===== Undocumented compositor API =====
 
@@ -165,6 +166,12 @@ LRESULT CALLBACK SplashProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
         }
 
         EndPaint(hwnd, &ps);
+        return 0;
+    }
+    case WM_DESTROY:
+    {
+        HWND expected = hwnd;
+        g_splash_hwnd.compare_exchange_strong(expected, nullptr);
         return 0;
     }
 
@@ -667,18 +674,35 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
         {
         case ID_SHOW_SPLASH:
         {
+            // if already open, bring to front
+            if (HWND existing = g_splash_hwnd.load())
+            {
+                if (IsWindow(existing))
+                {
+                    ShowWindow(existing, SW_SHOWNORMAL);
+                    SetForegroundWindow(existing);
+                    return 0;
+                }
+                // stale handle
+                g_splash_hwnd.store(nullptr);
+            }
+
             SplashWindow dbg =
                 create_splash_window(state->hInstance, state->large_icon);
+            if (dbg.hwnd)
+            {
+                g_splash_hwnd.store(dbg.hwnd);
 
-            // Auto-close after 1 second (debug convenience)
-            std::thread(
-                [dbg]() mutable
-                {
-                    std::this_thread::sleep_for(std::chrono::seconds(5));
-                    PostMessageW(dbg.hwnd, WM_CLOSE, 0, 0);
-                })
-                .detach();
-
+                // Auto-close after 5 seconds (debug convenience)
+                std::thread(
+                    [hwndSplash = dbg.hwnd]() mutable
+                    {
+                        std::this_thread::sleep_for(std::chrono::seconds(5));
+                        if (IsWindow(hwndSplash))
+                            PostMessageW(hwndSplash, WM_CLOSE, 0, 0);
+                    })
+                    .detach();
+            }
             return 0;
         }
 
