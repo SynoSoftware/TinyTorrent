@@ -3,31 +3,31 @@
 
 IDI_TINYTORRENT ICON "../../../docs/branding/TinyTorrent.ico"
 #ifndef TT_VERSION_MAJOR
-#define TT_VERSION_MAJOR 0
+#define TT_VERSION_MAJOR @TT_VERSION_MAJOR@
 #endif
 
 #ifndef TT_VERSION_MINOR
-#define TT_VERSION_MINOR 0
+#define TT_VERSION_MINOR @TT_VERSION_MINOR@
 #endif
 
 #ifndef TT_VERSION_PATCH
-#define TT_VERSION_PATCH 0
+#define TT_VERSION_PATCH @TT_VERSION_PATCH@
 #endif
 
 #ifndef TT_VERSION_BUILD
-#define TT_VERSION_BUILD 0
+#define TT_VERSION_BUILD @TT_VERSION_BUILD@
 #endif
 
 #ifndef TT_VERSION_FILEVERSION_STRING
-#define TT_VERSION_FILEVERSION_STRING "0.0.0.0"
+#define TT_VERSION_FILEVERSION_STRING "@TT_VERSION_FILEVERSION_STRING@"
 #endif
 
 #ifndef TT_PRODUCT_VERSION_STRING
-#define TT_PRODUCT_VERSION_STRING "0.0"
+#define TT_PRODUCT_VERSION_STRING "@TT_PRODUCT_VERSION_STRING@"
 #endif
 
 #ifndef TT_BUILD_DATE
-#define TT_BUILD_DATE "1970-01-01"
+#define TT_BUILD_DATE "@TT_BUILD_DATE@"
 #endif
 
 LANGUAGE 0x0409, 1200
@@ -44,13 +44,13 @@ BEGIN
     BEGIN
         BLOCK "040904b0"
         BEGIN
-            VALUE "CompanyName", "SynoSoftware"
+ VALUE "CompanyName", "SynoSoftware"
             VALUE "ProductName", "TinyTorrent"
-            VALUE "FileDescription", "TinyTorrent BitTorrent Client (Build @TT_BUILD_DATE@)"
+            VALUE "FileDescription", "TinyTorrent Client"
             VALUE "InternalName", "TinyTorrent"
             VALUE "OriginalFilename", "TinyTorrent.exe"
-            VALUE "FileVersion", "@TT_VERSION_FILEVERSION_STRING@"
-            VALUE "ProductVersion", "@TT_PRODUCT_VERSION_STRING@"
+            VALUE "FileVersion", TT_VERSION_FILEVERSION_STRING
+            VALUE "ProductVersion", TT_PRODUCT_VERSION_STRING
             VALUE "Comments", "Single-executable BitTorrent client with embedded UI and tray daemon"
             VALUE "LegalCopyright", "© SynoSoftware"
         END

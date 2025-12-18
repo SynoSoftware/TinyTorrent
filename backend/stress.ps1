@@ -1,7 +1,6 @@
 param(
     # Kept for backwards compatibility.
-    # Note: build.ps1 maps Release -> MinSizeRel and outputs to build\release.
-    [ValidateSet('debug', 'release', 'minsize', 'Debug', 'Release', 'MinSizeRel')]
+    [ValidateSet('debug', 'release', 'Debug', 'Release')]
     [string]$Configuration = 'debug',
     [string]$TestExe = 'memory-leak-test.exe',
     [switch]$AllTests,
@@ -118,7 +117,7 @@ TinyTorrent Stress Helper
 Usage: .\stress.ps1 [options]
 
 Options:
-    -Configuration <debug|release|minsize>   Build configuration (default: debug)
+    -Configuration <debug|release>   Build configuration (default: debug)
     -TestExe <name>                          Single test exe to run (default: memory-leak-test.exe)
     -AllTests                                Run all '*-test.exe' in the tests folder
     -Schedule <weighted|roundrobin>           Scheduling mode when running all tests (default: weighted)
@@ -153,8 +152,6 @@ $configNorm = $Configuration.ToLowerInvariant()
 $buildSubDir = switch ($configNorm) {
     'debug' { 'debug' }
     'release' { 'release' }
-    'minsize' { 'release' }
-    'minsizerel' { 'release' }
     default { $configNorm }
 }
 

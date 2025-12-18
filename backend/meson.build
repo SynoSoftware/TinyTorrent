@@ -48,7 +48,7 @@ endif
 tt_enable_logging = get_option('tt_enable_logging')
 tt_enable_tests = get_option('tt_enable_tests')
 build_type = get_option('buildtype')
-is_minsize = build_type == 'minsize'
+is_minsize = build_type == 'release'
 
 tt_version = tt_semantic_version
 tt_display_version = tt_version
@@ -154,8 +154,10 @@ tt_version_major = tt_version_number_parts_normalized[0]
 tt_version_minor = tt_version_number_parts_normalized[1]
 tt_version_patch = tt_version_number_parts_normalized[2]
 tt_version_build = tt_version_number_parts_normalized[3]
-tt_version_fileversion_string = tt_file_version_string
-tt_product_version_string = tt_semantic_version
+tt_version_short_string = tt_version_major + '.' + tt_version_minor
+tt_version_fileversion_string = tt_version_short_string
+tt_product_version_string = tt_version_fileversion_string + ' / ' + tt_build_date_iso
+
 
 tt_version_configuration = configuration_data()
 tt_version_configuration.set('TT_VERSION_MAJOR', tt_version_major)
