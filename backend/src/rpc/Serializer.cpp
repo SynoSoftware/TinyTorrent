@@ -16,6 +16,8 @@
 #include "utils/Base64.hpp"
 #include "utils/Endpoint.hpp"
 #include "utils/Json.hpp"
+#include "utils/Version.hpp"
+
 #include <algorithm>
 #include <cstdlib>
 
@@ -396,8 +398,9 @@ std::string serialize_capabilities()
     auto *arguments = yyjson_mut_obj(native);
     yyjson_mut_obj_add_val(native, root, "arguments", arguments);
     yyjson_mut_obj_add_str(native, arguments, "server-version",
-                           "TinyTorrent 1.0.0");
-    yyjson_mut_obj_add_str(native, arguments, "version", "TinyTorrent 1.0.0");
+                           tt::version::kDisplayVersion);
+    yyjson_mut_obj_add_str(native, arguments, "version",
+                           tt::version::kDisplayVersion);
     yyjson_mut_obj_add_uint(native, arguments, "rpc-version", 17);
     yyjson_mut_obj_add_uint(native, arguments, "rpc-version-min", 1);
     yyjson_mut_obj_add_str(native, arguments, "websocket-endpoint", "/ws");
@@ -437,7 +440,8 @@ std::string serialize_session_settings(
     auto *arguments = yyjson_mut_obj(native);
     yyjson_mut_obj_add_val(native, root, "arguments", arguments);
 
-    yyjson_mut_obj_add_str(native, arguments, "version", "TinyTorrent 0.1.0");
+    yyjson_mut_obj_add_str(native, arguments, "version",
+                           tt::version::kDisplayVersion);
     yyjson_mut_obj_add_uint(native, arguments, "rpc-version", 17);
     yyjson_mut_obj_add_uint(native, arguments, "rpc-version-min", 1);
     auto download_dir = to_utf8(settings.download_path);

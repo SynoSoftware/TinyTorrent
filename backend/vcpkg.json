@@ -1,10 +1,5 @@
 {
   "name": "tinytorrent-daemon",
   "version-string": "0.1.0",
-  "dependencies": [
-    "libtorrent",
-    "sqlite3",
-    "yyjson",
-    "doctest"
-  ]
+  "dependencies": ["libtorrent", "sqlite3", "yyjson", "doctest"]
 }

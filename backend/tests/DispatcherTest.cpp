@@ -1,5 +1,6 @@
 #include "rpc/Dispatcher.hpp"
 #include "RpcTestUtils.hpp"
+#include "utils/Version.hpp"
 
 #include <doctest/doctest.h>
 
@@ -69,7 +70,8 @@ TEST_CASE("tt-get-capabilities reports features")
     auto *version = yyjson_obj_get(arguments, "server-version");
     CHECK(version != nullptr);
     CHECK(yyjson_is_str(version));
-    CHECK(std::string_view(yyjson_get_str(version)) == "TinyTorrent 1.0.0");
+    CHECK(std::string_view(yyjson_get_str(version)) ==
+          tt::version::kDisplayVersion);
     auto *features = yyjson_obj_get(arguments, "features");
     CHECK(features != nullptr);
     CHECK(yyjson_is_arr(features));

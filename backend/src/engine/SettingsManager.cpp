@@ -2,6 +2,7 @@
 
 #include "libtorrent/partfile_extension.hpp"
 #include "utils/Log.hpp"
+#include "utils/Version.hpp"
 #include <algorithm>
 #include <cstdio>
 #include <filesystem>
@@ -16,7 +17,7 @@ namespace
 {
 __declspec(noinline) void set_user_agent(libtorrent::settings_pack &pack)
 {
-    static std::string const user_agent = "TinyTorrent/0.1.0";
+    static std::string const user_agent = tt::version::kUserAgentVersion;
     pack.set_str(libtorrent::settings_pack::user_agent, user_agent);
 }
 

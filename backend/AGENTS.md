@@ -268,7 +268,7 @@ A task is complete when:
 2. Extra Windows executables available: `rg`, `fd`, `bat`.
 3. For code search, never use `Select-String`. Always use ripgrep:
 
-    - `rg -n -C 5 "<pattern>" <path>`
+   - `rg -n -C 5 "<pattern>" <path>`
 
 4. Never write complex or nested shell one-liners. If a command requires tricky quoting or multiple pipes, move it into a script file instead. All commands must be simple, cross-platform, and Windows-safe.
 

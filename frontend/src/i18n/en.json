@@ -1,7 +1,7 @@
 {
     "brand": {
         "name": "TINY TORRENT",
-        "version": "v0.1"
+        "version": "v{{version}}"
     },
     "directory_browser": {
         "drive_label": "Drive",
