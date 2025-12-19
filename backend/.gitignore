@@ -4,6 +4,7 @@ meson-private/
 *.ninja_log
 *.ninja_deps
 vcpkg/
+vcpkg-triplets/
 *.exe
 *.obj
 *.pdb
