@@ -60,6 +60,15 @@ SettingsManager::build_settings_pack(CoreSettings const &s)
     apply_encryption(s, pack);
     apply_network(s, pack);
     pack.set_int(libtorrent::settings_pack::alert_queue_size, 8192);
+    pack.set_int(libtorrent::settings_pack::hashing_threads,
+                 std::max(1, s.hashing_threads));
+#if TORRENT_ABI_VERSION <= 1
+    pack.set_int(libtorrent::settings_pack::cache_size,
+                 std::max(0, s.disk_cache_mb) * 1024 * 1024);
+#else
+    pack.set_int(libtorrent::settings_pack::deprecated_cache_size,
+                 std::max(0, s.disk_cache_mb) * 1024 * 1024);
+#endif
     if (s.download_queue_size > 0)
     {
         pack.set_int(libtorrent::settings_pack::active_downloads,
@@ -349,6 +358,16 @@ SettingsManager::apply_update(CoreSettings settings,
         result.alt_changed = true;
         result.persist = true;
     }
+    if (update.disk_cache_mb)
+    {
+        s.disk_cache_mb = std::max(1, *update.disk_cache_mb);
+        result.persist = true;
+    }
+    if (update.hashing_threads)
+    {
+        s.hashing_threads = std::max(1, *update.hashing_threads);
+        result.persist = true;
+    }
     if (update.encryption)
     {
         s.encryption = *update.encryption;
@@ -394,6 +413,12 @@ SettingsManager::apply_update(CoreSettings settings,
     if (update.queue_stalled_enabled)
     {
         s.queue_stalled_enabled = *update.queue_stalled_enabled;
+        result.queue_changed = true;
+        result.persist = true;
+    }
+    if (update.queue_stalled_minutes)
+    {
+        s.queue_stalled_minutes = std::max(0, *update.queue_stalled_minutes);
         result.queue_changed = true;
         result.persist = true;
     }

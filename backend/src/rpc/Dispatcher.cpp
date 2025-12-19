@@ -22,6 +22,7 @@
 #include "rpc/Serializer.hpp"
 #include "utils/Base64.hpp"
 #include "utils/FS.hpp"
+#include "utils/Endpoint.hpp"
 #include "utils/Json.hpp"
 #include "utils/Log.hpp"
 #include "utils/Shutdown.hpp"
@@ -82,6 +83,104 @@ struct InstallOutcome
     std::optional<std::filesystem::path> target_path;
 };
 
+#if defined(_WIN32)
+constexpr wchar_t kAutorunRegistryPath[] =
+    L"Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+constexpr wchar_t kAutorunValueName[] = L"TinyTorrent";
+
+std::string format_win_error_message(DWORD code)
+{
+    std::error_code ec(static_cast<int>(code), std::system_category());
+    return ec.message();
+}
+
+std::optional<std::wstring> read_autorun_value()
+{
+    HKEY key = nullptr;
+    auto status = RegOpenKeyExW(HKEY_CURRENT_USER, kAutorunRegistryPath, 0,
+                                KEY_READ, &key);
+    if (status != ERROR_SUCCESS)
+    {
+        return std::nullopt;
+    }
+    DWORD type = 0;
+    DWORD size = 0;
+    status = RegQueryValueExW(key, kAutorunValueName, nullptr, &type, nullptr,
+                              &size);
+    if (status != ERROR_SUCCESS || type != REG_SZ || size == 0)
+    {
+        RegCloseKey(key);
+        return std::nullopt;
+    }
+    std::vector<wchar_t> buffer(size / sizeof(wchar_t));
+    status = RegQueryValueExW(key, kAutorunValueName, nullptr, nullptr,
+                              reinterpret_cast<LPBYTE>(buffer.data()), &size);
+    RegCloseKey(key);
+    if (status != ERROR_SUCCESS)
+    {
+        return std::nullopt;
+    }
+    if (!buffer.empty() && buffer.back() == L'\0')
+    {
+        buffer.pop_back();
+    }
+    return std::wstring(buffer.begin(), buffer.end());
+}
+
+std::wstring compose_autorun_command()
+{
+    if (auto exe = tt::utils::executable_path(); exe && !exe->empty())
+    {
+        return std::wstring(L"\"") + exe->wstring() + L"\"";
+    }
+    return {};
+}
+
+bool write_autorun_value(std::wstring const &command, std::string &message)
+{
+    HKEY key = nullptr;
+    auto status = RegCreateKeyExW(HKEY_CURRENT_USER, kAutorunRegistryPath, 0,
+                                  nullptr, REG_OPTION_NON_VOLATILE, KEY_WRITE,
+                                  nullptr, &key, nullptr);
+    if (status != ERROR_SUCCESS)
+    {
+        message = format_win_error_message(status);
+        return false;
+    }
+    DWORD data_size = static_cast<DWORD>((command.size() + 1ull) *
+                                         sizeof(wchar_t));
+    status =
+        RegSetValueExW(key, kAutorunValueName, 0, REG_SZ,
+                       reinterpret_cast<const BYTE *>(command.c_str()), data_size);
+    RegCloseKey(key);
+    if (status != ERROR_SUCCESS)
+    {
+        message = format_win_error_message(status);
+        return false;
+    }
+    return true;
+}
+
+bool delete_autorun_value(std::string &message)
+{
+    HKEY key = nullptr;
+    auto status = RegOpenKeyExW(HKEY_CURRENT_USER, kAutorunRegistryPath, 0,
+                                KEY_SET_VALUE, &key);
+    if (status != ERROR_SUCCESS)
+    {
+        message = format_win_error_message(status);
+        return false;
+    }
+    status = RegDeleteValueW(key, kAutorunValueName);
+    RegCloseKey(key);
+    if (status == ERROR_SUCCESS || status == ERROR_FILE_NOT_FOUND)
+    {
+        return true;
+    }
+    message = format_win_error_message(status);
+    return false;
+}
+#endif
 namespace
 {
 constexpr std::array<char const *, 3> kDefaultShortcutLocations = {
@@ -481,6 +580,60 @@ std::optional<std::int64_t> parse_int64_value(yyjson_val *value)
     return std::nullopt;
 }
 
+std::optional<int> parse_int_from_string(std::string_view text)
+{
+    if (text.empty())
+    {
+        return std::nullopt;
+    }
+    try
+    {
+        size_t idx = 0;
+        auto value = std::stoi(std::string(text), &idx);
+        if (idx != text.size())
+        {
+            return std::nullopt;
+        }
+        return value;
+    }
+    catch (...)
+    {
+        return std::nullopt;
+    }
+}
+
+std::optional<int> parse_port_string(std::string_view text)
+{
+    if (auto value = parse_int_from_string(text))
+    {
+        if (*value >= 0 &&
+            *value <= static_cast<int>(std::numeric_limits<std::uint16_t>::max()))
+        {
+            return *value;
+        }
+    }
+    return std::nullopt;
+}
+
+std::optional<std::pair<std::string, int>> parse_proxy_url_value(
+    yyjson_val *value)
+{
+    if (value == nullptr || !yyjson_is_str(value))
+    {
+        return std::nullopt;
+    }
+    auto parts = tt::net::parse_host_port(std::string_view(yyjson_get_str(value)));
+    if (parts.host.empty() || parts.port.empty())
+    {
+        return std::nullopt;
+    }
+    if (auto port = parse_port_string(parts.port); port)
+    {
+        return std::make_pair(std::move(parts.host), *port);
+    }
+    return std::nullopt;
+}
+
 constexpr int kDispatcherMinHistoryIntervalSeconds = 60;
 
 std::vector<int> parse_ids(yyjson_val *arguments)
@@ -571,6 +724,43 @@ std::optional<std::filesystem::path> parse_download_dir(yyjson_val *arguments)
         TT_LOG_INFO("session-set download-dir invalid: {}", ex.what());
         return std::nullopt;
     }
+}
+
+std::optional<std::string> ensure_directory_exists(
+    std::filesystem::path const &path)
+{
+    if (path.empty())
+    {
+        return std::string("path cannot be empty");
+    }
+    std::error_code ec;
+    bool exists = std::filesystem::exists(path, ec);
+    if (ec)
+    {
+        return std::format("unable to examine {}: {}", path.string(),
+                           ec.message());
+    }
+    if (exists)
+    {
+        if (!std::filesystem::is_directory(path, ec))
+        {
+            if (ec)
+            {
+                return std::format("unable to validate {}: {}", path.string(),
+                                   ec.message());
+            }
+            return std::format("path {} exists and is not a directory",
+                               path.string());
+        }
+        return std::nullopt;
+    }
+    std::filesystem::create_directories(path, ec);
+    if (ec)
+    {
+        return std::format("unable to create {}: {}", path.string(),
+                           ec.message());
+    }
+    return std::nullopt;
 }
 
 std::optional<std::uint16_t> parse_peer_port(yyjson_val *arguments)
@@ -1448,6 +1638,10 @@ std::string handle_torrent_add(engine::Core *engine, yyjson_val *arguments)
                 {
                     candidate = std::filesystem::absolute(candidate);
                 }
+                if (auto error = ensure_directory_exists(candidate))
+                {
+                    return serialize_error(*error);
+                }
                 request.download_path = std::move(candidate);
             }
         }
@@ -1511,16 +1705,25 @@ std::string handle_session_get(engine::Core *engine,
 
 std::string handle_session_set(engine::Core *engine, yyjson_val *arguments)
 {
+    std::optional<std::filesystem::path> download;
+    if (auto candidate = parse_download_dir(arguments))
+    {
+        if (auto error = ensure_directory_exists(*candidate))
+        {
+            return serialize_error(*error);
+        }
+        download = std::move(*candidate);
+    }
     if (!engine)
     {
         return serialize_success();
     }
     bool applied = false;
     bool ok = true;
-    if (auto download = parse_download_dir(arguments))
+    if (download)
     {
         TT_LOG_DEBUG("session-set download-dir={}", download->string());
-        engine->set_download_path(*download);
+        engine->set_download_path(std::move(*download));
         applied = true;
     }
     if (auto port = parse_peer_port(arguments))
@@ -1653,8 +1856,15 @@ std::string handle_session_set(engine::Core *engine, yyjson_val *arguments)
     {
         if (yyjson_is_str(incomplete))
         {
-            session_update.incomplete_dir =
-                std::filesystem::path(yyjson_get_str(incomplete));
+            std::filesystem::path candidate(yyjson_get_str(incomplete));
+            if (!candidate.empty())
+            {
+                if (auto error = ensure_directory_exists(candidate))
+                {
+                    return serialize_error(*error);
+                }
+            }
+            session_update.incomplete_dir = std::move(candidate);
             session_update_needed = true;
         }
     }
@@ -1668,8 +1878,15 @@ std::string handle_session_set(engine::Core *engine, yyjson_val *arguments)
     {
         if (yyjson_is_str(watch_dir))
         {
-            session_update.watch_dir =
-                std::filesystem::path(yyjson_get_str(watch_dir));
+            std::filesystem::path candidate(yyjson_get_str(watch_dir));
+            if (!candidate.empty())
+            {
+                if (auto error = ensure_directory_exists(candidate))
+                {
+                    return serialize_error(*error);
+                }
+            }
+            session_update.watch_dir = std::move(candidate);
             session_update_needed = true;
         }
     }
@@ -1761,6 +1978,31 @@ std::string handle_session_set(engine::Core *engine, yyjson_val *arguments)
         session_update.proxy_peer_connections = *value;
         session_update_needed = true;
     }
+    if (auto parsed =
+            parse_proxy_url_value(yyjson_obj_get(arguments, "proxy-url")))
+    {
+        session_update.proxy_hostname = std::move(parsed->first);
+        session_update.proxy_port = parsed->second;
+        session_update_needed = true;
+    }
+    if (auto value = parse_int_value(
+            yyjson_obj_get(arguments, "engine-disk-cache")))
+    {
+        session_update.disk_cache_mb = std::max(1, *value);
+        session_update_needed = true;
+    }
+    if (auto value =
+            parse_int_value(yyjson_obj_get(arguments, "engine-hashing-threads")))
+    {
+        session_update.hashing_threads = std::max(1, *value);
+        session_update_needed = true;
+    }
+    if (auto value = parse_int_value(
+            yyjson_obj_get(arguments, "queue-stalled-minutes")))
+    {
+        session_update.queue_stalled_minutes = std::max(0, *value);
+        session_update_needed = true;
+    }
     if (auto value =
             parse_bool_flag(yyjson_obj_get(arguments, "history-enabled")))
     {
@@ -1805,6 +2047,59 @@ std::string handle_session_stats(engine::Core *engine)
     auto snapshot = engine ? engine->snapshot()
                            : std::make_shared<engine::SessionSnapshot>();
     return serialize_session_stats(*snapshot);
+}
+
+std::string handle_session_tray_status(engine::Core *engine)
+{
+    if (!engine)
+    {
+        return serialize_error("engine unavailable");
+    }
+    auto snapshot = engine->snapshot();
+    if (!snapshot)
+    {
+        return serialize_error("engine unavailable");
+    }
+    std::size_t seeding_count = 0;
+    bool any_error = false;
+    for (auto const &torrent : snapshot->torrents)
+    {
+        if (torrent.state == "seeding")
+        {
+            ++seeding_count;
+        }
+        if (torrent.error != 0)
+        {
+            any_error = true;
+        }
+    }
+    bool all_paused = snapshot->torrent_count > 0 &&
+                      snapshot->active_torrent_count == 0;
+    auto download_dir = engine->settings().download_path.string();
+    return serialize_session_tray_status(
+        snapshot->download_rate, snapshot->upload_rate,
+        snapshot->active_torrent_count, seeding_count, any_error, all_paused,
+        download_dir);
+}
+
+std::string handle_session_pause_all(engine::Core *engine)
+{
+    if (!engine)
+    {
+        return serialize_error("engine unavailable");
+    }
+    engine->pause_all();
+    return serialize_success();
+}
+
+std::string handle_session_resume_all(engine::Core *engine)
+{
+    if (!engine)
+    {
+        return serialize_error("engine unavailable");
+    }
+    engine->resume_all();
+    return serialize_success();
 }
 
 std::string handle_session_close(engine::Core *engine)
@@ -1918,6 +2213,49 @@ void handle_fs_space_async(engine::Core *engine, yyjson_val *arguments,
         catch (...)
         {
             cb(serialize_error("fs-space failed"));
+        }
+    };
+    if (engine)
+    {
+        engine->submit_io_task(std::move(work));
+    }
+    else
+    {
+        work();
+    }
+}
+
+void handle_fs_create_dir_async(engine::Core *engine, yyjson_val *arguments,
+                               ResponseCallback cb)
+{
+    auto target = arguments
+                      ? parse_request_path(yyjson_obj_get(arguments, "path"))
+                      : std::filesystem::path{};
+    if (target.empty())
+    {
+        cb(serialize_error("path required"));
+        return;
+    }
+    auto normalized = target.lexically_normal();
+    auto work = [normalized = std::move(normalized), cb = std::move(cb)]()
+    {
+        try
+        {
+            if (auto error = ensure_directory_exists(normalized))
+            {
+                cb(serialize_error(*error));
+                return;
+            }
+            cb(serialize_success());
+        }
+        catch (std::filesystem::filesystem_error const &ex)
+        {
+            TT_LOG_INFO("fs-create-dir failed: {}", ex.what());
+            cb(serialize_error(ex.what()));
+        }
+        catch (...)
+        {
+            cb(serialize_error("fs-create-dir failed"));
         }
     };
     if (engine)
@@ -2089,7 +2427,7 @@ void handle_system_reveal_async(engine::Core *engine, yyjson_val *arguments,
 }
 
 void handle_system_open_async(engine::Core *engine, yyjson_val *arguments,
-                              ResponseCallback cb)
+                               ResponseCallback cb)
 {
     if (!engine)
     {
@@ -2145,7 +2483,76 @@ void handle_system_open_async(engine::Core *engine, yyjson_val *arguments,
                 TT_LOG_INFO("system-open: unknown exception for {}", path_str);
             }
             cb(serialize_system_action("system-open", success, message));
-        });
+    });
+}
+
+std::string handle_system_autorun_status(engine::Core *engine)
+{
+    (void)engine;
+#if defined(_WIN32)
+    bool enabled = false;
+    bool supported = true;
+    bool requires_elevation = false;
+    auto command = compose_autorun_command();
+    if (!command.empty())
+    {
+        if (auto existing = read_autorun_value(); existing && *existing == command)
+        {
+            enabled = true;
+        }
+    }
+    return serialize_autorun_status(enabled, supported, requires_elevation);
+#else
+    return serialize_autorun_status(false, false, false);
+#endif
+}
+
+std::string handle_system_autorun_enable(engine::Core *engine,
+                                         yyjson_val *arguments)
+{
+    (void)engine;
+#if defined(_WIN32)
+    auto scope = std::string("user");
+    if (arguments)
+    {
+        if (auto *scope_value = yyjson_obj_get(arguments, "scope");
+            scope_value && yyjson_is_str(scope_value))
+        {
+            scope = yyjson_get_str(scope_value);
+        }
+    }
+    if (scope != "user")
+    {
+        TT_LOG_INFO("system-autorun-enable ignoring unsupported scope {}", scope);
+    }
+    auto command = compose_autorun_command();
+    if (command.empty())
+    {
+        return serialize_system_action("system-autorun-enable", false,
+                                       "unable to determine executable path");
+    }
+    std::string message;
+    bool success = write_autorun_value(command, message);
+    return serialize_system_action("system-autorun-enable", success,
+                                   success ? std::string{} : message);
+#else
+    return serialize_system_action("system-autorun-enable", false,
+                                   "system-autorun unsupported");
+#endif
+}
+
+std::string handle_system_autorun_disable(engine::Core *engine)
+{
+    (void)engine;
+#if defined(_WIN32)
+    std::string message;
+    bool success = delete_autorun_value(message);
+    return serialize_system_action("system-autorun-disable", success,
+                                   success ? std::string{} : message);
+#else
+    return serialize_system_action("system-autorun-disable", false,
+                                   "system-autorun unsupported");
+#endif
 }
 
 void handle_system_install_async(engine::Core *engine, yyjson_val *arguments,
@@ -2592,6 +2999,36 @@ std::string handle_torrent_set(engine::Core *engine, yyjson_val *arguments)
         engine->set_torrent_labels(ids, *labels);
         handled = true;
     }
+    if (auto sequential =
+            parse_bool_flag(yyjson_obj_get(arguments, "sequential-download")))
+    {
+        engine->set_sequential(ids, *sequential);
+        handled = true;
+    }
+    if (auto super_seeding =
+            parse_bool_flag(yyjson_obj_get(arguments, "super-seeding")))
+    {
+        engine->set_super_seeding(ids, *super_seeding);
+        handled = true;
+    }
+    if (auto force_check =
+            parse_bool_flag(yyjson_obj_get(arguments, "force-recheck")))
+    {
+        handled = true;
+        if (*force_check)
+        {
+            engine->verify_torrents(ids);
+        }
+    }
+    if (auto force_reannounce =
+            parse_bool_flag(yyjson_obj_get(arguments, "force-reannounce")))
+    {
+        handled = true;
+        if (*force_reannounce)
+        {
+            engine->reannounce_torrents(ids);
+        }
+    }
     if (!handled)
     {
         return serialize_error("unsupported torrent-set arguments");
@@ -2613,7 +3050,16 @@ std::string handle_torrent_set_location(engine::Core *engine,
     {
         return serialize_error("engine unavailable");
     }
-    std::string destination(yyjson_get_str(location));
+    std::filesystem::path destination_path(yyjson_get_str(location));
+    if (destination_path.empty())
+    {
+        return serialize_error("location cannot be empty");
+    }
+    if (auto error = ensure_directory_exists(destination_path))
+    {
+        return serialize_error(*error);
+    }
+    std::string destination = destination_path.string();
     bool move_data = bool_value(yyjson_obj_get(arguments, "move"), true);
     for (int id : ids)
     {
@@ -2691,6 +3137,12 @@ void Dispatcher::register_handlers()
              [this](yyjson_val *) { return handle_session_test(engine_); });
     add_sync("session-stats",
              [this](yyjson_val *) { return handle_session_stats(engine_); });
+    add_sync("session-tray-status",
+             [this](yyjson_val *) { return handle_session_tray_status(engine_); });
+    add_sync("session-pause-all",
+             [this](yyjson_val *) { return handle_session_pause_all(engine_); });
+    add_sync("session-resume-all",
+             [this](yyjson_val *) { return handle_session_resume_all(engine_); });
     add_sync("session-close",
              [this](yyjson_val *) { return handle_session_close(engine_); });
     add_sync("blocklist-update",
@@ -2699,6 +3151,9 @@ void Dispatcher::register_handlers()
               { handle_fs_browse_async(engine_, arguments, std::move(cb)); });
     add_async("fs-space", [this](yyjson_val *arguments, ResponseCallback cb)
               { handle_fs_space_async(engine_, arguments, std::move(cb)); });
+    add_async("fs-create-dir",
+              [this](yyjson_val *arguments, ResponseCallback cb)
+              { handle_fs_create_dir_async(engine_, arguments, std::move(cb)); });
     add_async(
         "system-reveal", [this](yyjson_val *arguments, ResponseCallback cb)
         { handle_system_reveal_async(engine_, arguments, std::move(cb)); });
@@ -2709,6 +3164,13 @@ void Dispatcher::register_handlers()
         { handle_system_install_async(engine_, arguments, std::move(cb)); });
     add_sync("system-register-handler",
              [](yyjson_val *) { return handle_system_register_handler(); });
+    add_sync("system-autorun-status",
+             [this](yyjson_val *) { return handle_system_autorun_status(engine_); });
+    add_sync("system-autorun-enable",
+             [this](yyjson_val *arguments)
+             { return handle_system_autorun_enable(engine_, arguments); });
+    add_sync("system-autorun-disable",
+             [this](yyjson_val *) { return handle_system_autorun_disable(engine_); });
     add_sync("app-shutdown",
              [this](yyjson_val *) { return handle_app_shutdown(engine_); });
     add_async("free-space", [this](yyjson_val *arguments, ResponseCallback cb)

@@ -237,6 +237,9 @@ bool PersistenceManager::persist_settings(CoreSettings const &settings)
     set_string("proxyUsername", settings.proxy_username);
     set_string("proxyPassword", settings.proxy_password);
     set_bool("proxyPeerConnections", settings.proxy_peer_connections);
+    set_int("engineDiskCache", settings.disk_cache_mb);
+    set_int("engineHashingThreads", settings.hashing_threads);
+    set_int("queueStalledMinutes", settings.queue_stalled_minutes);
     if (!success)
     {
         database_->rollback_transaction();

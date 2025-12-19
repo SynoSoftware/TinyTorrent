@@ -13,6 +13,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <thread>
 
 #include <doctest/doctest.h>
@@ -578,6 +579,39 @@ TEST_CASE("fs-space reports mocked metrics")
     CHECK(yyjson_is_uint(total_bytes));
     CHECK(yyjson_get_uint(free_bytes) == 512);
     CHECK(yyjson_get_uint(total_bytes) == 2048);
+}
+
+TEST_CASE("fs-create-dir creates directories recursively")
+{
+    auto temp_root =
+        std::filesystem::temp_directory_path() / "tinytorrent-fs-create-dir";
+    auto target = temp_root / "nested" / "folder";
+    std::error_code cleanup_ec;
+    std::filesystem::remove_all(temp_root, cleanup_ec);
+
+    tt::rpc::Server server{nullptr, get_bind_url()};
+    server.start();
+    ServerGuard guard{server};
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    auto port = resolve_server_port(server);
+    auto server_url = build_server_url(port);
+    auto host_header = build_host_header(port);
+
+    auto request = std::string(
+                       R"({"method":"fs-create-dir","arguments":{"path":")") +
+                   escape_json_string(target.string()) + R"("}})";
+
+    auto response = send_rpc_request(server_url, host_header, request);
+    ResponseView view{response};
+    expect_result(view, "success", "fs-create-dir creation");
+    CHECK(std::filesystem::exists(target));
+
+    auto response_again = send_rpc_request(server_url, host_header, request);
+    ResponseView view_again{response_again};
+    expect_result(view_again, "success", "fs-create-dir existing");
+
+    std::filesystem::remove_all(temp_root, cleanup_ec);
 }
 
 TEST_CASE("websocket handshake accepts X-TT-Auth header")

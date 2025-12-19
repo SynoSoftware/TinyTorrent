@@ -128,4 +128,41 @@ inline bool expect_bool_argument(ResponseView const &response, char const *key,
     return actual;
 }
 
+inline std::string escape_json_string(std::string_view text)
+{
+    std::string escaped;
+    escaped.reserve(text.size() * 2);
+    for (char ch : text)
+    {
+        switch (ch)
+        {
+        case '\\':
+            escaped += "\\\\";
+            break;
+        case '"':
+            escaped += "\\\"";
+            break;
+        case '\b':
+            escaped += "\\b";
+            break;
+        case '\f':
+            escaped += "\\f";
+            break;
+        case '\n':
+            escaped += "\\n";
+            break;
+        case '\r':
+            escaped += "\\r";
+            break;
+        case '\t':
+            escaped += "\\t";
+            break;
+        default:
+            escaped.push_back(ch);
+            break;
+        }
+    }
+    return escaped;
+}
+
 } // namespace tt::tests

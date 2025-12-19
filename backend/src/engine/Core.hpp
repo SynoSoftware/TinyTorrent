@@ -27,6 +27,8 @@ struct CoreSettings
     std::filesystem::path download_path{"data"};
     std::string listen_interface{"0.0.0.0:6881"};
     unsigned idle_sleep_ms = 500;
+    int disk_cache_mb = 64;
+    int hashing_threads = 1;
     int download_rate_limit_kbps = 0;
     int upload_rate_limit_kbps = 0;
     bool download_rate_limit_enabled = false;
@@ -48,6 +50,7 @@ struct CoreSettings
     int download_queue_size = 0;
     int seed_queue_size = 0;
     bool queue_stalled_enabled = false;
+    int queue_stalled_minutes = 0;
     std::filesystem::path incomplete_dir;
     bool incomplete_dir_enabled = false;
     std::filesystem::path blocklist_path;
@@ -80,6 +83,8 @@ struct SessionUpdate
     std::optional<int> alt_speed_time_begin;
     std::optional<int> alt_speed_time_end;
     std::optional<int> alt_speed_time_day;
+    std::optional<int> disk_cache_mb;
+    std::optional<int> hashing_threads;
     std::optional<EncryptionMode> encryption;
     std::optional<bool> dht_enabled;
     std::optional<bool> pex_enabled;
@@ -88,6 +93,7 @@ struct SessionUpdate
     std::optional<int> download_queue_size;
     std::optional<int> seed_queue_size;
     std::optional<bool> queue_stalled_enabled;
+    std::optional<int> queue_stalled_minutes;
     std::optional<std::filesystem::path> incomplete_dir;
     std::optional<bool> incomplete_dir_enabled;
     std::optional<std::filesystem::path> watch_dir;
