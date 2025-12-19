@@ -46,6 +46,7 @@ Exactly how it should be.
 ---
 
 ![UI preview](docs/dashboard-light.png)
+![UI preview](docs/tt-supremacy.png)
 
 ## 💎 Key Features
 
