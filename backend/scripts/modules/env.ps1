@@ -104,7 +104,7 @@ function Get-Tooling {
 
 function Ensure-VsEnv {
     # Ensure MSVC tools are available on PATH (lib.exe/cl.exe) and that
-    # INCLUDE/LIB etc are initialized. This mirrors the legacy build.ps1
+    # INCLUDE/LIB etc are initialized. This mirrors the legacy build.legacy.ps1
     # behavior and avoids relying on Meson --vsenv.
     if ($IsWindows -ne $true) {
         return
