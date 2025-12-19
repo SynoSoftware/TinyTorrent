@@ -146,7 +146,7 @@ try {
     # If you don't have vcpkg.json, add 'libtorrent openssl' etc to the end of this command.
     
     # We deliberately ALLOW binary caching here for general dependencies (speed).
-    # If you have ABI issues with specific libs, handle that in build.ps1 or use -RebuildPackage here.
+    # If you have ABI issues with specific libs, handle that in build.legacy.ps1 or use -RebuildPackage here.
     
     foreach ($triplet in $triplets) {
         $tripletInstallRoot = Join-Path $installRoot $triplet

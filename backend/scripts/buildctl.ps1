@@ -17,17 +17,11 @@ $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
 $ModulesDir = Join-Path $PSScriptRoot 'modules'
 
-function Import-ModuleScript {
-    param([string]$Name)
-    $path = Join-Path $ModulesDir $Name
-    if (-not (Test-Path -LiteralPath $path)) {
-        throw "Module not found: $path"
-    }
-    . $path
+$loggingPath = Join-Path $ModulesDir 'logging.ps1'
+if (-not (Test-Path -LiteralPath $loggingPath)) {
+    throw "Logging module not found: $loggingPath"
 }
-
-# Load logging first for consistent output
-Import-ModuleScript 'logging.ps1'
+. $loggingPath
 
 switch ($Command) {
     'clean' { $module = 'clean' }
@@ -56,6 +50,10 @@ $modulePath = Join-Path $ModulesDir ("{0}.ps1" -f $module)
 if (-not (Test-Path -LiteralPath $modulePath)) {
     throw "Module not found: $modulePath"
 }
+
+$detail = "Configuration: $Configuration"
+if ($Destination) { $detail += " | Destination: $Destination" }
+Log-Section -Title "Command: $Command" -Subtitle $detail
 
 try {
     . $modulePath

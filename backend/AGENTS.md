@@ -130,9 +130,12 @@ We select dependencies that are **structurally small** (mostly C libraries) but 
 root/
 |-- meson.build              # Build system
 |-- vcpkg.json
+|-- make.ps1                # CLI shim (debug/release/test/clean)
+|-- build.legacy.ps1        # Legacy Meson/Ninja wrapper (deprecated)
 |-- scripts/
+|   |-- buildctl.ps1        # Modular command dispatcher
 |   |-- setup.ps1
-|   \-- build.ps1            # Builds AND runs tests
+|   \-- modules/            # Granular steps (workflow helpers)
 |
 |-- src/
 |   |-- main.cpp             # Entry point
@@ -240,9 +243,10 @@ TinyTorrent uses **two** distinct build configurations.
     - **Unit Tests:** Verify JSON parsing and core state logic.
     - **Integration:** Ensure the RPC server responds to valid requests.
 2.  **The "Good Enough" Rule:**
-    - We do not need 100% coverage.
-    - We need enough tests to ensure `build.ps1` catches obvious breakages.
-    - **Agents:** If you break a test, fix the code. If the test is obsolete, update it. Do not spend hours writing complex mocks.
+
+- We do not need 100% coverage.
+- We need enough tests to ensure `make test`/`buildctl.ps1 test` catches obvious breakages.
+- **Agents:** If you break a test, fix the code. If the test is obsolete, update it. Do not spend hours writing complex mocks.
 
 ---
 
@@ -256,8 +260,8 @@ Agents must use the provided scripts.
 # 1. Setup Dependencies (VCPKG)
 setup.ps1
 
-# 2. Build & Test
-build.ps1
+# 2. Build & Test (runs setup/configure/build/test via buildctl)
+./make debug
 ```
 
 ### **Definition of Done**
@@ -265,7 +269,7 @@ build.ps1
 A task is complete when:
 
 1.  The code compiles in **Debug Mode** - error free and, if reasonably possible, warning free.
-2.  The automated tests pass (`build.ps1` returns success).
+2.  The automated tests pass (`./make debug` or `buildctl.ps1 test` returns success).
 3.  Architectural boundaries (Engine vs. RPC) are respected.
 
 ### Commands in the terminal:
