@@ -33,12 +33,10 @@ function Test-VcpkgTriplet {
         }
 
         if ($missing.Count -eq 0) {
-            return $true
+            return
         }
     }
 
     throw "Triplet validation failed for ${Triplet}: missing include/libtorrent/session.hpp (and/or other required files). Found no usable layout under: $TripletRoot. Manual repair required; no automatic fixes performed."
-
-    return $true
 }
 

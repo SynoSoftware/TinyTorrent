@@ -27,7 +27,12 @@ function test {
         $TripletRoot = $nestedTripletRoot
     }
 
-    Log-Info "Running tests ($Configuration)..."
+    $LogDir = Join-Path $BuildDir 'test-logs'
+    if (-not (Test-Path -LiteralPath $LogDir)) {
+        [void](New-Item -ItemType Directory -Path $LogDir)
+    }
+
+    Log-Info "Running tests ($Configuration)... (logs: $LogDir)"
 
     $oldPath = $env:PATH
     try {
@@ -45,22 +50,44 @@ function test {
 
         $executables = Get-ChildItem -LiteralPath $TestDir -Filter '*-test.exe' -File -ErrorAction Stop
         foreach ($exe in $executables) {
-            Log-Info "  Exec: $($exe.Name)"
+            $stdoutLog = Join-Path $LogDir ("{0}.stdout.log" -f $exe.BaseName)
+            $stderrLog = Join-Path $LogDir ("{0}.stderr.log" -f $exe.BaseName)
 
-            $psi = New-Object System.Diagnostics.ProcessStartInfo
-            $psi.FileName = $exe.FullName
-            $psi.WorkingDirectory = $TestDir
-            $psi.UseShellExecute = $false
-            $psi.RedirectStandardOutput = $false
-            $psi.RedirectStandardError = $false
+            $proc = Start-Process -FilePath $exe.FullName -WorkingDirectory $TestDir -NoNewWindow -PassThru -Wait `
+                -RedirectStandardOutput $stdoutLog -RedirectStandardError $stderrLog
 
-            $p = [System.Diagnostics.Process]::Start($psi)
-            $p.WaitForExit()
-            if ($p.ExitCode -ne 0) {
-                throw "Test failed: $($exe.Name) (exit $($p.ExitCode))."
+            if ($proc.ExitCode -eq 0) {
+                Log-Success "PASS: $($exe.Name)"
+                continue
             }
-            Log-Success "  PASS: $($exe.Name)"
+
+            Log-Error "FAIL: $($exe.Name) (exit $($proc.ExitCode))"
+            Log-Info "  stdout: $stdoutLog"
+            Log-Info "  stderr: $stderrLog"
+
+            $tailLines = 25
+            $stderrTail = @()
+            $stdoutTail = @()
+            if (Test-Path -LiteralPath $stderrLog) {
+                $stderrTail = Get-Content -LiteralPath $stderrLog -Tail $tailLines -ErrorAction SilentlyContinue
+            }
+            if (Test-Path -LiteralPath $stdoutLog) {
+                $stdoutTail = Get-Content -LiteralPath $stdoutLog -Tail $tailLines -ErrorAction SilentlyContinue
+            }
+
+            if ($stderrTail.Count -gt 0) {
+                Log-Error "--- stderr (last $tailLines lines) ---"
+                $stderrTail | ForEach-Object { Write-Output $_ }
+            }
+            if ($stdoutTail.Count -gt 0) {
+                Log-Error "--- stdout (last $tailLines lines) ---"
+                $stdoutTail | ForEach-Object { Write-Output $_ }
+            }
+
+            throw "Test failed: $($exe.Name)"
         }
+
+        Log-Success 'All tests passed.'
     }
     finally {
         $env:PATH = $oldPath
