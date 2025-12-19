@@ -46,8 +46,11 @@ function configure {
         "--buildtype=$($Configuration.ToLower())",
         "--cmake-prefix-path=$prefixPath",
         "-Db_vscrt=$(if ($Configuration -eq 'Debug') { 'md' } else { 'mt' })",
-        "-Dstrip=false",
         "-Db_sanitize=$(if ($Configuration -eq 'Debug') { 'address' } else { 'none' })",
+        "-Db_lto=$(if ($Configuration -eq 'Debug') { 'false' } else { 'true' })",
+        "-Dstrip=$(if ($Configuration -eq 'Debug') { 'false' } else { 'true' })",
+        "-Dtt_enable_logging=$(if ($Configuration -eq 'Debug') { 'true' } else { 'false' })",
+        "-Dtt_enable_tests=$(if ($Configuration -eq 'Debug') { 'true' } else { 'false' })",
         "--backend=ninja",
         $BuildDir,
         $Root

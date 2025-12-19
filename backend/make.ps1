@@ -3,7 +3,9 @@ param(
     [string]$Target = 'debug',
 
     [Parameter(Position = 1)]
-    [string]$Config
+    [string]$Config,
+
+    [switch]$AutoConfirmDeletion
 )
 
 Set-StrictMode -Version Latest
@@ -19,7 +21,7 @@ if (-not (Test-Path $Ctl)) {
 switch ($Target.ToLower()) {
 
     'clean' {
-        & $Ctl clean
+        & $Ctl clean -AutoConfirmDeletion:$AutoConfirmDeletion
     }
 
     'debug' {
