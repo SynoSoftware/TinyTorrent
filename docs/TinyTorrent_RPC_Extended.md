@@ -30,14 +30,16 @@ The backend enforces a strict `Host` header policy but treats every loopback ali
 {
   "result": "success",
   "arguments": {
-    "server-version": "TinyTorrent 1.0.0",
-    "rpc-version": 17,
-    "websocket-endpoint": "/ws",
-    "platform": "win32",
-    "features": [
+      "server-version": "TinyTorrent 1.0.0",
+      "rpc-version": 17,
+      "websocket-endpoint": "/ws",
+      "platform": "win32",
+      "features": [
       "fs-browse",
+      "fs-create-dir",
       "system-integration",
       "system-install",
+      "system-autorun",
       "session-tray-status",
       "session-pause-all",
       "session-resume-all",
@@ -134,6 +136,16 @@ To ensure type safety in the frontend, the `event` message type uses strict nami
 **Arguments:** `path` (string).
 **Behavior:** Returns available bytes at the specific mount point.
 
+### **3.3 Create Directory **
+
+**Method:** `fs-create-dir`
+**Arguments:** `path` (string).
+**Behavior:**
+
+- Creates the directory and any necessary parent directories (recursive `mkdir -p`).
+- **Returns:** `success` if created or if it already exists.
+- **Error:** Returns standard filesystem error (permission denied, read-only fs) if it fails.
+
 ---
 
 ## **4. System API (`system-*` & `app-*`)**
@@ -206,6 +218,74 @@ For additional details (including optional messages, handler registration feedba
 
 ---
 
+### **4.5 Autorun / Startup Integration**
+
+These RPCs control whether TinyTorrent automatically starts when the user logs in.
+The frontend expresses intent only; the backend is solely responsible for selecting
+the executable path, startup mechanism, and required permissions.
+
+The frontend must never provide file paths or executable names.
+
+#### **4.5.1 system-autorun-status**
+
+- **Method:** `system-autorun-status`
+- **Auth:** Required (`X-TT-Auth`)
+- **Arguments:** None
+
+**Response:**
+
+```json
+{
+  "result": "success",
+  "arguments": {
+    "enabled": true,
+    "supported": true,
+    "requiresElevation": false
+  }
+}
+```
+
+- `enabled`: Autorun is currently active.
+- `supported`: Platform supports autorun integration.
+- `requiresElevation`: Enabling or disabling autorun requires elevated privileges.
+
+---
+
+#### **4.5.2 system-autorun-enable**
+
+- **Method:** `system-autorun-enable`
+- **Auth:** Required (`X-TT-Auth`)
+- **Arguments (optional):**
+
+```json
+{
+  "scope": "user"
+}
+```
+
+- `scope`: Defaults to `user`. Platforms may ignore unsupported scopes.
+
+**Behavior:**
+
+- Backend determines the correct executable (installed copy preferred).
+- Backend selects the appropriate OS autorun mechanism.
+- Operation is idempotent.
+
+---
+
+#### **4.5.3 system-autorun-disable**
+
+- **Method:** `system-autorun-disable`
+- **Auth:** Required (`X-TT-Auth`)
+- **Arguments:** None
+
+**Behavior:**
+
+- Removes autorun entries created by TinyTorrent.
+- Operation is idempotent.
+
+---
+
 ## **5. Historical Traffic API (`history-*`)**
 
 **Concept:** Time-series data with server-side aggregation.
@@ -275,6 +355,7 @@ To achieve qBittorrent parity while maintaining security:
 
 - **Fields:** `download-dir`, `incomplete-dir`, `watch-dir`.
 - **Normalization:** The Backend **must** normalize path separators (converting `/` to `\` on Windows) upon receipt, before storing in `settings.json`.
+- **Auto-Creation (Fail-safe):** If a user sets a path (via `session-set` or `torrent-add`) that does not exist, the backend **must** attempt to create it automatically. This ensures downloads do not fail simply because the user skipped the explicit "Create Folder" step.
 
 ### **6.3 Queueing & Automation**
 

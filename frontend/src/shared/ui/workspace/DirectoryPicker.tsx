@@ -1,5 +1,6 @@
 import {
     Button,
+    Input,
     Modal,
     ModalBody,
     ModalContent,
@@ -9,14 +10,21 @@ import {
     cn,
 } from "@heroui/react";
 import { ArrowLeft, Folder } from "lucide-react";
-import { useEffect, useState } from "react";
+import {
+    useCallback,
+    useEffect,
+    useMemo,
+    useState,
+    type KeyboardEvent,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { formatBytes } from "../../utils/format";
-import {
-    browseDirectories,
-    type DirectoryBrowseResult,
-    type DirectoryNode,
-} from "../../../services/rpc/rpc-extended";
+import { browseDirectories } from "@/services/rpc/rpc-extended";
+import type {
+    DirectoryBrowseResult,
+    DirectoryNode,
+} from "@/services/rpc/types";
+import { useTorrentClient } from "@/app/providers/TorrentClientProvider";
 import { ICON_STROKE_WIDTH } from "../../../config/logic";
 import { INTERACTION_CONFIG } from "../../../config/logic";
 import { GLASS_MODAL_SURFACE } from "../layout/glass-surface";
@@ -36,33 +44,114 @@ export function DirectoryPicker({
 }: DirectoryPickerProps) {
     const { t } = useTranslation();
     const [currentPath, setCurrentPath] = useState(initialPath);
-    const [browseResult, setBrowseResult] = useState<DirectoryBrowseResult | null>(null);
+    const [browseResult, setBrowseResult] =
+        useState<DirectoryBrowseResult | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [pendingPath, setPendingPath] = useState(initialPath);
+    const [isCreating, setIsCreating] = useState(false);
+    const [creationError, setCreationError] = useState<string | null>(null);
+    const torrentClient = useTorrentClient();
 
     useEffect(() => {
         if (isOpen) {
             setCurrentPath(initialPath);
+            setPendingPath(initialPath);
         }
     }, [initialPath, isOpen]);
 
     useEffect(() => {
-        if (!isOpen) return;
+        if (browseResult?.path) {
+            setPendingPath(browseResult.path);
+        }
+    }, [browseResult?.path]);
+
+    useEffect(() => {
+        if (!isOpen) {
+            setBrowseResult(null);
+            return;
+        }
+        let active = true;
         setIsLoading(true);
         setError(null);
-        browseDirectories(currentPath)
-            .then(setBrowseResult)
-            .catch(() => setError(t("directory_browser.error")))
-            .finally(() => setIsLoading(false));
-    }, [currentPath, isOpen, t]);
+        void browseDirectories(torrentClient, currentPath)
+            .then((result) => {
+                if (!active) return;
+                setBrowseResult(result);
+            })
+            .catch(() => {
+                if (!active) return;
+                setBrowseResult(null);
+                setError(t("directory_browser.error"));
+            })
+            .finally(() => {
+                if (!active) return;
+                setIsLoading(false);
+            });
+        return () => {
+            active = false;
+        };
+    }, [currentPath, isOpen, t, torrentClient]);
+
+    const commitPath = (value: string) => {
+        const normalized = value.trim();
+        setError(null);
+        setCurrentPath(normalized);
+    };
+
+    const handlePathInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+        if (event.key === "Enter") {
+            event.preventDefault();
+            commitPath(pendingPath);
+        }
+    };
+
+    const selectedPath = useMemo(() => {
+        const normalized = pendingPath.trim();
+        if (normalized) {
+            return normalized;
+        }
+        if (browseResult?.path) {
+            return browseResult.path;
+        }
+        if (currentPath) {
+            return currentPath;
+        }
+        return "";
+    }, [browseResult?.path, currentPath, pendingPath]);
+
+    const handleSelect = useCallback(async () => {
+        if (!selectedPath) {
+            return;
+        }
+        if (torrentClient.createDirectory) {
+            setIsCreating(true);
+            setCreationError(null);
+            try {
+                await torrentClient.createDirectory(selectedPath);
+            } catch (createError) {
+                setCreationError(
+                    createError instanceof Error
+                        ? createError.message
+                        : t("directory_browser.create_error")
+                );
+                return;
+            } finally {
+                setIsCreating(false);
+            }
+        }
+        onSelect(selectedPath);
+    }, [selectedPath, torrentClient, onSelect, t]);
 
     const goUp = () => {
         if (!browseResult) return;
         if (!browseResult.parentPath) {
             setCurrentPath("");
+            setPendingPath("");
             return;
         }
         setCurrentPath(browseResult.parentPath);
+        setPendingPath(browseResult.parentPath);
     };
 
     const resolvedPath = browseResult?.path ?? currentPath;
@@ -81,7 +170,10 @@ export function DirectoryPicker({
             <button
                 key={entry.path}
                 type="button"
-                onClick={() => setCurrentPath(entry.path)}
+                onClick={() => {
+                    setCurrentPath(entry.path);
+                    setPendingPath(entry.path);
+                }}
                 className={cn(
                     "flex w-full items-center justify-between gap-3 rounded-2xl border border-content1/20 bg-content1/10 px-4 py-3 text-left transition hover:border-primary/40 hover:bg-content1/20",
                     "focus-visible:outline-none focus-visible:ring focus-visible:ring-primary/40"
@@ -137,6 +229,30 @@ export function DirectoryPicker({
                     </p>
                 </ModalHeader>
                 <ModalBody className="space-y-4 pt-3 pb-0">
+                    <div className="space-y-2">
+                        <Input
+                            label={t("directory_browser.path_label")}
+                            labelPlacement="outside"
+                            variant="bordered"
+                            size="sm"
+                            value={pendingPath}
+                            placeholder=" "
+                            onChange={(event) =>
+                                setPendingPath(event.target.value)
+                            }
+                            onKeyDown={handlePathInputKeyDown}
+                            onBlur={() => commitPath(pendingPath)}
+                            className="max-w-full"
+                        />
+                        <p className="text-xs text-foreground/60">
+                            {t("directory_browser.path_helper")}
+                        </p>
+                        {creationError && (
+                            <p className="text-xs text-danger">
+                                {creationError}
+                            </p>
+                        )}
+                    </div>
                     <div className="flex items-center justify-between">
                         <Button
                             size="sm"
@@ -170,17 +286,13 @@ export function DirectoryPicker({
                             </div>
                         )}
                         {!isLoading && error && (
-                            <p className="text-sm text-warning">
-                                {error}
+                            <p className="text-sm text-warning">{error}</p>
+                        )}
+                        {!isLoading && !entries.length && !error && (
+                            <p className="text-sm text-foreground/60">
+                                {t("directory_browser.empty")}
                             </p>
                         )}
-                        {!isLoading &&
-                            !entries.length &&
-                            !error && (
-                                <p className="text-sm text-foreground/60">
-                                    {t("directory_browser.empty")}
-                                </p>
-                            )}
                         {!isLoading &&
                             entries.length > 0 &&
                             entries.map(renderEntry)}
@@ -201,14 +313,10 @@ export function DirectoryPicker({
                             color="primary"
                             variant="shadow"
                             className="flex-1"
-                            onPress={() =>
-                                onSelect(
-                                    browseResult?.path ??
-                                        currentPath ??
-                                        ""
-                                )
+                            onPress={handleSelect}
+                            isDisabled={
+                                isLoading || isCreating || !selectedPath
                             }
-                            isDisabled={isLoading}
                         >
                             {t("directory_browser.select")}
                         </Button>

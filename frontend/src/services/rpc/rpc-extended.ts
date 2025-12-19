@@ -1,23 +1,13 @@
-import type { TransmissionFreeSpace } from "./types";
+import type { EngineAdapter } from "./engine-adapter";
+import type {
+    DirectoryBrowseResult,
+    DirectoryNode,
+    TransmissionFreeSpace,
+} from "./types";
 
 const GB = 1024 * 1024 * 1024;
 
-export type DirectoryNodeType = "drive" | "folder";
-
-export interface DirectoryNode {
-    name: string;
-    path: string;
-    type: DirectoryNodeType;
-    totalBytes?: number;
-    freeBytes?: number;
-    children?: DirectoryNode[];
-}
-
-export interface DirectoryBrowseResult {
-    path: string;
-    parentPath: string;
-    entries: DirectoryNode[];
-}
+export type DirectoryNodeType = DirectoryNode["type"];
 
 const MOCK_DIRECTORY_TREE: DirectoryNode[] = [
     {
@@ -104,7 +94,11 @@ const normalizePath = (value?: string) => {
         normalized = `${normalized}/`;
     }
     const isDriveRoot = Boolean(normalized.match(/^[A-Za-z]:\/$/));
-    if (normalized.length > 0 && normalized[normalized.length - 1] === "/" && !isDriveRoot) {
+    if (
+        normalized.length > 0 &&
+        normalized[normalized.length - 1] === "/" &&
+        !isDriveRoot
+    ) {
         normalized = normalized.slice(0, -1);
     }
     return normalized;
@@ -161,29 +155,48 @@ const findClosestNode = (path: string): DirectoryNode | null => {
 const simulateResponse = <T,>(value: T): Promise<T> => {
     const delay = 80 + Math.random() * 120;
     return new Promise((resolve) => {
-        setTimeout(() => resolve(value), delay);
+        window.setTimeout(() => resolve(value), delay);
     });
 };
 
+const buildDirectoryBrowseResult = (
+    node: DirectoryNode | null
+): DirectoryBrowseResult => ({
+    path: node?.path ?? "",
+    parentPath: node ? getParentPath(node.path) : "",
+    separator: "/",
+    entries: node?.children ?? MOCK_DIRECTORY_TREE,
+});
+
 export async function browseDirectories(
+    client: EngineAdapter | null,
     targetPath?: string
 ): Promise<DirectoryBrowseResult> {
     const normalized = normalizePath(targetPath);
+    if (client?.browseDirectory) {
+        try {
+            return await client.browseDirectory(
+                normalized.length > 0 ? normalized : undefined
+            );
+        } catch (error) {
+            console.error("[tiny-torrent][fs-browse]", error);
+        }
+    }
     const node = findClosestNode(normalized);
-    const entries = node?.children ?? MOCK_DIRECTORY_TREE;
-    const resolvedPath = node ? node.path : "";
-    const parentPath = node ? getParentPath(node.path) : "";
-
-    return simulateResponse({
-        path: resolvedPath,
-        parentPath,
-        entries,
-    });
+    return simulateResponse(buildDirectoryBrowseResult(node));
 }
 
 export async function getDriveSpace(
+    client: EngineAdapter | null,
     path: string
 ): Promise<TransmissionFreeSpace> {
+    if (client?.checkFreeSpace) {
+        try {
+            return await client.checkFreeSpace(path);
+        } catch (error) {
+            console.error("[tiny-torrent][free-space]", error);
+        }
+    }
     const normalized = normalizePath(path);
     const node = findClosestNode(normalized);
     const total = node?.totalBytes ?? 250 * GB;

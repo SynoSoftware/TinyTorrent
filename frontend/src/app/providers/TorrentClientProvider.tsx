@@ -1,10 +1,11 @@
 import {
     createContext,
     useContext,
+    useEffect,
     useMemo,
     type ReactNode,
 } from "react";
-import { useConnectionConfig } from "../context/ConnectionConfigContext";
+import { useConnectionConfig, buildRpcEndpoint } from "../context/ConnectionConfigContext";
 import { TransmissionAdapter } from "../../services/rpc/rpc-base";
 import type { EngineAdapter } from "../../services/rpc/engine-adapter";
 
@@ -15,17 +16,28 @@ export function ClientProvider({ children }: { children: ReactNode }) {
     const client = useMemo(
         () =>
             new TransmissionAdapter({
-                endpoint: activeProfile.endpoint,
+                endpoint: buildRpcEndpoint(activeProfile),
                 username: activeProfile.username,
                 password: activeProfile.password,
             }),
         [
-            activeProfile.endpoint,
+            activeProfile.scheme,
+            activeProfile.host,
+            activeProfile.port,
             activeProfile.username,
             activeProfile.password,
             activeProfile.id,
         ]
     );
+
+    useEffect(() => {
+        if (typeof sessionStorage === "undefined") return;
+        if (activeProfile.token) {
+            sessionStorage.setItem("tt-auth-token", activeProfile.token);
+        } else {
+            sessionStorage.removeItem("tt-auth-token");
+        }
+    }, [activeProfile.token]);
 
     return (
         <ClientContext.Provider value={client}>

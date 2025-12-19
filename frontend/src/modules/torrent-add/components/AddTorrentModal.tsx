@@ -19,9 +19,7 @@ import {
     type ChangeEvent,
 } from "react";
 import { useTranslation } from "react-i18next";
-import {
-    DirectoryPicker,
-} from "../../../shared/ui/workspace/DirectoryPicker";
+import { DirectoryPicker } from "../../../shared/ui/workspace/DirectoryPicker";
 import {
     FileExplorerTree,
     type FileExplorerEntry,
@@ -31,12 +29,13 @@ import {
     parseTorrentFile,
     type TorrentMetadata,
 } from "../../../shared/utils/torrent";
-import type { TransmissionFreeSpace } from "../../../services/rpc/types";
-import { getDriveSpace } from "../../../services/rpc/rpc-extended";
+import type { TransmissionFreeSpace } from "@/services/rpc/types";
+import { getDriveSpace } from "@/services/rpc/rpc-extended";
 import { ICON_STROKE_WIDTH } from "../../../config/logic";
 import { INTERACTION_CONFIG } from "../../../config/logic";
 import { GLASS_MODAL_SURFACE } from "../../../shared/ui/layout/glass-surface";
 import type { AddTorrentContext } from "../../../app/hooks/useAddTorrent";
+import { useTorrentClient } from "@/app/providers/TorrentClientProvider";
 
 interface AddTorrentModalProps {
     isOpen: boolean;
@@ -69,6 +68,7 @@ export function AddTorrentModal({
     getFreeSpace,
 }: AddTorrentModalProps) {
     const { t } = useTranslation();
+    const torrentClient = useTorrentClient();
     const [magnetLink, setMagnetLink] = useState("");
     const [downloadDir, setDownloadDir] = useState(DEFAULT_SAVE_PATH);
     const [startNow, setStartNow] = useState(true);
@@ -204,7 +204,10 @@ export function AddTorrentModal({
             .catch(async () => {
                 if (!active) return;
                 try {
-                    const fallback = await getDriveSpace(downloadDir);
+                    const fallback = await getDriveSpace(
+                        torrentClient,
+                        downloadDir
+                    );
                     if (!active) return;
                     setDirectorySpace(fallback);
                     setSpaceError(null);
@@ -221,7 +224,7 @@ export function AddTorrentModal({
         return () => {
             active = false;
         };
-    }, [downloadDir, getFreeSpace, t]);
+    }, [downloadDir, getFreeSpace, t, torrentClient]);
 
     const fileTreeEntries = useMemo<FileExplorerEntry[]>(() => {
         if (!torrentMetadata) return [];
@@ -258,9 +261,7 @@ export function AddTorrentModal({
         if (!canSubmit || isSubmitting) return;
         const trimmedLink = magnetLink.trim();
         const ghostLabel =
-            torrentMetadata?.name ??
-            trimmedLink ??
-            t("modals.add_title");
+            torrentMetadata?.name ?? trimmedLink ?? t("modals.add_title");
         const ghostContext: AddTorrentContext = {
             label: ghostLabel,
             strategy: trimmedLink ? "magnet_lookup" : "loading",
@@ -412,7 +413,8 @@ export function AddTorrentModal({
                                         </span>
                                         <span className="text-[11px] text-foreground/50">
                                             {t("modals.file_count", {
-                                                count: torrentMetadata.files.length,
+                                                count: torrentMetadata.files
+                                                    .length,
                                             })}
                                         </span>
                                     </div>
@@ -441,39 +443,40 @@ export function AddTorrentModal({
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="rounded-xl border border-content1/20 bg-content1/15 px-4 py-3 space-y-2">
                                     <div className="flex items-center gap-2 text-foreground/60">
-                                            <HardDrive
-                                                size={18}
-                                                strokeWidth={ICON_STROKE_WIDTH}
-                                            />
+                                        <HardDrive
+                                            size={18}
+                                            strokeWidth={ICON_STROKE_WIDTH}
+                                        />
                                         <span className="text-xs font-bold uppercase tracking-wider">
                                             {t("modals.save_path")}
                                         </span>
                                     </div>
-                            <Input
-                                value={downloadDir}
-                                onChange={(event) =>
-                                    setDownloadDir(event.target.value)
-                                }
-                                variant="flat"
-                                size="sm"
-                                classNames={{
-                                    input: "font-mono text-xs",
-                                    inputWrapper:
-                                        "bg-content1/10 border-content1/20",
-                                }}
-                                endContent={
-                                <Button
-                                    size="sm"
+                                    <Input
+                                        labelPlacement="outside"
+                                        value={downloadDir}
+                                        onChange={(event) =>
+                                            setDownloadDir(event.target.value)
+                                        }
                                         variant="flat"
-                                        color="primary"
-                                        onPress={openDirectoryPicker}
-                                        className="text-[10px] font-semibold uppercase tracking-[0.3em] px-3 py-1"
-                                    >
-                                        {t("settings.button.browse")}
-                                    </Button>
-                                }
-                            />
-                        </div>
+                                        size="sm"
+                                        classNames={{
+                                            input: "font-mono text-xs",
+                                            inputWrapper:
+                                                "bg-content1/10 border-content1/20",
+                                        }}
+                                        endContent={
+                                            <Button
+                                                size="sm"
+                                                variant="flat"
+                                                color="primary"
+                                                onPress={openDirectoryPicker}
+                                                className="text-[10px] font-semibold uppercase tracking-[0.3em] px-3 py-1"
+                                            >
+                                                {t("settings.button.browse")}
+                                            </Button>
+                                        }
+                                    />
+                                </div>
                                 <div className="rounded-xl border border-content1/20 bg-content1/15 px-4 py-3 space-y-2 flex flex-col">
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-2 text-foreground/60">

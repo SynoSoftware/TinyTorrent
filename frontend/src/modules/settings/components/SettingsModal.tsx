@@ -18,27 +18,36 @@ import {
     DEFAULT_SETTINGS_CONFIG,
     type ConfigKey,
     type SettingsConfig,
-} from "../data/config";
-import { ALT_SPEED_DAY_OPTIONS, SETTINGS_TABS } from "../data/settings-tabs";
+} from "@/modules/settings/data/config";
+import {
+    ALT_SPEED_DAY_OPTIONS,
+    SETTINGS_TABS,
+} from "@/modules/settings/data/settings-tabs";
 import type {
     BlockBase,
     ButtonActionKey,
     InputBlock,
     SectionBlock,
     SettingsTab,
-} from "../data/settings-tabs";
+} from "@/modules/settings/data/settings-tabs";
+import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import type {
     SystemInstallOptions,
     SystemInstallResult,
-} from "../../../services/rpc/types";
-import { ICON_STROKE_WIDTH } from "../../../config/logic";
-import { INTERACTION_CONFIG } from "../../../config/logic";
-import { DirectoryPicker } from "../../../shared/ui/workspace/DirectoryPicker";
-import { LanguageMenu } from "../../../shared/ui/controls/LanguageMenu";
-import { APP_VERSION } from "../../../shared/version";
+} from "@/services/rpc/types";
+import type { RpcStatus } from "@/shared/types/rpc";
+import type {
+    AutorunStatus,
+    TinyTorrentCapabilities,
+} from "@/services/rpc/entities";
+import { ICON_STROKE_WIDTH } from "@/config/logic";
+import { INTERACTION_CONFIG } from "@/config/logic";
+import { DirectoryPicker } from "@/shared/ui/workspace/DirectoryPicker";
+import { LanguageMenu } from "@/shared/ui/controls/LanguageMenu";
+import { APP_VERSION } from "@/shared/version";
 import { ChevronLeft, RotateCcw, Save, X } from "lucide-react";
-import { ConnectionManager } from "./ConnectionManager";
-import { GLASS_MODAL_SURFACE } from "../../../shared/ui/layout/glass-surface";
+import { ConnectionManager } from "@/modules/settings/components/ConnectionManager";
+import { GLASS_MODAL_SURFACE } from "@/shared/ui/layout/glass-surface";
 
 interface SectionTitleProps {
     title: string;
@@ -95,6 +104,9 @@ interface SettingsModalProps {
     onSystemInstall?: (
         options: SystemInstallOptions
     ) => Promise<SystemInstallResult>;
+    onReconnect: () => void;
+    rpcStatus: RpcStatus;
+    torrentClient: EngineAdapter;
 }
 
 export function SettingsModal({
@@ -106,6 +118,9 @@ export function SettingsModal({
     onTestPort,
     onRestoreInsights,
     onSystemInstall,
+    onReconnect,
+    rpcStatus,
+    torrentClient,
 }: SettingsModalProps) {
     const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState<SettingsTab>("speed");
@@ -122,6 +137,12 @@ export function SettingsModal({
         null
     );
     const [isSystemInstalling, setIsSystemInstalling] = useState(false);
+    const [autorunInfo, setAutorunInfo] = useState<AutorunStatus | null>(null);
+    const [isAutorunBusy, setIsAutorunBusy] = useState(false);
+    const [isAutorunLoading, setIsAutorunLoading] = useState(true);
+    const [extendedCapabilities, setExtendedCapabilities] =
+        useState<TinyTorrentCapabilities | null>(null);
+    const [isCapabilitiesLoading, setIsCapabilitiesLoading] = useState(true);
 
     // Responsive State
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(true);
@@ -252,6 +273,104 @@ export function SettingsModal({
         });
     };
 
+    const fetchAutorunStatus = useCallback(async () => {
+        if (!torrentClient.getSystemAutorunStatus) {
+            setAutorunInfo(null);
+            setIsAutorunLoading(false);
+            return;
+        }
+        if (rpcStatus !== "connected") {
+            setAutorunInfo(null);
+            setIsAutorunLoading(false);
+            return;
+        }
+        setIsAutorunLoading(true);
+        try {
+            const info = await torrentClient.getSystemAutorunStatus();
+            setAutorunInfo(info);
+        } catch {
+            setAutorunInfo(null);
+        } finally {
+            setIsAutorunLoading(false);
+        }
+    }, [rpcStatus, torrentClient]);
+
+    useEffect(() => {
+        if (!isOpen) {
+            return;
+        }
+        void fetchAutorunStatus();
+    }, [fetchAutorunStatus, isOpen]);
+
+    const fetchExtendedCapabilities = useCallback(async () => {
+        if (!torrentClient.getExtendedCapabilities) {
+            setExtendedCapabilities(null);
+            setIsCapabilitiesLoading(false);
+            return;
+        }
+        if (rpcStatus !== "connected") {
+            setExtendedCapabilities(null);
+            setIsCapabilitiesLoading(false);
+            return;
+        }
+        setIsCapabilitiesLoading(true);
+        try {
+            const payload = await torrentClient.getExtendedCapabilities?.(true);
+            setExtendedCapabilities(payload);
+        } catch {
+            setExtendedCapabilities(null);
+        } finally {
+            setIsCapabilitiesLoading(false);
+        }
+    }, [rpcStatus, torrentClient]);
+
+    useEffect(() => {
+        if (!isOpen) {
+            return;
+        }
+        void fetchExtendedCapabilities();
+    }, [fetchExtendedCapabilities, isOpen]);
+
+    const autorunEnabled = Boolean(autorunInfo?.enabled);
+    const autorunSupported = Boolean(
+        autorunInfo?.supported &&
+            torrentClient.systemAutorunEnable &&
+            torrentClient.systemAutorunDisable
+    );
+    const autorunDisabled =
+        rpcStatus !== "connected" ||
+        !autorunSupported ||
+        isAutorunLoading ||
+        isAutorunBusy;
+    const supportsSystemInstall = Boolean(
+        extendedCapabilities?.features?.includes("system-install")
+    );
+    const supportsFsBrowse = Boolean(
+        torrentClient.browseDirectory &&
+            extendedCapabilities?.features?.includes("fs-browse")
+    );
+    const canBrowseDirectories =
+        supportsFsBrowse &&
+        rpcStatus === "connected" &&
+        !isCapabilitiesLoading;
+
+    const handleAutorunToggle = useCallback(async () => {
+        if (autorunDisabled) {
+            return;
+        }
+        setIsAutorunBusy(true);
+        try {
+            if (autorunEnabled) {
+                await torrentClient.systemAutorunDisable?.();
+            } else {
+                await torrentClient.systemAutorunEnable?.();
+            }
+        } finally {
+            setIsAutorunBusy(false);
+            void fetchAutorunStatus();
+        }
+    }, [autorunDisabled, autorunEnabled, fetchAutorunStatus, torrentClient]);
+
     const handleSystemInstall = useCallback(async () => {
         if (!onSystemInstall) {
             return;
@@ -318,11 +437,21 @@ export function SettingsModal({
               }
             : undefined;
 
+        const isBrowseAction = sideAction?.type === "browse";
+        const sideActionDisabled =
+            isBrowseAction && !canBrowseDirectories;
+
         const handleSideAction = () => {
             if (!sideAction) return;
-            if (sideAction.type === "browse" && sideAction.targetConfigKey) {
+            if (
+                sideAction.type === "browse" &&
+                sideAction.targetConfigKey &&
+                !sideActionDisabled
+            ) {
                 openDirectoryPicker(sideAction.targetConfigKey);
-            } else if (sideAction.type === "button" && sideAction.actionKey) {
+                return;
+            }
+            if (sideAction.type === "button" && sideAction.actionKey) {
                 buttonActions[sideAction.actionKey]();
             }
         };
@@ -424,6 +553,7 @@ export function SettingsModal({
                         "bg-primary/10 hover:bg-primary/20 text-primary transition-colors",
                         "data-[pressed=true]:scale-95"
                     )}
+                    isDisabled={sideActionDisabled}
                 >
                     {t(sideAction.labelKey)}
                 </Button>
@@ -617,6 +747,7 @@ export function SettingsModal({
                     <Select
                         key={`section-${sectionIndex}-block-${blockIndex}`}
                         label={t(block.labelKey)}
+                        labelPlacement="outside"
                         size="sm"
                         variant={block.variant ?? "bordered"}
                         selectedKeys={
@@ -692,6 +823,11 @@ export function SettingsModal({
 
             case "system-install": {
                 const isInstallAvailable = Boolean(onSystemInstall);
+                const isSystemInstallDisabled =
+                    !isInstallAvailable ||
+                    !supportsSystemInstall ||
+                    isSystemInstalling ||
+                    isCapabilitiesLoading;
                 const locationButtons = SYSTEM_INSTALL_LOCATIONS.map(
                     (location) => {
                         const isSelected = installLocations.includes(
@@ -699,6 +835,8 @@ export function SettingsModal({
                         );
                         const cannotDeselect =
                             isSelected && installLocations.length === 1;
+                        const locationButtonDisabled =
+                            isSystemInstallDisabled || cannotDeselect;
                         return (
                             <Button
                                 key={location.key}
@@ -706,12 +844,13 @@ export function SettingsModal({
                                 variant={isSelected ? "shadow" : "light"}
                                 color={isSelected ? "primary" : undefined}
                                 className="uppercase tracking-[0.2em] text-[10px] h-8 px-3"
-                                onPress={() =>
-                                    toggleInstallLocation(location.key)
-                                }
-                                isDisabled={
-                                    !isInstallAvailable || cannotDeselect
-                                }
+                                onPress={() => {
+                                    if (locationButtonDisabled) {
+                                        return;
+                                    }
+                                    toggleInstallLocation(location.key);
+                                }}
+                                isDisabled={locationButtonDisabled}
                             >
                                 {t(location.labelKey)}
                             </Button>
@@ -743,6 +882,7 @@ export function SettingsModal({
                                 size="sm"
                                 variant="bordered"
                                 value={installName}
+                                isDisabled={isSystemInstallDisabled}
                                 onChange={(event) =>
                                     setInstallName(event.target.value)
                                 }
@@ -754,6 +894,7 @@ export function SettingsModal({
                                 size="sm"
                                 variant="bordered"
                                 value={installArgs}
+                                isDisabled={isSystemInstallDisabled}
                                 onChange={(event) =>
                                     setInstallArgs(event.target.value)
                                 }
@@ -770,8 +911,18 @@ export function SettingsModal({
                         <div className="flex flex-col gap-3">
                             <Switch
                                 size="sm"
+                                isSelected={autorunEnabled}
+                                isDisabled={autorunDisabled}
+                                onValueChange={handleAutorunToggle}
+                            >
+                                <span className="text-sm font-medium text-foreground/80">
+                                    {t("settings.connection.autorun_label")}
+                                </span>
+                            </Switch>
+                            <Switch
+                                size="sm"
                                 isSelected={registerHandlers}
-                                isDisabled={!isInstallAvailable}
+                                isDisabled={isSystemInstallDisabled}
                                 onValueChange={(value) =>
                                     setRegisterHandlers(value)
                                 }
@@ -785,7 +936,7 @@ export function SettingsModal({
                             <Switch
                                 size="sm"
                                 isSelected={installToProgramFiles}
-                                isDisabled={!isInstallAvailable}
+                                isDisabled={isSystemInstallDisabled}
                                 onValueChange={(value) =>
                                     setInstallToProgramFiles(value)
                                 }
@@ -803,9 +954,7 @@ export function SettingsModal({
                                 className="font-semibold shadow-lg shadow-primary/20"
                                 onPress={handleSystemInstall}
                                 isLoading={isSystemInstalling}
-                                disabled={
-                                    !isInstallAvailable || isSystemInstalling
-                                }
+                                isDisabled={isSystemInstallDisabled}
                             >
                                 {isSystemInstalling
                                     ? t("settings.install.button_busy")
@@ -989,7 +1138,11 @@ export function SettingsModal({
                         key={`section-${sectionIndex}-block-${blockIndex}`}
                         className="space-y-3"
                     >
-                        <ConnectionManager />
+                        <ConnectionManager
+                            onReconnect={onReconnect}
+                            rpcStatus={rpcStatus}
+                            torrentClient={torrentClient}
+                        />
                     </div>
                 );
             }

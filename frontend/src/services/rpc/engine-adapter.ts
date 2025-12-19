@@ -4,8 +4,11 @@ import type {
     TorrentEntity,
     AddTorrentPayload,
     SessionStats,
+    TinyTorrentCapabilities,
+    AutorunStatus,
 } from "./entities";
 import type {
+    DirectoryBrowseResult,
     TransmissionSessionSettings,
     TransmissionFreeSpace,
     SystemInstallOptions,
@@ -25,6 +28,7 @@ export interface EngineAdapter {
     ): Promise<void>;
     testPort?(): Promise<boolean>;
     checkFreeSpace?(path: string): Promise<TransmissionFreeSpace>;
+    browseDirectory?(path?: string): Promise<DirectoryBrowseResult>;
     getTorrents(): Promise<TorrentEntity[]>;
     getTorrentDetails(id: string): Promise<TorrentDetailEntity>;
     getSessionStats(): Promise<SessionStats>;
@@ -46,10 +50,15 @@ export interface EngineAdapter {
     setSuperSeeding?(id: string, enabled: boolean): Promise<void>;
     forceTrackerReannounce?(id: string): Promise<void>;
     detectEngine?(): Promise<EngineInfo>;
+    getExtendedCapabilities?(force?: boolean): Promise<TinyTorrentCapabilities | null>;
     updateRequestTimeout?(timeout: number): void;
     subscribeToHeartbeat(
         params: HeartbeatSubscriberParams
     ): HeartbeatSubscription;
     openPath?(path: string): Promise<void>;
     systemInstall?(options: SystemInstallOptions): Promise<SystemInstallResult>;
+    getSystemAutorunStatus?(): Promise<AutorunStatus>;
+    systemAutorunEnable?(scope?: string): Promise<void>;
+    systemAutorunDisable?(): Promise<void>;
+    createDirectory?(path: string): Promise<void>;
 }

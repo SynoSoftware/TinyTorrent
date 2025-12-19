@@ -8,6 +8,7 @@ import {
     Shield,
     Zap,
     Plug,
+    Settings as SettingsIcon,
 } from "lucide-react";
 import { type SettingsConfig, type ConfigKey } from "./config";
 
@@ -19,7 +20,7 @@ export type SettingsTab =
     | "storage"
     | "privacy"
     | "gui"
-    | "install";
+    | "system";
 
 export type VisibilityCheck = (config: SettingsConfig) => boolean;
 
@@ -128,6 +129,10 @@ type SystemInstallBlock = {
     type: "system-install";
 } & BlockBase;
 
+type SystemIntegrationBlock = {
+    type: "system-integration";
+} & BlockBase;
+
 export type SectionBlock =
     | SwitchSliderBlock
     | SwitchBlock
@@ -140,7 +145,8 @@ export type SectionBlock =
     | RawConfigBlock
     | DaySelectorBlock
     | ConnectionManagerBlock
-    | SystemInstallBlock;
+    | SystemInstallBlock
+    | SystemIntegrationBlock;
 
 interface SectionDefinition {
     titleKey: string;
@@ -369,6 +375,7 @@ export const SETTINGS_TABS: TabDefinition[] = [
             },
         ],
     },
+
     {
         id: "peers",
         labelKey: "settings.tabs.peers",
@@ -570,10 +577,10 @@ export const SETTINGS_TABS: TabDefinition[] = [
         ],
     },
     {
-        id: "install",
-        labelKey: "settings.tabs.install",
-        icon: DownloadCloud,
-        headerKey: "settings.headers.install",
+        id: "system",
+        labelKey: "settings.tabs.system",
+        icon: SettingsIcon,
+        headerKey: "settings.headers.system",
         sections: [
             {
                 titleKey: "settings.sections.install",

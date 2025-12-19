@@ -11,7 +11,10 @@
         "root_label": "File System",
         "select": "Use this folder",
         "title": "Choose Folder",
-        "up": "Up one level"
+        "up": "Up one level",
+        "path_label": "Path",
+        "path_helper": "Type a path; the daemon will create missing folders when you confirm.",
+        "create_error": "Unable to create the specified directory."
     },
     "drop_overlay": {
         "subtitle": "Supports .torrent and Magnets",
@@ -83,7 +86,8 @@
             "config_details": "Includes both engine telemetry and UI preferences in a single snapshot.",
             "connection_profiles": "Manage the RPC endpoints and credentials TinyTorrent talks to.",
             "table_watermark": "Display the ghosted TinyTorrent logo behind the torrent table.",
-            "install": "Create shortcuts, register handlers, and optionally install TinyTorrent to Program Files."
+            "install": "Create shortcuts, register handlers, and optionally install TinyTorrent to Program Files.",
+            "system_integration": "System-level services that affect startup, autorun, and tray helpers."
         },
         "headers": {
             "gui": "Interface",
@@ -93,7 +97,8 @@
             "privacy": "Privacy",
             "speed": "Speed Limits",
             "storage": "Storage",
-            "install": "System Integration"
+            "system": "System Integration",
+            "install": "System Installer"
         },
         "labels": {
             "altSpeedDays": "Scheduled Days",
@@ -176,7 +181,8 @@
             "protocol": "Protocol Features",
             "seeding": "Seeding Behavior",
             "turtle": "Turtle Mode (Scheduled)",
-            "install": "System Integration"
+            "install": "System Integration",
+            "system_integration": "System Services"
         },
         "tabs": {
             "gui": "Interface",
@@ -186,7 +192,8 @@
             "privacy": "Privacy",
             "speed": "Speed",
             "storage": "Storage",
-            "install": "System"
+            "system": "System",
+            "install": "Install"
         },
         "install": {
             "button": "Run system installer",
@@ -223,7 +230,54 @@
             "profile_label": "Profile Name",
             "endpoint": "RPC Endpoint",
             "username": "Username",
-            "password": "Password"
+            "password": "Password",
+            "token": "Authorization token",
+            "auth_method_token": "Auth method: token",
+            "auth_method_basic": "Auth method: username + password",
+            "edit_credentials": "Edit credentials",
+            "hide_credentials": "Hide credentials",
+            "offline_warning": "Offline: some RPC features require a live daemon.",
+            "scheme_label": "Protocol",
+            "scheme_http": "HTTP",
+            "scheme_https": "HTTPS",
+            "host": "Host",
+            "port": "Port",
+            "endpoint_preview": "Endpoint: {{endpoint}}",
+            "current_connection": "Active connection",
+            "reconnect": "Reconnect",
+            "extended_title": "TinyTorrent RPC Extended",
+            "extended_subtitle": "Detect TinyTorrent extended RPC capabilities.",
+            "extended_available": "TinyTorrent RPC Extended available",
+            "extended_checking": "Checking for TinyTorrent RPC Extended...",
+            "extended_error": "Unable to reach the capability endpoint.",
+            "extended_unavailable": "RPC Extended not available on this backend.",
+            "extended_unknown": "Extended RPC availability is unknown.",
+            "extended_helper": "Connect to a TinyTorrent daemon to detect RPC Extended support.",
+            "extended_check_button": "Refresh capabilities",
+            "extended_features": "Supported features: {{features}}",
+            "extended_features_none": "No extended features reported.",
+            "extended_platform": "Platform: {{platform}}",
+            "extended_version": "Server {{serverVersion}} · RPC {{rpcVersion}}",
+            "extended_websocket": "WebSocket sync: {{path}}",
+            "extended_version_unknown": "unknown",
+            "extended_offline": "Extended RPC requires a running TinyTorrent backend.",
+            "autorun_title": "Startup Integration",
+            "autorun_subtitle": "Control whether TinyTorrent launches with your session.",
+            "autorun_label": "Launch TinyTorrent on system startup",
+            "autorun_refresh": "Refresh status",
+            "autorun_status_enabled": "Autorun enabled",
+            "autorun_status_disabled": "Autorun disabled",
+            "autorun_status_unsupported": "Autorun unsupported",
+            "autorun_status_error": "Autorun error",
+            "autorun_status_error_message": "Autorun error: {{message}}",
+            "autorun_status_unknown": "Autorun state unknown",
+            "autorun_button_disable": "Disable autorun",
+            "autorun_button_enable": "Enable autorun",
+            "autorun_description_enabled": "TinyTorrent will start with your session.",
+            "autorun_description_disabled": "TinyTorrent will not start automatically.",
+            "autorun_description_unsupported": "Autorun is not supported by this backend.",
+            "autorun_requires_elevation": "Changing autorun may require elevated privileges.",
+            "autorun_offline": "Autorun operations need a connected RPC session."
         },
         "unsaved_changes": "Unsaved changes"
     },
