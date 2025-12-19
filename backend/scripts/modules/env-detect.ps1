@@ -1,7 +1,11 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-. (Join-Path (Split-Path -Parent $PSCommandPath) 'logging.ps1')
+if ($MyInvocation.InvocationName -eq $PSCommandPath) {
+    throw "Internal build-system module. Do not execute directly."
+}
+
+. (Join-Path (Split-Path -Parent $PSCommandPath) 'log.ps1')
 
 function Resolve-ToolPath {
     param([Parameter(Mandatory = $true)][string]$Name)
@@ -59,7 +63,7 @@ function Resolve-ToolPath {
         $vswhere = 'C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe'
         if (Test-Path -LiteralPath $vswhere) {
             try {
-                $vsInstall = & $vswhere -latest -products * -property installationPath 2>$null | Select-Object -First 1
+                $vsInstall = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath 2>$null | Select-Object -First 1
                 if ($vsInstall) {
                     $vsInstall = $vsInstall.Trim()
                     $msvcRoot = Join-Path $vsInstall 'VC\Tools\MSVC'

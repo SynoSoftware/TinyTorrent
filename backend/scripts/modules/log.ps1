@@ -1,6 +1,10 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+if ($MyInvocation.InvocationName -eq $PSCommandPath) {
+    throw "Internal build-system module. Do not execute directly."
+}
+
 $Script:LogSupportsColor = ($Host -and $Host.UI -and -not [Console]::IsOutputRedirected)
 $Script:LogSymbols = @{
     'INFO'  = 'ℹ'

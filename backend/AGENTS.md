@@ -133,9 +133,23 @@ root/
 |-- make.ps1                # CLI shim (debug/release/test/clean)
 |-- build.legacy.ps1        # Legacy Meson/Ninja wrapper (deprecated)
 |-- scripts/
-|   |-- buildctl.ps1        # Modular command dispatcher
-|   |-- setup.ps1
-|   \-- modules/            # Granular steps (workflow helpers)
+|   |-- buildctl.ps1        # Dispatcher that invokes scripts/commands
+|   |-- commands/           # User-facing entrypoints that orchestrate workflows
+|   |   |-- build.ps1
+|   |   |-- clean.ps1
+|   |   |-- configure.ps1
+|   |   |-- install.ps1
+|   |   |-- package.ps1
+|   |   |-- setup.ps1
+|   |   |-- test.ps1
+|   \-- modules/            # Internal helpers with execution guards
+|       |-- log.ps1
+|       |-- env-detect.ps1
+|       |-- toolchain-bootstrap.ps1
+|       |-- meson-config.ps1
+|       |-- deploy.ps1
+|       |-- fs-safe-delete.ps1
+|       |-- vcpkg.ps1
 |
 |-- src/
 |   |-- main.cpp             # Entry point
@@ -254,11 +268,11 @@ TinyTorrent uses **two** distinct build configurations.
 
 ### **How to Build**
 
-Agents must use the provided scripts.
+Agents must use the provided scripts. The `buildctl.ps1` dispatcher now routes to dedicated scripts/commands/ entrypoints (`setup`, `configure`, `build`, `test`, `install`, `package`, `clean`), while the scripts/modules/ directory keeps the shared helpers, each protected with an invocation guard.
 
 ```powershell
 # 1. Setup Dependencies (VCPKG)
-setup.ps1
+setup.ps1        # now implemented by scripts/commands/setup.ps1 and toolchain-bootstrap modules
 
 # 2. Build & Test (runs setup/configure/build/test via buildctl)
 ./make debug
@@ -345,4 +359,5 @@ Tray only calls RPCs and shows results.
 
 ## Other
 
-Be kind with my time. Think what's faster. Maybe you can you must confirm with the user deletion of large folders even if temporary or generated.
+- When you design a build solution, be kind with my time. Ask yourself what's faster for the user? Maybe you can you must confirm with the user deletion of large folders even if temporary or generated.
+- When you change code, run the tests or build as apropriate. fix any issues before calling the task complete

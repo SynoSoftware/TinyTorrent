@@ -1,7 +1,9 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-. (Join-Path (Split-Path -Parent $PSCommandPath) 'logging.ps1')
+if ($MyInvocation.InvocationName -eq $PSCommandPath) {
+    throw "Internal build-system module. Do not execute directly."
+}
 
 function Test-VcpkgTriplet {
     param(
