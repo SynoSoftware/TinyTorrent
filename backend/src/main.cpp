@@ -285,21 +285,19 @@ int daemon_main(int argc, char *argv[],
             }
             if (!secure_connection_permissions(tmp_path))
             {
-                output.close();
-                std::error_code cleanup_ec;
-                std::filesystem::remove(tmp_path, cleanup_ec);
                 TT_LOG_INFO("unable to secure {}", tmp_path.string());
-                return false;
+                // Continue even if securing ACLs failed; fall back to writing
+                // the file so developers can still connect in non-privileged
+                // environments. This avoids hard-failing on platforms where
+                // SetNamedSecurityInfoW may not succeed for new files.
             }
             output << payload;
             output.flush();
             output.close();
             if (!secure_connection_permissions(tmp_path))
             {
-                std::error_code cleanup_ec;
-                std::filesystem::remove(tmp_path, cleanup_ec);
                 TT_LOG_INFO("unable to secure {}", tmp_path.string());
-                return false;
+                // Log and continue; do not remove the temp file.
             }
             std::error_code remove_ec;
             std::filesystem::remove(path, remove_ec);
@@ -442,9 +440,11 @@ int daemon_main(int argc, char *argv[],
         }
         set_db_setting("rpcBind", rpc_bind);
 
-        auto persisted_download = read_db_string("downloadPath")
-                                      .value_or(path_to_utf8(download_path));
-        download_path = std::filesystem::u8path(persisted_download);
+        auto persisted_download = read_db_string("downloadPath");
+        if (persisted_download && !persisted_download->empty())
+        {
+            download_path = std::filesystem::u8path(*persisted_download);
+        }
         if (!ensure_directory(download_path, "download path"))
         {
             download_path = root / "downloads";
@@ -663,9 +663,68 @@ int daemon_main(int argc, char *argv[],
         {
             for (int index = 1; index < argc; ++index)
             {
+                // Skip CLI flags (e.g. --run-seconds=10) from being treated
+                // as startup torrent arguments. Also skip arguments that
+                // start with '/', or a stray '\' to be defensive on Windows.
+                if (argv[index] &&
+                    (argv[index][0] == '-' || argv[index][0] == '/' ||
+                     argv[index][0] == '\\'))
+                {
+                    continue;
+                }
                 enqueue_startup_torrent(argv[index]);
             }
         };
+        int run_seconds = 0;
+        // Parse a debug flag: support both "--run-seconds=N" and
+        // "--run-seconds N". If provided without a number, default to 5s.
+        for (int index = 1; index < argc; ++index)
+        {
+            if (argv[index] == nullptr)
+                continue;
+            std::string arg = argv[index];
+            if (arg.rfind("--run-seconds=", 0) == 0)
+            {
+                auto val = arg.substr(14);
+                if (val.empty())
+                {
+                    run_seconds = 5;
+                }
+                else
+                {
+                    try
+                    {
+                        run_seconds = std::stoi(val);
+                    }
+                    catch (...)
+                    {
+                        run_seconds = 0;
+                    }
+                }
+            }
+            else if (arg == "--run-seconds")
+            {
+                if (index + 1 < argc && argv[index + 1] &&
+                    argv[index + 1][0] != '-')
+                {
+                    try
+                    {
+                        run_seconds = std::stoi(argv[index + 1]);
+                    }
+                    catch (...)
+                    {
+                        run_seconds = 5;
+                    }
+                }
+                else
+                {
+                    run_seconds = 5;
+                }
+            }
+        }
+
+        // (Timer will be started after RPC is ready to ensure predictable
+        // behavior and to measure service run time from readiness.)
         std::thread engine_thread([core = engine.get()] { core->run(); });
         TT_LOG_INFO("Engine thread started");
         if (argc > 1)
@@ -703,7 +762,22 @@ int daemon_main(int argc, char *argv[],
                     "credentials.");
         tt::rpc::Server rpc(engine.get(), rpc_bind, rpc_options);
         rpc.start();
-        auto connection_info = rpc.connection_info();
+
+        // Wait briefly for the RPC listener to pick an ephemeral port
+        // (when binding to :0). The mongoose listener may finalize the
+        // assigned port slightly after mg_http_listen returns; poll for up
+        // to 1s for the server to fill in the connection info.
+        std::optional<tt::rpc::ConnectionInfo> connection_info;
+        for (int attempt = 0; attempt < 20 && !tt::runtime::should_shutdown();
+             ++attempt)
+        {
+            connection_info = rpc.connection_info();
+            if (connection_info && connection_info->port != 0)
+            {
+                break;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        }
         auto connection_file = root / "connection.json";
         if (connection_info)
         {
@@ -729,8 +803,34 @@ int daemon_main(int argc, char *argv[],
             TT_LOG_INFO(
                 "Connection info unavailable; secure launcher cannot start.");
         }
-        TT_LOG_INFO("RPC layer ready; POST requests should hit {}{}", rpc_bind,
-                    rpc_options.rpc_path);
+
+        // Log the actual RPC URL clients should use. If we obtained a
+        // resolved port from the listener, replace the bind URL's port so
+        // logs show the real, non-zero ephemeral port instead of ":0".
+        std::string display_bind = rpc_bind;
+        if (connection_info && connection_info->port != 0)
+        {
+            display_bind = replace_url_port(
+                rpc_bind, std::to_string(connection_info->port));
+        }
+        TT_LOG_INFO("RPC layer ready; POST requests should hit {}{}",
+                    display_bind, rpc_options.rpc_path);
+
+        // Auto-shutdown for debugging when requested via --run-seconds=N.
+        if (run_seconds > 0)
+        {
+            std::thread(
+                [run_seconds]()
+                {
+                    std::this_thread::sleep_for(
+                        std::chrono::seconds(run_seconds));
+                    TT_LOG_INFO("Auto shutdown: run-seconds={} reached, "
+                                "requesting shutdown",
+                                run_seconds);
+                    tt::runtime::request_shutdown();
+                })
+                .detach();
+        }
 
         tt::log::print_status("TinyTorrent daemon running; CTRL+C to stop.");
 

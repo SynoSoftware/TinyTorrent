@@ -68,6 +68,41 @@ std::string_view content_type_for_path(std::string_view path)
     return "application/octet-stream";
 }
 
+std::string replace_endpoint_port(std::string value, std::string const &port)
+{
+    if (value.empty() || port.empty())
+    {
+        return value;
+    }
+    auto parts = tt::net::parse_host_port(value);
+    parts.port = port;
+    return tt::net::format_host_port(parts);
+}
+
+std::string replace_url_port(std::string url, std::string const &port)
+{
+    if (url.empty() || port.empty())
+    {
+        return url;
+    }
+    auto scheme = url.find("://");
+    auto host_start = (scheme == std::string::npos) ? 0 : scheme + 3;
+    auto host_end = url.find('/', host_start);
+    std::string host_port = host_end == std::string::npos
+                                ? url.substr(host_start)
+                                : url.substr(host_start, host_end - host_start);
+    if (host_port.empty())
+    {
+        return url;
+    }
+    auto replaced = replace_endpoint_port(host_port, port);
+    if (host_end == std::string::npos)
+    {
+        return url.substr(0, host_start) + replaced;
+    }
+    return url.substr(0, host_start) + replaced + url.substr(host_end);
+}
+
 bool path_is_safe(std::string_view path)
 {
     if (path.empty() || path.front() != '/')
@@ -606,7 +641,13 @@ void Server::start()
     else
     {
         refresh_connection_port();
-        TT_LOG_INFO("RPC listener bound to {}, exposing {}", bind_url_,
+        std::string display_bind = bind_url_;
+        if (connection_info_ && connection_info_->port != 0)
+        {
+            display_bind = replace_url_port(
+                bind_url_, std::to_string(connection_info_->port));
+        }
+        TT_LOG_INFO("RPC listener bound to {}, exposing {}", display_bind,
                     rpc_path_);
     }
     worker_ = std::thread(&Server::run_loop, this);
