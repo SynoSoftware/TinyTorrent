@@ -1,4 +1,4 @@
-# **TinyTorrent Master Specification (v1.0)**
+# **TinyTorrent Master Specification (v1.1)**
 
 **Role:** Authoritative Architecture Document
 **Target:** Engineering Team (C++ Backend & TypeScript Frontend)
@@ -169,7 +169,7 @@ Because the daemon runs with user privileges, it must defend against local hosti
 
 - **Freshness:** On _every_ startup, the daemon:
   1.  Generates a **new** 128-bit high-entropy token.
-  2.  Binds to a **random** free TCP port on loopback (`127.0.0.1` or `[::1]`).
+  2.  Binds to a **random** free TCP port **strictly** on the loopback interface (`127.0.0.1` or `[::1]`). _Binding to `0.0.0.0` is prohibited._
 - **Atomic Handover:** The daemon writes the following to `connection.json`:
   ```json
   { "port": 54321, "token": "a1b2c3...", "pid": 1234 }
@@ -177,25 +177,28 @@ Because the daemon runs with user privileges, it must defend against local hosti
 - **Permissions:** The file is locked immediately:
   - **Linux/macOS:** `chmod 600` (User Read/Write ONLY).
   - **Windows:** NTFS ACL set to User SID only (inheritance disabled).
-- **Lifecycle:** Credentials are valid only for the life of the process. They represent a temporary session capability, not a permanent password.
+- **Lifecycle:** Credentials are valid only for the life of the process. They represent a temporary session capability, effectively acting as a specialized, rotating password.
 
 ### **7.2 HTTP Transport Security**
 
-- **Header Required:** `X-TT-Auth: <token>` must be included in all RPC requests.
+- **Primary Authentication:** `X-TT-Auth: <token>` must be included in all RPC requests.
+  - If the header is missing or invalid, the server returns `401 Unauthorized` immediately.
+  - **Note:** This effectively neutralizes CSRF attacks, as browsers prevent malicious sites from sending custom headers to cross-origins without a preflight (which will fail).
 - **Host Header Enforcement (DNS Rebinding):**
   The `Host` header must strictly match one of:
   - `127.0.0.1` / `127.0.0.1:<port>`
   - `localhost` / `localhost:<port>`
   - `[::1]` / `[::1]:<port>`
-- **CORS / Origin Enforcement:**
-  - If `Origin` header is **present**: It must match the trusted UI origin (e.g., `tt://app` or `http://localhost:3000`).
-  - If `Origin` header is **absent** (e.g., `file://`, Native WebView, Curl): Request is **Allowed** (The Token is the primary defense).
+- **CORS Policy:**
+  - The server reflects the `Origin` header in `Access-Control-Allow-Origin` **only** if the `X-TT-Auth` token is valid.
+  - If the `Origin` header is absent (e.g., `file://`, Native WebView, Curl), the request is processed normally, relying on the Token for security.
 
 ### **7.3 WebSocket Upgrade Security**
 
 - **Limitation:** Browsers cannot send custom headers (`X-TT-Auth`) during the WS handshake.
 - **Solution:** Token must be passed in the Query String: `GET /ws?token=<token>`.
 - **Validation:** The server validates the token **before** completing the Upgrade handshake (sending `101 Switching Protocols`).
+- **Logging Constraint:** The daemon **must not** log the query string of the WebSocket handshake to console or disk, to prevent token leakage in logs.
 - **Failure:** Invalid token results in immediate `403 Forbidden` and socket closure.
 
 ### **7.4 Launcher Integration Contract**
