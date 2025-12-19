@@ -6,7 +6,9 @@ param(
     [ValidateSet('Debug', 'Release')]
     [string]$Configuration = 'Debug',
 
-    [string]$Destination
+    [string]$Destination,
+
+    [switch]$AutoConfirmDeletion
 )
 
 Set-StrictMode -Version Latest
@@ -66,6 +68,9 @@ try {
     if ($module -eq 'install' -or $module -eq 'package') {
         if (-not $Destination) { throw 'Destination is required for install/package.' }
         & $module -Configuration $Configuration -Destination $Destination
+    }
+    elseif ($module -eq 'clean') {
+        & $module -Configuration $Configuration -AutoConfirmDeletion:$AutoConfirmDeletion
     }
     else {
         & $module -Configuration $Configuration
