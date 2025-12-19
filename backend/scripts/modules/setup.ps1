@@ -10,13 +10,20 @@ $ErrorActionPreference = 'Stop'
 # Configuration
 # -------------------------------------------------------------------------
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Definition
-$repoRoot = Resolve-Path $scriptRoot
+$repoRoot = Resolve-Path (Split-Path -Parent (Split-Path -Parent $scriptRoot))
 $vcpkgDir = Join-Path $repoRoot 'vcpkg'
 $vcpkgExe = Join-Path $vcpkgDir 'vcpkg.exe'
 
-# The default triplet builds BOTH Debug and Release libraries.
-# Do not use x64-windows-static unless you specifically want that.
-$triplet = "x64-windows" 
+$triplets = @(
+    "x64-windows-asan",
+    "x64-windows-static"
+)
+
+$overlayTripletsDir = Join-Path $repoRoot 'vcpkg-triplets'
+
+
+$defaultTriplet = $triplets[0]
+
 
 # -------------------------------------------------------------------------
 # Helper Functions
@@ -76,12 +83,12 @@ if ($needsBootstrap) {
 # 3. Targeted Cleaning (The "Clean Single Folder" Fix)
 # -------------------------------------------------------------------------
 if ($RebuildPackage) {
-    Write-Host "Removing package artifact: $RebuildPackage..." -ForegroundColor Yellow
+    Write-Host "Removing package artifact: $RebuildPackage (triplet: $defaultTriplet)..." -ForegroundColor Yellow
     Push-Location $vcpkgDir
     try {
         # 'remove' deletes it from the 'installed' tree, forcing a reinstall next step.
         # It does NOT delete the downloaded source zip (saving bandwidth).
-        & $vcpkgExe remove $RebuildPackage --triplet $triplet --recurse
+        & $vcpkgExe remove $RebuildPackage --triplet $defaultTriplet --recurse
         # We don't throw here because it might already be gone, which is fine.
     }
     finally {
@@ -92,7 +99,7 @@ if ($RebuildPackage) {
 # -------------------------------------------------------------------------
 # 4. Install Dependencies
 # -------------------------------------------------------------------------
-Write-Host "Verifying Dependencies ($triplet)..." -ForegroundColor Cyan
+Write-Host "Verifying Dependencies ($($triplets -join ', '))..." -ForegroundColor Cyan
 Push-Location $vcpkgDir
 try {
     # Note: We rely on vcpkg.json in the repo root (Manifest Mode).
@@ -101,12 +108,26 @@ try {
     # We deliberately ALLOW binary caching here for general dependencies (speed).
     # If you have ABI issues with specific libs, handle that in build.ps1 or use -RebuildPackage here.
     
-    & $vcpkgExe install --triplet $triplet --x-install-root="$repoRoot\vcpkg_installed"
+    foreach ($triplet in $triplets) {
+        $installRoot = Join-Path $repoRoot "vcpkg_installed\$triplet"
+        $installArgs = @(
+            'install',
+            '--triplet', $triplet,
+            '--x-install-root', $installRoot
+        )
+
+        if (Test-Path $overlayTripletsDir) {
+            $installArgs += @('--overlay-triplets', $overlayTripletsDir)
+        }
+
+        & $vcpkgExe @installArgs
+        Throw-IfError
+    }
+
     
     Throw-IfError
     Write-Host "Dependencies are ready." -ForegroundColor Green
-    Write-Host " - Debug libs:  vcpkg_installed\$triplet\debug\lib" -ForegroundColor Gray
-    Write-Host " - Release libs: vcpkg_installed\$triplet\lib" -ForegroundColor Gray
+    Write-Host " - Installed roots: vcpkg_installed\" -ForegroundColor Gray
 }
 finally {
     Pop-Location

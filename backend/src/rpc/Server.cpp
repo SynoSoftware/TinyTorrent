@@ -1052,6 +1052,16 @@ void Server::handle_http_message(struct mg_connection *conn,
     // Enforce loopback Host header policy for *all* requests (UI + RPC + WS)
     // to prevent DNS rebinding attacks.
     auto normalized = normalized_host(hm);
+#if defined(TT_BUILD_DEBUG)
+    // In Debug builds allow relaxed host handling to make local UI debugging
+    // simpler (no strict Host header enforcement). Production builds still
+    // enforce loopback host checks to prevent DNS rebinding attacks.
+    if (!normalized)
+    {
+        TT_LOG_INFO("HTTP request received with missing Host header (debug "
+                    "mode allowing)");
+    }
+#else
     if (!normalized || !host_allowed(*normalized, allowed_hosts_))
     {
         TT_LOG_INFO("HTTP request rejected; unsupported host header {}",
@@ -1069,9 +1079,12 @@ void Server::handle_http_message(struct mg_connection *conn,
         }
         return;
     }
+#endif
 
     if (is_ws)
     {
+        // In debug builds skip strict origin checks to aid local testing.
+#if !defined(TT_BUILD_DEBUG)
         if (!origin_allowed(hm, options_))
         {
             auto origin_value = header_value(hm, "Origin");
@@ -1082,6 +1095,7 @@ void Server::handle_http_message(struct mg_connection *conn,
                           payload.c_str());
             return;
         }
+#endif
         auto token = websocket_token(hm);
         if (!authorize_ws_upgrade(hm, token))
         {
@@ -1100,6 +1114,7 @@ void Server::handle_http_message(struct mg_connection *conn,
         serve_ui(conn, hm, uri);
         return;
     }
+#if !defined(TT_BUILD_DEBUG)
     if (!origin_allowed(hm, options_))
     {
         auto origin_value = header_value(hm, "Origin");
@@ -1110,17 +1125,27 @@ void Server::handle_http_message(struct mg_connection *conn,
                       payload.c_str());
         return;
     }
+#else
+    // Debug: skip the strict origin check to aid local UI debugging.
+#endif
 
-    if (!self->authorize_request(hm))
+    auto reply_unauthorized = [&]()
     {
+        TT_LOG_INFO(
+            "RPC request rejected; unauthorized authentication attempt");
         std::string headers = "Content-Type: text/plain\r\n";
         if (self->options_.basic_auth)
         {
             headers += "WWW-Authenticate: Basic realm=\"";
             headers += self->options_.basic_realm;
-            headers += "\"\r\n";
+            headers += "\"";
         }
         mg_http_reply(conn, 401, headers.c_str(), "unauthorized");
+    };
+
+    if (!self->authorize_request(hm))
+    {
+        reply_unauthorized();
         return;
     }
 
