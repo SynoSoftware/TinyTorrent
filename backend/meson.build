@@ -78,10 +78,15 @@ if host_machine.system() == 'windows'
   tt_link_args += 'Advapi32.lib'
   tt_link_args += 'Winhttp.lib'
 endif
+
+tt_engine_link_args = []
+tt_tray_link_args = []
 if is_minsize
   tt_cpp_args += ['/Os', '/GL', '/MT']
   tt_c_args += ['/Os', '/GL', '/MT']
-  tt_link_args += ['/LTCG', '/MAP:tt-engine.map', '/MAPINFO:EXPORTS']
+  tt_link_args += ['/LTCG']
+  tt_engine_link_args += ['/MAP:tt-engine.map', '/MAPINFO:EXPORTS']
+  tt_tray_link_args += ['/MAP:TinyTorrent.map', '/MAPINFO:EXPORTS']
 endif
 
 if build_type == 'debug'
@@ -249,6 +254,7 @@ tt_sources = tt_base_sources + tt_packed_fs_res
 
 executable('tt-engine', tt_sources,
   dependencies: [tt_common_dep],
+  link_args: tt_engine_link_args,
   cpp_args: tt_cpp_args,
   c_args: tt_c_args)
 
@@ -264,6 +270,7 @@ if host_machine.system() == 'windows'
 
   executable('TinyTorrent', tt_gui_sources,
     dependencies: [tt_common_dep],
+    link_args: tt_tray_link_args,
     cpp_args: tt_cpp_args,
     c_args: tt_c_args,
     win_subsystem: 'windows')

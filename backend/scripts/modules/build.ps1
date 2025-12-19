@@ -43,11 +43,14 @@ function build {
         throw "Ninja failed with exit code $($p.ExitCode)."
     }
 
-    $ExePath = Join-Path $BuildDir 'tt-engine.exe'
-    if (Test-Path -LiteralPath $ExePath) {
-        $SizeKB = (Get-Item -LiteralPath $ExePath).Length / 1KB
+    $primaryExe = Join-Path $BuildDir 'TinyTorrent.exe'
+    if (-not (Test-Path -LiteralPath $primaryExe)) {
+        $primaryExe = Join-Path $BuildDir 'tt-engine.exe'
+    }
+    if (Test-Path -LiteralPath $primaryExe) {
+        $SizeKB = (Get-Item -LiteralPath $primaryExe).Length / 1KB
         Log-Success "SUCCESS: $Configuration Build Complete"
-        Log-Info "Artifact: $ExePath"
+        Log-Info "Artifact: $primaryExe"
         Log-Info ("Size:     {0:N0} KB" -f $SizeKB)
     }
 }
