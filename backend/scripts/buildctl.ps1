@@ -14,66 +14,37 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$Root = Split-Path -Parent $PSScriptRoot
-$ModulesDir = Join-Path $PSScriptRoot 'modules'
-
-$loggingPath = Join-Path $ModulesDir 'logging.ps1'
-if (-not (Test-Path -LiteralPath $loggingPath)) {
-    throw "Logging module not found: $loggingPath"
+$CommandsDir = Join-Path $PSScriptRoot 'commands'
+$commandScript = Join-Path $CommandsDir ("{0}.ps1" -f $Command)
+if (-not (Test-Path -LiteralPath $commandScript)) {
+    throw "Command script not found: $commandScript"
 }
-. $loggingPath
 
 switch ($Command) {
-    'clean' { $module = 'clean' }
-    'configure' { $module = 'configure' }
-    'build' { $module = 'build' }
-    'test' { $module = 'test' }
-    'install' { $module = 'install' }
-    'package' { $module = 'package' }
+    'clean' {
+        & $commandScript -Configuration $Configuration -AutoConfirmDeletion:$AutoConfirmDeletion
+    }
+    'configure' {
+        & $commandScript -Configuration $Configuration
+    }
+    'build' {
+        & $commandScript -Configuration $Configuration
+    }
+    'test' {
+        & $commandScript -Configuration $Configuration
+    }
+    'install' {
+        if (-not $Destination) { throw 'Destination is required for install.' }
+        & $commandScript -Configuration $Configuration -Destination $Destination
+    }
+    'package' {
+        if (-not $Destination) { throw 'Destination is required for package.' }
+        & $commandScript -Configuration $Configuration -Destination $Destination
+    }
     'setup' {
-        $setupScript = Join-Path $ModulesDir 'setup.ps1'
-        if (-not (Test-Path -LiteralPath $setupScript)) {
-            throw "Setup script missing: $setupScript"
-        }
-        try {
-            & $setupScript
-        }
-        catch {
-            throw
-        }
-        exit 0
+        & $commandScript
     }
-    default { throw "Unsupported command: $Command" }
-}
-
-$modulePath = Join-Path $ModulesDir ("{0}.ps1" -f $module)
-if (-not (Test-Path -LiteralPath $modulePath)) {
-    throw "Module not found: $modulePath"
-}
-
-$detail = "Configuration: $Configuration"
-if ($Destination) { $detail += " | Destination: $Destination" }
-Log-Section -Title "Command: $Command" -Subtitle $detail
-
-try {
-    . $modulePath
-}
-catch {
-    throw
-}
-
-try {
-    if ($module -eq 'install' -or $module -eq 'package') {
-        if (-not $Destination) { throw 'Destination is required for install/package.' }
-        & $module -Configuration $Configuration -Destination $Destination
+    default {
+        throw "Unsupported command: $Command"
     }
-    elseif ($module -eq 'clean') {
-        & $module -Configuration $Configuration -AutoConfirmDeletion:$AutoConfirmDeletion
-    }
-    else {
-        & $module -Configuration $Configuration
-    }
-}
-catch {
-    throw
 }

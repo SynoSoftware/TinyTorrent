@@ -1,6 +1,12 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+if ($MyInvocation.InvocationName -eq $PSCommandPath) {
+    throw "Internal build-system module. Do not execute directly."
+}
+
+. (Join-Path (Split-Path -Parent $PSCommandPath) 'log.ps1')
+
 function Format-Bytes {
     param([long]$Bytes)
     if ($Bytes -lt 1024) { return "$Bytes B" }
@@ -50,7 +56,7 @@ function Remove-FolderSafe {
         }
         else {
             if ($env:CI -eq 'true') {
-                throw "Refusing to delete $DisplayName in CI (size $($bytes)). Delete it manually or rerun with AutoConfirm."        
+                throw "Refusing to delete $DisplayName in CI (size $($bytes)). Delete it manually or rerun with AutoConfirm."
             }
             $answer = Read-Host "Type YES to permanently delete $DisplayName (anything else = cancel)"
             if ($answer -ne 'YES') {
