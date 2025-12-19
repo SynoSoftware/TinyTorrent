@@ -134,3 +134,19 @@ export interface EngineInfo {
     version?: string;
     capabilities: EngineCapabilities;
 }
+
+export interface AutorunStatus {
+    enabled: boolean;
+    supported: boolean;
+    requiresElevation: boolean;
+}
+
+export interface TinyTorrentCapabilities {
+    version?: string;
+    serverVersion?: string;
+    rpcVersion: number;
+    websocketEndpoint?: string;
+    websocketPath?: string;
+    platform?: string;
+    features: string[];
+}

@@ -12,9 +12,12 @@ import constants from "../../config/constants.json";
 export interface ConnectionProfile {
     id: string;
     label: string;
-    endpoint: string;
+    scheme: "http" | "https";
+    host: string;
+    port: string;
     username: string;
     password: string;
+    token: string;
 }
 
 interface ConnectionConfigContextValue {
@@ -33,22 +36,134 @@ interface ConnectionConfigContextValue {
 const STORAGE_KEY = "tiny-torrent.connection.profiles";
 const ACTIVE_KEY = "tiny-torrent.connection.active";
 const DEFAULT_PROFILE_ID = "default-connection";
+const DEFAULT_PROFILE_LABEL = "Local Transmission";
 
-const defaultEndpoint =
-    import.meta.env.VITE_RPC_ENDPOINT ?? constants.defaults.rpc_endpoint;
+const DEFAULT_RPC_PATH = constants.defaults.rpc_endpoint;
+const NORMALIZED_RPC_PATH = DEFAULT_RPC_PATH.startsWith("/")
+    ? DEFAULT_RPC_PATH
+    : `/${DEFAULT_RPC_PATH}`;
+const DEFAULT_RPC_HOST = "localhost";
+const DEFAULT_RPC_PORT = "9091";
+const DEFAULT_RPC_SCHEME: ConnectionProfile["scheme"] = "http";
+const DEFAULT_USERNAME = import.meta.env.VITE_RPC_USERNAME ?? "";
+const DEFAULT_PASSWORD = import.meta.env.VITE_RPC_PASSWORD ?? "";
+const DEFAULT_RPC_TOKEN = import.meta.env.VITE_RPC_TOKEN ?? "";
+
+const parseRpcEndpoint = (
+    raw?: string
+): { host: string; port: string; scheme: ConnectionProfile["scheme"] } => {
+    let host = DEFAULT_RPC_HOST;
+    let port = DEFAULT_RPC_PORT;
+    let scheme: ConnectionProfile["scheme"] = DEFAULT_RPC_SCHEME;
+    if (!raw) {
+        return { host, port, scheme };
+    }
+    try {
+        const normalized = /^[a-z][a-z+.-]*:\/\//i.test(raw)
+            ? raw
+            : `${DEFAULT_RPC_SCHEME}://${raw}`;
+        const url = new URL(normalized);
+        host = url.hostname || host;
+        port = url.port || DEFAULT_RPC_PORT;
+        scheme =
+            url.protocol.replace(":", "") === "https" ? "https" : "http";
+    } catch {
+        const bracketIndex = raw.indexOf("://");
+        const hostPort = bracketIndex >= 0 ? raw.slice(bracketIndex + 3) : raw;
+        const [nextHost, nextPort] = hostPort.split(":");
+        if (nextHost) {
+            host = nextHost;
+        }
+        if (nextPort) {
+            port = Number.isFinite(Number(nextPort))
+                ? nextPort
+                : DEFAULT_RPC_PORT;
+        }
+    }
+    return { host, port, scheme };
+};
+
+export const buildRpcEndpoint = (profile: ConnectionProfile) => {
+    const validHost = profile.host.trim() || DEFAULT_RPC_HOST;
+    const portNumber = Number.parseInt(profile.port, 10);
+    const port =
+        Number.isFinite(portNumber) && portNumber > 0
+            ? String(portNumber)
+            : DEFAULT_RPC_PORT;
+    const needsBrackets = validHost.includes(":") && !validHost.startsWith("[");
+    const host = needsBrackets ? `[${validHost}]` : validHost;
+    return `${profile.scheme}://${host}:${port}${NORMALIZED_RPC_PATH}`;
+};
 
 const createDefaultProfile = (): ConnectionProfile => ({
     id: DEFAULT_PROFILE_ID,
-    label: "Local Transmission",
-    endpoint: defaultEndpoint,
-    username: import.meta.env.VITE_RPC_USERNAME ?? "",
-    password: import.meta.env.VITE_RPC_PASSWORD ?? "",
+    label: DEFAULT_PROFILE_LABEL,
+    scheme: DEFAULT_RPC_SCHEME,
+    host: DEFAULT_RPC_HOST,
+    port: DEFAULT_RPC_PORT,
+    username: DEFAULT_USERNAME,
+    password: DEFAULT_PASSWORD,
+    token: DEFAULT_RPC_TOKEN,
 });
 
 const generateId = () =>
     typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
         ? crypto.randomUUID()
         : Math.random().toString(36).slice(2, 10);
+
+const sanitizeProfile = (raw: unknown, fallbackLabel: string): ConnectionProfile | null => {
+    if (!raw || typeof raw !== "object") {
+        return null;
+    }
+    const entry = raw as Record<string, unknown>;
+    const parsed = parseRpcEndpoint(
+        typeof entry.endpoint === "string" ? entry.endpoint : undefined
+    );
+    const host =
+        typeof entry.host === "string" && entry.host.trim()
+            ? entry.host.trim()
+            : parsed.host;
+    const port =
+        typeof entry.port === "string" && entry.port.trim()
+            ? entry.port.trim()
+            : parsed.port;
+    const scheme =
+        entry.scheme === "https"
+            ? "https"
+            : entry.scheme === "http"
+            ? "http"
+            : parsed.scheme;
+    const id =
+        typeof entry.id === "string" && entry.id.trim()
+            ? entry.id
+            : `${DEFAULT_PROFILE_ID}-${generateId()}`;
+    const label =
+        typeof entry.label === "string" && entry.label.trim()
+            ? entry.label.trim()
+            : fallbackLabel;
+    const username =
+        typeof entry.username === "string"
+            ? entry.username
+            : DEFAULT_USERNAME;
+    const password =
+        typeof entry.password === "string"
+            ? entry.password
+            : DEFAULT_PASSWORD;
+    const token =
+        typeof entry.token === "string" && entry.token.trim()
+            ? entry.token.trim()
+            : DEFAULT_RPC_TOKEN;
+    return {
+        id,
+        label,
+        scheme,
+        host,
+        port,
+        username,
+        password,
+        token,
+    };
+};
 
 const loadProfiles = (): ConnectionProfile[] => {
     if (typeof window === "undefined") {
@@ -64,24 +179,9 @@ const loadProfiles = (): ConnectionProfile[] => {
             return [createDefaultProfile()];
         }
         const sanitized = parsed
-            .map((raw) => {
-                if (
-                    raw &&
-                    typeof raw === "object" &&
-                    typeof raw.id === "string" &&
-                    typeof raw.label === "string" &&
-                    typeof raw.endpoint === "string"
-                ) {
-                    return {
-                        id: raw.id,
-                        label: raw.label,
-                        endpoint: raw.endpoint,
-                        username: typeof raw.username === "string" ? raw.username : "",
-                        password: typeof raw.password === "string" ? raw.password : "",
-                    } as ConnectionProfile;
-                }
-                return null;
-            })
+            .map((raw, index) =>
+                sanitizeProfile(raw, `Connection ${index + 1}`)
+            )
             .filter(Boolean) as ConnectionProfile[];
         if (sanitized.length === 0) {
             return [createDefaultProfile()];
@@ -135,12 +235,15 @@ export function ConnectionConfigProvider({
     }, [activeProfileId]);
 
     const addProfile = useCallback(() => {
-        const newProfile = {
+        const newProfile: ConnectionProfile = {
             id: generateId(),
             label: `Connection ${profiles.length + 1}`,
-            endpoint: defaultEndpoint,
+            scheme: DEFAULT_RPC_SCHEME,
+            host: DEFAULT_RPC_HOST,
+            port: DEFAULT_RPC_PORT,
             username: "",
             password: "",
+            token: "",
         };
         setProfiles((prev) => [...prev, newProfile]);
         setActiveProfileId(newProfile.id);

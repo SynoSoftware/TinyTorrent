@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type {
+    DirectoryBrowseResult,
     RpcTorrentStatus,
     TransmissionFreeSpace,
     TransmissionSessionSettings,
@@ -7,6 +8,7 @@ import type {
     TransmissionTorrent,
     TransmissionTorrentDetail,
 } from "./types";
+import type { AutorunStatus, TinyTorrentCapabilities } from "./entities";
 
 const zRpcResponse = z.object({
     result: z.string(),
@@ -213,6 +215,23 @@ const zTransmissionFreeSpace = z.object({
     totalSize: z.number(),
 });
 
+const zDirectoryEntryType = z.enum(["drive", "folder"]);
+
+const zDirectoryEntry = z.object({
+    name: z.string(),
+    path: z.string(),
+    type: zDirectoryEntryType,
+    totalBytes: z.number().optional(),
+    freeBytes: z.number().optional(),
+});
+
+const zDirectoryBrowseResponse = z.object({
+    path: z.string(),
+    parentPath: z.string().optional(),
+    separator: z.string().optional(),
+    entries: z.array(zDirectoryEntry),
+});
+
 export const parseRpcResponse = (payload: unknown) => {
     try {
         return zRpcResponse.parse(payload);
@@ -270,6 +289,62 @@ export const getFreeSpace = (payload: unknown): TransmissionFreeSpace => {
         return zTransmissionFreeSpace.parse(payload) as TransmissionFreeSpace;
     } catch (error) {
         logValidationIssue("getFreeSpace", payload, error);
+        throw error;
+    }
+};
+
+export const parseDirectoryBrowseResult = (
+    payload: unknown
+): DirectoryBrowseResult => {
+    try {
+        return zDirectoryBrowseResponse.parse(payload);
+    } catch (error) {
+        logValidationIssue("parseDirectoryBrowseResult", payload, error);
+        throw error;
+    }
+};
+
+const zTinyTorrentCapabilities = z.object({
+    "server-version": z.string().optional(),
+    version: z.string().optional(),
+    "rpc-version": z.number(),
+    "websocket-endpoint": z.string().optional(),
+    "websocket-path": z.string().optional(),
+    platform: z.string().optional(),
+    features: z.array(z.string()).default([]),
+});
+
+export const getTinyTorrentCapabilities = (
+    payload: unknown
+): TinyTorrentCapabilities => {
+    try {
+        const parsed = zTinyTorrentCapabilities.parse(payload);
+        return {
+            version: parsed.version,
+            serverVersion: parsed["server-version"],
+            rpcVersion: parsed["rpc-version"],
+            websocketEndpoint: parsed["websocket-endpoint"] ?? parsed["websocket-path"],
+            websocketPath: parsed["websocket-path"] ?? parsed["websocket-endpoint"],
+            platform: parsed.platform,
+            features: parsed.features,
+        };
+    } catch (error) {
+        logValidationIssue("getTinyTorrentCapabilities", payload, error);
+        throw error;
+    }
+};
+
+const zSystemAutorunStatus = z.object({
+    enabled: z.boolean(),
+    supported: z.boolean(),
+    requiresElevation: z.boolean(),
+});
+
+export const getSystemAutorunStatus = (payload: unknown): AutorunStatus => {
+    try {
+        return zSystemAutorunStatus.parse(payload);
+    } catch (error) {
+        logValidationIssue("getSystemAutorunStatus", payload, error);
         throw error;
     }
 };

@@ -557,6 +557,9 @@ export function WorkspaceShell({
                         ? handleSystemInstall
                         : undefined
                 }
+                onReconnect={handleReconnect}
+                rpcStatus={rpcStatus}
+                torrentClient={torrentClient}
             />
         </div>
     );

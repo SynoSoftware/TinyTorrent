@@ -47,6 +47,7 @@ export class HeartbeatManager {
     private readonly subscribers = new Map<symbol, HeartbeatSubscriber>();
     private timerId?: number;
     private isRunning = false;
+    private pollingEnabled = true;
     private lastTorrents?: TorrentEntity[];
     private lastSessionStats?: SessionStats;
     private readonly detailCache = new Map<string, TorrentDetailEntity>();
@@ -97,6 +98,45 @@ export class HeartbeatManager {
         params.onUpdate(payload);
     }
 
+    public pushLivePayload(payload: HeartbeatPayload) {
+        this.lastTorrents = payload.torrents;
+        this.lastSessionStats = payload.sessionStats;
+        this.broadcastToSubscribers(payload);
+    }
+
+    private broadcastToSubscribers(payload: HeartbeatPayload) {
+        for (const { params } of this.subscribers.values()) {
+            const detailId = params.detailId;
+            const combined: HeartbeatPayload = {
+                ...payload,
+                detailId,
+                detail:
+                    detailId == null
+                        ? undefined
+                        : this.detailCache.get(detailId) ?? null,
+            };
+            try {
+                params.onUpdate(combined);
+            } catch {
+                // swallow subscriber errors
+            }
+        }
+    }
+
+    public disablePolling() {
+        if (!this.pollingEnabled) return;
+        this.pollingEnabled = false;
+        this.clearTimer();
+    }
+
+    public enablePolling() {
+        if (this.pollingEnabled) return;
+        this.pollingEnabled = true;
+        if (this.subscribers.size > 0) {
+            this.rescheduleLoop();
+        }
+    }
+
     private triggerImmediateTick() {
         if (this.isRunning) return;
         void this.tick();
@@ -107,7 +147,11 @@ export class HeartbeatManager {
             window.clearTimeout(this.timerId);
             this.timerId = undefined;
         }
-        if (this.subscribers.size === 0 || this.isRunning) {
+        if (
+            this.subscribers.size === 0 ||
+            this.isRunning ||
+            !this.pollingEnabled
+        ) {
             return;
         }
         const interval = this.getCurrentInterval();
@@ -142,7 +186,7 @@ export class HeartbeatManager {
     }
 
     private async tick() {
-        if (this.subscribers.size === 0) return;
+        if (!this.pollingEnabled || this.subscribers.size === 0) return;
         this.isRunning = true;
         this.clearTimer();
         const snapshot = Array.from(this.subscribers.values());

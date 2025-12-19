@@ -1,4 +1,5 @@
 import type {
+    DirectoryBrowseResult,
     TransmissionSessionSettings,
     TransmissionTorrent,
     TransmissionTorrentDetail,
@@ -16,8 +17,11 @@ import {
     getFreeSpace,
     getSessionSettings,
     getSessionStats as parseSessionStats,
+    getTinyTorrentCapabilities,
+    getSystemAutorunStatus,
     getTorrentDetail,
     getTorrentList,
+    parseDirectoryBrowseResult,
     parseRpcResponse,
 } from "./schemas";
 import constants from "../../config/constants.json";
@@ -37,7 +41,10 @@ import type {
     SessionStats,
     EngineInfo,
     LibtorrentPriority,
+    TinyTorrentCapabilities,
+    AutorunStatus,
 } from "./entities";
+import { normalizeTorrent, normalizeTorrentDetail } from "./normalizers";
 
 type RpcRequest<M extends string> = {
     method: M;
@@ -103,138 +110,6 @@ const DETAIL_FIELDS = [
     "pieceAvailability",
 ];
 
-const STATUS_MAP: Record<number, TorrentEntity["state"]> = {
-    0: "paused",
-    1: "checking",
-    2: "checking",
-    3: "queued",
-    4: "downloading",
-    5: "queued",
-    6: "seeding",
-    7: "paused",
-};
-
-const normalizeStatus = (
-    status: number | TorrentEntity["state"] | undefined
-): TorrentEntity["state"] => {
-    if (typeof status === "string") {
-        return status;
-    }
-    if (typeof status === "number") {
-        return STATUS_MAP[status] ?? "paused";
-    }
-    return "paused";
-};
-
-const mapPriority = (priority: number): LibtorrentPriority => {
-    if (priority <= -1) return 0;
-    if (priority === 0) return 4;
-    return 7;
-};
-
-const normalizeFile = (
-    file: TransmissionTorrentFile,
-    index: number
-): TorrentFileEntity => ({
-    name: file.name,
-    index,
-    length: file.length,
-    bytesCompleted: file.bytesCompleted,
-    progress: file.percentDone,
-    priority: mapPriority(file.priority),
-    wanted: file.wanted,
-});
-
-const normalizeTracker = (
-    tracker: TransmissionTorrentTracker
-): TorrentTrackerEntity => ({
-    id: tracker.tier,
-    announce: tracker.announce,
-    tier: tracker.tier,
-    announceState: tracker.announceState,
-    lastAnnounceTime: tracker.lastAnnounceTime,
-    lastAnnounceResult: tracker.lastAnnounceResult,
-    lastAnnounceSucceeded: tracker.lastAnnounceSucceeded,
-    lastScrapeTime: tracker.lastScrapeTime,
-    lastScrapeResult: tracker.lastScrapeResult,
-    lastScrapeSucceeded: tracker.lastScrapeSucceeded,
-    seederCount: tracker.seederCount,
-    leecherCount: tracker.leecherCount,
-    scrapeState: tracker.scrapeState,
-});
-
-const normalizePeer = (peer: TransmissionTorrentPeer): TorrentPeerEntity => ({
-    address: peer.address,
-    clientIsChoking: peer.clientIsChoking,
-    clientIsInterested: peer.clientIsInterested,
-    peerIsChoking: peer.peerIsChoking,
-    peerIsInterested: peer.peerIsInterested,
-    clientName: peer.clientName,
-    rateToClient: peer.rateToClient,
-    rateToPeer: peer.rateToPeer,
-    progress: peer.progress,
-    flagStr: peer.flagStr,
-    country: peer.country,
-});
-
-const normalizeTorrent = (torrent: TransmissionTorrent): TorrentEntity => {
-    const state = normalizeStatus(torrent.status);
-    const verificationProgress =
-        state === "checking"
-            ? torrent.recheckProgress ?? torrent.percentDone
-            : undefined;
-
-    return {
-        id: torrent.hashString,
-        hash: torrent.hashString,
-        name: torrent.name,
-        progress: torrent.percentDone,
-        state,
-        verificationProgress,
-        speed: {
-            down: torrent.rateDownload,
-            up: torrent.rateUpload,
-        },
-        peerSummary: {
-            connected: torrent.peersConnected,
-            total: torrent.peersConnected,
-            sending: torrent.peersSendingToUs,
-            getting: torrent.peersGettingFromUs,
-            seeds: torrent.peersSendingToUs,
-        },
-        totalSize: torrent.totalSize,
-        eta: torrent.eta,
-        queuePosition: torrent.queuePosition,
-        ratio: torrent.uploadRatio,
-        uploaded: torrent.uploadedEver,
-        downloaded: torrent.downloadedEver,
-        leftUntilDone: torrent.leftUntilDone,
-        sizeWhenDone: torrent.sizeWhenDone,
-        error: torrent.error,
-        errorString: torrent.errorString,
-        isFinished: torrent.isFinished,
-        sequentialDownload: torrent.sequentialDownload,
-        superSeeding: torrent.superSeeding,
-        added: torrent.addedDate,
-        savePath: torrent.downloadDir,
-        rpcId: torrent.id,
-    };
-};
-
-const normalizeTorrentDetail = (
-    detail: TransmissionTorrentDetail
-): TorrentDetailEntity => ({
-    ...normalizeTorrent(detail),
-    files: detail.files?.map(normalizeFile),
-    trackers: detail.trackers?.map(normalizeTracker),
-    peers: detail.peers?.map(normalizePeer),
-    pieceCount: detail.pieceCount,
-    pieceSize: detail.pieceSize,
-    pieceStates: detail.pieceStates,
-    pieceAvailability: detail.pieceAvailability,
-    downloadDir: detail.downloadDir,
-});
-
 export class TransmissionAdapter implements EngineAdapter {
     private endpoint: string;
     private sessionId?: string;
@@ -245,10 +120,23 @@ export class TransmissionAdapter implements EngineAdapter {
     private engineInfoCache?: EngineInfo;
     private idMap = new Map<string, number>();
     private readonly heartbeat = new HeartbeatManager(this);
+    private tinyTorrentCapabilities?: TinyTorrentCapabilities | null;
+    private websocketSession?: TinyTorrentWebSocketSession;
 
     private getTinyTorrentAuthToken(): string | undefined {
         const token = sessionStorage.getItem("tt-auth-token");
         return token && token.length > 0 ? token : undefined;
+    }
+
+    private clearTinyTorrentAuthToken() {
+        if (typeof sessionStorage !== "undefined") {
+            sessionStorage.removeItem("tt-auth-token");
+        }
+    }
+
+    private handleUnauthorizedResponse() {
+        this.clearTinyTorrentAuthToken();
+        this.closeWebSocketSession();
     }
 
     constructor(options?: {
@@ -292,7 +180,7 @@ export class TransmissionAdapter implements EngineAdapter {
                 "Content-Type": "application/json",
             };
             const ttAuth = this.getTinyTorrentAuthToken();
-            if (ttAuth) {
+            if (ttAuth && this.isLoopbackEndpoint()) {
                 headers["X-TT-Auth"] = ttAuth;
             }
             if (this.sessionId) {
@@ -316,6 +204,15 @@ export class TransmissionAdapter implements EngineAdapter {
                     this.sessionId = token;
                     return this.send(payload, retryCount + 1);
                 }
+            }
+
+            if (response.status === 401) {
+                this.handleUnauthorizedResponse();
+                throw new Error("TinyTorrent RPC unauthorized");
+            }
+            if (response.status === 403) {
+                this.handleUnauthorizedResponse();
+                throw new Error("TinyTorrent RPC forbidden");
             }
 
             if (!response.ok) {
@@ -346,6 +243,110 @@ export class TransmissionAdapter implements EngineAdapter {
     private async mutate(method: string, args: Record<string, unknown> = {}) {
         await this.send<void>({ method, arguments: args });
     }
+
+    private resolveEndpointUrl(): URL | null {
+        if (typeof window === "undefined") {
+            return null;
+        }
+        try {
+            return new URL(this.endpoint, window.location.origin);
+        } catch {
+            return null;
+        }
+    }
+
+    private isLoopbackEndpoint(): boolean {
+        const resolved = this.resolveEndpointUrl();
+        if (!resolved) {
+            return false;
+        }
+        const host = resolved.hostname.replace(/^\[|\]$/g, "").toLowerCase();
+        return (
+            host === "localhost" ||
+            host === "127.0.0.1" ||
+            host === "::1"
+        );
+    }
+
+    private buildWebSocketBaseUrl(path: string): URL | null {
+        if (!path) return null;
+        try {
+            if (path.startsWith("ws://") || path.startsWith("wss://")) {
+                return new URL(path);
+            }
+            const endpointUrl = this.resolveEndpointUrl();
+            if (!endpointUrl) {
+                return null;
+            }
+            const scheme = endpointUrl.protocol === "https:" ? "wss" : "ws";
+            const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+            return new URL(`${scheme}://${endpointUrl.host}${normalizedPath}`);
+        } catch {
+            return null;
+        }
+    }
+
+    private closeWebSocketSession() {
+        this.websocketSession?.stop();
+        this.websocketSession = undefined;
+    }
+
+    private ensureWebsocketConnection() {
+        const endpointPath =
+            this.tinyTorrentCapabilities?.websocketEndpoint ??
+            this.tinyTorrentCapabilities?.websocketPath;
+        if (!endpointPath) {
+            this.closeWebSocketSession();
+            return;
+        }
+        const wsBaseUrl = this.buildWebSocketBaseUrl(endpointPath);
+        if (!wsBaseUrl) {
+            this.closeWebSocketSession();
+            return;
+        }
+        if (!this.websocketSession) {
+            this.websocketSession = new TinyTorrentWebSocketSession({
+                getToken: () => this.getTinyTorrentAuthToken(),
+                onUpdate: this.handleLiveStateUpdate,
+                onConnected: () => this.heartbeat.disablePolling(),
+                onDisconnected: () => this.heartbeat.enablePolling(),
+                onError: (error) => {
+                    console.error("[tiny-torrent][ws]", error);
+                },
+            });
+        }
+        this.websocketSession.start(wsBaseUrl);
+    }
+
+    private async refreshExtendedCapabilities(): Promise<void> {
+        try {
+            const response = await this.send<Record<string, unknown>>({
+                method: "tt-get-capabilities",
+            });
+            this.tinyTorrentCapabilities = getTinyTorrentCapabilities(
+                response.arguments
+            );
+        } catch {
+            this.tinyTorrentCapabilities = null;
+        }
+        this.ensureWebsocketConnection();
+    }
+
+    private handleLiveStateUpdate = ({
+        torrents,
+        session,
+    }: {
+        torrents: TransmissionTorrent[];
+        session: TransmissionSessionStats;
+    }) => {
+        this.syncIdMap(torrents);
+        const normalized = torrents.map(normalizeTorrent);
+        const stats = mapTransmissionSessionStatsToSessionStats(session);
+        this.heartbeat.pushLivePayload({
+            torrents: normalized,
+            sessionStats: stats,
+        });
+    };
 
     private syncIdMap(torrents: TransmissionTorrent[]) {
         const seen = new Set<string>();
@@ -411,6 +412,7 @@ export class TransmissionAdapter implements EngineAdapter {
         });
         this.sessionSettingsCache = result.arguments;
         this.engineInfoCache = undefined;
+        await this.refreshExtendedCapabilities();
         return result.arguments;
     }
 
@@ -446,6 +448,17 @@ export class TransmissionAdapter implements EngineAdapter {
         };
         this.engineInfoCache = info;
         return info;
+    }
+
+    public async getExtendedCapabilities(
+        force = false
+    ): Promise<TinyTorrentCapabilities | null> {
+        if (force || this.tinyTorrentCapabilities === undefined) {
+            await this.refreshExtendedCapabilities();
+        } else {
+            this.ensureWebsocketConnection();
+        }
+        return this.tinyTorrentCapabilities ?? null;
     }
 
     public async updateSessionSettings(
@@ -502,6 +515,32 @@ export class TransmissionAdapter implements EngineAdapter {
         return getFreeSpace(result.arguments);
     }
 
+    private supportsFsBrowse(): boolean {
+        return Boolean(
+            this.tinyTorrentCapabilities?.features.includes("fs-browse")
+        );
+    }
+
+    public async browseDirectory(
+        path?: string
+    ): Promise<DirectoryBrowseResult> {
+        if (!this.supportsFsBrowse()) {
+            throw new Error("fs-browse is not supported by the connected engine");
+        }
+        const result = await this.send<DirectoryBrowseResult>({
+            method: "fs-browse",
+            arguments: path ? { path } : undefined,
+        });
+        return parseDirectoryBrowseResult(result.arguments);
+    }
+
+    public async createDirectory(path: string): Promise<void> {
+        if (!path) {
+            return;
+        }
+        await this.mutate("fs-create-dir", { path });
+    }
+
     public async openPath(path: string): Promise<void> {
         if (!path) {
             return;
@@ -534,6 +573,21 @@ export class TransmissionAdapter implements EngineAdapter {
             arguments: args,
         });
         return result.arguments;
+    }
+
+    public async getSystemAutorunStatus(): Promise<AutorunStatus> {
+        const result = await this.send<AutorunStatus>({
+            method: "system-autorun-status",
+        });
+        return getSystemAutorunStatus(result.arguments);
+    }
+
+    public async systemAutorunEnable(scope = "user"): Promise<void> {
+        await this.mutate("system-autorun-enable", { scope });
+    }
+
+    public async systemAutorunDisable(): Promise<void> {
+        await this.mutate("system-autorun-disable");
     }
 
     private async fetchTransmissionTorrents(): Promise<TransmissionTorrent[]> {
@@ -744,5 +798,257 @@ export class TransmissionAdapter implements EngineAdapter {
             args["speed-limit-up-enabled"] = options.speedLimitUpEnabled;
         }
         await this.mutate("group-set", args);
+    }
+}
+
+function mapTransmissionSessionStatsToSessionStats(
+    stats: TransmissionSessionStats
+): SessionStats {
+    return {
+        downloadSpeed: stats.downloadSpeed,
+        uploadSpeed: stats.uploadSpeed,
+        torrentCount: stats.torrentCount,
+        activeTorrentCount: stats.activeTorrentCount,
+        pausedTorrentCount: stats.pausedTorrentCount,
+        dhtNodes: stats.dhtNodes ?? 0,
+    };
+}
+
+interface TinyTorrentWebSocketSessionOptions {
+    getToken: () => string | undefined;
+    onUpdate: (data: {
+        torrents: TransmissionTorrent[];
+        session: TransmissionSessionStats;
+    }) => void;
+    onConnected?: () => void;
+    onDisconnected?: () => void;
+    onError?: (error: unknown) => void;
+}
+
+type SyncSnapshotMessage = {
+    type: "sync-snapshot";
+    data: {
+        session?: unknown;
+        torrents?: TransmissionTorrent[];
+    };
+};
+
+type SyncPatchMessage = {
+    type: "sync-patch";
+    data: {
+        session?: unknown;
+        torrents?: {
+            removed?: number[];
+            added?: TransmissionTorrent[];
+            updated?: TransmissionTorrent[];
+        };
+    };
+};
+
+type TinyTorrentWebSocketMessage =
+    | SyncSnapshotMessage
+    | SyncPatchMessage
+    | { type: "event"; data?: unknown };
+
+class TinyTorrentWebSocketSession {
+    private baseUrl?: URL;
+    private socket?: WebSocket;
+    private reconnectTimer?: number;
+    private reconnectDelay = 1000;
+    private readonly maxReconnectDelay = 10000;
+    private shouldReconnect = false;
+    private isConnected = false;
+    private readonly torrentsMap = new Map<number, TransmissionTorrent>();
+    private lastSessionStats?: TransmissionSessionStats;
+    private readonly options: TinyTorrentWebSocketSessionOptions;
+
+    constructor(options: TinyTorrentWebSocketSessionOptions) {
+        this.options = options;
+    }
+
+    public start(baseUrl: URL) {
+        if (typeof window === "undefined" || typeof WebSocket === "undefined") {
+            return;
+        }
+        this.stop();
+        this.baseUrl = baseUrl;
+        this.torrentsMap.clear();
+        this.lastSessionStats = undefined;
+        this.shouldReconnect = true;
+        this.reconnectDelay = 1000;
+        this.scheduleConnect(0);
+    }
+
+    public stop() {
+        this.shouldReconnect = false;
+        if (this.reconnectTimer) {
+            window.clearTimeout(this.reconnectTimer);
+            this.reconnectTimer = undefined;
+        }
+        if (this.socket) {
+            this.socket.close();
+            this.socket = undefined;
+        }
+        this.markDisconnected();
+    }
+
+    private scheduleConnect(delay: number) {
+        if (!this.shouldReconnect || !this.baseUrl) return;
+        if (this.reconnectTimer) {
+            window.clearTimeout(this.reconnectTimer);
+        }
+        this.reconnectTimer = window.setTimeout(() => this.openSocket(), delay);
+    }
+
+    private openSocket() {
+        if (!this.shouldReconnect || !this.baseUrl) return;
+        const url = this.buildUrlWithToken();
+        if (!url) {
+            this.options.onError?.(new Error("Invalid WebSocket URL"));
+            return;
+        }
+        try {
+            this.socket = new WebSocket(url.toString());
+        } catch (error) {
+            this.options.onError?.(error);
+            this.scheduleConnect(this.reconnectDelay);
+            this.reconnectDelay = Math.min(
+                this.maxReconnectDelay,
+                this.reconnectDelay * 2
+            );
+            return;
+        }
+        this.socket.addEventListener("open", this.handleOpen);
+        this.socket.addEventListener("message", this.handleMessage);
+        this.socket.addEventListener("close", this.handleClose);
+        this.socket.addEventListener("error", this.handleError);
+    }
+
+    private buildUrlWithToken(): URL | null {
+        if (!this.baseUrl) return null;
+        const url = new URL(this.baseUrl.toString());
+        const token = this.options.getToken();
+        if (token) {
+            url.searchParams.set("token", token);
+        } else {
+            url.searchParams.delete("token");
+        }
+        return url;
+    }
+
+    private handleOpen = () => {
+        this.reconnectDelay = 1000;
+        this.isConnected = true;
+        this.options.onConnected?.();
+    };
+
+    private handleMessage = (event: MessageEvent) => {
+        let parsed: TinyTorrentWebSocketMessage;
+        try {
+            parsed = JSON.parse(event.data);
+        } catch {
+            return;
+        }
+        if (parsed.type === "sync-snapshot") {
+            this.handleSnapshot(parsed.data);
+        } else if (parsed.type === "sync-patch") {
+            this.handlePatch(parsed.data);
+        }
+    };
+
+    private handleSnapshot(data: SyncSnapshotMessage["data"]) {
+        const session = this.parseSession(data.session);
+        if (!session) {
+            return;
+        }
+        const torrents = this.parseTorrents(data.torrents);
+        this.torrentsMap.clear();
+        torrents.forEach((torrent) => {
+            this.torrentsMap.set(torrent.id, torrent);
+        });
+        this.lastSessionStats = session;
+        this.emitUpdate();
+    }
+
+    private handlePatch(data: SyncPatchMessage["data"]) {
+        const patch = data.torrents;
+        if (patch?.removed) {
+            for (const id of patch.removed) {
+                this.torrentsMap.delete(id);
+            }
+        }
+        if (patch?.added) {
+            this.parseTorrents(patch.added).forEach((torrent) => {
+                this.torrentsMap.set(torrent.id, torrent);
+            });
+        }
+        if (patch?.updated) {
+            this.parseTorrents(patch.updated).forEach((torrent) => {
+                this.torrentsMap.set(torrent.id, torrent);
+            });
+        }
+        const session = this.parseSession(data.session);
+        if (session) {
+            this.lastSessionStats = session;
+        }
+        this.emitUpdate();
+    }
+
+    private parseTorrents(
+        value: TransmissionTorrent[] | undefined
+    ): TransmissionTorrent[] {
+        if (!value || !value.length) return [];
+        try {
+            return getTorrentList({ torrents: value });
+        } catch (error) {
+            this.options.onError?.(error);
+            return [];
+        }
+    }
+
+    private parseSession(
+        value: unknown
+    ): TransmissionSessionStats | undefined {
+        if (!value) return undefined;
+        try {
+            return parseSessionStats(value);
+        } catch (error) {
+            this.options.onError?.(error);
+            return undefined;
+        }
+    }
+
+    private emitUpdate() {
+        if (!this.lastSessionStats) {
+            return;
+        }
+        const torrents = Array.from(this.torrentsMap.values());
+        this.options.onUpdate({
+            torrents,
+            session: this.lastSessionStats,
+        });
+    }
+
+    private handleClose = () => {
+        this.markDisconnected();
+        if (this.shouldReconnect) {
+            this.scheduleConnect(this.reconnectDelay);
+            this.reconnectDelay = Math.min(
+                this.maxReconnectDelay,
+                this.reconnectDelay * 2
+            );
+        }
+    };
+
+    private handleError = (event: Event) => {
+        this.options.onError?.(event);
+    };
+
+    private markDisconnected() {
+        if (!this.isConnected) {
+            return;
+        }
+        this.isConnected = false;
+        this.options.onDisconnected?.();
     }
 }

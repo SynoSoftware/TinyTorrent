@@ -130,6 +130,24 @@ export interface TransmissionFreeSpace {
     totalSize: number;
 }
 
+export type DirectoryEntryType = "drive" | "folder";
+
+export interface DirectoryNode {
+    name: string;
+    path: string;
+    type: DirectoryEntryType;
+    totalBytes?: number;
+    freeBytes?: number;
+    children?: DirectoryNode[];
+}
+
+export interface DirectoryBrowseResult {
+    path: string;
+    parentPath?: string;
+    separator?: string;
+    entries: DirectoryNode[];
+}
+
 export interface TransmissionSessionStatsTotals {
     uploadedBytes: number;
     downloadedBytes: number;
