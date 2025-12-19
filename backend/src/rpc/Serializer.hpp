@@ -51,6 +51,9 @@ std::string serialize_system_install(SystemInstallResult const &result);
 
 std::string serialize_capabilities();
 
+std::string serialize_autorun_status(bool enabled, bool supported,
+                                    bool requires_elevation);
+
 std::string serialize_session_settings(
     engine::CoreSettings const &settings, std::size_t blocklist_entries,
     std::optional<std::chrono::system_clock::time_point> blocklist_updated,

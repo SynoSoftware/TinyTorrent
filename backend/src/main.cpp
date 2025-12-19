@@ -84,6 +84,70 @@ std::string replace_url_port(std::string url, std::string const &port)
     return url.substr(0, host_start) + replaced + url.substr(host_end);
 }
 
+std::string replace_rpc_bind_host(std::string bind, std::string const &host)
+{
+    if (bind.empty() || host.empty())
+    {
+        return bind;
+    }
+    auto scheme = bind.find("://");
+    auto host_start = (scheme == std::string::npos) ? 0 : scheme + 3;
+    auto host_end = bind.find('/', host_start);
+    std::string prefix = bind.substr(0, host_start);
+    std::string suffix =
+        (host_end == std::string::npos) ? std::string() : bind.substr(host_end);
+    std::string host_port;
+    if (host_end == std::string::npos)
+    {
+        host_port = bind.substr(host_start);
+    }
+    else
+    {
+        host_port = bind.substr(host_start, host_end - host_start);
+    }
+    auto parts = tt::net::parse_host_port(host_port);
+    tt::net::HostPort updated;
+    updated.host = host;
+    updated.port = parts.port;
+    updated.bracketed = tt::net::is_ipv6_literal(host);
+    return prefix + tt::net::format_host_port(updated) + suffix;
+}
+
+bool enforce_loopback_bind(std::string &bind)
+{
+    auto [host, port] = tt::net::parse_rpc_bind(bind);
+    if (host.empty() || !tt::net::is_loopback_host(host))
+    {
+        constexpr char kFallbackHost[] = "127.0.0.1";
+        if (host.empty())
+        {
+#if defined(TT_BUILD_DEBUG)
+            TT_LOG_INFO("RPC bind missing host; defaulting to {}", kFallbackHost);
+#else
+            TT_LOG_INFO("RPC bind missing host; forcing {} for security",
+                        kFallbackHost);
+#endif
+        }
+#if defined(TT_BUILD_DEBUG)
+        if (!host.empty())
+        {
+            TT_LOG_INFO("Allowing non-loopback RPC bind host {} in debug mode",
+                        host);
+            return true;
+        }
+#else
+        if (!host.empty())
+        {
+            TT_LOG_INFO("RPC bind host {} is not loopback; forcing {} for security",
+                        host, kFallbackHost);
+        }
+#endif
+        bind = replace_rpc_bind_host(bind, kFallbackHost);
+        return true;
+    }
+    return true;
+}
+
 } // namespace
 
 #if defined(_WIN32)
@@ -114,40 +178,17 @@ bool secure_connection_permissions(std::filesystem::path const &path)
         return false;
     }
     PSID user_sid = reinterpret_cast<PSID>(token_data.data());
-    SID_IDENTIFIER_AUTHORITY nt_authority = SECURITY_NT_AUTHORITY;
-    PSID system_sid = nullptr;
-    if (!AllocateAndInitializeSid(&nt_authority, 1, SECURITY_LOCAL_SYSTEM_RID,
-                                  0, 0, 0, 0, 0, 0, 0, &system_sid))
-    {
-        CloseHandle(token);
-        return false;
-    }
-    static constexpr wchar_t kBuiltinUsers[] = L"BUILTIN\\Users";
-    EXPLICIT_ACCESSW entries[3];
-    ZeroMemory(entries, sizeof(entries));
-    entries[0].grfAccessPermissions = GENERIC_READ | GENERIC_WRITE | DELETE;
-    entries[0].grfAccessMode = SET_ACCESS;
-    entries[0].grfInheritance = NO_INHERITANCE;
-    entries[0].Trustee.TrusteeForm = TRUSTEE_IS_SID;
-    entries[0].Trustee.TrusteeType = TRUSTEE_IS_USER;
-    entries[0].Trustee.ptstrName = reinterpret_cast<LPWSTR>(user_sid);
-    entries[1].grfAccessPermissions = GENERIC_READ | GENERIC_WRITE | DELETE;
-    entries[1].grfAccessMode = SET_ACCESS;
-    entries[1].grfInheritance = NO_INHERITANCE;
-    entries[1].Trustee.TrusteeForm = TRUSTEE_IS_SID;
-    entries[1].Trustee.TrusteeType = TRUSTEE_IS_USER;
-    entries[1].Trustee.ptstrName = reinterpret_cast<LPWSTR>(system_sid);
-    entries[2].grfAccessPermissions = GENERIC_READ | GENERIC_WRITE | DELETE;
-    entries[2].grfAccessMode = SET_ACCESS;
-    entries[2].grfInheritance = NO_INHERITANCE;
-    entries[2].Trustee.TrusteeForm = TRUSTEE_IS_NAME;
-    entries[2].Trustee.TrusteeType = TRUSTEE_IS_GROUP;
-    entries[2].Trustee.ptstrName = const_cast<LPWSTR>(kBuiltinUsers);
+    EXPLICIT_ACCESSW entry{};
+    entry.grfAccessPermissions = GENERIC_READ | GENERIC_WRITE | DELETE;
+    entry.grfAccessMode = SET_ACCESS;
+    entry.grfInheritance = NO_INHERITANCE;
+    entry.Trustee.TrusteeForm = TRUSTEE_IS_SID;
+    entry.Trustee.TrusteeType = TRUSTEE_IS_USER;
+    entry.Trustee.ptstrName = reinterpret_cast<LPWSTR>(user_sid);
     PACL acl = nullptr;
-    DWORD status = SetEntriesInAclW(3, entries, nullptr, &acl);
+    DWORD status = SetEntriesInAclW(1, &entry, nullptr, &acl);
     if (status != ERROR_SUCCESS)
     {
-        FreeSid(system_sid);
         CloseHandle(token);
         return false;
     }
@@ -156,7 +197,6 @@ bool secure_connection_permissions(std::filesystem::path const &path)
         DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
         nullptr, nullptr, acl, nullptr);
     LocalFree(acl);
-    FreeSid(system_sid);
     CloseHandle(token);
     return status == ERROR_SUCCESS;
 }
@@ -269,10 +309,17 @@ int daemon_main(int argc, char *argv[],
                                          tt::rpc::ConnectionInfo const &info,
                                          std::uint64_t pid)
         {
+#if defined(TT_BUILD_DEBUG)
+            if (info.port == 0)
+            {
+                return false;
+            }
+#else
             if (info.port == 0 || info.token.empty())
             {
                 return false;
             }
+#endif
             auto payload = std::format(R"({{"port":{},"token":"{}","pid":{}}})",
                                        info.port, info.token, pid);
             auto tmp_path = path;
@@ -313,8 +360,12 @@ int daemon_main(int argc, char *argv[],
                 std::filesystem::remove(tmp_path, ec);
                 return false;
             }
+            if (!secure_connection_permissions(path))
+            {
+                TT_LOG_INFO("unable to secure {}", path.string());
+            }
             return true;
-        };
+         };
 
         auto root = tt::utils::data_root();
         auto download_path = root / "downloads";
@@ -438,6 +489,7 @@ int daemon_main(int argc, char *argv[],
         {
             rpc_bind = replace_url_port(rpc_bind, *env_port);
         }
+        enforce_loopback_bind(rpc_bind);
         set_db_setting("rpcBind", rpc_bind);
 
         auto persisted_download = read_db_string("downloadPath");
@@ -555,6 +607,19 @@ int daemon_main(int argc, char *argv[],
         }
         settings.proxy_peer_connections =
             parse_bool_value(read_db_string("proxyPeerConnections"));
+        if (auto value = parse_int_value(read_db_string("engineDiskCache")))
+        {
+            settings.disk_cache_mb = std::max(1, *value);
+        }
+        if (auto value =
+                parse_int_value(read_db_string("engineHashingThreads")))
+        {
+            settings.hashing_threads = std::max(1, *value);
+        }
+        if (auto value = parse_int_value(read_db_string("queueStalledMinutes")))
+        {
+            settings.queue_stalled_minutes = std::max(0, *value);
+        }
         if (auto value = read_db_string("historyEnabled"); value)
         {
             settings.history_enabled = parse_bool_value(value);
@@ -740,6 +805,7 @@ int daemon_main(int argc, char *argv[],
                 rpc_options.basic_auth = std::make_pair(*user, *pass);
             }
         }
+#if defined(TT_BUILD_DEBUG)
         std::string rpc_token;
         if (auto token = read_env("TT_RPC_TOKEN"); token)
         {
@@ -749,7 +815,16 @@ int daemon_main(int argc, char *argv[],
         {
             rpc_token = generate_rpc_token();
         }
+#else
+        std::string rpc_token = generate_rpc_token();
+        if (auto token = read_env("TT_RPC_TOKEN"); token)
+        {
+            TT_LOG_INFO("Ignoring TT_RPC_TOKEN override in release mode for security");
+        }
+#endif
+#if !defined(TT_BUILD_DEBUG)
         rpc_options.token = rpc_token;
+#endif
         if (auto origins = read_env("TT_RPC_TRUSTED_ORIGINS"); origins)
         {
             auto parsed = parse_trusted_origins(*origins);
@@ -758,8 +833,20 @@ int daemon_main(int argc, char *argv[],
                 rpc_options.trusted_origins = std::move(parsed);
             }
         }
+#if defined(TT_BUILD_DEBUG)
+        rpc_options.force_debug_port = true;
+#endif
+        // In debug builds we avoid requiring an RPC token so developers can
+        // connect locally without extra credentials. Production builds still
+        // enforce token-based auth and will place credentials in
+        // connection.json.
+#if defined(TT_BUILD_DEBUG)
+        TT_LOG_INFO(
+            "RPC authentication disabled in debug build; no token required.");
+#else
         TT_LOG_INFO("RPC authentication enforced; connection.json contains "
                     "credentials.");
+#endif
         tt::rpc::Server rpc(engine.get(), rpc_bind, rpc_options);
         rpc.start();
 

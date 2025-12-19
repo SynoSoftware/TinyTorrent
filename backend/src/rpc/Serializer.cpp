@@ -327,19 +327,6 @@ std::optional<std::uint16_t> parse_listen_port(std::string_view interface)
     }
 }
 
-std::string normalize_rpc_host(std::string host)
-{
-    if (host.size() >= 2 && host.front() == '[' && host.back() == ']')
-    {
-        host = host.substr(1, host.size() - 2);
-    }
-    if (host == "0.0.0.0")
-    {
-        host = "127.0.0.1";
-    }
-    return host;
-}
-
 std::optional<std::uint16_t> parse_rpc_port(std::string_view value)
 {
     if (value.empty())
@@ -359,27 +346,6 @@ std::optional<std::uint16_t> parse_rpc_port(std::string_view value)
     {
         return std::nullopt;
     }
-}
-
-std::pair<std::string, std::string> parse_rpc_bind(std::string const &value)
-{
-    if (value.empty())
-    {
-        return {"", ""};
-    }
-    auto scheme = value.find("://");
-    auto host_start = (scheme == std::string::npos) ? 0 : scheme + 3;
-    auto host_end = value.find('/', host_start);
-    auto host_port = host_end == std::string::npos
-                         ? value.substr(host_start)
-                         : value.substr(host_start, host_end - host_start);
-    if (host_port.empty())
-    {
-        return {"", ""};
-    }
-    auto parts = tt::net::parse_host_port(host_port);
-    auto host = normalize_rpc_host(parts.host);
-    return {host, parts.port};
 }
 
 std::string serialize_capabilities()
@@ -407,10 +373,13 @@ std::string serialize_capabilities()
     yyjson_mut_obj_add_str(native, arguments, "websocket-path", "/ws");
     yyjson_mut_obj_add_str(native, arguments, "platform", "win32");
 
-    static constexpr std::array<char const *, 9> kFeatures = {
-        "fs-browse",     "system-integration",      "system-reveal",
-        "system-open",   "system-create-shortcuts", "proxy-configuration",
-        "proxy-support", "sequential-download",     "labels"};
+    static constexpr std::array<char const *, 16> kFeatures = {
+        "fs-browse",         "fs-create-dir",            "system-integration",
+        "system-install",    "system-autorun",           "system-reveal",
+        "system-open",       "system-create-shortcuts",  "proxy-configuration",
+        "proxy-support",     "session-tray-status",      "session-pause-all",
+        "session-resume-all", "traffic-history",         "sequential-download",
+        "labels"};
     auto *features = yyjson_mut_arr(native);
     yyjson_mut_obj_add_val(native, arguments, "features", features);
     for (auto const feature : kFeatures)
@@ -542,6 +511,23 @@ std::string serialize_session_settings(
     }
     yyjson_mut_obj_add_bool(native, arguments, "proxy-peer-connections",
                             settings.proxy_peer_connections);
+    if (!settings.proxy_hostname.empty() && settings.proxy_port > 0)
+    {
+        tt::net::HostPort parts{
+            settings.proxy_hostname, std::to_string(settings.proxy_port)};
+        auto formatted = tt::net::format_host_port(parts);
+        if (!formatted.empty())
+        {
+            yyjson_mut_obj_add_str(native, arguments, "proxy-url",
+                                   formatted.c_str());
+        }
+    }
+    yyjson_mut_obj_add_sint(native, arguments, "engine-disk-cache",
+                            settings.disk_cache_mb);
+    yyjson_mut_obj_add_sint(native, arguments, "engine-hashing-threads",
+                            settings.hashing_threads);
+    yyjson_mut_obj_add_sint(native, arguments, "queue-stalled-minutes",
+                            settings.queue_stalled_minutes);
     yyjson_mut_obj_add_bool(native, arguments, "history-enabled",
                             settings.history_enabled);
     yyjson_mut_obj_add_sint(native, arguments, "history-interval",
@@ -573,7 +559,7 @@ std::string serialize_session_settings(
         yyjson_mut_obj_add_str(native, arguments, "listen-error",
                                listen_error.c_str());
     }
-    auto [rpc_host, rpc_port] = parse_rpc_bind(rpc_bind);
+    auto [rpc_host, rpc_port] = tt::net::parse_rpc_bind(rpc_bind);
     if (!rpc_host.empty())
     {
         yyjson_mut_obj_add_str(native, arguments, "rpc-bind-address",
@@ -980,7 +966,7 @@ serialize_history_data(std::vector<engine::HistoryBucket> const &buckets,
     auto *arguments = yyjson_mut_obj(native);
     yyjson_mut_obj_add_val(native, root, "arguments", arguments);
     yyjson_mut_obj_add_sint(native, arguments, "step", step);
-    yyjson_mut_obj_add_sint(native, arguments, "recording_interval",
+    yyjson_mut_obj_add_sint(native, arguments, "recording-interval",
                             recording_interval);
 
     auto *array = yyjson_mut_arr(native);
@@ -1223,6 +1209,30 @@ std::string serialize_system_action(std::string const &action, bool success,
     {
         yyjson_mut_obj_add_str(native, arguments, "message", message.c_str());
     }
+
+    return doc.write(R"({"result":"error"})");
+}
+
+std::string serialize_autorun_status(bool enabled, bool supported,
+                                    bool requires_elevation)
+{
+    tt::json::MutableDocument doc;
+    if (!doc.is_valid())
+    {
+        return "{}";
+    }
+
+    auto *native = doc.doc();
+    auto *root = yyjson_mut_obj(native);
+    doc.set_root(root);
+    yyjson_mut_obj_add_str(native, root, "result", "success");
+
+    auto *arguments = yyjson_mut_obj(native);
+    yyjson_mut_obj_add_val(native, root, "arguments", arguments);
+    yyjson_mut_obj_add_bool(native, arguments, "enabled", enabled);
+    yyjson_mut_obj_add_bool(native, arguments, "supported", supported);
+    yyjson_mut_obj_add_bool(native, arguments, "requiresElevation",
+                            requires_elevation);
 
     return doc.write(R"({"result":"error"})");
 }

@@ -35,6 +35,7 @@ struct ServerOptions
     std::string rpc_path = "/transmission/rpc";
     std::string ws_path = "/ws";
     std::string session_header = "X-Transmission-Session-Id";
+    bool force_debug_port = false;
 };
 
 struct ConnectionInfo
@@ -96,9 +97,14 @@ class Server
     std::string ws_path_ = "/ws";
     std::atomic_bool destroying_{false};
 
+    struct ActiveRequest
+    {
+        struct mg_connection *conn = nullptr;
+        std::string headers;
+    };
     using RequestId = std::uint64_t;
     RequestId next_request_id_ = 1;
-    std::unordered_map<RequestId, struct mg_connection *> active_requests_;
+    std::unordered_map<RequestId, ActiveRequest> active_requests_;
 
     std::vector<std::function<void()>> pending_tasks_;
     std::mutex tasks_mtx_;

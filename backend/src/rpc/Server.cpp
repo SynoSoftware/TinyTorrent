@@ -150,6 +150,32 @@ bool should_fallback_to_index(std::string_view path)
     return true;
 }
 
+std::string sanitize_request_uri(std::string_view uri)
+{
+    std::string sanitized(uri);
+    if (auto query_pos = sanitized.find('?'); query_pos != std::string::npos)
+    {
+        sanitized.resize(query_pos);
+    }
+    return sanitized;
+}
+
+std::string build_rpc_headers(std::string_view content_type,
+                              std::optional<std::string> const &origin)
+{
+    std::string headers =
+        std::string("Content-Type: ") + std::string(content_type) + "\r\n";
+    if (origin && !origin->empty())
+    {
+        headers += "Access-Control-Allow-Origin: " + *origin + "\r\n";
+        headers +=
+            "Access-Control-Allow-Headers: X-TT-Auth, X-Transmission-Session-Id\r\n";
+        headers += "Access-Control-Allow-Methods: POST, OPTIONS\r\n";
+    }
+    headers += "Cache-Control: no-store\r\n";
+    return headers;
+}
+
 void reply_bytes(struct mg_connection *conn, int code,
                  std::string_view content_type, std::string_view body,
                  bool head_only)
@@ -444,6 +470,11 @@ bool origin_allowed(struct mg_http_message *hm,
             return true;
         }
     }
+    auto [host, port] = tt::net::parse_rpc_bind(*origin);
+    if (tt::net::is_loopback_host(host))
+    {
+        return true;
+    }
     return false;
 }
 
@@ -632,13 +663,34 @@ void Server::start()
         return;
     }
 
-    listener_ =
-        mg_http_listen(&mgr_, bind_url_.c_str(), &Server::handle_event, this);
-    if (listener_ == nullptr)
+#if defined(TT_BUILD_DEBUG)
+    if (options_.force_debug_port)
     {
-        TT_LOG_INFO("Failed to bind RPC listener to {}", bind_url_);
+        // Debug builds must bind to port 50000 once. We expect this port to
+        // be available, otherwise we cannot serve a predictable local UI and
+        // should stop immediately.
+        auto candidate = replace_url_port(bind_url_, "50000");
+        listener_ = mg_http_listen(&mgr_, candidate.c_str(),
+                                   &Server::handle_event, this);
+        if (listener_ == nullptr)
+        {
+            TT_LOG_INFO("RPC debug listener failed to bind to {}", candidate);
+            tt::runtime::request_shutdown();
+            return;
+        }
+        bind_url_ = candidate; // record the actual bind URL with port
     }
     else
+#endif
+    {
+        listener_ = mg_http_listen(&mgr_, bind_url_.c_str(),
+                                   &Server::handle_event, this);
+        if (listener_ == nullptr)
+        {
+            TT_LOG_INFO("Failed to bind RPC listener to {}", bind_url_);
+        }
+    }
+    if (listener_ != nullptr)
     {
         refresh_connection_port();
         std::string display_bind = bind_url_;
@@ -1083,13 +1135,15 @@ void Server::handle_http_message(struct mg_connection *conn,
     }
     std::string_view uri(hm->uri.buf, hm->uri.len);
     std::string_view method(hm->method.buf, hm->method.len);
-    TT_LOG_DEBUG("HTTP request {} {}", method, uri);
+    auto sanitized_uri = sanitize_request_uri(uri);
+    TT_LOG_DEBUG("HTTP request {} {}", method, sanitized_uri);
+    auto origin_value = header_value(hm, "Origin");
+    bool origin_allowed_flag = origin_allowed(hm, options_);
 
     bool is_rpc = uri.size() == rpc_path_.size() &&
                   std::memcmp(uri.data(), rpc_path_.data(), uri.size()) == 0;
     bool is_ws = uri.size() == ws_path_.size() &&
                  std::memcmp(uri.data(), ws_path_.data(), uri.size()) == 0;
-
     // Enforce loopback Host header policy for *all* requests (UI + RPC + WS)
     // to prevent DNS rebinding attacks.
     auto normalized = normalized_host(hm);
@@ -1126,7 +1180,7 @@ void Server::handle_http_message(struct mg_connection *conn,
     {
         // In debug builds skip strict origin checks to aid local testing.
 #if !defined(TT_BUILD_DEBUG)
-        if (!origin_allowed(hm, options_))
+        if (!origin_allowed_flag)
         {
             auto origin_value = header_value(hm, "Origin");
             TT_LOG_INFO("WebSocket upgrade rejected; origin not allowed {}",
@@ -1156,35 +1210,61 @@ void Server::handle_http_message(struct mg_connection *conn,
         return;
     }
 #if !defined(TT_BUILD_DEBUG)
-    if (!origin_allowed(hm, options_))
+    if (!origin_allowed_flag)
     {
-        auto origin_value = header_value(hm, "Origin");
         TT_LOG_INFO("RPC request rejected; origin not allowed {}",
                     origin_value ? *origin_value : "<missing>");
         auto payload = serialize_error("origin not allowed");
-        mg_http_reply(conn, 403, "Content-Type: application/json\r\n", "%s",
-                      payload.c_str());
+        auto headers = build_rpc_headers("application/json", {});
+        mg_http_reply(conn, 403, headers.c_str(), "%s", payload.c_str());
         return;
     }
 #else
     // Debug: skip the strict origin check to aid local UI debugging.
 #endif
+    bool token_authorized = self->authorize_request(hm);
+    std::optional<std::string> response_origin;
+    if (token_authorized && origin_allowed_flag && origin_value)
+    {
+        response_origin = *origin_value;
+    }
+
+    if (method == "OPTIONS")
+    {
+        if (!token_authorized)
+        {
+            auto unauthorized_headers = build_rpc_headers("text/plain", {});
+            if (self->options_.basic_auth)
+            {
+                unauthorized_headers += "WWW-Authenticate: Basic realm=\"";
+                unauthorized_headers += self->options_.basic_realm;
+                unauthorized_headers += "\"\r\n";
+            }
+            TT_LOG_INFO("RPC request rejected; unauthorized authentication attempt");
+            mg_http_reply(conn, 401, unauthorized_headers.c_str(), "unauthorized");
+            return;
+        }
+        auto headers = build_rpc_headers("application/json", response_origin);
+        headers += "Access-Control-Max-Age: 600\r\n";
+        mg_http_reply(conn, 204, headers.c_str(), "");
+        return;
+    }
 
     auto reply_unauthorized = [&]()
     {
         TT_LOG_INFO(
             "RPC request rejected; unauthorized authentication attempt");
-        std::string headers = "Content-Type: text/plain\r\n";
+        auto headers = build_rpc_headers("text/plain", {});
         if (self->options_.basic_auth)
         {
             headers += "WWW-Authenticate: Basic realm=\"";
             headers += self->options_.basic_realm;
-            headers += "\"";
+            headers += "\"\r\n";
         }
         mg_http_reply(conn, 401, headers.c_str(), "unauthorized");
     };
 
-    if (!self->authorize_request(hm))
+    if (!token_authorized)
     {
         reply_unauthorized();
         return;
@@ -1199,9 +1279,8 @@ void Server::handle_http_message(struct mg_connection *conn,
                                   self->session_id_.size()) == 0;
     if (!session_ok)
     {
-        std::string headers =
-            std::string("Content-Type: application/json\r\n") +
-            session_header_name + ": " + self->session_id_ + "\r\n";
+        auto headers = build_rpc_headers("application/json", response_origin);
+        headers += session_header_name + ": " + self->session_id_ + "\r\n";
         auto payload = serialize_error("session id required");
         mg_http_reply(conn, 409, headers.c_str(), "%s", payload.c_str());
         return;
@@ -1212,8 +1291,8 @@ void Server::handle_http_message(struct mg_connection *conn,
     {
         TT_LOG_INFO("RPC payload too large: {} bytes", hm->body.len);
         auto payload = serialize_error("payload too large");
-        mg_http_reply(conn, 413, "Content-Type: application/json\r\n", "%s",
-                      payload.c_str());
+        auto headers = build_rpc_headers("application/json", response_origin);
+        mg_http_reply(conn, 413, headers.c_str(), "%s", payload.c_str());
         return;
     }
 
@@ -1223,8 +1302,9 @@ void Server::handle_http_message(struct mg_connection *conn,
         body.assign(hm->body.buf, hm->body.len);
     }
 
+    auto request_headers = build_rpc_headers("application/json", response_origin);
     auto req_id = self->next_request_id_++;
-    self->active_requests_[req_id] = conn;
+    self->active_requests_[req_id] = {conn, std::move(request_headers)};
 
     self->dispatch(body,
                    [self, req_id](std::string response)
@@ -1282,7 +1362,7 @@ void Server::handle_connection_closed(struct mg_connection *conn, int /*ev*/)
     // Remove from active requests
     for (auto it = active_requests_.begin(); it != active_requests_.end();)
     {
-        if (it->second == conn)
+        if (it->second.conn == conn)
         {
             it = active_requests_.erase(it);
         }
@@ -1354,7 +1434,7 @@ void Server::send_response(std::uint64_t req_id, std::string const &response)
     auto it = active_requests_.find(req_id);
     if (it != active_requests_.end())
     {
-        mg_http_reply(it->second, 200, "Content-Type: application/json\r\n",
+        mg_http_reply(it->second.conn, 200, it->second.headers.c_str(),
                       "%s", response.c_str());
         active_requests_.erase(it);
     }

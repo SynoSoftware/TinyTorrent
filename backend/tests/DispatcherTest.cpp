@@ -5,6 +5,9 @@
 #include <doctest/doctest.h>
 
 #include <yyjson.h>
+#include <filesystem>
+#include <string_view>
+#include <system_error>
 
 namespace
 {
@@ -46,6 +49,25 @@ TEST_CASE("session-set")
         R"({"method":"session-set","arguments":{"download-dir":"."}})");
     ResponseView view{response};
     expect_result(view, "success", "session-set");
+}
+
+TEST_CASE("session-set creates missing download directory")
+{
+    tt::rpc::Dispatcher dispatcher{nullptr};
+    auto temp_root = std::filesystem::temp_directory_path() /
+                     "tinytorrent-controls";
+    auto download_dir = temp_root / "session-set" / "download";
+    std::filesystem::remove_all(temp_root);
+    auto request = std::string(
+                       R"({"method":"session-set","arguments":{"download-dir":")") +
+                   escape_json_string(download_dir.string()) +
+                   R"("}})";
+    auto response = dispatch_sync(dispatcher, request);
+    ResponseView view{response};
+    expect_result(view, "success", "session-set auto-create");
+    CHECK(std::filesystem::exists(download_dir));
+    std::error_code remove_ec;
+    std::filesystem::remove_all(temp_root, remove_ec);
 }
 
 TEST_CASE("session-test")
