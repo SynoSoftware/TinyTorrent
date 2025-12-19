@@ -20,6 +20,7 @@ $triplets = @(
 )
 
 $overlayTripletsDir = Join-Path $repoRoot 'vcpkg-triplets'
+$installRoot = Join-Path $repoRoot 'vcpkg_installed'
 
 
 $defaultTriplet = $triplets[0]
@@ -37,6 +38,44 @@ function Throw-IfError {
 function Test-CommandExists {
     param($cmd)
     return (Get-Command $cmd -ErrorAction SilentlyContinue)
+}
+
+function Test-TripletReady {
+    param(
+        [Parameter(Mandatory = $true)][string]$TripletRoot,
+        [Parameter(Mandatory = $true)][string]$Triplet
+    )
+
+    $required = @(
+        'include/libtorrent/session.hpp',
+        'include/yyjson.h',
+        'include/sqlite3.h',
+        'lib/torrent-rasterbar.lib',
+        'lib/yyjson.lib',
+        'lib/sqlite3.lib'
+    )
+
+    $rootsToTry = @(
+        $TripletRoot,
+        (Join-Path $TripletRoot $Triplet)
+    ) | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -Unique
+
+    foreach ($candidateRoot in $rootsToTry) {
+        $allPresent = $true
+        foreach ($rel in $required) {
+            $path = Join-Path $candidateRoot $rel
+            if (-not (Test-Path -LiteralPath $path)) {
+                $allPresent = $false
+                break
+            }
+        }
+
+        if ($allPresent) {
+            return $true
+        }
+    }
+
+    return $false
 }
 
 # -------------------------------------------------------------------------
@@ -88,7 +127,8 @@ if ($RebuildPackage) {
     try {
         # 'remove' deletes it from the 'installed' tree, forcing a reinstall next step.
         # It does NOT delete the downloaded source zip (saving bandwidth).
-        & $vcpkgExe remove $RebuildPackage --triplet $defaultTriplet --recurse
+        $defaultInstallRoot = Join-Path $installRoot $defaultTriplet
+        & $vcpkgExe remove $RebuildPackage --triplet $defaultTriplet --recurse --x-install-root $defaultInstallRoot
         # We don't throw here because it might already be gone, which is fine.
     }
     finally {
@@ -109,11 +149,18 @@ try {
     # If you have ABI issues with specific libs, handle that in build.ps1 or use -RebuildPackage here.
     
     foreach ($triplet in $triplets) {
-        $installRoot = Join-Path $repoRoot "vcpkg_installed\$triplet"
+        $tripletInstallRoot = Join-Path $installRoot $triplet
+
+        if (Test-TripletReady -TripletRoot $tripletInstallRoot -Triplet $triplet) {
+            Write-Host " - $triplet already present at $tripletInstallRoot (skipping)." -ForegroundColor DarkGray
+            continue
+        }
+
         $installArgs = @(
             'install',
             '--triplet', $triplet,
-            '--x-install-root', $installRoot
+            '--x-manifest-root', $repoRoot,
+            '--x-install-root', $tripletInstallRoot
         )
 
         if (Test-Path $overlayTripletsDir) {
@@ -124,8 +171,6 @@ try {
         Throw-IfError
     }
 
-    
-    Throw-IfError
     Write-Host "Dependencies are ready." -ForegroundColor Green
     Write-Host " - Installed roots: vcpkg_installed\" -ForegroundColor Gray
 }

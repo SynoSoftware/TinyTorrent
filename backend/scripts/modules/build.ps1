@@ -9,7 +9,7 @@ function build {
         [Parameter(Mandatory = $true)][ValidateSet('Debug', 'Release')][string]$Configuration
     )
 
-    $Root = Split-Path -Parent (Split-Path -Parent $PSCommandPath)
+    $Root = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSCommandPath))
     $BuildDir = Join-Path $Root ("buildstate/{0}" -f $Configuration.ToLower())
 
     if (-not (Test-Path -LiteralPath $BuildDir)) {
@@ -18,11 +18,20 @@ function build {
 
     $tools = Get-Tooling
 
-    $ninjaArgs = @('-C', $BuildDir)
+    Ensure-VsEnv
+
+    $mesonArgs = @('compile', '-C', $BuildDir)
 
     $psi = New-Object System.Diagnostics.ProcessStartInfo
-    $psi.FileName = $tools.Ninja
-    foreach ($a in $ninjaArgs) { [void]$psi.ArgumentList.Add($a) }
+    if ($tools.Meson) {
+        $psi.FileName = $tools.Meson
+    }
+    else {
+        $psi.FileName = $tools.Python
+        [void]$psi.ArgumentList.Add('-m')
+        [void]$psi.ArgumentList.Add('mesonbuild.mesonmain')
+    }
+    foreach ($a in $mesonArgs) { [void]$psi.ArgumentList.Add($a) }
     $psi.WorkingDirectory = $Root
     $psi.UseShellExecute = $false
     $psi.RedirectStandardOutput = $false
@@ -32,5 +41,13 @@ function build {
     $p.WaitForExit()
     if ($p.ExitCode -ne 0) {
         throw "Ninja failed with exit code $($p.ExitCode)."
+    }
+
+    $ExePath = Join-Path $BuildDir 'tt-engine.exe'
+    if (Test-Path -LiteralPath $ExePath) {
+        $SizeKB = (Get-Item -LiteralPath $ExePath).Length / 1KB
+        Log-Success "SUCCESS: $Configuration Build Complete"
+        Log-Info "Artifact: $ExePath"
+        Log-Info ("Size:     {0:N0} KB" -f $SizeKB)
     }
 }
