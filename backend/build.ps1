@@ -416,8 +416,13 @@ try {
     $VcpkgExe = Join-Path $VcpkgDir "vcpkg.exe"
     $VcpkgInstallRootBase = Join-Path $RepoRoot "vcpkg_installed"
     $VcpkgInstallRoot = Join-Path $VcpkgInstallRootBase $VcpkgTrip
-    $TripletRoot = Join-Path $VcpkgInstallRoot $VcpkgTrip
-    $TripletReadyMarker = Join-Path $TripletRoot ".installed.marker"
+    $overlayTripletsDir = Join-Path $RepoRoot 'vcpkg-triplets'
+    $TripletContentRoot = $VcpkgInstallRoot
+    $nestedTripletRoot = Join-Path $VcpkgInstallRoot $VcpkgTrip
+    if (Test-Path -LiteralPath (Join-Path $nestedTripletRoot 'include')) {
+        $TripletContentRoot = $nestedTripletRoot
+    }
+    $TripletReadyMarker = Join-Path $VcpkgInstallRoot ".installed.marker"
     $WorkspaceRoot = Split-Path -Parent $RepoRoot
     $FrontendDistDir = Join-Path $WorkspaceRoot "frontend\dist"
     $GenPackedFsScript = Join-Path $WorkspaceRoot "scripts\gen-packed-fs.ps1"
@@ -471,7 +476,7 @@ try {
         $statusFile = Join-Path (Join-Path $VcpkgInstallRoot "vcpkg") "status"
         $hasStatus = Test-Path -LiteralPath $statusFile
         $hasMarker = Test-Path -LiteralPath $TripletReadyMarker
-        $hasTripletContent = Test-Path -LiteralPath $TripletRoot
+        $hasTripletContent = Test-Path -LiteralPath $TripletContentRoot
 
         if (-not ($hasMarker -and $hasStatus -and $hasTripletContent)) {
             return $false
@@ -484,7 +489,7 @@ try {
             "sqlite3.h"
         )
         foreach ($h in $expectedHeaders) {
-            $p = Join-Path $TripletRoot (Join-Path 'include' $h)
+            $p = Join-Path $TripletContentRoot (Join-Path 'include' $h)
             if (-not (Test-Path -LiteralPath $p)) {
                 Log-Warn "Missing expected header: $h (at $p)"
                 return $false
@@ -521,7 +526,18 @@ try {
         for ($attempt = 1; $attempt -le $MaxAttempts; ++$attempt) {
             Wait-ForVcpkgLock
             try {
-                Exec-Checked $VcpkgExe @('install', "--triplet=$VcpkgTrip", "--x-install-root=$VcpkgInstallRoot", '--recurse', '--no-binarycaching') `
+                $installArgs = @(
+                    'install',
+                    "--triplet=$VcpkgTrip",
+                    '--x-manifest-root', $RepoRoot,
+                    "--x-install-root=$VcpkgInstallRoot",
+                    '--recurse',
+                    '--no-binarycaching'
+                )
+                if (Test-Path -LiteralPath $overlayTripletsDir) {
+                    $installArgs += @('--overlay-triplets', $overlayTripletsDir)
+                }
+                Exec-Checked $VcpkgExe $installArgs `
                     -ErrorMessage "Vcpkg install failed."
                 return
             }
@@ -540,8 +556,10 @@ try {
     try {
         if ($ForceVcpkg -or -not (Test-VcpkgTripletReady)) {
             Invoke-VcpkgInstall
-            if (-not (Test-Path -LiteralPath $TripletRoot)) {
-                New-Item -ItemType Directory -Path $TripletRoot -Force | Out-Null
+            $TripletContentRoot = $VcpkgInstallRoot
+            $nestedTripletRoot = Join-Path $VcpkgInstallRoot $VcpkgTrip
+            if (Test-Path -LiteralPath (Join-Path $nestedTripletRoot 'include')) {
+                $TripletContentRoot = $nestedTripletRoot
             }
             Set-Content -LiteralPath $TripletReadyMarker -Value (Get-Date).ToString('o')
         }
@@ -555,7 +573,7 @@ try {
     # 5. MESON SETUP
     # ==============================================================================
 
-    $TripletInstallDir = $TripletRoot
+    $TripletInstallDir = $TripletContentRoot
     $env:CMAKE_PREFIX_PATH = "$TripletInstallDir;$TripletInstallDir\share;$env:CMAKE_PREFIX_PATH"
     $MesonOptions = @(
         "--backend=ninja",
