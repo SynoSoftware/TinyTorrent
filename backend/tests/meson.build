@@ -20,6 +20,7 @@ tt_test_common_sources = [
   '../src/utils/FS.cpp',
   '../src/utils/StateStore.cpp',
   '../src/utils/Shutdown.cpp',
+  '../src/vendor/libtorrent/partfile_extension.cpp',
   '../src/vendor/mongoose.c',
   '../src/vendor/tt_packed_fs_data.cpp',
   '../src/vendor/tt_packed_fs.c',

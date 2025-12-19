@@ -26,6 +26,7 @@ switch ($Target.ToLower()) {
         & $Ctl setup
         & $Ctl configure -Configuration Debug
         & $Ctl build     -Configuration Debug
+        & $Ctl test      -Configuration Debug
     }
 
     'release' {

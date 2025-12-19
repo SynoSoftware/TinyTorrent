@@ -44,6 +44,12 @@ Minimalism applies to **responsibility**, not file count.
 
 Composition is mandatory. Coordination is allowed. Centralized behavior is not.
 
+### Non-Destructive Build Rule (Critical)
+
+- Do not delete large dependency/build caches (e.g. `vcpkg/`, `vcpkg_installed/`, build dirs) as a “first response”.
+- Prefer reuse-first actions: validate, reconfigure, repair by **moving/renaming** folders, or targeted package repair.
+- Deletion is a last-resort recovery action when reuse is clearly non-viable (e.g. corruption or irreconcilable layout), and should not be the default troubleshooting step.
+
 ---
 
 # **2. Architecture**
@@ -332,3 +338,7 @@ Tray never infers state; it reflects backend values.
 
 System changes (shortcuts, handlers, install) → daemon RPC only.
 Tray only calls RPCs and shows results.
+
+## Other
+
+Be kind with my time. Think what's faster. Maybe you can you must confirm with the user deletion of large folders even if temporary or generated.

@@ -9,7 +9,7 @@ function install {
         [Parameter(Mandatory = $true)][string]$Destination
     )
 
-    $Root = Split-Path -Parent (Split-Path -Parent $PSCommandPath)
+    $Root = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSCommandPath))
     $BuildDir = Join-Path $Root ("buildstate/{0}" -f $Configuration.ToLower())
 
     if (-not (Test-Path -LiteralPath $BuildDir)) {

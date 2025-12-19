@@ -6,6 +6,11 @@ function Log-Info {
     Write-Output "[INFO] $Message"
 }
 
+function Log-Success {
+    param([Parameter(Mandatory = $true)][string]$Message)
+    Write-Output "[OK] $Message"
+}
+
 function Log-Warn {
     param([Parameter(Mandatory = $true)][string]$Message)
     Write-Output "[WARN] $Message"
