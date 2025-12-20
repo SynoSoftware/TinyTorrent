@@ -24,7 +24,7 @@ export type SettingsTab =
 
 export type VisibilityCheck = (config: SettingsConfig) => boolean;
 
-type SliderDefinition = {
+export type SliderDefinition = {
     min: number;
     max: number;
     step: number;
