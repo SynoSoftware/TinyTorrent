@@ -47,6 +47,8 @@ import {
     ConnectionCredentialsCard,
     ConnectionExtensionCard,
 } from "@/modules/settings/components/ConnectionManager";
+import { SystemInstallSection } from "@/modules/settings/components/system/SystemInstallSection";
+import { useAsyncToggle } from "@/modules/settings/hooks/useAsyncToggle";
 import { useRpcExtension } from "@/app/context/RpcExtensionContext";
 import { GLASS_MODAL_SURFACE } from "@/shared/ui/layout/glass-surface";
 
@@ -87,42 +89,6 @@ function SectionDescription({ description }: { description: string }) {
     );
 }
 
-const useAsyncToggle = (
-    value: boolean,
-    setter: (next: boolean) => void,
-    action?: (next: boolean) => Promise<void>
-) => {
-    const [pending, setPending] = useState(false);
-
-    const onChange = useCallback(
-        async (next: boolean) => {
-            if (pending) return;
-            const previous = value;
-            setter(next);
-            setPending(true);
-            try {
-                if (action) {
-                    await action(next);
-                }
-            } catch {
-                setter(previous);
-            } finally {
-                setPending(false);
-            }
-        },
-        [action, pending, setter, value]
-    );
-
-    return { pending, onChange };
-};
-
-const SYSTEM_INSTALL_LOCATIONS = [
-    { key: "desktop", labelKey: "settings.install.locations.desktop" },
-    { key: "start-menu", labelKey: "settings.install.locations.start-menu" },
-    { key: "startup", labelKey: "settings.install.locations.startup" },
-];
-const DEFAULT_INSTALL_NAME = "TinyTorrent";
-
 interface SettingsModalProps {
     isOpen: boolean;
     onClose: () => void;
@@ -154,19 +120,6 @@ export function SettingsModal({
 }: SettingsModalProps) {
     const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState<SettingsTab>("speed");
-    const [installName, setInstallName] = useState(DEFAULT_INSTALL_NAME);
-    const [installArgs, setInstallArgs] = useState("");
-    const [installLocations, setInstallLocations] = useState<string[]>(() =>
-        SYSTEM_INSTALL_LOCATIONS.map((option) => option.key)
-    );
-    const [registerHandlers, setRegisterHandlers] = useState(false);
-    const [installToProgramFiles, setInstallToProgramFiles] = useState(false);
-    const [systemInstallResult, setSystemInstallResult] =
-        useState<SystemInstallResult | null>(null);
-    const [systemInstallError, setSystemInstallError] = useState<string | null>(
-        null
-    );
-    const [isSystemInstalling, setIsSystemInstalling] = useState(false);
     const [autorunInfo, setAutorunInfo] = useState<AutorunStatus | null>(null);
     const [isAutorunLoading, setIsAutorunLoading] = useState(true);
     const [mockAutorunEnabled, setMockAutorunEnabled] = useState(false);
@@ -259,13 +212,6 @@ export function SettingsModal({
         }
     }, [isOpen]);
 
-    useEffect(() => {
-        if (!isOpen) {
-            setSystemInstallResult(null);
-            setSystemInstallError(null);
-        }
-    }, [isOpen]);
-
     const handleSave = async () => {
         try {
             await onSave(config);
@@ -312,18 +258,6 @@ export function SettingsModal({
         const configKeys = Object.keys(DEFAULT_SETTINGS_CONFIG) as ConfigKey[];
         return configKeys.some((key) => config[key] !== initialConfig[key]);
     }, [config, initialConfig]);
-
-    const toggleInstallLocation = (location: string) => {
-        setInstallLocations((current) => {
-            if (current.includes(location)) {
-                if (current.length === 1) {
-                    return current;
-                }
-                return current.filter((entry) => entry !== location);
-            }
-            return [...current, location];
-        });
-    };
 
     const fetchAutorunStatus = useCallback(async () => {
         if (!extensionModeEnabled) {
@@ -465,93 +399,11 @@ export function SettingsModal({
         setAutorunDisplayEnabled,
         handleAutorunToggle
     );
-    const registerHandlersToggle = useAsyncToggle(
-        registerHandlers,
-        setRegisterHandlers
-    );
-    const installToProgramFilesToggle = useAsyncToggle(
-        installToProgramFiles,
-        setInstallToProgramFiles
-    );
     const autorunDisabled =
         !extensionModeEnabled ||
         rpcStatus !== "connected" ||
         isAutorunLoading ||
         autorunToggle.pending;
-
-    const handleSystemInstall = useCallback(async () => {
-        if (!extensionModeEnabled) {
-            return;
-        }
-        const trimmedName = installName.trim();
-        const trimmedArgs = installArgs.trim();
-        const payload: SystemInstallOptions = {
-            ...(trimmedName ? { name: trimmedName } : {}),
-            ...(trimmedArgs ? { args: trimmedArgs } : {}),
-            locations: installLocations,
-            registerHandlers,
-            installToProgramFiles,
-        };
-        setSystemInstallError(null);
-        setSystemInstallResult(null);
-
-        if (isMocked) {
-            const mockLabel = trimmedName || DEFAULT_INSTALL_NAME;
-            const mockShortcuts = SYSTEM_INSTALL_LOCATIONS.reduce(
-                (acc, entry) => {
-                    acc[entry.key] = `C:/mock/${entry.key}/${mockLabel}.lnk`;
-                    return acc;
-                },
-                {} as Record<string, string>
-            );
-            const installedPath = `C:/Program Files/${mockLabel}`;
-            setSystemInstallResult({
-                action: "system-install",
-                success: true,
-                message: t("settings.install.result_success"),
-                shortcuts: mockShortcuts,
-                installSuccess: true,
-                installedPath,
-                installMessage: t("settings.install.installed_path", {
-                    path: installedPath,
-                }),
-                handlersRegistered: registerHandlers,
-                handlerMessage: registerHandlers
-                    ? t("settings.install.handlers_registered")
-                    : t("settings.install.handlers_not_registered"),
-            });
-            return;
-        }
-
-        if (!onSystemInstall || !systemInstallFeatureAvailable) {
-            return;
-        }
-
-        setIsSystemInstalling(true);
-        try {
-            const result = await onSystemInstall(payload);
-            setSystemInstallResult(result);
-        } catch (error) {
-            setSystemInstallError(
-                error instanceof Error
-                    ? error.message
-                    : t("settings.install.result_failure")
-            );
-        } finally {
-            setIsSystemInstalling(false);
-        }
-    }, [
-        extensionModeEnabled,
-        installArgs,
-        installLocations,
-        installName,
-        installToProgramFiles,
-        isMocked,
-        onSystemInstall,
-        registerHandlers,
-        systemInstallFeatureAvailable,
-        t,
-    ]);
 
     // --- Renderers ---
 
@@ -966,266 +818,21 @@ export function SettingsModal({
             }
 
             case "system-install": {
-                const isSystemInstallDisabled = isSystemInstalling;
-                const locationButtons = SYSTEM_INSTALL_LOCATIONS.map(
-                    (location) => {
-                        const isSelected = installLocations.includes(
-                            location.key
-                        );
-                        const cannotDeselect =
-                            isSelected && installLocations.length === 1;
-                        const locationButtonDisabled =
-                            isSystemInstallDisabled || cannotDeselect;
-                        return (
-                            <Button
-                                key={location.key}
-                                size="sm"
-                                variant={isSelected ? "shadow" : "light"}
-                                color={isSelected ? "primary" : undefined}
-                                className="uppercase tracking-[0.2em] text-[10px] h-8 px-3"
-                                onPress={() => {
-                                    if (locationButtonDisabled) {
-                                        return;
-                                    }
-                                    toggleInstallLocation(location.key);
-                                }}
-                                isDisabled={locationButtonDisabled}
-                            >
-                                {t(location.labelKey)}
-                            </Button>
-                        );
-                    }
-                );
-                const installResult = systemInstallResult;
-                const shortcutEntries = installResult?.shortcuts
-                    ? Object.entries(installResult.shortcuts)
-                    : [];
-                const showHandlerSection =
-                    installResult?.handlersRegistered !== undefined ||
-                    Boolean(installResult?.handlerMessage);
-                const programFilesMessage =
-                    installResult?.installMessage ||
-                    (installResult?.installSuccess &&
-                    installResult?.installedPath
-                        ? t("settings.install.installed_path", {
-                              path: installResult.installedPath,
-                          })
-                        : t("settings.install.install_not_requested"));
                 return (
-                    <div className="space-y-4">
-                        <div className="grid gap-4 md:grid-cols-2">
-                            <Input
-                                label={t("settings.labels.installName")}
-                                labelPlacement="outside"
-                                placeholder=" "
-                                size="sm"
-                                variant="bordered"
-                                value={installName}
-                                isDisabled={isSystemInstallDisabled}
-                                onChange={(event) =>
-                                    setInstallName(event.target.value)
-                                }
-                            />
-                            <Input
-                                label={t("settings.labels.installArgs")}
-                                labelPlacement="outside"
-                                placeholder=" "
-                                size="sm"
-                                variant="bordered"
-                                value={installArgs}
-                                isDisabled={isSystemInstallDisabled}
-                                onChange={(event) =>
-                                    setInstallArgs(event.target.value)
-                                }
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-foreground/50">
-                                {t("settings.labels.installLocations")}
-                            </p>
-                            <div className="flex flex-wrap gap-2">
-                                {locationButtons}
-                            </div>
-                        </div>
-                        <div className="flex flex-col gap-3">
-                            <Switch
-                                size="sm"
-                                isSelected={autorunDisplayEnabled}
-                                isDisabled={autorunDisabled}
-                                onValueChange={autorunToggle.onChange}
-                            >
-                                <span className="text-sm font-medium text-foreground/80">
-                                    {t("settings.connection.autorun_label")}
-                                </span>
-                            </Switch>
-                            <Switch
-                                size="sm"
-                                isSelected={registerHandlers}
-                                isDisabled={
-                                    isSystemInstallDisabled ||
-                                    registerHandlersToggle.pending
-                                }
-                                onValueChange={registerHandlersToggle.onChange}
-                            >
-                                <span className="text-sm font-medium text-foreground/80">
-                                    {t(
-                                        "settings.labels.installRegisterHandlers"
-                                    )}
-                                </span>
-                            </Switch>
-                            <Switch
-                                size="sm"
-                                isSelected={installToProgramFiles}
-                                isDisabled={
-                                    isSystemInstallDisabled ||
-                                    installToProgramFilesToggle.pending
-                                }
-                                onValueChange={
-                                    installToProgramFilesToggle.onChange
-                                }
-                            >
-                                <span className="text-sm font-medium text-foreground/80">
-                                    {t("settings.labels.installProgramFiles")}
-                                </span>
-                            </Switch>
-                        </div>
-                        <div className="flex flex-col gap-2">
-                            <Button
-                                size="md"
-                                variant="shadow"
-                                color="primary"
-                                className="font-semibold shadow-lg shadow-primary/20"
-                                onPress={handleSystemInstall}
-                                isLoading={isSystemInstalling}
-                                isDisabled={isSystemInstallDisabled}
-                            >
-                                {isSystemInstalling
-                                    ? t("settings.install.button_busy")
-                                    : t("settings.install.button")}
-                            </Button>
-                            {systemInstallError && (
-                                <p className="text-sm text-danger">
-                                    {systemInstallError}
-                                </p>
-                            )}
-                            {installResult && (
-                                <div className="space-y-3 rounded-2xl border border-content1/20 bg-content1/30 p-4">
-                                    <div className="flex items-center justify-between gap-2">
-                                        <span
-                                            className={cn(
-                                                "text-sm font-semibold uppercase tracking-[0.2em]",
-                                                installResult.success
-                                                    ? "text-success"
-                                                    : "text-danger"
-                                            )}
-                                        >
-                                            {installResult.success
-                                                ? t(
-                                                      "settings.install.result_success"
-                                                  )
-                                                : t(
-                                                      "settings.install.result_partial"
-                                                  )}
-                                        </span>
-                                        {installResult.permissionDenied && (
-                                            <span className="text-[10px] font-semibold uppercase tracking-[0.3em] text-danger">
-                                                {t(
-                                                    "settings.install.result_permission_denied"
-                                                )}
-                                            </span>
-                                        )}
-                                    </div>
-                                    {installResult.message && (
-                                        <p className="text-sm text-foreground/70">
-                                            {installResult.message}
-                                        </p>
-                                    )}
-                                    <div className="space-y-2">
-                                        <div>
-                                            <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-foreground/50">
-                                                {t(
-                                                    "settings.install.shortcuts_header"
-                                                )}
-                                            </p>
-                                            {shortcutEntries.length ? (
-                                                <ul className="mt-1 space-y-1 text-sm text-foreground/70">
-                                                    {shortcutEntries.map(
-                                                        ([key, value]) => {
-                                                            const labelKey =
-                                                                SYSTEM_INSTALL_LOCATIONS.find(
-                                                                    (
-                                                                        location
-                                                                    ) =>
-                                                                        location.key ===
-                                                                        key
-                                                                )?.labelKey ??
-                                                                "settings.install.locations.desktop";
-                                                            return (
-                                                                <li
-                                                                    key={key}
-                                                                    className="flex flex-col gap-1"
-                                                                >
-                                                                    <span className="text-xs font-semibold uppercase tracking-[0.3em] text-foreground/60">
-                                                                        {t(
-                                                                            labelKey
-                                                                        )}
-                                                                    </span>
-                                                                    <span className="break-all text-sm text-foreground/70">
-                                                                        {value}
-                                                                    </span>
-                                                                </li>
-                                                            );
-                                                        }
-                                                    )}
-                                                </ul>
-                                            ) : (
-                                                <p className="mt-1 text-sm text-foreground/60">
-                                                    {t(
-                                                        "settings.install.shortcuts_none"
-                                                    )}
-                                                </p>
-                                            )}
-                                        </div>
-                                        <div>
-                                            <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-foreground/50">
-                                                {t(
-                                                    "settings.install.program_files_label"
-                                                )}
-                                            </p>
-                                            <p className="text-sm text-foreground/70">
-                                                {programFilesMessage}
-                                            </p>
-                                        </div>
-                                        {showHandlerSection && (
-                                            <div>
-                                                <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-foreground/50">
-                                                    {t(
-                                                        "settings.install.handlers_header"
-                                                    )}
-                                                </p>
-                                                <p className="text-sm text-foreground/70">
-                                                    {installResult.handlersRegistered
-                                                        ? t(
-                                                              "settings.install.handlers_registered"
-                                                          )
-                                                        : t(
-                                                              "settings.install.handlers_not_registered"
-                                                          )}
-                                                </p>
-                                                {installResult.handlerMessage && (
-                                                    <p className="text-sm text-foreground/60">
-                                                        {
-                                                            installResult.handlerMessage
-                                                        }
-                                                    </p>
-                                                )}
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
+                    <SystemInstallSection
+                        key={`section-${sectionIndex}-block-${blockIndex}`}
+                        autorunSwitch={{
+                            isSelected: autorunDisplayEnabled,
+                            isDisabled: autorunDisabled,
+                            onChange: autorunToggle.onChange,
+                        }}
+                        extensionModeEnabled={extensionModeEnabled}
+                        isMocked={isMocked}
+                        onSystemInstall={onSystemInstall}
+                        systemInstallFeatureAvailable={
+                            systemInstallFeatureAvailable
+                        }
+                    />
                 );
             }
 

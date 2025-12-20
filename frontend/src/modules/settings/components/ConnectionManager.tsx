@@ -39,6 +39,7 @@ interface ConnectionManagerState {
     featureList: string[];
     showTokenInput: boolean;
     websocketEndpoint?: string;
+    isMocked: boolean;
 }
 
 function useConnectionManagerState(
@@ -52,6 +53,7 @@ function useConnectionManagerState(
         refresh,
         enabled,
         setEnabled,
+        isMocked,
     } = useRpcExtension();
     const handleUpdate = useCallback(
         (
@@ -93,6 +95,7 @@ function useConnectionManagerState(
         featureList,
         showTokenInput,
         websocketEndpoint,
+        isMocked,
     };
 }
 
@@ -319,28 +322,37 @@ export function ConnectionExtensionCard({
     rpcStatus,
 }: ConnectionExtensionCardProps) {
     const { t } = useTranslation();
-    const { enabled, setEnabled } = useConnectionManagerState(rpcStatus);
+    const { enabled, isMocked, setEnabled } =
+        useConnectionManagerState(rpcStatus);
+    const shouldShowMockNotice = enabled && isMocked;
 
     return (
-        <Switch
-            size="sm"
-            isSelected={enabled}
-            onValueChange={(value) => setEnabled(value)}
-            aria-label={t("settings.connection.extension_mode_label")}
-            classNames={{
-                base: "w-full max-w-none items-start",
-                wrapper: "shrink-0 mt-1",
-            }}
-        >
-            <div className="flex flex-col gap-1">
-                <span className="text-sm font-semibold text-foreground">
-                    {t("settings.connection.extension_mode_label")}
-                </span>
-                <span className="text-xs text-foreground/60">
-                    {t("settings.connection.extension_mode_helper")}
-                </span>
-            </div>
-        </Switch>
+        <div className="space-y-2">
+            <Switch
+                size="sm"
+                isSelected={enabled}
+                onValueChange={(value) => setEnabled(value)}
+                aria-label={t("settings.connection.extension_mode_label")}
+                classNames={{
+                    base: "w-full max-w-none items-start",
+                    wrapper: "shrink-0 mt-1",
+                }}
+            >
+                <div className="flex flex-col gap-1">
+                    <span className="text-sm font-semibold text-foreground">
+                        {t("settings.connection.extension_mode_label")}
+                    </span>
+                    <span className="text-xs text-foreground/60">
+                        {t("settings.connection.extension_mode_helper")}
+                    </span>
+                </div>
+            </Switch>
+            {shouldShowMockNotice && (
+                <p className="text-xs text-warning/80">
+                    {t("settings.connection.extended_mock_notice")}
+                </p>
+            )}
+        </div>
     );
 }
 
