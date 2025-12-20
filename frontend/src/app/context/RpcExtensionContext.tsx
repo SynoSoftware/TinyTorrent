@@ -72,16 +72,11 @@ export function RpcExtensionProvider({
     useEffect(() => {
         if (typeof window === "undefined") return;
         window.localStorage.setItem(STORAGE_KEY, String(enabled));
-    }, [enabled]);
+        client.setTinyTorrentFeaturesEnabled?.(enabled);
+    }, [client, enabled]);
 
     const refresh = useCallback(async () => {
         setIsRefreshing(true);
-        if (!enabled) {
-            setAvailability("idle");
-            setCapabilities(null);
-            setIsRefreshing(false);
-            return;
-        }
         if (rpcStatus !== "connected") {
             setAvailability("idle");
             setCapabilities(null);
@@ -110,15 +105,9 @@ export function RpcExtensionProvider({
         } finally {
             setIsRefreshing(false);
         }
-    }, [client, enabled, rpcStatus]);
+    }, [client, rpcStatus]);
 
     useEffect(() => {
-        if (!enabled) {
-            setCapabilities(null);
-            setAvailability("idle");
-            setIsRefreshing(false);
-            return;
-        }
         if (rpcStatus !== "connected") {
             setCapabilities(null);
             setAvailability("idle");
@@ -126,7 +115,7 @@ export function RpcExtensionProvider({
             return;
         }
         void refresh();
-    }, [enabled, rpcStatus, refresh]);
+    }, [rpcStatus, refresh]);
 
     useEffect(() => {
         if (!onUnavailable) return;
@@ -141,7 +130,9 @@ export function RpcExtensionProvider({
     }, [availability, enabled, onUnavailable]);
 
     const shouldUseExtension = enabled && availability === "available";
-    const isMocked = enabled && availability === "unavailable";
+    const isMocked =
+        enabled &&
+        (availability === "unavailable" || availability === "error");
 
     const value = useMemo(
         () => ({

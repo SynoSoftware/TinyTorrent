@@ -455,6 +455,18 @@ The frontend runs on a **dual transport**:
 
 ---
 
+## **Connection & Authentication UI (Hard Rules)**
+
+-   Before a connection attempt completes, show only server address + port (no credential fields).
+-   After the attempt completes (success or error), detect whether the server is a standard Transmission server or a TinyTorrent server.
+-   Only then render the correct credential UI:
+    -   Transmission server → username + password
+    -   TinyTorrent server → authorization token
+-   Always attempt to connect automatically using saved credentials; if none are saved, attempt an anonymous connection.
+-   Regardless of the result, the user can edit credentials and reconnect.
+
+---
+
 ## **Design Rules**
 
 -   **Transmission RPC is the Law**

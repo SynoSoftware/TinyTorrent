@@ -43,7 +43,10 @@ import { DirectoryPicker } from "@/shared/ui/workspace/DirectoryPicker";
 import { LanguageMenu } from "@/shared/ui/controls/LanguageMenu";
 import { APP_VERSION } from "@/shared/version";
 import { ChevronLeft, RotateCcw, Save, X } from "lucide-react";
-import { ConnectionManager } from "@/modules/settings/components/ConnectionManager";
+import {
+    ConnectionCredentialsCard,
+    ConnectionExtensionCard,
+} from "@/modules/settings/components/ConnectionManager";
 import { useRpcExtension } from "@/app/context/RpcExtensionContext";
 import { GLASS_MODAL_SURFACE } from "@/shared/ui/layout/glass-surface";
 
@@ -138,6 +141,7 @@ export function SettingsModal({
     const [autorunInfo, setAutorunInfo] = useState<AutorunStatus | null>(null);
     const [isAutorunBusy, setIsAutorunBusy] = useState(false);
     const [isAutorunLoading, setIsAutorunLoading] = useState(true);
+    const [mockAutorunEnabled, setMockAutorunEnabled] = useState(false);
 
     // Responsive State
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(true);
@@ -150,6 +154,9 @@ export function SettingsModal({
         "idle"
     );
     const jsonCopyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const mockAutorunTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+        null
+    );
 
     const configJson = useMemo(() => JSON.stringify(config, null, 2), [config]);
 
@@ -177,6 +184,9 @@ export function SettingsModal({
             if (jsonCopyTimerRef.current) {
                 clearTimeout(jsonCopyTimerRef.current);
             }
+            if (mockAutorunTimerRef.current) {
+                clearTimeout(mockAutorunTimerRef.current);
+            }
         };
     }, []);
 
@@ -188,6 +198,8 @@ export function SettingsModal({
         capabilities: extensionCapabilities,
         shouldUseExtension,
         isMocked,
+        enabled: extensionModeEnabled,
+        availability,
     } = useRpcExtension();
     const canUseExtensionHelpers = shouldUseExtension || isMocked;
 
@@ -196,6 +208,12 @@ export function SettingsModal({
             setActiveBrowseKey(null);
         }
     }, [activeBrowseKey, canUseExtensionHelpers]);
+
+    useEffect(() => {
+        if (!extensionModeEnabled) {
+            setMockAutorunEnabled(false);
+        }
+    }, [extensionModeEnabled]);
 
     useEffect(() => {
         if (isOpen) {
@@ -279,13 +297,22 @@ export function SettingsModal({
     };
 
     const fetchAutorunStatus = useCallback(async () => {
-        if (!torrentClient.getSystemAutorunStatus) {
+        if (!extensionModeEnabled) {
             setAutorunInfo(null);
             setIsAutorunLoading(false);
             return;
         }
         if (rpcStatus !== "connected") {
             setAutorunInfo(null);
+            setIsAutorunLoading(false);
+            return;
+        }
+        if (!shouldUseExtension || !torrentClient.getSystemAutorunStatus) {
+            setAutorunInfo({
+                enabled: false,
+                supported: false,
+                requiresElevation: false,
+            });
             setIsAutorunLoading(false);
             return;
         }
@@ -298,7 +325,7 @@ export function SettingsModal({
         } finally {
             setIsAutorunLoading(false);
         }
-    }, [rpcStatus, torrentClient]);
+    }, [extensionModeEnabled, rpcStatus, shouldUseExtension, torrentClient]);
 
     useEffect(() => {
         if (!isOpen) {
@@ -307,22 +334,20 @@ export function SettingsModal({
         void fetchAutorunStatus();
     }, [fetchAutorunStatus, isOpen]);
 
-    const autorunEnabled = Boolean(autorunInfo?.enabled);
+    const remoteAutorunEnabled = Boolean(autorunInfo?.enabled);
     const autorunSupported = Boolean(
         autorunInfo?.supported &&
             torrentClient.systemAutorunEnable &&
             torrentClient.systemAutorunDisable
     );
     const autorunDisabled =
-        rpcStatus !== "connected" ||
-        !autorunSupported ||
-        isAutorunLoading ||
-        isAutorunBusy;
-    const supportsSystemInstall =
+        rpcStatus !== "connected" || isAutorunLoading || isAutorunBusy;
+    const autorunDisplayEnabled = autorunSupported
+        ? remoteAutorunEnabled
+        : mockAutorunEnabled;
+    const systemInstallFeatureAvailable =
         shouldUseExtension &&
-        Boolean(
-            extensionCapabilities?.features?.includes("system-install")
-        );
+        Boolean(extensionCapabilities?.features?.includes("system-install"));
     const supportsFsBrowse = canUseExtensionHelpers;
     const canBrowseDirectories = supportsFsBrowse;
 
@@ -332,12 +357,18 @@ export function SettingsModal({
                 if (block.visible && !block.visible(config)) {
                     return false;
                 }
-                if (block.type === "system-install" && !supportsSystemInstall) {
+                if (block.type !== "system-install") {
+                    return true;
+                }
+                if (!extensionModeEnabled) {
                     return false;
                 }
-                return true;
+                if (isMocked) {
+                    return true;
+                }
+                return systemInstallFeatureAvailable;
             }),
-        [config, supportsSystemInstall]
+        [config, extensionModeEnabled, isMocked, systemInstallFeatureAvailable]
     );
 
     const visibleTabs = useMemo(
@@ -362,24 +393,43 @@ export function SettingsModal({
     }, [activeTab, visibleTabs]);
 
     const handleAutorunToggle = useCallback(async () => {
-        if (autorunDisabled) {
+        if (!extensionModeEnabled || autorunDisabled) {
             return;
         }
-        setIsAutorunBusy(true);
-        try {
-            if (autorunEnabled) {
-                await torrentClient.systemAutorunDisable?.();
-            } else {
-                await torrentClient.systemAutorunEnable?.();
+        if (autorunSupported) {
+            setIsAutorunBusy(true);
+            try {
+                if (remoteAutorunEnabled) {
+                    await torrentClient.systemAutorunDisable?.();
+                } else {
+                    await torrentClient.systemAutorunEnable?.();
+                }
+            } finally {
+                setIsAutorunBusy(false);
+                void fetchAutorunStatus();
             }
-        } finally {
-            setIsAutorunBusy(false);
-            void fetchAutorunStatus();
+            return;
         }
-    }, [autorunDisabled, autorunEnabled, fetchAutorunStatus, torrentClient]);
+        if (mockAutorunTimerRef.current) {
+            clearTimeout(mockAutorunTimerRef.current);
+        }
+        setIsAutorunBusy(true);
+        mockAutorunTimerRef.current = window.setTimeout(() => {
+            setMockAutorunEnabled((prev) => !prev);
+            setIsAutorunBusy(false);
+            mockAutorunTimerRef.current = null;
+        }, 280);
+    }, [
+        autorunDisabled,
+        autorunSupported,
+        remoteAutorunEnabled,
+        extensionModeEnabled,
+        fetchAutorunStatus,
+        torrentClient,
+    ]);
 
     const handleSystemInstall = useCallback(async () => {
-        if (!onSystemInstall) {
+        if (!extensionModeEnabled) {
             return;
         }
         const trimmedName = installName.trim();
@@ -393,6 +443,39 @@ export function SettingsModal({
         };
         setSystemInstallError(null);
         setSystemInstallResult(null);
+
+        if (isMocked) {
+            const mockLabel = trimmedName || DEFAULT_INSTALL_NAME;
+            const mockShortcuts = SYSTEM_INSTALL_LOCATIONS.reduce(
+                (acc, entry) => {
+                    acc[entry.key] = `C:/mock/${entry.key}/${mockLabel}.lnk`;
+                    return acc;
+                },
+                {} as Record<string, string>
+            );
+            const installedPath = `C:/Program Files/${mockLabel}`;
+            setSystemInstallResult({
+                action: "system-install",
+                success: true,
+                message: t("settings.install.result_success"),
+                shortcuts: mockShortcuts,
+                installSuccess: true,
+                installedPath,
+                installMessage: t("settings.install.installed_path", {
+                    path: installedPath,
+                }),
+                handlersRegistered: registerHandlers,
+                handlerMessage: registerHandlers
+                    ? t("settings.install.handlers_registered")
+                    : t("settings.install.handlers_not_registered"),
+            });
+            return;
+        }
+
+        if (!onSystemInstall || !systemInstallFeatureAvailable) {
+            return;
+        }
+
         setIsSystemInstalling(true);
         try {
             const result = await onSystemInstall(payload);
@@ -407,12 +490,15 @@ export function SettingsModal({
             setIsSystemInstalling(false);
         }
     }, [
+        extensionModeEnabled,
         installArgs,
         installLocations,
         installName,
         installToProgramFiles,
+        isMocked,
         onSystemInstall,
         registerHandlers,
+        systemInstallFeatureAvailable,
         t,
     ]);
 
@@ -829,11 +915,7 @@ export function SettingsModal({
             }
 
             case "system-install": {
-                const isInstallAvailable = Boolean(onSystemInstall);
-                const isSystemInstallDisabled =
-                    !isInstallAvailable ||
-                    !supportsSystemInstall ||
-                    isSystemInstalling;
+                const isSystemInstallDisabled = isSystemInstalling;
                 const locationButtons = SYSTEM_INSTALL_LOCATIONS.map(
                     (location) => {
                         const isSelected = installLocations.includes(
@@ -917,7 +999,7 @@ export function SettingsModal({
                         <div className="flex flex-col gap-3">
                             <Switch
                                 size="sm"
-                                isSelected={autorunEnabled}
+                                isSelected={autorunDisplayEnabled}
                                 isDisabled={autorunDisabled}
                                 onValueChange={handleAutorunToggle}
                             >
@@ -966,11 +1048,6 @@ export function SettingsModal({
                                     ? t("settings.install.button_busy")
                                     : t("settings.install.button")}
                             </Button>
-                            {!isInstallAvailable && (
-                                <p className="text-xs text-foreground/60">
-                                    {t("settings.install.unavailable")}
-                                </p>
-                            )}
                             {systemInstallError && (
                                 <p className="text-sm text-danger">
                                     {systemInstallError}
@@ -1138,16 +1215,27 @@ export function SettingsModal({
                 );
             }
 
-            case "connection-manager": {
+            case "connection-profile": {
                 return (
                     <div
                         key={`section-${sectionIndex}-block-${blockIndex}`}
                         className="space-y-3"
                     >
-                        <ConnectionManager
+                        <ConnectionCredentialsCard
                             onReconnect={onReconnect}
                             rpcStatus={rpcStatus}
                         />
+                    </div>
+                );
+            }
+
+            case "connection-extension": {
+                return (
+                    <div
+                        key={`section-${sectionIndex}-block-${blockIndex}`}
+                        className="space-y-3"
+                    >
+                        <ConnectionExtensionCard rpcStatus={rpcStatus} />
                     </div>
                 );
             }
@@ -1302,17 +1390,21 @@ export function SettingsModal({
                                     {activeTabDefinition.sections.map(
                                         (section, idx) => {
                                             const visibleBlocks =
-                                                getVisibleBlocks(section.blocks);
+                                                getVisibleBlocks(
+                                                    section.blocks
+                                                );
                                             if (!visibleBlocks.length) {
                                                 return null;
                                             }
                                             return (
                                                 <SectionCard key={idx}>
-                                                    <SectionTitle
-                                                        title={t(
-                                                            section.titleKey
-                                                        )}
-                                                    />
+                                                    {section.titleKey && (
+                                                        <SectionTitle
+                                                            title={t(
+                                                                section.titleKey
+                                                            )}
+                                                        />
+                                                    )}
                                                     {section.descriptionKey && (
                                                         <SectionDescription
                                                             description={t(

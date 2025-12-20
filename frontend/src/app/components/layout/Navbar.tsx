@@ -20,22 +20,10 @@ import { ToolbarIconButton } from "../../../shared/ui/layout/toolbar-button";
 import { SmoothProgressBar } from "../../../shared/ui/components/SmoothProgressBar";
 import { useFocusState } from "../../context/FocusContext";
 import { APP_VERSION } from "../../../shared/version";
-import type {
-    FeedbackMessage,
-    FeedbackTone,
-} from "../../../shared/types/feedback";
 import {
     BLOCK_SHADOW,
     GLASS_BLOCK_SURFACE,
-    PANEL_SHADOW,
 } from "../../../shared/ui/layout/glass-surface";
-
-const FEEDBACK_TONE_CLASSES: Record<FeedbackTone, string> = {
-    info: "text-primary",
-    success: "text-success",
-    warning: "text-warning",
-    danger: "text-danger",
-};
 
 interface NavbarProps {
     filter: string;
@@ -49,7 +37,6 @@ interface NavbarProps {
     onPauseSelection: () => void;
     onRecheckSelection: () => void;
     onRemoveSelection: () => void;
-    actionFeedback?: FeedbackMessage | null;
     rehashStatus?: {
         active: boolean;
         value: number;
@@ -72,7 +59,6 @@ export function Navbar({
     onPauseSelection,
     onRecheckSelection,
     onRemoveSelection,
-    actionFeedback,
     rehashStatus,
     workspaceStyle,
     onWorkspaceToggle,
@@ -89,23 +75,6 @@ export function Navbar({
                 BLOCK_SHADOW
             )}
         >
-            {/* Feedback Toast */}
-            {actionFeedback && (
-                <div className="pointer-events-none absolute bottom-[-16px] left-1/2 -translate-x-1/2 z-50">
-                    <div
-                        className={cn(
-                            "flex items-center gap-2 rounded-full border border-content1/20 bg-background/80 px-4 py-1.5 text-[11px] font-bold uppercase tracking-widest backdrop-blur-xl shadow-xl animate-appearance-in",
-                            PANEL_SHADOW,
-                            FEEDBACK_TONE_CLASSES[actionFeedback.tone]
-                        )}
-                        aria-live="polite"
-                    >
-                        <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
-                        {actionFeedback.message}
-                    </div>
-                </div>
-            )}
-
             {/* LEFT ZONE: Identity & Navigation */}
             <div className="flex items-center gap-6">
                 {/* Brand */}

@@ -1,5 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import { ToastProvider } from "@heroui/toast";
 import "../index.css";
 import "../i18n/index";
 import App from "./App";
@@ -9,6 +10,7 @@ import { WorkspaceModalProvider } from "./WorkspaceModalContext";
 import { HotkeysProvider } from "react-hotkeys-hook";
 import { DEFAULT_KEYBOARD_SCOPE } from "../shared/hooks/useKeyboardScope";
 import { ConnectionConfigProvider } from "./context/ConnectionConfigContext";
+import constants from "../config/constants.json";
 
 function captureTinyTorrentTokenFromHash() {
     const hash = window.location.hash;
@@ -39,6 +41,24 @@ createRoot(document.getElementById("root")!).render(
                     <WorkspaceModalProvider>
                         <PerformanceHistoryProvider>
                             <App />
+                            <ToastProvider
+                                placement="bottom-right"
+                                toastOffset={16}
+                                toastProps={{
+                                    timeout: constants.ui.toast_display_duration_ms,
+                                    hideCloseButton: true,
+                                    variant: "flat",
+                                    radius: "lg",
+                                    classNames: {
+                                        base: "border border-default/20 bg-content1/80 backdrop-blur-xl shadow-medium",
+                                        title: "text-sm font-semibold text-foreground",
+                                        description: "text-xs text-foreground/70",
+                                    },
+                                }}
+                                regionProps={{
+                                    className: "z-[12000]",
+                                }}
+                            />
                         </PerformanceHistoryProvider>
                     </WorkspaceModalProvider>
                 </ClientProvider>

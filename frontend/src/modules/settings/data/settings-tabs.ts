@@ -121,10 +121,12 @@ type RawConfigBlock = {
     descriptionKey?: string;
 } & BlockBase;
 
-type ConnectionManagerBlock = {
-    type: "connection-manager";
+type ConnectionProfileBlock = {
+    type: "connection-profile";
 } & BlockBase;
-
+type ConnectionExtensionBlock = {
+    type: "connection-extension";
+} & BlockBase;
 type SystemInstallBlock = {
     type: "system-install";
 } & BlockBase;
@@ -144,12 +146,13 @@ export type SectionBlock =
     | LanguageBlock
     | RawConfigBlock
     | DaySelectorBlock
-    | ConnectionManagerBlock
+    | ConnectionProfileBlock
+    | ConnectionExtensionBlock
     | SystemInstallBlock
     | SystemIntegrationBlock;
 
 interface SectionDefinition {
-    titleKey: string;
+    titleKey?: string;
     cardClass?: string;
     descriptionKey?: string;
     blocks: SectionBlock[];
@@ -365,11 +368,17 @@ export const SETTINGS_TABS: TabDefinition[] = [
         headerKey: "settings.headers.connection",
         sections: [
             {
-                titleKey: "settings.sections.connection_profiles",
+                titleKey: "settings.sections.active_connection",
                 descriptionKey: "settings.descriptions.connection_profiles",
                 blocks: [
                     {
-                        type: "connection-manager",
+                        type: "connection-profile",
+                    },
+                    {
+                        type: "divider",
+                    },
+                    {
+                        type: "connection-extension",
                     },
                 ],
             },

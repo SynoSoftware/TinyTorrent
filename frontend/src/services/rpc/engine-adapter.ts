@@ -21,6 +21,7 @@ import type {
 } from "./heartbeat";
 
 export interface EngineAdapter {
+    setTinyTorrentFeaturesEnabled?(enabled: boolean): void;
     handshake?(): Promise<unknown>;
     fetchSessionSettings?(): Promise<TransmissionSessionSettings>;
     updateSessionSettings?(

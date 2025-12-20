@@ -54,7 +54,6 @@ interface AddTorrentModalProps {
     isSubmitting: boolean;
     initialFile?: File | null;
     initialMagnetLink?: string | null;
-    getFreeSpace?: (path: string) => Promise<TransmissionFreeSpace>;
 }
 
 const DEFAULT_SAVE_PATH = "C:/Downloads/Torrents";
@@ -66,7 +65,6 @@ export function AddTorrentModal({
     isSubmitting,
     initialFile,
     initialMagnetLink,
-    getFreeSpace,
 }: AddTorrentModalProps) {
     const { t } = useTranslation();
     const torrentClient = useTorrentClient();
@@ -195,7 +193,7 @@ export function AddTorrentModal({
 
     useEffect(() => {
         let active = true;
-        if (!getFreeSpace || !canUseExtensionHelpers) {
+        if (!canUseExtensionHelpers) {
             setDirectorySpace(null);
             setSpaceError(null);
             setIsSpaceLoading(false);
@@ -205,30 +203,18 @@ export function AddTorrentModal({
         }
         setIsSpaceLoading(true);
         setSpaceError(null);
-        getFreeSpace(downloadDir)
+        getDriveSpace(torrentClient, downloadDir, {
+            useExtension: shouldUseExtension,
+            allowMock: isMocked,
+        })
             .then((space) => {
                 if (!active) return;
                 setDirectorySpace(space);
             })
-            .catch(async () => {
+            .catch(() => {
                 if (!active) return;
-                try {
-                    const fallback = await getDriveSpace(
-                        torrentClient,
-                        downloadDir,
-                        {
-                            useExtension: shouldUseExtension,
-                            allowMock: isMocked,
-                        }
-                    );
-                    if (!active) return;
-                    setDirectorySpace(fallback);
-                    setSpaceError(null);
-                } catch {
-                    if (!active) return;
-                    setDirectorySpace(null);
-                    setSpaceError(t("modals.disk_gauge_error"));
-                }
+                setDirectorySpace(null);
+                setSpaceError(t("modals.disk_gauge_error"));
             })
             .finally(() => {
                 if (!active) return;
@@ -240,7 +226,6 @@ export function AddTorrentModal({
     }, [
         downloadDir,
         canUseExtensionHelpers,
-        getFreeSpace,
         shouldUseExtension,
         isMocked,
         t,
@@ -531,7 +516,7 @@ export function AddTorrentModal({
                             </div>
                         </ModalBody>
                         <ModalFooter className="flex flex-col gap-3">
-                            {canUseExtensionHelpers && getFreeSpace && (
+                            {canUseExtensionHelpers && (
                                 <DiskSpaceGauge
                                     freeBytes={directorySpace?.sizeBytes}
                                     totalBytes={directorySpace?.totalSize}

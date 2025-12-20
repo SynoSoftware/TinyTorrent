@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
+import { addToast } from "@heroui/toast";
 
 import type { FeedbackTone } from "../../shared/types/feedback";
-import type { GlobalActionFeedback } from "../types/workspace";
+import constants from "../../config/constants.json";
 
 export const GLOBAL_ACTION_FEEDBACK_CONFIG = {
     resume: {
@@ -30,28 +31,54 @@ export const GLOBAL_ACTION_FEEDBACK_CONFIG = {
 export type FeedbackAction = keyof typeof GLOBAL_ACTION_FEEDBACK_CONFIG;
 export type FeedbackStage = "start" | "done";
 
+const TOAST_DURATION_MS = constants.ui.toast_display_duration_ms;
+
+const TONE_TO_TOAST: Record<
+    FeedbackTone,
+    (message: string) => void
+> = {
+    info: (message) => {
+        addToast({
+            title: message,
+            color: "primary",
+            severity: "primary",
+            timeout: TOAST_DURATION_MS,
+            hideCloseButton: true,
+        });
+    },
+    success: (message) => {
+        addToast({
+            title: message,
+            color: "success",
+            severity: "success",
+            timeout: TOAST_DURATION_MS,
+            hideCloseButton: true,
+        });
+    },
+    warning: (message) => {
+        addToast({
+            title: message,
+            color: "warning",
+            severity: "warning",
+            timeout: TOAST_DURATION_MS,
+            hideCloseButton: true,
+        });
+    },
+    danger: (message) => {
+        addToast({
+            title: message,
+            color: "danger",
+            severity: "danger",
+            timeout: TOAST_DURATION_MS,
+            hideCloseButton: true,
+        });
+    },
+};
+
 export function useActionFeedback() {
     const { t } = useTranslation();
-    const [feedback, setFeedback] = useState<GlobalActionFeedback | null>(null);
-    const timerRef = useRef<number | null>(null);
-
     const showFeedback = useCallback((message: string, tone: FeedbackTone) => {
-        setFeedback({ message, tone });
-        if (timerRef.current) {
-            window.clearTimeout(timerRef.current);
-        }
-        timerRef.current = window.setTimeout(() => {
-            setFeedback(null);
-            timerRef.current = null;
-        }, 3000);
-    }, []);
-
-    useEffect(() => {
-        return () => {
-            if (timerRef.current) {
-                window.clearTimeout(timerRef.current);
-            }
-        };
+        TONE_TO_TOAST[tone](message);
     }, []);
 
     const announceAction = useCallback(
@@ -67,7 +94,6 @@ export function useActionFeedback() {
     );
 
     return {
-        globalActionFeedback: feedback,
         announceAction,
         showFeedback,
     };
