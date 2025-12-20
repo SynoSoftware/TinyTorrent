@@ -28,6 +28,7 @@ import type {
     CommandPaletteContext,
 } from "./components/CommandPalette";
 import { WorkspaceShell } from "./components/WorkspaceShell";
+import { RpcExtensionProvider } from "./context/RpcExtensionContext";
 import { useTorrentClient } from "./providers/TorrentClientProvider";
 import { FocusProvider, useFocusState } from "./context/FocusContext";
 import type { Torrent, TorrentDetail } from "../modules/dashboard/types/torrent";
@@ -337,6 +338,7 @@ export default function App() {
         handleTorrentAction,
         confirmDelete,
         clearPendingDelete,
+        showFeedback,
     } = useTorrentWorkflow({
         torrents,
         selectedTorrents,
@@ -565,87 +567,106 @@ export default function App() {
         reconnect();
     };
 
+    const notifyExtensionUnavailable = useCallback(() => {
+        showFeedback(
+            t("settings.connection.extended_mock_notice"),
+            "warning"
+        );
+    }, [showFeedback, t]);
+
     return (
         <FocusProvider>
-            <FocusController
-                selectedTorrents={selectedTorrents}
-                detailData={detailData}
-                requestDetails={handleRequestDetails}
-                closeDetail={handleCloseDetail}
-            />
-            <WorkspaceShell
-            getRootProps={getRootProps}
-            getInputProps={getInputProps}
-            isDragActive={isDragActive}
-            filter={filter}
-            searchQuery={searchQuery}
-            setSearchQuery={setSearchQuery}
-            setFilter={setFilter}
-            openAddModal={openAddModal}
-            openSettings={openSettings}
-            selectedTorrents={selectedTorrents}
-            handleBulkAction={handleBulkAction}
-            globalActionFeedback={globalActionFeedback}
-            rehashStatus={rehashStatus}
-            workspaceStyle={workspaceStyle}
-            toggleWorkspaceStyle={toggleWorkspaceStyle}
-            torrents={torrents}
-            ghostTorrents={ghostTorrents}
-            isTableLoading={!isInitialLoadFinished}
-            handleTorrentAction={handleTorrentAction}
-            handleRequestDetails={handleRequestDetails}
-            detailData={detailData}
-            closeDetail={handleCloseDetail}
-            handleFileSelectionChange={handleFileSelectionChange}
-            sequentialToggleHandler={
-                sequentialSupported ? handleSequentialToggle : undefined
-            }
-            superSeedingToggleHandler={
-                superSeedingSupported ? handleSuperSeedingToggle : undefined
-            }
-            handleForceTrackerReannounce={handleForceTrackerReannounce}
-            sequentialSupported={sequentialSupported}
-            superSeedingSupported={superSeedingSupported}
-            optimisticStatuses={optimisticStatuses}
-            handleSelectionChange={handleSelectionChange}
-            handleOpenFolder={handleOpenFolder}
-            peerSortStrategy={peerSortStrategy}
-            inspectorTabCommand={inspectorTabCommand}
-            onInspectorTabCommandHandled={handleInspectorTabCommandHandled}
-            sessionStats={sessionStats}
-            downHistory={downHistory}
-            upHistory={upHistory}
-            rpcStatus={rpcStatus}
-            handleReconnect={handleReconnect}
-            pendingDelete={pendingDelete}
-            clearPendingDelete={clearPendingDelete}
-            confirmDelete={confirmDelete}
-            visibleHudCards={visibleHudCards}
-            dismissHudCard={dismissHudCard}
-            isAddModalOpen={isAddModalOpen}
-            handleAddModalClose={handleAddModalClose}
-            pendingTorrentFile={pendingTorrentFile}
-            incomingMagnetLink={incomingMagnetLink}
-            handleAddTorrent={handleAddTorrent}
-            isAddingTorrent={isAddingTorrent}
-            isSettingsOpen={isSettingsOpen}
-            closeSettings={closeSettings}
-            settingsConfig={settingsFlow.settingsConfig}
-            isSettingsSaving={settingsFlow.isSettingsSaving}
-            handleSaveSettings={settingsFlow.handleSaveSettings}
-            handleTestPort={settingsFlow.handleTestPort}
-            restoreHudCards={restoreHudCards}
-            tableWatermarkEnabled={
-                settingsFlow.settingsConfig.table_watermark_enabled
-            }
-            torrentClient={torrentClient}
-            />
-            <CommandPalette
-                isOpen={isCommandPaletteOpen}
-                onOpenChange={setCommandPaletteOpen}
-                actions={commandActions}
-                getContextActions={getContextActions}
-            />
+            <RpcExtensionProvider
+                client={torrentClient}
+                rpcStatus={rpcStatus}
+                onUnavailable={notifyExtensionUnavailable}
+            >
+                <FocusController
+                    selectedTorrents={selectedTorrents}
+                    detailData={detailData}
+                    requestDetails={handleRequestDetails}
+                    closeDetail={handleCloseDetail}
+                />
+                <WorkspaceShell
+                    getRootProps={getRootProps}
+                    getInputProps={getInputProps}
+                    isDragActive={isDragActive}
+                    filter={filter}
+                    searchQuery={searchQuery}
+                    setSearchQuery={setSearchQuery}
+                    setFilter={setFilter}
+                    openAddModal={openAddModal}
+                    openSettings={openSettings}
+                    selectedTorrents={selectedTorrents}
+                    handleBulkAction={handleBulkAction}
+                    globalActionFeedback={globalActionFeedback}
+                    rehashStatus={rehashStatus}
+                    workspaceStyle={workspaceStyle}
+                    toggleWorkspaceStyle={toggleWorkspaceStyle}
+                    torrents={torrents}
+                    ghostTorrents={ghostTorrents}
+                    isTableLoading={!isInitialLoadFinished}
+                    handleTorrentAction={handleTorrentAction}
+                    handleRequestDetails={handleRequestDetails}
+                    detailData={detailData}
+                    closeDetail={handleCloseDetail}
+                    handleFileSelectionChange={handleFileSelectionChange}
+                    sequentialToggleHandler={
+                        sequentialSupported ? handleSequentialToggle : undefined
+                    }
+                    superSeedingToggleHandler={
+                        superSeedingSupported
+                            ? handleSuperSeedingToggle
+                            : undefined
+                    }
+                    handleForceTrackerReannounce={
+                        handleForceTrackerReannounce
+                    }
+                    sequentialSupported={sequentialSupported}
+                    superSeedingSupported={superSeedingSupported}
+                    optimisticStatuses={optimisticStatuses}
+                    handleSelectionChange={handleSelectionChange}
+                    handleOpenFolder={handleOpenFolder}
+                    peerSortStrategy={peerSortStrategy}
+                    inspectorTabCommand={inspectorTabCommand}
+                    onInspectorTabCommandHandled={
+                        handleInspectorTabCommandHandled
+                    }
+                    sessionStats={sessionStats}
+                    downHistory={downHistory}
+                    upHistory={upHistory}
+                    rpcStatus={rpcStatus}
+                    handleReconnect={handleReconnect}
+                    pendingDelete={pendingDelete}
+                    clearPendingDelete={clearPendingDelete}
+                    confirmDelete={confirmDelete}
+                    visibleHudCards={visibleHudCards}
+                    dismissHudCard={dismissHudCard}
+                    isAddModalOpen={isAddModalOpen}
+                    handleAddModalClose={handleAddModalClose}
+                    pendingTorrentFile={pendingTorrentFile}
+                    incomingMagnetLink={incomingMagnetLink}
+                    handleAddTorrent={handleAddTorrent}
+                    isAddingTorrent={isAddingTorrent}
+                    isSettingsOpen={isSettingsOpen}
+                    closeSettings={closeSettings}
+                    settingsConfig={settingsFlow.settingsConfig}
+                    isSettingsSaving={settingsFlow.isSettingsSaving}
+                    handleSaveSettings={settingsFlow.handleSaveSettings}
+                    handleTestPort={settingsFlow.handleTestPort}
+                    restoreHudCards={restoreHudCards}
+                    tableWatermarkEnabled={
+                        settingsFlow.settingsConfig.table_watermark_enabled
+                    }
+                    torrentClient={torrentClient}
+                />
+                <CommandPalette
+                    isOpen={isCommandPaletteOpen}
+                    onOpenChange={setCommandPaletteOpen}
+                    actions={commandActions}
+                    getContextActions={getContextActions}
+                />
+            </RpcExtensionProvider>
         </FocusProvider>
     );
 }

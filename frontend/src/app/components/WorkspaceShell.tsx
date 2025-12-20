@@ -27,6 +27,7 @@ import type { SettingsConfig } from "../../modules/settings/data/config";
 import { INTERACTION_CONFIG } from "../../config/logic";
 import { ICON_STROKE_WIDTH } from "../../config/logic";
 import { GLASS_MODAL_SURFACE } from "../../shared/ui/layout/glass-surface";
+import { useRpcExtension } from "../context/RpcExtensionContext";
 import type {
     AmbientHudCard,
     DeleteIntent,
@@ -216,6 +217,8 @@ export function WorkspaceShell({
     torrentClient,
 }: WorkspaceShellProps) {
     const { t } = useTranslation();
+    const { isMocked, shouldUseExtension } = useRpcExtension();
+    const canUseExtensionHelpers = shouldUseExtension || isMocked;
     const isImmersiveShell = workspaceStyle === "immersive";
 
     const workspaceStyleToggleLabel =
@@ -542,7 +545,11 @@ export function WorkspaceShell({
                 initialMagnetLink={incomingMagnetLink ?? undefined}
                 onAdd={handleAddTorrent}
                 isSubmitting={isAddingTorrent}
-                getFreeSpace={torrentClient.checkFreeSpace}
+                getFreeSpace={
+                    canUseExtensionHelpers
+                        ? torrentClient.checkFreeSpace
+                        : undefined
+                }
             />
             <SettingsModal
                 isOpen={isSettingsOpen}

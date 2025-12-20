@@ -24,6 +24,7 @@ import type {
     DirectoryBrowseResult,
     DirectoryNode,
 } from "@/services/rpc/types";
+import { useRpcExtension } from "@/app/context/RpcExtensionContext";
 import { useTorrentClient } from "@/app/providers/TorrentClientProvider";
 import { ICON_STROKE_WIDTH } from "../../../config/logic";
 import { INTERACTION_CONFIG } from "../../../config/logic";
@@ -52,6 +53,7 @@ export function DirectoryPicker({
     const [isCreating, setIsCreating] = useState(false);
     const [creationError, setCreationError] = useState<string | null>(null);
     const torrentClient = useTorrentClient();
+    const { isMocked, shouldUseExtension } = useRpcExtension();
 
     useEffect(() => {
         if (isOpen) {
@@ -74,7 +76,10 @@ export function DirectoryPicker({
         let active = true;
         setIsLoading(true);
         setError(null);
-        void browseDirectories(torrentClient, currentPath)
+        void browseDirectories(torrentClient, currentPath, {
+            useExtension: shouldUseExtension,
+            allowMock: isMocked,
+        })
             .then((result) => {
                 if (!active) return;
                 setBrowseResult(result);
@@ -91,7 +96,14 @@ export function DirectoryPicker({
         return () => {
             active = false;
         };
-    }, [currentPath, isOpen, t, torrentClient]);
+    }, [
+        currentPath,
+        isMocked,
+        isOpen,
+        shouldUseExtension,
+        t,
+        torrentClient,
+    ]);
 
     const commitPath = (value: string) => {
         const normalized = value.trim();
