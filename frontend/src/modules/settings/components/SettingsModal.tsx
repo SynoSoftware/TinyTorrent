@@ -1,16 +1,4 @@
-import {
-    Button,
-    Card,
-    Divider,
-    Input,
-    Modal,
-    ModalContent,
-    Select,
-    SelectItem,
-    Slider,
-    Switch,
-    cn,
-} from "@heroui/react";
+import { Button, Modal, ModalContent, cn } from "@heroui/react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -19,14 +7,9 @@ import {
     type ConfigKey,
     type SettingsConfig,
 } from "@/modules/settings/data/config";
-import {
-    ALT_SPEED_DAY_OPTIONS,
-    SETTINGS_TABS,
-} from "@/modules/settings/data/settings-tabs";
+import { SETTINGS_TABS } from "@/modules/settings/data/settings-tabs";
 import type {
-    BlockBase,
     ButtonActionKey,
-    InputBlock,
     SectionBlock,
     SettingsTab,
 } from "@/modules/settings/data/settings-tabs";
@@ -40,54 +23,15 @@ import type { AutorunStatus } from "@/services/rpc/entities";
 import { ICON_STROKE_WIDTH } from "@/config/logic";
 import { INTERACTION_CONFIG } from "@/config/logic";
 import { DirectoryPicker } from "@/shared/ui/workspace/DirectoryPicker";
-import { LanguageMenu } from "@/shared/ui/controls/LanguageMenu";
 import { APP_VERSION } from "@/shared/version";
 import { ChevronLeft, RotateCcw, Save, X } from "lucide-react";
-import {
-    ConnectionCredentialsCard,
-    ConnectionExtensionCard,
-} from "@/modules/settings/components/ConnectionManager";
-import { SystemInstallSection } from "@/modules/settings/components/system/SystemInstallSection";
+import { SettingsFormBuilder } from "@/modules/settings/components/SettingsFormBuilder";
+import { ConnectionTabContent } from "@/modules/settings/components/tabs/ConnectionTabContent";
+import { SystemTabContent } from "@/modules/settings/components/tabs/SystemTabContent";
 import { useAsyncToggle } from "@/modules/settings/hooks/useAsyncToggle";
+import { SettingsFormProvider } from "@/modules/settings/context/SettingsFormContext";
 import { useRpcExtension } from "@/app/context/RpcExtensionContext";
 import { GLASS_MODAL_SURFACE } from "@/shared/ui/layout/glass-surface";
-
-interface SectionTitleProps {
-    title: string;
-}
-
-const SectionCard = ({
-    className,
-    children,
-}: {
-    className?: string;
-    children: React.ReactNode;
-}) => (
-    <Card
-        className={cn(
-            "p-5 rounded-2xl border border-content1/20 bg-content1/10",
-            className
-        )}
-    >
-        {children}
-    </Card>
-);
-
-function SectionTitle({ title }: SectionTitleProps) {
-    return (
-        <h3 className="text-[10px] font-bold uppercase tracking-[0.3em] text-foreground/40 mb-3 mt-0 leading-tight">
-            {title}
-        </h3>
-    );
-}
-
-function SectionDescription({ description }: { description: string }) {
-    return (
-        <p className="mb-4 text-[11px] uppercase tracking-[0.25em] text-foreground/50">
-            {description}
-        </p>
-    );
-}
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -158,9 +102,6 @@ export function SettingsModal({
         }
     }, [configJson]);
 
-    // Local input state for fixing decimal/typing issues
-    const [localInputs, setLocalInputs] = useState<Record<string, string>>({});
-
     useEffect(() => {
         return () => {
             if (jsonCopyTimerRef.current) {
@@ -181,7 +122,6 @@ export function SettingsModal({
         shouldUseExtension,
         isMocked,
         enabled: extensionModeEnabled,
-        availability,
     } = useRpcExtension();
     const canUseExtensionHelpers = shouldUseExtension || isMocked;
 
@@ -200,7 +140,6 @@ export function SettingsModal({
     useEffect(() => {
         if (isOpen) {
             setConfig(initialConfig);
-            setLocalInputs({});
             setIsMobileMenuOpen(true);
         }
     }, [initialConfig, isOpen]);
@@ -208,7 +147,6 @@ export function SettingsModal({
     useEffect(() => {
         if (!isOpen) {
             setActiveBrowseKey(null);
-            setLocalInputs({});
         }
     }, [isOpen]);
 
@@ -222,32 +160,37 @@ export function SettingsModal({
 
     const handleReset = () => {
         setConfig({ ...DEFAULT_SETTINGS_CONFIG });
-        setLocalInputs({});
     };
 
-    const updateConfig = <K extends ConfigKey>(
-        key: K,
-        value: SettingsConfig[K]
-    ) => {
-        setConfig((prev) => ({ ...prev, [key]: value }));
-    };
+    const updateConfig = useCallback(
+        <K extends ConfigKey>(key: K, value: SettingsConfig[K]) => {
+            setConfig((prev) => ({ ...prev, [key]: value }));
+        },
+        []
+    );
 
-    const buttonActions: Record<ButtonActionKey, () => void> = {
-        testPort: () => void onTestPort?.(),
-        restoreHud: () => onRestoreInsights?.(),
-    };
+    const buttonActions: Record<ButtonActionKey, () => void> = useMemo(
+        () => ({
+            testPort: () => void onTestPort?.(),
+            restoreHud: () => onRestoreInsights?.(),
+        }),
+        [onRestoreInsights, onTestPort]
+    );
 
-    const openDirectoryPicker = (key: ConfigKey) => {
+    const openDirectoryPicker = useCallback((key: ConfigKey) => {
         setActiveBrowseKey(key);
-    };
-    const closeDirectoryPicker = () => {
+    }, []);
+    const closeDirectoryPicker = useCallback(() => {
         setActiveBrowseKey(null);
-    };
-    const pickDirectory = (path: string) => {
-        if (!activeBrowseKey) return;
-        updateConfig(activeBrowseKey, path as SettingsConfig[ConfigKey]);
-        closeDirectoryPicker();
-    };
+    }, []);
+    const pickDirectory = useCallback(
+        (path: string) => {
+            if (!activeBrowseKey) return;
+            updateConfig(activeBrowseKey, path as SettingsConfig[ConfigKey]);
+            closeDirectoryPicker();
+        },
+        [activeBrowseKey, closeDirectoryPicker, updateConfig]
+    );
 
     const pickerInitialPath =
         activeBrowseKey && (config[activeBrowseKey] as string)
@@ -316,34 +259,29 @@ export function SettingsModal({
     const supportsFsBrowse = canUseExtensionHelpers;
     const canBrowseDirectories = supportsFsBrowse;
 
-    const getVisibleBlocks = useCallback(
+    const hasVisibleBlocks = useCallback(
         (blocks: SectionBlock[]) =>
-            blocks.filter((block) => {
-                if (block.visible && !block.visible(config)) {
-                    return false;
-                }
-                if (block.type !== "system-install") {
-                    return true;
-                }
-                if (!extensionModeEnabled) {
-                    return false;
-                }
-                if (isMocked) {
-                    return true;
-                }
-                return systemInstallFeatureAvailable;
-            }),
-        [config, extensionModeEnabled, isMocked, systemInstallFeatureAvailable]
+            blocks.some((block) => !block.visible || block.visible(config)),
+        [config]
     );
+
+    const systemTabVisible =
+        extensionModeEnabled && (isMocked || systemInstallFeatureAvailable);
 
     const visibleTabs = useMemo(
         () =>
-            SETTINGS_TABS.filter((tab) =>
-                tab.sections.some(
-                    (section) => getVisibleBlocks(section.blocks).length > 0
-                )
-            ),
-        [getVisibleBlocks]
+            SETTINGS_TABS.filter((tab) => {
+                if (tab.isCustom) {
+                    if (tab.id === "system") {
+                        return systemTabVisible;
+                    }
+                    return true;
+                }
+                return tab.sections.some((section) =>
+                    hasVisibleBlocks(section.blocks)
+                );
+            }),
+        [hasVisibleBlocks, systemTabVisible]
     );
 
     const activeTabDefinition =
@@ -405,517 +343,48 @@ export function SettingsModal({
         isAutorunLoading ||
         autorunToggle.pending;
 
-    // --- Renderers ---
-
-    const renderInput = (block: InputBlock, index: number) => {
-        const dependsOn = block.dependsOn;
-        const isDisabled = dependsOn && !(config[dependsOn] as boolean);
-
-        // Value Logic: Prefer local input while typing to allow "10."
-        const configValue = config[block.stateKey];
-        const localValue = localInputs[block.stateKey];
-        const displayValue =
-            localValue !== undefined ? localValue : String(configValue ?? "");
-
-        const isMono =
-            block.inputType === "number" ||
-            (typeof displayValue === "string" &&
-                (displayValue.includes("/") || displayValue.includes("\\")));
-
-        // Determine Action
-        const sideAction = block.sideAction
-            ? block.sideAction
-            : block.browseAction
-            ? {
-                  type: "browse" as const,
-                  labelKey: "settings.button.browse",
-                  targetConfigKey: block.browseAction,
-              }
-            : undefined;
-
-        const isBrowseAction = sideAction?.type === "browse";
-        const hideBrowseAction = isBrowseAction && !canBrowseDirectories;
-        const sideActionDisabled = isDisabled || hideBrowseAction;
-
-        const handleSideAction = () => {
-            if (!sideAction) return;
-            if (
-                sideAction.type === "browse" &&
-                sideAction.targetConfigKey &&
-                !sideActionDisabled
-            ) {
-                openDirectoryPicker(sideAction.targetConfigKey);
-                return;
-            }
-            if (sideAction.type === "button" && sideAction.actionKey) {
-                buttonActions[sideAction.actionKey]();
-            }
-        };
-
-        const inputNode = (
-            <Input
-                key={`input-${block.stateKey}`}
-                label={t(block.labelKey)}
-                labelPlacement="outside" // <--- MOVES LABEL TO TOP
-                placeholder=" " // <--- KEEPS LAYOUT STABLE
-                size={block.size ?? "sm"}
-                variant={block.variant ?? "bordered"}
-                value={displayValue}
-                type={block.inputType}
-                isDisabled={!!isDisabled}
-                onBlur={() => {
-                    setLocalInputs((prev) => {
-                        const { [block.stateKey]: _, ...rest } = prev;
-                        return rest;
-                    });
-                }}
-                onChange={(event) => {
-                    const rawValue = event.target.value;
-                    setLocalInputs((prev) => ({
-                        ...prev,
-                        [block.stateKey]: rawValue,
-                    }));
-
-                    if (block.inputType === "number") {
-                        if (rawValue !== "") {
-                            const num = Number(rawValue);
-                            if (!isNaN(num)) {
-                                updateConfig(
-                                    block.stateKey,
-                                    num as SettingsConfig[ConfigKey]
-                                );
-                            }
-                        }
-                    } else {
-                        updateConfig(
-                            block.stateKey,
-                            rawValue as SettingsConfig[ConfigKey]
-                        );
-                    }
-                }}
-                classNames={{
-                    // inputWrapper styles the BOX itself
-                    inputWrapper: cn(
-                        "h-[42px] transition-colors",
-                        isDisabled
-                            ? "opacity-50"
-                            : "group-hover:border-primary/50"
-                    ),
-                    // input styles the TEXT inside the box
-                    input: cn(
-                        "text-foreground/90",
-                        isMono
-                            ? "font-mono text-[13px] tracking-tight"
-                            : "font-medium text-sm"
-                    ),
-                    // label styles the TEXT ABOVE the box
-                    label: "text-foreground/60 font-medium text-xs uppercase tracking-wider mb-1",
-                }}
-                endContent={
-                    block.endIcon ? (
-                        <block.endIcon
-                            size={18}
-                            strokeWidth={ICON_STROKE_WIDTH}
-                            className="text-foreground/40"
-                        />
-                    ) : undefined
-                }
-                className={block.className}
-            />
-        );
-
-        if (!sideAction || hideBrowseAction) {
-            return (
-                <div key={`${block.stateKey}-${index}`} className="group">
-                    {inputNode}
-                </div>
-            );
-        }
-
-        return (
-            <div
-                key={`${block.stateKey}-${index}`}
-                className="flex w-full items-end gap-3 group"
-            >
-                <div className="flex-1 min-w-0">{inputNode}</div>
-                <Button
-                    size="sm"
-                    variant="flat"
-                    color="primary"
-                    onPress={handleSideAction}
-                    className={cn(
-                        "h-[42px] px-5 shrink-0",
-                        "font-semibold text-xs tracking-wider uppercase",
-                        "bg-primary/10 hover:bg-primary/20 text-primary transition-colors",
-                        "data-[pressed=true]:scale-95"
-                    )}
-                    isDisabled={sideActionDisabled}
-                >
-                    {t(sideAction.labelKey)}
-                </Button>
-            </div>
-        );
-    };
-
-    const renderBlock = (
-        block: SectionBlock,
-        sectionIndex: number,
-        blockIndex: number
-    ) => {
-        if (block.visible && !block.visible(config)) {
-            return null;
-        }
-
-        const dependsOn = (block as BlockBase).dependsOn;
-        const dependsDisabled = dependsOn && !(config[dependsOn] as boolean);
-
-        switch (block.type) {
-            case "switch-slider": {
-                const rawValue = config[block.sliderKey];
-                const sliderDisabled =
-                    block.disabledWhenSwitchOff !== false
-                        ? !(config[block.switchKey] as boolean)
-                        : false;
-                const boundedValue =
-                    typeof rawValue === "number" && Number.isFinite(rawValue)
-                        ? rawValue
-                        : block.slider.min;
-                const sliderValue = Math.min(
-                    Math.max(boundedValue, block.slider.min),
-                    block.slider.max
-                );
-                return (
-                    <div
-                        key={`section-${sectionIndex}-block-${blockIndex}`}
-                        className="space-y-3"
-                    >
-                        <div className="flex justify-between items-center">
-                            <Switch
-                                size="sm"
-                                isSelected={config[block.switchKey] as boolean}
-                                color={block.color}
-                                onValueChange={(value) =>
-                                    updateConfig(
-                                        block.switchKey,
-                                        value as SettingsConfig[ConfigKey]
-                                    )
-                                }
-                            >
-                                <span className="text-sm font-medium text-foreground/90">
-                                    {t(block.labelKey)}
-                                </span>
-                            </Switch>
-                            <div className="text-[11px] font-mono font-medium text-foreground/80 bg-content2 px-2 py-1 rounded-md min-w-[60px] text-center">
-                                {block.valueSuffixKey
-                                    ? t(block.valueSuffixKey, {
-                                          value: boundedValue,
-                                      })
-                                    : boundedValue}
-                            </div>
-                        </div>
-                        <Slider
-                            size="sm"
-                            step={block.slider.step}
-                            maxValue={block.slider.max}
-                            minValue={block.slider.min}
-                            value={sliderValue}
-                            onChange={(value) =>
-                                updateConfig(
-                                    block.sliderKey,
-                                    value as SettingsConfig[ConfigKey]
-                                )
-                            }
-                            isDisabled={sliderDisabled}
-                            color={block.color}
-                            classNames={{
-                                thumb: "shadow-small",
-                            }}
-                            className="opacity-90"
-                        />
-                    </div>
-                );
-            }
-
-            case "switch": {
-                return (
-                    <div
-                        key={`section-${sectionIndex}-block-${blockIndex}`}
-                        className="flex justify-between items-center h-10"
-                    >
-                        <span
-                            className={cn(
-                                "text-sm font-medium text-foreground/80",
-                                dependsDisabled && "opacity-40"
-                            )}
-                        >
-                            {t(block.labelKey)}
-                        </span>
-                        <Switch
-                            size="sm"
-                            color={block.color}
-                            isSelected={config[block.stateKey] as boolean}
-                            onValueChange={(value) =>
-                                updateConfig(
-                                    block.stateKey,
-                                    value as SettingsConfig[ConfigKey]
-                                )
-                            }
-                        />
-                    </div>
-                );
-            }
-
-            case "input": {
-                return renderInput(block, blockIndex);
-            }
-
-            case "input-pair": {
-                const gridCols =
-                    block.inputs.length === 1 ? "grid-cols-1" : "grid-cols-2";
-                return (
-                    <div
-                        key={`section-${sectionIndex}-block-${blockIndex}`}
-                        className={cn("grid gap-4", gridCols)}
-                    >
-                        {block.inputs.map((inputBlock, inputIndex) =>
-                            renderInput(
-                                inputBlock, // Already an InputBlock
-                                inputIndex
-                            )
-                        )}
-                    </div>
-                );
-            }
-
-            case "day-selector": {
-                const selectedMask = config.alt_speed_time_day;
-                const toggleDay = (mask: number) => {
-                    const nextValue =
-                        selectedMask & mask
-                            ? selectedMask & ~mask
-                            : selectedMask | mask;
-                    updateConfig("alt_speed_time_day", nextValue);
-                };
-                return (
-                    <div
-                        key={`section-${sectionIndex}-block-${blockIndex}`}
-                        className="space-y-3"
-                    >
-                        <div className="flex items-center justify-between">
-                            <span className="text-xs font-semibold uppercase tracking-[0.2em] text-foreground/70">
-                                {t(block.labelKey)}
-                            </span>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                            {ALT_SPEED_DAY_OPTIONS.map((day) => {
-                                const isSelected = Boolean(
-                                    selectedMask & day.mask
-                                );
-                                return (
-                                    <Button
-                                        key={day.id}
-                                        size="sm"
-                                        variant={
-                                            isSelected ? "shadow" : "light"
-                                        }
-                                        color={
-                                            isSelected ? "primary" : undefined
-                                        }
-                                        onPress={() => toggleDay(day.mask)}
-                                        className={cn(
-                                            "uppercase tracking-[0.2em] text-[10px] h-8 px-3 min-w-0",
-                                            isSelected
-                                                ? "font-bold"
-                                                : "text-foreground/60"
-                                        )}
-                                    >
-                                        {t(day.labelKey).substring(0, 3)}
-                                    </Button>
-                                );
-                            })}
-                        </div>
-                    </div>
-                );
-            }
-
-            case "select": {
-                return (
-                    <Select
-                        key={`section-${sectionIndex}-block-${blockIndex}`}
-                        label={t(block.labelKey)}
-                        labelPlacement="outside"
-                        size="sm"
-                        variant={block.variant ?? "bordered"}
-                        selectedKeys={
-                            config[block.stateKey] !== undefined
-                                ? [String(config[block.stateKey])]
-                                : []
-                        }
-                        classNames={{
-                            trigger: "h-[42px]",
-                            value: "text-sm font-medium",
-                        }}
-                        onSelectionChange={(keys) => {
-                            const [next] = [...keys];
-                            if (next) {
-                                updateConfig(
-                                    block.stateKey,
-                                    next as SettingsConfig[ConfigKey]
-                                );
-                            }
-                        }}
-                    >
-                        {block.options.map((option) => (
-                            <SelectItem key={option.key}>
-                                {t(option.labelKey)}
-                            </SelectItem>
-                        ))}
-                    </Select>
-                );
-            }
-
-            case "button-row": {
-                return (
-                    <div
-                        key={`section-${sectionIndex}-block-${blockIndex}`}
-                        className="flex"
-                    >
-                        {block.buttons.map((button) => (
-                            <Button
-                                key={button.labelKey}
-                                size={button.size ?? "sm"}
-                                variant={button.variant ?? "light"}
-                                color={button.color}
-                                onPress={buttonActions[button.action]}
-                                className={button.className}
-                            >
-                                {t(button.labelKey)}
-                            </Button>
-                        ))}
-                    </div>
-                );
-            }
-
-            case "language": {
-                return (
-                    <div
-                        key={`section-${sectionIndex}-block-${blockIndex}`}
-                        className="flex items-center justify-between gap-4"
-                    >
-                        <div>
-                            <span className="text-sm font-semibold text-foreground/80">
-                                {t(block.labelKey)}
-                            </span>
-                            {block.descriptionKey && (
-                                <p className="text-xs text-foreground/60">
-                                    {t(block.descriptionKey)}
-                                </p>
-                            )}
-                        </div>
-                        <LanguageMenu />
-                    </div>
-                );
-            }
-
-            case "system-install": {
-                return (
-                    <SystemInstallSection
-                        key={`section-${sectionIndex}-block-${blockIndex}`}
-                        autorunSwitch={{
-                            isSelected: autorunDisplayEnabled,
-                            isDisabled: autorunDisabled,
-                            onChange: autorunToggle.onChange,
-                        }}
-                        extensionModeEnabled={extensionModeEnabled}
-                        isMocked={isMocked}
-                        onSystemInstall={onSystemInstall}
-                        systemInstallFeatureAvailable={
-                            systemInstallFeatureAvailable
-                        }
-                    />
-                );
-            }
-
-            case "raw-config": {
-                return (
-                    <div
-                        key={`section-${sectionIndex}-block-${blockIndex}`}
-                        className="space-y-3"
-                    >
-                        <div className="flex items-center justify-between gap-4">
-                            <div>
-                                <span className="text-sm font-semibold text-foreground/80">
-                                    {t(block.labelKey)}
-                                </span>
-                                {block.descriptionKey && (
-                                    <p className="text-xs text-foreground/50">
-                                        {t(block.descriptionKey)}
-                                    </p>
-                                )}
-                            </div>
-                            <Button
-                                size="sm"
-                                variant="light"
-                                color="primary"
-                                onPress={handleCopyConfigJson}
-                            >
-                                {jsonCopyStatus === "copied"
-                                    ? t("settings.buttons.copy_config_copied")
-                                    : t("settings.buttons.copy_config")}
-                            </Button>
-                        </div>
-                        <div className="rounded-2xl border border-content1/20 bg-content1/30">
-                            <textarea
-                                className="w-full resize-none border-none bg-transparent px-4 py-3 text-[11px] font-mono leading-relaxed text-foreground/80 selection:bg-primary/40 focus:outline-none"
-                                rows={10}
-                                value={configJson}
-                                readOnly
-                                aria-label={t(block.labelKey)}
-                            />
-                        </div>
-                    </div>
-                );
-            }
-
-            case "connection-profile": {
-                return (
-                    <div
-                        key={`section-${sectionIndex}-block-${blockIndex}`}
-                        className="space-y-3"
-                    >
-                        <ConnectionCredentialsCard
-                            onReconnect={onReconnect}
-                            rpcStatus={rpcStatus}
-                        />
-                    </div>
-                );
-            }
-
-            case "connection-extension": {
-                return (
-                    <div
-                        key={`section-${sectionIndex}-block-${blockIndex}`}
-                        className="space-y-3"
-                    >
-                        <ConnectionExtensionCard rpcStatus={rpcStatus} />
-                    </div>
-                );
-            }
-
-            case "divider": {
-                return (
-                    <Divider
-                        key={`section-${sectionIndex}-block-${blockIndex}`}
-                        className="my-3 opacity-50"
-                    />
-                );
-            }
-
-            default:
-                return null;
-        }
-    };
-
+    const settingsFormContext = useMemo(
+        () => ({
+            config,
+            updateConfig,
+            buttonActions,
+            canBrowseDirectories,
+            onBrowse: openDirectoryPicker,
+            autorunSwitch: {
+                isSelected: autorunDisplayEnabled,
+                isDisabled: autorunDisabled,
+                onChange: autorunToggle.onChange,
+            },
+            extensionModeEnabled,
+            isMocked,
+            onSystemInstall,
+            systemInstallFeatureAvailable,
+            jsonCopyStatus,
+            onCopyConfigJson: handleCopyConfigJson,
+            configJson,
+            rpcStatus,
+            onReconnect,
+        }),
+        [
+            autorunDisabled,
+            autorunDisplayEnabled,
+            autorunToggle.onChange,
+            buttonActions,
+            canBrowseDirectories,
+            config,
+            configJson,
+            extensionModeEnabled,
+            handleCopyConfigJson,
+            isMocked,
+            jsonCopyStatus,
+            onReconnect,
+            onSystemInstall,
+            openDirectoryPicker,
+            rpcStatus,
+            systemInstallFeatureAvailable,
+            updateConfig,
+        ]
+    );
     return (
         <Modal
             isOpen={isOpen}
@@ -1049,45 +518,21 @@ export function SettingsModal({
                                     transition={{ duration: 0.2 }}
                                     className="flex flex-col space-y-6 sm:space-y-8 pb-20"
                                 >
-                                    {activeTabDefinition.sections.map(
-                                        (section, idx) => {
-                                            const visibleBlocks =
-                                                getVisibleBlocks(
-                                                    section.blocks
-                                                );
-                                            if (!visibleBlocks.length) {
-                                                return null;
-                                            }
-                                            return (
-                                                <SectionCard key={idx}>
-                                                    {section.titleKey && (
-                                                        <SectionTitle
-                                                            title={t(
-                                                                section.titleKey
-                                                            )}
-                                                        />
-                                                    )}
-                                                    {section.descriptionKey && (
-                                                        <SectionDescription
-                                                            description={t(
-                                                                section.descriptionKey
-                                                            )}
-                                                        />
-                                                    )}
-                                                    <div className="space-y-6 mt-4">
-                                                        {visibleBlocks.map(
-                                                            (block, bIdx) =>
-                                                                renderBlock(
-                                                                    block,
-                                                                    idx,
-                                                                    bIdx
-                                                                )
-                                                        )}
-                                                    </div>
-                                                </SectionCard>
-                                            );
-                                        }
-                                    )}
+                                    <SettingsFormProvider
+                                        value={settingsFormContext}
+                                    >
+                                        {activeTabDefinition.id ===
+                                        "connection" ? (
+                                            <ConnectionTabContent />
+                                        ) : activeTabDefinition.id ===
+                                          "system" ? (
+                                            <SystemTabContent />
+                                        ) : (
+                                            <SettingsFormBuilder
+                                                tab={activeTabDefinition}
+                                            />
+                                        )}
+                                    </SettingsFormProvider>
                                 </motion.div>
                             </AnimatePresence>
                         </div>
