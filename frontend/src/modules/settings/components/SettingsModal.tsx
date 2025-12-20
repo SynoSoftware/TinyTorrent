@@ -87,6 +87,35 @@ function SectionDescription({ description }: { description: string }) {
     );
 }
 
+const useAsyncToggle = (
+    value: boolean,
+    setter: (next: boolean) => void,
+    action?: (next: boolean) => Promise<void>
+) => {
+    const [pending, setPending] = useState(false);
+
+    const onChange = useCallback(
+        async (next: boolean) => {
+            if (pending) return;
+            const previous = value;
+            setter(next);
+            setPending(true);
+            try {
+                if (action) {
+                    await action(next);
+                }
+            } catch {
+                setter(previous);
+            } finally {
+                setPending(false);
+            }
+        },
+        [action, pending, setter, value]
+    );
+
+    return { pending, onChange };
+};
+
 const SYSTEM_INSTALL_LOCATIONS = [
     { key: "desktop", labelKey: "settings.install.locations.desktop" },
     { key: "start-menu", labelKey: "settings.install.locations.start-menu" },
@@ -139,9 +168,9 @@ export function SettingsModal({
     );
     const [isSystemInstalling, setIsSystemInstalling] = useState(false);
     const [autorunInfo, setAutorunInfo] = useState<AutorunStatus | null>(null);
-    const [isAutorunBusy, setIsAutorunBusy] = useState(false);
     const [isAutorunLoading, setIsAutorunLoading] = useState(true);
     const [mockAutorunEnabled, setMockAutorunEnabled] = useState(false);
+    const [autorunDisplayEnabled, setAutorunDisplayEnabled] = useState(false);
 
     // Responsive State
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(true);
@@ -340,11 +369,13 @@ export function SettingsModal({
             torrentClient.systemAutorunEnable &&
             torrentClient.systemAutorunDisable
     );
-    const autorunDisabled =
-        rpcStatus !== "connected" || isAutorunLoading || isAutorunBusy;
-    const autorunDisplayEnabled = autorunSupported
-        ? remoteAutorunEnabled
-        : mockAutorunEnabled;
+
+    useEffect(() => {
+        setAutorunDisplayEnabled(
+            autorunSupported ? remoteAutorunEnabled : mockAutorunEnabled
+        );
+    }, [autorunSupported, mockAutorunEnabled, remoteAutorunEnabled]);
+
     const systemInstallFeatureAvailable =
         shouldUseExtension &&
         Boolean(extensionCapabilities?.features?.includes("system-install"));
@@ -392,41 +423,61 @@ export function SettingsModal({
         }
     }, [activeTab, visibleTabs]);
 
-    const handleAutorunToggle = useCallback(async () => {
-        if (!extensionModeEnabled || autorunDisabled) {
-            return;
-        }
-        if (autorunSupported) {
-            setIsAutorunBusy(true);
-            try {
-                if (remoteAutorunEnabled) {
-                    await torrentClient.systemAutorunDisable?.();
-                } else {
-                    await torrentClient.systemAutorunEnable?.();
-                }
-            } finally {
-                setIsAutorunBusy(false);
-                void fetchAutorunStatus();
+    const handleAutorunToggle = useCallback(
+        async (next: boolean) => {
+            if (
+                !extensionModeEnabled ||
+                rpcStatus !== "connected" ||
+                isAutorunLoading
+            ) {
+                throw new Error("Autorun unavailable");
             }
-            return;
-        }
-        if (mockAutorunTimerRef.current) {
-            clearTimeout(mockAutorunTimerRef.current);
-        }
-        setIsAutorunBusy(true);
-        mockAutorunTimerRef.current = window.setTimeout(() => {
-            setMockAutorunEnabled((prev) => !prev);
-            setIsAutorunBusy(false);
+            if (autorunSupported) {
+                if (next) {
+                    await torrentClient.systemAutorunEnable?.();
+                } else {
+                    await torrentClient.systemAutorunDisable?.();
+                }
+                await fetchAutorunStatus();
+                return;
+            }
+            if (mockAutorunTimerRef.current) {
+                clearTimeout(mockAutorunTimerRef.current);
+            }
+            await new Promise<void>((resolve) => {
+                mockAutorunTimerRef.current = window.setTimeout(resolve, 280);
+            });
+            setMockAutorunEnabled(next);
             mockAutorunTimerRef.current = null;
-        }, 280);
-    }, [
-        autorunDisabled,
-        autorunSupported,
-        remoteAutorunEnabled,
-        extensionModeEnabled,
-        fetchAutorunStatus,
-        torrentClient,
-    ]);
+        },
+        [
+            autorunSupported,
+            extensionModeEnabled,
+            fetchAutorunStatus,
+            isAutorunLoading,
+            rpcStatus,
+            torrentClient,
+        ]
+    );
+
+    const autorunToggle = useAsyncToggle(
+        autorunDisplayEnabled,
+        setAutorunDisplayEnabled,
+        handleAutorunToggle
+    );
+    const registerHandlersToggle = useAsyncToggle(
+        registerHandlers,
+        setRegisterHandlers
+    );
+    const installToProgramFilesToggle = useAsyncToggle(
+        installToProgramFiles,
+        setInstallToProgramFiles
+    );
+    const autorunDisabled =
+        !extensionModeEnabled ||
+        rpcStatus !== "connected" ||
+        isAutorunLoading ||
+        autorunToggle.pending;
 
     const handleSystemInstall = useCallback(async () => {
         if (!extensionModeEnabled) {
@@ -1001,7 +1052,7 @@ export function SettingsModal({
                                 size="sm"
                                 isSelected={autorunDisplayEnabled}
                                 isDisabled={autorunDisabled}
-                                onValueChange={handleAutorunToggle}
+                                onValueChange={autorunToggle.onChange}
                             >
                                 <span className="text-sm font-medium text-foreground/80">
                                     {t("settings.connection.autorun_label")}
@@ -1010,10 +1061,11 @@ export function SettingsModal({
                             <Switch
                                 size="sm"
                                 isSelected={registerHandlers}
-                                isDisabled={isSystemInstallDisabled}
-                                onValueChange={(value) =>
-                                    setRegisterHandlers(value)
+                                isDisabled={
+                                    isSystemInstallDisabled ||
+                                    registerHandlersToggle.pending
                                 }
+                                onValueChange={registerHandlersToggle.onChange}
                             >
                                 <span className="text-sm font-medium text-foreground/80">
                                     {t(
@@ -1024,9 +1076,12 @@ export function SettingsModal({
                             <Switch
                                 size="sm"
                                 isSelected={installToProgramFiles}
-                                isDisabled={isSystemInstallDisabled}
-                                onValueChange={(value) =>
-                                    setInstallToProgramFiles(value)
+                                isDisabled={
+                                    isSystemInstallDisabled ||
+                                    installToProgramFilesToggle.pending
+                                }
+                                onValueChange={
+                                    installToProgramFilesToggle.onChange
                                 }
                             >
                                 <span className="text-sm font-medium text-foreground/80">
