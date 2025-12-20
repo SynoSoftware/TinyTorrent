@@ -14,11 +14,11 @@ Licensed under the Apache License, Version 2.0. See `LICENSES.md` for details.
 
 Before attempting WebSocket upgrades or extended methods, the client **must** verify the server version to prevent "undefined method" errors on standard Transmission daemons.
 
-### **1.2 Loopback Host Policy**
+### **1.1 Loopback Host Policy**
 
 The backend enforces a strict `Host` header policy but treats every loopback alias as equivalent. Even when the server is configured with a specific allowed host (e.g., `localhost`), `127.0.0.1`, `[::1]`, `::1`, and other standard loopback names are also accepted. This ensures launchers or helpers that target a fixed alias (like the tray using `127.0.0.1`) never hit the 403 host-restriction check while still rejecting external hosts.
 
-### **1.1 Capability Probe**
+### **1.2 Capability Probe**
 
 **Method:** `tt-get-capabilities`
 **Transport:** HTTP POST
@@ -30,11 +30,11 @@ The backend enforces a strict `Host` header policy but treats every loopback ali
 {
   "result": "success",
   "arguments": {
-      "server-version": "TinyTorrent 1.0.0",
-      "rpc-version": 17,
-      "websocket-endpoint": "/ws",
-      "platform": "win32",
-      "features": [
+    "server-version": "TinyTorrent 1.0.0",
+    "rpc-version": 17,
+    "websocket-endpoint": "/ws",
+    "platform": "win32",
+    "features": [
       "fs-browse",
       "fs-create-dir",
       "system-integration",
@@ -46,7 +46,8 @@ The backend enforces a strict `Host` header policy but treats every loopback ali
       "traffic-history",
       "sequential-download",
       "proxy-configuration",
-      "labels"
+      "labels",
+      "native-dialogs"
     ]
   }
 }
@@ -136,7 +137,7 @@ To ensure type safety in the frontend, the `event` message type uses strict nami
 **Arguments:** `path` (string).
 **Behavior:** Returns available bytes at the specific mount point.
 
-### **3.3 Create Directory **
+### **3.3 Create Directory**
 
 **Method:** `fs-create-dir`
 **Arguments:** `path` (string).
@@ -145,6 +146,88 @@ To ensure type safety in the frontend, the `event` message type uses strict nami
 - Creates the directory and any necessary parent directories (recursive `mkdir -p`).
 - **Returns:** `success` if created or if it already exists.
 - **Error:** Returns standard filesystem error (permission denied, read-only fs) if it fails.
+
+### **3.4 Write File**
+
+**Method:** `fs-write-file`
+**Transport:** HTTP RPC
+**Auth:** Required (`X-TT-Auth`)
+
+This RPC writes data to a file path
+
+- On Windows, the backend must reject writes to system locations, including but not limited to:
+  `C:\Windows\`, `C:\Program Files\`, `C:\Program Files (x86)\`, and `C:\ProgramData\`, as well as any path requiring elevated privileges to write.
+- `fs-write-file` is intended for user-space data only; it must not be used to modify operating system or application installation files.
+
+---
+
+#### **Arguments**
+
+```json
+{
+  "path": "C:/Users/.../export.json",
+  "data": "<base64>",
+  "mode": "overwrite"
+}
+```
+
+- `path` (string, required)
+
+  - Must be an absolute path
+
+- `data` (string, required)
+
+  - Base64-encoded payload
+
+- `mode` (string, optional)
+
+  - `"overwrite"` (default)
+  - `"fail-if-exists"`
+
+No append. No streaming. Keep it simple.
+
+---
+
+#### **Behavior (Normative)**
+
+- Backend must:
+
+  - Decode Base64
+  - Write atomically (temp file + replace)
+  - Create parent directories **only if they already exist** (no mkdir here)
+  - This RPC is not restricted to paths selected via `dialog-save-file`; dialogs are a convenience mechanism, not a security boundary.
+
+- Backend must **reject** the call if:
+
+  - write permissions are missing
+
+---
+
+#### **Response (Success)**
+
+```json
+{
+  "result": "success",
+  "arguments": {
+    "bytesWritten": 2048
+  }
+}
+```
+
+---
+
+#### **Response (Error)**
+
+Standard error format:
+
+```json
+{
+  "result": "error",
+  "arguments": {
+    "message": "permission denied"
+  }
+}
+```
 
 ---
 
@@ -286,12 +369,269 @@ The frontend must never provide file paths or executable names.
 
 ---
 
-## **5. Historical Traffic API (`history-*`)**
+## **5 Native Dialog API (`dialog-*`) — Windows Only**
+
+These RPCs request the backend to invoke **native Windows file and folder dialogs** and return the user’s selection to the frontend.
+
+Dialogs are **OS-owned, modal, and user-interactive**. The frontend expresses intent only; the backend owns execution, security, and OS integration.
+
+---
+
+### **5.0 Platform Scope & Capability Gating**
+
+- This API is **Windows-only** in TinyTorrent v1.0.
+- Servers on other platforms **must not** advertise support.
+- Capability discovery:
+
+  - The backend advertises support via the `native-dialogs` feature in `tt-get-capabilities`.
+  - Frontends **must not** call any `dialog-*` method unless this capability is present.
+
+If invoked when unsupported, the backend must return:
+
+```json
+{
+  "result": "error",
+  "arguments": {
+    "message": "native dialogs not supported"
+  }
+}
+```
+
+---
+
+### **5.1 Security & Execution Rules**
+
+- **Auth:** Required (`X-TT-Auth`)
+
+- **Origin:** Request must originate from a trusted UI origin.
+
+- **Session:** Requires an active interactive desktop session.
+
+  - If running headless (service, SSH, no desktop), return:
+
+    ```json
+    {
+      "result": "error",
+      "arguments": {
+        "message": "interactive session required"
+      }
+    }
+    ```
+
+- **Threading:** Dialogs must be invoked on a UI-capable **STA thread**.
+
+- **Concurrency:** Only **one dialog may be active at a time**.
+
+  - If another dialog is already open, return:
+
+    ```json
+    {
+      "result": "error",
+      "arguments": {
+        "message": "dialog already active"
+      }
+    }
+    ```
+
+- **Cancellation:** User cancellation is **not an error** and must be represented by empty or `null` results.
+
+---
+
+### **5.2 Windows Implementation (Normative)**
+
+- File and folder dialogs **must** use `IFileOpenDialog`.
+- Folder selection **must** use `IFileOpenDialog` with `FOS_PICKFOLDERS`.
+- Legacy APIs (`GetOpenFileName`, `SHBrowseForFolder`) are **forbidden**.
+- Dialogs must be modal and should be parented to the active UI window when possible.
+
+---
+
+### **5.3 Open File Dialog**
+
+**Method:** `dialog-open-file`
+**Purpose:** Let the user select one or more existing files.
+
+**Arguments:**
+
+```json
+{
+  "title": "Select torrent file",
+  "filters": [{ "name": "Torrent Files", "extensions": ["torrent"] }],
+  "allowMultiple": false
+}
+```
+
+- `filters` map directly to Windows file type filters.
+- `allowMultiple` defaults to `false`.
+
+**Response (Success):**
+
+```json
+{
+  "result": "success",
+  "arguments": {
+    "paths": ["C:/Users/.../Downloads/example.torrent"]
+  }
+}
+```
+
+**Response (User Cancelled):**
+
+```json
+{
+  "result": "success",
+  "arguments": {
+    "paths": []
+  }
+}
+```
+
+An empty array **always** indicates user cancellation.
+
+---
+
+### **5.4 Select Folder Dialog**
+
+**Method:** `dialog-select-folder`
+**Purpose:** Let the user select a single directory.
+
+**Arguments:**
+
+```json
+{
+  "title": "Select download folder"
+}
+```
+
+**Response (Success):**
+
+```json
+{
+  "result": "success",
+  "arguments": {
+    "path": "C:/Users/.../Downloads/Torrents"
+  }
+}
+```
+
+**Response (User Cancelled):**
+
+```json
+{
+  "result": "success",
+  "arguments": {
+    "path": null
+  }
+}
+```
+
+---
+
+### **5.5 Save File Dialog**
+
+**Method:** `dialog-save-file`
+**Platform:** Windows only
+**Auth:** Required (`X-TT-Auth`)
+**Capability:** `native-dialogs`
+
+This RPC invokes the native **Windows Save File dialog** and returns the path selected by the user.
+It does **not** create or write the file; it only returns the chosen destination path.
+
+---
+
+#### **Arguments**
+
+```json
+{
+  "title": "Save file as",
+  "defaultName": "export.json",
+  "filters": [
+    { "name": "JSON Files", "extensions": ["json"] },
+    { "name": "All Files", "extensions": ["*"] }
+  ]
+}
+```
+
+- `title` (string, optional): Dialog title.
+- `defaultName` (string, optional): Suggested filename.
+- `filters` (array, optional): File type filters mapped directly to Windows dialog filters.
+- The backend may ignore unsupported or malformed filters.
+
+---
+
+#### **Behavior**
+
+- Backend must use **`IFileSaveDialog`**.
+- The dialog is modal and blocks until user action.
+- Overwrite confirmation is handled **by the OS dialog**, not by the backend.
+- Backend must **not** create, truncate, or touch the file.
+- Returned paths must be absolute and normalized.
+- Operation is idempotent and side-effect free.
+
+---
+
+#### **Response (Success)**
+
+```json
+{
+  "result": "success",
+  "arguments": {
+    "path": "C:/Users/.../Documents/export.json"
+  }
+}
+```
+
+---
+
+#### **Response (User Cancelled)**
+
+```json
+{
+  "result": "success",
+  "arguments": {
+    "path": null
+  }
+}
+```
+
+`null` **always** indicates user cancellation and is **not an error**.
+
+---
+
+#### **Errors**
+
+Standard error format applies:
+
+- `"native dialogs not supported"`
+- `"interactive session required"`
+- `"dialog already active"`
+
+---
+
+### **Implementation Notes (Normative)**
+
+- Must be executed on an STA thread.
+- Must not be callable concurrently with another dialog.
+- Legacy APIs (`GetSaveFileName`) are forbidden.
+
+---
+
+#### **Intended Uses**
+
+- Exporting statistics
+- Saving configuration snapshots
+- Writing debug or diagnostic output
+
+Actual file writing must be performed by a **separate RPC** using the returned path.
+
+---
+
+## **6. Historical Traffic API (`history-*`)**
 
 **Concept:** Time-series data with server-side aggregation.
 **Transport:** HTTP RPC Only (Excluded from WebSocket snapshots to prevent head-of-line blocking).
 
-### **5.1 Retrieve History**
+### **6.1 Retrieve History**
 
 **Method:** `history-get`
 **Arguments:**
@@ -324,7 +664,7 @@ Returns a dense array of tuples for bandwidth efficiency.
 - **Average Speed (Line):** `SumDown / step`.
 - **Peak Speed (Shadow):** `PeakDown / recording-interval`.
 
-### **5.2 Clear History**
+### **6.2 Clear History**
 
 **Method:** `history-clear`
 **Arguments:**
@@ -333,9 +673,9 @@ Returns a dense array of tuples for bandwidth efficiency.
 
 ---
 
-## **6. Engine Configuration (`session-set` / `session-get`)**
+## **7. Engine Configuration (`session-set` / `session-get`)**
 
-### **6.1 Proxy Configuration (Secure)**
+### **7.1 Proxy Configuration (Secure)**
 
 To achieve qBittorrent parity while maintaining security:
 
@@ -351,13 +691,13 @@ To achieve qBittorrent parity while maintaining security:
 - **Read Fields (`session-get`):**
   - **Redaction Rule:** The `proxy-password` field **must** return `<REDACTED>` or `null` in the response. It must **never** be sent in cleartext, even to an authenticated client.
 
-### **6.2 Path Handling**
+### **7.2 Path Handling**
 
 - **Fields:** `download-dir`, `incomplete-dir`, `watch-dir`.
 - **Normalization:** The Backend **must** normalize path separators (converting `/` to `\` on Windows) upon receipt, before storing in `settings.json`.
 - **Auto-Creation (Fail-safe):** If a user sets a path (via `session-set` or `torrent-add`) that does not exist, the backend **must** attempt to create it automatically. This ensures downloads do not fail simply because the user skipped the explicit "Create Folder" step.
 
-### **6.3 Queueing & Automation**
+### **7.3 Queueing & Automation**
 
 - `queue-download-enabled` / `queue-download-size`
 - `queue-seed-enabled` / `queue-seed-size`
@@ -365,7 +705,7 @@ To achieve qBittorrent parity while maintaining security:
 - `incomplete-dir-enabled` / `incomplete-dir`
 - `watch-dir-enabled` / `watch-dir`
 
-### **6.4 Traffic History Configuration**
+### **7.4 Traffic History Configuration**
 
 These keys are available in `session-set` and `session-get`.
 
@@ -374,11 +714,11 @@ These keys are available in `session-set` and `session-get`.
   - **Constraint:** Minimum `60`. Default `300` (5 minutes).
 - `history-retention-days` (Int): Auto-deletion threshold. Default `30` (0 = Infinite).
 
-### **6.5 Tray Helpers**
+### **7.5 Tray Helpers**
 
 The Windows tray is intentionally thin. These RPC helpers expose only the data the tray needs without letting it enumerate every torrent.
 
-#### **6.5.1 session-tray-status**
+#### **7.5.1 session-tray-status**
 
 - **Method:** `session-tray-status` (no arguments)
 - **Auth:** Required (`X-TT-Auth`)
@@ -401,7 +741,7 @@ The Windows tray is intentionally thin. These RPC helpers expose only the data t
 
   `downloadSpeed` / `uploadSpeed` are in bytes per second, ideal for tooltip badges. The tray should show `activeTorrentCount` plus `seedingCount` and switch to the error icon when `anyError` is true. `downloadDir` is optional but, when populated, is guaranteed to be an absolute, normalized path so the tray can issue `system-open` without additional parsing. Use `allPaused` to pick which of the two RPCs below to invoke.
 
-#### **6.5.2 session-pause-all / session-resume-all**
+#### **7.5.2 session-pause-all / session-resume-all**
 
 - **Method:** `session-pause-all` / `session-resume-all`
 - **Auth:** Required
@@ -410,7 +750,7 @@ The Windows tray is intentionally thin. These RPC helpers expose only the data t
 
   Each method returns `serialize_success()` on completion. The tray should call `session-resume-all` when `allPaused` is `true` (showing “Resume All”) and `session-pause-all` when `allPaused` is `false`. If the backend is still initializing and returns an error, retry on the next tooltip poll.
 
-#### **6.5.3 system-install**
+#### **7.5.3 system-install**
 
 - **Method:** `system-install`
 - **Auth:** Required (`X-TT-Auth`)
@@ -451,9 +791,9 @@ The Windows tray is intentionally thin. These RPC helpers expose only the data t
 
 ---
 
-## **7. Torrent Management (`torrent-set` / `torrent-get`)**
+## **8. Torrent Management (`torrent-set` / `torrent-get`)**
 
-### **7.1 Extended Properties**
+### **8.1 Extended Properties**
 
 - `sequential-download` (Bool): Stream priority.
 - `super-seeding` (Bool): Initial seeder mode.
@@ -463,7 +803,7 @@ The Windows tray is intentionally thin. These RPC helpers expose only the data t
   - **Implementation:** Backend must store these in a sidecar map (Hash -> Labels).
   - **Behavior:** Labels persist across restarts via `state.json`.
 
-### **7.2 Extended Status Fields**
+### **8.2 Extended Status Fields**
 
 - `metadata-percent-complete` (Double):
   - Range: 0.0 to 1.0.
@@ -473,7 +813,7 @@ The Windows tray is intentionally thin. These RPC helpers expose only the data t
 
 ---
 
-## **8. Error Handling Standards**
+## **9. Error Handling Standards**
 
 To ensure the Frontend can localize errors correctly, extended methods must return standard Transmission-style errors.
 
