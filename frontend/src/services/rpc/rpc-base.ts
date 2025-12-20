@@ -69,17 +69,6 @@ type AddTorrentResponse = {
 
 const DEFAULT_ENDPOINT =
     import.meta.env.VITE_RPC_ENDPOINT ?? constants.defaults.rpc_endpoint;
-const EXTENSION_MODE_KEY = "tiny-torrent.rpc-extension.enabled";
-
-const isExtensionModeEnabled = () => {
-    if (typeof window === "undefined") {
-        return true;
-    }
-    const stored = window.localStorage.getItem(EXTENSION_MODE_KEY);
-    if (stored === "false") return false;
-    if (stored === "true") return true;
-    return true;
-};
 
 const SUMMARY_FIELDS: Array<keyof TransmissionTorrent> = [
     "id",
@@ -133,6 +122,7 @@ export class TransmissionAdapter implements EngineAdapter {
     private readonly heartbeat = new HeartbeatManager(this);
     private tinyTorrentCapabilities?: TinyTorrentCapabilities | null;
     private websocketSession?: TinyTorrentWebSocketSession;
+    private tinyTorrentFeaturesEnabled = false;
 
     private getTinyTorrentAuthToken(): string | undefined {
         const token = sessionStorage.getItem("tt-auth-token");
@@ -164,6 +154,15 @@ export class TransmissionAdapter implements EngineAdapter {
 
     public updateRequestTimeout(timeout: number) {
         this.requestTimeout = timeout;
+    }
+
+    public setTinyTorrentFeaturesEnabled(enabled: boolean) {
+        this.tinyTorrentFeaturesEnabled = enabled;
+        if (!enabled) {
+            this.closeWebSocketSession();
+            return;
+        }
+        this.ensureWebsocketConnection();
     }
 
     private getAuthorizationHeader(): string | undefined {
@@ -303,7 +302,7 @@ export class TransmissionAdapter implements EngineAdapter {
     }
 
     private ensureWebsocketConnection() {
-        if (!isExtensionModeEnabled()) {
+        if (!this.tinyTorrentFeaturesEnabled) {
             this.closeWebSocketSession();
             return;
         }
@@ -427,12 +426,8 @@ export class TransmissionAdapter implements EngineAdapter {
         });
         this.sessionSettingsCache = result.arguments;
         this.engineInfoCache = undefined;
-        if (isExtensionModeEnabled()) {
-            await this.refreshExtendedCapabilities();
-        } else {
-            this.tinyTorrentCapabilities = null;
-            this.closeWebSocketSession();
-        }
+        this.tinyTorrentCapabilities = undefined;
+        this.closeWebSocketSession();
         return result.arguments;
     }
 
@@ -473,11 +468,6 @@ export class TransmissionAdapter implements EngineAdapter {
     public async getExtendedCapabilities(
         force = false
     ): Promise<TinyTorrentCapabilities | null> {
-        if (!isExtensionModeEnabled()) {
-            this.tinyTorrentCapabilities = null;
-            this.closeWebSocketSession();
-            return null;
-        }
         if (force || this.tinyTorrentCapabilities === undefined) {
             await this.refreshExtendedCapabilities();
         } else {

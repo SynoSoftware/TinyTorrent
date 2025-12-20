@@ -18,7 +18,7 @@ import {
     type KeyboardEvent,
 } from "react";
 import { useTranslation } from "react-i18next";
-import { formatBytes } from "../../utils/format";
+import { formatBytes } from "@/shared/utils/format";
 import { browseDirectories } from "@/services/rpc/rpc-extended";
 import type {
     DirectoryBrowseResult,
@@ -26,8 +26,8 @@ import type {
 } from "@/services/rpc/types";
 import { useRpcExtension } from "@/app/context/RpcExtensionContext";
 import { useTorrentClient } from "@/app/providers/TorrentClientProvider";
-import { ICON_STROKE_WIDTH } from "../../../config/logic";
-import { INTERACTION_CONFIG } from "../../../config/logic";
+import { ICON_STROKE_WIDTH } from "@/config/logic";
+import { INTERACTION_CONFIG } from "@/config/logic";
 import { GLASS_MODAL_SURFACE } from "../layout/glass-surface";
 
 interface DirectoryPickerProps {
@@ -54,6 +54,8 @@ export function DirectoryPicker({
     const [creationError, setCreationError] = useState<string | null>(null);
     const torrentClient = useTorrentClient();
     const { isMocked, shouldUseExtension } = useRpcExtension();
+    const canCreateDirectory =
+        shouldUseExtension && Boolean(torrentClient.createDirectory);
 
     useEffect(() => {
         if (isOpen) {
@@ -136,11 +138,12 @@ export function DirectoryPicker({
         if (!selectedPath) {
             return;
         }
-        if (torrentClient.createDirectory) {
+        const createDirectory = torrentClient.createDirectory;
+        if (canCreateDirectory && createDirectory) {
             setIsCreating(true);
             setCreationError(null);
             try {
-                await torrentClient.createDirectory(selectedPath);
+                await createDirectory(selectedPath);
             } catch (createError) {
                 setCreationError(
                     createError instanceof Error
@@ -153,7 +156,7 @@ export function DirectoryPicker({
             }
         }
         onSelect(selectedPath);
-    }, [selectedPath, torrentClient, onSelect, t]);
+    }, [canCreateDirectory, onSelect, selectedPath, t, torrentClient]);
 
     const goUp = () => {
         if (!browseResult) return;
@@ -174,7 +177,9 @@ export function DirectoryPicker({
 
     const renderEntry = (entry: DirectoryNode) => {
         const subtitle = entry.freeBytes
-            ? `${formatBytes(entry.freeBytes)} free`
+            ? t("directory_browser.free_space", {
+                  size: formatBytes(entry.freeBytes),
+              })
             : entry.type === "drive"
             ? t("directory_browser.drive_label")
             : undefined;

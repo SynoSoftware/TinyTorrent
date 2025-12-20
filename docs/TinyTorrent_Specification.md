@@ -250,61 +250,125 @@ Next Steps:
 - Verify whether UI pages are demand-paged and released.
 - Decide whether explicit eviction or alternative serving is needed.
 
-## **9. Extension Mode vs Core Mode UI Rules**
+## **9. RPC Extension UI Rules (Core vs Extension Mode)**
 
-- `extended_mock_notice` must be displayed **only when Extension Mode is enabled**.
-- When Extension Mode is **disabled**, the application must **never** use mock data of any kind.
+## Scope (Mandatory — read first)
 
----
+These rules apply **only** to **RPC extensions** and UI elements whose existence or behavior depends on RPC extension support.
 
-### **No-Extension Mode (Core Mode)**
+This is **not** about:
 
-- If no extensions are available or enabled:
-
-  - There is **no extension functionality**.
-  - **No features may appear disabled** due to missing extensions — such features must be **hidden entirely**.
-  - There is **no mock data** in Core Mode.
-    Core Mode must not simulate or preview Extension Mode behavior.
-  - Extension-related UI elements **must not exist** in the interface.
-
-- The UI must behave as if extension features were **never part of the product**.
-- Directory and disk helpers that currently rely on mock data:
-
-  - must **not run** in Core Mode
-  - must **not appear** if they require extensions
+- generic UI feature flags
+- optional UI affordances
+- partially supported items
 
 ---
 
-### **Extension-Enabled Mode**
+## Absolute UI Axiom (Non-Negotiable)
 
-- When Extension Mode is enabled:
+> **UI items must never express RPC extension availability, simulation, or warning state.**
 
-  - Extension features become fully available.
-  - If the connected server does **not** support extensions:
+Per-item warnings, notices, mock indicators, or “simulated / unsupported” messages are **not a valid UI concept** and must **not exist in any mode**.
 
-    - mock data **may be provided**
-    - the user **must be explicitly informed** that mock data is being used
+Items are **pure**:
 
-- Mock data is **only permitted in Extension Mode** and **only as a fallback** when the server lacks support.
-
----
-
-### **Design Constraint (Mandatory)**
-
-- Both modes (Core Mode and Extension Mode) must be **fully valid, complete user experiences**.
-- The UI must be designed so that switching between modes:
-
-  - does not break layout
-  - does not introduce visual gaps
-  - does not feel like features were removed or disabled
-
-- The user must never perceive either mode as degraded or incomplete.
-- The UI architecture must allow seamless merging or toggling between modes without UI redesign.
+- they either exist and work normally
+- or they do not exist at all
 
 ---
 
-## **Key Principle**
+## Core Mode (No RPC Extensions)
 
-> **No extensions ≠ disabled features** > **No extensions = those features do not exist**
+When RPC extensions are not available or not enabled:
 
-This is a **hard rule**, not a UX suggestion.
+- There is **no RPC extension functionality**
+- UI elements that depend on RPC extensions **must not exist**
+- No feature may appear:
+
+  - disabled
+  - degraded
+  - simulated
+  - partially present
+
+- **No mock data is allowed**
+- **No per-item warnings or notices are allowed**
+- The UI must behave as if RPC extensions were **never part of the product**
+
+Examples:
+
+- Directory helpers
+- Disk helpers
+- Autorun / system integration features
+
+If they require RPC extensions, they **do not appear**.
+They do not warn. They do not explain. They simply do not exist.
+
+---
+
+## Extension Mode (RPC Extensions Enabled)
+
+When RPC extensions are enabled:
+
+- RPC-backed features become fully available
+- Items still **must not** display per-item warnings or mock notices
+- Items must render as normal, fully functional UI elements
+
+If RPC extensions are enabled but the connected server lacks support:
+
+- Mock or simulated data **may** be used
+- **Any explanation must be global, app-level only**
+
+  - single banner
+  - single toast
+  - single notice
+
+Per-item messaging is **still forbidden**.
+
+---
+
+## Explicitly Forbidden (All Modes)
+
+The following must **never** exist at item / row / box / card level:
+
+- warnings
+- mock notices
+- “simulated” labels
+- “extensions missing” messages
+- capability badges
+- tooltips explaining missing RPC support
+
+This includes (but is not limited to) item-level usage of:
+
+- `mock_program_files`
+- `autorun_mock_notice`
+- `install.mock_notice`
+
+These concepts may only exist **globally**, or not at all.
+
+---
+
+## Design Constraints (Mandatory)
+
+- Core Mode and Extension Mode must both be:
+
+  - complete
+  - coherent
+  - non-degraded user experiences
+
+- Switching modes must:
+
+  - not break layout
+  - not introduce gaps
+  - not feel like features were removed or disabled
+
+- The UI structure must allow toggling modes without redesign
+
+---
+
+## Key Principle (Restated Precisely)
+
+> **No RPC extensions ≠ disabled items** > **No RPC extensions = those items do not exist**
+
+> **Warnings are not moved between modes — they are deleted from item-level UI entirely.**
+
+Once this is enforced, consistency is automatic and hacks disappear.

@@ -331,7 +331,6 @@ export default function App() {
     ]);
 
     const {
-        globalActionFeedback,
         optimisticStatuses,
         pendingDelete,
         handleBulkAction,
@@ -599,7 +598,6 @@ export default function App() {
                     openSettings={openSettings}
                     selectedTorrents={selectedTorrents}
                     handleBulkAction={handleBulkAction}
-                    globalActionFeedback={globalActionFeedback}
                     rehashStatus={rehashStatus}
                     workspaceStyle={workspaceStyle}
                     toggleWorkspaceStyle={toggleWorkspaceStyle}

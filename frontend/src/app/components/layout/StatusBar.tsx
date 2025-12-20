@@ -18,14 +18,9 @@ import type {
 } from "../../../services/rpc/entities";
 import type { RpcStatus } from "../../../shared/types/rpc";
 import { ICON_STROKE_WIDTH } from "../../../config/logic";
-import type {
-    FeedbackMessage,
-    FeedbackTone,
-} from "../../../shared/types/feedback";
 import {
     BLOCK_SHADOW,
     GLASS_BLOCK_SURFACE,
-    PANEL_SHADOW,
 } from "../../../shared/ui/layout/glass-surface";
 
 // --- LAYOUT CONFIGURATION ---
@@ -45,20 +40,12 @@ const LAYOUT_CONFIG = {
     height: "h-[76px]",
 };
 
-const FEEDBACK_TONE_CLASSES: Record<FeedbackTone, string> = {
-    info: "text-primary",
-    success: "text-success",
-    warning: "text-warning",
-    danger: "text-danger",
-};
-
 interface StatusBarProps {
     sessionStats: SessionStats | null;
     downHistory: number[];
     upHistory: number[];
     rpcStatus: RpcStatus;
     selectedTorrent?: TorrentEntity | null;
-    actionFeedback?: FeedbackMessage | null;
     onEngineClick?: () => void;
 }
 
@@ -68,7 +55,6 @@ export function StatusBar({
     upHistory,
     rpcStatus,
     selectedTorrent,
-    actionFeedback,
     onEngineClick,
 }: StatusBarProps) {
     const { t } = useTranslation();
@@ -138,20 +124,6 @@ export function StatusBar({
                 BLOCK_SHADOW
             )}
         >
-            {actionFeedback && (
-                <div className="pointer-events-none absolute inset-x-6 -top-5 flex justify-end">
-                    <div
-                        className={cn(
-                            "rounded-full border border-content1/20 bg-content1/90 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] backdrop-blur-md",
-                            PANEL_SHADOW,
-                            FEEDBACK_TONE_CLASSES[actionFeedback.tone]
-                        )}
-                        aria-live="polite"
-                    >
-                        {actionFeedback.message}
-                    </div>
-                </div>
-            )}
             <div
                 className={cn(
                     "flex items-center justify-between px-6",

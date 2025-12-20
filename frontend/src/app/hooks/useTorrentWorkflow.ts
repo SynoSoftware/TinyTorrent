@@ -28,8 +28,7 @@ export function useTorrentWorkflow({
     executeTorrentAction,
 }: UseTorrentWorkflowParams) {
     const { t } = useTranslation();
-    const { globalActionFeedback, announceAction, showFeedback } =
-        useActionFeedback();
+    const { announceAction, showFeedback } = useActionFeedback();
     const { optimisticStatuses, updateOptimisticStatuses } =
         useOptimisticStatuses(torrents);
     const [pendingDelete, setPendingDelete] = useState<DeleteIntent | null>(null);
@@ -181,7 +180,6 @@ export function useTorrentWorkflow({
     }, [announceAction, executeTorrentAction, pendingDelete]);
 
     return {
-        globalActionFeedback,
         optimisticStatuses,
         pendingDelete,
         confirmDelete,

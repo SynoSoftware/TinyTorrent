@@ -17,6 +17,7 @@
         "@heroui/react": "^2.8.5",
         "@heroui/system": "^2.4.23",
         "@heroui/theme": "^2.4.23",
+        "@heroui/toast": "^2.0.17",
         "@tanstack/react-table": "^8.21.3",
         "@tanstack/react-virtual": "^3.13.12",
         "cmdk": "^1.1.1",

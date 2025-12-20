@@ -27,11 +27,9 @@ import type { SettingsConfig } from "../../modules/settings/data/config";
 import { INTERACTION_CONFIG } from "../../config/logic";
 import { ICON_STROKE_WIDTH } from "../../config/logic";
 import { GLASS_MODAL_SURFACE } from "../../shared/ui/layout/glass-surface";
-import { useRpcExtension } from "../context/RpcExtensionContext";
 import type {
     AmbientHudCard,
     DeleteIntent,
-    GlobalActionFeedback,
     RehashStatus,
 } from "../types/workspace";
 import type {
@@ -86,7 +84,6 @@ interface WorkspaceShellProps {
     openSettings: () => void;
     selectedTorrents: Torrent[];
     handleBulkAction: (action: TorrentTableAction) => Promise<void>;
-    globalActionFeedback: GlobalActionFeedback | null;
     rehashStatus?: RehashStatus;
     workspaceStyle: WorkspaceStyle;
     toggleWorkspaceStyle: () => void;
@@ -165,7 +162,6 @@ export function WorkspaceShell({
     openSettings,
     selectedTorrents,
     handleBulkAction,
-    globalActionFeedback,
     rehashStatus,
     workspaceStyle,
     toggleWorkspaceStyle,
@@ -217,8 +213,6 @@ export function WorkspaceShell({
     torrentClient,
 }: WorkspaceShellProps) {
     const { t } = useTranslation();
-    const { isMocked, shouldUseExtension } = useRpcExtension();
-    const canUseExtensionHelpers = shouldUseExtension || isMocked;
     const isImmersiveShell = workspaceStyle === "immersive";
 
     const workspaceStyleToggleLabel =
@@ -263,7 +257,6 @@ export function WorkspaceShell({
             onRemoveSelection={() => {
                 void handleBulkAction("remove");
             }}
-            actionFeedback={globalActionFeedback}
             rehashStatus={rehashStatus}
             workspaceStyle={workspaceStyle}
             onWorkspaceToggle={toggleWorkspaceStyle}
@@ -308,7 +301,6 @@ export function WorkspaceShell({
             upHistory={upHistory}
             rpcStatus={rpcStatus}
             selectedTorrent={detailData ?? undefined}
-            actionFeedback={globalActionFeedback}
             onEngineClick={handleReconnect}
         />
     );
@@ -545,11 +537,6 @@ export function WorkspaceShell({
                 initialMagnetLink={incomingMagnetLink ?? undefined}
                 onAdd={handleAddTorrent}
                 isSubmitting={isAddingTorrent}
-                getFreeSpace={
-                    canUseExtensionHelpers
-                        ? torrentClient.checkFreeSpace
-                        : undefined
-                }
             />
             <SettingsModal
                 isOpen={isSettingsOpen}

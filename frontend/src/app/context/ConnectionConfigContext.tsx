@@ -7,7 +7,7 @@ import {
     useState,
 } from "react";
 import type { ReactNode } from "react";
-import constants from "../../config/constants.json";
+import constants from "@/config/constants.json";
 
 export interface ConnectionProfile {
     id: string;
@@ -35,8 +35,9 @@ interface ConnectionConfigContextValue {
 
 const STORAGE_KEY = "tiny-torrent.connection.profiles";
 const ACTIVE_KEY = "tiny-torrent.connection.active";
-const DEFAULT_PROFILE_ID = "default-connection";
-const DEFAULT_PROFILE_LABEL = "Local Transmission";
+export const DEFAULT_PROFILE_ID = "default-connection";
+const LEGACY_DEFAULT_PROFILE_LABELS = new Set(["Local Transmission", "Local server"]);
+const DEFAULT_PROFILE_LABEL = "";
 
 const DEFAULT_RPC_PATH = constants.defaults.rpc_endpoint;
 const NORMALIZED_RPC_PATH = DEFAULT_RPC_PATH.startsWith("/")
@@ -93,6 +94,18 @@ export const buildRpcEndpoint = (profile: ConnectionProfile) => {
     const needsBrackets = validHost.includes(":") && !validHost.startsWith("[");
     const host = needsBrackets ? `[${validHost}]` : validHost;
     return `${profile.scheme}://${host}:${port}${NORMALIZED_RPC_PATH}`;
+};
+
+export const buildRpcServerUrl = (profile: ConnectionProfile) => {
+    const validHost = profile.host.trim() || DEFAULT_RPC_HOST;
+    const portNumber = Number.parseInt(profile.port, 10);
+    const port =
+        Number.isFinite(portNumber) && portNumber > 0
+            ? String(portNumber)
+            : DEFAULT_RPC_PORT;
+    const needsBrackets = validHost.includes(":") && !validHost.startsWith("[");
+    const host = needsBrackets ? `[${validHost}]` : validHost;
+    return `${profile.scheme}://${host}:${port}`;
 };
 
 const createDefaultProfile = (): ConnectionProfile => ({
@@ -186,7 +199,16 @@ const loadProfiles = (): ConnectionProfile[] => {
         if (sanitized.length === 0) {
             return [createDefaultProfile()];
         }
-        return sanitized;
+        const migrated = sanitized.map((profile) => {
+            if (
+                profile.id === DEFAULT_PROFILE_ID &&
+                LEGACY_DEFAULT_PROFILE_LABELS.has(profile.label)
+            ) {
+                return { ...profile, label: DEFAULT_PROFILE_LABEL };
+            }
+            return profile;
+        });
+        return migrated;
     } catch {
         return [createDefaultProfile()];
     }
