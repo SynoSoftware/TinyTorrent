@@ -249,3 +249,62 @@ Next Steps:
 - Inspect memory mappings of the process before/after UI access.
 - Verify whether UI pages are demand-paged and released.
 - Decide whether explicit eviction or alternative serving is needed.
+
+## **9. Extension Mode vs Core Mode UI Rules**
+
+- `extended_mock_notice` must be displayed **only when Extension Mode is enabled**.
+- When Extension Mode is **disabled**, the application must **never** use mock data of any kind.
+
+---
+
+### **No-Extension Mode (Core Mode)**
+
+- If no extensions are available or enabled:
+
+  - There is **no extension functionality**.
+  - **No features may appear disabled** due to missing extensions — such features must be **hidden entirely**.
+  - There is **no mock data** in Core Mode.
+    Core Mode must not simulate or preview Extension Mode behavior.
+  - Extension-related UI elements **must not exist** in the interface.
+
+- The UI must behave as if extension features were **never part of the product**.
+- Directory and disk helpers that currently rely on mock data:
+
+  - must **not run** in Core Mode
+  - must **not appear** if they require extensions
+
+---
+
+### **Extension-Enabled Mode**
+
+- When Extension Mode is enabled:
+
+  - Extension features become fully available.
+  - If the connected server does **not** support extensions:
+
+    - mock data **may be provided**
+    - the user **must be explicitly informed** that mock data is being used
+
+- Mock data is **only permitted in Extension Mode** and **only as a fallback** when the server lacks support.
+
+---
+
+### **Design Constraint (Mandatory)**
+
+- Both modes (Core Mode and Extension Mode) must be **fully valid, complete user experiences**.
+- The UI must be designed so that switching between modes:
+
+  - does not break layout
+  - does not introduce visual gaps
+  - does not feel like features were removed or disabled
+
+- The user must never perceive either mode as degraded or incomplete.
+- The UI architecture must allow seamless merging or toggling between modes without UI redesign.
+
+---
+
+## **Key Principle**
+
+> **No extensions ≠ disabled features** > **No extensions = those features do not exist**
+
+This is a **hard rule**, not a UX suggestion.
