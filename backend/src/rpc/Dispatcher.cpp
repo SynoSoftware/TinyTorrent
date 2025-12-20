@@ -18,6 +18,7 @@
 #endif
 #include "rpc/Dispatcher.hpp"
 
+#include "rpc/DialogHelpers.hpp"
 #include "rpc/FsHooks.hpp"
 #include "rpc/Serializer.hpp"
 #include "utils/Base64.hpp"
@@ -29,6 +30,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cctype>
 #include <chrono>
 #include <cstddef>
@@ -38,6 +40,7 @@
 #include <filesystem>
 #include <format>
 #include <fstream>
+#include <functional>
 #include <future>
 #include <limits>
 #include <memory>
@@ -323,6 +326,414 @@ bool create_windows_shortcut(std::filesystem::path const &link_path,
     shell_link->Release();
     return SUCCEEDED(hr);
 }
+
+std::atomic<bool> g_dialog_active(false);
+
+bool try_acquire_dialog_slot()
+{
+    bool expected = false;
+    return g_dialog_active.compare_exchange_strong(expected, true);
+}
+
+void release_dialog_slot()
+{
+    g_dialog_active.store(false);
+}
+
+struct DialogSlotGuard
+{
+    DialogSlotGuard() = default;
+    ~DialogSlotGuard()
+    {
+        release_dialog_slot();
+    }
+};
+
+bool interactive_session_available()
+{
+    HDESK desktop = OpenInputDesktop(0, FALSE, DESKTOP_READOBJECTS);
+    if (desktop == nullptr)
+    {
+        return false;
+    }
+    CloseDesktop(desktop);
+    return true;
+}
+
+std::string trim_dialog_string(std::string_view value)
+{
+    auto start = value.find_first_not_of(" \t\r\n");
+    if (start == std::string_view::npos)
+    {
+        return {};
+    }
+    auto end = value.find_last_not_of(" \t\r\n");
+    return std::string(value.substr(start, end - start + 1));
+}
+
+std::wstring extension_to_pattern(std::string const &value)
+{
+    if (value.empty())
+    {
+        return {};
+    }
+    if (value == "*")
+    {
+        return L"*.*";
+    }
+    if (value.find('*') != std::string::npos)
+    {
+        return utf8_to_wide(value);
+    }
+    auto sanitized = value;
+    if (!sanitized.empty() && sanitized.front() == '.')
+    {
+        sanitized.erase(0, 1);
+    }
+    if (sanitized.empty())
+    {
+        return {};
+    }
+    return std::wstring(L"*.") + utf8_to_wide(sanitized);
+}
+
+std::optional<std::vector<DialogFilterSpec>>
+parse_dialog_filters(yyjson_val *arguments, std::string &error)
+{
+    std::vector<DialogFilterSpec> filters;
+    auto *filters_value = arguments ? yyjson_obj_get(arguments, "filters")
+                                    : nullptr;
+    if (!filters_value)
+    {
+        return filters;
+    }
+    if (!yyjson_is_arr(filters_value))
+    {
+        error = "filters must be an array";
+        return std::nullopt;
+    }
+    size_t idx = 0, limit = 0;
+    yyjson_val *entry = nullptr;
+    yyjson_arr_foreach(filters_value, idx, limit, entry)
+    {
+        if (entry == nullptr || !yyjson_is_obj(entry))
+        {
+            continue;
+        }
+        auto *name_value = yyjson_obj_get(entry, "name");
+        auto *extensions = yyjson_obj_get(entry, "extensions");
+        if (name_value == nullptr || !yyjson_is_str(name_value) ||
+            extensions == nullptr || !yyjson_is_arr(extensions))
+        {
+            continue;
+        }
+        auto name = utf8_to_wide(yyjson_get_str(name_value));
+        std::wstring pattern;
+        size_t ext_idx = 0, ext_limit = 0;
+        yyjson_val *extension_entry = nullptr;
+        yyjson_arr_foreach(extensions, ext_idx, ext_limit, extension_entry)
+        {
+            if (extension_entry == nullptr || !yyjson_is_str(extension_entry))
+            {
+                continue;
+            }
+            auto trimmed =
+                trim_dialog_string(yyjson_get_str(extension_entry));
+            if (trimmed.empty())
+            {
+                continue;
+            }
+            auto spec = extension_to_pattern(trimmed);
+            if (spec.empty())
+            {
+                continue;
+            }
+            if (!pattern.empty())
+            {
+                pattern += L";";
+            }
+            pattern += spec;
+        }
+        if (pattern.empty())
+        {
+            continue;
+        }
+        filters.push_back({std::move(name), std::move(pattern)});
+    }
+    return filters;
+}
+
+std::optional<std::string> shell_item_to_path(IShellItem *item)
+{
+    if (item == nullptr)
+    {
+        return std::nullopt;
+    }
+    PWSTR path = nullptr;
+    auto hr = item->GetDisplayName(SIGDN_FILESYSPATH, &path);
+    if (FAILED(hr) || path == nullptr)
+    {
+        if (path != nullptr)
+        {
+            CoTaskMemFree(path);
+        }
+        return std::nullopt;
+    }
+    std::filesystem::path candidate(path);
+    CoTaskMemFree(path);
+    return candidate.lexically_normal().string();
+}
+
+DialogPathsOutcome show_file_open_dialog(OpenDialogOptions const &options)
+{
+    DialogPathsOutcome outcome;
+    IFileOpenDialog *dialog = nullptr;
+    auto hr = CoCreateInstance(CLSID_FileOpenDialog, nullptr,
+                               CLSCTX_INPROC_SERVER,
+                               IID_PPV_ARGS(&dialog));
+    if (FAILED(hr) || dialog == nullptr)
+    {
+        outcome.error = "unable to create dialog";
+        return outcome;
+    }
+    DWORD dialog_options = 0;
+    if (FAILED(dialog->GetOptions(&dialog_options)))
+    {
+        outcome.error = "unable to configure dialog";
+        dialog->Release();
+        return outcome;
+    }
+    dialog_options |= FOS_FORCEFILESYSTEM | FOS_PATHMUSTEXIST |
+                      FOS_FILEMUSTEXIST;
+    if (options.allow_multiple)
+    {
+        dialog_options |= FOS_ALLOWMULTISELECT;
+    }
+    dialog->SetOptions(dialog_options);
+    if (!options.title.empty())
+    {
+        dialog->SetTitle(options.title.c_str());
+    }
+    if (!options.filters.empty())
+    {
+        std::vector<COMDLG_FILTERSPEC> com_filters;
+        com_filters.reserve(options.filters.size());
+        for (auto const &filter : options.filters)
+        {
+            COMDLG_FILTERSPEC spec;
+            spec.pszName = filter.name.c_str();
+            spec.pszSpec = filter.pattern.c_str();
+            com_filters.push_back(spec);
+        }
+        dialog->SetFileTypes(static_cast<UINT>(com_filters.size()),
+                             com_filters.data());
+    }
+    hr = dialog->Show(nullptr);
+    if (hr == HRESULT_FROM_WIN32(ERROR_CANCELLED))
+    {
+        outcome.cancelled = true;
+        dialog->Release();
+        return outcome;
+    }
+    if (FAILED(hr))
+    {
+        outcome.error = "dialog failed";
+        dialog->Release();
+        return outcome;
+    }
+    if (options.allow_multiple)
+    {
+        IShellItemArray *results = nullptr;
+        hr = dialog->GetResults(&results);
+        if (FAILED(hr) || results == nullptr)
+        {
+            outcome.error = "unable to retrieve selection";
+            dialog->Release();
+            return outcome;
+        }
+        DWORD count = 0;
+        if (SUCCEEDED(results->GetCount(&count)))
+        {
+            for (DWORD index = 0; index < count; ++index)
+            {
+                IShellItem *item = nullptr;
+                if (SUCCEEDED(results->GetItemAt(index, &item)) && item)
+                {
+                    if (auto path = shell_item_to_path(item))
+                    {
+                        outcome.paths.push_back(std::move(*path));
+                    }
+                    item->Release();
+                }
+            }
+        }
+        results->Release();
+    }
+    else
+    {
+        IShellItem *item = nullptr;
+        hr = dialog->GetResult(&item);
+        if (SUCCEEDED(hr) && item)
+        {
+            if (auto path = shell_item_to_path(item))
+            {
+                outcome.paths.push_back(std::move(*path));
+            }
+            item->Release();
+        }
+        else
+        {
+            outcome.error = "unable to retrieve selection";
+            dialog->Release();
+            return outcome;
+        }
+    }
+    dialog->Release();
+    if (outcome.paths.empty())
+    {
+        outcome.cancelled = true;
+    }
+    return outcome;
+}
+
+DialogPathOutcome show_folder_dialog(FolderDialogOptions const &options)
+{
+    DialogPathOutcome outcome;
+    IFileDialog *dialog = nullptr;
+    auto hr = CoCreateInstance(CLSID_FileOpenDialog, nullptr,
+                               CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dialog));
+    if (FAILED(hr) || dialog == nullptr)
+    {
+        outcome.error = "unable to create dialog";
+        return outcome;
+    }
+    DWORD dialog_options = 0;
+    if (FAILED(dialog->GetOptions(&dialog_options)))
+    {
+        outcome.error = "unable to configure dialog";
+        dialog->Release();
+        return outcome;
+    }
+    dialog_options |= FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM |
+                      FOS_PATHMUSTEXIST;
+    dialog->SetOptions(dialog_options);
+    if (!options.title.empty())
+    {
+        dialog->SetTitle(options.title.c_str());
+    }
+    hr = dialog->Show(nullptr);
+    if (hr == HRESULT_FROM_WIN32(ERROR_CANCELLED))
+    {
+        outcome.cancelled = true;
+        dialog->Release();
+        return outcome;
+    }
+    if (FAILED(hr))
+    {
+        outcome.error = "dialog failed";
+        dialog->Release();
+        return outcome;
+    }
+    IShellItem *item = nullptr;
+    hr = dialog->GetResult(&item);
+    if (SUCCEEDED(hr) && item)
+    {
+        if (auto path = shell_item_to_path(item))
+        {
+            outcome.path = std::move(*path);
+        }
+        item->Release();
+    }
+    else
+    {
+        outcome.error = "unable to retrieve selection";
+        dialog->Release();
+        return outcome;
+    }
+    dialog->Release();
+    return outcome;
+}
+
+DialogPathOutcome show_save_file_dialog(SaveDialogOptions const &options)
+{
+    DialogPathOutcome outcome;
+    IFileSaveDialog *dialog = nullptr;
+    auto hr = CoCreateInstance(CLSID_FileSaveDialog, nullptr,
+                               CLSCTX_INPROC_SERVER,
+                               IID_PPV_ARGS(&dialog));
+    if (FAILED(hr) || dialog == nullptr)
+    {
+        outcome.error = "unable to create dialog";
+        return outcome;
+    }
+    DWORD dialog_options = 0;
+    if (FAILED(dialog->GetOptions(&dialog_options)))
+    {
+        outcome.error = "unable to configure dialog";
+        dialog->Release();
+        return outcome;
+    }
+    dialog_options |= FOS_FORCEFILESYSTEM | FOS_PATHMUSTEXIST;
+    dialog->SetOptions(dialog_options);
+    if (!options.title.empty())
+    {
+        dialog->SetTitle(options.title.c_str());
+    }
+    if (!options.default_name.empty())
+    {
+        dialog->SetFileName(options.default_name.c_str());
+    }
+    if (!options.filters.empty())
+    {
+        std::vector<COMDLG_FILTERSPEC> com_filters;
+        com_filters.reserve(options.filters.size());
+        for (auto const &filter : options.filters)
+        {
+            COMDLG_FILTERSPEC spec;
+            spec.pszName = filter.name.c_str();
+            spec.pszSpec = filter.pattern.c_str();
+            com_filters.push_back(spec);
+        }
+        dialog->SetFileTypes(static_cast<UINT>(com_filters.size()),
+                             com_filters.data());
+    }
+    hr = dialog->Show(nullptr);
+    if (hr == HRESULT_FROM_WIN32(ERROR_CANCELLED))
+    {
+        outcome.cancelled = true;
+        dialog->Release();
+        return outcome;
+    }
+    if (FAILED(hr))
+    {
+        outcome.error = "dialog failed";
+        dialog->Release();
+        return outcome;
+    }
+    IShellItem *item = nullptr;
+    hr = dialog->GetResult(&item);
+    if (SUCCEEDED(hr) && item)
+    {
+        if (auto path = shell_item_to_path(item))
+        {
+            outcome.path = std::move(*path);
+        }
+        item->Release();
+    }
+    else
+    {
+        outcome.error = "unable to retrieve selection";
+        dialog->Release();
+        return outcome;
+    }
+    dialog->Release();
+    return outcome;
+}
+#endif
+#if defined(_WIN32)
+DialogOpenHandler g_dialog_open_handler = show_file_open_dialog;
+DialogFolderHandler g_dialog_folder_handler = show_folder_dialog;
+DialogSaveHandler g_dialog_save_handler = show_save_file_dialog;
 #endif
 
 std::optional<ShortcutRequest>
@@ -1201,6 +1612,68 @@ std::string to_lower_view(std::string_view value)
                    [](unsigned char ch)
                    { return static_cast<char>(std::tolower(ch)); });
     return result;
+}
+
+bool path_prefix_matches(std::string const &path,
+                         std::string_view prefix) noexcept
+{
+    if (path.size() < prefix.size())
+    {
+        return false;
+    }
+    if (path.compare(0, prefix.size(), prefix) != 0)
+    {
+        return false;
+    }
+    if (path.size() == prefix.size())
+    {
+        return true;
+    }
+    char next = path[prefix.size()];
+    return next == '/' || next == '\\';
+}
+
+std::string strip_extended_path_prefix(std::string value) noexcept
+{
+    if (value.rfind("\\\\?\\", 0) == 0)
+    {
+        return value.substr(4);
+    }
+    if (value.rfind("//?/", 0) == 0)
+    {
+        return value.substr(4);
+    }
+    return value;
+}
+
+bool is_restricted_system_path(std::filesystem::path const &target) noexcept
+{
+    if (target.empty())
+    {
+        return false;
+    }
+    auto normalized = target.lexically_normal();
+    std::string path_string;
+    try
+    {
+        path_string = normalized.generic_string();
+    }
+    catch (...)
+    {
+        return false;
+    }
+    path_string = strip_extended_path_prefix(path_string);
+    auto lower_path = to_lower_view(path_string);
+    static constexpr std::array<std::string_view, 4> restricted_prefixes = {
+        "c:/windows", "c:/program files", "c:/program files (x86)", "c:/programdata"};
+    for (auto prefix : restricted_prefixes)
+    {
+        if (path_prefix_matches(lower_path, prefix))
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 std::optional<double> parse_double_value(yyjson_val *value)
@@ -2268,6 +2741,224 @@ void handle_fs_create_dir_async(engine::Core *engine, yyjson_val *arguments,
     }
 }
 
+void handle_fs_write_file_async(engine::Core *engine, yyjson_val *arguments,
+                                ResponseCallback cb)
+{
+    if (!arguments)
+    {
+        cb(serialize_error("arguments required for fs-write-file"));
+        return;
+    }
+    auto *path_value = yyjson_obj_get(arguments, "path");
+    if (path_value == nullptr || !yyjson_is_str(path_value))
+    {
+        cb(serialize_error("path argument required"));
+        return;
+    }
+    std::filesystem::path target(yyjson_get_str(path_value));
+    if (target.empty())
+    {
+        cb(serialize_error("path required"));
+        return;
+    }
+    if (!target.is_absolute())
+    {
+        cb(serialize_error("path must be absolute"));
+        return;
+    }
+    target = target.lexically_normal();
+    auto *data_value = yyjson_obj_get(arguments, "data");
+    if (data_value == nullptr || !yyjson_is_str(data_value))
+    {
+        cb(serialize_error("data argument required"));
+        return;
+    }
+    auto decoded = tt::utils::decode_base64(yyjson_get_str(data_value));
+    if (!decoded)
+    {
+        cb(serialize_error("invalid base64 payload"));
+        return;
+    }
+    bool fail_if_exists = false;
+    if (auto *mode_value = yyjson_obj_get(arguments, "mode"))
+    {
+        if (!yyjson_is_str(mode_value))
+        {
+            cb(serialize_error("mode must be a string"));
+            return;
+        }
+        auto mode = std::string(yyjson_get_str(mode_value));
+        if (mode == "overwrite")
+        {
+            fail_if_exists = false;
+        }
+        else if (mode == "fail-if-exists")
+        {
+            fail_if_exists = true;
+        }
+        else
+        {
+            cb(serialize_error("invalid mode"));
+            return;
+        }
+    }
+    auto work = [target = std::move(target), bytes = std::move(*decoded),
+                 fail_if_exists, cb = std::move(cb)]() mutable
+    {
+        std::filesystem::path temp_path;
+        try
+        {
+            std::error_code ec;
+            auto parent = target.parent_path();
+            if (parent.empty())
+            {
+                cb(serialize_error("invalid path"));
+                return;
+            }
+            if (!std::filesystem::exists(parent, ec))
+            {
+                cb(serialize_error("parent directory not found"));
+                return;
+            }
+            if (!std::filesystem::is_directory(parent, ec))
+            {
+                cb(serialize_error("parent path is not a directory"));
+                return;
+            }
+            if (is_restricted_system_path(target))
+            {
+                cb(serialize_error("permission denied"));
+                return;
+            }
+            ec.clear();
+            bool target_exists = std::filesystem::exists(target, ec);
+            if (ec)
+            {
+                cb(serialize_error(std::format(
+                    "unable to inspect {}: {}", target.string(), ec.message())));
+                return;
+            }
+            if (fail_if_exists && target_exists)
+            {
+                cb(serialize_error("file exists"));
+                return;
+            }
+            auto timestamp =
+                std::chrono::steady_clock::now().time_since_epoch().count();
+            auto thread_hash =
+                std::hash<std::thread::id>{}(std::this_thread::get_id());
+            auto temp_name = std::format(".tt-write-{:x}-{:x}.tmp", timestamp,
+                                         thread_hash);
+            temp_path = parent / temp_name;
+            {
+                std::ofstream output(temp_path,
+                                     std::ios::binary | std::ios::trunc);
+                if (!output)
+                {
+                    cb(serialize_error("unable to write file"));
+                    return;
+                }
+                if (!bytes.empty())
+                {
+                    output.write(reinterpret_cast<char const *>(bytes.data()),
+                                 static_cast<std::streamsize>(bytes.size()));
+                }
+                output.close();
+                if (!output)
+                {
+                    std::error_code remove_ec;
+                    std::filesystem::remove(temp_path, remove_ec);
+                    cb(serialize_error("unable to write file"));
+                    return;
+                }
+            }
+            ec.clear();
+            target_exists = std::filesystem::exists(target, ec);
+            if (ec)
+            {
+                std::error_code remove_ec;
+                std::filesystem::remove(temp_path, remove_ec);
+                cb(serialize_error(std::format(
+                    "unable to inspect {}: {}", target.string(), ec.message())));
+                return;
+            }
+            if (fail_if_exists && target_exists)
+            {
+                std::error_code remove_ec;
+                std::filesystem::remove(temp_path, remove_ec);
+                cb(serialize_error("file exists"));
+                return;
+            }
+#if defined(_WIN32)
+            if (target_exists)
+            {
+                auto target_w = utf8_to_wide(target.string());
+                auto temp_w = utf8_to_wide(temp_path.string());
+                if (target_w.empty() || temp_w.empty())
+                {
+                    std::error_code remove_ec;
+                    std::filesystem::remove(temp_path, remove_ec);
+                    cb(serialize_error("invalid path"));
+                    return;
+                }
+                if (!ReplaceFileW(target_w.c_str(), temp_w.c_str(), nullptr,
+                                  REPLACEFILE_IGNORE_MERGE_ERRORS, nullptr,
+                                  nullptr))
+                {
+                    auto last = GetLastError();
+                    std::error_code replace_ec(
+                        static_cast<int>(last), std::system_category());
+                    std::error_code remove_ec;
+                    std::filesystem::remove(temp_path, remove_ec);
+                    cb(serialize_error(std::format(
+                        "unable to replace file: {}", replace_ec.message())));
+                    return;
+                }
+            }
+            else
+            {
+                std::filesystem::rename(temp_path, target);
+            }
+#else
+            std::filesystem::error_code rename_ec;
+            if (target_exists)
+            {
+                std::filesystem::remove(target, rename_ec);
+            }
+            std::filesystem::rename(temp_path, target);
+#endif
+            cb(serialize_fs_write_result(
+                static_cast<std::uint64_t>(bytes.size())));
+        }
+        catch (std::filesystem::filesystem_error const &ex)
+        {
+            if (!temp_path.empty())
+            {
+                std::error_code remove_ec;
+                std::filesystem::remove(temp_path, remove_ec);
+            }
+            cb(serialize_error(ex.what()));
+        }
+        catch (...)
+        {
+            if (!temp_path.empty())
+            {
+                std::error_code remove_ec;
+                std::filesystem::remove(temp_path, remove_ec);
+            }
+            cb(serialize_error("fs-write-file failed"));
+        }
+    };
+    if (engine)
+    {
+        engine->submit_io_task(std::move(work));
+    }
+    else
+    {
+        work();
+    }
+}
+
 void handle_history_get(engine::Core *engine, yyjson_val *arguments,
                         ResponseCallback cb)
 {
@@ -2484,6 +3175,199 @@ void handle_system_open_async(engine::Core *engine, yyjson_val *arguments,
             }
             cb(serialize_system_action("system-open", success, message));
     });
+}
+
+void handle_dialog_open_file(yyjson_val *arguments, ResponseCallback cb)
+{
+#if defined(_WIN32)
+    std::string parse_error;
+    auto filters = parse_dialog_filters(arguments, parse_error);
+    if (!filters)
+    {
+        cb(serialize_error(parse_error.empty() ? "invalid filters"
+                                              : parse_error));
+        return;
+    }
+    OpenDialogOptions options;
+    options.filters = std::move(*filters);
+    if (auto *title = arguments ? yyjson_obj_get(arguments, "title")
+                                : nullptr;
+        title && yyjson_is_str(title))
+    {
+        options.title = utf8_to_wide(yyjson_get_str(title));
+    }
+    options.allow_multiple =
+        bool_value(yyjson_obj_get(arguments, "allowMultiple"));
+    if (!try_acquire_dialog_slot())
+    {
+        cb(serialize_error("dialog already active"));
+        return;
+    }
+    try
+    {
+        std::thread([options = std::move(options), cb = std::move(cb)]() mutable
+                    {
+                        DialogSlotGuard guard;
+                        ScopedCOM com;
+                        if (!com.initialized())
+                        {
+                            cb(serialize_error("native dialogs not supported"));
+                            return;
+                        }
+                        if (!interactive_session_available())
+                        {
+                            cb(serialize_error("interactive session required"));
+                            return;
+                        }
+                        auto outcome = g_dialog_open_handler(options);
+                        if (!outcome.error.empty())
+                        {
+                            cb(serialize_error(outcome.error));
+                            return;
+                        }
+                        if (outcome.cancelled)
+                        {
+                            cb(serialize_dialog_paths({}));
+                            return;
+                        }
+                        cb(serialize_dialog_paths(outcome.paths));
+                    })
+            .detach();
+    }
+    catch (std::system_error const &)
+    {
+        release_dialog_slot();
+        cb(serialize_error("dialog unavailable"));
+    }
+#else
+    cb(serialize_error("native dialogs not supported"));
+#endif
+}
+
+void handle_dialog_select_folder(yyjson_val *arguments, ResponseCallback cb)
+{
+#if defined(_WIN32)
+    FolderDialogOptions options;
+    if (auto *title = arguments ? yyjson_obj_get(arguments, "title") : nullptr;
+        title && yyjson_is_str(title))
+    {
+        options.title = utf8_to_wide(yyjson_get_str(title));
+    }
+    if (!try_acquire_dialog_slot())
+    {
+        cb(serialize_error("dialog already active"));
+        return;
+    }
+    try
+    {
+        std::thread([options = std::move(options), cb = std::move(cb)]() mutable
+                    {
+                        DialogSlotGuard guard;
+                        ScopedCOM com;
+                        if (!com.initialized())
+                        {
+                            cb(serialize_error("native dialogs not supported"));
+                            return;
+                        }
+                        if (!interactive_session_available())
+                        {
+                            cb(serialize_error("interactive session required"));
+                            return;
+                        }
+                        auto outcome = g_dialog_folder_handler(options);
+                        if (!outcome.error.empty())
+                        {
+                            cb(serialize_error(outcome.error));
+                            return;
+                        }
+                        if (outcome.cancelled)
+                        {
+                            cb(serialize_dialog_path(std::nullopt));
+                            return;
+                        }
+                        cb(serialize_dialog_path(outcome.path));
+                    })
+            .detach();
+    }
+    catch (std::system_error const &)
+    {
+        release_dialog_slot();
+        cb(serialize_error("dialog unavailable"));
+    }
+#else
+    cb(serialize_error("native dialogs not supported"));
+#endif
+}
+
+void handle_dialog_save_file(yyjson_val *arguments, ResponseCallback cb)
+{
+#if defined(_WIN32)
+    std::string parse_error;
+    auto filters = parse_dialog_filters(arguments, parse_error);
+    if (!filters)
+    {
+        cb(serialize_error(parse_error.empty() ? "invalid filters"
+                                              : parse_error));
+        return;
+    }
+    SaveDialogOptions options;
+    options.filters = std::move(*filters);
+    if (auto *title = arguments ? yyjson_obj_get(arguments, "title")
+                                : nullptr;
+        title && yyjson_is_str(title))
+    {
+        options.title = utf8_to_wide(yyjson_get_str(title));
+    }
+    if (auto *name = arguments ? yyjson_obj_get(arguments, "defaultName")
+                               : nullptr;
+        name && yyjson_is_str(name))
+    {
+        options.default_name = utf8_to_wide(yyjson_get_str(name));
+    }
+    if (!try_acquire_dialog_slot())
+    {
+        cb(serialize_error("dialog already active"));
+        return;
+    }
+    try
+    {
+        std::thread([options = std::move(options), cb = std::move(cb)]() mutable
+                    {
+                        DialogSlotGuard guard;
+                        ScopedCOM com;
+                        if (!com.initialized())
+                        {
+                            cb(serialize_error("native dialogs not supported"));
+                            return;
+                        }
+                        if (!interactive_session_available())
+                        {
+                            cb(serialize_error("interactive session required"));
+                            return;
+                        }
+                        auto outcome = g_dialog_save_handler(options);
+                        if (!outcome.error.empty())
+                        {
+                            cb(serialize_error(outcome.error));
+                            return;
+                        }
+                        if (outcome.cancelled)
+                        {
+                            cb(serialize_dialog_path(std::nullopt));
+                            return;
+                        }
+                        cb(serialize_dialog_path(outcome.path));
+                    })
+            .detach();
+    }
+    catch (std::system_error const &)
+    {
+        release_dialog_slot();
+        cb(serialize_error("dialog unavailable"));
+    }
+#else
+    cb(serialize_error("native dialogs not supported"));
+#endif
 }
 
 std::string handle_system_autorun_status(engine::Core *engine)
@@ -3154,11 +4038,23 @@ void Dispatcher::register_handlers()
     add_async("fs-create-dir",
               [this](yyjson_val *arguments, ResponseCallback cb)
               { handle_fs_create_dir_async(engine_, arguments, std::move(cb)); });
+    add_async("fs-write-file",
+              [this](yyjson_val *arguments, ResponseCallback cb)
+              { handle_fs_write_file_async(engine_, arguments, std::move(cb)); });
     add_async(
         "system-reveal", [this](yyjson_val *arguments, ResponseCallback cb)
         { handle_system_reveal_async(engine_, arguments, std::move(cb)); });
     add_async("system-open", [this](yyjson_val *arguments, ResponseCallback cb)
               { handle_system_open_async(engine_, arguments, std::move(cb)); });
+    add_async("dialog-open-file",
+              [](yyjson_val *arguments, ResponseCallback cb)
+              { handle_dialog_open_file(arguments, std::move(cb)); });
+    add_async("dialog-select-folder",
+              [](yyjson_val *arguments, ResponseCallback cb)
+              { handle_dialog_select_folder(arguments, std::move(cb)); });
+    add_async("dialog-save-file",
+              [](yyjson_val *arguments, ResponseCallback cb)
+              { handle_dialog_save_file(arguments, std::move(cb)); });
     add_async(
         "system-install", [this](yyjson_val *arguments, ResponseCallback cb)
         { handle_system_install_async(engine_, arguments, std::move(cb)); });
@@ -3279,5 +4175,47 @@ void Dispatcher::dispatch(std::string_view payload, ResponseCallback cb)
         cb(serialize_error("internal error"));
     }
 }
+
+#if defined(_WIN32)
+namespace test
+{
+void override_dialog_open_handler(DialogOpenHandler handler)
+{
+    if (handler)
+    {
+        g_dialog_open_handler = std::move(handler);
+        return;
+    }
+    g_dialog_open_handler = show_file_open_dialog;
+}
+
+void override_dialog_folder_handler(DialogFolderHandler handler)
+{
+    if (handler)
+    {
+        g_dialog_folder_handler = std::move(handler);
+        return;
+    }
+    g_dialog_folder_handler = show_folder_dialog;
+}
+
+void override_dialog_save_handler(DialogSaveHandler handler)
+{
+    if (handler)
+    {
+        g_dialog_save_handler = std::move(handler);
+        return;
+    }
+    g_dialog_save_handler = show_save_file_dialog;
+}
+
+void reset_dialog_handlers()
+{
+    g_dialog_open_handler = show_file_open_dialog;
+    g_dialog_folder_handler = show_folder_dialog;
+    g_dialog_save_handler = show_save_file_dialog;
+}
+} // namespace test
+#endif
 
 } // namespace tt::rpc

@@ -154,8 +154,8 @@ function Invoke-MesonBuild {
     if (Test-Path -LiteralPath $primaryExe) {
         $sizeKB = (Get-Item -LiteralPath $primaryExe).Length / 1KB
         Log-Success "SUCCESS: $Configuration Build Complete"
-        Log-Info "Artifact: $primaryExe"
-        Log-Info ("Size:     {0:N0} KB" -f $sizeKB)
+        Log-Info "Artifact: $primaryExe" -Color ([ConsoleColor]::Magenta)
+        Log-Info ("Size:     {0:N0} KB" -f $sizeKB) -Color ([ConsoleColor]::Yellow)
     }
 }
 

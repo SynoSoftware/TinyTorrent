@@ -373,18 +373,21 @@ std::string serialize_capabilities()
     yyjson_mut_obj_add_str(native, arguments, "websocket-path", "/ws");
     yyjson_mut_obj_add_str(native, arguments, "platform", "win32");
 
-    static constexpr std::array<char const *, 16> kFeatures = {
-        "fs-browse",         "fs-create-dir",            "system-integration",
-        "system-install",    "system-autorun",           "system-reveal",
-        "system-open",       "system-create-shortcuts",  "proxy-configuration",
-        "proxy-support",     "session-tray-status",      "session-pause-all",
-        "session-resume-all", "traffic-history",         "sequential-download",
-        "labels"};
-    auto *features = yyjson_mut_arr(native);
-    yyjson_mut_obj_add_val(native, arguments, "features", features);
-    for (auto const feature : kFeatures)
+    std::vector<std::string> features = {
+        "fs-browse",            "fs-create-dir",        "fs-space",
+        "fs-write-file",        "system-integration",   "system-install",
+        "system-autorun",       "system-reveal",        "system-open",
+        "system-register-handler", "session-tray-status", "session-pause-all",
+        "session-resume-all",   "traffic-history",      "sequential-download",
+        "proxy-configuration",  "labels"};
+#if defined(_WIN32)
+    features.push_back("native-dialogs");
+#endif
+    auto *features_arr = yyjson_mut_arr(native);
+    yyjson_mut_obj_add_val(native, arguments, "features", features_arr);
+    for (auto const &feature : features)
     {
-        yyjson_mut_arr_add_str(native, features, feature);
+        yyjson_mut_arr_add_str(native, features_arr, feature.c_str());
     }
 
     return doc.write(R"({"result":"error"})");
@@ -1182,6 +1185,79 @@ std::string serialize_fs_space(std::string const &path,
     yyjson_mut_obj_add_str(native, arguments, "path", path.c_str());
     yyjson_mut_obj_add_uint(native, arguments, "freeBytes", free_bytes);
     yyjson_mut_obj_add_uint(native, arguments, "totalBytes", total_bytes);
+
+    return doc.write(R"({"result":"error"})");
+}
+
+std::string serialize_fs_write_result(std::uint64_t bytes_written)
+{
+    tt::json::MutableDocument doc;
+    if (!doc.is_valid())
+    {
+        return "{}";
+    }
+
+    auto *native = doc.doc();
+    auto *root = yyjson_mut_obj(native);
+    doc.set_root(root);
+    yyjson_mut_obj_add_str(native, root, "result", "success");
+
+    auto *arguments = yyjson_mut_obj(native);
+    yyjson_mut_obj_add_val(native, root, "arguments", arguments);
+    yyjson_mut_obj_add_uint(native, arguments, "bytesWritten", bytes_written);
+
+    return doc.write(R"({"result":"error"})");
+}
+
+std::string serialize_dialog_paths(std::vector<std::string> const &paths)
+{
+    tt::json::MutableDocument doc;
+    if (!doc.is_valid())
+    {
+        return "{}";
+    }
+
+    auto *native = doc.doc();
+    auto *root = yyjson_mut_obj(native);
+    doc.set_root(root);
+    yyjson_mut_obj_add_str(native, root, "result", "success");
+
+    auto *arguments = yyjson_mut_obj(native);
+    yyjson_mut_obj_add_val(native, root, "arguments", arguments);
+
+    auto *array = yyjson_mut_arr(native);
+    yyjson_mut_obj_add_val(native, arguments, "paths", array);
+    for (auto const &path : paths)
+    {
+        yyjson_mut_arr_add_str(native, array, path.c_str());
+    }
+
+    return doc.write(R"({"result":"error"})");
+}
+
+std::string serialize_dialog_path(std::optional<std::string> const &path)
+{
+    tt::json::MutableDocument doc;
+    if (!doc.is_valid())
+    {
+        return "{}";
+    }
+
+    auto *native = doc.doc();
+    auto *root = yyjson_mut_obj(native);
+    doc.set_root(root);
+    yyjson_mut_obj_add_str(native, root, "result", "success");
+
+    auto *arguments = yyjson_mut_obj(native);
+    yyjson_mut_obj_add_val(native, root, "arguments", arguments);
+    if (path)
+    {
+        yyjson_mut_obj_add_str(native, arguments, "path", path->c_str());
+    }
+    else
+    {
+        yyjson_mut_obj_add_null(native, arguments, "path");
+    }
 
     return doc.write(R"({"result":"error"})");
 }
