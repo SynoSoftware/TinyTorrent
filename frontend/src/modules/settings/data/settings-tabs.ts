@@ -121,20 +121,6 @@ type RawConfigBlock = {
     descriptionKey?: string;
 } & BlockBase;
 
-type ConnectionProfileBlock = {
-    type: "connection-profile";
-} & BlockBase;
-type ConnectionExtensionBlock = {
-    type: "connection-extension";
-} & BlockBase;
-type SystemInstallBlock = {
-    type: "system-install";
-} & BlockBase;
-
-type SystemIntegrationBlock = {
-    type: "system-integration";
-} & BlockBase;
-
 export type SectionBlock =
     | SwitchSliderBlock
     | SwitchBlock
@@ -145,11 +131,7 @@ export type SectionBlock =
     | ButtonRowBlock
     | LanguageBlock
     | RawConfigBlock
-    | DaySelectorBlock
-    | ConnectionProfileBlock
-    | ConnectionExtensionBlock
-    | SystemInstallBlock
-    | SystemIntegrationBlock;
+    | DaySelectorBlock;
 
 interface SectionDefinition {
     titleKey?: string;
@@ -163,6 +145,7 @@ export interface TabDefinition {
     labelKey: string;
     icon: LucideIcon;
     headerKey: string;
+    isCustom?: boolean;
     sections: SectionDefinition[];
 }
 
@@ -366,23 +349,8 @@ export const SETTINGS_TABS: TabDefinition[] = [
         labelKey: "settings.tabs.connection",
         icon: Plug,
         headerKey: "settings.headers.connection",
-        sections: [
-            {
-                titleKey: "settings.sections.active_connection",
-                descriptionKey: "settings.descriptions.connection_profiles",
-                blocks: [
-                    {
-                        type: "connection-profile",
-                    },
-                    {
-                        type: "divider",
-                    },
-                    {
-                        type: "connection-extension",
-                    },
-                ],
-            },
-        ],
+        isCustom: true,
+        sections: [],
     },
 
     {
@@ -590,17 +558,8 @@ export const SETTINGS_TABS: TabDefinition[] = [
         labelKey: "settings.tabs.system",
         icon: SettingsIcon,
         headerKey: "settings.headers.system",
-        sections: [
-            {
-                titleKey: "settings.sections.install",
-                descriptionKey: "settings.descriptions.install",
-                blocks: [
-                    {
-                        type: "system-install",
-                    },
-                ],
-            },
-        ],
+        isCustom: true,
+        sections: [],
     },
 ];
 
