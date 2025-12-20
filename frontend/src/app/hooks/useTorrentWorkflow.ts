@@ -188,5 +188,6 @@ export function useTorrentWorkflow({
         handleTorrentAction,
         handleBulkAction,
         clearPendingDelete,
+        showFeedback,
     };
 }

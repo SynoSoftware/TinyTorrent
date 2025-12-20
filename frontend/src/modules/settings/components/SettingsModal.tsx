@@ -36,10 +36,7 @@ import type {
     SystemInstallResult,
 } from "@/services/rpc/types";
 import type { RpcStatus } from "@/shared/types/rpc";
-import type {
-    AutorunStatus,
-    TinyTorrentCapabilities,
-} from "@/services/rpc/entities";
+import type { AutorunStatus } from "@/services/rpc/entities";
 import { ICON_STROKE_WIDTH } from "@/config/logic";
 import { INTERACTION_CONFIG } from "@/config/logic";
 import { DirectoryPicker } from "@/shared/ui/workspace/DirectoryPicker";
@@ -47,6 +44,7 @@ import { LanguageMenu } from "@/shared/ui/controls/LanguageMenu";
 import { APP_VERSION } from "@/shared/version";
 import { ChevronLeft, RotateCcw, Save, X } from "lucide-react";
 import { ConnectionManager } from "@/modules/settings/components/ConnectionManager";
+import { useRpcExtension } from "@/app/context/RpcExtensionContext";
 import { GLASS_MODAL_SURFACE } from "@/shared/ui/layout/glass-surface";
 
 interface SectionTitleProps {
@@ -140,9 +138,6 @@ export function SettingsModal({
     const [autorunInfo, setAutorunInfo] = useState<AutorunStatus | null>(null);
     const [isAutorunBusy, setIsAutorunBusy] = useState(false);
     const [isAutorunLoading, setIsAutorunLoading] = useState(true);
-    const [extendedCapabilities, setExtendedCapabilities] =
-        useState<TinyTorrentCapabilities | null>(null);
-    const [isCapabilitiesLoading, setIsCapabilitiesLoading] = useState(true);
 
     // Responsive State
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(true);
@@ -188,6 +183,19 @@ export function SettingsModal({
     const [activeBrowseKey, setActiveBrowseKey] = useState<ConfigKey | null>(
         null
     );
+
+    const {
+        capabilities: extensionCapabilities,
+        shouldUseExtension,
+        isMocked,
+    } = useRpcExtension();
+    const canUseExtensionHelpers = shouldUseExtension || isMocked;
+
+    useEffect(() => {
+        if (!canUseExtensionHelpers && activeBrowseKey) {
+            setActiveBrowseKey(null);
+        }
+    }, [activeBrowseKey, canUseExtensionHelpers]);
 
     useEffect(() => {
         if (isOpen) {
@@ -258,9 +266,6 @@ export function SettingsModal({
         return configKeys.some((key) => config[key] !== initialConfig[key]);
     }, [config, initialConfig]);
 
-    const activeTabDefinition =
-        SETTINGS_TABS.find((tab) => tab.id === activeTab) ?? SETTINGS_TABS[0];
-
     const toggleInstallLocation = (location: string) => {
         setInstallLocations((current) => {
             if (current.includes(location)) {
@@ -302,35 +307,6 @@ export function SettingsModal({
         void fetchAutorunStatus();
     }, [fetchAutorunStatus, isOpen]);
 
-    const fetchExtendedCapabilities = useCallback(async () => {
-        if (!torrentClient.getExtendedCapabilities) {
-            setExtendedCapabilities(null);
-            setIsCapabilitiesLoading(false);
-            return;
-        }
-        if (rpcStatus !== "connected") {
-            setExtendedCapabilities(null);
-            setIsCapabilitiesLoading(false);
-            return;
-        }
-        setIsCapabilitiesLoading(true);
-        try {
-            const payload = await torrentClient.getExtendedCapabilities?.(true);
-            setExtendedCapabilities(payload);
-        } catch {
-            setExtendedCapabilities(null);
-        } finally {
-            setIsCapabilitiesLoading(false);
-        }
-    }, [rpcStatus, torrentClient]);
-
-    useEffect(() => {
-        if (!isOpen) {
-            return;
-        }
-        void fetchExtendedCapabilities();
-    }, [fetchExtendedCapabilities, isOpen]);
-
     const autorunEnabled = Boolean(autorunInfo?.enabled);
     const autorunSupported = Boolean(
         autorunInfo?.supported &&
@@ -342,17 +318,48 @@ export function SettingsModal({
         !autorunSupported ||
         isAutorunLoading ||
         isAutorunBusy;
-    const supportsSystemInstall = Boolean(
-        extendedCapabilities?.features?.includes("system-install")
+    const supportsSystemInstall =
+        shouldUseExtension &&
+        Boolean(
+            extensionCapabilities?.features?.includes("system-install")
+        );
+    const supportsFsBrowse = canUseExtensionHelpers;
+    const canBrowseDirectories = supportsFsBrowse;
+
+    const getVisibleBlocks = useCallback(
+        (blocks: SectionBlock[]) =>
+            blocks.filter((block) => {
+                if (block.visible && !block.visible(config)) {
+                    return false;
+                }
+                if (block.type === "system-install" && !supportsSystemInstall) {
+                    return false;
+                }
+                return true;
+            }),
+        [config, supportsSystemInstall]
     );
-    const supportsFsBrowse = Boolean(
-        torrentClient.browseDirectory &&
-            extendedCapabilities?.features?.includes("fs-browse")
+
+    const visibleTabs = useMemo(
+        () =>
+            SETTINGS_TABS.filter((tab) =>
+                tab.sections.some(
+                    (section) => getVisibleBlocks(section.blocks).length > 0
+                )
+            ),
+        [getVisibleBlocks]
     );
-    const canBrowseDirectories =
-        supportsFsBrowse &&
-        rpcStatus === "connected" &&
-        !isCapabilitiesLoading;
+
+    const activeTabDefinition =
+        visibleTabs.find((tab) => tab.id === activeTab) ??
+        visibleTabs[0] ??
+        SETTINGS_TABS[0];
+
+    useEffect(() => {
+        if (!visibleTabs.find((tab) => tab.id === activeTab)) {
+            setActiveTab(visibleTabs[0]?.id ?? "speed");
+        }
+    }, [activeTab, visibleTabs]);
 
     const handleAutorunToggle = useCallback(async () => {
         if (autorunDisabled) {
@@ -438,8 +445,8 @@ export function SettingsModal({
             : undefined;
 
         const isBrowseAction = sideAction?.type === "browse";
-        const sideActionDisabled =
-            isBrowseAction && !canBrowseDirectories;
+        const hideBrowseAction = isBrowseAction && !canBrowseDirectories;
+        const sideActionDisabled = isDisabled || hideBrowseAction;
 
         const handleSideAction = () => {
             if (!sideAction) return;
@@ -528,7 +535,7 @@ export function SettingsModal({
             />
         );
 
-        if (!sideAction) {
+        if (!sideAction || hideBrowseAction) {
             return (
                 <div key={`${block.stateKey}-${index}`} className="group">
                     {inputNode}
@@ -826,8 +833,7 @@ export function SettingsModal({
                 const isSystemInstallDisabled =
                     !isInstallAvailable ||
                     !supportsSystemInstall ||
-                    isSystemInstalling ||
-                    isCapabilitiesLoading;
+                    isSystemInstalling;
                 const locationButtons = SYSTEM_INSTALL_LOCATIONS.map(
                     (location) => {
                         const isSelected = installLocations.includes(
@@ -1141,7 +1147,6 @@ export function SettingsModal({
                         <ConnectionManager
                             onReconnect={onReconnect}
                             rpcStatus={rpcStatus}
-                            torrentClient={torrentClient}
                         />
                     </div>
                 );
@@ -1205,7 +1210,7 @@ export function SettingsModal({
                         </div>
 
                         <div className="flex-1 px-3 py-4 space-y-1 overflow-y-auto scrollbar-hide">
-                            {SETTINGS_TABS.map((tab) => (
+                            {visibleTabs.map((tab) => (
                                 <button
                                     key={tab.id}
                                     onClick={() => {
@@ -1295,30 +1300,39 @@ export function SettingsModal({
                                     className="flex flex-col space-y-6 sm:space-y-8 pb-20"
                                 >
                                     {activeTabDefinition.sections.map(
-                                        (section, idx) => (
-                                            <SectionCard key={idx}>
-                                                <SectionTitle
-                                                    title={t(section.titleKey)}
-                                                />
-                                                {section.descriptionKey && (
-                                                    <SectionDescription
-                                                        description={t(
-                                                            section.descriptionKey
+                                        (section, idx) => {
+                                            const visibleBlocks =
+                                                getVisibleBlocks(section.blocks);
+                                            if (!visibleBlocks.length) {
+                                                return null;
+                                            }
+                                            return (
+                                                <SectionCard key={idx}>
+                                                    <SectionTitle
+                                                        title={t(
+                                                            section.titleKey
                                                         )}
                                                     />
-                                                )}
-                                                <div className="space-y-6 mt-4">
-                                                    {section.blocks.map(
-                                                        (block, bIdx) =>
-                                                            renderBlock(
-                                                                block,
-                                                                idx,
-                                                                bIdx
-                                                            )
+                                                    {section.descriptionKey && (
+                                                        <SectionDescription
+                                                            description={t(
+                                                                section.descriptionKey
+                                                            )}
+                                                        />
                                                     )}
-                                                </div>
-                                            </SectionCard>
-                                        )
+                                                    <div className="space-y-6 mt-4">
+                                                        {visibleBlocks.map(
+                                                            (block, bIdx) =>
+                                                                renderBlock(
+                                                                    block,
+                                                                    idx,
+                                                                    bIdx
+                                                                )
+                                                        )}
+                                                    </div>
+                                                </SectionCard>
+                                            );
+                                        }
                                     )}
                                 </motion.div>
                             </AnimatePresence>
@@ -1363,12 +1377,14 @@ export function SettingsModal({
                 </div>
             </ModalContent>
 
-            <DirectoryPicker
-                isOpen={Boolean(activeBrowseKey)}
-                initialPath={pickerInitialPath}
-                onClose={closeDirectoryPicker}
-                onSelect={pickDirectory}
-            />
+            {canUseExtensionHelpers && (
+                <DirectoryPicker
+                    isOpen={Boolean(activeBrowseKey)}
+                    initialPath={pickerInitialPath}
+                    onClose={closeDirectoryPicker}
+                    onSelect={pickDirectory}
+                />
+            )}
         </Modal>
     );
 }

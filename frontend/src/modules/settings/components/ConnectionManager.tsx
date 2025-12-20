@@ -1,8 +1,6 @@
-import { Button, Chip, Input } from "@heroui/react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Button, Chip, Input, Switch } from "@heroui/react";
+import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import type { EngineAdapter } from "@/services/rpc/engine-adapter";
-import type { TinyTorrentCapabilities } from "@/services/rpc/entities";
 import type { RpcStatus } from "@/shared/types/rpc";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import {
@@ -10,31 +8,29 @@ import {
     buildRpcEndpoint,
     type ConnectionProfile,
 } from "@/app/context/ConnectionConfigContext";
+import { useRpcExtension } from "@/app/context/RpcExtensionContext";
 
 interface ConnectionManagerProps {
     rpcStatus: RpcStatus;
     onReconnect: () => void;
-    torrentClient: EngineAdapter;
 }
-
-type ExtendedState =
-    | { status: "idle" }
-    | { status: "loading" }
-    | { status: "available"; info: TinyTorrentCapabilities }
-    | { status: "unavailable" }
-    | { status: "error" };
 
 export function ConnectionManager({
     rpcStatus,
     onReconnect,
-    torrentClient,
 }: ConnectionManagerProps) {
     const { t } = useTranslation();
     const { activeProfile, updateProfile } = useConnectionConfig();
-    const [extendedState, setExtendedState] = useState<ExtendedState>({
-        status: "idle",
-    });
     const isOffline = rpcStatus !== "connected";
+
+    const {
+        availability,
+        capabilities,
+        isRefreshing,
+        refresh,
+        enabled,
+        setEnabled,
+    } = useRpcExtension();
 
     const handleUpdate = useCallback(
         (
@@ -49,32 +45,6 @@ export function ConnectionManager({
         },
         [activeProfile.id, updateProfile]
     );
-
-    const refreshExtendedState = useCallback(async () => {
-        if (isOffline || !torrentClient.getExtendedCapabilities) {
-            setExtendedState({ status: "unavailable" });
-            return;
-        }
-        setExtendedState({ status: "loading" });
-        try {
-            const info = await torrentClient.getExtendedCapabilities?.(true);
-            if (info) {
-                setExtendedState({ status: "available", info });
-            } else {
-                setExtendedState({ status: "unavailable" });
-            }
-        } catch {
-            setExtendedState({ status: "error" });
-        }
-    }, [isOffline, torrentClient]);
-
-    useEffect(() => {
-        if (rpcStatus !== "connected") {
-            setExtendedState({ status: "idle" });
-            return;
-        }
-        void refreshExtendedState();
-    }, [refreshExtendedState, rpcStatus]);
 
     const statusLabel = useMemo(() => {
         const map: Record<RpcStatus, string> = {
@@ -92,7 +62,7 @@ export function ConnectionManager({
     }, [rpcStatus]);
 
     const extendedLabel = useMemo(() => {
-        switch (extendedState.status) {
+        switch (availability) {
             case "available":
                 return t("settings.connection.extended_available");
             case "loading":
@@ -104,12 +74,12 @@ export function ConnectionManager({
             default:
                 return t("settings.connection.extended_unknown");
         }
-    }, [extendedState.status, t]);
+    }, [availability, t]);
 
     const extendedColor = useMemo<
         "success" | "danger" | "warning" | "primary"
     >(() => {
-        switch (extendedState.status) {
+        switch (availability) {
             case "available":
                 return "success";
             case "error":
@@ -121,18 +91,18 @@ export function ConnectionManager({
             default:
                 return "primary";
         }
-    }, [extendedState.status]);
+    }, [availability]);
 
     const featureSummary = useMemo(() => {
         if (
-            extendedState.status !== "available" ||
-            extendedState.info.features.length === 0
+            availability !== "available" ||
+            !capabilities?.features?.length
         ) {
             return null;
         }
-        return extendedState.info.features.join(", ");
-    }, [extendedState]);
-    const showTokenInput = extendedState.status === "available";
+        return capabilities.features.join(", ");
+    }, [availability, capabilities]);
+    const showTokenInput = enabled && availability === "available";
     const endpointPreview = useMemo(
         () => buildRpcEndpoint(activeProfile),
         [activeProfile]
@@ -200,107 +170,112 @@ export function ConnectionManager({
                             className="h-[42px]"
                         />
                     </div>
-                    {extendedState.status !== "idle" &&
-                        extendedState.status !== "loading" && (
-                            <>
-                                {showTokenInput ? (
-                                    <Input
-                                        label={t("settings.connection.token")}
-                                        labelPlacement="outside"
-                                        variant="bordered"
-                                        size="sm"
-                                        value={activeProfile.token}
-                                        onChange={(event) =>
-                                            handleUpdate({
-                                                token: event.target.value,
-                                            })
-                                        }
-                                    />
-                                ) : (
-                                    <div className="grid gap-3 sm:grid-cols-2">
-                                        <Input
-                                            label={t(
-                                                "settings.connection.username"
-                                            )}
-                                            labelPlacement="outside"
-                                            variant="bordered"
-                                            size="sm"
-                                            value={activeProfile.username}
-                                            onChange={(event) =>
-                                                handleUpdate({
-                                                    username:
-                                                        event.target.value,
-                                                })
-                                            }
-                                        />
-                                        <Input
-                                            label={t(
-                                                "settings.connection.password"
-                                            )}
-                                            labelPlacement="outside"
-                                            variant="bordered"
-                                            size="sm"
-                                            type="password"
-                                            value={activeProfile.password}
-                                            onChange={(event) =>
-                                                handleUpdate({
-                                                    password:
-                                                        event.target.value,
-                                                })
-                                            }
-                                        />
-                                    </div>
+                    {showTokenInput ? (
+                        <Input
+                            label={t("settings.connection.token")}
+                            labelPlacement="outside"
+                            variant="bordered"
+                            size="sm"
+                            value={activeProfile.token}
+                            onChange={(event) =>
+                                handleUpdate({
+                                    token: event.target.value,
+                                })
+                            }
+                        />
+                    ) : (
+                        <div className="grid gap-3 sm:grid-cols-2">
+                            <Input
+                                label={t("settings.connection.username")}
+                                labelPlacement="outside"
+                                variant="bordered"
+                                size="sm"
+                                value={activeProfile.username}
+                                onChange={(event) =>
+                                    handleUpdate({
+                                        username: event.target.value,
+                                    })
+                                }
+                            />
+                            <Input
+                                label={t("settings.connection.password")}
+                                labelPlacement="outside"
+                                variant="bordered"
+                                size="sm"
+                                type="password"
+                                value={activeProfile.password}
+                                onChange={(event) =>
+                                    handleUpdate({
+                                        password: event.target.value,
+                                    })
+                                }
+                            />
+                        </div>
+                    )}
+                    <div className="flex flex-col gap-2">
+                        <Switch
+                            size="sm"
+                            isSelected={enabled}
+                            onValueChange={(value) => setEnabled(value)}
+                        >
+                            <span className="text-sm font-semibold text-foreground/90">
+                                {t("settings.connection.extension_toggle")}
+                            </span>
+                        </Switch>
+                        {enabled && (
+                            <p className="text-xs text-foreground/60">
+                                {t(
+                                    "settings.connection.extension_toggle_helper"
                                 )}
-                            </>
+                            </p>
                         )}
+                    </div>
                 </div>
             </GlassPanel>
 
-            <GlassPanel className="p-5 space-y-4 border border-content1/20 bg-content1/80">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="min-w-0">
-                        <p className="text-[10px] uppercase tracking-[0.4em] text-foreground/40">
-                            {t("settings.connection.extended_title")}
-                        </p>
-                        <h3 className="text-sm font-semibold text-foreground">
-                            {t("settings.connection.extended_subtitle")}
-                        </h3>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                        <Chip size="sm" variant="flat" color={extendedColor}>
-                            {extendedLabel}
-                        </Chip>
-                        <Button
-                            size="sm"
-                            variant="light"
-                            color="primary"
-                            disabled={
-                                extendedState.status === "loading" || isOffline
-                            }
-                            onPress={refreshExtendedState}
-                            type="button"
-                        >
-                            {t("settings.connection.extended_check_button")}
-                        </Button>
-                    </div>
-                </div>
-                <div className="space-y-2">
-                    {isOffline && (
-                        <div className="rounded-medium border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
-                            {t("settings.connection.extended_offline")}
+            {enabled && (
+                <GlassPanel className="p-5 space-y-4 border border-content1/20 bg-content1/80">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0">
+                            <p className="text-[10px] uppercase tracking-[0.4em] text-foreground/40">
+                                {t("settings.connection.extended_title")}
+                            </p>
+                            <h3 className="text-sm font-semibold text-foreground">
+                                {t("settings.connection.extended_subtitle")}
+                            </h3>
                         </div>
-                    )}
-
-                    {extendedState.status === "available" && featureSummary && (
-                        <div className="rounded-medium border border-content1/30 bg-content1/60 px-3 py-2 text-xs text-foreground/70">
-                            {t("settings.connection.extended_features", {
-                                features: featureSummary,
-                            })}
+                        <div className="flex flex-wrap items-center gap-2">
+                            <Chip size="sm" variant="flat" color={extendedColor}>
+                                {extendedLabel}
+                            </Chip>
+                            <Button
+                                size="sm"
+                                variant="light"
+                                color="primary"
+                                disabled={isRefreshing || isOffline}
+                                onPress={refresh}
+                                type="button"
+                            >
+                                {t("settings.connection.extended_check_button")}
+                            </Button>
                         </div>
-                    )}
+                    </div>
+                    <div className="space-y-2">
+                        {isOffline && (
+                            <div className="rounded-medium border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
+                                {t("settings.connection.extended_offline")}
+                            </div>
+                        )}
 
-                    {extendedState.status === "available" &&
-                        !featureSummary && (
+                        {availability === "available" && featureSummary && (
+                            <div className="rounded-medium border border-content1/30 bg-content1/60 px-3 py-2 text-xs text-foreground/70">
+                                {t("settings.connection.extended_features", {
+                                    features: featureSummary,
+                                })}
+                            </div>
+                        )}
+
+                        {availability === "available" && !featureSummary && (
                             <div className="rounded-medium border border-content1/30 bg-content1/60 px-3 py-2 text-xs text-foreground/70">
                                 {t(
                                     "settings.connection.extended_features_none"
@@ -308,42 +283,38 @@ export function ConnectionManager({
                             </div>
                         )}
 
-                    {extendedState.status === "available" &&
-                        extendedState.info?.platform && (
+                        {availability === "available" && capabilities?.platform && (
                             <div className="rounded-medium border border-content1/30 bg-content1/60 px-3 py-2 text-xs text-foreground/70">
                                 {t("settings.connection.extended_platform", {
-                                    platform: extendedState.info.platform,
+                                    platform: capabilities.platform,
                                 })}
                             </div>
                         )}
 
-                    {extendedState.status === "available" &&
-                        extendedState.info && (
+                        {availability === "available" && capabilities && (
                             <>
                                 <div className="rounded-medium border border-content1/30 bg-content1/60 px-3 py-2 text-xs text-foreground/70">
                                     {t("settings.connection.extended_version", {
                                         serverVersion:
-                                            extendedState.info.serverVersion ??
-                                            extendedState.info.version ??
+                                            capabilities.serverVersion ??
+                                            capabilities.version ??
                                             t(
                                                 "settings.connection.extended_version_unknown"
                                             ),
                                         rpcVersion:
-                                            extendedState.info.rpcVersion,
+                                            capabilities.rpcVersion,
                                     })}
                                 </div>
 
-                                {(extendedState.info.websocketPath ||
-                                    extendedState.info.websocketEndpoint) && (
+                                {(capabilities.websocketPath ||
+                                    capabilities.websocketEndpoint) && (
                                     <div className="rounded-medium border border-content1/30 bg-content1/60 px-3 py-2 text-xs text-foreground/70">
                                         {t(
                                             "settings.connection.extended_websocket",
                                             {
                                                 path:
-                                                    extendedState.info
-                                                        .websocketPath ??
-                                                    extendedState.info
-                                                        .websocketEndpoint,
+                                                    capabilities.websocketPath ??
+                                                    capabilities.websocketEndpoint,
                                             }
                                         )}
                                     </div>
@@ -351,31 +322,32 @@ export function ConnectionManager({
                             </>
                         )}
 
-                    {extendedState.status === "idle" && (
-                        <div className="rounded-medium border border-content1/20 bg-content1/40 px-3 py-2 text-xs text-foreground/60">
-                            {t("settings.connection.extended_helper")}
-                        </div>
-                    )}
+                        {availability === "idle" && (
+                            <div className="rounded-medium border border-content1/20 bg-content1/40 px-3 py-2 text-xs text-foreground/60">
+                                {t("settings.connection.extended_helper")}
+                            </div>
+                        )}
 
-                    {extendedState.status === "loading" && (
-                        <div className="rounded-medium border border-content1/20 bg-content1/40 px-3 py-2 text-xs text-foreground/60">
-                            {t("settings.connection.extended_checking")}
-                        </div>
-                    )}
+                        {availability === "loading" && (
+                            <div className="rounded-medium border border-content1/20 bg-content1/40 px-3 py-2 text-xs text-foreground/60">
+                                {t("settings.connection.extended_checking")}
+                            </div>
+                        )}
 
-                    {extendedState.status === "unavailable" && (
-                        <div className="rounded-medium border border-content1/20 bg-content1/40 px-3 py-2 text-xs text-foreground/60">
-                            {t("settings.connection.extended_unavailable")}
-                        </div>
-                    )}
+                        {availability === "unavailable" && (
+                            <div className="rounded-medium border border-content1/20 bg-content1/40 px-3 py-2 text-xs text-foreground/60">
+                                {t("settings.connection.extended_unavailable")}
+                            </div>
+                        )}
 
-                    {extendedState.status === "error" && (
-                        <div className="rounded-medium border border-danger/30 bg-danger/10 px-3 py-2 text-xs text-danger">
-                            {t("settings.connection.extended_error")}
-                        </div>
-                    )}
-                </div>
-            </GlassPanel>
+                        {availability === "error" && (
+                            <div className="rounded-medium border border-danger/30 bg-danger/10 px-3 py-2 text-xs text-danger">
+                                {t("settings.connection.extended_error")}
+                            </div>
+                        )}
+                    </div>
+                </GlassPanel>
+            )}
         </div>
     );
 }

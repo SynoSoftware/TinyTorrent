@@ -35,6 +35,7 @@ import { ICON_STROKE_WIDTH } from "../../../config/logic";
 import { INTERACTION_CONFIG } from "../../../config/logic";
 import { GLASS_MODAL_SURFACE } from "../../../shared/ui/layout/glass-surface";
 import type { AddTorrentContext } from "../../../app/hooks/useAddTorrent";
+import { useRpcExtension } from "@/app/context/RpcExtensionContext";
 import { useTorrentClient } from "@/app/providers/TorrentClientProvider";
 
 interface AddTorrentModalProps {
@@ -69,6 +70,8 @@ export function AddTorrentModal({
 }: AddTorrentModalProps) {
     const { t } = useTranslation();
     const torrentClient = useTorrentClient();
+    const { isMocked, shouldUseExtension } = useRpcExtension();
+    const canUseExtensionHelpers = shouldUseExtension || isMocked;
     const [magnetLink, setMagnetLink] = useState("");
     const [downloadDir, setDownloadDir] = useState(DEFAULT_SAVE_PATH);
     const [startNow, setStartNow] = useState(true);
@@ -141,6 +144,12 @@ export function AddTorrentModal({
     }, [isOpen]);
 
     useEffect(() => {
+        if (!canUseExtensionHelpers && isDirectoryPickerOpen) {
+            setDirectoryPickerOpen(false);
+        }
+    }, [canUseExtensionHelpers, isDirectoryPickerOpen]);
+
+    useEffect(() => {
         if (isOpen && initialFile) {
             setSelectedFile(initialFile);
         }
@@ -186,7 +195,7 @@ export function AddTorrentModal({
 
     useEffect(() => {
         let active = true;
-        if (!getFreeSpace) {
+        if (!getFreeSpace || !canUseExtensionHelpers) {
             setDirectorySpace(null);
             setSpaceError(null);
             setIsSpaceLoading(false);
@@ -206,7 +215,11 @@ export function AddTorrentModal({
                 try {
                     const fallback = await getDriveSpace(
                         torrentClient,
-                        downloadDir
+                        downloadDir,
+                        {
+                            useExtension: shouldUseExtension,
+                            allowMock: isMocked,
+                        }
                     );
                     if (!active) return;
                     setDirectorySpace(fallback);
@@ -224,7 +237,15 @@ export function AddTorrentModal({
         return () => {
             active = false;
         };
-    }, [downloadDir, getFreeSpace, t, torrentClient]);
+    }, [
+        downloadDir,
+        canUseExtensionHelpers,
+        getFreeSpace,
+        shouldUseExtension,
+        isMocked,
+        t,
+        torrentClient,
+    ]);
 
     const fileTreeEntries = useMemo<FileExplorerEntry[]>(() => {
         if (!torrentMetadata) return [];
@@ -465,15 +486,21 @@ export function AddTorrentModal({
                                                 "bg-content1/10 border-content1/20",
                                         }}
                                         endContent={
-                                            <Button
-                                                size="sm"
-                                                variant="flat"
-                                                color="primary"
-                                                onPress={openDirectoryPicker}
-                                                className="text-[10px] font-semibold uppercase tracking-[0.3em] px-3 py-1"
-                                            >
-                                                {t("settings.button.browse")}
-                                            </Button>
+                                            canUseExtensionHelpers ? (
+                                                <Button
+                                                    size="sm"
+                                                    variant="flat"
+                                                    color="primary"
+                                                    onPress={
+                                                        openDirectoryPicker
+                                                    }
+                                                    className="text-[10px] font-semibold uppercase tracking-[0.3em] px-3 py-1"
+                                                >
+                                                    {t(
+                                                        "settings.button.browse"
+                                                    )}
+                                                </Button>
+                                            ) : undefined
                                         }
                                     />
                                 </div>
@@ -504,7 +531,7 @@ export function AddTorrentModal({
                             </div>
                         </ModalBody>
                         <ModalFooter className="flex flex-col gap-3">
-                            {getFreeSpace && (
+                            {canUseExtensionHelpers && getFreeSpace && (
                                 <DiskSpaceGauge
                                     freeBytes={directorySpace?.sizeBytes}
                                     totalBytes={directorySpace?.totalSize}
@@ -553,12 +580,14 @@ export function AddTorrentModal({
                     </>
                 )}
             </ModalContent>
-            <DirectoryPicker
-                isOpen={isDirectoryPickerOpen}
-                initialPath={downloadDir}
-                onClose={closeDirectoryPicker}
-                onSelect={handleDirectorySelect}
-            />
+            {canUseExtensionHelpers && (
+                <DirectoryPicker
+                    isOpen={isDirectoryPickerOpen}
+                    initialPath={downloadDir}
+                    onClose={closeDirectoryPicker}
+                    onSelect={handleDirectorySelect}
+                />
+            )}
         </Modal>
     );
 }

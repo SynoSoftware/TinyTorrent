@@ -170,10 +170,13 @@ const buildDirectoryBrowseResult = (
 
 export async function browseDirectories(
     client: EngineAdapter | null,
-    targetPath?: string
+    targetPath?: string,
+    options?: { useExtension?: boolean; allowMock?: boolean }
 ): Promise<DirectoryBrowseResult> {
     const normalized = normalizePath(targetPath);
-    if (client?.browseDirectory) {
+    const useExtension = options?.useExtension ?? true;
+    const allowMock = options?.allowMock ?? false;
+    if (useExtension && client?.browseDirectory) {
         try {
             return await client.browseDirectory(
                 normalized.length > 0 ? normalized : undefined
@@ -182,20 +185,29 @@ export async function browseDirectories(
             console.error("[tiny-torrent][fs-browse]", error);
         }
     }
+    if (!allowMock) {
+        throw new Error("fs-browse is unavailable without Extension Mode");
+    }
     const node = findClosestNode(normalized);
     return simulateResponse(buildDirectoryBrowseResult(node));
 }
 
 export async function getDriveSpace(
     client: EngineAdapter | null,
-    path: string
+    path: string,
+    options?: { useExtension?: boolean; allowMock?: boolean }
 ): Promise<TransmissionFreeSpace> {
-    if (client?.checkFreeSpace) {
+    const useExtension = options?.useExtension ?? true;
+    const allowMock = options?.allowMock ?? false;
+    if (useExtension && client?.checkFreeSpace) {
         try {
             return await client.checkFreeSpace(path);
         } catch (error) {
             console.error("[tiny-torrent][free-space]", error);
         }
+    }
+    if (!allowMock) {
+        throw new Error("free-space is unavailable without Extension Mode");
     }
     const normalized = normalizePath(path);
     const node = findClosestNode(normalized);

@@ -69,6 +69,17 @@ type AddTorrentResponse = {
 
 const DEFAULT_ENDPOINT =
     import.meta.env.VITE_RPC_ENDPOINT ?? constants.defaults.rpc_endpoint;
+const EXTENSION_MODE_KEY = "tiny-torrent.rpc-extension.enabled";
+
+const isExtensionModeEnabled = () => {
+    if (typeof window === "undefined") {
+        return true;
+    }
+    const stored = window.localStorage.getItem(EXTENSION_MODE_KEY);
+    if (stored === "false") return false;
+    if (stored === "true") return true;
+    return true;
+};
 
 const SUMMARY_FIELDS: Array<keyof TransmissionTorrent> = [
     "id",
@@ -292,6 +303,10 @@ export class TransmissionAdapter implements EngineAdapter {
     }
 
     private ensureWebsocketConnection() {
+        if (!isExtensionModeEnabled()) {
+            this.closeWebSocketSession();
+            return;
+        }
         const endpointPath =
             this.tinyTorrentCapabilities?.websocketEndpoint ??
             this.tinyTorrentCapabilities?.websocketPath;
@@ -412,7 +427,12 @@ export class TransmissionAdapter implements EngineAdapter {
         });
         this.sessionSettingsCache = result.arguments;
         this.engineInfoCache = undefined;
-        await this.refreshExtendedCapabilities();
+        if (isExtensionModeEnabled()) {
+            await this.refreshExtendedCapabilities();
+        } else {
+            this.tinyTorrentCapabilities = null;
+            this.closeWebSocketSession();
+        }
         return result.arguments;
     }
 
@@ -453,6 +473,11 @@ export class TransmissionAdapter implements EngineAdapter {
     public async getExtendedCapabilities(
         force = false
     ): Promise<TinyTorrentCapabilities | null> {
+        if (!isExtensionModeEnabled()) {
+            this.tinyTorrentCapabilities = null;
+            this.closeWebSocketSession();
+            return null;
+        }
         if (force || this.tinyTorrentCapabilities === undefined) {
             await this.refreshExtendedCapabilities();
         } else {
