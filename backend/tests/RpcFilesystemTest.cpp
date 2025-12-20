@@ -9,8 +9,10 @@
 #include <cstdint>
 #include <exception>
 #include <filesystem>
+#include <fstream>
 #include <future>
 #include <optional>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -613,6 +615,99 @@ TEST_CASE("fs-create-dir creates directories recursively")
 
     std::filesystem::remove_all(temp_root, cleanup_ec);
 }
+
+TEST_CASE("fs-write-file writes data")
+{
+    auto temp_root =
+        std::filesystem::temp_directory_path() / "tinytorrent-fs-write-file";
+    auto target = temp_root / "data.bin";
+    std::error_code cleanup_ec;
+    std::filesystem::remove_all(temp_root, cleanup_ec);
+    std::filesystem::create_directories(target.parent_path(), cleanup_ec);
+
+    tt::rpc::Server server{nullptr, get_bind_url()};
+    server.start();
+    ServerGuard guard{server};
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    auto port = resolve_server_port(server);
+    auto server_url = build_server_url(port);
+    auto host_header = build_host_header(port);
+
+    std::string data = "hello world";
+    auto request = std::string(R"({"method":"fs-write-file","arguments":{"path":")") +
+                   escape_json_string(target.string()) +
+                   R"(","data":"aGVsbG8gd29ybGQ="}})";
+
+    auto response = send_rpc_request(server_url, host_header, request);
+    ResponseView view{response};
+    expect_result(view, "success", "fs-write-file success");
+    auto *arguments = view.arguments();
+    REQUIRE(arguments != nullptr);
+    auto *bytes_written = yyjson_obj_get(arguments, "bytesWritten");
+    REQUIRE(bytes_written != nullptr);
+    CHECK(yyjson_is_uint(bytes_written));
+    CHECK(yyjson_get_uint(bytes_written) == static_cast<std::uint64_t>(data.size()));
+
+    std::ifstream input(target, std::ios::binary);
+    REQUIRE(input);
+    std::ostringstream collected;
+    collected << input.rdbuf();
+    CHECK(collected.str() == data);
+
+    std::filesystem::remove_all(temp_root, cleanup_ec);
+}
+
+TEST_CASE("fs-write-file fails when file exists")
+{
+    auto temp_root =
+        std::filesystem::temp_directory_path() / "tinytorrent-fs-write-file";
+    auto target = temp_root / "existing.bin";
+    std::error_code cleanup_ec;
+    std::filesystem::remove_all(temp_root, cleanup_ec);
+    std::filesystem::create_directories(target.parent_path(), cleanup_ec);
+
+    std::ofstream initial(target, std::ios::binary);
+    initial << "existing";
+    initial.close();
+
+    tt::rpc::Server server{nullptr, get_bind_url()};
+    server.start();
+    ServerGuard guard{server};
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    auto port = resolve_server_port(server);
+    auto server_url = build_server_url(port);
+    auto host_header = build_host_header(port);
+
+    auto request = std::string(R"({"method":"fs-write-file","arguments":{"path":")") +
+                   escape_json_string(target.string()) +
+                   R"(","data":"aGVsbG8=","mode":"fail-if-exists"}})";
+    auto response = send_rpc_request(server_url, host_header, request);
+    ResponseView view{response};
+    expect_result(view, "error", "fs-write-file fail-if-exists");
+    expect_argument(view, "message", "file exists");
+
+    std::ifstream reread(target, std::ios::binary);
+    REQUIRE(reread);
+    std::string existing;
+    std::getline(reread, existing);
+    CHECK(existing == "existing");
+
+    std::filesystem::remove_all(temp_root, cleanup_ec);
+}
+
+#if defined(_WIN32)
+TEST_CASE("fs-write-file rejects restricted system paths")
+{
+    tt::rpc::Dispatcher dispatcher{nullptr};
+    auto response = dispatch_sync(dispatcher,
+                                  R"({"method":"fs-write-file","arguments":{"path":"C:\\Windows\\TinyTorrentTest.tmp","data":"AA=="}})");
+    ResponseView view{response};
+    expect_result(view, "error", "fs-write-file restricted path");
+    expect_argument(view, "message", "permission denied");
+}
+#endif
 
 TEST_CASE("websocket handshake accepts X-TT-Auth header")
 {

@@ -42,8 +42,11 @@ function Write-Log {
 }
 
 function Log-Info {
-    param([string]$Message)
-    Write-Log -Level 'INFO' -Message $Message -Color ([ConsoleColor]::Cyan)
+    param(
+        [string]$Message,
+        [ConsoleColor]$Color = [ConsoleColor]::Cyan
+    )
+    Write-Log -Level 'INFO' -Message $Message -Color $Color
 }
 
 function Log-Success {
