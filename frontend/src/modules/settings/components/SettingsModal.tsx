@@ -12,6 +12,7 @@ import type {
     ButtonActionKey,
     SectionBlock,
     SettingsTab,
+    SliderDefinition,
 } from "@/modules/settings/data/settings-tabs";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import type {
@@ -26,8 +27,8 @@ import { DirectoryPicker } from "@/shared/ui/workspace/DirectoryPicker";
 import { APP_VERSION } from "@/shared/version";
 import { ChevronLeft, RotateCcw, Save, X } from "lucide-react";
 import { SettingsFormBuilder } from "@/modules/settings/components/SettingsFormBuilder";
-import { ConnectionTabContent } from "@/modules/settings/components/tabs/ConnectionTabContent";
-import { SystemTabContent } from "@/modules/settings/components/tabs/SystemTabContent";
+import { ConnectionTabContent } from "@/modules/settings/components/tabs/connection/ConnectionTabContent";
+import { SystemTabContent } from "@/modules/settings/components/tabs/system/SystemTabContent";
 import { useAsyncToggle } from "@/modules/settings/hooks/useAsyncToggle";
 import { SettingsFormProvider } from "@/modules/settings/context/SettingsFormContext";
 import { useRpcExtension } from "@/app/context/RpcExtensionContext";
@@ -162,11 +163,39 @@ export function SettingsModal({
         setConfig({ ...DEFAULT_SETTINGS_CONFIG });
     };
 
+    const sliderConstraints = useMemo<
+        Partial<Record<ConfigKey, SliderDefinition>>
+    >(() => {
+        const entries: Partial<Record<ConfigKey, SliderDefinition>> = {};
+        for (const tab of SETTINGS_TABS) {
+            for (const section of tab.sections) {
+                for (const block of section.blocks) {
+                    if (block.type === "switch-slider") {
+                        entries[block.sliderKey] = block.slider;
+                    }
+                }
+            }
+        }
+        return entries;
+    }, []);
+
     const updateConfig = useCallback(
         <K extends ConfigKey>(key: K, value: SettingsConfig[K]) => {
-            setConfig((prev) => ({ ...prev, [key]: value }));
+            const constraint = sliderConstraints[key];
+            let nextValue = value;
+            if (
+                constraint &&
+                typeof value === "number" &&
+                Number.isFinite(value)
+            ) {
+                nextValue = Math.min(
+                    Math.max(value, constraint.min),
+                    constraint.max
+                ) as SettingsConfig[K];
+            }
+            setConfig((prev) => ({ ...prev, [key]: nextValue }));
         },
-        []
+        [sliderConstraints]
     );
 
     const buttonActions: Record<ButtonActionKey, () => void> = useMemo(

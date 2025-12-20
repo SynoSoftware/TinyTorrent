@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import {
     ConnectionCredentialsCard,
     ConnectionExtensionCard,
-} from "@/modules/settings/components/ConnectionManager";
+} from "@/modules/settings/components/tabs/connection/ConnectionManager";
 import { SettingsSection } from "@/modules/settings/components/SettingsSection";
 import { useSettingsForm } from "@/modules/settings/context/SettingsFormContext";
 

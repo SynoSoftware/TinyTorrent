@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { SystemInstallSection } from "@/modules/settings/components/system/SystemInstallSection";
+import { SystemInstallSection } from "@/modules/settings/components/tabs/system/SystemInstallSection";
 import { SettingsSection } from "@/modules/settings/components/SettingsSection";
 import { useSettingsForm } from "@/modules/settings/context/SettingsFormContext";
 
