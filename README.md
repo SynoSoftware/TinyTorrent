@@ -168,12 +168,15 @@ Notes:
 
 ## Backend Note
 
-The final TinyTorrent backend will not stay tied to the original Transmission daemon.
-While the ~1 MB target is achievable only with Transmission’s engine, that code occasionally enters unrecoverable wait states. Because of this, we are developing a **Transmission-daemon–like backend implemented on top of the latest libtorrent**.
+Today, the only backend that is working reliably end-to-end is a standard **`transmission-daemon`**.
 
-We will continue to **support Transmission RPC compatibility**, but the shipped executable will be our own daemon. It already implements the extensions defined in **rpc-tinytorrent-expanded**, which are required for our goals.
+In parallel, we’re building a **TinyTorrent-native daemon** (currently WIP) built around **libtorrent (C++)**. This path is the main reason our current executable misses the original ~1 MB goal: libtorrent (and the surrounding C++ runtime + dependencies) is heavier than a minimal Transmission-based setup.
 
-A static libtorrent build results in a larger binary — the current release-mode executable is ~9.5 MB and may reach ~10 MB as features stabilize (~3 MB when UPX packed, plus ~400 KB of gzipped JavaScript code). This is an acceptable tradeoff: **functionality takes priority over the size technical demonstration**, and the ~3 MB packaged footprint is more than good enough for the first production release.
+Why go this way anyway? Because the Transmission-based setup has had reliability issues for our use case — most notably around **starting magnet downloads immediately** (and, in some cases, entering unrecoverable wait states). The libtorrent-based daemon is intended to solve those problems while keeping a clean RPC boundary.
+
+Current priorities are correctness and stability first; optimization comes later. We may be able to shave some size off, but a dramatic drop is unlikely while we stay on libtorrent + C++.
+
+Longer-term (time permitting): once the libtorrent-based daemon is solid, we may take on Transmission itself and apply a similar approach there. There’s also an aspirational “classic uTorrent” goal: potentially rewriting more of the stack in **C** with an aggressive size target (roughly **1–1.5 MB UPX-packed**), primarily as an engineering challenge.
 
 For the full protocol and engine details, see:
 
