@@ -176,7 +176,7 @@ Why go this way anyway? Because the Transmission-based setup has had reliability
 
 Current priorities are correctness and stability first; optimization comes later. We may be able to shave some size off, but a dramatic drop is unlikely while we stay on libtorrent + C++.
 
-The often-mentioned **~1 MB** number is an _optimistic_ outcome for a Transmission-based/minimal build path; it’s not the only metric we optimize for while the libtorrent daemon is being stabilized.
+The **~1 MB** size target is an explicit initial goal derived from an educated estimate. Although the estimate was made before fully evaluating the scope of a full torrent daemon, Transmission’s final executable indicates the target remains realistic. **The primary priority is correct, stable operation and interoperability in today’s torrent ecosystem; binary size optimization remains a subsequent objective, with the size goal still in scope.**
 
 Longer-term (time permitting): once the libtorrent-based daemon is solid, we may take on Transmission itself and apply a similar approach there. There’s also an aspirational “classic uTorrent” goal: potentially rewriting more of the stack in **C** with an aggressive size target (roughly **1–1.5 MB UPX-packed**), primarily as an engineering challenge.
 
