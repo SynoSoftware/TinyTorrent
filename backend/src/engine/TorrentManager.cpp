@@ -225,6 +225,10 @@ void TorrentManager::process_tasks()
         pending.swap(tasks_);
     }
     task_space_cv_.notify_all();
+    if (pending.empty())
+    {
+        return;
+    }
     TT_LOG_DEBUG("Processing {} pending engine commands", pending.size());
     for (auto &task : pending)
     {

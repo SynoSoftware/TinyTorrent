@@ -29,11 +29,11 @@ std::string to_utf8(std::filesystem::path const &p)
 }
 } // namespace
 
-SessionService::SessionService(TorrentManager *manager,
-                               PersistenceManager *persistence,
-                               StateService *state, HistoryAgent *history,
-                               ConfigurationService *config, EventBus *bus)
-    : manager_(manager), persistence_(persistence), state_(state),
+SessionService::SessionService(
+    TorrentManager *manager, PersistenceManager *persistence,
+    std::shared_ptr<StateService> state, HistoryAgent *history,
+    ConfigurationService *config, EventBus *bus)
+    : manager_(manager), persistence_(persistence), state_(std::move(state)),
       history_(history), config_(config), bus_(bus)
 {
     // SnapshotBuilder needs reference to priorities and its mutex for

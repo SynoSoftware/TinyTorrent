@@ -72,7 +72,7 @@ struct Core::Impl
     // Services
     std::unique_ptr<PersistenceManager> persistence;
     std::unique_ptr<ConfigurationService> config_service;
-    std::unique_ptr<StateService> state_service;
+    std::shared_ptr<StateService> state_service;
     std::unique_ptr<HistoryAgent> history_agent;
     std::unique_ptr<TorrentManager> torrent_manager;
     std::unique_ptr<SessionService> session_service;
@@ -110,7 +110,7 @@ struct Core::Impl
             persistence.get(), event_bus.get(), settings);
 
         // Initialize State & History
-        state_service = std::make_unique<StateService>(persistence.get());
+        state_service = std::make_shared<StateService>(persistence.get());
         if (persistence->is_valid())
             state_service->load_persisted_stats();
         else
@@ -126,7 +126,7 @@ struct Core::Impl
         // Initialize Session
         torrent_manager = std::make_unique<TorrentManager>();
         session_service = std::make_unique<SessionService>(
-            torrent_manager.get(), persistence.get(), state_service.get(),
+            torrent_manager.get(), persistence.get(), state_service,
             history_agent.get(), config_service.get(), event_bus.get());
 
         // Initialize Aux Services
