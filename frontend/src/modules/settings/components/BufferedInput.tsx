@@ -10,7 +10,11 @@ interface BufferedInputProps
     onCommit: (next: string) => boolean | void;
 }
 
-export function BufferedInput({ value, onCommit, ...props }: BufferedInputProps) {
+export function BufferedInput({
+    value,
+    onCommit,
+    ...props
+}: BufferedInputProps) {
     const [draft, setDraft] = useState(value);
 
     useEffect(() => {
@@ -22,7 +26,6 @@ export function BufferedInput({ value, onCommit, ...props }: BufferedInputProps)
         if (accepted === false) {
             setDraft(value);
         }
-        setIsEditing(false);
     }, [draft, onCommit, value]);
 
     return (

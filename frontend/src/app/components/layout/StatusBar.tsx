@@ -19,12 +19,12 @@ import { NetworkGraph } from "@/shared/ui/graphs/NetworkGraph";
 import type { SessionStats, TorrentEntity } from "@/services/rpc/entities";
 import type { HeartbeatSource } from "@/services/rpc/heartbeat";
 import type { RpcStatus } from "@/shared/types/rpc";
-import { ICON_STROKE_WIDTH } from "@/config/logic";
+import { ICON_STROKE_WIDTH, getShellTokens } from "@/config/logic";
+import type { WorkspaceStyle } from "@/app/hooks/useWorkspaceShell";
 import {
     BLOCK_SHADOW,
     GLASS_BLOCK_SURFACE,
 } from "@/shared/ui/layout/glass-surface";
-import { SHELL_CONTENT_STYLE, SHELL_FRAME_STYLE } from "@/config/logic";
 
 // --- UI CONFIGURATION & TOKENS ---
 const UI_CONFIG = {
@@ -65,6 +65,7 @@ const UI_CONFIG = {
 export type EngineDisplayType = "tinytorrent" | "transmission" | "unknown";
 
 interface StatusBarProps {
+    workspaceStyle: WorkspaceStyle;
     sessionStats: SessionStats | null;
     downHistory: number[];
     upHistory: number[];
@@ -76,6 +77,7 @@ interface StatusBarProps {
 }
 
 export function StatusBar({
+    workspaceStyle,
     sessionStats,
     downHistory,
     upHistory,
@@ -86,6 +88,7 @@ export function StatusBar({
     engineType,
 }: StatusBarProps) {
     const { t } = useTranslation();
+    const shell = getShellTokens(workspaceStyle);
 
     // 1. Semantic Visuals
     const STATUS_VISUALS: Record<
@@ -206,7 +209,7 @@ export function StatusBar({
                 GLASS_BLOCK_SURFACE,
                 BLOCK_SHADOW
             )}
-            style={SHELL_FRAME_STYLE}
+            style={shell.frameStyle}
         >
             <div
                 className={cn(
@@ -214,7 +217,7 @@ export function StatusBar({
                     UI_CONFIG.layout.height,
                     UI_CONFIG.layout.sectionGap
                 )}
-                style={SHELL_CONTENT_STYLE}
+                style={shell.contentStyle}
             >
                 {/* --- LEFT: SPEED MODULES --- */}
                 <div

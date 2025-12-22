@@ -201,6 +201,8 @@
             "handlers_header": "Protocol handlers",
             "handlers_not_registered": "Handlers not registered",
             "handlers_registered": "Handlers registered",
+            "handler_requires_elevation":
+                "Handler registration requires administrator privileges.",
             "install_not_requested": "Program Files install was not requested.",
             "installed_path": "Installed to {{path}}.",
             "locations": {

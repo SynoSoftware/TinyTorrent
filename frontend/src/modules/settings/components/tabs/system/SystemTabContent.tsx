@@ -8,6 +8,7 @@ export function SystemTabContent() {
     const {
         autorunSwitch,
         handlerSwitch,
+        handlerRequiresElevation,
         extensionModeEnabled,
         isMocked,
         onSystemInstall,
@@ -23,6 +24,7 @@ export function SystemTabContent() {
                 <SystemInstallSection
                     autorunSwitch={autorunSwitch}
                     handlerSwitch={handlerSwitch}
+                    handlerRequiresElevation={handlerRequiresElevation}
                     extensionModeEnabled={extensionModeEnabled}
                     isMocked={isMocked}
                     onSystemInstall={onSystemInstall}

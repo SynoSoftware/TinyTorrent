@@ -25,6 +25,7 @@ interface SettingsFormContextValue {
     onBrowse: (key: ConfigKey) => void;
     autorunSwitch: AutorunSwitchProps;
     handlerSwitch: AutorunSwitchProps;
+    handlerRequiresElevation: boolean;
     extensionModeEnabled: boolean;
     isMocked: boolean;
     onSystemInstall?: (

@@ -40,10 +40,17 @@
             "overscan": 20
         },
         "shell": {
-            "outer_radius": 15,
-            "panel_gap": 4,
-            "ring_padding": 4,
-            "handle_hit_area": 10
+            "classic": {
+                "outer_radius": 20,
+                "handle_hit_area": 10
+            },
+            "immersive": {
+                "outer_radius": 24,
+                "chrome_padding": 8,
+                "main_padding": 8,
+                "main_content_padding": 8,
+                "hud_card_radius": 28
+            }
         },
         "details": {
             "tab_content_max_height": 360

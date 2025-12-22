@@ -189,6 +189,7 @@ interface TorrentTableProps {
     filter: string;
     searchQuery: string;
     isLoading?: boolean;
+    embedded?: boolean;
     onAction?: (action: TorrentTableAction, torrent: Torrent) => void;
     onRequestDetails?: (torrent: Torrent) => void;
     onRequestDetailsFullscreen?: (torrent: Torrent) => void;
@@ -569,6 +570,7 @@ export function TorrentTable({
     filter,
     searchQuery,
     isLoading = false,
+    embedded = false,
     onAction,
     onRequestDetails,
     onRequestDetailsFullscreen,
@@ -1522,8 +1524,8 @@ export function TorrentTable({
                 style={{ borderRadius: "inherit" }}
                 className={cn(
                     "flex-1 min-h-0 flex flex-col h-full overflow-hidden relative select-none outline-none",
-                    GLASS_BLOCK_SURFACE,
-                    BLOCK_SHADOW
+                    !embedded && GLASS_BLOCK_SURFACE,
+                    !embedded && BLOCK_SHADOW
                 )}
                 onClick={() => setContextMenu(null)}
             >

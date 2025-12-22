@@ -23,6 +23,7 @@ interface AutorunSwitchProps {
 interface SystemInstallSectionProps {
     autorunSwitch: AutorunSwitchProps;
     handlerSwitch: AutorunSwitchProps;
+    handlerRequiresElevation: boolean;
     extensionModeEnabled: boolean;
     isMocked: boolean;
     onSystemInstall?: (
@@ -34,6 +35,7 @@ interface SystemInstallSectionProps {
 export function SystemInstallSection({
     autorunSwitch,
     handlerSwitch,
+    handlerRequiresElevation,
     extensionModeEnabled,
     isMocked,
     onSystemInstall,
@@ -234,6 +236,11 @@ export function SystemInstallSection({
                         {t("settings.labels.installRegisterHandlers")}
                     </span>
                 </Switch>
+                {handlerRequiresElevation && (
+                    <p className="text-[10px] text-foreground/60">
+                        {t("settings.install.handler_requires_elevation")}
+                    </p>
+                )}
                 <Switch
                     size="sm"
                     isSelected={installToProgramFiles}

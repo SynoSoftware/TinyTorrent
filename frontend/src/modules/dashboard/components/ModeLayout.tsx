@@ -22,16 +22,8 @@ import {
     type PeerSortStrategy,
 } from "./TorrentDetailView";
 import type { Torrent, TorrentDetail } from "../types/torrent";
-import {
-    ICON_STROKE_WIDTH,
-    SHELL_CONTENT_STYLE,
-    SHELL_FRAME_STYLE,
-    SHELL_GAP,
-    SHELL_HANDLE_HIT_AREA,
-    SHELL_INNER_RADIUS,
-    SHELL_RADIUS,
-    SHELL_RING_PADDING,
-} from "../../../config/logic";
+import { ICON_STROKE_WIDTH, getShellTokens } from "../../../config/logic";
+import type { WorkspaceStyle } from "../../../app/hooks/useWorkspaceShell";
 import type { TorrentPeerEntity } from "../../../services/rpc/entities";
 import type {
     FileExplorerContextAction,
@@ -39,29 +31,6 @@ import type {
 } from "../../../shared/ui/workspace/FileExplorerTree";
 import type { PeerContextAction } from "./details/tabs/PeersTab";
 import { GLASS_BLOCK_SURFACE } from "../../../shared/ui/layout/glass-surface";
-
-/**
- * LAYOUT METRICS SYSTEM
- * ----------------------------------------------------------------------
- * Values for the shared shell geometry are sourced from the centralized
- * `LAYOUT_METRICS` configuration so every panel aligns with the same gap,
- * radius, and ring padding.
- */
-const METRICS = {
-    gap: SHELL_GAP,
-    radius: SHELL_RADIUS,
-    ringPadding: SHELL_RING_PADDING,
-    handleHitArea: SHELL_HANDLE_HIT_AREA,
-} as const;
-
-/**
- * Computed geometry for the inner container so it nests perfectly
- * inside the outer container without looking "off-center".
- */
-const COMPUTED = {
-    innerRadius: SHELL_INNER_RADIUS,
-    handleSize: METRICS.gap,
-} as const;
 
 const ANIMATION = {
     spring: {
@@ -73,6 +42,7 @@ const ANIMATION = {
 } as const;
 
 interface ModeLayoutProps {
+    workspaceStyle: WorkspaceStyle;
     torrents: Torrent[];
     filter: string;
     searchQuery: string;
@@ -111,6 +81,7 @@ interface ModeLayoutProps {
 }
 
 export function ModeLayout({
+    workspaceStyle,
     torrents,
     filter,
     searchQuery,
@@ -140,6 +111,10 @@ export function ModeLayout({
 }: ModeLayoutProps) {
     const { t } = useTranslation();
     const { activePart, setActivePart } = useFocusState();
+
+    const isImmersiveShell = workspaceStyle === "immersive";
+
+    const shell = getShellTokens(workspaceStyle);
 
     const splitDirection = detailSplitDirection;
     const isHorizontalSplit = splitDirection === "horizontal";
@@ -234,24 +209,27 @@ export function ModeLayout({
 
     const getShellStyles = (partName: "table" | "inspector") => {
         const isActive = activePart === partName;
+        const frameClass = isActive ? "z-20" : "z-10";
         return {
             className: cn(
-                "relative h-full transition-all duration-200 border flex flex-col box-border min-w-0 min-h-0",
-                GLASS_BLOCK_SURFACE,
-                isActive
-                    ? "border-primary/30 ring-1 ring-primary/20 z-20"
-                    : "border-content1/10 z-10"
+                "relative h-full transition-all duration-200 flex flex-col box-border min-w-0 min-h-0",
+                !isImmersiveShell && GLASS_BLOCK_SURFACE,
+                !isImmersiveShell && "border",
+                frameClass,
+                isImmersiveShell && "bg-transparent"
             ),
-            style: SHELL_FRAME_STYLE,
+            style: isImmersiveShell ? undefined : shell.frameStyle,
         };
     };
 
     const getContentStyles = () => ({
-        className:
-            "relative flex-1 min-h-0 w-full h-full overflow-hidden bg-background/40",
+        className: cn(
+            "relative flex-1 min-h-0 w-full h-full overflow-hidden",
+            !isImmersiveShell && "bg-background/40"
+        ),
         style: {
-            ...SHELL_CONTENT_STYLE,
-            padding: `${METRICS.gap}px`,
+            ...(isImmersiveShell ? undefined : shell.contentStyle),
+            padding: isImmersiveShell ? undefined : `${shell.gap}px`,
         },
     });
 
@@ -260,7 +238,7 @@ export function ModeLayout({
             {isDropActive && (
                 <motion.div
                     className="pointer-events-none absolute inset-0 flex items-center justify-center z-50"
-                    style={SHELL_CONTENT_STYLE}
+                    style={shell.contentStyle}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
@@ -268,7 +246,7 @@ export function ModeLayout({
                 >
                     <motion.div
                         className="absolute inset-2 border border-primary/60"
-                        style={SHELL_CONTENT_STYLE}
+                        style={shell.contentStyle}
                         initial={{ scale: 0.96, opacity: 0.4 }}
                         animate={{ scale: 1, opacity: 0.8 }}
                         exit={{ opacity: 0 }}
@@ -310,7 +288,7 @@ export function ModeLayout({
                             <div
                                 className="relative z-10 h-full min-h-0 overflow-hidden"
                                 style={{
-                                    borderRadius: `${SHELL_INNER_RADIUS}px`,
+                                    borderRadius: `${shell.innerRadius}px`,
                                 }}
                             >
                                 {tableWatermarkEnabled && (
@@ -324,6 +302,7 @@ export function ModeLayout({
                                     style={{ borderRadius: "inherit" }}
                                 >
                                     <TorrentTable
+                                        embedded={isImmersiveShell}
                                         torrents={torrents}
                                         filter={filter}
                                         searchQuery={searchQuery}
@@ -354,12 +333,12 @@ export function ModeLayout({
                             : "cursor-row-resize"
                     )}
                     hitAreaMargins={{
-                        coarse: METRICS.handleHitArea,
-                        fine: METRICS.handleHitArea,
+                        coarse: shell.handleHitArea,
+                        fine: shell.handleHitArea,
                     }}
                     style={{
                         // This strictly defines the visual gap
-                        flexBasis: COMPUTED.handleSize,
+                        flexBasis: shell.gap,
                     }}
                 >
                     <div className="absolute inset-0 flex items-center justify-center">
@@ -392,7 +371,7 @@ export function ModeLayout({
                             <div
                                 className="h-full min-h-0 flex-1 overflow-hidden"
                                 style={{
-                                    borderRadius: `${SHELL_INNER_RADIUS}px`,
+                                    borderRadius: `${shell.innerRadius}px`,
                                 }}
                             >
                                 <motion.div
@@ -461,7 +440,7 @@ export function ModeLayout({
                             className={cn(
                                 "relative z-10 flex h-full w-full flex-col overflow-hidden bg-content1/80 backdrop-blur-xl border border-content1/20 shadow-medium"
                             )}
-                            style={{ borderRadius: METRICS.radius }}
+                            style={{ borderRadius: shell.radius }}
                             initial={{ opacity: 0, scale: 0.96 }}
                             animate={{ opacity: 1, scale: 1 }}
                             exit={{ opacity: 0, scale: 0.96 }}
