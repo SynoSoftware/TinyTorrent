@@ -8,7 +8,11 @@ import type {
     TransmissionTorrent,
     TransmissionTorrentDetail,
 } from "./types";
-import type { AutorunStatus, TinyTorrentCapabilities } from "./entities";
+import type {
+    AutorunStatus,
+    TinyTorrentCapabilities,
+    SystemHandlerStatus,
+} from "./entities";
 
 const zRpcResponse = z.object({
     result: z.string(),
@@ -21,12 +25,9 @@ const RPC_TORRENT_STATUS_VALUES = [0, 1, 2, 3, 4, 5, 6, 7] as const;
 const isRpcTorrentStatus = (value: number): value is RpcTorrentStatus =>
     (RPC_TORRENT_STATUS_VALUES as readonly number[]).includes(value);
 
-const zRpcTorrentStatus = z
-    .number()
-    .int()
-    .refine(isRpcTorrentStatus, {
-        message: "Invalid transmission torrent status",
-    });
+const zRpcTorrentStatus = z.number().int().refine(isRpcTorrentStatus, {
+    message: "Invalid transmission torrent status",
+});
 
 const logValidationIssue = (
     context: string,
@@ -148,12 +149,32 @@ const zSessionStatsRaw = z.object({
     "current-stats": zSessionStatsTotals.optional(),
 });
 
+const EMPTY_SESSION_TOTALS = {
+    uploadedBytes: 0,
+    downloadedBytes: 0,
+    filesAdded: 0,
+    secondsActive: 0,
+    sessionCount: 0,
+};
+
 const normalizeSessionStats = (raw: z.infer<typeof zSessionStatsRaw>) => {
     const cumulative =
-        raw.cumulativeStats ?? raw["cumulative-stats"];
-    const current = raw.currentStats ?? raw["current-stats"];
-    if (!cumulative || !current) {
-        throw new Error("Missing session stats totals");
+        raw.cumulativeStats ?? raw["cumulative-stats"] ?? EMPTY_SESSION_TOTALS;
+    const current =
+        raw.currentStats ?? raw["current-stats"] ?? EMPTY_SESSION_TOTALS;
+    if (!raw.cumulativeStats && !raw["cumulative-stats"]) {
+        logValidationIssue(
+            "normalizeSessionStats",
+            raw,
+            "Missing cumulative session stats"
+        );
+    }
+    if (!raw.currentStats && !raw["current-stats"]) {
+        logValidationIssue(
+            "normalizeSessionStats",
+            raw,
+            "Missing current session stats"
+        );
     }
     return {
         activeTorrentCount: raw.activeTorrentCount,
@@ -167,11 +188,7 @@ const normalizeSessionStats = (raw: z.infer<typeof zSessionStatsRaw>) => {
     };
 };
 
-const zEncryptionLevel = z.enum([
-    "required",
-    "preferred",
-    "tolerated",
-]);
+const zEncryptionLevel = z.enum(["required", "preferred", "tolerated"]);
 
 const zTransmissionSessionSettings = z.object({
     "peer-port": z.number().optional(),
@@ -186,8 +203,8 @@ const zTransmissionSessionSettings = z.object({
     "alt-speed-down": z.number().optional(),
     "alt-speed-up": z.number().optional(),
     "alt-speed-time-enabled": z.boolean().optional(),
-    "alt-speed-begin": z.number().optional(),
-    "alt-speed-end": z.number().optional(),
+    "alt-speed-time-begin": z.number().optional(),
+    "alt-speed-time-end": z.number().optional(),
     "alt-speed-time-day": z.number().optional(),
     "peer-limit-global": z.number().optional(),
     "peer-limit-per-torrent": z.number().optional(),
@@ -242,7 +259,8 @@ export const parseRpcResponse = (payload: unknown) => {
 };
 export const getTorrentList = (payload: unknown): TransmissionTorrent[] => {
     try {
-        return zTorrentListResponse.parse(payload).torrents as TransmissionTorrent[];
+        return zTorrentListResponse.parse(payload)
+            .torrents as TransmissionTorrent[];
     } catch (error) {
         logValidationIssue("getTorrentList", payload, error);
         throw error;
@@ -263,9 +281,7 @@ export const getTorrentDetail = (
         throw error;
     }
 };
-export const getSessionStats = (
-    payload: unknown
-): TransmissionSessionStats => {
+export const getSessionStats = (payload: unknown): TransmissionSessionStats => {
     try {
         const raw = zSessionStatsRaw.parse(payload);
         return normalizeSessionStats(raw);
@@ -278,7 +294,9 @@ export const getSessionSettings = (
     payload: unknown
 ): TransmissionSessionSettings => {
     try {
-        return zTransmissionSessionSettings.parse(payload) as TransmissionSessionSettings;
+        return zTransmissionSessionSettings.parse(
+            payload
+        ) as TransmissionSessionSettings;
     } catch (error) {
         logValidationIssue("getSessionSettings", payload, error);
         throw error;
@@ -323,8 +341,10 @@ export const getTinyTorrentCapabilities = (
             version: parsed.version,
             serverVersion: parsed["server-version"],
             rpcVersion: parsed["rpc-version"],
-            websocketEndpoint: parsed["websocket-endpoint"] ?? parsed["websocket-path"],
-            websocketPath: parsed["websocket-path"] ?? parsed["websocket-endpoint"],
+            websocketEndpoint:
+                parsed["websocket-endpoint"] ?? parsed["websocket-path"],
+            websocketPath:
+                parsed["websocket-path"] ?? parsed["websocket-endpoint"],
             platform: parsed.platform,
             features: parsed.features,
         };
@@ -340,11 +360,30 @@ const zSystemAutorunStatus = z.object({
     requiresElevation: z.boolean(),
 });
 
+const zSystemHandlerStatus = z.object({
+    registered: z.boolean(),
+    supported: z.boolean(),
+    requiresElevation: z.boolean(),
+    magnetRegistered: z.boolean().optional(),
+    torrentRegistered: z.boolean().optional(),
+});
+
 export const getSystemAutorunStatus = (payload: unknown): AutorunStatus => {
     try {
         return zSystemAutorunStatus.parse(payload);
     } catch (error) {
         logValidationIssue("getSystemAutorunStatus", payload, error);
+        throw error;
+    }
+};
+
+export const getSystemHandlerStatus = (
+    payload: unknown
+): SystemHandlerStatus => {
+    try {
+        return zSystemHandlerStatus.parse(payload);
+    } catch (error) {
+        logValidationIssue("getSystemHandlerStatus", payload, error);
         throw error;
     }
 };

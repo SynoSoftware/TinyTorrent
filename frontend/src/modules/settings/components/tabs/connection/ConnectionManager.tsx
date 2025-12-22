@@ -322,8 +322,26 @@ export function ConnectionExtensionCard({
     rpcStatus,
 }: ConnectionExtensionCardProps) {
     const { t } = useTranslation();
-    const { enabled, isMocked, setEnabled } =
+    const { enabled, isMocked, setEnabled, availability } =
         useConnectionManagerState(rpcStatus);
+    const extensionModeHelper = useMemo(() => {
+        switch (availability) {
+            case "available":
+                return t(
+                    "settings.connection.extension_mode_helper_tinytorrent"
+                );
+
+            case "unavailable":
+                return t(
+                    "settings.connection.extension_mode_helper_transmission"
+                );
+
+            case "error":
+            default:
+                return t("settings.connection.extension_mode_helper");
+        }
+    }, [availability, t]);
+
     const shouldShowMockNotice = enabled && isMocked;
 
     return (
@@ -343,7 +361,7 @@ export function ConnectionExtensionCard({
                         {t("settings.connection.extension_mode_label")}
                     </span>
                     <span className="text-xs text-foreground/60">
-                        {t("settings.connection.extension_mode_helper")}
+                        {extensionModeHelper}
                     </span>
                 </div>
             </Switch>

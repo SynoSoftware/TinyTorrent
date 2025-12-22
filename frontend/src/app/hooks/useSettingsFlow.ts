@@ -86,11 +86,11 @@ const mapSessionToConfig = (
         session["alt-speed-time-enabled"] ??
         DEFAULT_SETTINGS_CONFIG.alt_speed_time_enabled,
     alt_speed_begin: minutesToTimeString(
-        session["alt-speed-begin"],
+        session["alt-speed-time-begin"],
         DEFAULT_SETTINGS_CONFIG.alt_speed_begin
     ),
     alt_speed_end: minutesToTimeString(
-        session["alt-speed-end"],
+        session["alt-speed-time-end"],
         DEFAULT_SETTINGS_CONFIG.alt_speed_end
     ),
     alt_speed_time_day:
@@ -135,38 +135,50 @@ const mapSessionToConfig = (
 
 const mapConfigToSession = (
     config: SettingsConfig
-): Partial<TransmissionSessionSettings> => ({
-    "peer-port": config.peer_port,
-    "peer-port-random-on-start": config.peer_port_random_on_start,
-    "port-forwarding-enabled": config.port_forwarding_enabled,
-    encryption: config.encryption,
-    "speed-limit-down": config.speed_limit_down,
-    "speed-limit-down-enabled": config.speed_limit_down_enabled,
-    "speed-limit-up": config.speed_limit_up,
-    "speed-limit-up-enabled": config.speed_limit_up_enabled,
-    "alt-speed-down": config.alt_speed_down,
-    "alt-speed-up": config.alt_speed_up,
-    "alt-speed-time-enabled": config.alt_speed_time_enabled,
-    "alt-speed-begin": timeStringToMinutes(config.alt_speed_begin),
-    "alt-speed-end": timeStringToMinutes(config.alt_speed_end),
-    "alt-speed-time-day": config.alt_speed_time_day,
-    "peer-limit-global": config.peer_limit_global,
-    "peer-limit-per-torrent": config.peer_limit_per_torrent,
-    "lpd-enabled": config.lpd_enabled,
-    "dht-enabled": config.dht_enabled,
-    "pex-enabled": config.pex_enabled,
-    "blocklist-url": config.blocklist_url,
-    "blocklist-enabled": config.blocklist_enabled,
-    "download-dir": config.download_dir,
-    "incomplete-dir-enabled": config.incomplete_dir_enabled,
-    "incomplete-dir": config.incomplete_dir,
-    "rename-partial-files": config.rename_partial_files,
-    "start-added-torrents": config.start_added_torrents,
-    seedRatioLimit: config.seedRatioLimit,
-    seedRatioLimited: config.seedRatioLimited,
-    "idle-seeding-limit": config.idleSeedingLimit,
-    "idle-seeding-limit-enabled": config.idleSeedingLimited,
-});
+): Partial<TransmissionSessionSettings> => {
+    const settings: Partial<TransmissionSessionSettings> = {
+        "peer-port": config.peer_port,
+        "peer-port-random-on-start": config.peer_port_random_on_start,
+        "port-forwarding-enabled": config.port_forwarding_enabled,
+        encryption: config.encryption,
+        "speed-limit-down": config.speed_limit_down,
+        "speed-limit-down-enabled": config.speed_limit_down_enabled,
+        "speed-limit-up": config.speed_limit_up,
+        "speed-limit-up-enabled": config.speed_limit_up_enabled,
+        "alt-speed-down": config.alt_speed_down,
+        "alt-speed-up": config.alt_speed_up,
+        "alt-speed-time-enabled": config.alt_speed_time_enabled,
+        "alt-speed-time-begin": timeStringToMinutes(config.alt_speed_begin),
+        "alt-speed-time-end": timeStringToMinutes(config.alt_speed_end),
+        "alt-speed-time-day": config.alt_speed_time_day,
+        "peer-limit-global": config.peer_limit_global,
+        "peer-limit-per-torrent": config.peer_limit_per_torrent,
+        "lpd-enabled": config.lpd_enabled,
+        "dht-enabled": config.dht_enabled,
+        "pex-enabled": config.pex_enabled,
+        "blocklist-url": config.blocklist_url,
+        "blocklist-enabled": config.blocklist_enabled,
+        "rename-partial-files": config.rename_partial_files,
+        "start-added-torrents": config.start_added_torrents,
+        seedRatioLimit: config.seedRatioLimit,
+        seedRatioLimited: config.seedRatioLimited,
+        "idle-seeding-limit": config.idleSeedingLimit,
+        "idle-seeding-limit-enabled": config.idleSeedingLimited,
+    };
+
+    if (config.download_dir.trim()) {
+        settings["download-dir"] = config.download_dir;
+    }
+
+    if (config.incomplete_dir.trim()) {
+        settings["incomplete-dir"] = config.incomplete_dir;
+        settings["incomplete-dir-enabled"] = config.incomplete_dir_enabled;
+    } else if (!config.incomplete_dir_enabled) {
+        settings["incomplete-dir-enabled"] = false;
+    }
+
+    return settings;
+};
 
 interface UseSettingsFlowParams {
     torrentClient: EngineAdapter;
@@ -174,6 +186,7 @@ interface UseSettingsFlowParams {
     refreshSessionStatsDataRef: MutableRefObject<() => Promise<void>>;
     refreshSessionSettings: () => Promise<TransmissionSessionSettings>;
     reportRpcStatus: (status: RpcStatus) => void;
+    rpcStatus: RpcStatus;
     isSettingsOpen: boolean;
     isMountedRef: MutableRefObject<boolean>;
     updateRequestTimeout: (timeoutMs: number) => void;
@@ -185,6 +198,7 @@ export function useSettingsFlow({
     refreshSessionStatsDataRef,
     refreshSessionSettings,
     reportRpcStatus,
+    rpcStatus,
     isSettingsOpen,
     isMountedRef,
     updateRequestTimeout,
@@ -193,15 +207,19 @@ export function useSettingsFlow({
         mergeWithUserPreferences({ ...DEFAULT_SETTINGS_CONFIG })
     );
     const [isSettingsSaving, setIsSettingsSaving] = useState(false);
+    const [settingsLoadError, setSettingsLoadError] = useState(false);
 
     useEffect(() => {
         updateRequestTimeout(settingsConfig.request_timeout_ms);
     }, [settingsConfig.request_timeout_ms, updateRequestTimeout]);
 
     useEffect(() => {
-        if (!isSettingsOpen) return;
+        if (!isSettingsOpen || rpcStatus !== "connected") return;
         let active = true;
         const loadSettings = async () => {
+            if (active) {
+                setSettingsLoadError(false);
+            }
             try {
                 const session = await refreshSessionSettings();
                 if (active) {
@@ -211,7 +229,7 @@ export function useSettingsFlow({
                 }
             } catch {
                 if (active) {
-                    reportRpcStatus("error");
+                    setSettingsLoadError(true);
                 }
             }
         };
@@ -219,7 +237,7 @@ export function useSettingsFlow({
         return () => {
             active = false;
         };
-    }, [isSettingsOpen, refreshSessionSettings, reportRpcStatus]);
+    }, [isSettingsOpen, refreshSessionSettings, rpcStatus]);
 
     const handleSaveSettings = useCallback(
         async (config: SettingsConfig) => {
@@ -278,5 +296,6 @@ export function useSettingsFlow({
         handleSaveSettings,
         handleTestPort,
         setSettingsConfig,
+        settingsLoadError,
     };
 }

@@ -119,12 +119,16 @@ export function ModeLayout({
     const isDetailOpen = Boolean(detailData);
     const tableFocused = activePart === "table";
     const inspectorFocused = activePart === "inspector";
-    const focusTable = useCallback(() => setActivePart("table"), [setActivePart]);
-    const focusInspector = useCallback(() => setActivePart("inspector"), [
-        setActivePart,
-    ]);
+    const focusTable = useCallback(
+        () => setActivePart("table"),
+        [setActivePart]
+    );
+    const focusInspector = useCallback(
+        () => setActivePart("inspector"),
+        [setActivePart]
+    );
     const tableRegionClass = cn(
-        "absolute inset-0 pb-2 rounded-2xl transition-colors duration-200 overflow-hidden",
+        "absolute inset-0 pb-2 rounded-[42px] transition-colors duration-200 overflow-hidden",
         tableFocused
             ? "border border-primary/30 ring-1 ring-primary/20"
             : "border border-content1/10"
@@ -284,7 +288,10 @@ export function ModeLayout({
                 className={panelGroupClass}
             >
                 <Panel className="relative flex-1 min-h-0">
-                    <div className={tableRegionClass} onPointerDown={focusTable}>
+                    <div
+                        className={tableRegionClass}
+                        onPointerDown={focusTable}
+                    >
                         {watermarkLayer}
                         <div className="relative z-10 h-full min-h-0">
                             <TorrentTable
@@ -353,9 +360,7 @@ export function ModeLayout({
                             }
                             onSequentialToggle={onSequentialToggle}
                             onSuperSeedingToggle={onSuperSeedingToggle}
-                            onForceTrackerReannounce={
-                                onForceTrackerReannounce
-                            }
+                            onForceTrackerReannounce={onForceTrackerReannounce}
                             sequentialSupported={sequentialSupported}
                             superSeedingSupported={superSeedingSupported}
                             isFullscreen={isDetailFullscreen}
@@ -382,18 +387,18 @@ export function ModeLayout({
                             exit={{ opacity: 0, scale: 0.96 }}
                             transition={{ duration: 0.25 }}
                         >
-                        <TorrentDetailView
-                            torrent={detailData}
-                            onClose={handleDetailClose}
-                            onFilesToggle={onFilesToggle}
-                            onFileContextAction={onFileContextAction}
-                            onPeerContextAction={onPeerContextAction}
-                            peerSortStrategy={peerSortStrategy}
-                            inspectorTabCommand={inspectorTabCommand}
-                            onInspectorTabCommandHandled={
-                                onInspectorTabCommandHandled
-                            }
-                            onSequentialToggle={onSequentialToggle}
+                            <TorrentDetailView
+                                torrent={detailData}
+                                onClose={handleDetailClose}
+                                onFilesToggle={onFilesToggle}
+                                onFileContextAction={onFileContextAction}
+                                onPeerContextAction={onPeerContextAction}
+                                peerSortStrategy={peerSortStrategy}
+                                inspectorTabCommand={inspectorTabCommand}
+                                onInspectorTabCommandHandled={
+                                    onInspectorTabCommandHandled
+                                }
+                                onSequentialToggle={onSequentialToggle}
                                 onSuperSeedingToggle={onSuperSeedingToggle}
                                 onForceTrackerReannounce={
                                     onForceTrackerReannounce

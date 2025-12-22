@@ -42,17 +42,12 @@ export function useTransmissionSession(
                 "Session settings not supported by the torrent client"
             );
         }
-        try {
-            const session = await client.fetchSessionSettings();
-            if (isMountedRef.current) {
-                setSessionSettings(session);
-            }
-            return session;
-        } catch (error) {
-            reportRpcStatus("error");
-            throw error;
+        const session = await client.fetchSessionSettings();
+        if (isMountedRef.current) {
+            setSessionSettings(session);
         }
-    }, [client, reportRpcStatus]);
+        return session;
+    }, [client]);
 
     const updateRequestTimeout = useCallback(
         (timeout: number) => {

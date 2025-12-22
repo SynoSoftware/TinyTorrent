@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import type { HTMLAttributes, InputHTMLAttributes } from "react";
 import { AnimatePresence, motion, type Transition } from "framer-motion";
 import { useTranslation } from "react-i18next";
@@ -22,7 +22,7 @@ import { ModeLayout } from "../../modules/dashboard/components/ModeLayout";
 import { AddTorrentModal } from "../../modules/torrent-add/components/AddTorrentModal";
 import { SettingsModal } from "../../modules/settings/components/SettingsModal";
 import { Navbar } from "./layout/Navbar";
-import { StatusBar } from "./layout/StatusBar";
+import { StatusBar, type EngineDisplayType } from "./layout/StatusBar";
 import type { SettingsConfig } from "../../modules/settings/data/config";
 import { INTERACTION_CONFIG } from "../../config/logic";
 import { ICON_STROKE_WIDTH } from "../../config/logic";
@@ -53,9 +53,11 @@ import type {
     SessionStats,
     TorrentPeerEntity,
 } from "../../services/rpc/entities";
+import type { HeartbeatSource } from "../../services/rpc/heartbeat";
 import type { RpcStatus } from "../../shared/types/rpc";
 import type { AddTorrentContext } from "../hooks/useAddTorrent";
 import type { WorkspaceStyle } from "../hooks/useWorkspaceShell";
+import { useRpcExtension } from "@/app/context/RpcExtensionContext";
 
 type AddTorrentPayload = {
     magnetLink?: string;
@@ -121,6 +123,7 @@ interface WorkspaceShellProps {
     inspectorTabCommand: DetailTab | null;
     onInspectorTabCommandHandled: () => void;
     sessionStats: SessionStats | null;
+    liveTransportStatus: HeartbeatSource;
     downHistory: number[];
     upHistory: number[];
     rpcStatus: RpcStatus;
@@ -143,6 +146,7 @@ interface WorkspaceShellProps {
     closeSettings: () => void;
     settingsConfig: SettingsConfig;
     isSettingsSaving: boolean;
+    settingsLoadError?: boolean;
     handleSaveSettings: (config: SettingsConfig) => Promise<void>;
     handleTestPort: () => Promise<void>;
     restoreHudCards: () => void;
@@ -187,6 +191,7 @@ export function WorkspaceShell({
     inspectorTabCommand,
     onInspectorTabCommandHandled,
     sessionStats,
+    liveTransportStatus,
     downHistory,
     upHistory,
     rpcStatus,
@@ -206,6 +211,7 @@ export function WorkspaceShell({
     closeSettings,
     settingsConfig,
     isSettingsSaving,
+    settingsLoadError,
     handleSaveSettings,
     handleTestPort,
     restoreHudCards,
@@ -213,6 +219,17 @@ export function WorkspaceShell({
     torrentClient,
 }: WorkspaceShellProps) {
     const { t } = useTranslation();
+    const { availability } = useRpcExtension();
+
+    const engineType = useMemo<EngineDisplayType>(() => {
+        if (rpcStatus === "connected" && availability === "available") {
+            return "tinytorrent";
+        }
+        if (availability === "unavailable" || availability === "error") {
+            return "transmission";
+        }
+        return "unknown";
+    }, [availability, rpcStatus]);
     const isImmersiveShell = workspaceStyle === "immersive";
 
     const workspaceStyleToggleLabel =
@@ -300,8 +317,10 @@ export function WorkspaceShell({
             downHistory={downHistory}
             upHistory={upHistory}
             rpcStatus={rpcStatus}
+            liveTransportStatus={liveTransportStatus}
             selectedTorrent={detailData ?? undefined}
             onEngineClick={handleReconnect}
+            engineType={engineType}
         />
     );
 
@@ -535,6 +554,7 @@ export function WorkspaceShell({
                 onClose={handleAddModalClose}
                 initialFile={pendingTorrentFile}
                 initialMagnetLink={incomingMagnetLink ?? undefined}
+                initialDownloadDir={settingsConfig.download_dir}
                 onAdd={handleAddTorrent}
                 isSubmitting={isAddingTorrent}
             />
@@ -543,6 +563,7 @@ export function WorkspaceShell({
                 onClose={closeSettings}
                 initialConfig={settingsConfig}
                 isSaving={isSettingsSaving}
+                settingsLoadError={settingsLoadError}
                 onSave={handleSaveSettings}
                 onTestPort={handleTestPort}
                 onRestoreInsights={restoreHudCards}

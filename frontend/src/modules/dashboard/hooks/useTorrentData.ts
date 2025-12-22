@@ -108,18 +108,23 @@ export function useTorrentData({
             let hasOrderChanges = previousOrder.length !== data.length;
 
             for (let index = 0; index < data.length; index += 1) {
-                const torrent = data[index];
-                const cached = previousCache.get(torrent.id);
+                const incoming = data[index];
+                const cached = previousCache.get(incoming.id);
+                const normalized = {
+                    ...incoming,
+                    added: incoming.added ?? cached?.added ?? Date.now(),
+                };
                 const reuseExisting = Boolean(
-                    cached && areTorrentsEqual(cached, torrent)
+                    cached && areTorrentsEqual(cached, normalized)
                 );
-                nextCache.set(torrent.id, reuseExisting ? cached! : torrent);
-                nextOrder.push(torrent.id);
+                const nextTorrent = reuseExisting ? cached! : normalized;
+                nextCache.set(incoming.id, nextTorrent);
+                nextOrder.push(incoming.id);
 
                 if (!reuseExisting) {
                     hasDataChanges = true;
                 }
-                if (!hasOrderChanges && previousOrder[index] !== torrent.id) {
+                if (!hasOrderChanges && previousOrder[index] !== incoming.id) {
                     hasOrderChanges = true;
                 }
             }

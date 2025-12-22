@@ -141,6 +141,14 @@ export interface AutorunStatus {
     requiresElevation: boolean;
 }
 
+export interface SystemHandlerStatus {
+    registered: boolean;
+    supported: boolean;
+    requiresElevation: boolean;
+    magnetRegistered?: boolean;
+    torrentRegistered?: boolean;
+}
+
 export interface TinyTorrentCapabilities {
     version?: string;
     serverVersion?: string;

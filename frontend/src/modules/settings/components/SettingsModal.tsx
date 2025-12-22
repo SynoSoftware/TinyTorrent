@@ -20,7 +20,10 @@ import type {
     SystemInstallResult,
 } from "@/services/rpc/types";
 import type { RpcStatus } from "@/shared/types/rpc";
-import type { AutorunStatus } from "@/services/rpc/entities";
+import type {
+    AutorunStatus,
+    SystemHandlerStatus,
+} from "@/services/rpc/entities";
 import { ICON_STROKE_WIDTH } from "@/config/logic";
 import { INTERACTION_CONFIG } from "@/config/logic";
 import { DirectoryPicker } from "@/shared/ui/workspace/DirectoryPicker";
@@ -40,6 +43,7 @@ interface SettingsModalProps {
     initialConfig: SettingsConfig;
     isSaving: boolean;
     onSave: (config: SettingsConfig) => Promise<void>;
+    settingsLoadError?: boolean;
     onTestPort?: () => void;
     onRestoreInsights?: () => void;
     onSystemInstall?: (
@@ -56,6 +60,7 @@ export function SettingsModal({
     initialConfig,
     isSaving,
     onSave,
+    settingsLoadError,
     onTestPort,
     onRestoreInsights,
     onSystemInstall,
@@ -69,6 +74,12 @@ export function SettingsModal({
     const [isAutorunLoading, setIsAutorunLoading] = useState(true);
     const [mockAutorunEnabled, setMockAutorunEnabled] = useState(false);
     const [autorunDisplayEnabled, setAutorunDisplayEnabled] = useState(false);
+    const [handlerInfo, setHandlerInfo] = useState<SystemHandlerStatus | null>(
+        null
+    );
+    const [isHandlerLoading, setIsHandlerLoading] = useState(true);
+    const [mockHandlerEnabled, setMockHandlerEnabled] = useState(false);
+    const [handlerDisplayEnabled, setHandlerDisplayEnabled] = useState(false);
 
     // Responsive State
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(true);
@@ -82,6 +93,9 @@ export function SettingsModal({
     );
     const jsonCopyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const mockAutorunTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+        null
+    );
+    const mockHandlerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
         null
     );
 
@@ -111,6 +125,9 @@ export function SettingsModal({
             if (mockAutorunTimerRef.current) {
                 clearTimeout(mockAutorunTimerRef.current);
             }
+            if (mockHandlerTimerRef.current) {
+                clearTimeout(mockHandlerTimerRef.current);
+            }
         };
     }, []);
 
@@ -126,6 +143,29 @@ export function SettingsModal({
     } = useRpcExtension();
     const canUseExtensionHelpers = shouldUseExtension || isMocked;
 
+    const systemInstallFeatureAvailable =
+        shouldUseExtension &&
+        Boolean(extensionCapabilities?.features?.includes("system-install"));
+    const systemHandlerFeatureAvailable =
+        shouldUseExtension &&
+        Boolean(
+            extensionCapabilities?.features?.includes(
+                "system-handler-status"
+            ) ||
+                extensionCapabilities?.features?.includes(
+                    "system-handler-toggle"
+                ) ||
+                extensionCapabilities?.features?.includes(
+                    "system-register-handler"
+                )
+        );
+    const systemIntegrationFeatureAvailable =
+        systemInstallFeatureAvailable ||
+        systemHandlerFeatureAvailable ||
+        Boolean(extensionCapabilities?.features?.includes("system-autorun"));
+    const supportsFsBrowse = canUseExtensionHelpers;
+    const canBrowseDirectories = supportsFsBrowse;
+
     useEffect(() => {
         if (!canUseExtensionHelpers && activeBrowseKey) {
             setActiveBrowseKey(null);
@@ -135,6 +175,7 @@ export function SettingsModal({
     useEffect(() => {
         if (!extensionModeEnabled) {
             setMockAutorunEnabled(false);
+            setMockHandlerEnabled(false);
         }
     }, [extensionModeEnabled]);
 
@@ -262,18 +303,66 @@ export function SettingsModal({
         }
     }, [extensionModeEnabled, rpcStatus, shouldUseExtension, torrentClient]);
 
+    const fetchHandlerStatus = useCallback(async () => {
+        if (!extensionModeEnabled) {
+            setHandlerInfo(null);
+            setIsHandlerLoading(false);
+            return;
+        }
+        if (rpcStatus !== "connected") {
+            setHandlerInfo(null);
+            setIsHandlerLoading(false);
+            return;
+        }
+        if (
+            !shouldUseExtension ||
+            !systemHandlerFeatureAvailable ||
+            !torrentClient.getSystemHandlerStatus
+        ) {
+            setHandlerInfo({
+                registered: false,
+                supported: false,
+                requiresElevation: false,
+            });
+            setIsHandlerLoading(false);
+            return;
+        }
+        setIsHandlerLoading(true);
+        try {
+            const info = await torrentClient.getSystemHandlerStatus();
+            setHandlerInfo(info);
+        } catch {
+            setHandlerInfo(null);
+        } finally {
+            setIsHandlerLoading(false);
+        }
+    }, [
+        extensionModeEnabled,
+        rpcStatus,
+        shouldUseExtension,
+        systemHandlerFeatureAvailable,
+        torrentClient,
+    ]);
+
     useEffect(() => {
         if (!isOpen) {
             return;
         }
         void fetchAutorunStatus();
-    }, [fetchAutorunStatus, isOpen]);
+        void fetchHandlerStatus();
+    }, [fetchAutorunStatus, fetchHandlerStatus, isOpen]);
 
     const remoteAutorunEnabled = Boolean(autorunInfo?.enabled);
     const autorunSupported = Boolean(
         autorunInfo?.supported &&
             torrentClient.systemAutorunEnable &&
             torrentClient.systemAutorunDisable
+    );
+    const remoteHandlerEnabled = Boolean(handlerInfo?.registered);
+    const handlerSupported = Boolean(
+        handlerInfo?.supported &&
+            torrentClient.systemHandlerEnable &&
+            torrentClient.systemHandlerDisable
     );
 
     useEffect(() => {
@@ -282,11 +371,11 @@ export function SettingsModal({
         );
     }, [autorunSupported, mockAutorunEnabled, remoteAutorunEnabled]);
 
-    const systemInstallFeatureAvailable =
-        shouldUseExtension &&
-        Boolean(extensionCapabilities?.features?.includes("system-install"));
-    const supportsFsBrowse = canUseExtensionHelpers;
-    const canBrowseDirectories = supportsFsBrowse;
+    useEffect(() => {
+        setHandlerDisplayEnabled(
+            handlerSupported ? remoteHandlerEnabled : mockHandlerEnabled
+        );
+    }, [handlerSupported, mockHandlerEnabled, remoteHandlerEnabled]);
 
     const hasVisibleBlocks = useCallback(
         (blocks: SectionBlock[]) =>
@@ -295,7 +384,7 @@ export function SettingsModal({
     );
 
     const systemTabVisible =
-        extensionModeEnabled && (isMocked || systemInstallFeatureAvailable);
+        extensionModeEnabled && (isMocked || systemIntegrationFeatureAvailable);
 
     const visibleTabs = useMemo(
         () =>
@@ -361,16 +450,63 @@ export function SettingsModal({
         ]
     );
 
+    const handleHandlerToggle = useCallback(
+        async (next: boolean) => {
+            if (
+                !extensionModeEnabled ||
+                rpcStatus !== "connected" ||
+                isHandlerLoading
+            ) {
+                throw new Error("System handlers unavailable");
+            }
+            if (handlerSupported) {
+                if (next) {
+                    await torrentClient.systemHandlerEnable?.();
+                } else {
+                    await torrentClient.systemHandlerDisable?.();
+                }
+                await fetchHandlerStatus();
+                return;
+            }
+            if (mockHandlerTimerRef.current) {
+                clearTimeout(mockHandlerTimerRef.current);
+            }
+            await new Promise<void>((resolve) => {
+                mockHandlerTimerRef.current = window.setTimeout(resolve, 280);
+            });
+            setMockHandlerEnabled(next);
+            mockHandlerTimerRef.current = null;
+        },
+        [
+            extensionModeEnabled,
+            fetchHandlerStatus,
+            handlerSupported,
+            isHandlerLoading,
+            rpcStatus,
+            torrentClient,
+        ]
+    );
+
     const autorunToggle = useAsyncToggle(
         autorunDisplayEnabled,
         setAutorunDisplayEnabled,
         handleAutorunToggle
+    );
+    const handlerToggle = useAsyncToggle(
+        handlerDisplayEnabled,
+        setHandlerDisplayEnabled,
+        handleHandlerToggle
     );
     const autorunDisabled =
         !extensionModeEnabled ||
         rpcStatus !== "connected" ||
         isAutorunLoading ||
         autorunToggle.pending;
+    const handlerDisabled =
+        !extensionModeEnabled ||
+        rpcStatus !== "connected" ||
+        isHandlerLoading ||
+        handlerToggle.pending;
 
     const settingsFormContext = useMemo(
         () => ({
@@ -383,6 +519,11 @@ export function SettingsModal({
                 isSelected: autorunDisplayEnabled,
                 isDisabled: autorunDisabled,
                 onChange: autorunToggle.onChange,
+            },
+            handlerSwitch: {
+                isSelected: handlerDisplayEnabled,
+                isDisabled: handlerDisabled,
+                onChange: handlerToggle.onChange,
             },
             extensionModeEnabled,
             isMocked,
@@ -398,6 +539,9 @@ export function SettingsModal({
             autorunDisabled,
             autorunDisplayEnabled,
             autorunToggle.onChange,
+            handlerDisabled,
+            handlerDisplayEnabled,
+            handlerToggle.onChange,
             buttonActions,
             canBrowseDirectories,
             config,
@@ -547,6 +691,11 @@ export function SettingsModal({
                                     transition={{ duration: 0.2 }}
                                     className="flex flex-col space-y-6 sm:space-y-8 pb-20"
                                 >
+                                    {settingsLoadError && (
+                                        <div className="rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
+                                            {t("settings.load_error")}
+                                        </div>
+                                    )}
                                     <SettingsFormProvider
                                         value={settingsFormContext}
                                     >

@@ -3,19 +3,59 @@
         "name": "TINY TORRENT",
         "version": "v{{version}}"
     },
+    "command_palette": {
+        "actions": {
+            "add_torrent": "Add Torrent",
+            "add_torrent_description": "Open the add torrent modal.",
+            "focus_search": "Focus search field",
+            "focus_search_description": "Jump straight to the filter bar.",
+            "open_inspector": "Open inspector",
+            "open_inspector_description": "Show details for the selected torrent.",
+            "open_settings": "Open Settings",
+            "open_settings_description": "Adjust engine and interface preferences.",
+            "pause_selected": "Pause selected torrents",
+            "pause_selected_description": "Pause every torrent you have selected.",
+            "recheck_selected": "Force recheck selection",
+            "recheck_selected_description": "Trigger a recheck on the selected torrents.",
+            "refresh": "Refresh torrents",
+            "refresh_description": "Fetch the latest data immediately.",
+            "reset_peer_sort": "Reset peer sorting",
+            "reset_peer_sort_description": "Return the peer list to its original order.",
+            "resume_selected": "Resume selected torrents",
+            "resume_selected_description": "Resume every torrent you have selected.",
+            "select_all_files": "Select all files",
+            "select_all_files_description": "Mark every file in the inspector for download.",
+            "sort_peers_by_speed": "Sort peers by speed",
+            "sort_peers_by_speed_description": "Order the peer list by transfer velocity."
+        },
+        "empty": "No matching commands.",
+        "filters": {
+            "all_description": "Show every torrent in the list.",
+            "downloading_description": "Show only downloading torrents.",
+            "seeding_description": "Show only seeding torrents."
+        },
+        "group": {
+            "actions": "Actions",
+            "context": "Context",
+            "filters": "Filters",
+            "search": "Search",
+            "ungrouped": "Commands"
+        },
+        "placeholder": "Type a command or action…"
+    },
     "directory_browser": {
+        "create_error": "Unable to create the specified directory.",
         "drive_label": "Drive",
         "empty": "No folders found.",
         "error": "Unable to inspect that path.",
+        "free_space": "{{size}} free",
         "open": "Open",
+        "path_helper": "Type a path; the daemon will create missing folders when you confirm.",
+        "path_label": "Path",
         "root_label": "File System",
         "select": "Use this folder",
         "title": "Choose Folder",
-        "up": "Up one level",
-        "path_label": "Path",
-        "path_helper": "Type a path; the daemon will create missing folders when you confirm.",
-        "create_error": "Unable to create the specified directory.",
-        "free_space": "{{size}} free"
+        "up": "Up one level"
     },
     "drop_overlay": {
         "subtitle": "Supports .torrent and Magnets",
@@ -77,29 +117,104 @@
             "restore_hud": "Restore insights",
             "testPort": "Test"
         },
+        "connection": {
+            "activate": "Activate",
+            "active_badge": "Active",
+            "add": "Add Connection",
+            "auth_method_basic": "Auth method: username + password",
+            "auth_method_token": "Auth method: token",
+            "autorun_button_disable": "Disable autorun",
+            "autorun_button_enable": "Enable autorun",
+            "autorun_description_disabled": "TinyTorrent will not start automatically.",
+            "autorun_description_enabled": "TinyTorrent will start with your session.",
+            "autorun_description_unsupported": "Autorun is not supported by this server.",
+            "autorun_label": "Launch TinyTorrent on system startup",
+            "autorun_offline": "Autorun operations need an active connection.",
+            "autorun_refresh": "Refresh status",
+            "autorun_requires_elevation": "Changing autorun may require elevated privileges.",
+            "autorun_status_disabled": "Autorun disabled",
+            "autorun_status_enabled": "Autorun enabled",
+            "autorun_status_error": "Autorun error",
+            "autorun_status_error_message": "Autorun error: {{message}}",
+            "autorun_status_unknown": "Autorun state unknown",
+            "autorun_status_unsupported": "Autorun unsupported",
+            "autorun_subtitle": "Control whether TinyTorrent launches with your session.",
+            "autorun_title": "Startup Integration",
+            "current_connection": "Active connection",
+            "default_profile_label": "This PC",
+            "detecting_signin": "Detecting sign-in options…",
+            "edit_credentials": "Edit credentials",
+            "endpoint": "Server address",
+            "endpoint_preview": "Server: {{endpoint}}",
+            "extended_version_unknown": "unknown",
+            "extension_mode_helper": "Unlocks the full desktop experience (TinyTorrent Server required).",
+            "extension_mode_helper_tinytorrent": "Unlocks the full desktop experience. Disabling this will reduce the capabilities to a Transmission server.",
+            "extension_mode_helper_transmission": "Unlocks the full desktop experience. This server doesn't support extensions. Enabling it will use mock data to show what you could do if you switch to TinyTorrent Server.",
+            "extended_mock_notice": "TinyTorrent features are on, but this is a Transmission server — showing sample data for desktop helpers.",
+            "extension_mode_label": "TinyTorrent features",
+            "hide_credentials": "Hide credentials",
+            "host": "Host",
+            "offline_warning": "Offline: some features require an active connection.",
+            "password": "Password",
+            "port": "Port",
+            "profile_label": "Profile Name",
+            "profile_placeholder": "Unnamed Connection",
+            "profile_title": "Connection {{index}}",
+            "reconnect": "Reconnect",
+            "remove": "Remove",
+            "scheme_http": "HTTP",
+            "scheme_https": "HTTPS",
+            "scheme_label": "Protocol",
+            "server_type_detecting": "Detecting server…",
+            "server_type_tinytorrent": "TinyTorrent server",
+            "server_type_transmission": "Transmission server",
+            "token": "Authorization token",
+            "username": "Username"
+        },
         "descriptions": {
+            "config_details": "Includes both engine telemetry and UI preferences in a single snapshot.",
+            "config_export": "Copy the raw settings JSON for backups or automation.",
+            "connection_profiles": "Configure the server to connect to. Sign in if required.",
             "download_folder": "Completed torrents land here by default.",
             "incomplete_folder": "Files remain in this directory until the download completes.",
-            "restore_hud": "Bring back the dismissed HUD cards for instant insights.",
+            "install": "Create shortcuts, register handlers, and optionally install TinyTorrent to Program Files.",
             "language": "Pick the interface language you prefer.",
             "language_helper": "The HUD updates immediately after you change it.",
-            "config_export": "Copy the raw settings JSON for backups or automation.",
-            "config_details": "Includes both engine telemetry and UI preferences in a single snapshot.",
-            "connection_profiles": "Configure the server to connect to. Sign in if required.",
-            "table_watermark": "Display the ghosted TinyTorrent logo behind the torrent table.",
-            "install": "Create shortcuts, register handlers, and optionally install TinyTorrent to Program Files.",
-            "system_integration": "System-level services that affect startup, autorun, and tray helpers."
+            "restore_hud": "Bring back the dismissed HUD cards for instant insights.",
+            "system_integration": "System-level services that affect startup, autorun, and tray helpers.",
+            "table_watermark": "Display the ghosted TinyTorrent logo behind the torrent table."
         },
         "headers": {
-            "gui": "Interface",
-            "network": "Connectivity",
             "connection": "Connection",
+            "gui": "Interface",
+            "install": "System Installer",
+            "network": "Connectivity",
             "peers": "Peer Limits",
             "privacy": "Privacy",
             "speed": "Speed Limits",
             "storage": "Storage",
-            "system": "System Integration",
-            "install": "System Installer"
+            "system": "System Integration"
+        },
+        "install": {
+            "button": "Run system installer",
+            "button_busy": "Running installer...",
+            "handlers_header": "Protocol handlers",
+            "handlers_not_registered": "Handlers not registered",
+            "handlers_registered": "Handlers registered",
+            "install_not_requested": "Program Files install was not requested.",
+            "installed_path": "Installed to {{path}}.",
+            "locations": {
+                "desktop": "Desktop",
+                "start-menu": "Start Menu",
+                "startup": "Startup"
+            },
+            "program_files_label": "Program Files install",
+            "result_failure": "Installation failed.",
+            "result_partial": "Some requested actions failed.",
+            "result_permission_denied": "Permission denied while performing an action.",
+            "result_success": "Installation completed successfully.",
+            "shortcuts_header": "Shortcuts",
+            "shortcuts_none": "No shortcuts were created."
         },
         "labels": {
             "altSpeedDays": "Scheduled Days",
@@ -126,28 +241,28 @@
             "idleSeedingToggle": "Idle Seeding Limit",
             "incomingPort": "Incoming Port",
             "incompleteFolder": "Incomplete Folder",
+            "installArgs": "Extra command-line arguments",
+            "installLocations": "Shortcut locations",
+            "installName": "Shortcut name",
+            "installProgramFiles": "Install to Program Files (requires elevation)",
+            "installRegisterHandlers": "Register magnet:/.torrent handlers",
+            "language": "Language",
             "lpd": "LPD",
             "perTorrentPeers": "Peers Per Torrent",
             "pex": "PEX",
             "randomizePort": "Randomize Port on Start",
+            "raw_config": "Settings JSON",
             "refreshInterval": "Refresh Interval (ms)",
             "renamePartial": "Rename Partial Files",
             "requestTimeout": "Request Timeout (ms)",
-            "tableWatermark": "Show torrent table watermark",
             "seedRatioLimit": "Seed Ratio Limit",
             "seedRatioToggle": "Enforce Seed Ratio",
             "startAdded": "Start Added Torrents",
+            "tableWatermark": "Show torrent table watermark",
             "turtleMode": "Turtle Mode",
             "uploadLimit": "Upload Limit",
             "upnp": "Enable UPnP / NAT-PMP",
-            "useIncompleteFolder": "Use Incomplete Folder",
-            "installName": "Shortcut name",
-            "installArgs": "Extra command-line arguments",
-            "installLocations": "Shortcut locations",
-            "installRegisterHandlers": "Register magnet:/.torrent handlers",
-            "installProgramFiles": "Install to Program Files (requires elevation)",
-            "language": "Language",
-            "raw_config": "Settings JSON"
+            "useIncompleteFolder": "Use Incomplete Folder"
         },
         "modal": {
             "footer": {
@@ -166,114 +281,42 @@
             }
         },
         "sections": {
+            "active_connection": "Active Connection",
+            "advanced": "Advanced",
             "bandwidth": "Global Bandwidth",
             "behavior": "Behavior",
             "blocklist": "Blocklist",
-            "connectionLimits": "Connection Limits",
-            "active_connection": "Active Connection",
             "connection_profiles": "Connections",
+            "connectionLimits": "Connection Limits",
             "dashboard": "Dashboard",
-            "visuals": "Visuals",
-            "localization": "Localization",
-            "advanced": "Advanced",
             "encryption": "Encryption",
+            "install": "System Integration",
             "listeningPort": "Listening Port",
+            "localization": "Localization",
             "locations": "Locations",
             "polling": "Polling & Timeout",
             "protocol": "Protocol Features",
             "seeding": "Seeding Behavior",
+            "system_integration": "System Services",
             "turtle": "Turtle Mode (Scheduled)",
-            "install": "System Integration",
-            "system_integration": "System Services"
+            "visuals": "Visuals"
         },
         "tabs": {
-            "gui": "Interface",
-            "network": "Network",
             "connection": "Connections",
+            "gui": "Interface",
+            "install": "Install",
+            "network": "Network",
             "peers": "Peers",
             "privacy": "Privacy",
             "speed": "Speed",
             "storage": "Storage",
-            "system": "System",
-            "install": "Install"
-        },
-        "install": {
-            "button": "Run system installer",
-            "button_busy": "Running installer...",
-            "result_success": "Installation completed successfully.",
-            "result_partial": "Some requested actions failed.",
-            "result_permission_denied": "Permission denied while performing an action.",
-            "result_failure": "Installation failed.",
-            "shortcuts_header": "Shortcuts",
-            "shortcuts_none": "No shortcuts were created.",
-            "program_files_label": "Program Files install",
-            "installed_path": "Installed to {{path}}.",
-            "install_not_requested": "Program Files install was not requested.",
-            "handlers_header": "Protocol handlers",
-            "handlers_registered": "Handlers registered",
-            "handlers_not_registered": "Handlers not registered",
-            "locations": {
-                "desktop": "Desktop",
-                "start-menu": "Start Menu",
-                "startup": "Startup"
-            }
+            "system": "System"
         },
         "units": {
             "kbps": "{{value}} KB/s"
         },
-        "connection": {
-            "profile_title": "Connection {{index}}",
-            "profile_placeholder": "Unnamed Connection",
-            "default_profile_label": "This PC",
-            "active_badge": "Active",
-            "activate": "Activate",
-            "remove": "Remove",
-            "add": "Add Connection",
-            "profile_label": "Profile Name",
-            "endpoint": "Server address",
-            "username": "Username",
-            "password": "Password",
-            "token": "Authorization token",
-            "auth_method_token": "Auth method: token",
-            "auth_method_basic": "Auth method: username + password",
-            "edit_credentials": "Edit credentials",
-            "hide_credentials": "Hide credentials",
-            "offline_warning": "Offline: some features require an active connection.",
-            "scheme_label": "Protocol",
-            "scheme_http": "HTTP",
-            "scheme_https": "HTTPS",
-            "host": "Host",
-            "port": "Port",
-            "endpoint_preview": "Server: {{endpoint}}",
-            "current_connection": "Active connection",
-            "reconnect": "Reconnect",
-            "extension_mode_label": "TinyTorrent features",
-            "extension_mode_helper": "Unlocks the full desktop experience. If not supported by the server, mock data is used.",
-            "extended_mock_notice": "TinyTorrent features are on, but this is a Transmission server — showing sample data for desktop helpers.",
-            "server_type_transmission": "Transmission server",
-            "server_type_tinytorrent": "TinyTorrent server",
-            "server_type_detecting": "Detecting server…",
-            "detecting_signin": "Detecting sign-in options…",
-            "extended_version_unknown": "unknown",
-            "autorun_title": "Startup Integration",
-            "autorun_subtitle": "Control whether TinyTorrent launches with your session.",
-            "autorun_label": "Launch TinyTorrent on system startup",
-            "autorun_refresh": "Refresh status",
-            "autorun_status_enabled": "Autorun enabled",
-            "autorun_status_disabled": "Autorun disabled",
-            "autorun_status_unsupported": "Autorun unsupported",
-            "autorun_status_error": "Autorun error",
-            "autorun_status_error_message": "Autorun error: {{message}}",
-            "autorun_status_unknown": "Autorun state unknown",
-            "autorun_button_disable": "Disable autorun",
-            "autorun_button_enable": "Enable autorun",
-            "autorun_description_enabled": "TinyTorrent will start with your session.",
-            "autorun_description_disabled": "TinyTorrent will not start automatically.",
-            "autorun_description_unsupported": "Autorun is not supported by this server.",
-            "autorun_requires_elevation": "Changing autorun may require elevated privileges.",
-            "autorun_offline": "Autorun operations need an active connection."
-        },
-        "unsaved_changes": "Unsaved changes"
+        "unsaved_changes": "Unsaved changes",
+        "load_error": "Unable to load settings from server."
     },
     "status_bar": {
         "active_torrents": "Active torrents",
@@ -291,6 +334,9 @@
         "rpc_status": "Connection",
         "selected_torrent": "Selected torrent",
         "stats_loading": "Loading stats...",
+        "transport_offline": "Offline",
+        "transport_polling": "Polling",
+        "transport_websocket": "WebSocket",
         "up": "UP"
     },
     "table": {
@@ -317,6 +363,9 @@
         "column_picker_reset": "Reset Layout",
         "column_picker_title": "Columns",
         "column_selection": "Selection",
+        "data": {
+            "title": "Data"
+        },
         "empty_hint": "Press {{shortcut}} to add a torrent",
         "empty_hint_subtext": "Drop a .torrent, paste a magnet link, or use the toolbar to begin.",
         "eta": "ETA: {{time}}",
@@ -338,9 +387,6 @@
             "move_top": "Move to Top",
             "move_up": "Move Up",
             "title": "Queue"
-        },
-        "data": {
-            "title": "Data"
         },
         "select_all": "Select all",
         "select_item": "Select {{name}}",
@@ -397,6 +443,20 @@
             "legend_rare": "Rare",
             "tooltip": "Piece {{piece}} · {{peers}} peers"
         },
+        "context_menu": {
+            "files": {
+                "open_file": "Open File",
+                "open_folder": "Open Folder",
+                "priority_high": "High Priority",
+                "priority_low": "Low Priority",
+                "priority_normal": "Normal Priority"
+            },
+            "peers": {
+                "add_peer": "Add Peer",
+                "ban_ip": "Ban IP",
+                "copy_ip": "Copy IP"
+            }
+        },
         "controls": {
             "description": "Toggle advanced streaming and seeding behaviors when supported.",
             "force_reannounce": "Force Tracker Reannounce",
@@ -426,6 +486,10 @@
             "status": "Status",
             "upload": "Upload"
         },
+        "ghost_states": {
+            "loading": "Adding torrent...",
+            "magnet_lookup": "Resolving magnet link..."
+        },
         "https": {
             "certificate": "Certificate",
             "label": "Secure Source",
@@ -451,6 +515,7 @@
             "tooltip_progress": "Torrent progress: {{percent}}%",
             "tooltip_size": "Piece size: {{size}}"
         },
+        "placeholder": "Select a torrent and open the inspector to see details.",
         "speed": {
             "average": "Average",
             "download": "Download Speed",
@@ -480,10 +545,6 @@
             "queued": "Queued",
             "seeding": "Seeding"
         },
-        "ghost_states": {
-            "loading": "Adding torrent...",
-            "magnet_lookup": "Resolving magnet link..."
-        },
         "tabs": {
             "content": "Content",
             "general": "General",
@@ -493,21 +554,6 @@
             "speed": "Speed",
             "trackers": "Trackers"
         },
-        "context_menu": {
-            "files": {
-                "open_file": "Open File",
-                "open_folder": "Open Folder",
-                "priority_high": "High Priority",
-                "priority_normal": "Normal Priority",
-                "priority_low": "Low Priority"
-            },
-            "peers": {
-                "add_peer": "Add Peer",
-                "ban_ip": "Ban IP",
-                "copy_ip": "Copy IP"
-            }
-        },
-        "placeholder": "Select a torrent and open the inspector to see details.",
         "title": "Torrent Details",
         "trackers": {
             "empty": "No tracker history available.",
@@ -528,46 +574,6 @@
             "dismiss_card": "Dismiss card",
             "hud_dismissed": "Insights hidden. Restore to view connection, drag, and deep-link helpers.",
             "restore_hud": "Restore insights"
-        }
-    },
-    "command_palette": {
-        "placeholder": "Type a command or action…",
-        "empty": "No matching commands.",
-        "group": {
-            "actions": "Actions",
-            "context": "Context",
-            "filters": "Filters",
-            "search": "Search",
-            "ungrouped": "Commands"
-        },
-        "actions": {
-            "add_torrent": "Add Torrent",
-            "add_torrent_description": "Open the add torrent modal.",
-            "open_settings": "Open Settings",
-            "open_settings_description": "Adjust engine and interface preferences.",
-            "refresh": "Refresh torrents",
-            "refresh_description": "Fetch the latest data immediately.",
-            "focus_search": "Focus search field",
-            "focus_search_description": "Jump straight to the filter bar.",
-            "pause_selected": "Pause selected torrents",
-            "pause_selected_description": "Pause every torrent you have selected.",
-            "resume_selected": "Resume selected torrents",
-            "resume_selected_description": "Resume every torrent you have selected.",
-            "recheck_selected": "Force recheck selection",
-            "recheck_selected_description": "Trigger a recheck on the selected torrents.",
-            "open_inspector": "Open inspector",
-            "open_inspector_description": "Show details for the selected torrent.",
-            "select_all_files": "Select all files",
-            "select_all_files_description": "Mark every file in the inspector for download.",
-            "sort_peers_by_speed": "Sort peers by speed",
-            "sort_peers_by_speed_description": "Order the peer list by transfer velocity.",
-            "reset_peer_sort": "Reset peer sorting",
-            "reset_peer_sort_description": "Return the peer list to its original order."
-        },
-        "filters": {
-            "all_description": "Show every torrent in the list.",
-            "downloading_description": "Show only downloading torrents.",
-            "seeding_description": "Show only seeding torrents."
         }
     }
 }

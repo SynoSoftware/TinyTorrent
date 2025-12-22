@@ -6,6 +6,7 @@ import type {
     SessionStats,
     TinyTorrentCapabilities,
     AutorunStatus,
+    SystemHandlerStatus,
 } from "./entities";
 import type {
     DirectoryBrowseResult,
@@ -61,5 +62,8 @@ export interface EngineAdapter {
     getSystemAutorunStatus?(): Promise<AutorunStatus>;
     systemAutorunEnable?(scope?: string): Promise<void>;
     systemAutorunDisable?(): Promise<void>;
+    getSystemHandlerStatus?(): Promise<SystemHandlerStatus>;
+    systemHandlerEnable?(): Promise<void>;
+    systemHandlerDisable?(): Promise<void>;
     createDirectory?(path: string): Promise<void>;
 }
