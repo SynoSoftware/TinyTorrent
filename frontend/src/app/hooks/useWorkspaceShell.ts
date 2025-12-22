@@ -6,9 +6,9 @@ const WORKSPACE_STYLE_KEY = "tiny-torrent.workspace-style";
 const HUD_DISMISSED_KEY = "tiny-torrent.hud-dismissed";
 
 const readWorkspaceStyle = (): WorkspaceStyle => {
-    if (typeof window === "undefined") return "immersive";
+    if (typeof window === "undefined") return "classic";
     const stored = window.localStorage.getItem(WORKSPACE_STYLE_KEY);
-    return stored === "classic" ? "classic" : "immersive";
+    return stored === "immersive" ? "immersive" : "classic";
 };
 
 const readDismissedCards = (): string[] => {
@@ -24,9 +24,8 @@ const readDismissedCards = (): string[] => {
 export function useWorkspaceShell() {
     const [workspaceStyle, setWorkspaceStyle] =
         useState<WorkspaceStyle>(readWorkspaceStyle);
-    const [dismissedHudCardIds, setDismissedHudCardIds] = useState<string[]>(
-        readDismissedCards
-    );
+    const [dismissedHudCardIds, setDismissedHudCardIds] =
+        useState<string[]>(readDismissedCards);
 
     useEffect(() => {
         if (typeof window === "undefined") return;

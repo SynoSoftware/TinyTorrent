@@ -77,13 +77,16 @@ import {
     type ColumnId,
     type DashboardTableMeta,
 } from "./ColumnDefinitions";
-import { TABLE_LAYOUT } from "../../../config/logic";
-import { INTERACTION_CONFIG } from "../../../config/logic";
 import { useTorrentShortcuts } from "../hooks/useTorrentShortcuts";
-import { KEY_SCOPE, KEYMAP, ShortcutIntent } from "../../../config/logic";
 import {
+    TABLE_LAYOUT,
+    INTERACTION_CONFIG,
+    KEY_SCOPE,
+    KEYMAP,
+    ShortcutIntent,
     ICON_STROKE_WIDTH,
     ICON_STROKE_WIDTH_DENSE,
+    LAYOUT_METRICS,
 } from "../../../config/logic";
 import constants from "@/config/constants.json";
 
@@ -608,7 +611,9 @@ export function TorrentTable({
         const normalizedQuery = searchQuery.trim().toLowerCase();
         if (!normalizedQuery) return filteredByState;
         return filteredByState.filter((torrent) => {
-            const haystack = `${torrent.name} ${torrent.ghostLabel ?? ""}`.toLowerCase();
+            const haystack = `${torrent.name} ${
+                torrent.ghostLabel ?? ""
+            }`.toLowerCase();
             return haystack.includes(normalizedQuery);
         });
     }, [torrents, filter, searchQuery, getDisplayTorrent]);
@@ -638,15 +643,15 @@ export function TorrentTable({
         [overlayPortalHost]
     );
 
-const queueMenuActions = useMemo<QueueMenuAction[]>(
-    () => [
-        { key: "queue-move-top", label: t("table.queue.move_top") },
-        { key: "queue-move-up", label: t("table.queue.move_up") },
-        { key: "queue-move-down", label: t("table.queue.move_down") },
-        { key: "queue-move-bottom", label: t("table.queue.move_bottom") },
-    ],
-    [t]
-);
+    const queueMenuActions = useMemo<QueueMenuAction[]>(
+        () => [
+            { key: "queue-move-top", label: t("table.queue.move_top") },
+            { key: "queue-move-up", label: t("table.queue.move_up") },
+            { key: "queue-move-down", label: t("table.queue.move_down") },
+            { key: "queue-move-bottom", label: t("table.queue.move_bottom") },
+        ],
+        [t]
+    );
 
     const isClipboardSupported =
         typeof navigator !== "undefined" &&
@@ -1500,7 +1505,7 @@ const queueMenuActions = useMemo<QueueMenuAction[]>(
     }, [contextMenu, torrents]);
 
     const headerContainerClass = cn(
-        "flex w-full sticky top-0 z-20 rounded-t-[28px] border-b border-content1/20 bg-content1/10 backdrop-blur-sm px-0 "
+        "flex w-full sticky top-0 z-20 border-b border-content1/20 bg-content1/10 backdrop-blur-sm px-0"
     );
     const tableShellClass = cn(
         "relative flex-1 h-full min-h-0 flex flex-col overflow-hidden"
@@ -1514,8 +1519,9 @@ const queueMenuActions = useMemo<QueueMenuAction[]>(
                 onKeyDown={handleKeyDown}
                 onFocus={activateDashboardScope}
                 onBlur={deactivateDashboardScope}
+                style={{ borderRadius: "inherit" }}
                 className={cn(
-                    "flex-1 min-h-0 flex flex-col h-full overflow-hidden relative select-none outline-none rounded-[32px] m-1",
+                    "flex-1 min-h-0 flex flex-col h-full overflow-hidden relative select-none outline-none",
                     GLASS_BLOCK_SURFACE,
                     BLOCK_SHADOW
                 )}
@@ -1761,107 +1767,110 @@ const queueMenuActions = useMemo<QueueMenuAction[]>(
                                     }}
                                 />
                             </DropdownTrigger>
-            <DropdownMenu
-                variant="flat"
-                className={GLASS_MENU_SURFACE}
-                onAction={(key) => {
-                    void handleContextMenuAction(
-                        key as
-                            | ContextMenuKey
-                            | "cols"
-                            | "open-folder"
-                            | "copy-magnet"
-                            | "copy-hash"
-                    );
-                }}
-            >
-                <DropdownItem
-                    key="pause"
-                    shortcut={getContextMenuShortcut("pause")}
-                >
-                    {t("table.actions.pause")}
-                </DropdownItem>
-                <DropdownItem
-                    key="resume"
-                    shortcut={getContextMenuShortcut("resume")}
-                >
-                    {t("table.actions.resume")}
-                </DropdownItem>
-                <DropdownItem
-                    key="recheck"
-                    shortcut={getContextMenuShortcut("recheck")}
-                >
-                    {t("table.actions.recheck")}
-                </DropdownItem>
-                <DropdownItem
-                    key="queue-title"
-                    isDisabled
-                    className="border-t border-content1/20 mt-2 pt-2 px-4 text-[10px] font-bold uppercase tracking-[0.4em] text-foreground/50"
-                >
-                    {t("table.queue.title")}
-                </DropdownItem>
-                <>
-                    {queueMenuActions.map((action) => (
-                        <DropdownItem
-                            key={action.key}
-                            className="pl-10 text-sm"
-                            shortcut={getContextMenuShortcut(
-                                action.key as ContextMenuKey
-                            )}
-                        >
-                            {action.label}
-                        </DropdownItem>
-                    ))}
-                </>
-                <DropdownItem
-                    key="data-title"
-                    isDisabled
-                    className="border-t border-content1/20 mt-2 pt-2 px-4 text-[10px] font-bold uppercase tracking-[0.4em] text-foreground/50"
-                >
-                    {t("table.data.title")}
-                </DropdownItem>
-                <DropdownItem
-                    key="open-folder"
-                    isDisabled={
-                        !onOpenFolder || !contextMenu.torrent.savePath
-                    }
-                >
-                    {t("table.actions.open_folder")}
-                </DropdownItem>
-                <DropdownItem
-                    key="copy-magnet"
-                    isDisabled={!isClipboardSupported}
-                >
-                    {t("table.actions.copy_magnet")}
-                </DropdownItem>
-                <DropdownItem
-                    key="copy-hash"
-                    isDisabled={!isClipboardSupported}
-                >
-                    {t("table.actions.copy_hash")}
-                </DropdownItem>
-                <DropdownItem
-                    key="remove"
-                    color="danger"
-                    shortcut={getContextMenuShortcut("remove")}
-                >
-                    {t("table.actions.remove")}
-                </DropdownItem>
-                <DropdownItem
-                    key="remove-with-data"
-                    color="danger"
-                    shortcut={getContextMenuShortcut("remove-with-data")}
-                >
-                    {t("table.actions.remove_with_data")}
-                </DropdownItem>
-                <DropdownItem key="cols" showDivider>
-                    {t("table.column_picker_title")}
-                </DropdownItem>
-            </DropdownMenu>
-        </Dropdown>
-    )}
-</AnimatePresence>
-</div>
+                            <DropdownMenu
+                                variant="flat"
+                                className={GLASS_MENU_SURFACE}
+                                onAction={(key) => {
+                                    void handleContextMenuAction(
+                                        key as
+                                            | ContextMenuKey
+                                            | "cols"
+                                            | "open-folder"
+                                            | "copy-magnet"
+                                            | "copy-hash"
+                                    );
+                                }}
+                            >
+                                <DropdownItem
+                                    key="pause"
+                                    shortcut={getContextMenuShortcut("pause")}
+                                >
+                                    {t("table.actions.pause")}
+                                </DropdownItem>
+                                <DropdownItem
+                                    key="resume"
+                                    shortcut={getContextMenuShortcut("resume")}
+                                >
+                                    {t("table.actions.resume")}
+                                </DropdownItem>
+                                <DropdownItem
+                                    key="recheck"
+                                    shortcut={getContextMenuShortcut("recheck")}
+                                >
+                                    {t("table.actions.recheck")}
+                                </DropdownItem>
+                                <DropdownItem
+                                    key="queue-title"
+                                    isDisabled
+                                    className="border-t border-content1/20 mt-2 pt-2 px-4 text-[10px] font-bold uppercase tracking-[0.4em] text-foreground/50"
+                                >
+                                    {t("table.queue.title")}
+                                </DropdownItem>
+                                <>
+                                    {queueMenuActions.map((action) => (
+                                        <DropdownItem
+                                            key={action.key}
+                                            className="pl-10 text-sm"
+                                            shortcut={getContextMenuShortcut(
+                                                action.key as ContextMenuKey
+                                            )}
+                                        >
+                                            {action.label}
+                                        </DropdownItem>
+                                    ))}
+                                </>
+                                <DropdownItem
+                                    key="data-title"
+                                    isDisabled
+                                    className="border-t border-content1/20 mt-2 pt-2 px-4 text-[10px] font-bold uppercase tracking-[0.4em] text-foreground/50"
+                                >
+                                    {t("table.data.title")}
+                                </DropdownItem>
+                                <DropdownItem
+                                    key="open-folder"
+                                    isDisabled={
+                                        !onOpenFolder ||
+                                        !contextMenu.torrent.savePath
+                                    }
+                                >
+                                    {t("table.actions.open_folder")}
+                                </DropdownItem>
+                                <DropdownItem
+                                    key="copy-magnet"
+                                    isDisabled={!isClipboardSupported}
+                                >
+                                    {t("table.actions.copy_magnet")}
+                                </DropdownItem>
+                                <DropdownItem
+                                    key="copy-hash"
+                                    isDisabled={!isClipboardSupported}
+                                >
+                                    {t("table.actions.copy_hash")}
+                                </DropdownItem>
+                                <DropdownItem
+                                    key="remove"
+                                    color="danger"
+                                    shortcut={getContextMenuShortcut("remove")}
+                                >
+                                    {t("table.actions.remove")}
+                                </DropdownItem>
+                                <DropdownItem
+                                    key="remove-with-data"
+                                    color="danger"
+                                    shortcut={getContextMenuShortcut(
+                                        "remove-with-data"
+                                    )}
+                                >
+                                    {t("table.actions.remove_with_data")}
+                                </DropdownItem>
+                                <DropdownItem key="cols" showDivider>
+                                    {t("table.column_picker_title")}
+                                </DropdownItem>
+                            </DropdownMenu>
+                        </Dropdown>
+                    )}
+                </AnimatePresence>
+            </div>
 
             <Modal
                 isOpen={isColumnModalOpen}

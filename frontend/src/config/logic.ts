@@ -1,8 +1,7 @@
 import type { MotionProps, Transition } from "framer-motion";
 import constants from "./constants.json";
 
-const normalizeRepeat = (value?: number) =>
-    value === -1 ? Infinity : value;
+const normalizeRepeat = (value?: number) => (value === -1 ? Infinity : value);
 
 const adaptTransition = <T extends Transition>(transition: T) => ({
     ...transition,
@@ -41,6 +40,43 @@ const DEFAULT_TABLE_LAYOUT = {
 } as const;
 
 const layoutConfig = constants.layout ?? {};
+const DEFAULT_LAYOUT_SHELL = {
+    outer_radius: 20,
+    panel_gap: 4,
+    ring_padding: 4,
+    handle_hit_area: 10,
+} as const;
+const shellLayout = layoutConfig.shell ?? DEFAULT_LAYOUT_SHELL;
+const layoutOuterRadius = shellLayout.outer_radius;
+const layoutRingPadding = shellLayout.ring_padding;
+const layoutPanelGap = shellLayout.panel_gap;
+const layoutHandleHitArea =
+    shellLayout.handle_hit_area ?? DEFAULT_LAYOUT_SHELL.handle_hit_area;
+export const LAYOUT_METRICS = {
+    outerRadius: layoutOuterRadius,
+    panelGap: layoutPanelGap,
+    ringPadding: layoutRingPadding,
+    handleHitArea: layoutHandleHitArea,
+    innerRadius: Math.max(0, layoutOuterRadius - layoutRingPadding),
+} as const;
+
+// --- SHELL GEOMETRY (UI) ---
+// Centralizes shell geometry derived from LAYOUT_METRICS.
+export const SHELL_GAP = LAYOUT_METRICS.panelGap;
+export const SHELL_HANDLE_HIT_AREA = LAYOUT_METRICS.handleHitArea;
+export const SHELL_INNER_RADIUS = LAYOUT_METRICS.innerRadius;
+export const SHELL_INSET_RADIUS = Math.max(SHELL_INNER_RADIUS - SHELL_GAP, 0);
+export const SHELL_RADIUS = LAYOUT_METRICS.outerRadius;
+export const SHELL_RING_PADDING = LAYOUT_METRICS.ringPadding;
+
+export const SHELL_FRAME_STYLE = {
+    borderRadius: `${SHELL_RADIUS}px`,
+    padding: `${SHELL_RING_PADDING}px`,
+} as const;
+
+export const SHELL_CONTENT_STYLE = {
+    borderRadius: `${SHELL_INNER_RADIUS}px`,
+} as const;
 const pieceMapLayout = layoutConfig.piece_map ?? DEFAULT_LAYOUT_PIECE_MAP;
 const heatmapLayout = layoutConfig.heatmap ?? DEFAULT_LAYOUT_HEATMAP;
 const peerMapLayout = layoutConfig.peer_map ?? DEFAULT_LAYOUT_PEER_MAP;
@@ -77,8 +113,7 @@ export const SPEED_WINDOW_OPTIONS = [
 ] as const;
 
 export const ICON_STROKE_WIDTH = constants.iconography.stroke_width;
-export const ICON_STROKE_WIDTH_DENSE =
-    constants.iconography.stroke_width_dense;
+export const ICON_STROKE_WIDTH_DENSE = constants.iconography.stroke_width_dense;
 
 export const TABLE_REFRESH_INTERVAL_MS =
     constants.heartbeats.table_refresh_interval_ms;
@@ -153,7 +188,9 @@ export interface InteractionConfig {
     networkGraph: ChartConfig;
 }
 
-const normalizeDragOverlay = (dragOverlay: DragOverlayConfig): DragOverlayConfig => ({
+const normalizeDragOverlay = (
+    dragOverlay: DragOverlayConfig
+): DragOverlayConfig => ({
     ...dragOverlay,
     layers: dragOverlay.layers.map((layer) => ({
         ...layer,
@@ -290,13 +327,12 @@ type ShortcutKeyScopeMap = {
     Settings: "settings";
 };
 
-export const ShortcutIntent = constants.shortcuts
-    .intents as ShortcutIntentMap;
+export const ShortcutIntent = constants.shortcuts.intents as ShortcutIntentMap;
 
 export type ShortcutIntent =
     (typeof ShortcutIntent)[keyof typeof ShortcutIntent];
 
 export const KEY_SCOPE = constants.shortcuts.keyScope as ShortcutKeyScopeMap;
 
-export const KEYMAP: Record<ShortcutIntent, string | string[]> =
-    constants.shortcuts.keymap as Record<ShortcutIntent, string | string[]>;
+export const KEYMAP: Record<ShortcutIntent, string | string[]> = constants
+    .shortcuts.keymap as Record<ShortcutIntent, string | string[]>;
