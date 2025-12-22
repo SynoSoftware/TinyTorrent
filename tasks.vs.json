@@ -1,0 +1,38 @@
+{
+  "version": "0.2.1",
+  "tasks": [
+    {
+      "taskName": "TinyTorrent (backend): make debug",
+      "appliesTo": "backend/meson.build",
+      "type": "launch",
+      "contextType": "build",
+      "command": "powershell",
+      "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceRoot}\\backend\\make.ps1", "debug"],
+      "envVars": {
+        "VSCMD_START_DIR": "\"${workspaceRoot}\\backend\""
+      }
+    },
+    {
+      "taskName": "TinyTorrent (backend): make release",
+      "appliesTo": "backend/meson.build",
+      "type": "launch",
+      "contextType": "rebuild",
+      "command": "powershell",
+      "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceRoot}\\backend\\make.ps1", "release"],
+      "envVars": {
+        "VSCMD_START_DIR": "\"${workspaceRoot}\\backend\""
+      }
+    },
+    {
+      "taskName": "TinyTorrent (backend): make clean",
+      "appliesTo": "backend/meson.build",
+      "type": "launch",
+      "contextType": "clean",
+      "command": "powershell",
+      "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceRoot}\\backend\\make.ps1", "clean", "-AutoConfirmDeletion"],
+      "envVars": {
+        "VSCMD_START_DIR": "\"${workspaceRoot}\\backend\""
+      }
+    }
+  ]
+}

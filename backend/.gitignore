@@ -18,3 +18,4 @@ vcpkg-triplets/
 *.VC.opendb
 cmake-build-*/
 *.cache
+vcpkg_backup/

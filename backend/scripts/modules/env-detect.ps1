@@ -7,6 +7,20 @@ if ($MyInvocation.InvocationName -eq $PSCommandPath) {
 
 . (Join-Path (Split-Path -Parent $PSCommandPath) 'log.ps1')
 
+$Script:IsWindowsHost = $false
+try {
+    $isWindowsVar = Get-Variable -Name IsWindows -Scope Global -ErrorAction SilentlyContinue
+    if ($isWindowsVar) {
+        $Script:IsWindowsHost = [bool]$isWindowsVar.Value
+    }
+    else {
+        $Script:IsWindowsHost = ($env:OS -eq 'Windows_NT')
+    }
+}
+catch {
+    $Script:IsWindowsHost = ($env:OS -eq 'Windows_NT')
+}
+
 function Resolve-ToolPath {
     param([Parameter(Mandatory = $true)][string]$Name)
 
@@ -110,7 +124,7 @@ function Ensure-VsEnv {
     # Ensure MSVC tools are available on PATH (lib.exe/cl.exe) and that
     # INCLUDE/LIB etc are initialized. This mirrors the legacy build.legacy.ps1
     # behavior and avoids relying on Meson --vsenv.
-    if ($IsWindows -ne $true) {
+    if ($Script:IsWindowsHost -ne $true) {
         return
     }
 

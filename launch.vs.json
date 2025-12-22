@@ -1,0 +1,20 @@
+{
+  "version": "0.2.1",
+  "defaults": {},
+  "configurations": [
+    {
+      "type": "default",
+      "name": "TinyTorrent backend (Debug): tt-engine",
+      "project": "backend\\build\\debug\\tt-engine.exe",
+      "currentDir": "${workspaceRoot}\\backend\\build\\debug",
+      "preLaunchTask": "TinyTorrent (backend): make debug"
+    },
+    {
+      "type": "default",
+      "name": "TinyTorrent backend (Release): tt-engine",
+      "project": "backend\\build\\release\\tt-engine.exe",
+      "currentDir": "${workspaceRoot}\\backend\\build\\release",
+      "preLaunchTask": "TinyTorrent (backend): make release"
+    }
+  ]
+}
