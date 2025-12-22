@@ -1,6 +1,6 @@
 # <img src="frontend/public/tinyTorrent.svg" width="48" alt="" /> TinyTorrent
 
-**A modern BitTorrent client. No frameworks needed. ~1 MB (Transmission-based) and ~3 MB (Libtorrent-based). Fully capable.**
+**A modern BitTorrent client. No frameworks needed. Binary target: <3 MB.**
 
 [![License: MPL-2.0](https://img.shields.io/badge/License-MPL--2.0-orange.svg)](https://www.mozilla.org/MPL/2.0/)
 [![Protocol: Apache-2.0](https://img.shields.io/badge/Protocol-Apache--2.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
@@ -170,11 +170,13 @@ Notes:
 
 Today, the only backend that is working reliably end-to-end is a standard **`transmission-daemon`**.
 
-In parallel, we’re building a **TinyTorrent-native daemon** (currently WIP) built around **libtorrent (C++)**. This path is the main reason our current executable misses the original ~1 MB goal: libtorrent (and the surrounding C++ runtime + dependencies) is heavier than a minimal Transmission-based setup.
+In parallel, we’re building a **TinyTorrent-native daemon** (currently WIP) built around **libtorrent (C++)**. This path is the main reason our current executable misses the original size target: libtorrent (and the surrounding C++ runtime + dependencies) is heavier than a minimal Transmission-based setup.
 
 Why go this way anyway? Because the Transmission-based setup has had reliability issues for our use case — most notably around **starting magnet downloads immediately** (and, in some cases, entering unrecoverable wait states). The libtorrent-based daemon is intended to solve those problems while keeping a clean RPC boundary.
 
 Current priorities are correctness and stability first; optimization comes later. We may be able to shave some size off, but a dramatic drop is unlikely while we stay on libtorrent + C++.
+
+The often-mentioned **~1 MB** number is an _optimistic_ outcome for a Transmission-based/minimal build path; it’s not the only metric we optimize for while the libtorrent daemon is being stabilized.
 
 Longer-term (time permitting): once the libtorrent-based daemon is solid, we may take on Transmission itself and apply a similar approach there. There’s also an aspirational “classic uTorrent” goal: potentially rewriting more of the stack in **C** with an aggressive size target (roughly **1–1.5 MB UPX-packed**), primarily as an engineering challenge.
 
