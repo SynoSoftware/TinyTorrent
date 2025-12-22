@@ -160,17 +160,93 @@ std::string sanitize_request_uri(std::string_view uri)
     return sanitized;
 }
 
+std::string lowercase(std::string value);
+
+std::string trim_header_token(std::string_view value)
+{
+    auto start = value.find_first_not_of(" \t\r\n");
+    if (start == std::string_view::npos)
+    {
+        return {};
+    }
+    auto end = value.find_last_not_of(" \t\r\n");
+    return std::string(value.substr(start, end - start + 1));
+}
+
+std::string build_cors_allow_headers(
+    std::optional<std::string> const &requested_headers)
+{
+    std::vector<std::string> allow_headers = {
+        "Content-Type",
+        "X-TT-Auth",
+        "X-Transmission-Session-Id",
+        "Authorization"};
+    std::vector<std::string> allow_headers_lower;
+    allow_headers_lower.reserve(allow_headers.size());
+    for (auto const &header : allow_headers)
+    {
+        allow_headers_lower.push_back(lowercase(header));
+    }
+
+    auto add_header = [&](std::string_view name)
+    {
+        auto trimmed = trim_header_token(name);
+        if (trimmed.empty())
+        {
+            return;
+        }
+        auto key = lowercase(trimmed);
+        for (auto const &existing : allow_headers_lower)
+        {
+            if (existing == key)
+            {
+                return;
+            }
+        }
+        allow_headers_lower.push_back(std::move(key));
+        allow_headers.push_back(std::move(trimmed));
+    };
+
+    if (requested_headers && !requested_headers->empty())
+    {
+        std::string_view remaining = *requested_headers;
+        while (!remaining.empty())
+        {
+            auto comma = remaining.find(',');
+            if (comma == std::string_view::npos)
+            {
+                add_header(remaining);
+                break;
+            }
+            add_header(remaining.substr(0, comma));
+            remaining.remove_prefix(comma + 1);
+        }
+    }
+
+    std::string joined;
+    for (std::size_t i = 0; i < allow_headers.size(); ++i)
+    {
+        if (i != 0)
+        {
+            joined += ", ";
+        }
+        joined += allow_headers[i];
+    }
+    return joined;
+}
+
 std::string build_rpc_headers(std::string_view content_type,
-                              std::optional<std::string> const &origin)
+                              std::optional<std::string> const &origin,
+                              std::optional<std::string> const &request_headers)
 {
     std::string headers =
         std::string("Content-Type: ") + std::string(content_type) + "\r\n";
     if (origin && !origin->empty())
     {
         headers += "Access-Control-Allow-Origin: " + *origin + "\r\n";
-        headers +=
-            "Access-Control-Allow-Headers: X-TT-Auth, X-Transmission-Session-Id, "
-            "Authorization\r\n";
+        headers += "Access-Control-Allow-Headers: " +
+                   build_cors_allow_headers(request_headers) + "\r\n";
+        headers += "Access-Control-Expose-Headers: X-Transmission-Session-Id\r\n";
         headers += "Access-Control-Allow-Methods: POST, OPTIONS\r\n";
     }
     headers += "Cache-Control: no-store\r\n";
@@ -1213,7 +1289,8 @@ void Server::handle_http_message(struct mg_connection *conn,
         TT_LOG_INFO("RPC request rejected; origin not allowed {}",
                     origin_value ? *origin_value : "<missing>");
         auto payload = serialize_error("origin not allowed");
-        auto headers = build_rpc_headers("application/json", {});
+        auto headers =
+            build_rpc_headers("application/json", {}, std::nullopt);
         mg_http_reply(conn, 403, headers.c_str(), "%s", payload.c_str());
         return;
     }
@@ -1228,7 +1305,13 @@ void Server::handle_http_message(struct mg_connection *conn,
 
     if (method == "OPTIONS")
     {
-        auto headers = build_rpc_headers("application/json", response_origin);
+        auto requested_headers =
+            header_value(hm, "Access-Control-Request-Headers");
+        TT_LOG_INFO("RPC preflight origin={} headers={}",
+                    origin_value ? *origin_value : "<missing>",
+                    requested_headers ? *requested_headers : "<missing>");
+        auto headers = build_rpc_headers("application/json", response_origin,
+                                         requested_headers);
         headers += "Access-Control-Max-Age: 600\r\n";
         mg_http_reply(conn, 204, headers.c_str(), "");
         return;
@@ -1238,7 +1321,8 @@ void Server::handle_http_message(struct mg_connection *conn,
     {
         TT_LOG_INFO(
             "RPC request rejected; unauthorized authentication attempt");
-        auto headers = build_rpc_headers("text/plain", response_origin);
+        auto headers = build_rpc_headers("text/plain", response_origin,
+                                         std::nullopt);
         if (self->options_.basic_auth)
         {
             headers += "WWW-Authenticate: Basic realm=\"";
@@ -1264,7 +1348,8 @@ void Server::handle_http_message(struct mg_connection *conn,
                                   self->session_id_.size()) == 0;
     if (!session_ok)
     {
-        auto headers = build_rpc_headers("application/json", response_origin);
+        auto headers = build_rpc_headers("application/json", response_origin,
+                                         std::nullopt);
         headers += session_header_name + ": " + self->session_id_ + "\r\n";
         auto payload = serialize_error("session id required");
         mg_http_reply(conn, 409, headers.c_str(), "%s", payload.c_str());
@@ -1276,7 +1361,8 @@ void Server::handle_http_message(struct mg_connection *conn,
     {
         TT_LOG_INFO("RPC payload too large: {} bytes", hm->body.len);
         auto payload = serialize_error("payload too large");
-        auto headers = build_rpc_headers("application/json", response_origin);
+        auto headers = build_rpc_headers("application/json", response_origin,
+                                         std::nullopt);
         mg_http_reply(conn, 413, headers.c_str(), "%s", payload.c_str());
         return;
     }
@@ -1287,7 +1373,8 @@ void Server::handle_http_message(struct mg_connection *conn,
         body.assign(hm->body.buf, hm->body.len);
     }
 
-    auto request_headers = build_rpc_headers("application/json", response_origin);
+    auto request_headers =
+        build_rpc_headers("application/json", response_origin, std::nullopt);
     auto req_id = self->next_request_id_++;
     self->active_requests_[req_id] = {conn, std::move(request_headers)};
 
