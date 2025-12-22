@@ -67,6 +67,30 @@ void add_session_stats(yyjson_mut_doc *doc, yyjson_mut_val *session,
         doc, session, "pausedTorrentCount",
         static_cast<std::uint64_t>(snapshot.paused_torrent_count));
     yyjson_mut_obj_add_uint(doc, session, "dhtNodes", snapshot.dht_nodes);
+
+    auto *cumulative = yyjson_mut_obj(doc);
+    yyjson_mut_obj_add_uint(doc, cumulative, "uploadedBytes",
+                            snapshot.cumulative_stats.uploaded_bytes);
+    yyjson_mut_obj_add_uint(doc, cumulative, "downloadedBytes",
+                            snapshot.cumulative_stats.downloaded_bytes);
+    yyjson_mut_obj_add_uint(doc, cumulative, "filesAdded", 0);
+    yyjson_mut_obj_add_uint(doc, cumulative, "secondsActive",
+                            snapshot.cumulative_stats.seconds_active);
+    yyjson_mut_obj_add_uint(doc, cumulative, "sessionCount",
+                            snapshot.cumulative_stats.session_count);
+    yyjson_mut_obj_add_val(doc, session, "cumulativeStats", cumulative);
+
+    auto *current = yyjson_mut_obj(doc);
+    yyjson_mut_obj_add_uint(doc, current, "uploadedBytes",
+                            snapshot.current_stats.uploaded_bytes);
+    yyjson_mut_obj_add_uint(doc, current, "downloadedBytes",
+                            snapshot.current_stats.downloaded_bytes);
+    yyjson_mut_obj_add_uint(doc, current, "filesAdded", 0);
+    yyjson_mut_obj_add_uint(doc, current, "secondsActive",
+                            snapshot.current_stats.seconds_active);
+    yyjson_mut_obj_add_uint(doc, current, "sessionCount",
+                            snapshot.current_stats.session_count);
+    yyjson_mut_obj_add_val(doc, session, "currentStats", current);
 }
 
 bool session_stats_equal(engine::SessionSnapshot const &a,
@@ -377,7 +401,8 @@ std::string serialize_capabilities()
         "fs-browse",            "fs-create-dir",        "fs-space",
         "fs-write-file",        "system-integration",   "system-install",
         "system-autorun",       "system-reveal",        "system-open",
-        "system-register-handler", "session-tray-status", "session-pause-all",
+        "system-register-handler", "system-handler-status",
+        "system-handler-toggle", "session-tray-status", "session-pause-all",
         "session-resume-all",   "traffic-history",      "sequential-download",
         "proxy-configuration",  "labels"};
 #if defined(_WIN32)
@@ -427,7 +452,7 @@ std::string serialize_session_settings(
                             settings.upload_rate_limit_kbps);
     yyjson_mut_obj_add_bool(native, arguments, "speed-limit-up-enabled",
                             settings.upload_rate_limit_enabled);
-    yyjson_mut_obj_add_sint(native, arguments, "peer-limit",
+    yyjson_mut_obj_add_sint(native, arguments, "peer-limit-global",
                             settings.peer_limit);
     yyjson_mut_obj_add_sint(native, arguments, "peer-limit-per-torrent",
                             settings.peer_limit_per_torrent);
@@ -479,13 +504,13 @@ std::string serialize_session_settings(
                             settings.watch_dir_enabled);
     yyjson_mut_obj_add_bool(native, arguments, "rename-partial-files",
                             settings.rename_partial_files);
-    yyjson_mut_obj_add_real(native, arguments, "seed-ratio-limit",
+    yyjson_mut_obj_add_real(native, arguments, "seedRatioLimit",
                             settings.seed_ratio_limit);
-    yyjson_mut_obj_add_bool(native, arguments, "seed-ratio-limited",
+    yyjson_mut_obj_add_bool(native, arguments, "seedRatioLimited",
                             settings.seed_ratio_enabled);
-    yyjson_mut_obj_add_sint(native, arguments, "seed-idle-limit",
+    yyjson_mut_obj_add_sint(native, arguments, "idle-seeding-limit",
                             settings.seed_idle_limit_minutes);
-    yyjson_mut_obj_add_bool(native, arguments, "seed-idle-limited",
+    yyjson_mut_obj_add_bool(native, arguments, "idle-seeding-limit-enabled",
                             settings.seed_idle_enabled);
     yyjson_mut_obj_add_sint(native, arguments, "proxy-type",
                             settings.proxy_type);
@@ -1309,6 +1334,36 @@ std::string serialize_autorun_status(bool enabled, bool supported,
     yyjson_mut_obj_add_bool(native, arguments, "supported", supported);
     yyjson_mut_obj_add_bool(native, arguments, "requiresElevation",
                             requires_elevation);
+
+    return doc.write(R"({"result":"error"})");
+}
+
+std::string serialize_handler_status(bool registered, bool supported,
+                                     bool requires_elevation,
+                                     bool magnet_registered,
+                                     bool torrent_registered)
+{
+    tt::json::MutableDocument doc;
+    if (!doc.is_valid())
+    {
+        return "{}";
+    }
+
+    auto *native = doc.doc();
+    auto *root = yyjson_mut_obj(native);
+    doc.set_root(root);
+    yyjson_mut_obj_add_str(native, root, "result", "success");
+
+    auto *arguments = yyjson_mut_obj(native);
+    yyjson_mut_obj_add_val(native, root, "arguments", arguments);
+    yyjson_mut_obj_add_bool(native, arguments, "registered", registered);
+    yyjson_mut_obj_add_bool(native, arguments, "supported", supported);
+    yyjson_mut_obj_add_bool(native, arguments, "requiresElevation",
+                            requires_elevation);
+    yyjson_mut_obj_add_bool(native, arguments, "magnetRegistered",
+                            magnet_registered);
+    yyjson_mut_obj_add_bool(native, arguments, "torrentRegistered",
+                            torrent_registered);
 
     return doc.write(R"({"result":"error"})");
 }

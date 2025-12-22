@@ -32,6 +32,7 @@
 #include <array>
 #include <atomic>
 #include <cctype>
+#include <cwctype>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -90,6 +91,13 @@ struct InstallOutcome
 constexpr wchar_t kAutorunRegistryPath[] =
     L"Software\\Microsoft\\Windows\\CurrentVersion\\Run";
 constexpr wchar_t kAutorunValueName[] = L"TinyTorrent";
+constexpr wchar_t kMagnetCommandKey[] =
+    L"Software\\Classes\\magnet\\shell\\open\\command";
+constexpr wchar_t kTorrentExtensionKey[] = L"Software\\Classes\\.torrent";
+constexpr wchar_t kTorrentClassKey[] = L"Software\\Classes\\TinyTorrent.torrent";
+constexpr wchar_t kTorrentCommandKey[] =
+    L"Software\\Classes\\TinyTorrent.torrent\\shell\\open\\command";
+constexpr wchar_t kTorrentClassName[] = L"TinyTorrent.torrent";
 
 std::string format_win_error_message(DWORD code)
 {
@@ -182,6 +190,175 @@ bool delete_autorun_value(std::string &message)
     }
     message = format_win_error_message(status);
     return false;
+}
+
+std::optional<std::wstring> read_registry_string(HKEY root,
+                                                 wchar_t const *subkey,
+                                                 wchar_t const *value_name)
+{
+    HKEY key = nullptr;
+    auto status = RegOpenKeyExW(root, subkey, 0, KEY_READ, &key);
+    if (status != ERROR_SUCCESS)
+    {
+        return std::nullopt;
+    }
+    DWORD type = 0;
+    DWORD size = 0;
+    auto name = value_name && value_name[0] != L'\0' ? value_name : nullptr;
+    status = RegQueryValueExW(key, name, nullptr, &type, nullptr, &size);
+    if (status != ERROR_SUCCESS || type != REG_SZ || size == 0)
+    {
+        RegCloseKey(key);
+        return std::nullopt;
+    }
+    std::vector<wchar_t> buffer(size / sizeof(wchar_t));
+    status = RegQueryValueExW(key, name, nullptr, nullptr,
+                              reinterpret_cast<LPBYTE>(buffer.data()), &size);
+    RegCloseKey(key);
+    if (status != ERROR_SUCCESS)
+    {
+        return std::nullopt;
+    }
+    if (!buffer.empty() && buffer.back() == L'\0')
+    {
+        buffer.pop_back();
+    }
+    return std::wstring(buffer.begin(), buffer.end());
+}
+
+std::wstring trim_wide(std::wstring value)
+{
+    auto is_space = [](wchar_t ch)
+    { return ch == L' ' || ch == L'\t' || ch == L'\r' || ch == L'\n'; };
+    while (!value.empty() && is_space(value.front()))
+    {
+        value.erase(value.begin());
+    }
+    while (!value.empty() && is_space(value.back()))
+    {
+        value.pop_back();
+    }
+    return value;
+}
+
+std::wstring to_lower_wide(std::wstring value)
+{
+    std::transform(value.begin(), value.end(), value.begin(),
+                   [](wchar_t ch)
+                   { return static_cast<wchar_t>(std::towlower(ch)); });
+    return value;
+}
+
+bool registry_value_matches(std::optional<std::wstring> const &value,
+                            std::wstring const &expected)
+{
+    if (!value)
+    {
+        return false;
+    }
+    auto left = to_lower_wide(trim_wide(*value));
+    auto right = to_lower_wide(trim_wide(expected));
+    return left == right;
+}
+
+std::wstring compose_handler_command()
+{
+    if (auto exe = tt::utils::executable_path(); exe && !exe->empty())
+    {
+        return std::wstring(L"\"") + exe->wstring() + L"\" \"%1\"";
+    }
+    return {};
+}
+
+struct HandlerRegistryStatus
+{
+    bool magnet = false;
+    bool torrent = false;
+};
+
+HandlerRegistryStatus query_handler_status()
+{
+    HandlerRegistryStatus status{};
+    auto expected = compose_handler_command();
+    if (expected.empty())
+    {
+        return status;
+    }
+    auto magnet_cmd =
+        read_registry_string(HKEY_CURRENT_USER, kMagnetCommandKey, L"");
+    status.magnet = registry_value_matches(magnet_cmd, expected);
+
+    auto torrent_assoc = read_registry_string(HKEY_CURRENT_USER,
+                                              kTorrentExtensionKey, L"");
+    auto torrent_cmd =
+        read_registry_string(HKEY_CURRENT_USER, kTorrentCommandKey, L"");
+    auto assoc_match =
+        torrent_assoc &&
+        to_lower_wide(trim_wide(*torrent_assoc)) ==
+            to_lower_wide(std::wstring(kTorrentClassName));
+    status.torrent = assoc_match && registry_value_matches(torrent_cmd, expected);
+    return status;
+}
+
+SystemHandlerResult unregister_windows_handler()
+{
+    SystemHandlerResult result;
+    auto status = query_handler_status();
+    if (!status.magnet && !status.torrent)
+    {
+        result.success = true;
+        result.message = "system handler already unregistered";
+        return result;
+    }
+    std::vector<std::string> errors;
+    auto delete_tree = [&](wchar_t const *key) -> bool
+    {
+        auto code = RegDeleteTreeW(HKEY_CURRENT_USER, key);
+        if (code == ERROR_SUCCESS || code == ERROR_FILE_NOT_FOUND)
+        {
+            return true;
+        }
+        if (code == ERROR_ACCESS_DENIED)
+        {
+            result.permission_denied = true;
+        }
+        errors.push_back(format_win_error_message(code));
+        return false;
+    };
+    bool ok = true;
+    if (status.magnet)
+    {
+        ok = delete_tree(L"Software\\Classes\\magnet") && ok;
+    }
+    if (status.torrent)
+    {
+        ok = delete_tree(L"Software\\Classes\\.torrent") && ok;
+        ok = delete_tree(L"Software\\Classes\\TinyTorrent.torrent") && ok;
+    }
+    SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, nullptr, nullptr);
+    result.success = ok;
+    if (ok)
+    {
+        result.message = "system handler unregistered";
+    }
+    else
+    {
+        std::string combined;
+        for (auto const &entry : errors)
+        {
+            if (combined.empty())
+            {
+                combined = entry;
+            }
+            else
+            {
+                combined += "; ";
+                combined += entry;
+            }
+        }
+        result.message = combined;
+    }
+    return result;
 }
 #endif
 namespace
@@ -1478,6 +1655,7 @@ SystemHandlerResult register_windows_handler()
         return fail("torrent handler registration failed", status);
     }
 
+    SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, nullptr, nullptr);
     TT_LOG_INFO("registered magnet/.torrent handler ({})", exe_path->string());
     result.success = true;
     result.message = "system handler registered";
@@ -2124,6 +2302,20 @@ std::string handle_torrent_add(engine::Core *engine, yyjson_val *arguments)
         }
     }
 
+    {
+        auto settings = engine->settings();
+        auto save_path = request.download_path.empty() ? settings.download_path
+                                                       : request.download_path;
+        if (settings.incomplete_dir_enabled && !settings.incomplete_dir.empty())
+        {
+            save_path = settings.incomplete_dir;
+        }
+        if (auto error = ensure_directory_exists(save_path))
+        {
+            return serialize_error(*error);
+        }
+    }
+
     request.paused = bool_value(yyjson_obj_get(arguments, "paused"));
 
     yyjson_val *metainfo_value = yyjson_obj_get(arguments, "metainfo");
@@ -2227,7 +2419,12 @@ std::string handle_session_set(engine::Core *engine, yyjson_val *arguments)
                                  upload_enabled);
         applied = true;
     }
-    auto peer_limit = parse_int_value(yyjson_obj_get(arguments, "peer-limit"));
+    auto peer_limit =
+        parse_int_value(yyjson_obj_get(arguments, "peer-limit-global"));
+    if (!peer_limit)
+    {
+        peer_limit = parse_int_value(yyjson_obj_get(arguments, "peer-limit"));
+    }
     auto peer_limit_per_torrent =
         parse_int_value(yyjson_obj_get(arguments, "peer-limit-per-torrent"));
     if (peer_limit || peer_limit_per_torrent)
@@ -2264,16 +2461,28 @@ std::string handle_session_set(engine::Core *engine, yyjson_val *arguments)
         session_update.alt_speed_time_enabled = *value;
         session_update_needed = true;
     }
-    if (auto value =
-            parse_int_value(yyjson_obj_get(arguments, "alt-speed-time-begin")))
+    auto alt_speed_time_begin =
+        parse_int_value(yyjson_obj_get(arguments, "alt-speed-time-begin"));
+    if (!alt_speed_time_begin)
     {
-        session_update.alt_speed_time_begin = *value;
+        alt_speed_time_begin =
+            parse_int_value(yyjson_obj_get(arguments, "alt-speed-begin"));
+    }
+    if (alt_speed_time_begin)
+    {
+        session_update.alt_speed_time_begin = *alt_speed_time_begin;
         session_update_needed = true;
     }
-    if (auto value =
-            parse_int_value(yyjson_obj_get(arguments, "alt-speed-time-end")))
+    auto alt_speed_time_end =
+        parse_int_value(yyjson_obj_get(arguments, "alt-speed-time-end"));
+    if (!alt_speed_time_end)
     {
-        session_update.alt_speed_time_end = *value;
+        alt_speed_time_end =
+            parse_int_value(yyjson_obj_get(arguments, "alt-speed-end"));
+    }
+    if (alt_speed_time_end)
+    {
+        session_update.alt_speed_time_end = *alt_speed_time_end;
         session_update_needed = true;
     }
     if (auto value =
@@ -2375,28 +2584,52 @@ std::string handle_session_set(engine::Core *engine, yyjson_val *arguments)
         session_update.rename_partial_files = *value;
         session_update_needed = true;
     }
-    if (auto value =
-            parse_double_value(yyjson_obj_get(arguments, "seed-ratio-limit")))
+    auto seed_ratio_limit =
+        parse_double_value(yyjson_obj_get(arguments, "seedRatioLimit"));
+    if (!seed_ratio_limit)
     {
-        session_update.seed_ratio_limit = *value;
+        seed_ratio_limit =
+            parse_double_value(yyjson_obj_get(arguments, "seed-ratio-limit"));
+    }
+    if (seed_ratio_limit)
+    {
+        session_update.seed_ratio_limit = *seed_ratio_limit;
         session_update_needed = true;
     }
-    if (auto value =
-            parse_bool_flag(yyjson_obj_get(arguments, "seed-ratio-limited")))
+    auto seed_ratio_enabled =
+        parse_bool_flag(yyjson_obj_get(arguments, "seedRatioLimited"));
+    if (!seed_ratio_enabled)
     {
-        session_update.seed_ratio_enabled = *value;
+        seed_ratio_enabled =
+            parse_bool_flag(yyjson_obj_get(arguments, "seed-ratio-limited"));
+    }
+    if (seed_ratio_enabled)
+    {
+        session_update.seed_ratio_enabled = *seed_ratio_enabled;
         session_update_needed = true;
     }
-    if (auto value =
-            parse_int_value(yyjson_obj_get(arguments, "seed-idle-limit")))
+    auto seed_idle_limit =
+        parse_int_value(yyjson_obj_get(arguments, "idle-seeding-limit"));
+    if (!seed_idle_limit)
     {
-        session_update.seed_idle_limit = *value;
+        seed_idle_limit =
+            parse_int_value(yyjson_obj_get(arguments, "seed-idle-limit"));
+    }
+    if (seed_idle_limit)
+    {
+        session_update.seed_idle_limit = *seed_idle_limit;
         session_update_needed = true;
     }
-    if (auto value =
-            parse_bool_flag(yyjson_obj_get(arguments, "seed-idle-limited")))
+    auto seed_idle_enabled =
+        parse_bool_flag(yyjson_obj_get(arguments, "idle-seeding-limit-enabled"));
+    if (!seed_idle_enabled)
     {
-        session_update.seed_idle_enabled = *value;
+        seed_idle_enabled =
+            parse_bool_flag(yyjson_obj_get(arguments, "seed-idle-limited"));
+    }
+    if (seed_idle_enabled)
+    {
+        session_update.seed_idle_enabled = *seed_idle_enabled;
         session_update_needed = true;
     }
     if (auto value = parse_int_value(yyjson_obj_get(arguments, "proxy-type")))
@@ -3439,6 +3672,45 @@ std::string handle_system_autorun_disable(engine::Core *engine)
 #endif
 }
 
+std::string handle_system_handler_status(engine::Core *engine)
+{
+    (void)engine;
+#if defined(_WIN32)
+    auto status = query_handler_status();
+    bool registered = status.magnet && status.torrent;
+    return serialize_handler_status(registered, true, false, status.magnet,
+                                    status.torrent);
+#else
+    return serialize_handler_status(false, false, false, false, false);
+#endif
+}
+
+std::string handle_system_handler_enable(engine::Core *engine)
+{
+    (void)engine;
+#if defined(_WIN32)
+    auto result = register_platform_handler();
+    return serialize_system_action("system-handler-enable", result.success,
+                                   result.message);
+#else
+    return serialize_system_action("system-handler-enable", false,
+                                   "system-handler unsupported");
+#endif
+}
+
+std::string handle_system_handler_disable(engine::Core *engine)
+{
+    (void)engine;
+#if defined(_WIN32)
+    auto result = unregister_windows_handler();
+    return serialize_system_action("system-handler-disable", result.success,
+                                   result.message);
+#else
+    return serialize_system_action("system-handler-disable", false,
+                                   "system-handler unsupported");
+#endif
+}
+
 void handle_system_install_async(engine::Core *engine, yyjson_val *arguments,
                                  ResponseCallback cb)
 {
@@ -4060,6 +4332,12 @@ void Dispatcher::register_handlers()
         { handle_system_install_async(engine_, arguments, std::move(cb)); });
     add_sync("system-register-handler",
              [](yyjson_val *) { return handle_system_register_handler(); });
+    add_sync("system-handler-status",
+             [this](yyjson_val *) { return handle_system_handler_status(engine_); });
+    add_sync("system-handler-enable",
+             [this](yyjson_val *) { return handle_system_handler_enable(engine_); });
+    add_sync("system-handler-disable",
+             [this](yyjson_val *) { return handle_system_handler_disable(engine_); });
     add_sync("system-autorun-status",
              [this](yyjson_val *) { return handle_system_autorun_status(engine_); });
     add_sync("system-autorun-enable",
