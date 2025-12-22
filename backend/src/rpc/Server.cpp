@@ -169,7 +169,8 @@ std::string build_rpc_headers(std::string_view content_type,
     {
         headers += "Access-Control-Allow-Origin: " + *origin + "\r\n";
         headers +=
-            "Access-Control-Allow-Headers: X-TT-Auth, X-Transmission-Session-Id\r\n";
+            "Access-Control-Allow-Headers: X-TT-Auth, X-Transmission-Session-Id, "
+            "Authorization\r\n";
         headers += "Access-Control-Allow-Methods: POST, OPTIONS\r\n";
     }
     headers += "Cache-Control: no-store\r\n";
@@ -708,10 +709,7 @@ void Server::start()
 
 void Server::stop()
 {
-    if (!running_.exchange(false))
-    {
-        return;
-    }
+    const bool was_running = running_.exchange(false);
 
     auto *listener = listener_;
     listener_ = nullptr;
@@ -720,7 +718,7 @@ void Server::stop()
     // Only broadcast shutdown event if we're not destroying the Server
     // During destruction, the destroying flag is already set and connections
     // will be closed by mg_mgr_free anyway
-    if (!destroying_.load(std::memory_order_acquire))
+    if (was_running && !destroying_.load(std::memory_order_acquire))
     {
         broadcast_event(serialize_ws_event_app_shutdown());
     }
@@ -1222,28 +1220,14 @@ void Server::handle_http_message(struct mg_connection *conn,
 #else
     // Debug: skip the strict origin check to aid local UI debugging.
 #endif
-    bool token_authorized = self->authorize_request(hm);
     std::optional<std::string> response_origin;
-    if (token_authorized && origin_allowed_flag && origin_value)
+    if (origin_allowed_flag && origin_value)
     {
         response_origin = *origin_value;
     }
 
     if (method == "OPTIONS")
     {
-        if (!token_authorized)
-        {
-            auto unauthorized_headers = build_rpc_headers("text/plain", {});
-            if (self->options_.basic_auth)
-            {
-                unauthorized_headers += "WWW-Authenticate: Basic realm=\"";
-                unauthorized_headers += self->options_.basic_realm;
-                unauthorized_headers += "\"\r\n";
-            }
-            TT_LOG_INFO("RPC request rejected; unauthorized authentication attempt");
-            mg_http_reply(conn, 401, unauthorized_headers.c_str(), "unauthorized");
-            return;
-        }
         auto headers = build_rpc_headers("application/json", response_origin);
         headers += "Access-Control-Max-Age: 600\r\n";
         mg_http_reply(conn, 204, headers.c_str(), "");
@@ -1254,7 +1238,7 @@ void Server::handle_http_message(struct mg_connection *conn,
     {
         TT_LOG_INFO(
             "RPC request rejected; unauthorized authentication attempt");
-        auto headers = build_rpc_headers("text/plain", {});
+        auto headers = build_rpc_headers("text/plain", response_origin);
         if (self->options_.basic_auth)
         {
             headers += "WWW-Authenticate: Basic realm=\"";
@@ -1263,6 +1247,7 @@ void Server::handle_http_message(struct mg_connection *conn,
         }
         mg_http_reply(conn, 401, headers.c_str(), "unauthorized");
     };
+    bool token_authorized = self->authorize_request(hm);
 
     if (!token_authorized)
     {

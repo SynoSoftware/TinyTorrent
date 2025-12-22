@@ -48,7 +48,7 @@ class SessionService
 {
   public:
     SessionService(TorrentManager *manager, PersistenceManager *persistence,
-                   StateService *state, HistoryAgent *history,
+                   std::shared_ptr<StateService> state, HistoryAgent *history,
                    ConfigurationService *config, EventBus *bus);
     ~SessionService();
 
@@ -93,7 +93,7 @@ class SessionService
 
     TorrentManager *manager_;
     PersistenceManager *persistence_;
-    StateService *state_;
+    std::shared_ptr<StateService> state_;
     HistoryAgent *history_;
     ConfigurationService *config_;
     EventBus *bus_;

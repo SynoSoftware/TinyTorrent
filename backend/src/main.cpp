@@ -933,15 +933,15 @@ int daemon_main(int argc, char *argv[],
         // 2. Stop engine and DRAIN ALL TASKS while 'rpc' is still alive
         engine->stop();
 
-        // 3. Explicitly destroy the engine now so its destructor runs while
-        //    'rpc' (stack variable) is still valid. This avoids callbacks from
-        //    engine tasks hitting a destroyed RPC object during shutdown.
-        engine.reset();
-
         if (engine_thread.joinable())
         {
             engine_thread.join();
         }
+
+        // 3. Explicitly destroy the engine now so its destructor runs while
+        //    'rpc' (stack variable) is still valid. This avoids callbacks from
+        //    engine tasks hitting a destroyed RPC object during shutdown.
+        engine.reset();
 
         tt::log::print_status("Shutdown complete.");
         TT_LOG_INFO("Shutdown complete.");

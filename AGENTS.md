@@ -14,8 +14,22 @@
 
 ## Design Philosophy (see README)
 
-1. **Speed** – fast boots, snappy controls, responsive RPCs.
-2. **Density** – pack only what is strictly necessary.
-3. **One Responsibility** – keep the tray/backend distinct from the browser UI.
-4. **Exact Typing** – avoid `any` and prefer strict schema alignment.
-5. **No entropy** – no duplicate configurations, no drifting tooling.
+1. **Speed** - fast boots, snappy controls, responsive RPCs.
+2. **Density** - pack only what is strictly necessary.
+3. **One Responsibility** - keep the tray/backend distinct from the browser UI.
+4. **Exact Typing** - avoid `any` and prefer strict schema alignment.
+5. **No entropy** - no duplicate configurations, no drifting tooling.
+
+## Work Protocol
+
+- Before recommending a command for the user to run, the agent must run it itself if the environment permits and confirm it succeeds.
+  If the command cannot be tested, the agent must explicitly state that it is untested and speculative.
+
+- The agent must not claim a task is complete unless:
+
+  - the fix was validated through the **same external interface the user relies on** (e.g. RPC, HTTP, frontend behavior), **or**
+  - the agent explicitly states that the change is **unvalidated** and may still be incorrect.
+
+- Code changes alone are insufficient to declare a fix.
+
+- The agent must not treat a task as complete, successful, or resolved unless the fix was externally validated through the same interface the user relies on, or the agent explicitly states that the result is unvalidated and may still be incorrect.
