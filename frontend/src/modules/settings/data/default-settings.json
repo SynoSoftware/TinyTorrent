@@ -29,7 +29,7 @@
     "seedRatioLimited": true,
     "idleSeedingLimit": 30,
     "idleSeedingLimited": false,
-    "table_watermark_enabled": false,
-    "refresh_interval_ms": 4000,
+    "table_watermark_enabled": true,
+    "refresh_interval_ms": 1000,
     "request_timeout_ms": 10000
 }

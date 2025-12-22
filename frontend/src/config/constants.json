@@ -21,12 +21,7 @@
         },
         "heatmap": {
             "sample_limit_multiplier": 6,
-            "zoom_levels": [
-                1,
-                1.5,
-                2,
-                2.5
-            ],
+            "zoom_levels": [1, 1.5, 2, 2.5],
             "cell_size": 6,
             "cell_gap": 3
         },
@@ -43,6 +38,12 @@
             "font_mono": "font-mono",
             "icon_size": 14,
             "overscan": 20
+        },
+        "shell": {
+            "outer_radius": 15,
+            "panel_gap": 4,
+            "ring_padding": 4,
+            "handle_hit_area": 10
         },
         "details": {
             "tab_content_max_height": 360
@@ -141,11 +142,7 @@
             ],
             "iconPulse": {
                 "initialScale": 0.9,
-                "animateScale": [
-                    1,
-                    1.08,
-                    1
-                ],
+                "animateScale": [1, 1.08, 1],
                 "transition": {
                     "type": "spring",
                     "stiffness": 260,
@@ -191,22 +188,10 @@
             "Settings": "settings"
         },
         "keymap": {
-            "action.select_all": [
-                "ctrl+a",
-                "meta+a"
-            ],
-            "action.delete": [
-                "delete",
-                "backspace"
-            ],
-            "action.show_details": [
-                "enter",
-                "meta+i",
-                "ctrl+i"
-            ],
-            "action.toggle_pause": [
-                "space"
-            ],
+            "action.select_all": ["ctrl+a", "meta+a"],
+            "action.delete": ["delete", "backspace"],
+            "action.show_details": ["enter", "meta+i", "ctrl+i"],
+            "action.toggle_pause": ["space"],
             "action.recheck": "ctrl+r",
             "action.remove_with_data": "shift+delete"
         }

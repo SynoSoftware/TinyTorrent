@@ -22,7 +22,16 @@ import {
     type PeerSortStrategy,
 } from "./TorrentDetailView";
 import type { Torrent, TorrentDetail } from "../types/torrent";
-import { ICON_STROKE_WIDTH } from "../../../config/logic";
+import {
+    ICON_STROKE_WIDTH,
+    SHELL_CONTENT_STYLE,
+    SHELL_FRAME_STYLE,
+    SHELL_GAP,
+    SHELL_HANDLE_HIT_AREA,
+    SHELL_INNER_RADIUS,
+    SHELL_RADIUS,
+    SHELL_RING_PADDING,
+} from "../../../config/logic";
 import type { TorrentPeerEntity } from "../../../services/rpc/entities";
 import type {
     FileExplorerContextAction,
@@ -34,19 +43,15 @@ import { GLASS_BLOCK_SURFACE } from "../../../shared/ui/layout/glass-surface";
 /**
  * LAYOUT METRICS SYSTEM
  * ----------------------------------------------------------------------
- * 1. gap: The physical space between the Table panel and Inspector panel.
- *    (Does NOT affect the outer edges of the screen, only the split line).
- *
- * 2. ringPadding: The space between the Green Focus Border and the inner Content.
- *    (If this is 0 and you still see space, 'TorrentTable' has internal padding).
- *
- * 3. radius: The curvature of the Green Focus Border.
+ * Values for the shared shell geometry are sourced from the centralized
+ * `LAYOUT_METRICS` configuration so every panel aligns with the same gap,
+ * radius, and ring padding.
  */
 const METRICS = {
-    gap: 4, // px - Distance between Table and Inspector
-    radius: 20, // px - Roundness of the container border
-    ringPadding: 4, // px - Space between border and content (Set to 0 to debug content padding)
-    handleHitArea: 10, // px - Invisible hit area for resizing
+    gap: SHELL_GAP,
+    radius: SHELL_RADIUS,
+    ringPadding: SHELL_RING_PADDING,
+    handleHitArea: SHELL_HANDLE_HIT_AREA,
 } as const;
 
 /**
@@ -54,7 +59,7 @@ const METRICS = {
  * inside the outer container without looking "off-center".
  */
 const COMPUTED = {
-    innerRadius: Math.max(0, METRICS.radius - METRICS.ringPadding),
+    innerRadius: SHELL_INNER_RADIUS,
     handleSize: METRICS.gap,
 } as const;
 
@@ -237,10 +242,7 @@ export function ModeLayout({
                     ? "border-primary/30 ring-1 ring-primary/20 z-20"
                     : "border-content1/10 z-10"
             ),
-            style: {
-                borderRadius: METRICS.radius,
-                padding: METRICS.ringPadding,
-            },
+            style: SHELL_FRAME_STYLE,
         };
     };
 
@@ -248,7 +250,8 @@ export function ModeLayout({
         className:
             "relative flex-1 min-h-0 w-full h-full overflow-hidden bg-background/40",
         style: {
-            borderRadius: COMPUTED.innerRadius,
+            ...SHELL_CONTENT_STYLE,
+            padding: `${METRICS.gap}px`,
         },
     });
 
@@ -257,7 +260,7 @@ export function ModeLayout({
             {isDropActive && (
                 <motion.div
                     className="pointer-events-none absolute inset-0 flex items-center justify-center z-50"
-                    style={{ borderRadius: COMPUTED.innerRadius }}
+                    style={SHELL_CONTENT_STYLE}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
@@ -265,7 +268,7 @@ export function ModeLayout({
                 >
                     <motion.div
                         className="absolute inset-2 border border-primary/60"
-                        style={{ borderRadius: COMPUTED.innerRadius }}
+                        style={SHELL_CONTENT_STYLE}
                         initial={{ scale: 0.96, opacity: 0.4 }}
                         animate={{ scale: 1, opacity: 0.8 }}
                         exit={{ opacity: 0 }}
@@ -304,28 +307,38 @@ export function ModeLayout({
                         onPointerDown={focusTable}
                     >
                         <div {...getContentStyles()}>
-                            {tableWatermarkEnabled && (
+                            <div
+                                className="relative z-10 h-full min-h-0 overflow-hidden"
+                                style={{
+                                    borderRadius: `${SHELL_INNER_RADIUS}px`,
+                                }}
+                            >
+                                {tableWatermarkEnabled && (
+                                    <div
+                                        aria-hidden="true"
+                                        className="pointer-events-none absolute inset-0 z-0 torrent-table-watermark"
+                                    />
+                                )}
                                 <div
-                                    aria-hidden="true"
-                                    className="pointer-events-none absolute inset-0 z-0 torrent-table-watermark"
-                                />
-                            )}
-                            <div className="relative z-10 h-full min-h-0">
-                                <TorrentTable
-                                    torrents={torrents}
-                                    filter={filter}
-                                    searchQuery={searchQuery}
-                                    isLoading={isTableLoading}
-                                    onAction={onAction}
-                                    onRequestDetails={handleDetailRequest}
-                                    onRequestDetailsFullscreen={
-                                        handleDetailFullscreenRequest
-                                    }
-                                    onSelectionChange={onSelectionChange}
-                                    optimisticStatuses={optimisticStatuses}
-                                    ghostTorrents={ghostTorrents}
-                                    onOpenFolder={onOpenFolder}
-                                />
+                                    className="relative z-10 h-full min-h-0"
+                                    style={{ borderRadius: "inherit" }}
+                                >
+                                    <TorrentTable
+                                        torrents={torrents}
+                                        filter={filter}
+                                        searchQuery={searchQuery}
+                                        isLoading={isTableLoading}
+                                        onAction={onAction}
+                                        onRequestDetails={handleDetailRequest}
+                                        onRequestDetailsFullscreen={
+                                            handleDetailFullscreenRequest
+                                        }
+                                        onSelectionChange={onSelectionChange}
+                                        optimisticStatuses={optimisticStatuses}
+                                        ghostTorrents={ghostTorrents}
+                                        onOpenFolder={onOpenFolder}
+                                    />
+                                </div>
                             </div>
                             {dropOverlay}
                         </div>
@@ -376,40 +389,57 @@ export function ModeLayout({
                 >
                     <div {...getShellStyles("inspector")}>
                         <div {...getContentStyles()}>
-                            <motion.div
-                                className="h-full min-h-0 flex-1"
-                                initial={false}
-                                animate={
-                                    isDetailOpen
-                                        ? { opacity: 1, y: 0 }
-                                        : { opacity: 0.75, y: 6 }
-                                }
-                                transition={ANIMATION.entry}
+                            <div
+                                className="h-full min-h-0 flex-1 overflow-hidden"
+                                style={{
+                                    borderRadius: `${SHELL_INNER_RADIUS}px`,
+                                }}
                             >
-                                <TorrentDetailView
-                                    torrent={detailData}
-                                    onClose={handleDetailClose}
-                                    onFilesToggle={onFilesToggle}
-                                    onFileContextAction={onFileContextAction}
-                                    onPeerContextAction={onPeerContextAction}
-                                    peerSortStrategy={peerSortStrategy}
-                                    inspectorTabCommand={inspectorTabCommand}
-                                    onInspectorTabCommandHandled={
-                                        onInspectorTabCommandHandled
+                                <motion.div
+                                    className="h-full min-h-0 flex-1"
+                                    initial={false}
+                                    animate={
+                                        isDetailOpen
+                                            ? { opacity: 1, y: 0 }
+                                            : { opacity: 0.75, y: 6 }
                                     }
-                                    onSequentialToggle={onSequentialToggle}
-                                    onSuperSeedingToggle={onSuperSeedingToggle}
-                                    onForceTrackerReannounce={
-                                        onForceTrackerReannounce
-                                    }
-                                    sequentialSupported={sequentialSupported}
-                                    superSeedingSupported={
-                                        superSeedingSupported
-                                    }
-                                    isFullscreen={isDetailFullscreen}
-                                    onPopout={handleDetailPopout}
-                                />
-                            </motion.div>
+                                    transition={ANIMATION.entry}
+                                >
+                                    <TorrentDetailView
+                                        torrent={detailData}
+                                        onClose={handleDetailClose}
+                                        onFilesToggle={onFilesToggle}
+                                        onFileContextAction={
+                                            onFileContextAction
+                                        }
+                                        onPeerContextAction={
+                                            onPeerContextAction
+                                        }
+                                        peerSortStrategy={peerSortStrategy}
+                                        inspectorTabCommand={
+                                            inspectorTabCommand
+                                        }
+                                        onInspectorTabCommandHandled={
+                                            onInspectorTabCommandHandled
+                                        }
+                                        onSequentialToggle={onSequentialToggle}
+                                        onSuperSeedingToggle={
+                                            onSuperSeedingToggle
+                                        }
+                                        onForceTrackerReannounce={
+                                            onForceTrackerReannounce
+                                        }
+                                        sequentialSupported={
+                                            sequentialSupported
+                                        }
+                                        superSeedingSupported={
+                                            superSeedingSupported
+                                        }
+                                        isFullscreen={isDetailFullscreen}
+                                        onPopout={handleDetailPopout}
+                                    />
+                                </motion.div>
+                            </div>
                         </div>
                     </div>
                 </Panel>

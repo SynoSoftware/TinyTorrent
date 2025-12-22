@@ -41,10 +41,13 @@ import {
 } from "../../../shared/utils/format";
 import { buildSplinePath } from "../../../shared/utils/spline";
 import type { Torrent } from "../types/torrent";
-import type { ReactNode } from "react";
-import { TABLE_LAYOUT } from "../../../config/logic";
+import type { CSSProperties, ReactNode } from "react";
+import {
+    TABLE_LAYOUT,
+    ICON_STROKE_WIDTH_DENSE,
+    LAYOUT_METRICS,
+} from "../../../config/logic";
 import { GLASS_MENU_SURFACE } from "../../../shared/ui/layout/glass-surface";
-import { ICON_STROKE_WIDTH_DENSE } from "../../../config/logic";
 import { SmoothProgressBar } from "../../../shared/ui/components/SmoothProgressBar";
 import type { Table } from "@tanstack/react-table";
 import type { OptimisticStatusMap } from "./TorrentTable";
@@ -119,6 +122,15 @@ const DENSE_TEXT = `${TABLE_LAYOUT.fontSize} ${TABLE_LAYOUT.fontMono} leading-no
 const DENSE_NUMERIC = `${DENSE_TEXT} tabular-nums`;
 const SPARKLINE_WIDTH = 64;
 const SPARKLINE_HEIGHT = 12;
+const STATUS_CHIP_GAP = Math.max(2, LAYOUT_METRICS.panelGap);
+const STATUS_CHIP_RADIUS = Math.max(
+    2,
+    Math.round(LAYOUT_METRICS.innerRadius / 2)
+);
+const STATUS_CHIP_STYLE: CSSProperties = {
+    gap: `${STATUS_CHIP_GAP}px`,
+    borderRadius: `${STATUS_CHIP_RADIUS}px`,
+};
 
 const getOrdinalSuffix = (value: number) => {
     const normalized = value % 100;
@@ -246,9 +258,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
                     >
                         <span>{(displayProgress * 100).toFixed(1)}%</span>
                         <span className="text-foreground/40">
-                            {formatBytes(
-                                torrent.totalSize * displayProgress
-                            )}
+                            {formatBytes(torrent.totalSize * displayProgress)}
                         </span>
                     </div>
                     <SmoothProgressBar
@@ -298,9 +308,9 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
                                 className="text-current"
                             />
                         }
+                        style={STATUS_CHIP_STYLE}
                         classNames={{
-                            base:
-                                "h-5 px-2 inline-flex items-center gap-1 whitespace-nowrap flex-nowrap",
+                            base: "h-5 px-2 inline-flex items-center whitespace-nowrap flex-nowrap",
                             content:
                                 "font-bold text-[9px] uppercase tracking-wider leading-none whitespace-nowrap",
                         }}

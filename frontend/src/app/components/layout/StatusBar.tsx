@@ -24,6 +24,7 @@ import {
     BLOCK_SHADOW,
     GLASS_BLOCK_SURFACE,
 } from "@/shared/ui/layout/glass-surface";
+import { SHELL_CONTENT_STYLE, SHELL_FRAME_STYLE } from "@/config/logic";
 
 // --- UI CONFIGURATION & TOKENS ---
 const UI_CONFIG = {
@@ -201,10 +202,11 @@ export function StatusBar({
     return (
         <footer
             className={cn(
-                "w-full shrink-0 rounded-[28px] select-none relative z-30 overflow-visible",
+                "w-full shrink-0 select-none relative z-30 overflow-visible",
                 GLASS_BLOCK_SURFACE,
                 BLOCK_SHADOW
             )}
+            style={SHELL_FRAME_STYLE}
         >
             <div
                 className={cn(
@@ -212,6 +214,7 @@ export function StatusBar({
                     UI_CONFIG.layout.height,
                     UI_CONFIG.layout.sectionGap
                 )}
+                style={SHELL_CONTENT_STYLE}
             >
                 {/* --- LEFT: SPEED MODULES --- */}
                 <div

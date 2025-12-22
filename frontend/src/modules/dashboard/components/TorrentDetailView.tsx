@@ -14,7 +14,7 @@ import {
 
 import { AnimatePresence, motion } from "framer-motion";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type CSSProperties } from "react";
 
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
@@ -22,7 +22,7 @@ import { GlassPanel } from "../../../shared/ui/layout/GlassPanel";
 
 import { formatTime } from "../../../shared/utils/format";
 
-import { ICON_STROKE_WIDTH } from "../../../config/logic";
+import { ICON_STROKE_WIDTH, LAYOUT_METRICS } from "../../../config/logic";
 
 import type { Torrent, TorrentDetail } from "../types/torrent";
 
@@ -102,6 +102,13 @@ const STATUS_CONFIG: Record<
     queued: { color: "warning", labelKey: "torrent_modal.statuses.queued" },
     error: { color: "danger", labelKey: "torrent_modal.statuses.error" },
 } as const;
+const HEADER_STATUS_CHIP_STYLE: CSSProperties = {
+    gap: `${Math.max(2, LAYOUT_METRICS.panelGap)}px`,
+    borderRadius: `${Math.max(
+        2,
+        Math.round(LAYOUT_METRICS.innerRadius / 2)
+    )}px`,
+};
 
 interface DetailHeaderContentProps {
     torrent: TorrentDetail;
@@ -133,6 +140,7 @@ function DetailHeaderContent({
                         size="sm"
                         variant="flat"
                         color={statusMeta.color}
+                        style={HEADER_STATUS_CHIP_STYLE}
                         classNames={{
                             base: "h-6 px-3 flex-shrink-0",
                             content:
@@ -460,7 +468,9 @@ export function TorrentDetailView({
                                             "torrent_modal.files_empty"
                                         )}
                                         onFilesToggle={onFilesToggle}
-                                        onFileContextAction={onFileContextAction}
+                                        onFileContextAction={
+                                            onFileContextAction
+                                        }
                                     />
                                 )}
 
