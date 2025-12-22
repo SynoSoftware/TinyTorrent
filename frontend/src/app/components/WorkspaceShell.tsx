@@ -24,8 +24,17 @@ import { SettingsModal } from "../../modules/settings/components/SettingsModal";
 import { Navbar } from "./layout/Navbar";
 import { StatusBar, type EngineDisplayType } from "./layout/StatusBar";
 import type { SettingsConfig } from "../../modules/settings/data/config";
-import { INTERACTION_CONFIG } from "../../config/logic";
-import { ICON_STROKE_WIDTH } from "../../config/logic";
+import {
+    ICON_STROKE_WIDTH,
+    IMMERSIVE_CHROME_PADDING,
+    IMMERSIVE_CHROME_RADIUS,
+    IMMERSIVE_HUD_CARD_RADIUS,
+    IMMERSIVE_MAIN_CONTENT_PADDING,
+    IMMERSIVE_MAIN_INNER_RADIUS,
+    IMMERSIVE_MAIN_OUTER_RADIUS,
+    IMMERSIVE_MAIN_PADDING,
+    INTERACTION_CONFIG,
+} from "../../config/logic";
 import { GLASS_MODAL_SURFACE } from "../../shared/ui/layout/glass-surface";
 import type {
     AmbientHudCard,
@@ -283,6 +292,7 @@ export function WorkspaceShell({
 
     const renderModeLayoutSection = () => (
         <ModeLayout
+            workspaceStyle={workspaceStyle}
             torrents={torrents}
             filter={filter}
             searchQuery={searchQuery}
@@ -313,6 +323,7 @@ export function WorkspaceShell({
 
     const renderStatusBarSection = () => (
         <StatusBar
+            workspaceStyle={workspaceStyle}
             sessionStats={sessionStats}
             downHistory={downHistory}
             upHistory={upHistory}
@@ -423,7 +434,13 @@ export function WorkspaceShell({
                     )}
                 >
                     {isImmersiveShell ? (
-                        <div className="glass-panel rounded-[32px] border border-content1/10 bg-background/70 px-2 py-2 shadow-[0_25px_70px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
+                        <div
+                            className="glass-panel border border-content1/10 bg-background/70 shadow-[0_25px_70px_rgba(0,0,0,0.45)] backdrop-blur-2xl"
+                            style={{
+                                borderRadius: `${IMMERSIVE_CHROME_RADIUS}px`,
+                                padding: `${IMMERSIVE_CHROME_PADDING}px`,
+                            }}
+                        >
                             {renderNavbar()}
                         </div>
                     ) : (
@@ -432,8 +449,20 @@ export function WorkspaceShell({
 
                     {isImmersiveShell ? (
                         <>
-                            <div className="glass-panel flex-1 min-h-0 h-full rounded-[36px] border border-content1/10 bg-background/65 p-2 shadow-[0_35px_140px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
-                                <main className="flex-1 min-h-0 h-full overflow-hidden rounded-[32px] border border-content1/10 bg-background/80 px-4 py-4 shadow-inner shadow-black/30">
+                            <div
+                                className="glass-panel flex-1 min-h-0 h-full border border-content1/10 bg-background/65 shadow-[0_35px_140px_rgba(0,0,0,0.45)] backdrop-blur-2xl"
+                                style={{
+                                    borderRadius: `${IMMERSIVE_MAIN_OUTER_RADIUS}px`,
+                                    padding: `${IMMERSIVE_MAIN_PADDING}px`,
+                                }}
+                            >
+                                <main
+                                    className="flex-1 min-h-0 h-full overflow-hidden border border-content1/10 bg-background/80 shadow-inner shadow-black/30"
+                                    style={{
+                                        borderRadius: `${IMMERSIVE_MAIN_INNER_RADIUS}px`,
+                                        padding: `${IMMERSIVE_MAIN_CONTENT_PADDING}px`,
+                                    }}
+                                >
                                     {renderModeLayoutSection()}
                                 </main>
                             </div>
@@ -468,9 +497,12 @@ export function WorkspaceShell({
                                                         y: -4,
                                                     }}
                                                     className={cn(
-                                                        "glass-panel relative overflow-hidden rounded-[28px] border border-content1/10 bg-background/55 p-4 shadow-[0_20px_70px_rgba(0,0,0,0.4)]",
+                                                        "glass-panel relative overflow-hidden border border-content1/10 bg-background/55 p-4 shadow-[0_20px_70px_rgba(0,0,0,0.4)]",
                                                         card.surfaceClass
                                                     )}
+                                                    style={{
+                                                        borderRadius: `${IMMERSIVE_HUD_CARD_RADIUS}px`,
+                                                    }}
                                                 >
                                                     <button
                                                         type="button"
@@ -532,7 +564,13 @@ export function WorkspaceShell({
                                 <> </>
                             )}
 
-                            <div className="glass-panel rounded-[32px] border border-content1/10 bg-background/75 px-2 py-2 shadow-[0_25px_100px_rgba(0,0,0,0.45)] backdrop-blur-3xl">
+                            <div
+                                className="glass-panel border border-content1/10 bg-background/75 shadow-[0_25px_100px_rgba(0,0,0,0.45)] backdrop-blur-3xl"
+                                style={{
+                                    borderRadius: `${IMMERSIVE_CHROME_RADIUS}px`,
+                                    padding: `${IMMERSIVE_CHROME_PADDING}px`,
+                                }}
+                            >
                                 {renderStatusBarSection()}
                             </div>
                         </>

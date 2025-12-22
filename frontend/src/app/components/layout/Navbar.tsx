@@ -25,7 +25,7 @@ import {
     BLOCK_SHADOW,
     GLASS_BLOCK_SURFACE,
 } from "@/shared/ui/layout/glass-surface";
-import { SHELL_CONTENT_STYLE, SHELL_FRAME_STYLE } from "@/config/logic";
+import { getShellTokens } from "@/config/logic";
 
 interface NavbarProps {
     filter: string;
@@ -68,6 +68,7 @@ export function Navbar({
 }: NavbarProps) {
     const { t } = useTranslation();
     const { setActivePart } = useFocusState();
+    const shell = getShellTokens(workspaceStyle);
 
     return (
         <header
@@ -76,11 +77,11 @@ export function Navbar({
                 GLASS_BLOCK_SURFACE,
                 BLOCK_SHADOW
             )}
-            style={SHELL_FRAME_STYLE}
+            style={shell.frameStyle}
         >
             <div
                 className="flex h-14 w-full items-center justify-between gap-6 px-6"
-                style={SHELL_CONTENT_STYLE}
+                style={shell.contentStyle}
             >
                 {/* LEFT ZONE: Identity & Navigation */}
                 <div className="flex items-center gap-6">

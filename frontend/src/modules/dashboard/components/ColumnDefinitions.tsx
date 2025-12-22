@@ -41,7 +41,7 @@ import {
 } from "../../../shared/utils/format";
 import { buildSplinePath } from "../../../shared/utils/spline";
 import type { Torrent } from "../types/torrent";
-import type { CSSProperties, ReactNode } from "react";
+import { type CSSProperties, type ReactNode } from "react";
 import {
     TABLE_LAYOUT,
     ICON_STROKE_WIDTH_DENSE,
@@ -158,6 +158,69 @@ const formatQueueOrdinal = (queuePosition?: number) => {
     return `${displayValue}${getOrdinalSuffix(displayValue)}`;
 };
 
+const SpeedColumnCell = ({ torrent, table }: ColumnRendererProps) => {
+    const isDownloading = torrent.state === "downloading";
+    const isSeeding = torrent.state === "seeding";
+    const speedValue = isDownloading
+        ? torrent.speed.down
+        : isSeeding
+        ? torrent.speed.up
+        : null;
+
+    const meta = table.options.meta as DashboardTableMeta | undefined;
+    const history = meta?.speedHistory?.[torrent.id] ?? [];
+    const sparklineHistory = history.length > 0 ? history : [0, 0];
+
+    const maxHistorySpeed = Math.max(...sparklineHistory);
+    const maxSpeed = Math.max(speedValue ?? 0, maxHistorySpeed, 1);
+    const sparklineHeight = SPARKLINE_HEIGHT - 1;
+    const path = buildSplinePath(
+        sparklineHistory,
+        SPARKLINE_WIDTH,
+        sparklineHeight,
+        maxSpeed
+    );
+
+    return (
+        <div className="flex items-center justify-end gap-2 min-w-0">
+            <span
+                className={cn(
+                    "flex-shrink-0 text-right min-w-0",
+                    DENSE_NUMERIC,
+                    "font-medium",
+                    isDownloading
+                        ? "text-success"
+                        : isSeeding
+                        ? "text-primary"
+                        : "text-foreground/30"
+                )}
+            >
+                {speedValue !== null ? formatSpeed(speedValue) : "-"}
+            </span>
+            <svg
+                viewBox={`0 0 ${SPARKLINE_WIDTH} ${SPARKLINE_HEIGHT}`}
+                className={cn(
+                    "h-3 w-16 flex-none overflow-visible",
+                    isDownloading
+                        ? "text-success"
+                        : isSeeding
+                        ? "text-primary"
+                        : "text-foreground/40"
+                )}
+                preserveAspectRatio="none"
+            >
+                <path
+                    d={path}
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.4"
+                    strokeLinecap="round"
+                />
+            </svg>
+        </div>
+    );
+};
+
 const statusMap: Record<
     Torrent["state"],
     {
@@ -196,8 +259,8 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
         defaultVisible: true,
         sortAccessor: (torrent) => torrent.name,
         headerIcon: ListChecks,
-        render: ({ torrent, t }) => (
-            <div className="flex flex-col gap-0.5 min-w-0">
+        render: ({ torrent }) => (
+            <div className="flex min-w-0 items-center h-full">
                 <span
                     className={cn(
                         "font-medium truncate max-w-md transition-colors cap-height-text",
@@ -207,32 +270,6 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
                 >
                     {torrent.name}
                 </span>
-                {torrent.isGhost && torrent.ghostState && (
-                    <span className="text-[9px] uppercase tracking-[0.3em] text-foreground/50">
-                        {t(`torrent_modal.ghost_states.${torrent.ghostState}`)}
-                    </span>
-                )}
-                {torrent.state === "downloading" && (
-                    <div
-                        className={cn(
-                            "flex items-center gap-2 tracking-tight text-foreground/50",
-                            DENSE_TEXT
-                        )}
-                    >
-                        <span className="text-success">
-                            {formatSpeed(torrent.speed.down)}
-                        </span>
-                        <span className="w-0.5 h-0.5 rounded-full bg-foreground/30" />
-                        <span>
-                            {t("table.eta", {
-                                time:
-                                    torrent.eta < 0
-                                        ? t("table.eta_unknown")
-                                        : formatTime(torrent.eta),
-                            })}
-                        </span>
-                    </div>
-                )}
             </div>
         ),
     },
@@ -374,7 +411,8 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
     speed: {
         id: "speed",
         labelKey: "table.header_speed",
-        width: 120,
+        width: 180,
+        minSize: 160,
         align: "end",
         sortable: true,
         defaultVisible: true,
@@ -382,75 +420,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
         sortAccessor: (torrent) =>
             torrent.state === "seeding" ? torrent.speed.up : torrent.speed.down,
         headerIcon: ArrowUpCircle,
-        render: ({ torrent, table }) => {
-            const isDownloading = torrent.state === "downloading";
-            const isSeeding = torrent.state === "seeding";
-            const speedValue = isDownloading
-                ? torrent.speed.down
-                : isSeeding
-                ? torrent.speed.up
-                : null;
-
-            // Access meta safely
-            const meta = table.options.meta as DashboardTableMeta | undefined;
-            const history = meta?.speedHistory?.[torrent.id] ?? [];
-
-            const maxHistorySpeed =
-                history.length > 0 ? Math.max(...history) : 0;
-            const maxSpeed = Math.max(speedValue ?? 0, maxHistorySpeed, 1);
-            const path =
-                history.length > 0
-                    ? buildSplinePath(
-                          history,
-                          SPARKLINE_WIDTH,
-                          SPARKLINE_HEIGHT,
-                          maxSpeed
-                      )
-                    : "";
-            return (
-                <div className="flex flex-col gap-1">
-                    <div className={cn("text-right min-w-0", DENSE_NUMERIC)}>
-                        {speedValue !== null ? (
-                            <span
-                                className={cn(
-                                    "font-medium",
-                                    isDownloading
-                                        ? "text-success"
-                                        : isSeeding
-                                        ? "text-primary"
-                                        : "text-foreground/30"
-                                )}
-                            >
-                                {formatSpeed(speedValue)}
-                            </span>
-                        ) : (
-                            <span className="text-foreground/30">-</span>
-                        )}
-                    </div>
-                    {path && (
-                        <svg
-                            viewBox={`0 0 ${SPARKLINE_WIDTH} ${SPARKLINE_HEIGHT}`}
-                            className={cn(
-                                "h-3 w-full overflow-visible",
-                                isDownloading
-                                    ? "text-success"
-                                    : isSeeding
-                                    ? "text-primary"
-                                    : "text-foreground/40"
-                            )}
-                        >
-                            <path
-                                d={path}
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="1.4"
-                                strokeLinecap="round"
-                            />
-                        </svg>
-                    )}
-                </div>
-            );
-        },
+        render: (ctx) => <SpeedColumnCell {...ctx} />,
     },
     peers: {
         id: "peers",
