@@ -41,12 +41,20 @@ switch ($Target.ToLower()) {
         & $Ctl setup
     }
 
+    'vs' {
+        & $Ctl setup
+        $resolvedConfig = if ($Config) { $Config } else { 'Debug' }
+        & $Ctl configure -Configuration $resolvedConfig -Backend 'vs2022'
+    }
+
     'build' {
-        & $Ctl build -Configuration ($Config ?? 'Debug')
+        $resolvedConfig = if ($Config) { $Config } else { 'Debug' }
+        & $Ctl build -Configuration $resolvedConfig
     }
 
     'test' {
-        & $Ctl test -Configuration ($Config ?? 'Debug')
+        $resolvedConfig = if ($Config) { $Config } else { 'Debug' }
+        & $Ctl test -Configuration $resolvedConfig
     }
 
     default {
@@ -54,6 +62,7 @@ switch ($Target.ToLower()) {
         Write-Output "  make"
         Write-Output "  make debug"
         Write-Output "  make release"
+        Write-Output "  make vs [Debug|Release]"
         Write-Output "  make clean"
         Write-Output "  make test [Debug|Release]"
         exit 1

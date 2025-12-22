@@ -135,6 +135,37 @@ npm run dev
 
 > **Note:** The root and backend directories are intentionally TypeScript/Node-free. All `npm`/`npx` work happens inside `frontend/` so the native build tree stays clean. See `AGENTS.md` for the full rule set.
 
+### Development (backend)
+
+#### Generate a Visual Studio solution (Windows)
+
+From a fresh clone, you can generate a `.sln` using Meson’s Visual Studio backend via the PowerShell helper:
+
+```powershell
+cd backend
+./make.ps1 vs Debug
+```
+
+This produces the solution at:
+
+- `backend/build_vs/debug/tinytorrent-daemon.sln`
+
+For a release solution:
+
+```powershell
+cd backend
+./make.ps1 vs Release
+```
+
+Output:
+
+- `backend/build_vs/release/tinytorrent-daemon.sln`
+
+Notes:
+
+- The script also writes Visual Studio `.vcxproj.user` debug settings so the debugger can find required runtime DLLs (vcpkg deps and ASan runtime in Debug).
+- If you change toolsets / vcpkg triplets / upgrade Visual Studio, rerun `./make.ps1 vs Debug` to regenerate those settings.
+
 ## Backend Note
 
 The final TinyTorrent backend will not stay tied to the original Transmission daemon.

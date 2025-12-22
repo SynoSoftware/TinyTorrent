@@ -19,6 +19,12 @@ function Get-BuildDir {
     return Join-Path $repoRoot ("buildstate/{0}" -f $Configuration.ToLower())
 }
 
+function Get-VsBuildDir {
+    param([Parameter(Mandatory = $true)][ValidateSet('Debug', 'Release')][string]$Configuration)
+    $repoRoot = Get-RepoRoot
+    return Join-Path $repoRoot ("build_vs/{0}" -f $Configuration.ToLower())
+}
+
 function Get-TripletName {
     param([Parameter(Mandatory = $true)][ValidateSet('Debug', 'Release')][string]$Configuration)
     if ($Configuration -eq 'Debug') {
@@ -48,10 +54,16 @@ function Get-TestDir {
 
 function Invoke-MesonConfigure {
     param(
-        [Parameter(Mandatory = $true)][ValidateSet('Debug', 'Release')][string]$Configuration
+        [Parameter(Mandatory = $true)][ValidateSet('Debug', 'Release')][string]$Configuration,
+        [ValidateSet('ninja', 'vs2022')][string]$Backend = 'ninja'
     )
 
-    $buildDir = Get-BuildDir -Configuration $Configuration
+    $buildDir = if ($Backend -eq 'ninja') {
+        Get-BuildDir -Configuration $Configuration
+    }
+    else {
+        Get-VsBuildDir -Configuration $Configuration
+    }
     $triplet = Get-TripletName -Configuration $Configuration
     $tripletRoot = Get-TripletRoot -Triplet $triplet
     Test-VcpkgTriplet -TripletRoot $tripletRoot -Triplet $triplet
@@ -61,8 +73,9 @@ function Invoke-MesonConfigure {
         [void](New-Item -ItemType Directory -Path $buildDir)
     }
 
+    $coreData = Join-Path $buildDir 'meson-private\coredata.dat'
     $buildNinja = Join-Path $buildDir 'build.ninja'
-    $isReconfigure = Test-Path -LiteralPath $buildNinja
+    $isReconfigure = (Test-Path -LiteralPath $coreData) -or (Test-Path -LiteralPath $buildNinja)
 
     Ensure-VsEnv
 
@@ -83,33 +96,116 @@ function Invoke-MesonConfigure {
         "-Dstrip=$(if ($Configuration -eq 'Debug') { 'false' } else { 'true' })",
         "-Dtt_enable_logging=$(if ($Configuration -eq 'Debug') { 'true' } else { 'false' })",
         "-Dtt_enable_tests=$(if ($Configuration -eq 'Debug') { 'true' } else { 'false' })",
-        '--backend=ninja',
+        "--backend=$Backend",
         $buildDir,
         $(Get-RepoRoot)
     )
 
     $tools = Get-Tooling
-    $psi = New-Object System.Diagnostics.ProcessStartInfo
-    if ($tools.Meson) {
-        $psi.FileName = $tools.Meson
-    }
-    else {
-        $psi.FileName = $tools.Python
-        [void]$psi.ArgumentList.Add('-m')
-        [void]$psi.ArgumentList.Add('mesonbuild.mesonmain')
+    $exe = if ($tools.Meson) { $tools.Meson } else { $tools.Python }
+    $args = if ($tools.Meson) { $mesonArgs } else { @('-m', 'mesonbuild.mesonmain') + $mesonArgs }
+
+    function Write-VsDebuggerUserFiles {
+        param(
+            [Parameter(Mandatory = $true)][string]$BuildDir,
+            [Parameter(Mandatory = $true)][ValidateSet('Debug', 'Release')][string]$Configuration,
+            [Parameter(Mandatory = $true)][string]$TripletRoot
+        )
+
+        $vcpkgBin = Join-Path $TripletRoot 'bin'
+        $vcpkgDebugBin = Join-Path $TripletRoot 'debug\bin'
+        $pathParts = @()
+
+        # AddressSanitizer runtime (MSVC ships clang_rt.asan_dynamic-x86_64.dll)
+        # VS does not always include this on PATH when launching from the IDE.
+        if ($Configuration -eq 'Debug') {
+            $asanDir = $null
+            if ($env:VCToolsInstallDir) {
+                $candidate = Join-Path $env:VCToolsInstallDir 'bin\Hostx64\x64'
+                if (Test-Path -LiteralPath (Join-Path $candidate 'clang_rt.asan_dynamic-x86_64.dll')) {
+                    $asanDir = $candidate
+                }
+            }
+            if ($asanDir) {
+                $pathParts += $asanDir
+            }
+        }
+
+        if (Test-Path -LiteralPath $vcpkgBin) {
+            $pathParts += $vcpkgBin
+        }
+        if (Test-Path -LiteralPath $vcpkgDebugBin) {
+            $pathParts += $vcpkgDebugBin
+        }
+        if ($pathParts.Count -eq 0) {
+            return
+        }
+        $pathPrefix = ($pathParts -join ';')
+
+        $exeProjects = Get-ChildItem -LiteralPath $BuildDir -Filter '*@exe.vcxproj' -File -Recurse -ErrorAction SilentlyContinue
+        foreach ($proj in $exeProjects) {
+            $targetName = $null
+            try {
+                $xml = New-Object System.Xml.XmlDocument
+                $xml.Load($proj.FullName)
+                $ns = New-Object System.Xml.XmlNamespaceManager($xml.NameTable)
+                $ns.AddNamespace('msb', 'http://schemas.microsoft.com/developer/msbuild/2003')
+                $node = $xml.SelectSingleNode('//msb:TargetName', $ns)
+                if ($node -and $node.InnerText) {
+                    $targetName = $node.InnerText
+                }
+            }
+            catch {
+                $targetName = $null
+            }
+
+            if (-not $targetName) {
+                continue
+            }
+
+            $userPath = "$($proj.FullName).user"
+            $userTemplate = @'
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <PropertyGroup>
+        <LocalDebuggerCommand>$(ProjectDir){1}.exe</LocalDebuggerCommand>
+        <LocalDebuggerWorkingDirectory>$(ProjectDir)</LocalDebuggerWorkingDirectory>
+        <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
+        <LocalDebuggerEnvironment>PATH={2};$(Path)</LocalDebuggerEnvironment>
+    </PropertyGroup>
+</Project>
+'@
+            $userContent = $userTemplate -f '', $targetName, $pathPrefix
+            Set-Content -LiteralPath $userPath -Value $userContent -Encoding UTF8
+        }
     }
 
-    foreach ($a in $mesonArgs) { [void]$psi.ArgumentList.Add($a) }
-    $psi.WorkingDirectory = Get-RepoRoot
-    $psi.UseShellExecute = $false
-    $psi.RedirectStandardOutput = $false
-    $psi.RedirectStandardError = $false
-    $psi.Environment['CMAKE_PREFIX_PATH'] = $prefixPath
+    $oldPrefix = $env:CMAKE_PREFIX_PATH
+    try {
+        $env:CMAKE_PREFIX_PATH = $prefixPath
+        Push-Location (Get-RepoRoot)
+        & $exe @args
+        if ($LASTEXITCODE -ne 0) {
+            throw "Meson failed with exit code $LASTEXITCODE."
+        }
 
-    $process = [System.Diagnostics.Process]::Start($psi)
-    $process.WaitForExit()
-    if ($process.ExitCode -ne 0) {
-        throw "Meson failed with exit code $($process.ExitCode)."
+        $repoRoot = Get-RepoRoot
+        $buildDirRel = $buildDir
+        if ($buildDirRel.StartsWith($repoRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+            $buildDirRel = $buildDirRel.Substring($repoRoot.Length).TrimStart('\', '/')
+            if (-not $buildDirRel) {
+                $buildDirRel = '.'
+            }
+        }
+        Log-Info "Tip: Meson reconfigure requires the build directory: meson setup --reconfigure $buildDirRel"
+
+        if ($Backend -ne 'ninja') {
+            Write-VsDebuggerUserFiles -BuildDir $buildDir -Configuration $Configuration -TripletRoot $tripletRoot
+        }
+    }
+    finally {
+        Pop-Location
+        $env:CMAKE_PREFIX_PATH = $oldPrefix
     }
 }
 
@@ -126,25 +222,18 @@ function Invoke-MesonBuild {
     $tools = Get-Tooling
     $mesonArgs = @('compile', '-C', $buildDir)
 
-    $psi = New-Object System.Diagnostics.ProcessStartInfo
-    if ($tools.Meson) {
-        $psi.FileName = $tools.Meson
-    }
-    else {
-        $psi.FileName = $tools.Python
-        [void]$psi.ArgumentList.Add('-m')
-        [void]$psi.ArgumentList.Add('mesonbuild.mesonmain')
-    }
-    foreach ($a in $mesonArgs) { [void]$psi.ArgumentList.Add($a) }
-    $psi.WorkingDirectory = Get-RepoRoot
-    $psi.UseShellExecute = $false
-    $psi.RedirectStandardOutput = $false
-    $psi.RedirectStandardError = $false
+    $exe = if ($tools.Meson) { $tools.Meson } else { $tools.Python }
+    $args = if ($tools.Meson) { $mesonArgs } else { @('-m', 'mesonbuild.mesonmain') + $mesonArgs }
 
-    $process = [System.Diagnostics.Process]::Start($psi)
-    $process.WaitForExit()
-    if ($process.ExitCode -ne 0) {
-        throw "Ninja failed with exit code $($process.ExitCode)."
+    Push-Location (Get-RepoRoot)
+    try {
+        & $exe @args
+        if ($LASTEXITCODE -ne 0) {
+            throw "Build failed with exit code $LASTEXITCODE."
+        }
+    }
+    finally {
+        Pop-Location
     }
 
     $primaryExe = Join-Path $buildDir 'TinyTorrent.exe'

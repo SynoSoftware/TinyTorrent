@@ -8,6 +8,9 @@ param(
 
     [string]$Destination,
 
+    [ValidateSet('ninja', 'vs2022')]
+    [string]$Backend = 'ninja',
+
     [switch]$AutoConfirmDeletion
 )
 
@@ -25,7 +28,7 @@ switch ($Command) {
         & $commandScript -Configuration $Configuration -AutoConfirmDeletion:$AutoConfirmDeletion
     }
     'configure' {
-        & $commandScript -Configuration $Configuration
+        & $commandScript -Configuration $Configuration -Backend $Backend
     }
     'build' {
         & $commandScript -Configuration $Configuration
