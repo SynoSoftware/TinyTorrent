@@ -24,6 +24,7 @@ interface SettingsFormContextValue {
     canBrowseDirectories: boolean;
     onBrowse: (key: ConfigKey) => void;
     autorunSwitch: AutorunSwitchProps;
+    handlerSwitch: AutorunSwitchProps;
     extensionModeEnabled: boolean;
     isMocked: boolean;
     onSystemInstall?: (

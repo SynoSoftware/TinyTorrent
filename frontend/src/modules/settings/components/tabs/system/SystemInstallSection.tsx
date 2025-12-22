@@ -22,6 +22,7 @@ interface AutorunSwitchProps {
 
 interface SystemInstallSectionProps {
     autorunSwitch: AutorunSwitchProps;
+    handlerSwitch: AutorunSwitchProps;
     extensionModeEnabled: boolean;
     isMocked: boolean;
     onSystemInstall?: (
@@ -32,6 +33,7 @@ interface SystemInstallSectionProps {
 
 export function SystemInstallSection({
     autorunSwitch,
+    handlerSwitch,
     extensionModeEnabled,
     isMocked,
     onSystemInstall,
@@ -43,7 +45,6 @@ export function SystemInstallSection({
     const [installLocations, setInstallLocations] = useState<string[]>(() =>
         SYSTEM_INSTALL_LOCATIONS.map((option) => option.key)
     );
-    const [registerHandlers, setRegisterHandlers] = useState(false);
     const [installToProgramFiles, setInstallToProgramFiles] = useState(false);
     const [systemInstallResult, setSystemInstallResult] =
         useState<SystemInstallResult | null>(null);
@@ -52,10 +53,6 @@ export function SystemInstallSection({
     );
     const [isSystemInstalling, setIsSystemInstalling] = useState(false);
 
-    const registerHandlersToggle = useAsyncToggle(
-        registerHandlers,
-        setRegisterHandlers
-    );
     const installToProgramFilesToggle = useAsyncToggle(
         installToProgramFiles,
         setInstallToProgramFiles
@@ -85,7 +82,6 @@ export function SystemInstallSection({
             ...(trimmedName ? { name: trimmedName } : {}),
             ...(trimmedArgs ? { args: trimmedArgs } : {}),
             locations: installLocations,
-            registerHandlers,
             installToProgramFiles,
         };
         setSystemInstallError(null);
@@ -111,8 +107,8 @@ export function SystemInstallSection({
                 installMessage: t("settings.install.installed_path", {
                     path: installedPath,
                 }),
-                handlersRegistered: registerHandlers,
-                handlerMessage: registerHandlers
+                handlersRegistered: handlerSwitch.isSelected,
+                handlerMessage: handlerSwitch.isSelected
                     ? t("settings.install.handlers_registered")
                     : t("settings.install.handlers_not_registered"),
             });
@@ -143,8 +139,8 @@ export function SystemInstallSection({
         installName,
         installToProgramFiles,
         isMocked,
+        handlerSwitch.isSelected,
         onSystemInstall,
-        registerHandlers,
         systemInstallFeatureAvailable,
         t,
     ]);
@@ -230,12 +226,9 @@ export function SystemInstallSection({
                 </Switch>
                 <Switch
                     size="sm"
-                    isSelected={registerHandlers}
-                    isDisabled={
-                        isSystemInstallDisabled ||
-                        registerHandlersToggle.pending
-                    }
-                    onValueChange={registerHandlersToggle.onChange}
+                    isSelected={handlerSwitch.isSelected}
+                    isDisabled={handlerSwitch.isDisabled}
+                    onValueChange={handlerSwitch.onChange}
                 >
                     <span className="text-sm font-medium text-foreground/80">
                         {t("settings.labels.installRegisterHandlers")}

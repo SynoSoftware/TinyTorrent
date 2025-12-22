@@ -7,6 +7,7 @@ export function SystemTabContent() {
     const { t } = useTranslation();
     const {
         autorunSwitch,
+        handlerSwitch,
         extensionModeEnabled,
         isMocked,
         onSystemInstall,
@@ -21,6 +22,7 @@ export function SystemTabContent() {
             <div className="space-y-6 mt-4">
                 <SystemInstallSection
                     autorunSwitch={autorunSwitch}
+                    handlerSwitch={handlerSwitch}
                     extensionModeEnabled={extensionModeEnabled}
                     isMocked={isMocked}
                     onSystemInstall={onSystemInstall}

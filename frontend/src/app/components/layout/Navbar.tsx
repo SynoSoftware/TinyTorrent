@@ -14,16 +14,17 @@ import {
     PanelsTopLeft,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { ThemeToggle } from "../../../shared/ui/controls/ThemeToggle";
-import { ICON_STROKE_WIDTH } from "../../../config/logic";
-import { ToolbarIconButton } from "../../../shared/ui/layout/toolbar-button";
-import { SmoothProgressBar } from "../../../shared/ui/components/SmoothProgressBar";
-import { useFocusState } from "../../context/FocusContext";
-import { APP_VERSION } from "../../../shared/version";
+import { TinyTorrentIcon } from "@/shared/ui/components/TinyTorrentIcon";
+import { ThemeToggle } from "@/shared/ui/controls/ThemeToggle";
+import { ICON_STROKE_WIDTH } from "@/config/logic";
+import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
+import { SmoothProgressBar } from "@/shared/ui/components/SmoothProgressBar";
+import { useFocusState } from "@/app/context/FocusContext";
+import { APP_VERSION } from "@/shared/version";
 import {
     BLOCK_SHADOW,
     GLASS_BLOCK_SURFACE,
-} from "../../../shared/ui/layout/glass-surface";
+} from "@/shared/ui/layout/glass-surface";
 
 interface NavbarProps {
     filter: string;
@@ -80,10 +81,9 @@ export function Navbar({
                 {/* Brand */}
                 <div className="flex items-center gap-3 pr-2">
                     <div className="flex h-9 w-9 items-center justify-center rounded-xl">
-                        <img
-                            src="/tinyTorrent.svg"
-                            alt={t("brand.name")}
-                            className="h-10 w-10 object-contain"
+                        <TinyTorrentIcon
+                            title={t("brand.name")}
+                            className="h-10 w-10"
                         />
                     </div>
                     {/* Hidden on small screens if needed, keeping accessible */}

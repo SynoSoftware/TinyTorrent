@@ -101,8 +101,8 @@ export interface TransmissionSessionSettings {
     "alt-speed-down"?: number;
     "alt-speed-up"?: number;
     "alt-speed-time-enabled"?: boolean;
-    "alt-speed-begin"?: number;
-    "alt-speed-end"?: number;
+    "alt-speed-time-begin"?: number;
+    "alt-speed-time-end"?: number;
     "alt-speed-time-day"?: number;
     "peer-limit-global"?: number;
     "peer-limit-per-torrent"?: number;

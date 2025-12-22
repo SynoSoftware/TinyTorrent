@@ -4,6 +4,7 @@ import type { MutableRefObject } from "react";
 import type { EngineAdapter } from "../../services/rpc/engine-adapter";
 import type { SessionStats } from "../../services/rpc/entities";
 import type { RpcStatus } from "../../shared/types/rpc";
+import type { HeartbeatSource } from "../../services/rpc/heartbeat";
 
 interface UseSessionStatsParams {
     torrentClient: EngineAdapter;
@@ -19,6 +20,8 @@ export function useSessionStats({
     sessionReady,
 }: UseSessionStatsParams) {
     const [sessionStats, setSessionStats] = useState<SessionStats | null>(null);
+    const [liveTransportStatus, setLiveTransportStatus] =
+        useState<HeartbeatSource>("polling");
 
     const refreshSessionStatsData = useCallback(async () => {
         try {
@@ -37,9 +40,12 @@ export function useSessionStats({
         if (!sessionReady) return;
         const subscription = torrentClient.subscribeToHeartbeat({
             mode: "table",
-            onUpdate: ({ sessionStats: stats }) => {
+            onUpdate: ({ sessionStats: stats, source }) => {
                 if (!isMountedRef.current || !stats) return;
                 setSessionStats(stats);
+                if (source) {
+                    setLiveTransportStatus(source);
+                }
                 reportRpcStatus("connected");
             },
             onError: () => {
@@ -55,5 +61,6 @@ export function useSessionStats({
     return {
         sessionStats,
         refreshSessionStatsData,
+        liveTransportStatus,
     };
 }

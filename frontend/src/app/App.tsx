@@ -1,10 +1,4 @@
-import {
-    useCallback,
-    useEffect,
-    useMemo,
-    useRef,
-    useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import { useTranslation } from "react-i18next";
 
@@ -31,7 +25,10 @@ import { WorkspaceShell } from "./components/WorkspaceShell";
 import { RpcExtensionProvider } from "./context/RpcExtensionContext";
 import { useTorrentClient } from "./providers/TorrentClientProvider";
 import { FocusProvider, useFocusState } from "./context/FocusContext";
-import type { Torrent, TorrentDetail } from "../modules/dashboard/types/torrent";
+import type {
+    Torrent,
+    TorrentDetail,
+} from "../modules/dashboard/types/torrent";
 import type { RehashStatus } from "./types/workspace";
 import type {
     DetailTab,
@@ -126,16 +123,15 @@ export default function App() {
     } = addModalState;
 
     const isMountedRef = useRef(false);
+    const extensionNoticeShownRef = useRef(false);
 
-    const {
-        sessionStats,
-        refreshSessionStatsData,
-    } = useSessionStats({
-        torrentClient,
-        reportRpcStatus,
-        isMountedRef,
-        sessionReady: rpcStatus === "connected",
-    });
+    const { sessionStats, refreshSessionStatsData, liveTransportStatus } =
+        useSessionStats({
+            torrentClient,
+            reportRpcStatus,
+            isMountedRef,
+            sessionReady: rpcStatus === "connected",
+        });
 
     const refreshSessionStatsDataRef = useRef<() => Promise<void>>(
         async () => {}
@@ -152,6 +148,7 @@ export default function App() {
         refreshSessionStatsDataRef,
         refreshSessionSettings,
         reportRpcStatus,
+        rpcStatus,
         isSettingsOpen,
         isMountedRef,
         updateRequestTimeout,
@@ -209,18 +206,16 @@ export default function App() {
         refreshSessionStatsData,
     });
 
-    const {
-        handleTorrentAction: executeTorrentAction,
-        handleOpenFolder,
-    } = useTorrentActions({
-        torrentClient,
-        queueActions,
-        refreshTorrents,
-        refreshDetailData,
-        refreshSessionStatsData,
-        reportRpcStatus,
-        isMountedRef,
-    });
+    const { handleTorrentAction: executeTorrentAction, handleOpenFolder } =
+        useTorrentActions({
+            torrentClient,
+            queueActions,
+            refreshTorrents,
+            refreshDetailData,
+            refreshSessionStatsData,
+            reportRpcStatus,
+            isMountedRef,
+        });
 
     const { handleAddTorrent, isAddingTorrent } = useAddTorrent({
         torrentClient,
@@ -310,7 +305,9 @@ export default function App() {
                 id: "filter-downloading",
                 group: filterGroup,
                 title: t("nav.filter_downloading"),
-                description: t("command_palette.filters.downloading_description"),
+                description: t(
+                    "command_palette.filters.downloading_description"
+                ),
                 onSelect: () => setFilter("downloading"),
             },
             {
@@ -506,9 +503,7 @@ export default function App() {
     const sequentialMethodAvailable = Boolean(
         torrentClient.setSequentialDownload
     );
-    const superSeedingMethodAvailable = Boolean(
-        torrentClient.setSuperSeeding
-    );
+    const superSeedingMethodAvailable = Boolean(torrentClient.setSuperSeeding);
     const sequentialSupported =
         engineInfo !== null
             ? Boolean(engineInfo.capabilities.sequentialDownload) &&
@@ -567,10 +562,9 @@ export default function App() {
     };
 
     const notifyExtensionUnavailable = useCallback(() => {
-        showFeedback(
-            t("settings.connection.extended_mock_notice"),
-            "warning"
-        );
+        if (extensionNoticeShownRef.current) return;
+        extensionNoticeShownRef.current = true;
+        showFeedback(t("settings.connection.extended_mock_notice"), "warning");
     }, [showFeedback, t]);
 
     return (
@@ -617,9 +611,7 @@ export default function App() {
                             ? handleSuperSeedingToggle
                             : undefined
                     }
-                    handleForceTrackerReannounce={
-                        handleForceTrackerReannounce
-                    }
+                    handleForceTrackerReannounce={handleForceTrackerReannounce}
                     sequentialSupported={sequentialSupported}
                     superSeedingSupported={superSeedingSupported}
                     optimisticStatuses={optimisticStatuses}
@@ -631,6 +623,7 @@ export default function App() {
                         handleInspectorTabCommandHandled
                     }
                     sessionStats={sessionStats}
+                    liveTransportStatus={liveTransportStatus}
                     downHistory={downHistory}
                     upHistory={upHistory}
                     rpcStatus={rpcStatus}
@@ -650,6 +643,7 @@ export default function App() {
                     closeSettings={closeSettings}
                     settingsConfig={settingsFlow.settingsConfig}
                     isSettingsSaving={settingsFlow.isSettingsSaving}
+                    settingsLoadError={settingsFlow.settingsLoadError}
                     handleSaveSettings={settingsFlow.handleSaveSettings}
                     handleTestPort={settingsFlow.handleTestPort}
                     restoreHudCards={restoreHudCards}

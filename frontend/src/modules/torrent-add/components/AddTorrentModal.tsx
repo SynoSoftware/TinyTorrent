@@ -54,9 +54,8 @@ interface AddTorrentModalProps {
     isSubmitting: boolean;
     initialFile?: File | null;
     initialMagnetLink?: string | null;
+    initialDownloadDir?: string;
 }
-
-const DEFAULT_SAVE_PATH = "C:/Downloads/Torrents";
 
 export function AddTorrentModal({
     isOpen,
@@ -65,17 +64,21 @@ export function AddTorrentModal({
     isSubmitting,
     initialFile,
     initialMagnetLink,
+    initialDownloadDir,
 }: AddTorrentModalProps) {
     const { t } = useTranslation();
     const torrentClient = useTorrentClient();
     const { isMocked, shouldUseExtension } = useRpcExtension();
     const canUseExtensionHelpers = shouldUseExtension || isMocked;
     const [magnetLink, setMagnetLink] = useState("");
-    const [downloadDir, setDownloadDir] = useState(DEFAULT_SAVE_PATH);
+    const [downloadDir, setDownloadDir] = useState(
+        initialDownloadDir?.trim() ?? ""
+    );
     const [startNow, setStartNow] = useState(true);
     const [isDirectoryPickerOpen, setDirectoryPickerOpen] = useState(false);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
+    const lastInitialDownloadDir = useRef(initialDownloadDir?.trim() ?? "");
     const [directorySpace, setDirectorySpace] =
         useState<TransmissionFreeSpace | null>(null);
     const [isSpaceLoading, setIsSpaceLoading] = useState(false);
@@ -142,6 +145,21 @@ export function AddTorrentModal({
     }, [isOpen]);
 
     useEffect(() => {
+        const nextDefault = initialDownloadDir?.trim() ?? "";
+        if (!isOpen) {
+            lastInitialDownloadDir.current = nextDefault;
+            return;
+        }
+        setDownloadDir((current) => {
+            if (!current || current === lastInitialDownloadDir.current) {
+                return nextDefault;
+            }
+            return current;
+        });
+        lastInitialDownloadDir.current = nextDefault;
+    }, [initialDownloadDir, isOpen]);
+
+    useEffect(() => {
         if (!canUseExtensionHelpers && isDirectoryPickerOpen) {
             setDirectoryPickerOpen(false);
         }
@@ -194,6 +212,14 @@ export function AddTorrentModal({
     useEffect(() => {
         let active = true;
         if (!canUseExtensionHelpers) {
+            setDirectorySpace(null);
+            setSpaceError(null);
+            setIsSpaceLoading(false);
+            return () => {
+                active = false;
+            };
+        }
+        if (!downloadDir.trim()) {
             setDirectorySpace(null);
             setSpaceError(null);
             setIsSpaceLoading(false);

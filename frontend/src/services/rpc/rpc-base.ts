@@ -19,6 +19,7 @@ import {
     getSessionStats as parseSessionStats,
     getTinyTorrentCapabilities,
     getSystemAutorunStatus,
+    getSystemHandlerStatus,
     getTorrentDetail,
     getTorrentList,
     parseDirectoryBrowseResult,
@@ -43,6 +44,7 @@ import type {
     LibtorrentPriority,
     TinyTorrentCapabilities,
     AutorunStatus,
+    SystemHandlerStatus,
 } from "./entities";
 import { normalizeTorrent, normalizeTorrentDetail } from "./normalizers";
 
@@ -359,6 +361,7 @@ export class TransmissionAdapter implements EngineAdapter {
         this.heartbeat.pushLivePayload({
             torrents: normalized,
             sessionStats: stats,
+            source: "websocket",
         });
     };
 
@@ -597,12 +600,27 @@ export class TransmissionAdapter implements EngineAdapter {
         return getSystemAutorunStatus(result.arguments);
     }
 
+    public async getSystemHandlerStatus(): Promise<SystemHandlerStatus> {
+        const result = await this.send<SystemHandlerStatus>({
+            method: "system-handler-status",
+        });
+        return getSystemHandlerStatus(result.arguments);
+    }
+
     public async systemAutorunEnable(scope = "user"): Promise<void> {
         await this.mutate("system-autorun-enable", { scope });
     }
 
     public async systemAutorunDisable(): Promise<void> {
         await this.mutate("system-autorun-disable");
+    }
+
+    public async systemHandlerEnable(): Promise<void> {
+        await this.mutate("system-handler-enable");
+    }
+
+    public async systemHandlerDisable(): Promise<void> {
+        await this.mutate("system-handler-disable");
     }
 
     private async fetchTransmissionTorrents(): Promise<TransmissionTorrent[]> {
@@ -666,9 +684,11 @@ export class TransmissionAdapter implements EngineAdapter {
 
     public async addTorrent(payload: AddTorrentPayload): Promise<void> {
         const args: Record<string, unknown> = {
-            "download-dir": payload.downloadDir,
             paused: payload.paused,
         };
+        if (payload.downloadDir?.trim()) {
+            args["download-dir"] = payload.downloadDir;
+        }
         if (payload.metainfo) {
             args.metainfo = payload.metainfo;
         } else if (payload.magnetLink) {

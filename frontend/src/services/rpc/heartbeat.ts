@@ -7,11 +7,14 @@ import type {
 
 export type HeartbeatMode = "background" | "table" | "detail";
 
+export type HeartbeatSource = "polling" | "websocket";
+
 export interface HeartbeatPayload {
     torrents: TorrentEntity[];
     sessionStats: SessionStats;
     detailId?: string | null;
     detail?: TorrentDetailEntity | null;
+    source?: HeartbeatSource;
 }
 
 export interface HeartbeatSubscriberParams {
@@ -50,6 +53,7 @@ export class HeartbeatManager {
     private pollingEnabled = true;
     private lastTorrents?: TorrentEntity[];
     private lastSessionStats?: SessionStats;
+    private lastSource?: HeartbeatSource;
     private readonly detailCache = new Map<string, TorrentDetailEntity>();
     private client: HeartbeatClient;
 
@@ -94,11 +98,13 @@ export class HeartbeatManager {
                 detailId == null
                     ? undefined
                     : this.detailCache.get(detailId) ?? null,
+            source: this.lastSource,
         };
         params.onUpdate(payload);
     }
 
     public pushLivePayload(payload: HeartbeatPayload) {
+        this.lastSource = payload.source ?? "websocket";
         this.lastTorrents = payload.torrents;
         this.lastSessionStats = payload.sessionStats;
         this.broadcastToSubscribers(payload);
@@ -114,6 +120,7 @@ export class HeartbeatManager {
                     detailId == null
                         ? undefined
                         : this.detailCache.get(detailId) ?? null,
+                source: payload.source ?? this.lastSource,
             };
             try {
                 params.onUpdate(combined);
@@ -123,15 +130,28 @@ export class HeartbeatManager {
         }
     }
 
+    private setTransportSource(source: HeartbeatSource) {
+        if (this.lastSource === source) return;
+        this.lastSource = source;
+        if (!this.lastTorrents || !this.lastSessionStats) return;
+        this.broadcastToSubscribers({
+            torrents: this.lastTorrents,
+            sessionStats: this.lastSessionStats,
+            source,
+        });
+    }
+
     public disablePolling() {
         if (!this.pollingEnabled) return;
         this.pollingEnabled = false;
         this.clearTimer();
+        this.setTransportSource("websocket");
     }
 
     public enablePolling() {
         if (this.pollingEnabled) return;
         this.pollingEnabled = true;
+        this.setTransportSource("polling");
         if (this.subscribers.size > 0) {
             this.rescheduleLoop();
         }
@@ -232,7 +252,9 @@ export class HeartbeatManager {
                     sessionStats,
                     detailId,
                     detail: detailPayload,
+                    source: "polling",
                 };
+                this.lastSource = "polling";
                 try {
                     params.onUpdate(payload);
                 } catch {
