@@ -49,7 +49,9 @@ export const PeerScatter = ({
             const speed = peer.rateToClient + peer.rateToPeer;
             const usableWidth = w - DETAILS_SCATTER_CONFIG.padding.x * 2;
             const usableHeight =
-                h - DETAILS_SCATTER_CONFIG.padding.top - DETAILS_SCATTER_CONFIG.padding.bottom;
+                h -
+                DETAILS_SCATTER_CONFIG.padding.top -
+                DETAILS_SCATTER_CONFIG.padding.bottom;
 
             return {
                 x: DETAILS_SCATTER_CONFIG.padding.x + progress * usableWidth,
@@ -102,7 +104,9 @@ export const PeerScatter = ({
         ctx.textAlign = "center";
 
         const usableHeight =
-            height - DETAILS_SCATTER_CONFIG.padding.top - DETAILS_SCATTER_CONFIG.padding.bottom;
+            height -
+            DETAILS_SCATTER_CONFIG.padding.top -
+            DETAILS_SCATTER_CONFIG.padding.bottom;
         const usableWidth = width - DETAILS_SCATTER_CONFIG.padding.x * 2;
         const bottomY = height - DETAILS_SCATTER_CONFIG.padding.bottom;
 
@@ -136,21 +140,48 @@ export const PeerScatter = ({
 
         ctx.globalAlpha = 1.0; // Reset alpha for dots
 
-        // --- Peers ---
+        // --- Peers with simple damping ---
+        // Maintain a persistent map of displayed positions to smoother movement.
         const sortedPeers = [...peers].sort(
             (a, b) =>
                 (a.address === hoveredPeer ? 1 : 0) -
                 (b.address === hoveredPeer ? 1 : 0)
         );
 
-        sortedPeers.forEach((peer) => {
-            const { x, y } = getPoint(peer, width, height);
+        // Update positions with damping
+        const damping = 0.14; // smaller = smoother/slower
+        for (const peer of sortedPeers) {
+            const target = getPoint(peer, width, height);
+            const existing = positionsRef.current.get(peer.address);
+            if (!existing) {
+                positionsRef.current.set(peer.address, {
+                    x: target.x,
+                    y: target.y,
+                });
+            } else {
+                existing.x += (target.x - existing.x) * damping;
+                existing.y += (target.y - existing.y) * damping;
+                positionsRef.current.set(peer.address, existing);
+            }
+        }
+
+        // Remove stale positions for peers no longer present
+        const currentAddresses = new Set(peers.map((p) => p.address));
+        for (const addr of positionsRef.current.keys()) {
+            if (!currentAddresses.has(addr)) {
+                positionsRef.current.delete(addr);
+            }
+        }
+
+        for (const peer of sortedPeers) {
+            const pos = positionsRef.current.get(peer.address);
+            if (!pos) continue;
             const isHovered = peer.address === hoveredPeer;
 
             ctx.beginPath();
             ctx.arc(
-                x,
-                y,
+                pos.x,
+                pos.y,
                 isHovered
                     ? DETAILS_SCATTER_CONFIG.radius.hover
                     : DETAILS_SCATTER_CONFIG.radius.normal,
@@ -174,8 +205,8 @@ export const PeerScatter = ({
                 ctx.stroke();
 
                 ctx.beginPath();
-                ctx.moveTo(x, y + DETAILS_SCATTER_CONFIG.radius.hover);
-                ctx.lineTo(x, bottomY);
+                ctx.moveTo(pos.x, pos.y + DETAILS_SCATTER_CONFIG.radius.hover);
+                ctx.lineTo(pos.x, bottomY);
                 ctx.lineWidth = 1;
                 ctx.strokeStyle = palette.foreground;
                 ctx.globalAlpha = 0.2;
@@ -184,8 +215,31 @@ export const PeerScatter = ({
                 ctx.setLineDash([]);
                 ctx.globalAlpha = 1.0;
             }
-        });
+        }
     }, [peers, dimensions, hoveredPeer, getPoint, maxSpeed, palette]);
+
+    // positionsRef holds last-rendered positions for damping/animation
+    const positionsRef = useRef(new Map<string, { x: number; y: number }>());
+    const animationRef = useRef<number | null>(null);
+
+    // animation loop to keep damping smooth
+    useEffect(() => {
+        const loop = () => {
+            draw();
+            animationRef.current = requestAnimationFrame(loop);
+        };
+        animationRef.current = requestAnimationFrame(loop);
+        return () => {
+            if (animationRef.current)
+                cancelAnimationFrame(animationRef.current);
+            const canvas = canvasRef.current;
+            if (canvas) {
+                const ctx = canvas.getContext("2d");
+                if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+            }
+            positionsRef.current.clear();
+        };
+    }, [draw]);
 
     useEffect(() => {
         draw();
@@ -207,7 +261,10 @@ export const PeerScatter = ({
                 const dist = Math.sqrt(
                     Math.pow(point.x - x, 2) + Math.pow(point.y - y, 2)
                 );
-                if (dist < minDistance && dist < DETAILS_SCATTER_CONFIG.radius.hit) {
+                if (
+                    dist < minDistance &&
+                    dist < DETAILS_SCATTER_CONFIG.radius.hit
+                ) {
                     minDistance = dist;
                     closest = peer;
                 }

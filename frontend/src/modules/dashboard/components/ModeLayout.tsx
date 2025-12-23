@@ -22,7 +22,11 @@ import {
     type PeerSortStrategy,
 } from "./TorrentDetailView";
 import type { Torrent, TorrentDetail } from "../types/torrent";
-import { ICON_STROKE_WIDTH, getShellTokens } from "../../../config/logic";
+import {
+    ICON_STROKE_WIDTH,
+    getShellTokens,
+    MIN_HANDLE_VISUAL_WIDTH,
+} from "../../../config/logic";
 import type { WorkspaceStyle } from "../../../app/hooks/useWorkspaceShell";
 import type { TorrentPeerEntity } from "../../../services/rpc/entities";
 import type {
@@ -292,7 +296,7 @@ export function ModeLayout({
                             {tableWatermarkEnabled && (
                                 <div
                                     aria-hidden="true"
-                                    className="pointer-events-none absolute inset-0 z-0 torrent-table-watermark"
+                                    className="torrent-table-watermark absolute inset-0 z-0 pointer-events-none"
                                 />
                             )}
                             <div
@@ -342,9 +346,19 @@ export function ModeLayout({
                 <div className="absolute inset-0 flex items-center justify-center">
                     <div
                         className={cn(
-                            "transition-colors bg-foreground/0 group-hover:bg-foreground/10 group-active:bg-primary/50",
-                            isHorizontalSplit ? "h-full w-px" : "w-full h-px"
+                            "transition-colors bg-foreground/0 group-hover:bg-foreground/10 group-active:bg-primary/50"
                         )}
+                        style={
+                            isHorizontalSplit
+                                ? {
+                                      width: `${MIN_HANDLE_VISUAL_WIDTH}px`,
+                                      height: "100%",
+                                  }
+                                : {
+                                      height: `${MIN_HANDLE_VISUAL_WIDTH}px`,
+                                      width: "100%",
+                                  }
+                        }
                     />
                 </div>
             </PanelResizeHandle>

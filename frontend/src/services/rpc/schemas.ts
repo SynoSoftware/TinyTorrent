@@ -199,7 +199,7 @@ const encryptionNumberToLabel: Record<0 | 1 | 2, EncryptionLevelLabel> = {
 
 // Accept either label or numeric value. Do NOT silently default unknown
 // numeric values to "tolerated" — instead treat them as validation errors.
-const zEncryptionLevel = z.union([
+const zEncryptionLevelBase = z.union([
     z.enum(ENCRYPTION_LEVEL_LABELS),
     z
         .number()
@@ -209,6 +209,9 @@ const zEncryptionLevel = z.union([
         })
         .transform((value) => encryptionNumberToLabel[value as 0 | 1 | 2]),
 ]);
+
+// Non-critical enum: tolerate unknown values by falling back to 'tolerated'.
+const zEncryptionLevel = zEncryptionLevelBase.catch("tolerated");
 
 const zTransmissionSessionSettings = z.object({
     "peer-port": z.number().optional(),

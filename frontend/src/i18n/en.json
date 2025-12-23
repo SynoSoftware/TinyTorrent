@@ -169,7 +169,8 @@
             "server_type_tinytorrent": "TinyTorrent server",
             "server_type_transmission": "Transmission server",
             "token": "Authorization token",
-            "username": "Username"
+            "username": "Username",
+            "insecure_basic_auth_warning": "Insecure connection: Basic Auth over HTTP is active."
         },
         "descriptions": {
             "config_details": "Includes both engine telemetry and UI preferences in a single snapshot.",
@@ -201,8 +202,7 @@
             "handlers_header": "Protocol handlers",
             "handlers_not_registered": "Handlers not registered",
             "handlers_registered": "Handlers registered",
-            "handler_requires_elevation":
-                "Handler registration requires administrator privileges.",
+            "handler_requires_elevation": "Handler registration requires administrator privileges.",
             "install_not_requested": "Program Files install was not requested.",
             "installed_path": "Installed to {{path}}.",
             "locations": {

@@ -228,6 +228,9 @@ export const TABLE_LAYOUT = {
     overscan: tableLayout.overscan,
 } as const;
 
+// Minimum visual thickness (in pixels) for panel resize handles.
+export const MIN_HANDLE_VISUAL_WIDTH = 1;
+
 export const PIECE_COLUMNS = pieceMapLayout.columns;
 export const PIECE_BASE_ROWS = pieceMapLayout.base_rows;
 export const PIECE_MAX_ROWS = pieceMapLayout.max_rows;

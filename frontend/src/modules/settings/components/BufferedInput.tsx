@@ -17,19 +17,33 @@ export function BufferedInput({
 }: BufferedInputProps) {
     const [draft, setDraft] = useState(value);
     const [isEditing, setIsEditing] = useState(false);
+    const [pendingCommit, setPendingCommit] = useState(false);
 
     useEffect(() => {
-        if (!isEditing) {
+        if (!isEditing && !pendingCommit) {
             setDraft(value);
         }
-    }, [isEditing, value]);
+    }, [isEditing, value, pendingCommit]);
 
-    const commit = useCallback(() => {
-        const accepted = onCommit(draft);
-        if (accepted === false) {
-            setDraft(value);
+    const commit = useCallback(async () => {
+        setPendingCommit(true);
+        try {
+            const result = onCommit(draft);
+            // Support sync or async commit functions. Use duck-typing for Promise.
+            if (result && typeof (result as any).then === "function") {
+                const awaited = await (result as any);
+                if (awaited === false) {
+                    setDraft(value);
+                }
+            } else {
+                if (result === false) {
+                    setDraft(value);
+                }
+            }
+        } finally {
+            setPendingCommit(false);
+            setIsEditing(false);
         }
-        setIsEditing(false);
     }, [draft, onCommit, value]);
 
     return (
@@ -42,7 +56,10 @@ export function BufferedInput({
             onFocus={() => {
                 setIsEditing(true);
             }}
-            onBlur={commit}
+            onBlur={() => {
+                // trigger commit but don't block UI
+                void commit();
+            }}
             onKeyDown={(event) => {
                 if (event.key === "Enter") {
                     event.preventDefault();

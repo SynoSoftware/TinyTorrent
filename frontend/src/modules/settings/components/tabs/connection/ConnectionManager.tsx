@@ -166,6 +166,18 @@ export function ConnectionCredentialsCard({
         isAuthModeResolved &&
         rpcStatus === "connected" &&
         availability === "available";
+    const isInsecureBasicAuth = (() => {
+        const scheme = activeProfile.scheme;
+        if (scheme !== "http") return false;
+        const host = activeProfile.host
+            .trim()
+            .replace(/^\[|\]$/g, "")
+            .toLowerCase();
+        const isLocal =
+            host === "localhost" || host === "127.0.0.1" || host === "::1";
+        if (isLocal) return false;
+        return Boolean(activeProfile.username || activeProfile.password);
+    })();
     return (
         <div className="space-y-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -230,6 +242,11 @@ export function ConnectionCredentialsCard({
                 {isOffline && (
                     <p className="text-xs uppercase tracking-[0.2em] text-warning">
                         {t("settings.connection.offline_warning")}
+                    </p>
+                )}
+                {isInsecureBasicAuth && (
+                    <p className="text-xs text-warning">
+                        {t("settings.connection.insecure_basic_auth_warning")}
                     </p>
                 )}
                 <div className="grid gap-3 sm:grid-cols-2">
