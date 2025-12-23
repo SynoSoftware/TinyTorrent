@@ -358,6 +358,21 @@ int daemon_main(int argc, char *argv[],
             }
             std::error_code ec;
             std::filesystem::rename(tmp_path, path, ec);
+#if defined(_WIN32)
+            if (ec)
+            {
+                auto tmp_w = tmp_path.wstring();
+                auto target_w = path.wstring();
+                if (!tmp_w.empty() && !target_w.empty())
+                {
+                    DWORD flags = MOVEFILE_COPY_ALLOWED | MOVEFILE_REPLACE_EXISTING;
+                    if (MoveFileExW(tmp_w.c_str(), target_w.c_str(), flags))
+                    {
+                        ec.clear();
+                    }
+                }
+            }
+#endif
             if (ec)
             {
                 std::filesystem::remove(tmp_path, ec);
@@ -380,28 +395,6 @@ int daemon_main(int argc, char *argv[],
 #if defined(_WIN32)
             if (!result.success)
             {
-                auto to_wide = [](std::string const &utf8) -> std::wstring
-                {
-                    if (utf8.empty())
-                    {
-                        return {};
-                    }
-                    int len = MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), -1,
-                                                  nullptr, 0);
-                    if (len <= 0)
-                    {
-                        return L"TinyTorrent failed";
-                    }
-                    std::wstring out(static_cast<std::size_t>(len), L'\0');
-                    MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), -1,
-                                        out.data(), len);
-                    while (!out.empty() && out.back() == L'\0')
-                    {
-                        out.pop_back();
-                    }
-                    return out;
-                };
-
                 std::string msg =
                     result.message.empty()
                         ? std::string("System handler operation failed")
@@ -411,9 +404,9 @@ int daemon_main(int argc, char *argv[],
                     msg +=
                         "\n\nPermission denied. Try running as Administrator.";
                 }
-
-                MessageBoxW(nullptr, to_wide(msg).c_str(), L"TinyTorrent",
-                            MB_OK | MB_ICONERROR);
+                TT_LOG_ERROR("system handler action failed: {}", msg);
+                std::fprintf(stderr, "TinyTorrent system handler failed: %s\n",
+                             msg.c_str());
             }
 #endif
             return result.success ? 0 : 1;

@@ -16,16 +16,20 @@ export function BufferedInput({
     ...props
 }: BufferedInputProps) {
     const [draft, setDraft] = useState(value);
+    const [isEditing, setIsEditing] = useState(false);
 
     useEffect(() => {
-        setDraft(value);
-    }, [value]);
+        if (!isEditing) {
+            setDraft(value);
+        }
+    }, [isEditing, value]);
 
     const commit = useCallback(() => {
         const accepted = onCommit(draft);
         if (accepted === false) {
             setDraft(value);
         }
+        setIsEditing(false);
     }, [draft, onCommit, value]);
 
     return (
@@ -34,6 +38,9 @@ export function BufferedInput({
             value={draft}
             onChange={(event) => {
                 setDraft(event.target.value);
+            }}
+            onFocus={() => {
+                setIsEditing(true);
             }}
             onBlur={commit}
             onKeyDown={(event) => {

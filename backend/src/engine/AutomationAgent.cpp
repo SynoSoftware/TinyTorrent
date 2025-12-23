@@ -2,6 +2,16 @@
 
 #include "utils/Log.hpp"
 
+#if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <Windows.h>
+#endif
+
 #include <libtorrent/hex.hpp>
 #include <libtorrent/torrent_handle.hpp>
 #include <libtorrent/torrent_status.hpp>
@@ -386,6 +396,21 @@ void AutomationAgent::mark_watch_file(std::filesystem::path const &source,
     target += suffix;
     std::filesystem::remove(target, ec);
     std::filesystem::rename(source, target, ec);
+#if defined(_WIN32)
+    if (ec)
+    {
+        auto source_w = source.wstring();
+        auto target_w = target.wstring();
+        if (!source_w.empty() && !target_w.empty())
+        {
+            DWORD flags = MOVEFILE_COPY_ALLOWED | MOVEFILE_REPLACE_EXISTING;
+            if (MoveFileExW(source_w.c_str(), target_w.c_str(), flags))
+            {
+                ec.clear();
+            }
+        }
+    }
+#endif
     if (ec)
     {
         TT_LOG_INFO("failed to rename watch file {}: {}", source.string(),

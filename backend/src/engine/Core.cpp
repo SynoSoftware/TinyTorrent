@@ -86,6 +86,12 @@ struct Core::Impl
     BlocklistManager blocklist_manager;
     std::unique_ptr<BlocklistService> blocklist_service;
 
+    // Initialization synchronization: signal when constructor finished
+    // initializing the services that other threads may depend on.
+    std::mutex init_mtx;
+    std::condition_variable init_cv;
+    bool initialized_{false};
+
     // State
     std::atomic<EngineState> state{EngineState::Running};
     std::atomic_bool shutdown_requested{false};
@@ -96,6 +102,7 @@ struct Core::Impl
     std::string listen_error;
     mutable std::shared_mutex listen_error_mutex;
     std::atomic_bool listen_port_auto_retry_attempted{false};
+    bool listen_fallback_attempted = false;
 
     Impl(CoreSettings settings) : settings_(std::move(settings))
     {
@@ -315,6 +322,19 @@ struct Core::Impl
                         s.incomplete_dir, s.incomplete_dir_enabled);
                 }
             });
+
+        // Mark initialization complete and notify any waiters.
+        {
+            std::lock_guard<std::mutex> lock(init_mtx);
+            initialized_ = true;
+        }
+        init_cv.notify_all();
+    }
+
+    void wait_until_initialized()
+    {
+        std::unique_lock<std::mutex> lock(init_mtx);
+        init_cv.wait(lock, [this]() { return initialized_; });
     }
 
     ~Impl()
@@ -477,7 +497,8 @@ struct Core::Impl
 
     void handle_listen_failure(ListenFailedEvent const &event)
     {
-        if (listen_port_auto_retry_attempted.load(std::memory_order_acquire))
+        // Prevent recursive fallbacks (fail -> apply settings -> fail).
+        if (listen_fallback_attempted)
         {
             return;
         }
@@ -493,6 +514,10 @@ struct Core::Impl
         {
             return;
         }
+
+        // mark that we've attempted the fallback so subsequent listen_failed
+        // alerts triggered by applying the fallback do not recurse.
+        listen_fallback_attempted = true;
         TT_LOG_INFO(
             "listen port {} failed ({}); falling back to ephemeral port",
             event.port, event.message);
@@ -525,6 +550,8 @@ struct Core::Impl
 Core::~Core() = default;
 Core::Core(CoreSettings s) : impl_(std::make_unique<Impl>(std::move(s)))
 {
+    if (impl_)
+        impl_->wait_until_initialized();
 }
 std::unique_ptr<Core> Core::create(CoreSettings s)
 {

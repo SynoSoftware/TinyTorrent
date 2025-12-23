@@ -49,6 +49,7 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <random>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -60,6 +61,25 @@
 
 namespace tt::rpc
 {
+
+namespace
+{
+std::mutex g_handler_error_mutex;
+std::string g_handler_error_message;
+
+void set_handler_error_message(std::string message)
+{
+    std::lock_guard<std::mutex> lock(g_handler_error_mutex);
+    g_handler_error_message = std::move(message);
+}
+
+std::string handler_error_message()
+{
+    std::lock_guard<std::mutex> lock(g_handler_error_mutex);
+    return g_handler_error_message;
+}
+
+} // namespace
 
 struct ShortcutRequest
 {
@@ -263,6 +283,7 @@ struct HandlerRegistryStatus
 {
     bool magnet = false;
     bool torrent = false;
+    bool requires_elevation = false;
 };
 
 HandlerRegistryStatus query_handler_status()
@@ -277,6 +298,15 @@ HandlerRegistryStatus query_handler_status()
         read_registry_string(HKEY_CURRENT_USER, kMagnetCommandKey, L"");
     status.magnet = registry_value_matches(magnet_cmd, expected);
 
+    if (auto hklm_magnet =
+            read_registry_string(HKEY_LOCAL_MACHINE, kMagnetCommandKey, L""))
+    {
+        if (!registry_value_matches(hklm_magnet, expected))
+        {
+            status.requires_elevation = true;
+        }
+    }
+
     auto torrent_assoc =
         read_registry_string(HKEY_CURRENT_USER, kTorrentExtensionKey, L"");
     auto torrent_cmd =
@@ -286,6 +316,25 @@ HandlerRegistryStatus query_handler_status()
                              to_lower_wide(std::wstring(kTorrentClassName));
     status.torrent =
         assoc_match && registry_value_matches(torrent_cmd, expected);
+
+    if (auto hklm_assoc =
+            read_registry_string(HKEY_LOCAL_MACHINE, kTorrentExtensionKey, L""))
+    {
+        auto assoc_value = to_lower_wide(trim_wide(*hklm_assoc));
+        auto expected_assoc = to_lower_wide(std::wstring(kTorrentClassName));
+        if (!assoc_value.empty() && assoc_value != expected_assoc)
+        {
+            status.requires_elevation = true;
+        }
+    }
+    if (auto hklm_torrent_cmd =
+            read_registry_string(HKEY_LOCAL_MACHINE, kTorrentCommandKey, L""))
+    {
+        if (!registry_value_matches(hklm_torrent_cmd, expected))
+        {
+            status.requires_elevation = true;
+        }
+    }
     return status;
 }
 
@@ -300,9 +349,9 @@ SystemHandlerResult unregister_windows_handler()
         return result;
     }
     std::vector<std::string> errors;
-    auto delete_tree = [&](wchar_t const *key) -> bool
+    auto delete_key = [&](wchar_t const *key) -> bool
     {
-        auto code = RegDeleteTreeW(HKEY_CURRENT_USER, key);
+        auto code = RegDeleteKeyW(HKEY_CURRENT_USER, key);
         if (code == ERROR_SUCCESS || code == ERROR_FILE_NOT_FOUND)
         {
             return true;
@@ -314,15 +363,42 @@ SystemHandlerResult unregister_windows_handler()
         errors.push_back(format_win_error_message(code));
         return false;
     };
+    auto delete_key_chain =
+        [&](std::vector<wchar_t const *> const &keys) -> bool
+    {
+        bool ok = true;
+        for (auto key : keys)
+        {
+            if (!key)
+            {
+                continue;
+            }
+            ok = delete_key(key) && ok;
+        }
+        return ok;
+    };
     bool ok = true;
     if (status.magnet)
     {
-        ok = delete_tree(L"Software\\Classes\\magnet") && ok;
+        ok = delete_key_chain({
+                 L"Software\\Classes\\magnet\\shell\\open\\command",
+                 L"Software\\Classes\\magnet\\shell\\open",
+                 L"Software\\Classes\\magnet\\shell",
+                 L"Software\\Classes\\magnet",
+             }) &&
+             ok;
     }
     if (status.torrent)
     {
-        ok = delete_tree(L"Software\\Classes\\.torrent") && ok;
-        ok = delete_tree(L"Software\\Classes\\TinyTorrent.torrent") && ok;
+        ok = delete_key(L"Software\\Classes\\.torrent") && ok;
+        ok =
+            delete_key_chain({
+                L"Software\\Classes\\TinyTorrent.torrent\\shell\\open\\command",
+                L"Software\\Classes\\TinyTorrent.torrent\\shell\\open",
+                L"Software\\Classes\\TinyTorrent.torrent\\shell",
+                L"Software\\Classes\\TinyTorrent.torrent",
+            }) &&
+            ok;
     }
     SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, nullptr, nullptr);
     result.success = ok;
@@ -514,15 +590,39 @@ void StaWorker::run()
     }
     cv_.notify_all();
 
+    // Message pump: use MsgWaitForMultipleObjects so that COM/Win32 messages
+    // (required for shell dialogs and OLE) are dispatched while waiting
+    // for queued work. This prevents deadlocks where dialogs never process
+    // messages on STA threads.
     while (true)
     {
         QueuedWork work;
         {
             std::unique_lock<std::mutex> lock(mutex_);
-            cv_.wait(lock, [this]() { return stop_ || !queue_.empty(); });
+            if (queue_.empty() && !stop_)
+            {
+                // Release lock while we wait for either messages or timeout.
+                lock.unlock();
+                DWORD res = MsgWaitForMultipleObjects(0, nullptr, FALSE, 50,
+                                                      QS_ALLINPUT);
+                if (res == WAIT_OBJECT_0)
+                {
+                    MSG msg;
+                    while (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE))
+                    {
+                        TranslateMessage(&msg);
+                        DispatchMessageW(&msg);
+                    }
+                }
+                lock.lock();
+            }
             if (stop_ && queue_.empty())
             {
                 break;
+            }
+            if (queue_.empty())
+            {
+                continue;
             }
             work = std::move(queue_.front());
             queue_.pop_front();
@@ -2917,26 +3017,16 @@ std::string handle_session_tray_status(engine::Core *engine)
     {
         return serialize_error("engine unavailable");
     }
-    std::size_t seeding_count = 0;
-    bool any_error = false;
-    for (auto const &torrent : snapshot->torrents)
-    {
-        if (torrent.state == "seeding")
-        {
-            ++seeding_count;
-        }
-        if (torrent.error != 0)
-        {
-            any_error = true;
-        }
-    }
+    std::size_t seeding_count = snapshot->seeding_torrent_count;
+    bool any_error = snapshot->error_torrent_count > 0;
     bool all_paused =
         snapshot->torrent_count > 0 && snapshot->active_torrent_count == 0;
     auto download_dir = engine->settings().download_path.string();
+    auto handler_error = handler_error_message();
     return serialize_session_tray_status(
         snapshot->download_rate, snapshot->upload_rate,
         snapshot->active_torrent_count, seeding_count, any_error, all_paused,
-        download_dir);
+        download_dir, handler_error);
 }
 
 std::string handle_session_pause_all(engine::Core *engine)
@@ -3231,20 +3321,44 @@ void handle_fs_write_file_async(engine::Core *engine, yyjson_val *arguments,
                                                target.string(), ec.message())));
                 return;
             }
+            // Reject writes that would follow an existing symlink target
+            if (target_exists)
+            {
+                std::error_code symlink_ec;
+                if (std::filesystem::is_symlink(target, symlink_ec) &&
+                    !symlink_ec)
+                {
+                    cb(serialize_error("refusing to overwrite symbolic link"));
+                    return;
+                }
+            }
             if (fail_if_exists && target_exists)
             {
                 cb(serialize_error("file exists"));
                 return;
             }
+            // Use high-quality randomness to avoid predictable temp names.
+            uint64_t rnd = 0;
+            try
+            {
+                std::random_device rd;
+                std::mt19937_64 rng(rd());
+                std::uniform_int_distribution<uint64_t> dist;
+                rnd = dist(rng);
+            }
+            catch (...)
+            {
+                rnd = std::hash<std::thread::id>{}(std::this_thread::get_id());
+            }
             auto timestamp =
                 std::chrono::steady_clock::now().time_since_epoch().count();
             auto thread_hash =
                 std::hash<std::thread::id>{}(std::this_thread::get_id());
-            auto temp_name =
-                std::format(".tt-write-{:x}-{:x}.tmp", timestamp, thread_hash);
+            auto temp_name = std::format(".tt-write-{:x}-{:x}-{:x}.tmp",
+                                         timestamp, thread_hash, rnd);
             temp_path = parent / temp_name;
             {
-                std::ofstream output(temp_path,
+                std::ofstream output(temp_path.wstring(),
                                      std::ios::binary | std::ios::trunc);
                 if (!output)
                 {
@@ -3281,32 +3395,25 @@ void handle_fs_write_file_async(engine::Core *engine, yyjson_val *arguments,
                 return;
             }
 #if defined(_WIN32)
-            if (target_exists)
+            auto target_w = utf8_to_wide(target.string());
+            auto temp_w = temp_path.wstring();
+            if (target_w.empty() || temp_w.empty())
             {
-                auto target_w = utf8_to_wide(target.string());
-                auto temp_w = utf8_to_wide(temp_path.string());
-                if (target_w.empty() || temp_w.empty())
-                {
-                    cleanup_temp();
-                    cb(serialize_error("invalid path"));
-                    return;
-                }
-                if (!ReplaceFileW(target_w.c_str(), temp_w.c_str(), nullptr,
-                                  REPLACEFILE_IGNORE_MERGE_ERRORS, nullptr,
-                                  nullptr))
-                {
-                    auto last = GetLastError();
-                    std::error_code replace_ec(static_cast<int>(last),
-                                               std::system_category());
-                    cleanup_temp();
-                    cb(serialize_error(std::format("unable to replace file: {}",
-                                                   replace_ec.message())));
-                    return;
-                }
+                cleanup_temp();
+                cb(serialize_error("invalid path"));
+                return;
             }
-            else
+            DWORD move_flags =
+                MOVEFILE_COPY_ALLOWED | MOVEFILE_REPLACE_EXISTING;
+            if (!MoveFileExW(temp_w.c_str(), target_w.c_str(), move_flags))
             {
-                std::filesystem::rename(temp_path, target);
+                auto last = GetLastError();
+                std::error_code move_ec(static_cast<int>(last),
+                                        std::system_category());
+                cleanup_temp();
+                cb(serialize_error(
+                    std::format("unable to move file: {}", move_ec.message())));
+                return;
             }
 #else
             std::filesystem::error_code rename_ec;
@@ -4023,8 +4130,8 @@ std::string handle_system_handler_status(engine::Core *engine)
 #if defined(_WIN32)
     auto status = query_handler_status();
     bool registered = status.magnet && status.torrent;
-    return serialize_handler_status(registered, true, false, status.magnet,
-                                    status.torrent);
+    return serialize_handler_status(registered, true, status.requires_elevation,
+                                    status.magnet, status.torrent);
 #else
     return serialize_handler_status(false, false, false, false, false);
 #endif
@@ -4035,9 +4142,21 @@ std::string handle_system_handler_enable(engine::Core *engine)
     (void)engine;
 #if defined(_WIN32)
     auto result = register_platform_handler();
+    if (result.success)
+    {
+        set_handler_error_message({});
+    }
+    else
+    {
+        std::string stored = result.message.empty()
+                                 ? "system handler enable failed"
+                                 : result.message;
+        set_handler_error_message(stored);
+    }
     return serialize_system_action("system-handler-enable", result.success,
                                    result.message);
 #else
+    set_handler_error_message({});
     return serialize_system_action("system-handler-enable", false,
                                    "system-handler unsupported");
 #endif
@@ -4048,9 +4167,21 @@ std::string handle_system_handler_disable(engine::Core *engine)
     (void)engine;
 #if defined(_WIN32)
     auto result = unregister_windows_handler();
+    if (result.success)
+    {
+        set_handler_error_message({});
+    }
+    else
+    {
+        std::string stored = result.message.empty()
+                                 ? "system handler disable failed"
+                                 : result.message;
+        set_handler_error_message(stored);
+    }
     return serialize_system_action("system-handler-disable", result.success,
                                    result.message);
 #else
+    set_handler_error_message({});
     return serialize_system_action("system-handler-disable", false,
                                    "system-handler unsupported");
 #endif

@@ -51,7 +51,8 @@
                 "chrome_padding": 8,
                 "main_padding": 8,
                 "main_content_padding": 8,
-                "hud_card_radius": 28
+                "hud_card_radius": 28,
+                "handle_hit_area": 20
             }
         },
         "details": {

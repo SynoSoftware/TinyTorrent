@@ -421,7 +421,8 @@ std::string serialize_capabilities()
                                          "system-open",
                                          "system-register-handler",
                                          "system-handler-status",
-                                         "system-handler-toggle",
+                                         "system-handler-enable",
+                                         "system-handler-disable",
                                          "session-tray-status",
                                          "session-pause-all",
                                          "session-resume-all",
@@ -687,7 +688,8 @@ std::string serialize_session_tray_status(std::uint64_t download_kbps,
                                           std::size_t active_count,
                                           std::size_t seeding_count,
                                           bool any_error, bool all_paused,
-                                          std::string const &download_dir)
+                                          std::string const &download_dir,
+                                          std::string const &error_message)
 {
     tt::json::MutableDocument doc;
     if (!doc.is_valid())
@@ -716,6 +718,11 @@ std::string serialize_session_tray_status(std::uint64_t download_kbps,
     {
         yyjson_mut_obj_add_str(native, arguments, "downloadDir",
                                download_dir.c_str());
+    }
+    if (!error_message.empty())
+    {
+        yyjson_mut_obj_add_str(native, arguments, "errorMessage",
+                               error_message.c_str());
     }
 
     return doc.write(R"({"result":"error"})");

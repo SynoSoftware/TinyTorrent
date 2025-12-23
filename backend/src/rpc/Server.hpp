@@ -81,6 +81,7 @@ class Server
                          std::string const &payload);
     void process_pending_tasks();
     void enqueue_task(std::function<void()> task);
+    void drain_pending_responses();
     void send_response(std::uint64_t req_id, std::string const &response);
 
     std::string bind_url_;
@@ -108,6 +109,12 @@ class Server
 
     std::vector<std::function<void()>> pending_tasks_;
     std::mutex tasks_mtx_;
+
+    // Mongoose response queuing: responses produced on background threads
+    // must be delivered on the mongoose poll thread. Buffer them here and
+    // wake the mongoose manager to perform the actual HTTP reply.
+    std::mutex response_mutex_;
+    std::vector<std::pair<uint64_t, std::string>> pending_responses_;
 
     struct WsClient
     {

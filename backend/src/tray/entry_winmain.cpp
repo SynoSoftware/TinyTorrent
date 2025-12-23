@@ -265,6 +265,7 @@ struct TrayState
     std::thread status_thread{};
     std::string download_dir_cache;
     std::mutex download_dir_mutex;
+    std::string last_error_message;
 };
 
 HICON load_large_icon()
@@ -396,6 +397,24 @@ void show_running_notification(TrayState &state)
               _TRUNCATE);
     Shell_NotifyIconW(NIM_MODIFY, &info);
     set_tooltip(state, L"TinyTorrent is ready");
+}
+
+void show_error_notification(TrayState &state, wchar_t const *message)
+{
+    if (!state.hwnd || !message || message[0] == L'\0')
+    {
+        return;
+    }
+    NOTIFYICONDATAW info = {};
+    info.cbSize = sizeof(info);
+    info.hWnd = state.hwnd;
+    info.uID = state.nid.uID;
+    info.uFlags = NIF_INFO;
+    info.dwInfoFlags = NIIF_WARNING;
+    info.uTimeout = 4500;
+    wcsncpy_s(info.szInfoTitle, L"TinyTorrent warning", _TRUNCATE);
+    wcsncpy_s(info.szInfo, message, _TRUNCATE);
+    Shell_NotifyIconW(NIM_MODIFY, &info);
 }
 
 void set_menu_item_text(HMENU menu, UINT id, wchar_t const *text)
@@ -555,6 +574,7 @@ struct TrayStatus
     bool any_error = false;
     bool all_paused = false;
     std::string download_dir;
+    std::string error_message;
 };
 
 // Query the compact tray status pushed by the backend (session-tray-status)
@@ -603,6 +623,9 @@ TrayStatus rpc_get_tray_status(TrayState &state)
     v = yyjson_obj_get(args, "downloadDir");
     if (v && yyjson_is_str(v))
         s.download_dir = yyjson_get_str(v);
+    v = yyjson_obj_get(args, "errorMessage");
+    if (v && yyjson_is_str(v))
+        s.error_message = yyjson_get_str(v);
     yyjson_doc_free(doc);
     return s;
 }
@@ -788,6 +811,11 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 
         std::wstring down = format_rate(s->down);
         std::wstring up = format_rate(s->up);
+        std::wstring error_text;
+        if (!s->error_message.empty())
+        {
+            error_text = widen(s->error_message);
+        }
 
         // Single-line compact status (menu-width safe)
         std::wstring status = L"● " + std::to_wstring(s->active) + L"   ↓ " +
@@ -800,7 +828,24 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
         tip << L"TinyTorrent\n";
         tip << L"↓ " << down << L"  ↑ " << up << L"\n";
         tip << s->active << L" active • " << s->seeding << L" seeding";
+        if (!error_text.empty())
+        {
+            tip << L"\n⚠ " << error_text;
+        }
         set_tooltip(*state, tip.str().c_str());
+
+        if (!error_text.empty())
+        {
+            if (s->error_message != state->last_error_message)
+            {
+                show_error_notification(*state, error_text.c_str());
+                state->last_error_message = s->error_message;
+            }
+        }
+        else
+        {
+            state->last_error_message.clear();
+        }
 
         state->paused_all.store(s->all_paused);
         set_menu_item_text(state->menu, ID_PAUSE_RESUME,
