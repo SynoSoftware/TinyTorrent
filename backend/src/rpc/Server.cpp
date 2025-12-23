@@ -821,6 +821,7 @@ void Server::run_loop()
             // TT_LOG_DEBUG("Polling Mongoose event loop");
             mg_mgr_poll(&mgr_, 50);
             process_pending_tasks();
+            drain_pending_responses();
             broadcast_websocket_updates();
         }
     }
@@ -1185,8 +1186,29 @@ void Server::handle_event(struct mg_connection *conn, int ev, void *ev_data)
     case MG_EV_ERROR:
         self->handle_connection_closed(conn, ev);
         break;
+    case MG_EV_WAKEUP:
+    {
+        self->drain_pending_responses();
+        break;
+    }
     default:
         break;
+    }
+}
+
+void Server::drain_pending_responses()
+{
+    // Flush any queued HTTP responses from async handlers. This is normally
+    // driven by MG_EV_WAKEUP, but we also invoke it from the main loop to
+    // avoid timing issues if a wakeup is missed.
+    std::vector<std::pair<uint64_t, std::string>> responses;
+    {
+        std::lock_guard<std::mutex> lock(response_mutex_);
+        responses.swap(pending_responses_);
+    }
+    for (auto &p : responses)
+    {
+        send_response(p.first, p.second);
     }
 }
 
@@ -1378,8 +1400,17 @@ void Server::handle_http_message(struct mg_connection *conn,
     auto req_id = self->next_request_id_++;
     self->active_requests_[req_id] = {conn, std::move(request_headers)};
 
-    self->dispatch(body, [self, req_id](std::string response)
-                   { self->send_response(req_id, response); });
+    self->dispatch(
+        body,
+        [self, req_id](std::string response)
+        {
+            {
+                std::lock_guard<std::mutex> lock(self->response_mutex_);
+                self->pending_responses_.emplace_back(req_id,
+                                                      std::move(response));
+            }
+            mg_wakeup(&self->mgr_, 0, nullptr, 0);
+        });
 }
 
 void Server::handle_ws_open(struct mg_connection *conn,

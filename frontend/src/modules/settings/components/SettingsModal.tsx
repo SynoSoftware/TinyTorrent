@@ -152,9 +152,12 @@ export function SettingsModal({
             extensionCapabilities?.features?.includes(
                 "system-handler-status"
             ) ||
-                extensionCapabilities?.features?.includes(
-                    "system-handler-toggle"
-                ) ||
+                (extensionCapabilities?.features?.includes(
+                    "system-handler-enable"
+                ) &&
+                    extensionCapabilities?.features?.includes(
+                        "system-handler-disable"
+                    )) ||
                 extensionCapabilities?.features?.includes(
                     "system-register-handler"
                 )

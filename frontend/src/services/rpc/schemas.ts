@@ -197,23 +197,17 @@ const encryptionNumberToLabel: Record<0 | 1 | 2, EncryptionLevelLabel> = {
     2: "required",
 };
 
+// Accept either label or numeric value. Do NOT silently default unknown
+// numeric values to "tolerated" — instead treat them as validation errors.
 const zEncryptionLevel = z.union([
     z.enum(ENCRYPTION_LEVEL_LABELS),
     z
         .number()
         .int()
-        .transform((value) => {
-            const label = encryptionNumberToLabel[value as 0 | 1 | 2];
-            if (!label) {
-                logValidationIssue(
-                    "zEncryptionLevel",
-                    value,
-                    "Unknown encryption level (defaulting to tolerated)"
-                );
-                return "tolerated";
-            }
-            return label;
-        }),
+        .refine((value) => value === 0 || value === 1 || value === 2, {
+            message: "Unknown encryption level",
+        })
+        .transform((value) => encryptionNumberToLabel[value as 0 | 1 | 2]),
 ]);
 
 const zTransmissionSessionSettings = z.object({

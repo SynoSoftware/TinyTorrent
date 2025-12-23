@@ -175,7 +175,29 @@ Core::AddTorrentStatus SessionService::add_torrent(TorrentAddRequest request)
         {
             tt::storage::PersistedTorrent entry;
             entry.hash = *hash;
-            entry.save_path = params.save_path;
+
+            // Ensure the path stored in persistence exactly matches the
+            // `save_path` given to libtorrent. Use an absolute u8-encoded
+            // path when possible so both persistence and libtorrent agree.
+            try
+            {
+                std::error_code ec;
+                auto p = std::filesystem::u8path(params.save_path);
+                auto abs = std::filesystem::absolute(p, ec);
+                if (!ec)
+                {
+                    entry.save_path = to_utf8(abs);
+                }
+                else
+                {
+                    entry.save_path = params.save_path;
+                }
+            }
+            catch (...)
+            {
+                entry.save_path = params.save_path;
+            }
+
             entry.paused = request.paused;
             if (request.uri)
                 entry.magnet_uri = *request.uri;
@@ -186,7 +208,10 @@ Core::AddTorrentStatus SessionService::add_torrent(TorrentAddRequest request)
             if (auto previous_added = persistence_->get_added_at(*hash);
                 previous_added)
             {
-                entry.added_at = *previous_added;
+                if (*previous_added > 0)
+                {
+                    entry.added_at = *previous_added;
+                }
             }
             persistence_->add_or_update_torrent(std::move(entry));
         }
@@ -327,8 +352,9 @@ void SessionService::update_snapshot(std::chrono::steady_clock::time_point now)
         [this, &pending_pause_ids](int id, auto const &h, auto const &s)
     { enforce_limits(id, h, s, &pending_pause_ids); };
 
-    cb.build_snapshot_entry = [this](int id, auto const &s, uint64_t r)
-    { return snapshot_builder_->build_snapshot(id, s, r); };
+    cb.build_snapshot_entry = [this](int id, auto const &s, uint64_t r,
+                                     std::optional<std::int64_t> prev)
+    { return snapshot_builder_->build_snapshot(id, s, r, prev); };
 
     cb.ensure_revision = [this](int id) { return ensure_revision(id); };
 

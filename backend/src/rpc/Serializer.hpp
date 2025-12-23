@@ -56,7 +56,7 @@ std::string serialize_system_install(SystemInstallResult const &result);
 std::string serialize_capabilities();
 
 std::string serialize_autorun_status(bool enabled, bool supported,
-                                    bool requires_elevation);
+                                     bool requires_elevation);
 std::string serialize_handler_status(bool registered, bool supported,
                                      bool requires_elevation,
                                      bool magnet_registered,
@@ -72,7 +72,8 @@ std::string serialize_session_tray_status(std::uint64_t download_kbps,
                                           std::size_t active_count,
                                           std::size_t seeding_count,
                                           bool any_error, bool all_paused,
-                                          std::string const &download_dir);
+                                          std::string const &download_dir,
+                                          std::string const &error_message);
 std::string serialize_add_result(engine::Core::AddTorrentStatus status);
 std::string
 serialize_error(std::string_view message,

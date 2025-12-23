@@ -8,7 +8,7 @@ if not python_prog.found()
   error('Python interpreter required to read version metadata from version.json.')
 endif
 
-version_manifest_path = join_paths(meson.source_root(), '..', 'version.json')
+version_manifest_path = join_paths(meson.project_source_root(), '..', 'version.json')
 version_script = '''
 import json
 import sys
@@ -210,7 +210,7 @@ endif
 tt_packed_fs_res = []
 if host_machine.system() == 'windows' and tt_has_packed_fs_bin
   rc_prog = find_program('rc', required: true)
-  rc_include_dirs = ['/I' + join_paths(meson.source_root(), 'src', 'vendor')]
+  rc_include_dirs = ['/I' + join_paths(meson.project_source_root(), 'src', 'vendor')]
   tt_packed_fs_res = [
       custom_target(
         'tt_packed_fs_res',
@@ -306,12 +306,12 @@ if host_machine.system() == 'windows'
     build_type_dir = 'release'
   endif
   dll_dest = join_paths(meson.current_build_dir(), build_type_dir)
-  vcpkg_bin = join_paths(meson.source_root(), 'vcpkg_installed',
+  vcpkg_bin = join_paths(meson.project_source_root(), 'vcpkg_installed',
                          tt_vcpkg_triplet, 'bin')
-  vcpkg_debug_bin = join_paths(meson.source_root(), 'vcpkg_installed',
+  vcpkg_debug_bin = join_paths(meson.project_source_root(), 'vcpkg_installed',
                                tt_vcpkg_triplet, 'debug', 'bin')
-  build_debug = join_paths(meson.source_root(), 'build', build_type_dir)
-  buildstate_debug = join_paths(meson.source_root(), 'buildstate',
+  build_debug = join_paths(meson.project_source_root(), 'build', build_type_dir)
+  buildstate_debug = join_paths(meson.project_source_root(), 'buildstate',
                                 build_type_dir)
 
   copy_dlls = custom_target(

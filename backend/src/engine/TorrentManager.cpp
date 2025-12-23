@@ -6,6 +6,16 @@
 
 #include <boost/asio/error.hpp>
 
+#if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <Windows.h>
+#endif
+
 #include <cerrno>
 #include <chrono>
 #include <cstdint>
@@ -160,6 +170,21 @@ bool write_metadata_with_fsync(std::filesystem::path const &target,
         return false;
     }
     std::filesystem::rename(tmp, target, ec);
+#if defined(_WIN32)
+    if (ec)
+    {
+        auto tmp_w = tmp.wstring();
+        auto target_w = target.wstring();
+        if (!tmp_w.empty() && !target_w.empty())
+        {
+            DWORD flags = MOVEFILE_COPY_ALLOWED | MOVEFILE_REPLACE_EXISTING;
+            if (MoveFileExW(tmp_w.c_str(), target_w.c_str(), flags))
+            {
+                ec.clear();
+            }
+        }
+    }
+#endif
     if (ec)
     {
         std::error_code ignore_ec;
@@ -297,29 +322,15 @@ void TorrentManager::process_tasks()
         catch (std::exception const &ex)
         {
             TT_LOG_ERROR("engine task threw std::exception: {}", ex.what());
-            TT_LOG_ERROR("engine task failure is fatal; requesting shutdown");
-            tt::runtime::request_shutdown();
-            notify();
-            break;
+            TT_LOG_ERROR("engine task failed; continuing");
+            continue;
         }
         catch (...)
         {
             TT_LOG_ERROR("engine task threw unknown exception");
-            TT_LOG_ERROR("engine task failure is fatal; requesting shutdown");
-            tt::runtime::request_shutdown();
-            notify();
-            break;
+            TT_LOG_ERROR("engine task failed; continuing");
+            continue;
         }
-    }
-
-    if (task_index + 1 < pending.size())
-    {
-        auto dropped = pending.size() - (task_index + 1);
-        TT_LOG_ERROR("dropping {} pending engine commands after fatal error",
-                     dropped);
-        pending.erase(pending.begin() +
-                          static_cast<std::ptrdiff_t>(task_index + 1),
-                      pending.end());
     }
 }
 
@@ -361,6 +372,8 @@ TorrentManager::build_snapshot(SnapshotBuildCallbacks const &callbacks)
     std::uint64_t total_download_rate = 0;
     std::uint64_t total_upload_rate = 0;
     std::size_t paused_count = 0;
+    std::size_t seeding_count = 0;
+    std::size_t error_count = 0;
 
     for (auto const &handle : handles)
     {
@@ -389,7 +402,14 @@ TorrentManager::build_snapshot(SnapshotBuildCallbacks const &callbacks)
         }
         else if (callbacks.build_snapshot_entry)
         {
-            entry = callbacks.build_snapshot_entry(id, status, revision);
+            std::optional<std::int64_t> prev_added = std::nullopt;
+            auto it = snapshot_cache_.find(id);
+            if (it != snapshot_cache_.end())
+            {
+                prev_added = it->second.added_time;
+            }
+            entry = callbacks.build_snapshot_entry(id, status, revision,
+                                                   prev_added);
         }
         else
         {
@@ -411,6 +431,15 @@ TorrentManager::build_snapshot(SnapshotBuildCallbacks const &callbacks)
         updated_cache[id] = entry;
         snapshot->torrents.push_back(entry);
 
+        if (entry.state == "seeding")
+        {
+            ++seeding_count;
+        }
+        if (entry.error != 0)
+        {
+            ++error_count;
+        }
+
         const auto download_payload =
             status.download_payload_rate > 0 ? status.download_payload_rate : 0;
         const auto upload_payload =
@@ -429,6 +458,8 @@ TorrentManager::build_snapshot(SnapshotBuildCallbacks const &callbacks)
         snapshot->torrent_count > paused_count
             ? snapshot->torrent_count - paused_count
             : 0;
+    snapshot->seeding_torrent_count = seeding_count;
+    snapshot->error_torrent_count = error_count;
     snapshot->download_rate = total_download_rate;
     snapshot->upload_rate = total_upload_rate;
     snapshot->dht_nodes = 0;
@@ -697,6 +728,10 @@ bool TorrentManager::try_failover_outbound_candidate(
         outbound_active_ip_ = candidate;
 
         libtorrent::settings_pack pack;
+        // Use pinned announce/outgoing addresses, but do NOT pin
+        // listen_interfaces to a specific adapter IP. Bind listen sockets
+        // to wildcard (0.0.0.0) while using the outbound IP for announces
+        // and outgoing interfaces.
         pack.set_str(libtorrent::settings_pack::announce_ip,
                      outbound_active_ip_);
         pack.set_str(libtorrent::settings_pack::outgoing_interfaces,
@@ -705,12 +740,16 @@ bool TorrentManager::try_failover_outbound_candidate(
         if (!outbound_listen_port_.empty())
         {
             pack.set_str(libtorrent::settings_pack::listen_interfaces,
-                         outbound_active_ip_ + ":" + outbound_listen_port_);
+                         std::string("0.0.0.0:") + outbound_listen_port_);
         }
         session_->apply_settings(pack);
 
         TT_LOG_INFO("announce source failover ({}) -> {}", reason,
                     outbound_active_ip_);
+
+        // Trigger a network refresh so DHT/UDP sockets are rebound to the
+        // updated settings.
+        session_->reopen_network_sockets();
 
         if (h.is_valid())
         {
@@ -982,8 +1021,10 @@ void TorrentManager::apply_settings(libtorrent::settings_pack const &pack)
                            outbound_active_ip_);
             pinned.set_str(libtorrent::settings_pack::outgoing_interfaces,
                            outbound_active_ip_);
+            // Do not pin listen_interfaces to the outbound IP; bind to
+            // wildcard to avoid preventing DHT/UDP sockets from rebinding.
             pinned.set_str(libtorrent::settings_pack::listen_interfaces,
-                           outbound_active_ip_ + ":" + outbound_listen_port_);
+                           std::string("0.0.0.0:") + outbound_listen_port_);
             session_->apply_settings(pinned);
         }
     }

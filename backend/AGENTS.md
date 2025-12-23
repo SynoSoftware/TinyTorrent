@@ -177,59 +177,54 @@ root/
 
 ---
 
-# **5. Implementation Rules**
+### 5.1 JSON Handling
 
-### **5.1 JSON Handling**
+- Library: yyjson.
+- Write small RAII wrappers (utils/Json.hpp) for doc/value lifetime.
+- Do not concatenate strings to build JSON; use yyjson mutable API.
+- Canonical error envelope must be emitted via a single helper (result/error/arguments).
+- Mongoose poll thread must not do heavy JSON building; it may only send already-prepared responses.
 
-- **Library:** `yyjson`.
-- **Reason:** It avoids the massive template instantiation cost of `nlohmann/json`.
-- **Usage:**
-  - Write small C++ wrappers (`utils/Json.hpp`) to ensure RAII (memory cleanup).
-  - Do not manually concatenate strings to build JSON. Use the library's mutable document API.
+### 5.2 String Formatting
 
-### **5.2 String Formatting**
+- Use std::format for formatted messages.
+- Avoid <iostream> in Release builds.
+- Logging must be lightweight: std::format + printf / OutputDebugString under the hood.
+- No formatting in hot loops (snapshot build, per-torrent encoding); cache or format once per event.
 
-- **Use:** `std::format` (C++20) for all formatted messages.
-- **Example:** `auto s = std::format("Error: {}", code);`
-- **Avoid:** `<iostream>` in Release builds (it brings in heavy static initializers).
-- **Dev Logging:** Use lightweight logging macros that call `std::format` + `printf`/`OutputDebugStringA` under the hood. Do not introduce `fmt` as an additional dependency.
+### 5.3 Error Handling
 
-### **5.3 Error Handling**
-
-- **Exceptions:** Allowed and expected from `libtorrent`.
-- **Boundary:** Exceptions must be caught before entering C-callbacks (Mongoose) or crossing threads.
-- **Stability:** The daemon should log an error and continue, not crash, unless the state is unrecoverable.
+- Exceptions allowed from libtorrent and Win32 wrappers.
+- Catch exceptions before entering C callbacks (Mongoose) and before crossing threads.
+- Worker tasks must catch and convert exceptions to structured RPC errors/events.
+- Daemon logs and continues unless unrecoverable:
+  - cannot open persistence store / schema mismatch
+  - cannot start RPC listener after bounded retries
+  - state corruption requiring shutdown
 
 ### 5.4 RPC Input Normalization
 
-RPC request parsing must be centralized.
-
-- Argument extraction and validation must not be duplicated per method.
-- Shared request shapes (e.g. torrent ID sets) must have a single parser.
-- RPC handlers should read as declarative mappings, not procedural parsing code.
+- RPC parsing must be centralized: handlers must use shared helpers for extracting/validating args.
+- Shared shapes (torrent id sets, path args, optional fields) must have one parser.
+- Path normalization must be a single function (Windows: normalize separators, reject relative, enforce security rules).
 
 ### 5.5 RAII Enforcement
 
-Any resource with a lifetime longer than a function call must be RAII-managed.
+- Any resource beyond a function call must be RAII-managed:
+  - DB transactions, locks, file/OS handles, threads, COM init.
+- No manual open/close, lock/unlock outside RAII guards.
 
-This includes:
+### 5.6 Persistence Boundary Rule
 
-- Database transactions
-- Mutexes and locks
-- File descriptors
-- Worker thread ownership
+- Engine code must not issue raw SQL or depend on schema details.
+- All persistence goes through repository/DAO interfaces.
+- Persistence lookups in hot paths (snapshots, tray status) are forbidden; load once into in-memory state.
 
-Manual begin/end, open/close, or lock/unlock patterns are forbidden outside RAII guards.
+### 5.7 Architecture
 
-### Persistence Boundary Rule
-
-Engine logic must not issue raw SQL or database-specific calls.
-
-- All persistence goes through a dedicated repository/DAO interface.
-- Engine code expresses intent (save, load, update), not storage mechanics.
-- Schema details are forbidden outside persistence modules.
-
----
+- Keep files <1500 LOC; at ~1000 LOC, consider splitting.
+- If a file exceeds 1200 LOC while being edited, split or create an explicit refactor task in the same PR.
+- Apply DRY where it reduces maintenance; avoid “God managers” and catch-all services.
 
 # **6. Build Modes**
 

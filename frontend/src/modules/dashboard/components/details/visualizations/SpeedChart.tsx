@@ -19,10 +19,7 @@ const resampleHistory = (values: number[], targetLength: number) => {
     const factor = values.length / targetLength;
     return Array.from({ length: targetLength }, (_, index) => {
         const start = Math.floor(index * factor);
-        const end = Math.min(
-            values.length,
-            Math.floor((index + 1) * factor)
-        );
+        const end = Math.min(values.length, Math.floor((index + 1) * factor));
         const slice = values.slice(start, end || start + 1);
         if (!slice.length) {
             return values[start] ?? 0;
@@ -83,8 +80,7 @@ interface SpeedChartProps {
 }
 
 export const SpeedChart = ({ downHistory, upHistory }: SpeedChartProps) => {
-    const [selectedWindow, setSelectedWindow] =
-        useState<SpeedWindowKey>("1m");
+    const [selectedWindow, setSelectedWindow] = useState<SpeedWindowKey>("1m");
     const latestDown = downHistory.at(-1) ?? 0;
     const latestUp = upHistory.at(-1) ?? 0;
 
@@ -209,7 +205,9 @@ export const SpeedChart = ({ downHistory, upHistory }: SpeedChartProps) => {
                             key={option.key}
                             size="sm"
                             variant={
-                                selectedWindow === option.key ? "shadow" : "flat"
+                                selectedWindow === option.key
+                                    ? "shadow"
+                                    : "flat"
                             }
                             color={
                                 selectedWindow === option.key
@@ -246,15 +244,16 @@ export const useTorrentDetailSpeedHistory = (torrent: TorrentDetail | null) => {
     const cacheRef = useRef(
         new Map<string, { down: number[]; up: number[] }>()
     );
-    const [downHistory, setDownHistory] = useState<number[]>(
-        () => new Array(HISTORY_POINTS).fill(0)
+    const [downHistory, setDownHistory] = useState<number[]>(() =>
+        new Array(HISTORY_POINTS).fill(0)
     );
-    const [upHistory, setUpHistory] = useState<number[]>(
-        () => new Array(HISTORY_POINTS).fill(0)
+    const [upHistory, setUpHistory] = useState<number[]>(() =>
+        new Array(HISTORY_POINTS).fill(0)
     );
 
     useEffect(() => {
         if (!torrent) {
+            cacheRef.current.clear();
             setDownHistory(new Array(HISTORY_POINTS).fill(0));
             setUpHistory(new Array(HISTORY_POINTS).fill(0));
             return;
@@ -282,6 +281,14 @@ export const useTorrentDetailSpeedHistory = (torrent: TorrentDetail | null) => {
             down: [...downHistory],
             up: [...upHistory],
         });
+
+        // Prevent unbounded growth if users click through many torrents.
+        const maxEntries = 64;
+        while (cacheRef.current.size > maxEntries) {
+            const oldestKey = cacheRef.current.keys().next().value;
+            if (!oldestKey) break;
+            cacheRef.current.delete(oldestKey);
+        }
     }, [downHistory, upHistory, torrent]);
 
     return { downHistory, upHistory };

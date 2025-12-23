@@ -89,7 +89,8 @@ class TorrentManager
     struct SnapshotBuildCallbacks
     {
         std::function<TorrentSnapshot(
-            int, libtorrent::v2::torrent_status const &, std::uint64_t)>
+            int, libtorrent::v2::torrent_status const &, std::uint64_t,
+            std::optional<std::int64_t>)>
             build_snapshot_entry;
         std::function<void(int, libtorrent::torrent_handle const &,
                            libtorrent::v2::torrent_status const &)>

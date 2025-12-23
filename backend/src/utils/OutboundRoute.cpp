@@ -3,9 +3,11 @@
 #include "utils/Log.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <thread>
 #include <unordered_map>
 #include <vector>
 
@@ -15,6 +17,8 @@
 #endif
 #include <winsock2.h>
 #include <ws2tcpip.h>
+
+#include <windows.h>
 
 #include <iphlpapi.h>
 #include <netioapi.h>
@@ -244,17 +248,44 @@ std::vector<Candidate> enumerate_candidates()
                   GAA_FLAG_SKIP_DNS_SERVER;
 
     ULONG size = 0;
-    GetAdaptersAddresses(AF_INET, flags, nullptr, nullptr, &size);
+    ULONG rc = GetAdaptersAddresses(AF_INET, flags, nullptr, nullptr, &size);
+    if (rc != ERROR_BUFFER_OVERFLOW && rc != NO_ERROR)
+    {
+        TT_LOG_INFO("GetAdaptersAddresses initial call failed: {}", rc);
+        return out;
+    }
     if (size == 0)
     {
         return out;
     }
 
-    std::vector<std::uint8_t> buffer(size);
-    auto *addrs = reinterpret_cast<IP_ADAPTER_ADDRESSES *>(buffer.data());
-    ULONG rc = GetAdaptersAddresses(AF_INET, flags, nullptr, addrs, &size);
-    if (rc != NO_ERROR)
+    std::vector<std::uint8_t> buffer;
+    IP_ADAPTER_ADDRESSES *addrs = nullptr;
+    for (int attempt = 0; attempt < 3; ++attempt)
     {
+        buffer.assign(size, 0);
+        addrs = reinterpret_cast<IP_ADAPTER_ADDRESSES *>(buffer.data());
+        rc = GetAdaptersAddresses(AF_INET, flags, nullptr, addrs, &size);
+        if (rc == NO_ERROR)
+        {
+            break;
+        }
+        if (rc == ERROR_BUFFER_OVERFLOW)
+        {
+            // buffer size updated in 'size' - retry with larger buffer
+            TT_LOG_DEBUG(
+                "GetAdaptersAddresses: buffer overflow, resizing to {}", size);
+            continue;
+        }
+        TT_LOG_INFO("GetAdaptersAddresses attempt {} failed: {}", attempt + 1,
+                    rc);
+        // small backoff
+        std::this_thread::sleep_for(
+            std::chrono::milliseconds(20 * (attempt + 1)));
+    }
+    if (rc != NO_ERROR || addrs == nullptr)
+    {
+        TT_LOG_INFO("GetAdaptersAddresses final failure: {}", rc);
         return out;
     }
 

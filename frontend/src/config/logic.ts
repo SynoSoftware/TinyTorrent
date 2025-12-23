@@ -66,6 +66,7 @@ const DEFAULT_SHELL_IMMERSIVE = {
     chrome_padding: 8,
     main_padding: 8,
     hud_card_radius: 28,
+    handle_hit_area: 20,
 } as const;
 
 const shellConfig = asRecord(layoutConfig.shell);
@@ -110,9 +111,10 @@ const immersiveOuterRadius =
     classicOuterRadius;
 const immersiveRingPadding = readNumber(immersiveShellConfig.ring_padding, 0);
 const immersivePanelGap = readNumber(immersiveShellConfig.panel_gap, 0);
+// Increase immersive shell resize / handle hit-box to 20px by default
 const immersiveHandleHitArea = readNumber(
     immersiveShellConfig.handle_hit_area,
-    classicHandleHitArea
+    DEFAULT_SHELL_IMMERSIVE.handle_hit_area
 );
 const immersiveInnerRadius = Math.max(
     0,

@@ -258,6 +258,8 @@ struct SessionSnapshot
     std::size_t torrent_count = 0;
     std::size_t active_torrent_count = 0;
     std::size_t paused_torrent_count = 0;
+    std::size_t seeding_torrent_count = 0;
+    std::size_t error_torrent_count = 0;
     std::uint64_t dht_nodes = 0;
     SessionStatistics cumulative_stats;
     SessionStatistics current_stats;
