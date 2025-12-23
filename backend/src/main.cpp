@@ -1,5 +1,6 @@
 #include "app/DaemonMain.hpp"
 #include "engine/Core.hpp"
+#include "rpc/Dispatcher.hpp"
 #include "rpc/Server.hpp"
 #include "utils/Endpoint.hpp"
 #include "utils/FS.hpp"
@@ -122,7 +123,8 @@ bool enforce_loopback_bind(std::string &bind)
         if (host.empty())
         {
 #if defined(TT_BUILD_DEBUG)
-            TT_LOG_INFO("RPC bind missing host; defaulting to {}", kFallbackHost);
+            TT_LOG_INFO("RPC bind missing host; defaulting to {}",
+                        kFallbackHost);
 #else
             TT_LOG_INFO("RPC bind missing host; forcing {} for security",
                         kFallbackHost);
@@ -138,8 +140,9 @@ bool enforce_loopback_bind(std::string &bind)
 #else
         if (!host.empty())
         {
-            TT_LOG_INFO("RPC bind host {} is not loopback; forcing {} for security",
-                        host, kFallbackHost);
+            TT_LOG_INFO(
+                "RPC bind host {} is not loopback; forcing {} for security",
+                host, kFallbackHost);
         }
 #endif
         bind = replace_rpc_bind_host(bind, kFallbackHost);
@@ -365,7 +368,56 @@ int daemon_main(int argc, char *argv[],
                 TT_LOG_INFO("unable to secure {}", path.string());
             }
             return true;
-         };
+        };
+
+        if (auto handler_request = tt::rpc::parse_handler_action(argc, argv);
+            handler_request.action != tt::rpc::HandlerAction::None)
+        {
+            auto result = tt::rpc::perform_handler_action_impl(
+                handler_request.action, !handler_request.already_elevated,
+                handler_request.already_elevated);
+
+#if defined(_WIN32)
+            if (!result.success)
+            {
+                auto to_wide = [](std::string const &utf8) -> std::wstring
+                {
+                    if (utf8.empty())
+                    {
+                        return {};
+                    }
+                    int len = MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), -1,
+                                                  nullptr, 0);
+                    if (len <= 0)
+                    {
+                        return L"TinyTorrent failed";
+                    }
+                    std::wstring out(static_cast<std::size_t>(len), L'\0');
+                    MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), -1,
+                                        out.data(), len);
+                    while (!out.empty() && out.back() == L'\0')
+                    {
+                        out.pop_back();
+                    }
+                    return out;
+                };
+
+                std::string msg =
+                    result.message.empty()
+                        ? std::string("System handler operation failed")
+                        : result.message;
+                if (result.permission_denied)
+                {
+                    msg +=
+                        "\n\nPermission denied. Try running as Administrator.";
+                }
+
+                MessageBoxW(nullptr, to_wide(msg).c_str(), L"TinyTorrent",
+                            MB_OK | MB_ICONERROR);
+            }
+#endif
+            return result.success ? 0 : 1;
+        }
 
         auto root = tt::utils::data_root();
         auto download_path = root / "downloads";
@@ -819,7 +871,8 @@ int daemon_main(int argc, char *argv[],
         std::string rpc_token = generate_rpc_token();
         if (auto token = read_env("TT_RPC_TOKEN"); token)
         {
-            TT_LOG_INFO("Ignoring TT_RPC_TOKEN override in release mode for security");
+            TT_LOG_INFO(
+                "Ignoring TT_RPC_TOKEN override in release mode for security");
         }
 #endif
 #if !defined(TT_BUILD_DEBUG)

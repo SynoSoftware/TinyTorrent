@@ -173,14 +173,12 @@ std::string trim_header_token(std::string_view value)
     return std::string(value.substr(start, end - start + 1));
 }
 
-std::string build_cors_allow_headers(
-    std::optional<std::string> const &requested_headers)
+std::string
+build_cors_allow_headers(std::optional<std::string> const &requested_headers)
 {
-    std::vector<std::string> allow_headers = {
-        "Content-Type",
-        "X-TT-Auth",
-        "X-Transmission-Session-Id",
-        "Authorization"};
+    std::vector<std::string> allow_headers = {"Content-Type", "X-TT-Auth",
+                                              "X-Transmission-Session-Id",
+                                              "Authorization"};
     std::vector<std::string> allow_headers_lower;
     allow_headers_lower.reserve(allow_headers.size());
     for (auto const &header : allow_headers)
@@ -246,7 +244,8 @@ std::string build_rpc_headers(std::string_view content_type,
         headers += "Access-Control-Allow-Origin: " + *origin + "\r\n";
         headers += "Access-Control-Allow-Headers: " +
                    build_cors_allow_headers(request_headers) + "\r\n";
-        headers += "Access-Control-Expose-Headers: X-Transmission-Session-Id\r\n";
+        headers +=
+            "Access-Control-Expose-Headers: X-Transmission-Session-Id\r\n";
         headers += "Access-Control-Allow-Methods: POST, OPTIONS\r\n";
     }
     headers += "Cache-Control: no-store\r\n";
@@ -648,8 +647,10 @@ void send_ws_ping(struct mg_connection *conn);
 Server::Server(engine::Core *engine, std::string bind_url,
                ServerOptions options)
     : bind_url_(std::move(bind_url)), engine_(engine),
-      dispatcher_(engine, bind_url_), listener_(nullptr),
-      session_id_(generate_session_id()), options_(std::move(options))
+      dispatcher_(engine, bind_url_, [this](std::function<void()> task)
+                  { enqueue_task(std::move(task)); }),
+      listener_(nullptr), session_id_(generate_session_id()),
+      options_(std::move(options))
 {
     rpc_path_ = options_.rpc_path;
     ws_path_ = options_.ws_path;
@@ -1289,8 +1290,7 @@ void Server::handle_http_message(struct mg_connection *conn,
         TT_LOG_INFO("RPC request rejected; origin not allowed {}",
                     origin_value ? *origin_value : "<missing>");
         auto payload = serialize_error("origin not allowed");
-        auto headers =
-            build_rpc_headers("application/json", {}, std::nullopt);
+        auto headers = build_rpc_headers("application/json", {}, std::nullopt);
         mg_http_reply(conn, 403, headers.c_str(), "%s", payload.c_str());
         return;
     }
@@ -1321,8 +1321,8 @@ void Server::handle_http_message(struct mg_connection *conn,
     {
         TT_LOG_INFO(
             "RPC request rejected; unauthorized authentication attempt");
-        auto headers = build_rpc_headers("text/plain", response_origin,
-                                         std::nullopt);
+        auto headers =
+            build_rpc_headers("text/plain", response_origin, std::nullopt);
         if (self->options_.basic_auth)
         {
             headers += "WWW-Authenticate: Basic realm=\"";
@@ -1378,13 +1378,8 @@ void Server::handle_http_message(struct mg_connection *conn,
     auto req_id = self->next_request_id_++;
     self->active_requests_[req_id] = {conn, std::move(request_headers)};
 
-    self->dispatch(body,
-                   [self, req_id](std::string response)
-                   {
-                       self->enqueue_task(
-                           [self, req_id, response = std::move(response)]
-                           { self->send_response(req_id, response); });
-                   });
+    self->dispatch(body, [self, req_id](std::string response)
+                   { self->send_response(req_id, response); });
 }
 
 void Server::handle_ws_open(struct mg_connection *conn,
@@ -1506,8 +1501,8 @@ void Server::send_response(std::uint64_t req_id, std::string const &response)
     auto it = active_requests_.find(req_id);
     if (it != active_requests_.end())
     {
-        mg_http_reply(it->second.conn, 200, it->second.headers.c_str(),
-                      "%s", response.c_str());
+        mg_http_reply(it->second.conn, 200, it->second.headers.c_str(), "%s",
+                      response.c_str());
         active_requests_.erase(it);
     }
 }

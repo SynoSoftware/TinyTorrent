@@ -71,6 +71,7 @@ class PersistenceManager
     get_save_path(std::string const &hash,
                   std::filesystem::path const &default_path) const;
     std::optional<int> get_rpc_id(std::string const &hash) const;
+    std::optional<std::uint64_t> get_added_at(std::string const &hash) const;
 
   private:
     std::uint64_t read_uint64_setting(std::string const &key) const;

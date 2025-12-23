@@ -9,12 +9,12 @@
 // Include winsock2 before Windows.h to avoid conflicts with winsock.h
 #include <objbase.h>
 #include <shellapi.h>
+#include <shlobj.h>
+#include <shobjidl.h>
 #include <windows.h>
 #include <winreg.h>
 #include <winsock2.h>
 #include <ws2tcpip.h>
-#include <shlobj.h>
-#include <shobjidl.h>
 #endif
 #include "rpc/Dispatcher.hpp"
 
@@ -22,8 +22,8 @@
 #include "rpc/FsHooks.hpp"
 #include "rpc/Serializer.hpp"
 #include "utils/Base64.hpp"
-#include "utils/FS.hpp"
 #include "utils/Endpoint.hpp"
+#include "utils/FS.hpp"
 #include "utils/Json.hpp"
 #include "utils/Log.hpp"
 #include "utils/Shutdown.hpp"
@@ -32,11 +32,13 @@
 #include <array>
 #include <atomic>
 #include <cctype>
-#include <cwctype>
 #include <chrono>
+#include <condition_variable>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <cwctype>
+#include <deque>
 #include <exception>
 #include <filesystem>
 #include <format>
@@ -45,6 +47,7 @@
 #include <future>
 #include <limits>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -57,13 +60,6 @@
 
 namespace tt::rpc
 {
-
-struct SystemHandlerResult
-{
-    bool success = false;
-    bool permission_denied = false;
-    std::string message;
-};
 
 struct ShortcutRequest
 {
@@ -94,7 +90,8 @@ constexpr wchar_t kAutorunValueName[] = L"TinyTorrent";
 constexpr wchar_t kMagnetCommandKey[] =
     L"Software\\Classes\\magnet\\shell\\open\\command";
 constexpr wchar_t kTorrentExtensionKey[] = L"Software\\Classes\\.torrent";
-constexpr wchar_t kTorrentClassKey[] = L"Software\\Classes\\TinyTorrent.torrent";
+constexpr wchar_t kTorrentClassKey[] =
+    L"Software\\Classes\\TinyTorrent.torrent";
 constexpr wchar_t kTorrentCommandKey[] =
     L"Software\\Classes\\TinyTorrent.torrent\\shell\\open\\command";
 constexpr wchar_t kTorrentClassName[] = L"TinyTorrent.torrent";
@@ -105,37 +102,64 @@ std::string format_win_error_message(DWORD code)
     return ec.message();
 }
 
-std::optional<std::wstring> read_autorun_value()
+std::wstring reg_sz_to_wstring(std::vector<wchar_t> &buffer, DWORD size_bytes)
+{
+    if (buffer.empty())
+    {
+        return {};
+    }
+
+    auto written = static_cast<std::size_t>(size_bytes / sizeof(wchar_t));
+    if (written >= buffer.size())
+    {
+        written = buffer.size() - 1;
+    }
+    buffer[written] = L'\0';
+    while (written > 0 && buffer[written - 1] == L'\0')
+    {
+        --written;
+    }
+    return std::wstring(buffer.data(), buffer.data() + written);
+}
+
+std::optional<std::wstring> read_registry_string(HKEY root,
+                                                 wchar_t const *subkey,
+                                                 wchar_t const *value_name)
 {
     HKEY key = nullptr;
-    auto status = RegOpenKeyExW(HKEY_CURRENT_USER, kAutorunRegistryPath, 0,
-                                KEY_READ, &key);
+    auto status = RegOpenKeyExW(root, subkey, 0, KEY_READ, &key);
     if (status != ERROR_SUCCESS)
     {
         return std::nullopt;
     }
+
     DWORD type = 0;
     DWORD size = 0;
-    status = RegQueryValueExW(key, kAutorunValueName, nullptr, &type, nullptr,
-                              &size);
+    auto name = value_name && value_name[0] != L'\0' ? value_name : nullptr;
+    status = RegQueryValueExW(key, name, nullptr, &type, nullptr, &size);
     if (status != ERROR_SUCCESS || type != REG_SZ || size == 0)
     {
         RegCloseKey(key);
         return std::nullopt;
     }
-    std::vector<wchar_t> buffer(size / sizeof(wchar_t));
-    status = RegQueryValueExW(key, kAutorunValueName, nullptr, nullptr,
+
+    // +1 to guarantee a trailing NUL even if the registry data isn't.
+    std::vector<wchar_t> buffer(size / sizeof(wchar_t) + 1ull, L'\0');
+    status = RegQueryValueExW(key, name, nullptr, nullptr,
                               reinterpret_cast<LPBYTE>(buffer.data()), &size);
     RegCloseKey(key);
     if (status != ERROR_SUCCESS)
     {
         return std::nullopt;
     }
-    if (!buffer.empty() && buffer.back() == L'\0')
-    {
-        buffer.pop_back();
-    }
-    return std::wstring(buffer.begin(), buffer.end());
+
+    return reg_sz_to_wstring(buffer, size);
+}
+
+std::optional<std::wstring> read_autorun_value()
+{
+    return read_registry_string(HKEY_CURRENT_USER, kAutorunRegistryPath,
+                                kAutorunValueName);
 }
 
 std::wstring compose_autorun_command()
@@ -158,11 +182,11 @@ bool write_autorun_value(std::wstring const &command, std::string &message)
         message = format_win_error_message(status);
         return false;
     }
-    DWORD data_size = static_cast<DWORD>((command.size() + 1ull) *
-                                         sizeof(wchar_t));
-    status =
-        RegSetValueExW(key, kAutorunValueName, 0, REG_SZ,
-                       reinterpret_cast<const BYTE *>(command.c_str()), data_size);
+    DWORD data_size =
+        static_cast<DWORD>((command.size() + 1ull) * sizeof(wchar_t));
+    status = RegSetValueExW(key, kAutorunValueName, 0, REG_SZ,
+                            reinterpret_cast<const BYTE *>(command.c_str()),
+                            data_size);
     RegCloseKey(key);
     if (status != ERROR_SUCCESS)
     {
@@ -192,40 +216,6 @@ bool delete_autorun_value(std::string &message)
     return false;
 }
 
-std::optional<std::wstring> read_registry_string(HKEY root,
-                                                 wchar_t const *subkey,
-                                                 wchar_t const *value_name)
-{
-    HKEY key = nullptr;
-    auto status = RegOpenKeyExW(root, subkey, 0, KEY_READ, &key);
-    if (status != ERROR_SUCCESS)
-    {
-        return std::nullopt;
-    }
-    DWORD type = 0;
-    DWORD size = 0;
-    auto name = value_name && value_name[0] != L'\0' ? value_name : nullptr;
-    status = RegQueryValueExW(key, name, nullptr, &type, nullptr, &size);
-    if (status != ERROR_SUCCESS || type != REG_SZ || size == 0)
-    {
-        RegCloseKey(key);
-        return std::nullopt;
-    }
-    std::vector<wchar_t> buffer(size / sizeof(wchar_t));
-    status = RegQueryValueExW(key, name, nullptr, nullptr,
-                              reinterpret_cast<LPBYTE>(buffer.data()), &size);
-    RegCloseKey(key);
-    if (status != ERROR_SUCCESS)
-    {
-        return std::nullopt;
-    }
-    if (!buffer.empty() && buffer.back() == L'\0')
-    {
-        buffer.pop_back();
-    }
-    return std::wstring(buffer.begin(), buffer.end());
-}
-
 std::wstring trim_wide(std::wstring value)
 {
     auto is_space = [](wchar_t ch)
@@ -243,8 +233,7 @@ std::wstring trim_wide(std::wstring value)
 
 std::wstring to_lower_wide(std::wstring value)
 {
-    std::transform(value.begin(), value.end(), value.begin(),
-                   [](wchar_t ch)
+    std::transform(value.begin(), value.end(), value.begin(), [](wchar_t ch)
                    { return static_cast<wchar_t>(std::towlower(ch)); });
     return value;
 }
@@ -288,15 +277,15 @@ HandlerRegistryStatus query_handler_status()
         read_registry_string(HKEY_CURRENT_USER, kMagnetCommandKey, L"");
     status.magnet = registry_value_matches(magnet_cmd, expected);
 
-    auto torrent_assoc = read_registry_string(HKEY_CURRENT_USER,
-                                              kTorrentExtensionKey, L"");
+    auto torrent_assoc =
+        read_registry_string(HKEY_CURRENT_USER, kTorrentExtensionKey, L"");
     auto torrent_cmd =
         read_registry_string(HKEY_CURRENT_USER, kTorrentCommandKey, L"");
     auto assoc_match =
-        torrent_assoc &&
-        to_lower_wide(trim_wide(*torrent_assoc)) ==
-            to_lower_wide(std::wstring(kTorrentClassName));
-    status.torrent = assoc_match && registry_value_matches(torrent_cmd, expected);
+        torrent_assoc && to_lower_wide(trim_wide(*torrent_assoc)) ==
+                             to_lower_wide(std::wstring(kTorrentClassName));
+    status.torrent =
+        assoc_match && registry_value_matches(torrent_cmd, expected);
     return status;
 }
 
@@ -411,6 +400,144 @@ class ScopedCOM
     ScopedCOM() noexcept = default;
     ~ScopedCOM() noexcept = default;
 };
+#endif
+
+#if defined(_WIN32)
+class StaWorker
+{
+  public:
+    struct QueuedWork
+    {
+        std::function<void()> work;
+        std::function<void()> cancel;
+    };
+
+    StaWorker();
+    ~StaWorker();
+
+    void post(QueuedWork work);
+    bool com_ready() const noexcept;
+
+  private:
+    void run();
+
+    std::thread thread_;
+    std::mutex mutex_;
+    std::condition_variable cv_;
+    std::deque<QueuedWork> queue_;
+    bool stop_ = false;
+    bool started_ = false;
+    std::atomic<bool> com_ready_{false};
+};
+
+std::mutex g_sta_worker_mutex;
+std::unique_ptr<StaWorker> g_sta_worker;
+
+StaWorker &sta_worker()
+{
+    std::lock_guard<std::mutex> lock(g_sta_worker_mutex);
+    if (!g_sta_worker)
+    {
+        g_sta_worker = std::make_unique<StaWorker>();
+    }
+    return *g_sta_worker;
+}
+
+void shutdown_sta_worker() noexcept
+{
+    std::unique_ptr<StaWorker> worker;
+    {
+        std::lock_guard<std::mutex> lock(g_sta_worker_mutex);
+        worker = std::move(g_sta_worker);
+    }
+}
+
+StaWorker::StaWorker()
+{
+    thread_ = std::thread([this]() { run(); });
+    std::unique_lock<std::mutex> lock(mutex_);
+    cv_.wait(lock, [this]() { return started_; });
+}
+
+StaWorker::~StaWorker()
+{
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        stop_ = true;
+        while (!queue_.empty())
+        {
+            auto work = std::move(queue_.front());
+            queue_.pop_front();
+            if (work.cancel)
+            {
+                work.cancel();
+            }
+        }
+    }
+    cv_.notify_all();
+    if (thread_.joinable())
+    {
+        thread_.join();
+    }
+}
+
+void StaWorker::post(QueuedWork work)
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (stop_)
+    {
+        if (work.cancel)
+        {
+            work.cancel();
+        }
+        return;
+    }
+    queue_.push_back(std::move(work));
+    cv_.notify_one();
+}
+
+bool StaWorker::com_ready() const noexcept
+{
+    return com_ready_.load(std::memory_order_acquire);
+}
+
+void StaWorker::run()
+{
+    HRESULT hr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED |
+                                             COINIT_DISABLE_OLE1DDE);
+    bool initialized = SUCCEEDED(hr);
+    com_ready_.store(initialized, std::memory_order_release);
+
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        started_ = true;
+    }
+    cv_.notify_all();
+
+    while (true)
+    {
+        QueuedWork work;
+        {
+            std::unique_lock<std::mutex> lock(mutex_);
+            cv_.wait(lock, [this]() { return stop_ || !queue_.empty(); });
+            if (stop_ && queue_.empty())
+            {
+                break;
+            }
+            work = std::move(queue_.front());
+            queue_.pop_front();
+        }
+        if (work.work)
+        {
+            work.work();
+        }
+    }
+
+    if (initialized)
+    {
+        CoUninitialize();
+    }
+}
 #endif
 
 #if defined(_WIN32)
@@ -578,8 +705,8 @@ std::optional<std::vector<DialogFilterSpec>>
 parse_dialog_filters(yyjson_val *arguments, std::string &error)
 {
     std::vector<DialogFilterSpec> filters;
-    auto *filters_value = arguments ? yyjson_obj_get(arguments, "filters")
-                                    : nullptr;
+    auto *filters_value =
+        arguments ? yyjson_obj_get(arguments, "filters") : nullptr;
     if (!filters_value)
     {
         return filters;
@@ -614,8 +741,7 @@ parse_dialog_filters(yyjson_val *arguments, std::string &error)
             {
                 continue;
             }
-            auto trimmed =
-                trim_dialog_string(yyjson_get_str(extension_entry));
+            auto trimmed = trim_dialog_string(yyjson_get_str(extension_entry));
             if (trimmed.empty())
             {
                 continue;
@@ -666,8 +792,7 @@ DialogPathsOutcome show_file_open_dialog(OpenDialogOptions const &options)
     DialogPathsOutcome outcome;
     IFileOpenDialog *dialog = nullptr;
     auto hr = CoCreateInstance(CLSID_FileOpenDialog, nullptr,
-                               CLSCTX_INPROC_SERVER,
-                               IID_PPV_ARGS(&dialog));
+                               CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dialog));
     if (FAILED(hr) || dialog == nullptr)
     {
         outcome.error = "unable to create dialog";
@@ -680,8 +805,8 @@ DialogPathsOutcome show_file_open_dialog(OpenDialogOptions const &options)
         dialog->Release();
         return outcome;
     }
-    dialog_options |= FOS_FORCEFILESYSTEM | FOS_PATHMUSTEXIST |
-                      FOS_FILEMUSTEXIST;
+    dialog_options |=
+        FOS_FORCEFILESYSTEM | FOS_PATHMUSTEXIST | FOS_FILEMUSTEXIST;
     if (options.allow_multiple)
     {
         dialog_options |= FOS_ALLOWMULTISELECT;
@@ -791,8 +916,7 @@ DialogPathOutcome show_folder_dialog(FolderDialogOptions const &options)
         dialog->Release();
         return outcome;
     }
-    dialog_options |= FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM |
-                      FOS_PATHMUSTEXIST;
+    dialog_options |= FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM | FOS_PATHMUSTEXIST;
     dialog->SetOptions(dialog_options);
     if (!options.title.empty())
     {
@@ -836,8 +960,7 @@ DialogPathOutcome show_save_file_dialog(SaveDialogOptions const &options)
     DialogPathOutcome outcome;
     IFileSaveDialog *dialog = nullptr;
     auto hr = CoCreateInstance(CLSID_FileSaveDialog, nullptr,
-                               CLSCTX_INPROC_SERVER,
-                               IID_PPV_ARGS(&dialog));
+                               CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dialog));
     if (FAILED(hr) || dialog == nullptr)
     {
         outcome.error = "unable to create dialog";
@@ -911,6 +1034,7 @@ DialogPathOutcome show_save_file_dialog(SaveDialogOptions const &options)
 DialogOpenHandler g_dialog_open_handler = show_file_open_dialog;
 DialogFolderHandler g_dialog_folder_handler = show_folder_dialog;
 DialogSaveHandler g_dialog_save_handler = show_save_file_dialog;
+std::mutex g_dialog_handler_mutex;
 #endif
 
 std::optional<ShortcutRequest>
@@ -1195,7 +1319,8 @@ std::optional<int> parse_port_string(std::string_view text)
     if (auto value = parse_int_from_string(text))
     {
         if (*value >= 0 &&
-            *value <= static_cast<int>(std::numeric_limits<std::uint16_t>::max()))
+            *value <=
+                static_cast<int>(std::numeric_limits<std::uint16_t>::max()))
         {
             return *value;
         }
@@ -1203,14 +1328,15 @@ std::optional<int> parse_port_string(std::string_view text)
     return std::nullopt;
 }
 
-std::optional<std::pair<std::string, int>> parse_proxy_url_value(
-    yyjson_val *value)
+std::optional<std::pair<std::string, int>>
+parse_proxy_url_value(yyjson_val *value)
 {
     if (value == nullptr || !yyjson_is_str(value))
     {
         return std::nullopt;
     }
-    auto parts = tt::net::parse_host_port(std::string_view(yyjson_get_str(value)));
+    auto parts =
+        tt::net::parse_host_port(std::string_view(yyjson_get_str(value)));
     if (parts.host.empty() || parts.port.empty())
     {
         return std::nullopt;
@@ -1314,8 +1440,8 @@ std::optional<std::filesystem::path> parse_download_dir(yyjson_val *arguments)
     }
 }
 
-std::optional<std::string> ensure_directory_exists(
-    std::filesystem::path const &path)
+std::optional<std::string>
+ensure_directory_exists(std::filesystem::path const &path)
 {
     if (path.empty())
     {
@@ -1783,6 +1909,30 @@ SystemHandlerResult register_platform_handler()
 #endif
 }
 
+namespace
+{
+SystemHandlerResult unregister_platform_handler()
+{
+#if defined(_WIN32)
+    return unregister_windows_handler();
+#else
+    SystemHandlerResult result;
+    result.message = "system-handler unsupported";
+    return result;
+#endif
+}
+
+std::string to_lower_copy(std::string_view value)
+{
+    std::string result(value);
+    std::transform(result.begin(), result.end(), result.begin(),
+                   [](unsigned char ch)
+                   { return static_cast<char>(std::tolower(ch)); });
+    return result;
+}
+
+} // namespace
+
 std::string to_lower_view(std::string_view value)
 {
     std::string result(value);
@@ -1843,7 +1993,8 @@ bool is_restricted_system_path(std::filesystem::path const &target) noexcept
     path_string = strip_extended_path_prefix(path_string);
     auto lower_path = to_lower_view(path_string);
     static constexpr std::array<std::string_view, 4> restricted_prefixes = {
-        "c:/windows", "c:/program files", "c:/program files (x86)", "c:/programdata"};
+        "c:/windows", "c:/program files", "c:/program files (x86)",
+        "c:/programdata"};
     for (auto prefix : restricted_prefixes)
     {
         if (path_prefix_matches(lower_path, prefix))
@@ -2620,8 +2771,8 @@ std::string handle_session_set(engine::Core *engine, yyjson_val *arguments)
         session_update.seed_idle_limit = *seed_idle_limit;
         session_update_needed = true;
     }
-    auto seed_idle_enabled =
-        parse_bool_flag(yyjson_obj_get(arguments, "idle-seeding-limit-enabled"));
+    auto seed_idle_enabled = parse_bool_flag(
+        yyjson_obj_get(arguments, "idle-seeding-limit-enabled"));
     if (!seed_idle_enabled)
     {
         seed_idle_enabled =
@@ -2691,20 +2842,20 @@ std::string handle_session_set(engine::Core *engine, yyjson_val *arguments)
         session_update.proxy_port = parsed->second;
         session_update_needed = true;
     }
-    if (auto value = parse_int_value(
-            yyjson_obj_get(arguments, "engine-disk-cache")))
+    if (auto value =
+            parse_int_value(yyjson_obj_get(arguments, "engine-disk-cache")))
     {
         session_update.disk_cache_mb = std::max(1, *value);
         session_update_needed = true;
     }
-    if (auto value =
-            parse_int_value(yyjson_obj_get(arguments, "engine-hashing-threads")))
+    if (auto value = parse_int_value(
+            yyjson_obj_get(arguments, "engine-hashing-threads")))
     {
         session_update.hashing_threads = std::max(1, *value);
         session_update_needed = true;
     }
-    if (auto value = parse_int_value(
-            yyjson_obj_get(arguments, "queue-stalled-minutes")))
+    if (auto value =
+            parse_int_value(yyjson_obj_get(arguments, "queue-stalled-minutes")))
     {
         session_update.queue_stalled_minutes = std::max(0, *value);
         session_update_needed = true;
@@ -2779,8 +2930,8 @@ std::string handle_session_tray_status(engine::Core *engine)
             any_error = true;
         }
     }
-    bool all_paused = snapshot->torrent_count > 0 &&
-                      snapshot->active_torrent_count == 0;
+    bool all_paused =
+        snapshot->torrent_count > 0 && snapshot->active_torrent_count == 0;
     auto download_dir = engine->settings().download_path.string();
     return serialize_session_tray_status(
         snapshot->download_rate, snapshot->upload_rate,
@@ -2932,7 +3083,7 @@ void handle_fs_space_async(engine::Core *engine, yyjson_val *arguments,
 }
 
 void handle_fs_create_dir_async(engine::Core *engine, yyjson_val *arguments,
-                               ResponseCallback cb)
+                                ResponseCallback cb)
 {
     auto target = arguments
                       ? parse_request_path(yyjson_obj_get(arguments, "path"))
@@ -3041,6 +3192,15 @@ void handle_fs_write_file_async(engine::Core *engine, yyjson_val *arguments,
         std::filesystem::path temp_path;
         try
         {
+            auto cleanup_temp = [&]()
+            {
+                if (!temp_path.empty())
+                {
+                    std::error_code remove_ec;
+                    std::filesystem::remove(temp_path, remove_ec);
+                }
+            };
+
             std::error_code ec;
             auto parent = target.parent_path();
             if (parent.empty())
@@ -3067,8 +3227,8 @@ void handle_fs_write_file_async(engine::Core *engine, yyjson_val *arguments,
             bool target_exists = std::filesystem::exists(target, ec);
             if (ec)
             {
-                cb(serialize_error(std::format(
-                    "unable to inspect {}: {}", target.string(), ec.message())));
+                cb(serialize_error(std::format("unable to inspect {}: {}",
+                                               target.string(), ec.message())));
                 return;
             }
             if (fail_if_exists && target_exists)
@@ -3080,14 +3240,15 @@ void handle_fs_write_file_async(engine::Core *engine, yyjson_val *arguments,
                 std::chrono::steady_clock::now().time_since_epoch().count();
             auto thread_hash =
                 std::hash<std::thread::id>{}(std::this_thread::get_id());
-            auto temp_name = std::format(".tt-write-{:x}-{:x}.tmp", timestamp,
-                                         thread_hash);
+            auto temp_name =
+                std::format(".tt-write-{:x}-{:x}.tmp", timestamp, thread_hash);
             temp_path = parent / temp_name;
             {
                 std::ofstream output(temp_path,
                                      std::ios::binary | std::ios::trunc);
                 if (!output)
                 {
+                    cleanup_temp();
                     cb(serialize_error("unable to write file"));
                     return;
                 }
@@ -3099,8 +3260,7 @@ void handle_fs_write_file_async(engine::Core *engine, yyjson_val *arguments,
                 output.close();
                 if (!output)
                 {
-                    std::error_code remove_ec;
-                    std::filesystem::remove(temp_path, remove_ec);
+                    cleanup_temp();
                     cb(serialize_error("unable to write file"));
                     return;
                 }
@@ -3109,16 +3269,14 @@ void handle_fs_write_file_async(engine::Core *engine, yyjson_val *arguments,
             target_exists = std::filesystem::exists(target, ec);
             if (ec)
             {
-                std::error_code remove_ec;
-                std::filesystem::remove(temp_path, remove_ec);
-                cb(serialize_error(std::format(
-                    "unable to inspect {}: {}", target.string(), ec.message())));
+                cleanup_temp();
+                cb(serialize_error(std::format("unable to inspect {}: {}",
+                                               target.string(), ec.message())));
                 return;
             }
             if (fail_if_exists && target_exists)
             {
-                std::error_code remove_ec;
-                std::filesystem::remove(temp_path, remove_ec);
+                cleanup_temp();
                 cb(serialize_error("file exists"));
                 return;
             }
@@ -3129,8 +3287,7 @@ void handle_fs_write_file_async(engine::Core *engine, yyjson_val *arguments,
                 auto temp_w = utf8_to_wide(temp_path.string());
                 if (target_w.empty() || temp_w.empty())
                 {
-                    std::error_code remove_ec;
-                    std::filesystem::remove(temp_path, remove_ec);
+                    cleanup_temp();
                     cb(serialize_error("invalid path"));
                     return;
                 }
@@ -3139,12 +3296,11 @@ void handle_fs_write_file_async(engine::Core *engine, yyjson_val *arguments,
                                   nullptr))
                 {
                     auto last = GetLastError();
-                    std::error_code replace_ec(
-                        static_cast<int>(last), std::system_category());
-                    std::error_code remove_ec;
-                    std::filesystem::remove(temp_path, remove_ec);
-                    cb(serialize_error(std::format(
-                        "unable to replace file: {}", replace_ec.message())));
+                    std::error_code replace_ec(static_cast<int>(last),
+                                               std::system_category());
+                    cleanup_temp();
+                    cb(serialize_error(std::format("unable to replace file: {}",
+                                                   replace_ec.message())));
                     return;
                 }
             }
@@ -3160,6 +3316,7 @@ void handle_fs_write_file_async(engine::Core *engine, yyjson_val *arguments,
             }
             std::filesystem::rename(temp_path, target);
 #endif
+            temp_path.clear();
             cb(serialize_fs_write_result(
                 static_cast<std::uint64_t>(bytes.size())));
         }
@@ -3307,6 +3464,68 @@ void handle_system_reveal_async(engine::Core *engine, yyjson_val *arguments,
         cb(serialize_error("path required"));
         return;
     }
+#if defined(_WIN32)
+    try
+    {
+        sta_worker().post(StaWorker::QueuedWork{
+            [engine, target = std::move(target), cb = std::move(cb)]() mutable
+            {
+                bool success = false;
+                std::string message;
+                auto const path_str = target.string();
+                try
+                {
+                    if (!sta_worker().com_ready())
+                    {
+                        cb(serialize_error("native dialogs not supported"));
+                        return;
+                    }
+
+                    success = reveal_in_file_manager(target);
+                    if (!success)
+                    {
+                        message = "unable to reveal path";
+                        TT_LOG_INFO(
+                            "system-reveal: helper reported failure for {}",
+                            path_str);
+                    }
+                    else
+                    {
+                        TT_LOG_INFO("system-reveal: succeeded for {}",
+                                    path_str);
+                    }
+                }
+                catch (std::exception const &ex)
+                {
+                    message = ex.what();
+                    TT_LOG_INFO("system-reveal: exception for {}: {}", path_str,
+                                message);
+                }
+                catch (...)
+                {
+                    message = "unknown error";
+                    TT_LOG_INFO("system-reveal: unknown exception for {}",
+                                path_str);
+                }
+                auto response =
+                    serialize_system_action("system-reveal", success, message);
+                if (engine)
+                {
+                    engine->submit_io_task(
+                        [cb = std::move(cb),
+                         response = std::move(response)]() mutable
+                        { cb(std::move(response)); });
+                    return;
+                }
+                cb(std::move(response));
+            },
+            [] {}});
+    }
+    catch (std::exception const &)
+    {
+        cb(serialize_error("system-reveal unavailable"));
+    }
+#else
     engine->submit_io_task(
         [target = std::move(target), cb = std::move(cb)]() mutable
         {
@@ -3348,10 +3567,11 @@ void handle_system_reveal_async(engine::Core *engine, yyjson_val *arguments,
             }
             cb(serialize_system_action("system-reveal", success, message));
         });
+#endif
 }
 
 void handle_system_open_async(engine::Core *engine, yyjson_val *arguments,
-                               ResponseCallback cb)
+                              ResponseCallback cb)
 {
     if (!engine)
     {
@@ -3369,6 +3589,66 @@ void handle_system_open_async(engine::Core *engine, yyjson_val *arguments,
         cb(serialize_error("path required"));
         return;
     }
+#if defined(_WIN32)
+    try
+    {
+        sta_worker().post(StaWorker::QueuedWork{
+            [engine, target = std::move(target), cb = std::move(cb)]() mutable
+            {
+                bool success = false;
+                std::string message;
+                auto const path_str = target.string();
+                try
+                {
+                    if (!sta_worker().com_ready())
+                    {
+                        cb(serialize_error("native dialogs not supported"));
+                        return;
+                    }
+                    success = open_with_default_app(target);
+                    if (!success)
+                    {
+                        message = "unable to open path";
+                        TT_LOG_INFO(
+                            "system-open: helper reported failure for {}",
+                            path_str);
+                    }
+                    else
+                    {
+                        TT_LOG_INFO("system-open: succeeded for {}", path_str);
+                    }
+                }
+                catch (std::exception const &ex)
+                {
+                    message = ex.what();
+                    TT_LOG_INFO("system-open: exception for {}: {}", path_str,
+                                message);
+                }
+                catch (...)
+                {
+                    message = "unknown error";
+                    TT_LOG_INFO("system-open: unknown exception for {}",
+                                path_str);
+                }
+                auto response =
+                    serialize_system_action("system-open", success, message);
+                if (engine)
+                {
+                    engine->submit_io_task(
+                        [cb = std::move(cb),
+                         response = std::move(response)]() mutable
+                        { cb(std::move(response)); });
+                    return;
+                }
+                cb(std::move(response));
+            },
+            [] {}});
+    }
+    catch (std::exception const &)
+    {
+        cb(serialize_error("system-open unavailable"));
+    }
+#else
     engine->submit_io_task(
         [target = std::move(target), cb = std::move(cb)]() mutable
         {
@@ -3407,24 +3687,37 @@ void handle_system_open_async(engine::Core *engine, yyjson_val *arguments,
                 TT_LOG_INFO("system-open: unknown exception for {}", path_str);
             }
             cb(serialize_system_action("system-open", success, message));
-    });
+        });
+#endif
 }
 
-void handle_dialog_open_file(yyjson_val *arguments, ResponseCallback cb)
+void handle_dialog_open_file(yyjson_val *arguments,
+                             ResponsePoster post_response, ResponseCallback cb)
 {
 #if defined(_WIN32)
+    auto post_cb = [post = std::move(post_response),
+                    cb = std::move(cb)](std::string response) mutable
+    {
+        if (post)
+        {
+            post([cb = std::move(cb), response = std::move(response)]() mutable
+                 { cb(std::move(response)); });
+            return;
+        }
+        cb(std::move(response));
+    };
+
     std::string parse_error;
     auto filters = parse_dialog_filters(arguments, parse_error);
     if (!filters)
     {
-        cb(serialize_error(parse_error.empty() ? "invalid filters"
-                                              : parse_error));
+        post_cb(serialize_error(parse_error.empty() ? "invalid filters"
+                                                    : parse_error));
         return;
     }
     OpenDialogOptions options;
     options.filters = std::move(*filters);
-    if (auto *title = arguments ? yyjson_obj_get(arguments, "title")
-                                : nullptr;
+    if (auto *title = arguments ? yyjson_obj_get(arguments, "title") : nullptr;
         title && yyjson_is_str(title))
     {
         options.title = utf8_to_wide(yyjson_get_str(title));
@@ -3433,53 +3726,75 @@ void handle_dialog_open_file(yyjson_val *arguments, ResponseCallback cb)
         bool_value(yyjson_obj_get(arguments, "allowMultiple"));
     if (!try_acquire_dialog_slot())
     {
-        cb(serialize_error("dialog already active"));
+        post_cb(serialize_error("dialog already active"));
         return;
     }
     try
     {
-        std::thread([options = std::move(options), cb = std::move(cb)]() mutable
-                    {
-                        DialogSlotGuard guard;
-                        ScopedCOM com;
-                        if (!com.initialized())
-                        {
-                            cb(serialize_error("native dialogs not supported"));
-                            return;
-                        }
-                        if (!interactive_session_available())
-                        {
-                            cb(serialize_error("interactive session required"));
-                            return;
-                        }
-                        auto outcome = g_dialog_open_handler(options);
-                        if (!outcome.error.empty())
-                        {
-                            cb(serialize_error(outcome.error));
-                            return;
-                        }
-                        if (outcome.cancelled)
-                        {
-                            cb(serialize_dialog_paths({}));
-                            return;
-                        }
-                        cb(serialize_dialog_paths(outcome.paths));
-                    })
-            .detach();
+        sta_worker().post(StaWorker::QueuedWork{
+            [options = std::move(options),
+             post_cb = std::move(post_cb)]() mutable
+            {
+                DialogSlotGuard guard;
+                if (!sta_worker().com_ready())
+                {
+                    post_cb(serialize_error("native dialogs not supported"));
+                    return;
+                }
+                if (!interactive_session_available())
+                {
+                    post_cb(serialize_error("interactive session required"));
+                    return;
+                }
+
+                DialogOpenHandler handler;
+                {
+                    std::lock_guard<std::mutex> lock(g_dialog_handler_mutex);
+                    handler = g_dialog_open_handler;
+                }
+                auto outcome = handler(options);
+                if (!outcome.error.empty())
+                {
+                    post_cb(serialize_error(outcome.error));
+                    return;
+                }
+                if (outcome.cancelled)
+                {
+                    post_cb(serialize_dialog_paths({}));
+                    return;
+                }
+                post_cb(serialize_dialog_paths(outcome.paths));
+            },
+            [] { release_dialog_slot(); }});
     }
-    catch (std::system_error const &)
+    catch (std::exception const &)
     {
         release_dialog_slot();
-        cb(serialize_error("dialog unavailable"));
+        post_cb(serialize_error("dialog unavailable"));
     }
 #else
+    (void)post_response;
     cb(serialize_error("native dialogs not supported"));
 #endif
 }
 
-void handle_dialog_select_folder(yyjson_val *arguments, ResponseCallback cb)
+void handle_dialog_select_folder(yyjson_val *arguments,
+                                 ResponsePoster post_response,
+                                 ResponseCallback cb)
 {
 #if defined(_WIN32)
+    auto post_cb = [post = std::move(post_response),
+                    cb = std::move(cb)](std::string response) mutable
+    {
+        if (post)
+        {
+            post([cb = std::move(cb), response = std::move(response)]() mutable
+                 { cb(std::move(response)); });
+            return;
+        }
+        cb(std::move(response));
+    };
+
     FolderDialogOptions options;
     if (auto *title = arguments ? yyjson_obj_get(arguments, "title") : nullptr;
         title && yyjson_is_str(title))
@@ -3488,117 +3803,145 @@ void handle_dialog_select_folder(yyjson_val *arguments, ResponseCallback cb)
     }
     if (!try_acquire_dialog_slot())
     {
-        cb(serialize_error("dialog already active"));
+        post_cb(serialize_error("dialog already active"));
         return;
     }
     try
     {
-        std::thread([options = std::move(options), cb = std::move(cb)]() mutable
-                    {
-                        DialogSlotGuard guard;
-                        ScopedCOM com;
-                        if (!com.initialized())
-                        {
-                            cb(serialize_error("native dialogs not supported"));
-                            return;
-                        }
-                        if (!interactive_session_available())
-                        {
-                            cb(serialize_error("interactive session required"));
-                            return;
-                        }
-                        auto outcome = g_dialog_folder_handler(options);
-                        if (!outcome.error.empty())
-                        {
-                            cb(serialize_error(outcome.error));
-                            return;
-                        }
-                        if (outcome.cancelled)
-                        {
-                            cb(serialize_dialog_path(std::nullopt));
-                            return;
-                        }
-                        cb(serialize_dialog_path(outcome.path));
-                    })
-            .detach();
+        sta_worker().post(StaWorker::QueuedWork{
+            [options = std::move(options),
+             post_cb = std::move(post_cb)]() mutable
+            {
+                DialogSlotGuard guard;
+                if (!sta_worker().com_ready())
+                {
+                    post_cb(serialize_error("native dialogs not supported"));
+                    return;
+                }
+                if (!interactive_session_available())
+                {
+                    post_cb(serialize_error("interactive session required"));
+                    return;
+                }
+
+                DialogFolderHandler handler;
+                {
+                    std::lock_guard<std::mutex> lock(g_dialog_handler_mutex);
+                    handler = g_dialog_folder_handler;
+                }
+                auto outcome = handler(options);
+                if (!outcome.error.empty())
+                {
+                    post_cb(serialize_error(outcome.error));
+                    return;
+                }
+                if (outcome.cancelled)
+                {
+                    post_cb(serialize_dialog_path(std::nullopt));
+                    return;
+                }
+                post_cb(serialize_dialog_path(outcome.path));
+            },
+            [] { release_dialog_slot(); }});
     }
-    catch (std::system_error const &)
+    catch (std::exception const &)
     {
         release_dialog_slot();
-        cb(serialize_error("dialog unavailable"));
+        post_cb(serialize_error("dialog unavailable"));
     }
 #else
+    (void)post_response;
     cb(serialize_error("native dialogs not supported"));
 #endif
 }
 
-void handle_dialog_save_file(yyjson_val *arguments, ResponseCallback cb)
+void handle_dialog_save_file(yyjson_val *arguments,
+                             ResponsePoster post_response, ResponseCallback cb)
 {
 #if defined(_WIN32)
+    auto post_cb = [post = std::move(post_response),
+                    cb = std::move(cb)](std::string response) mutable
+    {
+        if (post)
+        {
+            post([cb = std::move(cb), response = std::move(response)]() mutable
+                 { cb(std::move(response)); });
+            return;
+        }
+        cb(std::move(response));
+    };
+
     std::string parse_error;
     auto filters = parse_dialog_filters(arguments, parse_error);
     if (!filters)
     {
-        cb(serialize_error(parse_error.empty() ? "invalid filters"
-                                              : parse_error));
+        post_cb(serialize_error(parse_error.empty() ? "invalid filters"
+                                                    : parse_error));
         return;
     }
     SaveDialogOptions options;
     options.filters = std::move(*filters);
-    if (auto *title = arguments ? yyjson_obj_get(arguments, "title")
-                                : nullptr;
+    if (auto *title = arguments ? yyjson_obj_get(arguments, "title") : nullptr;
         title && yyjson_is_str(title))
     {
         options.title = utf8_to_wide(yyjson_get_str(title));
     }
-    if (auto *name = arguments ? yyjson_obj_get(arguments, "defaultName")
-                               : nullptr;
+    if (auto *name =
+            arguments ? yyjson_obj_get(arguments, "defaultName") : nullptr;
         name && yyjson_is_str(name))
     {
         options.default_name = utf8_to_wide(yyjson_get_str(name));
     }
     if (!try_acquire_dialog_slot())
     {
-        cb(serialize_error("dialog already active"));
+        post_cb(serialize_error("dialog already active"));
         return;
     }
     try
     {
-        std::thread([options = std::move(options), cb = std::move(cb)]() mutable
-                    {
-                        DialogSlotGuard guard;
-                        ScopedCOM com;
-                        if (!com.initialized())
-                        {
-                            cb(serialize_error("native dialogs not supported"));
-                            return;
-                        }
-                        if (!interactive_session_available())
-                        {
-                            cb(serialize_error("interactive session required"));
-                            return;
-                        }
-                        auto outcome = g_dialog_save_handler(options);
-                        if (!outcome.error.empty())
-                        {
-                            cb(serialize_error(outcome.error));
-                            return;
-                        }
-                        if (outcome.cancelled)
-                        {
-                            cb(serialize_dialog_path(std::nullopt));
-                            return;
-                        }
-                        cb(serialize_dialog_path(outcome.path));
-                    })
-            .detach();
+        sta_worker().post(StaWorker::QueuedWork{
+            [options = std::move(options),
+             post_cb = std::move(post_cb)]() mutable
+            {
+                DialogSlotGuard guard;
+                if (!sta_worker().com_ready())
+                {
+                    post_cb(serialize_error("native dialogs not supported"));
+                    return;
+                }
+                if (!interactive_session_available())
+                {
+                    post_cb(serialize_error("interactive session required"));
+                    return;
+                }
+
+                DialogSaveHandler handler;
+                {
+                    std::lock_guard<std::mutex> lock(g_dialog_handler_mutex);
+                    handler = g_dialog_save_handler;
+                }
+                auto outcome = handler(options);
+                if (!outcome.error.empty())
+                {
+                    post_cb(serialize_error(outcome.error));
+                    return;
+                }
+                if (outcome.cancelled)
+                {
+                    post_cb(serialize_dialog_path(std::nullopt));
+                    return;
+                }
+                post_cb(serialize_dialog_path(outcome.path));
+            },
+            [] { release_dialog_slot(); }});
     }
-    catch (std::system_error const &)
+    catch (std::exception const &)
     {
         release_dialog_slot();
-        cb(serialize_error("dialog unavailable"));
+        post_cb(serialize_error("dialog unavailable"));
     }
 #else
+    (void)post_response;
     cb(serialize_error("native dialogs not supported"));
 #endif
 }
@@ -3613,7 +3956,8 @@ std::string handle_system_autorun_status(engine::Core *engine)
     auto command = compose_autorun_command();
     if (!command.empty())
     {
-        if (auto existing = read_autorun_value(); existing && *existing == command)
+        if (auto existing = read_autorun_value();
+            existing && *existing == command)
         {
             enabled = true;
         }
@@ -3640,7 +3984,8 @@ std::string handle_system_autorun_enable(engine::Core *engine,
     }
     if (scope != "user")
     {
-        TT_LOG_INFO("system-autorun-enable ignoring unsupported scope {}", scope);
+        TT_LOG_INFO("system-autorun-enable ignoring unsupported scope {}",
+                    scope);
     }
     auto command = compose_autorun_command();
     if (command.empty())
@@ -3876,6 +4221,9 @@ std::string handle_app_shutdown(engine::Core *engine)
     {
         engine->stop();
     }
+#if defined(_WIN32)
+    shutdown_sta_worker();
+#endif
     tt::runtime::request_shutdown();
     return serialize_success();
 }
@@ -4267,8 +4615,214 @@ std::string handle_group_set()
 
 } // namespace
 
-Dispatcher::Dispatcher(engine::Core *engine, std::string rpc_bind)
-    : engine_(engine), rpc_bind_(std::move(rpc_bind))
+namespace
+{
+#if defined(_WIN32)
+LONG set_reg_sz_value(HKEY root, wchar_t const *subkey, wchar_t const *name,
+                      std::wstring const &value)
+{
+    HKEY key = nullptr;
+    auto status =
+        RegCreateKeyExW(root, subkey, 0, nullptr, REG_OPTION_NON_VOLATILE,
+                        KEY_SET_VALUE, nullptr, &key, nullptr);
+    if (status != ERROR_SUCCESS)
+    {
+        return status;
+    }
+
+    auto value_name = (name && name[0] != L'\0') ? name : nullptr;
+    DWORD size = static_cast<DWORD>((value.size() + 1ull) * sizeof(wchar_t));
+    status =
+        RegSetValueExW(key, value_name, 0, REG_SZ,
+                       reinterpret_cast<BYTE const *>(value.c_str()), size);
+    RegCloseKey(key);
+    return status;
+}
+
+SystemHandlerResult register_windows_handler_cli()
+{
+    SystemHandlerResult result;
+    auto command = compose_handler_command();
+    if (command.empty())
+    {
+        result.message = "unable to determine executable path";
+        return result;
+    }
+
+    auto apply = [&](wchar_t const *subkey, wchar_t const *name,
+                     std::wstring const &value) -> LONG
+    { return set_reg_sz_value(HKEY_CURRENT_USER, subkey, name, value); };
+
+    auto fail = [&](char const *prefix, LONG code) -> SystemHandlerResult
+    {
+        result.permission_denied = (code == ERROR_ACCESS_DENIED);
+        result.message =
+            std::format("{}: {}", prefix, format_win_error_message(code));
+        return result;
+    };
+
+    if (auto status = apply(L"Software\\Classes\\magnet", nullptr,
+                            L"URL:magnet Protocol");
+        status != ERROR_SUCCESS)
+    {
+        return fail("magnet registration failed", status);
+    }
+    if (auto status = apply(L"Software\\Classes\\magnet", L"URL Protocol", L"");
+        status != ERROR_SUCCESS)
+    {
+        return fail("magnet registration failed", status);
+    }
+    if (auto status = apply(L"Software\\Classes\\magnet\\shell\\open\\command",
+                            nullptr, command);
+        status != ERROR_SUCCESS)
+    {
+        return fail("magnet handler registration failed", status);
+    }
+    if (auto status = apply(L"Software\\Classes\\.torrent", nullptr,
+                            L"TinyTorrent.torrent");
+        status != ERROR_SUCCESS)
+    {
+        return fail("torrent extension registration failed", status);
+    }
+    if (auto status = apply(
+            L"Software\\Classes\\TinyTorrent.torrent\\shell\\open\\command",
+            nullptr, command);
+        status != ERROR_SUCCESS)
+    {
+        return fail("torrent handler registration failed", status);
+    }
+
+    SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, nullptr, nullptr);
+    result.success = true;
+    result.message = "system handler registered";
+    return result;
+}
+#endif
+
+} // namespace
+
+HandlerActionRequest parse_handler_action(int argc, char *argv[])
+{
+    HandlerActionRequest request{};
+    if (argc <= 1 || argv == nullptr)
+    {
+        return request;
+    }
+
+    for (int i = 1; i < argc; ++i)
+    {
+        if (argv[i] == nullptr)
+        {
+            continue;
+        }
+        std::string_view arg(argv[i]);
+        auto lower = to_lower_copy(arg);
+
+        if (lower == "--already-elevated" || lower == "--elevated")
+        {
+            request.already_elevated = true;
+            continue;
+        }
+
+        if (lower == "--system-handler-enable" || lower == "--handler-enable" ||
+            lower == "--register-handler" || lower == "--register-handlers")
+        {
+            request.action = HandlerAction::Enable;
+            continue;
+        }
+
+        if (lower == "--system-handler-disable" ||
+            lower == "--handler-disable" || lower == "--unregister-handler" ||
+            lower == "--unregister-handlers")
+        {
+            request.action = HandlerAction::Disable;
+            continue;
+        }
+    }
+
+    return request;
+}
+
+bool run_handler_action_elevated(HandlerAction action)
+{
+#if !defined(_WIN32)
+    (void)action;
+    return false;
+#else
+    auto exe_path = tt::utils::executable_path();
+    if (!exe_path || exe_path->empty())
+    {
+        return false;
+    }
+
+    std::wstring args;
+    switch (action)
+    {
+    case HandlerAction::Enable:
+        args = L"--system-handler-enable";
+        break;
+    case HandlerAction::Disable:
+        args = L"--system-handler-disable";
+        break;
+    case HandlerAction::None:
+    default:
+        return false;
+    }
+
+    args += L" --already-elevated";
+
+    auto rc = reinterpret_cast<std::intptr_t>(
+        ShellExecuteW(nullptr, L"runas", exe_path->c_str(), args.c_str(),
+                      nullptr, SW_SHOWNORMAL));
+    return rc > 32;
+#endif
+}
+
+SystemHandlerResult perform_handler_action_impl(HandlerAction action,
+                                                bool allow_elevation,
+                                                bool already_elevated)
+{
+    SystemHandlerResult result;
+    if (action == HandlerAction::None)
+    {
+        result.success = true;
+        return result;
+    }
+
+#if defined(_WIN32)
+    if (action == HandlerAction::Enable)
+    {
+        result = register_windows_handler_cli();
+    }
+    else if (action == HandlerAction::Disable)
+    {
+        result = unregister_windows_handler();
+    }
+#else
+    (void)action;
+    result.message = "system-handler unsupported";
+#endif
+
+    if (result.permission_denied && allow_elevation && !already_elevated)
+    {
+        result.requires_elevation = true;
+        if (run_handler_action_elevated(action))
+        {
+            result.success = true;
+            if (result.message.empty())
+            {
+                result.message = "elevation requested";
+            }
+        }
+    }
+
+    return result;
+}
+
+Dispatcher::Dispatcher(engine::Core *engine, std::string rpc_bind,
+                       ResponsePoster post_response)
+    : engine_(engine), rpc_bind_(std::move(rpc_bind)),
+      post_response_(std::move(post_response))
 {
     register_handlers();
 }
@@ -4293,12 +4847,12 @@ void Dispatcher::register_handlers()
              [this](yyjson_val *) { return handle_session_test(engine_); });
     add_sync("session-stats",
              [this](yyjson_val *) { return handle_session_stats(engine_); });
-    add_sync("session-tray-status",
-             [this](yyjson_val *) { return handle_session_tray_status(engine_); });
-    add_sync("session-pause-all",
-             [this](yyjson_val *) { return handle_session_pause_all(engine_); });
-    add_sync("session-resume-all",
-             [this](yyjson_val *) { return handle_session_resume_all(engine_); });
+    add_sync("session-tray-status", [this](yyjson_val *)
+             { return handle_session_tray_status(engine_); });
+    add_sync("session-pause-all", [this](yyjson_val *)
+             { return handle_session_pause_all(engine_); });
+    add_sync("session-resume-all", [this](yyjson_val *)
+             { return handle_session_resume_all(engine_); });
     add_sync("session-close",
              [this](yyjson_val *) { return handle_session_close(engine_); });
     add_sync("blocklist-update",
@@ -4307,44 +4861,46 @@ void Dispatcher::register_handlers()
               { handle_fs_browse_async(engine_, arguments, std::move(cb)); });
     add_async("fs-space", [this](yyjson_val *arguments, ResponseCallback cb)
               { handle_fs_space_async(engine_, arguments, std::move(cb)); });
-    add_async("fs-create-dir",
-              [this](yyjson_val *arguments, ResponseCallback cb)
-              { handle_fs_create_dir_async(engine_, arguments, std::move(cb)); });
-    add_async("fs-write-file",
-              [this](yyjson_val *arguments, ResponseCallback cb)
-              { handle_fs_write_file_async(engine_, arguments, std::move(cb)); });
+    add_async(
+        "fs-create-dir", [this](yyjson_val *arguments, ResponseCallback cb)
+        { handle_fs_create_dir_async(engine_, arguments, std::move(cb)); });
+    add_async(
+        "fs-write-file", [this](yyjson_val *arguments, ResponseCallback cb)
+        { handle_fs_write_file_async(engine_, arguments, std::move(cb)); });
     add_async(
         "system-reveal", [this](yyjson_val *arguments, ResponseCallback cb)
         { handle_system_reveal_async(engine_, arguments, std::move(cb)); });
     add_async("system-open", [this](yyjson_val *arguments, ResponseCallback cb)
               { handle_system_open_async(engine_, arguments, std::move(cb)); });
-    add_async("dialog-open-file",
-              [](yyjson_val *arguments, ResponseCallback cb)
-              { handle_dialog_open_file(arguments, std::move(cb)); });
+    add_async(
+        "dialog-open-file", [this](yyjson_val *arguments, ResponseCallback cb)
+        { handle_dialog_open_file(arguments, post_response_, std::move(cb)); });
     add_async("dialog-select-folder",
-              [](yyjson_val *arguments, ResponseCallback cb)
-              { handle_dialog_select_folder(arguments, std::move(cb)); });
-    add_async("dialog-save-file",
-              [](yyjson_val *arguments, ResponseCallback cb)
-              { handle_dialog_save_file(arguments, std::move(cb)); });
+              [this](yyjson_val *arguments, ResponseCallback cb)
+              {
+                  handle_dialog_select_folder(arguments, post_response_,
+                                              std::move(cb));
+              });
+    add_async(
+        "dialog-save-file", [this](yyjson_val *arguments, ResponseCallback cb)
+        { handle_dialog_save_file(arguments, post_response_, std::move(cb)); });
     add_async(
         "system-install", [this](yyjson_val *arguments, ResponseCallback cb)
         { handle_system_install_async(engine_, arguments, std::move(cb)); });
     add_sync("system-register-handler",
              [](yyjson_val *) { return handle_system_register_handler(); });
-    add_sync("system-handler-status",
-             [this](yyjson_val *) { return handle_system_handler_status(engine_); });
-    add_sync("system-handler-enable",
-             [this](yyjson_val *) { return handle_system_handler_enable(engine_); });
-    add_sync("system-handler-disable",
-             [this](yyjson_val *) { return handle_system_handler_disable(engine_); });
-    add_sync("system-autorun-status",
-             [this](yyjson_val *) { return handle_system_autorun_status(engine_); });
-    add_sync("system-autorun-enable",
-             [this](yyjson_val *arguments)
+    add_sync("system-handler-status", [this](yyjson_val *)
+             { return handle_system_handler_status(engine_); });
+    add_sync("system-handler-enable", [this](yyjson_val *)
+             { return handle_system_handler_enable(engine_); });
+    add_sync("system-handler-disable", [this](yyjson_val *)
+             { return handle_system_handler_disable(engine_); });
+    add_sync("system-autorun-status", [this](yyjson_val *)
+             { return handle_system_autorun_status(engine_); });
+    add_sync("system-autorun-enable", [this](yyjson_val *arguments)
              { return handle_system_autorun_enable(engine_, arguments); });
-    add_sync("system-autorun-disable",
-             [this](yyjson_val *) { return handle_system_autorun_disable(engine_); });
+    add_sync("system-autorun-disable", [this](yyjson_val *)
+             { return handle_system_autorun_disable(engine_); });
     add_sync("app-shutdown",
              [this](yyjson_val *) { return handle_app_shutdown(engine_); });
     add_async("free-space", [this](yyjson_val *arguments, ResponseCallback cb)
@@ -4401,30 +4957,44 @@ void Dispatcher::register_handlers()
 
 void Dispatcher::dispatch(std::string_view payload, ResponseCallback cb)
 {
+    auto safe_cb = [post = post_response_,
+                    cb = std::move(cb)](std::string response) mutable
+    {
+        if (post)
+        {
+            auto cb_copy = cb;
+            post([cb = std::move(cb_copy),
+                  response = std::move(response)]() mutable
+                 { cb(std::move(response)); });
+            return;
+        }
+        cb(std::move(response));
+    };
+
     if (payload.empty())
     {
-        cb(serialize_error("empty RPC payload"));
+        safe_cb(serialize_error("empty RPC payload"));
         return;
     }
 
     auto doc = tt::json::Document::parse(payload);
     if (!doc.is_valid())
     {
-        cb(serialize_error("invalid JSON"));
+        safe_cb(serialize_error("invalid JSON"));
         return;
     }
 
     yyjson_val *root = doc.root();
     if (root == nullptr || !yyjson_is_obj(root))
     {
-        cb(serialize_error("expected JSON object"));
+        safe_cb(serialize_error("expected JSON object"));
         return;
     }
 
     yyjson_val *method_value = yyjson_obj_get(root, "method");
     if (method_value == nullptr || !yyjson_is_str(method_value))
     {
-        cb(serialize_error("missing method"));
+        safe_cb(serialize_error("missing method"));
         return;
     }
 
@@ -4435,22 +5005,22 @@ void Dispatcher::dispatch(std::string_view payload, ResponseCallback cb)
     auto handler_it = handlers_.find(method);
     if (handler_it == handlers_.end())
     {
-        cb(serialize_error("unsupported method"));
+        safe_cb(serialize_error("unsupported method"));
         return;
     }
     try
     {
-        handler_it->second(arguments, std::move(cb));
+        handler_it->second(arguments, std::move(safe_cb));
     }
     catch (std::exception const &ex)
     {
         TT_LOG_INFO("RPC handler failed for method {}: {}", method, ex.what());
-        cb(serialize_error("internal error", ex.what()));
+        safe_cb(serialize_error("internal error", ex.what()));
     }
     catch (...)
     {
         TT_LOG_INFO("RPC handler failed for method {}", method);
-        cb(serialize_error("internal error"));
+        safe_cb(serialize_error("internal error"));
     }
 }
 
@@ -4459,6 +5029,7 @@ namespace test
 {
 void override_dialog_open_handler(DialogOpenHandler handler)
 {
+    std::lock_guard<std::mutex> lock(g_dialog_handler_mutex);
     if (handler)
     {
         g_dialog_open_handler = std::move(handler);
@@ -4469,6 +5040,7 @@ void override_dialog_open_handler(DialogOpenHandler handler)
 
 void override_dialog_folder_handler(DialogFolderHandler handler)
 {
+    std::lock_guard<std::mutex> lock(g_dialog_handler_mutex);
     if (handler)
     {
         g_dialog_folder_handler = std::move(handler);
@@ -4479,6 +5051,7 @@ void override_dialog_folder_handler(DialogFolderHandler handler)
 
 void override_dialog_save_handler(DialogSaveHandler handler)
 {
+    std::lock_guard<std::mutex> lock(g_dialog_handler_mutex);
     if (handler)
     {
         g_dialog_save_handler = std::move(handler);
@@ -4489,6 +5062,7 @@ void override_dialog_save_handler(DialogSaveHandler handler)
 
 void reset_dialog_handlers()
 {
+    std::lock_guard<std::mutex> lock(g_dialog_handler_mutex);
     g_dialog_open_handler = show_file_open_dialog;
     g_dialog_folder_handler = show_folder_dialog;
     g_dialog_save_handler = show_save_file_dialog;

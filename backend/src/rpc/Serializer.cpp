@@ -15,6 +15,7 @@
 
 #include "utils/Base64.hpp"
 #include "utils/Endpoint.hpp"
+#include "utils/FS.hpp"
 #include "utils/Json.hpp"
 #include "utils/Version.hpp"
 
@@ -35,6 +36,8 @@ char const *message_for_status(engine::Core::AddTorrentStatus status)
         return "torrent queued";
     case engine::Core::AddTorrentStatus::InvalidUri:
         return "invalid magnet URI";
+    case engine::Core::AddTorrentStatus::InvalidPath:
+        return "unable to create save path";
     }
     return "unknown status";
 }
@@ -50,6 +53,16 @@ std::string to_utf8(std::filesystem::path const &path)
 {
     auto encoded = path.generic_u8string();
     return std::string(encoded.begin(), encoded.end());
+}
+
+std::filesystem::path
+download_path_or_default(std::filesystem::path const &path)
+{
+    if (!path.empty())
+    {
+        return path;
+    }
+    return tt::utils::data_root() / "downloads";
 }
 
 void add_session_stats(yyjson_mut_doc *doc, yyjson_mut_val *session,
@@ -397,14 +410,25 @@ std::string serialize_capabilities()
     yyjson_mut_obj_add_str(native, arguments, "websocket-path", "/ws");
     yyjson_mut_obj_add_str(native, arguments, "platform", "win32");
 
-    std::vector<std::string> features = {
-        "fs-browse",            "fs-create-dir",        "fs-space",
-        "fs-write-file",        "system-integration",   "system-install",
-        "system-autorun",       "system-reveal",        "system-open",
-        "system-register-handler", "system-handler-status",
-        "system-handler-toggle", "session-tray-status", "session-pause-all",
-        "session-resume-all",   "traffic-history",      "sequential-download",
-        "proxy-configuration",  "labels"};
+    std::vector<std::string> features = {"fs-browse",
+                                         "fs-create-dir",
+                                         "fs-space",
+                                         "fs-write-file",
+                                         "system-integration",
+                                         "system-install",
+                                         "system-autorun",
+                                         "system-reveal",
+                                         "system-open",
+                                         "system-register-handler",
+                                         "system-handler-status",
+                                         "system-handler-toggle",
+                                         "session-tray-status",
+                                         "session-pause-all",
+                                         "session-resume-all",
+                                         "traffic-history",
+                                         "sequential-download",
+                                         "proxy-configuration",
+                                         "labels"};
 #if defined(_WIN32)
     features.push_back("native-dialogs");
 #endif
@@ -441,7 +465,8 @@ std::string serialize_session_settings(
                            tt::version::kDisplayVersion);
     yyjson_mut_obj_add_uint(native, arguments, "rpc-version", 17);
     yyjson_mut_obj_add_uint(native, arguments, "rpc-version-min", 1);
-    auto download_dir = to_utf8(settings.download_path);
+    auto download_dir =
+        to_utf8(download_path_or_default(settings.download_path));
     yyjson_mut_obj_add_str(native, arguments, "download-dir",
                            download_dir.c_str());
     yyjson_mut_obj_add_sint(native, arguments, "speed-limit-down",
@@ -541,8 +566,8 @@ std::string serialize_session_settings(
                             settings.proxy_peer_connections);
     if (!settings.proxy_hostname.empty() && settings.proxy_port > 0)
     {
-        tt::net::HostPort parts{
-            settings.proxy_hostname, std::to_string(settings.proxy_port)};
+        tt::net::HostPort parts{settings.proxy_hostname,
+                                std::to_string(settings.proxy_port)};
         auto formatted = tt::net::format_host_port(parts);
         if (!formatted.empty())
         {
@@ -868,11 +893,11 @@ serialize_torrent_detail(std::vector<engine::TorrentDetail> const &details)
                                 detail.piece_count);
         yyjson_mut_obj_add_uint(native, entry, "pieceSize", detail.piece_size);
 
-        auto const state_bits = encode_piece_bitfield(detail.piece_states);
+        auto state_bits = encode_piece_bitfield(detail.piece_states);
         yyjson_mut_obj_add_str(native, entry, "pieceStates",
                                state_bits.c_str());
 
-        auto const availability_payload =
+        auto availability_payload =
             encode_piece_availability(detail.piece_availability);
         yyjson_mut_obj_add_str(native, entry, "pieceAvailability",
                                availability_payload.c_str());
@@ -1288,7 +1313,8 @@ std::string serialize_dialog_path(std::optional<std::string> const &path)
 }
 
 std::string serialize_system_action(std::string const &action, bool success,
-                                    std::string const &message)
+                                    std::string const &message,
+                                    bool requires_elevation)
 {
     tt::json::MutableDocument doc;
     if (!doc.is_valid())
@@ -1306,6 +1332,8 @@ std::string serialize_system_action(std::string const &action, bool success,
     yyjson_mut_obj_add_val(native, root, "arguments", arguments);
     yyjson_mut_obj_add_str(native, arguments, "action", action.c_str());
     yyjson_mut_obj_add_bool(native, arguments, "success", success);
+    yyjson_mut_obj_add_bool(native, arguments, "requiresElevation",
+                            requires_elevation);
     if (!message.empty())
     {
         yyjson_mut_obj_add_str(native, arguments, "message", message.c_str());
@@ -1315,7 +1343,7 @@ std::string serialize_system_action(std::string const &action, bool success,
 }
 
 std::string serialize_autorun_status(bool enabled, bool supported,
-                                    bool requires_elevation)
+                                     bool requires_elevation)
 {
     tt::json::MutableDocument doc;
     if (!doc.is_valid())

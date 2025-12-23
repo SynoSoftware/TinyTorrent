@@ -45,7 +45,8 @@ import { type CSSProperties, type ReactNode } from "react";
 import {
     TABLE_LAYOUT,
     ICON_STROKE_WIDTH_DENSE,
-    LAYOUT_METRICS,
+    STATUS_CHIP_GAP,
+    STATUS_CHIP_RADIUS,
 } from "../../../config/logic";
 import { GLASS_MENU_SURFACE } from "../../../shared/ui/layout/glass-surface";
 import { SmoothProgressBar } from "../../../shared/ui/components/SmoothProgressBar";
@@ -122,11 +123,6 @@ const DENSE_TEXT = `${TABLE_LAYOUT.fontSize} ${TABLE_LAYOUT.fontMono} leading-no
 const DENSE_NUMERIC = `${DENSE_TEXT} tabular-nums`;
 const SPARKLINE_WIDTH = 64;
 const SPARKLINE_HEIGHT = 12;
-const STATUS_CHIP_GAP = Math.max(2, LAYOUT_METRICS.panelGap);
-const STATUS_CHIP_RADIUS = Math.max(
-    2,
-    Math.round(LAYOUT_METRICS.innerRadius / 2)
-);
 const STATUS_CHIP_STYLE: CSSProperties = {
     gap: `${STATUS_CHIP_GAP}px`,
     borderRadius: `${STATUS_CHIP_RADIUS}px`,

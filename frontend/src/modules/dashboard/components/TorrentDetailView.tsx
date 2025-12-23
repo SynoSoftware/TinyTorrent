@@ -22,7 +22,11 @@ import { GlassPanel } from "../../../shared/ui/layout/GlassPanel";
 
 import { formatTime } from "../../../shared/utils/format";
 
-import { ICON_STROKE_WIDTH, LAYOUT_METRICS } from "../../../config/logic";
+import {
+    ICON_STROKE_WIDTH,
+    STATUS_CHIP_GAP,
+    STATUS_CHIP_RADIUS,
+} from "../../../config/logic";
 
 import type { Torrent, TorrentDetail } from "../types/torrent";
 
@@ -103,11 +107,8 @@ const STATUS_CONFIG: Record<
     error: { color: "danger", labelKey: "torrent_modal.statuses.error" },
 } as const;
 const HEADER_STATUS_CHIP_STYLE: CSSProperties = {
-    gap: `${Math.max(2, LAYOUT_METRICS.panelGap)}px`,
-    borderRadius: `${Math.max(
-        2,
-        Math.round(LAYOUT_METRICS.innerRadius / 2)
-    )}px`,
+    gap: `${STATUS_CHIP_GAP}px`,
+    borderRadius: `${STATUS_CHIP_RADIUS}px`,
 };
 
 interface DetailHeaderContentProps {

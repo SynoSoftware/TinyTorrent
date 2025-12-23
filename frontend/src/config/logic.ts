@@ -99,6 +99,8 @@ const classicHandleHitArea = readNumber(
     classicShellConfig.handle_hit_area,
     DEFAULT_SHELL_CLASSIC.handle_hit_area
 );
+const classicInnerRadius = Math.max(0, classicOuterRadius - classicRingPadding);
+const classicInsetRadius = Math.max(0, classicInnerRadius - classicPanelGap);
 
 // Immersive shell metrics
 // Prefer `outer_radius` for immersive. Keep `main_inner_radius` as a legacy fallback.
@@ -111,6 +113,14 @@ const immersivePanelGap = readNumber(immersiveShellConfig.panel_gap, 0);
 const immersiveHandleHitArea = readNumber(
     immersiveShellConfig.handle_hit_area,
     classicHandleHitArea
+);
+const immersiveInnerRadius = Math.max(
+    0,
+    immersiveOuterRadius - immersiveRingPadding
+);
+const immersiveInsetRadius = Math.max(
+    0,
+    immersiveInnerRadius - immersivePanelGap
 );
 
 export type ShellStyle = "classic" | "immersive";
@@ -131,20 +141,14 @@ export const SHELL_TOKENS_CLASSIC: ShellTokens = {
     radius: classicOuterRadius,
     ringPadding: classicRingPadding,
     handleHitArea: classicHandleHitArea,
-    innerRadius: Math.max(0, classicOuterRadius - classicRingPadding),
-    insetRadius: Math.max(
-        0,
-        Math.max(0, classicOuterRadius - classicRingPadding) - classicPanelGap
-    ),
+    innerRadius: classicInnerRadius,
+    insetRadius: classicInsetRadius,
     frameStyle: {
         borderRadius: `${classicOuterRadius}px`,
         padding: `${classicRingPadding}px`,
     },
     contentStyle: {
-        borderRadius: `${Math.max(
-            0,
-            classicOuterRadius - classicRingPadding
-        )}px`,
+        borderRadius: `${classicInnerRadius}px`,
     },
 };
 
@@ -153,37 +157,36 @@ export const SHELL_TOKENS_IMMERSIVE: ShellTokens = {
     radius: immersiveOuterRadius,
     ringPadding: immersiveRingPadding,
     handleHitArea: immersiveHandleHitArea,
-    innerRadius: Math.max(0, immersiveOuterRadius - immersiveRingPadding),
-    insetRadius: Math.max(
-        0,
-        Math.max(0, immersiveOuterRadius - immersiveRingPadding) -
-            immersivePanelGap
-    ),
+    innerRadius: immersiveInnerRadius,
+    insetRadius: immersiveInsetRadius,
     frameStyle: {
         borderRadius: `${immersiveOuterRadius}px`,
         padding: `${immersiveRingPadding}px`,
     },
     contentStyle: {
-        borderRadius: `${Math.max(
-            0,
-            immersiveOuterRadius - immersiveRingPadding
-        )}px`,
+        borderRadius: `${immersiveInnerRadius}px`,
     },
 };
 
 export const getShellTokens = (style: ShellStyle): ShellTokens =>
     style === "immersive" ? SHELL_TOKENS_IMMERSIVE : SHELL_TOKENS_CLASSIC;
 
-// --- Legacy exports (classic defaults) ---
-// Keep older consumers working. New code should use `getShellTokens(style)`.
-export const SHELL_GAP = SHELL_TOKENS_CLASSIC.gap;
-export const SHELL_HANDLE_HIT_AREA = SHELL_TOKENS_CLASSIC.handleHitArea;
-export const SHELL_INNER_RADIUS = SHELL_TOKENS_CLASSIC.innerRadius;
-export const SHELL_INSET_RADIUS = SHELL_TOKENS_CLASSIC.insetRadius;
-export const SHELL_RADIUS = SHELL_TOKENS_CLASSIC.radius;
-export const SHELL_RING_PADDING = SHELL_TOKENS_CLASSIC.ringPadding;
-export const SHELL_FRAME_STYLE = SHELL_TOKENS_CLASSIC.frameStyle;
-export const SHELL_CONTENT_STYLE = SHELL_TOKENS_CLASSIC.contentStyle;
+export const SHELL_RADIUS = classicOuterRadius;
+export const SHELL_HANDLE_HIT_AREA = classicHandleHitArea;
+export const LAYOUT_METRICS = {
+    outerRadius: classicOuterRadius,
+    panelGap: classicPanelGap,
+    ringPadding: classicRingPadding,
+    handleHitArea: classicHandleHitArea,
+    innerRadius: classicInnerRadius,
+    insetRadius: classicInsetRadius,
+} as const;
+
+export const STATUS_CHIP_GAP = Math.max(2, LAYOUT_METRICS.panelGap);
+export const STATUS_CHIP_RADIUS = Math.max(
+    2,
+    Math.round(LAYOUT_METRICS.innerRadius / 2)
+);
 
 // Immersive workspace chrome tokens (owned by the immersive shell)
 export const IMMERSIVE_CHROME_PADDING = readNumber(
@@ -209,18 +212,6 @@ export const IMMERSIVE_CHROME_RADIUS =
 export const IMMERSIVE_MAIN_OUTER_RADIUS =
     IMMERSIVE_MAIN_INNER_RADIUS + IMMERSIVE_MAIN_PADDING;
 
-// Classic metrics remain the default shared layout metrics.
-const layoutOuterRadius = classicOuterRadius;
-const layoutRingPadding = classicRingPadding;
-const layoutPanelGap = classicPanelGap;
-const layoutHandleHitArea = classicHandleHitArea;
-export const LAYOUT_METRICS = {
-    outerRadius: layoutOuterRadius,
-    panelGap: layoutPanelGap,
-    ringPadding: layoutRingPadding,
-    handleHitArea: layoutHandleHitArea,
-    innerRadius: Math.max(0, layoutOuterRadius - layoutRingPadding),
-} as const;
 const pieceMapLayout = layoutConfig.piece_map ?? DEFAULT_LAYOUT_PIECE_MAP;
 const heatmapLayout = layoutConfig.heatmap ?? DEFAULT_LAYOUT_HEATMAP;
 const peerMapLayout = layoutConfig.peer_map ?? DEFAULT_LAYOUT_PEER_MAP;

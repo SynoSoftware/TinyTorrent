@@ -114,6 +114,17 @@ class TorrentManager
     void start_session(libtorrent::v2::session_params params);
     libtorrent::session *session() const noexcept;
 
+    // Configure a ranked list of outbound IPv4 addresses suitable for pinning
+    // libtorrent's outbound tracker/peer sockets and tracker announce
+    // endpoints. The manager will use only one address at a time and may fail
+    // over sequentially on hard network-unreachable tracker errors.
+    //
+    // NOTE: In libtorrent, UDP tracker/DHT sockets are tied to listen sockets.
+    // To ensure a single tracker announce source address, we also keep track of
+    // the listen port and update listen_interfaces on failover.
+    void set_outbound_announce_candidates(std::vector<std::string> candidates,
+                                          std::string listen_port);
+
     void enqueue_task(std::function<void()> task);
     template <typename Fn>
     auto run_task(Fn &&fn) -> std::future<std::invoke_result_t<Fn>>
@@ -198,6 +209,20 @@ class TorrentManager
     static constexpr std::size_t kAlertBufferCapacity = 65536;
     std::vector<libtorrent::alert *> alert_buffer_;
     std::size_t alert_buffer_annotated_size_ = 0;
+
+    // Outbound announce pinning / failover
+    std::vector<std::string> outbound_candidates_;
+    std::size_t outbound_candidate_index_ = 0;
+    bool outbound_candidate_locked_ = false;
+    std::unordered_set<std::string> outbound_unreachable_;
+    std::string outbound_active_ip_;
+    std::string outbound_listen_port_;
+
+    void handle_tracker_alert_for_outbound(
+        libtorrent::tracker_error_alert const &alert);
+    void handle_tracker_success_for_outbound();
+    bool try_failover_outbound_candidate(char const *reason,
+                                         libtorrent::torrent_handle const &h);
 };
 
 } // namespace tt::engine

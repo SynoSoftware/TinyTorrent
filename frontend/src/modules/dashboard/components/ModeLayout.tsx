@@ -178,11 +178,6 @@ export function ModeLayout({
     }, [isDetailOpen, isDetailFullscreen]);
 
     useEffect(() => {
-        if (detailData) return;
-        setIsDetailFullscreen(false);
-    }, [detailData]);
-
-    useEffect(() => {
         if (isDetailOpen || typeof document === "undefined") return;
         const pendingId = focusReturnRef.current;
         if (!pendingId) return;
@@ -192,6 +187,11 @@ export function ModeLayout({
         rowElement?.focus();
         focusReturnRef.current = null;
     }, [isDetailOpen]);
+
+    useEffect(() => {
+        if (detailData) return;
+        setIsDetailFullscreen(false);
+    }, [detailData]);
 
     useEffect(() => {
         if (!isDetailOpen) return;
@@ -227,10 +227,12 @@ export function ModeLayout({
             "relative flex-1 min-h-0 w-full h-full overflow-hidden",
             !isImmersiveShell && "bg-background/40"
         ),
-        style: {
-            ...(isImmersiveShell ? undefined : shell.contentStyle),
-            padding: isImmersiveShell ? undefined : `${shell.gap}px`,
-        },
+        style: isImmersiveShell
+            ? undefined
+            : {
+                  ...shell.contentStyle,
+                  padding: `${shell.gap}px`,
+              },
     });
 
     const dropOverlay = (
@@ -271,159 +273,147 @@ export function ModeLayout({
         </AnimatePresence>
     );
 
+    const layoutContent = (
+        <PanelGroup
+            direction={splitDirection}
+            autoSaveId="tiny-torrent.workbench.layout"
+            className="flex-1 min-h-0 h-full w-full relative flex flex-col overflow-hidden"
+        >
+            {/* --- MAIN PANEL --- */}
+            <Panel className="relative flex-1 min-h-0">
+                <div {...getShellStyles("table")} onPointerDown={focusTable}>
+                    <div {...getContentStyles()}>
+                        <div
+                            className="relative z-10 h-full min-h-0 overflow-hidden"
+                            style={{
+                                borderRadius: `${shell.innerRadius}px`,
+                            }}
+                        >
+                            {tableWatermarkEnabled && (
+                                <div
+                                    aria-hidden="true"
+                                    className="pointer-events-none absolute inset-0 z-0 torrent-table-watermark"
+                                />
+                            )}
+                            <div
+                                className="relative z-10 h-full min-h-0"
+                                style={{ borderRadius: "inherit" }}
+                            >
+                                <TorrentTable
+                                    embedded={isImmersiveShell}
+                                    torrents={torrents}
+                                    filter={filter}
+                                    searchQuery={searchQuery}
+                                    isLoading={isTableLoading}
+                                    onAction={onAction}
+                                    onRequestDetails={handleDetailRequest}
+                                    onRequestDetailsFullscreen={
+                                        handleDetailFullscreenRequest
+                                    }
+                                    onSelectionChange={onSelectionChange}
+                                    optimisticStatuses={optimisticStatuses}
+                                    ghostTorrents={ghostTorrents}
+                                    onOpenFolder={onOpenFolder}
+                                />
+                            </div>
+                        </div>
+                        {dropOverlay}
+                    </div>
+                </div>
+            </Panel>
+
+            {/* --- RESIZE HANDLE (The Gap) --- */}
+            <PanelResizeHandle
+                className={cn(
+                    "group relative z-10 transition-colors focus:outline-none",
+                    isHorizontalSplit
+                        ? "cursor-col-resize"
+                        : "cursor-row-resize"
+                )}
+                hitAreaMargins={{
+                    coarse: shell.handleHitArea,
+                    fine: shell.handleHitArea,
+                }}
+                style={{
+                    // This strictly defines the visual gap
+                    flexBasis: shell.gap,
+                }}
+            >
+                <div className="absolute inset-0 flex items-center justify-center">
+                    <div
+                        className={cn(
+                            "transition-colors bg-foreground/0 group-hover:bg-foreground/10 group-active:bg-primary/50",
+                            isHorizontalSplit ? "h-full w-px" : "w-full h-px"
+                        )}
+                    />
+                </div>
+            </PanelResizeHandle>
+
+            {/* --- INSPECTOR PANEL --- */}
+            <Panel
+                ref={detailPanelRef}
+                collapsible
+                collapsedSize={0}
+                minSize={26}
+                defaultSize={34}
+                onPointerDown={focusInspector}
+                className={cn(
+                    "hidden overflow-hidden lg:flex",
+                    isHorizontalSplit ? "h-full" : "w-full"
+                )}
+            >
+                <div {...getShellStyles("inspector")}>
+                    <div {...getContentStyles()}>
+                        <div
+                            className="h-full min-h-0 flex-1 overflow-hidden"
+                            style={{
+                                borderRadius: `${shell.innerRadius}px`,
+                            }}
+                        >
+                            <motion.div
+                                className="h-full min-h-0 flex-1"
+                                initial={false}
+                                animate={
+                                    isDetailOpen
+                                        ? { opacity: 1, y: 0 }
+                                        : { opacity: 0.75, y: 6 }
+                                }
+                                transition={ANIMATION.entry}
+                            >
+                                <TorrentDetailView
+                                    torrent={detailData}
+                                    onClose={handleDetailClose}
+                                    onFilesToggle={onFilesToggle}
+                                    onFileContextAction={onFileContextAction}
+                                    onPeerContextAction={onPeerContextAction}
+                                    peerSortStrategy={peerSortStrategy}
+                                    inspectorTabCommand={inspectorTabCommand}
+                                    onInspectorTabCommandHandled={
+                                        onInspectorTabCommandHandled
+                                    }
+                                    onSequentialToggle={onSequentialToggle}
+                                    onSuperSeedingToggle={onSuperSeedingToggle}
+                                    onForceTrackerReannounce={
+                                        onForceTrackerReannounce
+                                    }
+                                    sequentialSupported={sequentialSupported}
+                                    superSeedingSupported={
+                                        superSeedingSupported
+                                    }
+                                    isFullscreen={isDetailFullscreen}
+                                    onPopout={handleDetailPopout}
+                                />
+                            </motion.div>
+                        </div>
+                    </div>
+                </div>
+            </Panel>
+        </PanelGroup>
+    );
+
     return (
         <div className="flex-1 min-h-0 h-full">
-            <PanelGroup
-                direction={splitDirection}
-                autoSaveId="tiny-torrent.workbench.layout"
-                className="flex-1 min-h-0 h-full w-full relative flex flex-col overflow-hidden"
-            >
-                {/* --- MAIN PANEL --- */}
-                <Panel className="relative flex-1 min-h-0">
-                    <div
-                        {...getShellStyles("table")}
-                        onPointerDown={focusTable}
-                    >
-                        <div {...getContentStyles()}>
-                            <div
-                                className="relative z-10 h-full min-h-0 overflow-hidden"
-                                style={{
-                                    borderRadius: `${shell.innerRadius}px`,
-                                }}
-                            >
-                                {tableWatermarkEnabled && (
-                                    <div
-                                        aria-hidden="true"
-                                        className="pointer-events-none absolute inset-0 z-0 torrent-table-watermark"
-                                    />
-                                )}
-                                <div
-                                    className="relative z-10 h-full min-h-0"
-                                    style={{ borderRadius: "inherit" }}
-                                >
-                                    <TorrentTable
-                                        embedded={isImmersiveShell}
-                                        torrents={torrents}
-                                        filter={filter}
-                                        searchQuery={searchQuery}
-                                        isLoading={isTableLoading}
-                                        onAction={onAction}
-                                        onRequestDetails={handleDetailRequest}
-                                        onRequestDetailsFullscreen={
-                                            handleDetailFullscreenRequest
-                                        }
-                                        onSelectionChange={onSelectionChange}
-                                        optimisticStatuses={optimisticStatuses}
-                                        ghostTorrents={ghostTorrents}
-                                        onOpenFolder={onOpenFolder}
-                                    />
-                                </div>
-                            </div>
-                            {dropOverlay}
-                        </div>
-                    </div>
-                </Panel>
-
-                {/* --- RESIZE HANDLE (The Gap) --- */}
-                <PanelResizeHandle
-                    className={cn(
-                        "group relative z-10 transition-colors focus:outline-none",
-                        isHorizontalSplit
-                            ? "cursor-col-resize"
-                            : "cursor-row-resize"
-                    )}
-                    hitAreaMargins={{
-                        coarse: shell.handleHitArea,
-                        fine: shell.handleHitArea,
-                    }}
-                    style={{
-                        // This strictly defines the visual gap
-                        flexBasis: shell.gap,
-                    }}
-                >
-                    <div className="absolute inset-0 flex items-center justify-center">
-                        <div
-                            className={cn(
-                                "transition-colors bg-foreground/0 group-hover:bg-foreground/10 group-active:bg-primary/50",
-                                isHorizontalSplit
-                                    ? "h-full w-[1px]"
-                                    : "w-full h-[1px]"
-                            )}
-                        />
-                    </div>
-                </PanelResizeHandle>
-
-                {/* --- INSPECTOR PANEL --- */}
-                <Panel
-                    ref={detailPanelRef}
-                    collapsible
-                    collapsedSize={0}
-                    minSize={26}
-                    defaultSize={34}
-                    onPointerDown={focusInspector}
-                    className={cn(
-                        "hidden overflow-hidden lg:flex",
-                        isHorizontalSplit ? "h-full" : "w-full"
-                    )}
-                >
-                    <div {...getShellStyles("inspector")}>
-                        <div {...getContentStyles()}>
-                            <div
-                                className="h-full min-h-0 flex-1 overflow-hidden"
-                                style={{
-                                    borderRadius: `${shell.innerRadius}px`,
-                                }}
-                            >
-                                <motion.div
-                                    className="h-full min-h-0 flex-1"
-                                    initial={false}
-                                    animate={
-                                        isDetailOpen
-                                            ? { opacity: 1, y: 0 }
-                                            : { opacity: 0.75, y: 6 }
-                                    }
-                                    transition={ANIMATION.entry}
-                                >
-                                    <TorrentDetailView
-                                        torrent={detailData}
-                                        onClose={handleDetailClose}
-                                        onFilesToggle={onFilesToggle}
-                                        onFileContextAction={
-                                            onFileContextAction
-                                        }
-                                        onPeerContextAction={
-                                            onPeerContextAction
-                                        }
-                                        peerSortStrategy={peerSortStrategy}
-                                        inspectorTabCommand={
-                                            inspectorTabCommand
-                                        }
-                                        onInspectorTabCommandHandled={
-                                            onInspectorTabCommandHandled
-                                        }
-                                        onSequentialToggle={onSequentialToggle}
-                                        onSuperSeedingToggle={
-                                            onSuperSeedingToggle
-                                        }
-                                        onForceTrackerReannounce={
-                                            onForceTrackerReannounce
-                                        }
-                                        sequentialSupported={
-                                            sequentialSupported
-                                        }
-                                        superSeedingSupported={
-                                            superSeedingSupported
-                                        }
-                                        isFullscreen={isDetailFullscreen}
-                                        onPopout={handleDetailPopout}
-                                    />
-                                </motion.div>
-                            </div>
-                        </div>
-                    </div>
-                </Panel>
-            </PanelGroup>
-
+            {layoutContent}
             {/* --- FULLSCREEN MODAL --- */}
             <AnimatePresence initial={false}>
                 {detailData && isDetailFullscreen && (
@@ -440,7 +430,7 @@ export function ModeLayout({
                             className={cn(
                                 "relative z-10 flex h-full w-full flex-col overflow-hidden bg-content1/80 backdrop-blur-xl border border-content1/20 shadow-medium"
                             )}
-                            style={{ borderRadius: shell.radius }}
+                            style={{ borderRadius: `${shell.radius}px` }}
                             initial={{ opacity: 0, scale: 0.96 }}
                             animate={{ opacity: 1, scale: 1 }}
                             exit={{ opacity: 0, scale: 0.96 }}

@@ -18,6 +18,7 @@ tt_test_common_sources = [
   '../src/engine/StateService.cpp',
   '../src/engine/TorrentManager.cpp',
   '../src/utils/FS.cpp',
+  '../src/utils/OutboundRoute.cpp',
   '../src/utils/StateStore.cpp',
   '../src/utils/Shutdown.cpp',
   '../src/vendor/libtorrent/partfile_extension.cpp',
@@ -65,6 +66,14 @@ memory_leak_test_exe = executable('memory-leak-test',
   c_args: tt_c_args,
 )
 
+configuration_test_exe = executable('configuration-test',
+  tt_test_common_sources + ['main_test.cpp', 'ConfigurationTest.cpp'],
+  dependencies: [tt_common_dep, doctest_dep],
+  cpp_args: tt_cpp_args,
+  c_args: tt_c_args,
+)
+
 test('rpc-filesystem-test', rpc_filesystem_test_exe)
 test('serializer-test', serializer_test_exe)
 test('memory-leak-test', memory_leak_test_exe)
+test('configuration-test', configuration_test_exe)

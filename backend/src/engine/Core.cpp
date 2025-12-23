@@ -19,10 +19,13 @@
 #include "engine/TorrentUtils.hpp"
 #include "utils/Endpoint.hpp"
 #include "utils/Log.hpp"
+#include "utils/OutboundRoute.hpp"
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <iterator>
 #include <mutex>
@@ -71,8 +74,8 @@ struct Core::Impl
 
     // Services
     std::unique_ptr<PersistenceManager> persistence;
-    std::unique_ptr<ConfigurationService> config_service;
-    std::shared_ptr<StateService> state_service;
+    std::shared_ptr<ConfigurationService> config_service;
+    std::unique_ptr<StateService> state_service;
     std::unique_ptr<HistoryAgent> history_agent;
     std::unique_ptr<TorrentManager> torrent_manager;
     std::unique_ptr<SessionService> session_service;
@@ -92,6 +95,7 @@ struct Core::Impl
     CoreSettings settings_;
     std::string listen_error;
     mutable std::shared_mutex listen_error_mutex;
+    std::atomic_bool listen_port_auto_retry_attempted{false};
 
     Impl(CoreSettings settings) : settings_(std::move(settings))
     {
@@ -106,11 +110,11 @@ struct Core::Impl
         persistence = std::make_unique<PersistenceManager>(state_path);
 
         // Initialize Configuration
-        config_service = std::make_unique<ConfigurationService>(
+        config_service = std::make_shared<ConfigurationService>(
             persistence.get(), event_bus.get(), settings);
 
         // Initialize State & History
-        state_service = std::make_shared<StateService>(persistence.get());
+        state_service = std::make_unique<StateService>(persistence.get());
         if (persistence->is_valid())
             state_service->load_persisted_stats();
         else
@@ -126,7 +130,7 @@ struct Core::Impl
         // Initialize Session
         torrent_manager = std::make_unique<TorrentManager>();
         session_service = std::make_unique<SessionService>(
-            torrent_manager.get(), persistence.get(), state_service,
+            torrent_manager.get(), persistence.get(), state_service.get(),
             history_agent.get(), config_service.get(), event_bus.get());
 
         // Initialize Aux Services
@@ -207,11 +211,21 @@ struct Core::Impl
         event_bus->subscribe<ListenSucceededEvent>(
             [this](auto const &event)
             {
-                config_service->set_listen_interface(event.interface_name);
+                // Do not persist the listen-succeeded endpoint back into
+                // configuration. Libtorrent reports the concrete bound address
+                // (e.g. a specific adapter IP), which can inadvertently lock
+                // subsequent runs to a VPN/virtual adapter.
+                (void)event;
+                listen_port_auto_retry_attempted.store(
+                    false, std::memory_order_release);
                 clear_listen_error();
             });
         event_bus->subscribe<ListenFailedEvent>(
-            [this](auto const &event) { set_listen_error(event.message); });
+            [this](auto const &event)
+            {
+                set_listen_error(event.message);
+                handle_listen_failure(event);
+            });
         event_bus->subscribe<StorageMovedEvent>(
             [this](auto const &event)
             {
@@ -246,6 +260,41 @@ struct Core::Impl
 
         auto dht_state = load_dht_state();
         auto pack = SettingsManager::build_settings_pack(settings_);
+
+        // Pin tracker announces to exactly one routable outbound IPv4 address
+        // (qBittorrent semantics). This prevents libtorrent from attempting
+        // announces from multiple listen sockets (loopback/link-local/virtual).
+        auto outbound_candidates = tt::net::ranked_outbound_ipv4_candidates();
+        if (!outbound_candidates.empty())
+        {
+            auto const &selected = outbound_candidates.front();
+            pack.set_str(libtorrent::settings_pack::announce_ip, selected);
+            pack.set_str(libtorrent::settings_pack::outgoing_interfaces,
+                         selected);
+
+            // libtorrent binds UDP tracker/DHT sockets to listen sockets.
+            // If we listen on wildcard, it will announce multiple per-adapter
+            // endpoints. Pin listen_interfaces to the selected IPv4 to ensure
+            // trackers only see a single address.
+            std::string listen_port;
+            if (auto pos = settings_.listen_interface.rfind(':');
+                pos != std::string::npos &&
+                pos + 1 < settings_.listen_interface.size())
+            {
+                listen_port = settings_.listen_interface.substr(pos + 1);
+            }
+            if (listen_port.empty())
+            {
+                listen_port = "6881";
+            }
+            torrent_manager->set_outbound_announce_candidates(
+                std::move(outbound_candidates), std::move(listen_port));
+        }
+        else
+        {
+            TT_LOG_INFO("no outbound IPv4 candidates found; tracker announces "
+                        "may fail");
+        }
         libtorrent::v2::session_params params(pack);
         if (dht_state)
             params.dht_state = std::move(*dht_state);
@@ -425,6 +474,50 @@ struct Core::Impl
         std::unique_lock lock(listen_error_mutex);
         listen_error.clear();
     }
+
+    void handle_listen_failure(ListenFailedEvent const &event)
+    {
+        if (listen_port_auto_retry_attempted.load(std::memory_order_acquire))
+        {
+            return;
+        }
+        auto current = config_service->get().listen_interface;
+        auto parts = tt::net::parse_host_port(current);
+        if (parts.port.empty() || parts.port == "0")
+        {
+            return;
+        }
+        bool expected = false;
+        if (!listen_port_auto_retry_attempted.compare_exchange_strong(
+                expected, true, std::memory_order_acq_rel))
+        {
+            return;
+        }
+        TT_LOG_INFO(
+            "listen port {} failed ({}); falling back to ephemeral port",
+            event.port, event.message);
+        set_listen_error(
+            std::format("{} (falling back to ephemeral port)", event.message));
+        if (parts.host.empty())
+        {
+            parts.host = "0.0.0.0";
+            parts.bracketed = false;
+        }
+        parts.port = "0";
+        auto updated = tt::net::format_host_port(parts);
+        if (auto pending_config = config_service)
+        {
+            pending_config->set_listen_interface(updated);
+            if (event_bus)
+            {
+                event_bus->publish(SettingsChangedEvent{});
+            }
+            if (torrent_manager)
+            {
+                torrent_manager->notify();
+            }
+        }
+    }
 };
 
 // --- Proxy Methods ---
@@ -602,6 +695,7 @@ bool Core::set_listen_port(uint16_t port)
     if (parts.host.empty())
     {
         parts.host = "0.0.0.0";
+        parts.bracketed = false;
     }
     parts.port = std::to_string(port);
     auto updated = tt::net::format_host_port(parts);

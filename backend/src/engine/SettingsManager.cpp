@@ -1,6 +1,7 @@
 #include "engine/SettingsManager.hpp"
 
 #include "libtorrent/partfile_extension.hpp"
+#include "utils/Endpoint.hpp"
 #include "utils/Log.hpp"
 #include "utils/Version.hpp"
 #include <algorithm>
@@ -21,8 +22,29 @@ __declspec(noinline) void set_user_agent(libtorrent::settings_pack &pack)
     pack.set_str(libtorrent::settings_pack::user_agent, user_agent);
 }
 
+std::string listen_interfaces_from_config(std::string const &configured)
+{
+    // TinyTorrent stores a single host:port pair in settings. However,
+    // libtorrent's listen_interfaces also controls UDP sockets used for DHT,
+    // UDP trackers and outgoing uTP. Binding this to loopback/VPN/specific
+    // adapter IPs can break peer discovery and transport.
+    //
+    // To keep networking functional, we always bind to wildcard addresses and
+    // preserve only the port.
+    auto parts = tt::net::parse_host_port(configured);
+    auto port = tt::net::trim_whitespace(parts.port);
+    if (port.empty())
+    {
+        port = "6881";
+    }
+    return std::string("0.0.0.0:") + port + ",[::]:" + port;
+}
+
 constexpr char const kPartfileExtension[] = ".!tt";
 constexpr char const kDefaultPartfileExtension[] = ".part";
+constexpr char const kDefaultDhtBootstrapNodes[] =
+    "router.bittorrent.com:6881,router.utorrent.com:6881,"
+    "dht.transmissionbt.com:6881,router.bitcomet.com:6881";
 } // namespace
 
 libtorrent::settings_pack
@@ -40,7 +62,7 @@ SettingsManager::build_settings_pack(CoreSettings const &s)
                  libtorrent::alert::all_categories);
     set_user_agent(pack);
     pack.set_str(libtorrent::settings_pack::listen_interfaces,
-                 s.listen_interface);
+                 listen_interfaces_from_config(s.listen_interface));
     pack.set_int(libtorrent::settings_pack::download_rate_limit,
                  kbps_to_bytes(s.download_rate_limit_kbps,
                                s.download_rate_limit_enabled));
@@ -94,7 +116,6 @@ SettingsManager::build_settings_pack(CoreSettings const &s)
 
     apply_proxy(s, pack);
     apply_partfile(s, pack);
-
     return pack;
 }
 
@@ -151,18 +172,51 @@ void SettingsManager::apply_network(CoreSettings const &s,
 {
     pack.set_bool(libtorrent::settings_pack::enable_dht, s.dht_enabled);
     pack.set_bool(libtorrent::settings_pack::enable_lsd, s.lpd_enabled);
+
+    // Incoming vs outgoing are distinct in libtorrent. The bind address
+    // (listen_interfaces) affects UDP sockets (DHT/UDP trackers/uTP), so we
+    // keep listen wildcard and control *incoming* explicitly.
+#if defined(TT_BUILD_MINIMAL)
+    pack.set_bool(libtorrent::settings_pack::enable_incoming_tcp, false);
+    pack.set_bool(libtorrent::settings_pack::enable_incoming_utp, false);
+#else
+    pack.set_bool(libtorrent::settings_pack::enable_incoming_tcp, true);
     pack.set_bool(libtorrent::settings_pack::enable_incoming_utp,
                   s.utp_enabled);
+#endif
+
+    pack.set_bool(libtorrent::settings_pack::enable_outgoing_tcp, true);
     pack.set_bool(libtorrent::settings_pack::enable_outgoing_utp,
                   s.utp_enabled);
+    if (s.dht_enabled)
+    {
+        pack.set_str(libtorrent::settings_pack::dht_bootstrap_nodes,
+                     kDefaultDhtBootstrapNodes);
+    }
     if (current)
     {
         current->set_bool(libtorrent::settings_pack::enable_dht, s.dht_enabled);
         current->set_bool(libtorrent::settings_pack::enable_lsd, s.lpd_enabled);
+
+#if defined(TT_BUILD_MINIMAL)
+        current->set_bool(libtorrent::settings_pack::enable_incoming_tcp,
+                          false);
+        current->set_bool(libtorrent::settings_pack::enable_incoming_utp,
+                          false);
+#else
+        current->set_bool(libtorrent::settings_pack::enable_incoming_tcp, true);
         current->set_bool(libtorrent::settings_pack::enable_incoming_utp,
                           s.utp_enabled);
+#endif
+
+        current->set_bool(libtorrent::settings_pack::enable_outgoing_tcp, true);
         current->set_bool(libtorrent::settings_pack::enable_outgoing_utp,
                           s.utp_enabled);
+        if (s.dht_enabled)
+        {
+            current->set_str(libtorrent::settings_pack::dht_bootstrap_nodes,
+                             kDefaultDhtBootstrapNodes);
+        }
     }
 }
 

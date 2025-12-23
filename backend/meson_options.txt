@@ -3,3 +3,6 @@ option('tt_enable_logging', type: 'boolean', value: true,
 
 option('tt_enable_tests', type: 'boolean', value: true,
   description : 'Build the dispatcher and RPC endpoint tests.')
+
+option('tt_vcpkg_triplet', type: 'string', value: 'auto',
+  description : 'Selects which vcpkg_installed triplet to copy DLLs from (auto=asan on debug, x64-windows otherwise).')

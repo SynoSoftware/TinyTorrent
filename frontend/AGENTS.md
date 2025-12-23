@@ -811,7 +811,7 @@ export default defineConfig({
 
 1. Before reporting a task as completed, perform a review of the code and fix all important issues. Repeat until you are fully satisfied.
 2. Run `npm run build` and fix build errors if possible.
-3. Do **not** try to execute Linux commands. The build machine is Windows.
+3. You are not running on Linux. You are running in Windows with MSYS2/Cygwin userland. Assume GNU/POSIX tools only
 4. Extra Windows executables available: `rg`, `fd`, `bat`.
 5. For code search, never use `Select-String`. Always use ripgrep:
 
