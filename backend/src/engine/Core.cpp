@@ -108,7 +108,10 @@ struct Core::Impl
 
         task_service.start();
         event_bus = std::make_unique<EventBus>();
-        persistence = std::make_unique<PersistenceManager>(state_path);
+        // Pass pointer to task_service so PersistenceManager may offload DB
+        // writes
+        persistence =
+            std::make_unique<PersistenceManager>(state_path, &task_service);
 
         // Initialize Configuration
         config_service = std::make_shared<ConfigurationService>(
@@ -297,18 +300,18 @@ struct Core::Impl
         if (torrent_manager)
             torrent_manager->set_alert_callbacks({});
 
-        // 3. STOP WORKERS FIRST (Fixes Use-After-Free)
-        // This processes all pending tasks while the Services (Blocklist,
-        // Automation) are still alive. If we destroyed services first, these
-        // tasks would crash.
-        task_service.stop();
-
-        // 4. Now safe to destroy services
-        blocklist_service.reset();
-        automation_agent.reset();
-
+        // 3. STOP SERVICES THAT MAY SUBMIT TASKS (Fixes Use-After-Free)
+        // Ensure agents that may enqueue tasks are stopped before we
+        // stop the task service.
         if (history_agent)
             history_agent->stop();
+
+        // 4. STOP WORKERS
+        task_service.stop();
+
+        // 5. Now safe to destroy services
+        blocklist_service.reset();
+        automation_agent.reset();
     }
 
     void run()

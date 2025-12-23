@@ -60,9 +60,9 @@ class HistoryAgent
     HistoryConfig config_;
     std::chrono::steady_clock::time_point last_flush_;
     std::chrono::steady_clock::time_point next_retention_check_;
-    std::uint64_t accumulator_down_ = 0;
-    std::uint64_t accumulator_up_ = 0;
-    std::int64_t bucket_start_ = 0;
+    std::atomic<std::uint64_t> accumulator_down_ = 0;
+    std::atomic<std::uint64_t> accumulator_up_ = 0;
+    std::atomic<std::int64_t> bucket_start_ = 0;
 
     std::atomic<bool> worker_running_{false};
     std::atomic<bool> exit_requested_{false};

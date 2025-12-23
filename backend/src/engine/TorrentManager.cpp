@@ -887,17 +887,23 @@ TorrentManager::id_for_hash(libtorrent::sha1_hash const &hash) const
 void TorrentManager::recover_rpc_mappings(
     std::vector<std::pair<std::string, int>> const &mappings)
 {
+    // Recover mappings from persistence and ensure `next_id_` is
+    // advanced to at least (max_seen_id + 1) to avoid ID collisions.
+    int max_id = 0;
     for (auto const &entry : mappings)
     {
         if (entry.first.empty() || entry.second <= 0)
-        {
             continue;
-        }
         if (auto hash = sha1_from_hex(entry.first); hash)
         {
             update_rpc_id(*hash, entry.second);
+            if (entry.second > max_id)
+                max_id = entry.second;
         }
     }
+
+    if (max_id >= next_id_)
+        next_id_ = max_id + 1;
 }
 
 void TorrentManager::update_rpc_id(libtorrent::sha1_hash const &hash, int id)

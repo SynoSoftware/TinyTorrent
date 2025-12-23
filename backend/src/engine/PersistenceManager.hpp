@@ -18,6 +18,7 @@ class Database;
 
 namespace tt::engine
 {
+class AsyncTaskService;
 
 class PersistenceManager
 {
@@ -29,7 +30,9 @@ class PersistenceManager
         int rpc_id = 0;
     };
 
-    explicit PersistenceManager(std::filesystem::path path);
+    // Optional task service may be provided to offload blocking DB writes.
+    explicit PersistenceManager(std::filesystem::path path,
+                                AsyncTaskService *task_service = nullptr);
     ~PersistenceManager();
 
     PersistenceManager(PersistenceManager const &) = delete;
@@ -61,7 +64,7 @@ class PersistenceManager
                             std::vector<std::uint8_t> const &data);
     void update_labels(std::string const &hash, std::string const &labels);
     void set_labels(std::string const &hash,
-            std::vector<std::string> const &labels);
+                    std::vector<std::string> const &labels);
     std::optional<std::filesystem::path>
     cached_save_path(std::string const &hash) const;
 
@@ -76,7 +79,13 @@ class PersistenceManager
   private:
     std::uint64_t read_uint64_setting(std::string const &key) const;
 
-    std::unique_ptr<storage::Database> database_;
+    std::shared_ptr<storage::Database> database_;
+    // Not owning pointer to AsyncTaskService used to offload DB writes.
+    AsyncTaskService *task_service_ = nullptr;
+
+    // Helper to persist settings with a provided database instance.
+    bool persist_settings_impl(std::shared_ptr<storage::Database> db,
+                               CoreSettings const &settings);
 
     // In-Memory State Cache
     mutable std::shared_mutex cache_mutex_;

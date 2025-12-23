@@ -30,6 +30,56 @@ std::string to_utf8(std::filesystem::path const &p)
     auto u = p.u8string();
     return std::string(u.begin(), u.end());
 }
+
+// Compare only the subset of settings keys that we modify from
+// `SettingsManager` so we can avoid re-applying an identical pack
+// which causes libtorrent to reset sockets unnecessarily.
+static bool settings_packs_equal(libtorrent::settings_pack const &a,
+                                 libtorrent::settings_pack const &b)
+{
+    using sp = libtorrent::settings_pack;
+
+    auto eq_int = [&](int key) { return a.get_int(key) == b.get_int(key); };
+    auto eq_bool = [&](int key) { return a.get_bool(key) == b.get_bool(key); };
+    auto eq_str = [&](int key) { return a.get_str(key) == b.get_str(key); };
+
+    // Rate limits
+    if (!eq_int(sp::download_rate_limit) || !eq_int(sp::upload_rate_limit))
+        return false;
+
+    // Networking
+    if (!eq_str(sp::listen_interfaces) || !eq_bool(sp::enable_dht) ||
+        !eq_bool(sp::enable_lsd) || !eq_bool(sp::enable_incoming_tcp) ||
+        !eq_bool(sp::enable_incoming_utp) ||
+        !eq_bool(sp::enable_outgoing_tcp) || !eq_bool(sp::enable_outgoing_utp))
+        return false;
+
+    // Proxy
+    if (!eq_int(sp::proxy_type) || !eq_str(sp::proxy_hostname) ||
+        !eq_int(sp::proxy_port) || !eq_bool(sp::proxy_peer_connections) ||
+        !eq_bool(sp::proxy_tracker_connections) ||
+        !eq_bool(sp::proxy_hostnames) || !eq_str(sp::proxy_username) ||
+        !eq_str(sp::proxy_password))
+        return false;
+
+    // Queue and misc
+    if (!eq_int(sp::active_downloads) || !eq_int(sp::active_seeds) ||
+        !eq_int(sp::active_limit) || !eq_bool(sp::dont_count_slow_torrents) ||
+        !eq_bool(sp::no_recheck_incomplete_resume))
+        return false;
+
+    // Limits / connections
+    if (!eq_int(sp::connections_limit) || !eq_int(sp::unchoke_slots_limit))
+        return false;
+
+    // Other small knobs
+    if (!eq_int(sp::alert_mask) || !eq_int(sp::alert_queue_size) ||
+        !eq_int(sp::hashing_threads))
+        return false;
+
+    // If we reached here, assume equality for our purposes
+    return true;
+}
 } // namespace
 
 SessionService::SessionService(TorrentManager *manager,
@@ -451,7 +501,23 @@ void SessionService::check_speed_limits(bool force)
     SettingsManager::apply_proxy(settings, pack);
     SettingsManager::apply_partfile(settings, pack);
 
+    // Avoid re-applying an identical settings pack which can force
+    // libtorrent to reset network sockets. Compare against the last
+    // applied pack that we cache locally instead of calling
+    // `session()->get_settings()` which can return normalized values.
+    if (!force)
+    {
+        if (last_applied_pack_ &&
+            settings_packs_equal(pack, *last_applied_pack_))
+        {
+            TT_LOG_DEBUG("session: skip apply_settings — identical pack");
+            return;
+        }
+    }
+
+    TT_LOG_INFO("session: applying settings pack");
     manager_->apply_settings(pack);
+    last_applied_pack_ = pack;
 }
 
 void SessionService::enforce_limits(int id, libtorrent::torrent_handle const &h,
