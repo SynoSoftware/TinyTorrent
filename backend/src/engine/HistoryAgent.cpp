@@ -88,8 +88,8 @@ void HistoryAgent::record(std::chrono::steady_clock::time_point now,
     {
         return;
     }
-    accumulator_down_ += downloaded_delta;
-    accumulator_up_ += uploaded_delta;
+    accumulator_down_.fetch_add(downloaded_delta, std::memory_order_relaxed);
+    accumulator_up_.fetch_add(uploaded_delta, std::memory_order_relaxed);
     flush_if_due(now);
 }
 
@@ -110,11 +110,9 @@ void HistoryAgent::flush_if_due(std::chrono::steady_clock::time_point now,
     {
         return;
     }
-    auto bucket_timestamp = bucket_start_;
-    auto down_bytes = accumulator_down_;
-    auto up_bytes = accumulator_up_;
-    accumulator_down_ = 0;
-    accumulator_up_ = 0;
+    auto bucket_timestamp = bucket_start_.load(std::memory_order_acquire);
+    auto down_bytes = accumulator_down_.exchange(0, std::memory_order_acq_rel);
+    auto up_bytes = accumulator_up_.exchange(0, std::memory_order_acq_rel);
     if (bucket_timestamp == 0)
     {
         bucket_timestamp = align_to_history_interval(
@@ -139,7 +137,8 @@ void HistoryAgent::flush_if_due(std::chrono::steady_clock::time_point now,
                 TT_LOG_INFO("history bucket insert failed");
             }
         });
-    bucket_start_ = bucket_timestamp + config_.interval_seconds;
+    bucket_start_.store(bucket_timestamp + config_.interval_seconds,
+                        std::memory_order_release);
     last_flush_ = now;
 }
 
@@ -199,13 +198,46 @@ HistoryAgent::query(std::int64_t start, std::int64_t end, std::int64_t step)
             }
             auto entries = database_->query_speed_history(start, end, step);
             std::vector<HistoryBucket> result;
-            result.reserve(entries.size());
+            result.reserve(entries.size() + 1);
             for (auto const &entry : entries)
             {
                 result.push_back(HistoryBucket{entry.timestamp,
                                                entry.total_down, entry.total_up,
                                                entry.peak_down, entry.peak_up});
             }
+
+            // Append the active (in-memory) bucket if it falls within
+            // the query range. Use atomic reads to avoid races with
+            // `record()` which updates the accumulators. If the DB query
+            // already returned a bucket with the same timestamp, update
+            // that row in-place instead of pushing a duplicate entry.
+            auto active_ts = bucket_start_.load(std::memory_order_acquire);
+            if (active_ts != 0 && active_ts >= start && active_ts <= end)
+            {
+                auto active_down =
+                    accumulator_down_.load(std::memory_order_acquire);
+                auto active_up =
+                    accumulator_up_.load(std::memory_order_acquire);
+                TT_LOG_DEBUG(
+                    "history: considering active bucket ts={} down={} up={}",
+                    active_ts, active_down, active_up);
+                if (!result.empty() && result.back().timestamp == active_ts)
+                {
+                    // Update existing bucket totals and peaks.
+                    result.back().total_down += active_down;
+                    result.back().total_up += active_up;
+                    result.back().peak_down =
+                        std::max(result.back().peak_down, active_down);
+                    result.back().peak_up =
+                        std::max(result.back().peak_up, active_up);
+                }
+                else
+                {
+                    result.push_back(
+                        HistoryBucket{active_ts, active_down, active_up, 0, 0});
+                }
+            }
+
             return result;
         });
     if (future.valid())
@@ -270,9 +302,11 @@ void HistoryAgent::update_config(HistoryConfig config, bool flush_after,
 
 void HistoryAgent::configure_window(std::chrono::system_clock::time_point now)
 {
-    bucket_start_ = align_to_history_interval(now, config_.interval_seconds);
-    accumulator_down_ = 0;
-    accumulator_up_ = 0;
+    bucket_start_.store(
+        align_to_history_interval(now, config_.interval_seconds),
+        std::memory_order_release);
+    accumulator_down_.store(0, std::memory_order_release);
+    accumulator_up_.store(0, std::memory_order_release);
     last_flush_ = std::chrono::steady_clock::now();
     next_retention_check_ = last_flush_;
 }

@@ -17,6 +17,7 @@
 #include <array>
 #include <cctype>
 #include <chrono>
+#include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <exception>
@@ -572,12 +573,85 @@ std::optional<std::string> websocket_token(struct mg_http_message *hm)
 bool session_snapshot_equal(tt::engine::SessionSnapshot const &a,
                             tt::engine::SessionSnapshot const &b)
 {
-    return a.download_rate == b.download_rate &&
-           a.upload_rate == b.upload_rate &&
-           a.torrent_count == b.torrent_count &&
-           a.active_torrent_count == b.active_torrent_count &&
-           a.paused_torrent_count == b.paused_torrent_count &&
-           a.dht_nodes == b.dht_nodes;
+    // Treat small fluctuations in rates as equal to avoid noisy websocket
+    // patches. Use an absolute floor and a relative tolerance.
+    auto diff_u64 = [](std::uint64_t x, std::uint64_t y) -> std::uint64_t
+    { return x > y ? x - y : y - x; };
+
+    // Absolute minimum threshold (bytes/sec)
+    constexpr std::uint64_t kAbsThreshold = 2048; // 2 KB/s
+
+    auto dl_diff = diff_u64(a.download_rate, b.download_rate);
+    auto ul_diff = diff_u64(a.upload_rate, b.upload_rate);
+
+    // Ensure torrent list changes are considered. If the number of
+    // torrents differs or any torrent's key fields changed (progress,
+    // status, or revision), treat snapshots as different so the UI gets
+    // an update promptly.
+    if (a.torrents.size() != b.torrents.size())
+    {
+        return false;
+    }
+    std::unordered_map<int, tt::engine::TorrentSnapshot const *> amap;
+    amap.reserve(a.torrents.size());
+    for (auto const &t : a.torrents)
+    {
+        amap[t.id] = &t;
+    }
+    for (auto const &tb : b.torrents)
+    {
+        auto it = amap.find(tb.id);
+        if (it == amap.end())
+        {
+            return false;
+        }
+        auto const &ta = *it->second;
+        if (ta.status != tb.status)
+            return false;
+        if (ta.revision != tb.revision)
+            return false;
+        if (std::fabs(ta.progress - tb.progress) > 1e-6)
+            return false;
+    }
+
+    // Relative tolerance: 5% of the larger value, but at least kAbsThreshold
+    auto rel_tol = [&](std::uint64_t x, std::uint64_t y)
+    {
+        std::uint64_t larger = x > y ? x : y;
+        return (std::max)(kAbsThreshold,
+                          static_cast<std::uint64_t>(larger / 20));
+    };
+
+    if (dl_diff > rel_tol(a.download_rate, b.download_rate))
+    {
+        TT_LOG_DEBUG("rpc: session_snapshot_equal dl_diff={} tl={}", dl_diff,
+                     rel_tol(a.download_rate, b.download_rate));
+        return false;
+    }
+    if (ul_diff > rel_tol(a.upload_rate, b.upload_rate))
+    {
+        TT_LOG_DEBUG("rpc: session_snapshot_equal ul_diff={} tl={}", ul_diff,
+                     rel_tol(a.upload_rate, b.upload_rate));
+        return false;
+    }
+
+    // Exact comparisons for discrete counts
+    if (a.torrent_count != b.torrent_count)
+        return false;
+    if (a.active_torrent_count != b.active_torrent_count)
+        return false;
+    if (a.paused_torrent_count != b.paused_torrent_count)
+        return false;
+
+    // DHT node count can slightly vary; allow small absolute change
+    if (diff_u64(a.dht_nodes, b.dht_nodes) > 2)
+    {
+        TT_LOG_DEBUG("rpc: session_snapshot_equal dht_diff={}",
+                     diff_u64(a.dht_nodes, b.dht_nodes));
+        return false;
+    }
+
+    return true;
 }
 
 struct SnapshotDiff

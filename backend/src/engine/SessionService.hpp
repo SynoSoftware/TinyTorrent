@@ -3,8 +3,10 @@
 #include "engine/Core.hpp"
 #include <atomic>
 #include <functional>
+#include <libtorrent/settings_pack.hpp>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <shared_mutex>
 #include <unordered_map>
 #include <vector>
@@ -114,6 +116,7 @@ class SessionService
     std::unordered_map<int, std::uint64_t> revisions_;
     std::uint64_t next_revision_ = 1;
     bool alt_speed_active_ = false;
+    std::optional<libtorrent::settings_pack> last_applied_pack_;
 
     mutable std::mutex data_mutex_;
     mutable std::shared_mutex priority_mutex_;

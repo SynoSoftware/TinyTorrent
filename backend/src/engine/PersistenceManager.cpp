@@ -1,4 +1,5 @@
 #include "engine/PersistenceManager.hpp"
+#include "engine/AsyncTaskService.hpp"
 
 #include "utils/Log.hpp"
 #include "utils/StateStore.hpp"
@@ -52,8 +53,10 @@ make_add_request(tt::storage::PersistedTorrent const &entry,
 namespace tt::engine
 {
 
-PersistenceManager::PersistenceManager(std::filesystem::path path)
-    : database_(std::make_unique<storage::Database>(std::move(path)))
+PersistenceManager::PersistenceManager(std::filesystem::path path,
+                                       AsyncTaskService *task_service)
+    : database_(std::make_shared<storage::Database>(std::move(path))),
+      task_service_(task_service)
 {
 }
 
@@ -160,7 +163,20 @@ SessionStatistics PersistenceManager::load_session_statistics()
     stats.seconds_active = read_uint64_setting("secondsActive");
     stats.session_count = read_uint64_setting("sessionCount");
     ++stats.session_count;
-    database_->set_setting("sessionCount", std::to_string(stats.session_count));
+    if (is_valid())
+    {
+        auto db = database_;
+        auto val = std::to_string(stats.session_count);
+        if (task_service_)
+        {
+            task_service_->submit([db, val]()
+                                  { db->set_setting("sessionCount", val); });
+        }
+        else
+        {
+            db->set_setting("sessionCount", val);
+        }
+    }
     return stats;
 }
 
@@ -168,13 +184,25 @@ bool PersistenceManager::persist_session_stats(SessionStatistics const &stats)
 {
     if (!is_valid())
         return false;
+    auto db = database_;
+    auto seconds = std::to_string(stats.seconds_active);
+    auto uploaded = std::to_string(stats.uploaded_bytes);
+    auto downloaded = std::to_string(stats.downloaded_bytes);
+    if (task_service_)
+    {
+        task_service_->submit(
+            [db, seconds, uploaded, downloaded]()
+            {
+                db->set_setting("secondsActive", seconds);
+                db->set_setting("uploadedBytes", uploaded);
+                db->set_setting("downloadedBytes", downloaded);
+            });
+        return true;
+    }
     bool success = true;
-    success &= database_->set_setting("secondsActive",
-                                      std::to_string(stats.seconds_active));
-    success &= database_->set_setting("uploadedBytes",
-                                      std::to_string(stats.uploaded_bytes));
-    success &= database_->set_setting("downloadedBytes",
-                                      std::to_string(stats.downloaded_bytes));
+    success &= db->set_setting("secondsActive", seconds);
+    success &= db->set_setting("uploadedBytes", uploaded);
+    success &= db->set_setting("downloadedBytes", downloaded);
     return success;
 }
 
@@ -182,70 +210,83 @@ bool PersistenceManager::persist_settings(CoreSettings const &settings)
 {
     if (!is_valid())
         return false;
-    if (!database_->begin_transaction())
+    auto db = database_;
+    // Prepare copies for lambda capture
+    auto s = settings;
+    if (task_service_)
+    {
+        task_service_->submit([this, db, s]()
+                              { persist_settings_impl(db, s); });
+        return true;
+    }
+    return persist_settings_impl(db, settings);
+}
+
+bool PersistenceManager::persist_settings_impl(
+    std::shared_ptr<storage::Database> db, CoreSettings const &s)
+{
+    if (!db || !db->is_valid())
+        return false;
+    if (!db->begin_transaction())
         return false;
 
     bool success = true;
     auto set_bool = [&](char const *key, bool value)
-    { success = success && database_->set_setting(key, value ? "1" : "0"); };
+    { success = success && db->set_setting(key, value ? "1" : "0"); };
     auto set_int = [&](char const *key, int value)
-    {
-        success = success && database_->set_setting(key, std::to_string(value));
-    };
+    { success = success && db->set_setting(key, std::to_string(value)); };
     auto set_double = [&](char const *key, double value)
-    {
-        success = success && database_->set_setting(key, std::to_string(value));
-    };
+    { success = success && db->set_setting(key, std::to_string(value)); };
     auto set_string = [&](char const *key, std::string const &value)
-    { success = success && database_->set_setting(key, value); };
+    { success = success && db->set_setting(key, value); };
 
-    set_string("listenInterface", settings.listen_interface);
+    set_string("listenInterface", s.listen_interface);
     set_int("listenPort", 0);
-    set_bool("historyEnabled", settings.history_enabled);
-    set_int("historyInterval", settings.history_interval_seconds);
-    set_int("historyRetentionDays", settings.history_retention_days);
-    set_bool("altSpeedEnabled", settings.alt_speed_enabled);
-    set_bool("altSpeedTime", settings.alt_speed_time_enabled);
-    set_int("altSpeedTimeBegin", settings.alt_speed_time_begin);
-    set_int("altSpeedTimeEnd", settings.alt_speed_time_end);
-    set_int("altSpeedTimeDay", settings.alt_speed_time_day);
-    set_double("altSpeedDownload", settings.alt_download_rate_limit_kbps);
-    set_double("altSpeedUpload", settings.alt_upload_rate_limit_kbps);
-    set_double("seedRatioLimit", settings.seed_ratio_limit);
-    set_bool("seedRatioEnabled", settings.seed_ratio_enabled);
-    set_bool("seedIdleEnabled", settings.seed_idle_enabled);
-    set_int("seedIdleLimit", settings.seed_idle_limit_minutes);
-    set_int("peerLimit", settings.peer_limit);
-    set_int("peerLimitPerTorrent", settings.peer_limit_per_torrent);
-    set_bool("dhtEnabled", settings.dht_enabled);
-    set_bool("pexEnabled", settings.pex_enabled);
-    set_bool("lpdEnabled", settings.lpd_enabled);
-    set_bool("utpEnabled", settings.utp_enabled);
-    set_int("downloadQueueSize", settings.download_queue_size);
-    set_int("seedQueueSize", settings.seed_queue_size);
-    set_bool("queueStalledEnabled", settings.queue_stalled_enabled);
-    set_bool("renamePartialFiles", settings.rename_partial_files);
-    set_string("downloadPath", settings.download_path.string());
-    set_string("incompleteDir", settings.incomplete_dir.string());
-    set_bool("incompleteDirEnabled", settings.incomplete_dir_enabled);
-    set_string("watchDir", settings.watch_dir.string());
-    set_bool("watchDirEnabled", settings.watch_dir_enabled);
-    set_int("proxyType", settings.proxy_type);
-    set_string("proxyHost", settings.proxy_hostname);
-    set_int("proxyPort", settings.proxy_port);
-    set_bool("proxyAuthEnabled", settings.proxy_auth_enabled);
-    set_string("proxyUsername", settings.proxy_username);
-    set_string("proxyPassword", settings.proxy_password);
-    set_bool("proxyPeerConnections", settings.proxy_peer_connections);
-    set_int("engineDiskCache", settings.disk_cache_mb);
-    set_int("engineHashingThreads", settings.hashing_threads);
-    set_int("queueStalledMinutes", settings.queue_stalled_minutes);
+    set_bool("historyEnabled", s.history_enabled);
+    set_int("historyInterval", s.history_interval_seconds);
+    set_int("historyRetentionDays", s.history_retention_days);
+    set_bool("altSpeedEnabled", s.alt_speed_enabled);
+    set_bool("altSpeedTime", s.alt_speed_time_enabled);
+    set_int("altSpeedTimeBegin", s.alt_speed_time_begin);
+    set_int("altSpeedTimeEnd", s.alt_speed_time_end);
+    set_int("altSpeedTimeDay", s.alt_speed_time_day);
+    set_double("altSpeedDownload", s.alt_download_rate_limit_kbps);
+    set_double("altSpeedUpload", s.alt_upload_rate_limit_kbps);
+    set_double("seedRatioLimit", s.seed_ratio_limit);
+    set_bool("seedRatioEnabled", s.seed_ratio_enabled);
+    set_bool("seedIdleEnabled", s.seed_idle_enabled);
+    set_int("seedIdleLimit", s.seed_idle_limit_minutes);
+    set_int("peerLimit", s.peer_limit);
+    set_int("peerLimitPerTorrent", s.peer_limit_per_torrent);
+    set_bool("dhtEnabled", s.dht_enabled);
+    set_bool("pexEnabled", s.pex_enabled);
+    set_bool("lpdEnabled", s.lpd_enabled);
+    set_bool("utpEnabled", s.utp_enabled);
+    set_int("downloadQueueSize", s.download_queue_size);
+    set_int("seedQueueSize", s.seed_queue_size);
+    set_bool("queueStalledEnabled", s.queue_stalled_enabled);
+    set_bool("renamePartialFiles", s.rename_partial_files);
+    set_string("downloadPath", s.download_path.string());
+    set_string("incompleteDir", s.incomplete_dir.string());
+    set_bool("incompleteDirEnabled", s.incomplete_dir_enabled);
+    set_string("watchDir", s.watch_dir.string());
+    set_bool("watchDirEnabled", s.watch_dir_enabled);
+    set_int("proxyType", s.proxy_type);
+    set_string("proxyHost", s.proxy_hostname);
+    set_int("proxyPort", s.proxy_port);
+    set_bool("proxyAuthEnabled", s.proxy_auth_enabled);
+    set_string("proxyUsername", s.proxy_username);
+    set_string("proxyPassword", s.proxy_password);
+    set_bool("proxyPeerConnections", s.proxy_peer_connections);
+    set_int("engineDiskCache", s.disk_cache_mb);
+    set_int("engineHashingThreads", s.hashing_threads);
+    set_int("queueStalledMinutes", s.queue_stalled_minutes);
     if (!success)
     {
-        database_->rollback_transaction();
+        db->rollback_transaction();
         return false;
     }
-    return database_->commit_transaction();
+    return db->commit_transaction();
 }
 
 void PersistenceManager::add_or_update_torrent(
@@ -279,7 +320,22 @@ void PersistenceManager::add_or_update_torrent(
     // 2. Persist to DB
     if (is_valid())
     {
-        database_->upsert_torrent(torrent);
+        auto db = database_;
+        auto copy_for_db = torrent;
+        if (task_service_)
+        {
+            TT_LOG_DEBUG(
+                "persistence: enqueue upsert_torrent hash={} offload=1",
+                copy_for_db.hash);
+            task_service_->submit([db, copy_for_db]()
+                                  { db->upsert_torrent(copy_for_db); });
+        }
+        else
+        {
+            TT_LOG_DEBUG("persistence: upsert_torrent hash={} offload=0",
+                         copy_for_db.hash);
+            db->upsert_torrent(copy_for_db);
+        }
     }
 }
 void PersistenceManager::remove_torrent(std::string const &hash)
@@ -293,7 +349,19 @@ void PersistenceManager::remove_torrent(std::string const &hash)
     }
     if (is_valid())
     {
-        database_->delete_torrent(hash);
+        auto db = database_;
+        auto h = hash;
+        if (task_service_)
+        {
+            TT_LOG_DEBUG(
+                "persistence: enqueue delete_torrent hash={} offload=1", h);
+            task_service_->submit([db, h]() { db->delete_torrent(h); });
+        }
+        else
+        {
+            TT_LOG_DEBUG("persistence: delete_torrent hash={} offload=0", h);
+            db->delete_torrent(h);
+        }
     }
 }
 
@@ -310,7 +378,22 @@ void PersistenceManager::update_save_path(std::string const &hash,
         }
     }
     if (is_valid())
-        database_->update_save_path(hash, path);
+    {
+        auto db = database_;
+        auto h = hash;
+        auto p = path;
+        if (task_service_)
+        {
+            TT_LOG_DEBUG(
+                "persistence: enqueue update_save_path hash={} offload=1", h);
+            task_service_->submit([db, h, p]() { db->update_save_path(h, p); });
+        }
+        else
+        {
+            TT_LOG_DEBUG("persistence: update_save_path hash={} offload=0", h);
+            db->update_save_path(h, p);
+        }
+    }
 }
 
 void PersistenceManager::update_rpc_id(std::string const &hash, int rpc_id)
@@ -325,7 +408,24 @@ void PersistenceManager::update_rpc_id(std::string const &hash, int rpc_id)
         }
     }
     if (is_valid())
-        database_->update_rpc_id(hash, rpc_id);
+    {
+        auto db = database_;
+        auto h = hash;
+        auto id = rpc_id;
+        if (task_service_)
+        {
+            TT_LOG_DEBUG(
+                "persistence: enqueue update_rpc_id hash={} id={} offload=1", h,
+                id);
+            task_service_->submit([db, h, id]() { db->update_rpc_id(h, id); });
+        }
+        else
+        {
+            TT_LOG_DEBUG("persistence: update_rpc_id hash={} id={} offload=0",
+                         h, id);
+            db->update_rpc_id(h, id);
+        }
+    }
 }
 
 void PersistenceManager::update_metadata(
@@ -342,7 +442,26 @@ void PersistenceManager::update_metadata(
         }
     }
     if (is_valid())
-        database_->update_metadata(hash, path, metadata);
+    {
+        auto db = database_;
+        auto h = hash;
+        auto p = path;
+        auto m = metadata;
+        if (task_service_)
+        {
+            TT_LOG_DEBUG("persistence: enqueue update_metadata hash={} path={} "
+                         "offload=1",
+                         h, p);
+            task_service_->submit([db, h, p, m]()
+                                  { db->update_metadata(h, p, m); });
+        }
+        else
+        {
+            TT_LOG_DEBUG(
+                "persistence: update_metadata hash={} path={} offload=0", h, p);
+            db->update_metadata(h, p, m);
+        }
+    }
 }
 
 void PersistenceManager::update_resume_data(
@@ -354,7 +473,22 @@ void PersistenceManager::update_resume_data(
     }
     if (is_valid())
     {
-        database_->update_resume_data(hash, data);
+        auto db = database_;
+        auto h = hash;
+        auto d = data;
+        if (task_service_)
+        {
+            TT_LOG_DEBUG(
+                "persistence: enqueue update_resume_data hash={} offload=1", h);
+            task_service_->submit([db, h, d]()
+                                  { db->update_resume_data(h, d); });
+        }
+        else
+        {
+            TT_LOG_DEBUG("persistence: update_resume_data hash={} offload=0",
+                         h);
+            db->update_resume_data(h, d);
+        }
     }
 }
 
@@ -379,7 +513,22 @@ void PersistenceManager::update_labels(std::string const &hash,
         }
     }
     if (is_valid())
-        database_->update_labels(hash, labels);
+    {
+        auto db = database_;
+        auto h = hash;
+        auto l = labels;
+        if (task_service_)
+        {
+            TT_LOG_DEBUG("persistence: enqueue update_labels hash={} offload=1",
+                         h);
+            task_service_->submit([db, h, l]() { db->update_labels(h, l); });
+        }
+        else
+        {
+            TT_LOG_DEBUG("persistence: update_labels hash={} offload=0", h);
+            db->update_labels(h, l);
+        }
+    }
 }
 
 void PersistenceManager::set_labels(std::string const &hash,

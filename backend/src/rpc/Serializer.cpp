@@ -1132,7 +1132,13 @@ std::string serialize_ws_patch(
     for (auto const &update : updated)
     {
         auto *entry = yyjson_mut_obj(native);
-        add_torrent_delta(native, entry, update.first, update.second);
+        // Send a full torrent summary for updated entries so websocket
+        // clients receive complete objects (avoids partial-delta validation
+        // failures on the frontend).
+        add_torrent_summary(native, entry, update.second);
+        attach_labels(native, entry, update.second);
+        yyjson_mut_obj_add_sint(native, entry, "bandwidthPriority",
+                                update.second.bandwidth_priority);
         yyjson_mut_arr_add_val(updated_arr, entry);
     }
 

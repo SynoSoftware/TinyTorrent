@@ -49,6 +49,7 @@ void AsyncTaskService::submit(std::function<void()> task)
     {
         return;
     }
+    size_t qsize = 0;
     {
         std::lock_guard<std::mutex> guard(mutex_);
         if (exit_requested_.load(std::memory_order_acquire))
@@ -56,7 +57,9 @@ void AsyncTaskService::submit(std::function<void()> task)
             return;
         }
         tasks_.push_back(std::move(task));
+        qsize = tasks_.size();
     }
+    TT_LOG_DEBUG("async-task: queue_size={}", qsize);
     cv_.notify_one();
 }
 
