@@ -953,8 +953,10 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int)
 
     destroy_splash_window(splash);
 
+    // Use query parameter for token so the token is sent to the server
+    // (fragments are not transmitted in HTTP requests).
     std::wstring url = L"http://127.0.0.1:" + std::to_wstring(info.port) +
-                       L"/index.html#tt-token=" + widen(info.token);
+                       L"/index.html?token=" + widen(info.token);
 
     WNDCLASSEXW wc{};
     wc.cbSize = sizeof(wc);

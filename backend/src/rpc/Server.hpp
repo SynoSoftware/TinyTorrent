@@ -97,6 +97,15 @@ class Server
     ServerOptions options_;
     std::string ws_path_ = "/ws";
     std::atomic_bool destroying_{false};
+    // Synchronization for listener readiness (port resolved)
+    mutable std::mutex ready_mtx_;
+    mutable std::condition_variable ready_cv_;
+    std::atomic_bool ready_{false};
+
+  public:
+    // Wait until the RPC listener has a resolved port and connection info.
+    // Returns true if ready before timeout, false otherwise.
+    bool wait_until_ready(std::chrono::milliseconds timeout) const;
 
     struct ActiveRequest
     {
