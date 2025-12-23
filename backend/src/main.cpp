@@ -365,7 +365,8 @@ int daemon_main(int argc, char *argv[],
                 auto target_w = path.wstring();
                 if (!tmp_w.empty() && !target_w.empty())
                 {
-                    DWORD flags = MOVEFILE_COPY_ALLOWED | MOVEFILE_REPLACE_EXISTING;
+                    DWORD flags =
+                        MOVEFILE_COPY_ALLOWED | MOVEFILE_REPLACE_EXISTING;
                     if (MoveFileExW(tmp_w.c_str(), target_w.c_str(), flags))
                     {
                         ec.clear();
@@ -413,6 +414,52 @@ int daemon_main(int argc, char *argv[],
         }
 
         auto root = tt::utils::data_root();
+#// Ensure data root exists so the log file can be created
+        std::error_code ec;
+        std::filesystem::create_directories(root, ec);
+        // Redirect stderr to a log file in release mode so diagnostics are
+        // available when no console is present.
+        try
+        {
+            auto log_path = root / "tinytorrent.log";
+#if defined(_WIN32)
+            FILE *new_stderr = nullptr;
+            auto p = log_path.string();
+            if (freopen_s(&new_stderr, p.c_str(), "a", stderr) == 0 &&
+                new_stderr)
+            {
+                setvbuf(new_stderr, nullptr, _IONBF, 0);
+                TT_LOG_INFO("stderr redirected to {}", p);
+            }
+            else
+            {
+                // Fallback: write a small diagnostic to the log file directly
+                try
+                {
+                    std::ofstream ofs(p, std::ios::app | std::ios::out);
+                    if (ofs.is_open())
+                    {
+                        ofs << "[W] Failed to redirect stderr; fallback log "
+                               "initialized\n";
+                        ofs.flush();
+                    }
+                }
+                catch (...)
+                {
+                }
+                TT_LOG_INFO("failed to redirect stderr to {}", p);
+            }
+#else
+            if (freopen(log_path.string().c_str(), "a", stderr) != nullptr)
+            {
+                setvbuf(stderr, nullptr, _IONBF, 0);
+                TT_LOG_INFO("stderr redirected to {}", log_path.string());
+            }
+#endif
+        }
+        catch (...)
+        {
+        }
         auto download_path = root / "downloads";
 
         tt::engine::CoreSettings settings;
@@ -896,20 +943,14 @@ int daemon_main(int argc, char *argv[],
         tt::rpc::Server rpc(engine.get(), rpc_bind, rpc_options);
         rpc.start();
 
-        // Wait briefly for the RPC listener to pick an ephemeral port
-        // (when binding to :0). The mongoose listener may finalize the
-        // assigned port slightly after mg_http_listen returns; poll for up
-        // to 1s for the server to fill in the connection info.
+        // Wait for the RPC listener to pick an ephemeral port (when
+        // binding to :0). Block up to 1s for readiness using the Server's
+        // synchronization primitive to avoid races that produce port:0 in
+        // connection.json.
         std::optional<tt::rpc::ConnectionInfo> connection_info;
-        for (int attempt = 0; attempt < 20 && !tt::runtime::should_shutdown();
-             ++attempt)
+        if (rpc.wait_until_ready(std::chrono::milliseconds(1000)))
         {
             connection_info = rpc.connection_info();
-            if (connection_info && connection_info->port != 0)
-            {
-                break;
-            }
-            std::this_thread::sleep_for(std::chrono::milliseconds(50));
         }
         auto connection_file = root / "connection.json";
         if (connection_info)

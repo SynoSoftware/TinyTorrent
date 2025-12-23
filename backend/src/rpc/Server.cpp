@@ -35,10 +35,16 @@
 
 namespace
 {
-constexpr std::size_t kMaxHttpPayloadSize = 1 << 20;
+constexpr std::size_t kMaxHttpPayloadSize = 10 * 1024 * 1024;
 constexpr std::uintmax_t kMaxWatchFileSize = 64ull * 1024 * 1024;
 
 constexpr std::string_view kUiIndexPath = "/index.html";
+
+bool starts_with(std::string_view value, std::string_view prefix)
+{
+    return value.size() >= prefix.size() &&
+           value.compare(0, prefix.size(), prefix) == 0;
+}
 
 std::string_view content_type_for_path(std::string_view path)
 {
@@ -123,11 +129,11 @@ bool should_fallback_to_index(std::string_view path)
     {
         return false;
     }
-    if (path.starts_with("/transmission") || path.starts_with("/ws"))
+    if (starts_with(path, "/transmission") || starts_with(path, "/ws"))
     {
         return false;
     }
-    if (path == "/api" || path.starts_with("/api/"))
+    if (path == "/api" || starts_with(path, "/api/"))
     {
         return false;
     }
@@ -261,10 +267,30 @@ void reply_bytes(struct mg_connection *conn, int code,
     {
         return;
     }
+    TT_LOG_INFO(
+        "rpc: http reply conn={} code={} content-type='{}' len={} head={}",
+        conn->id, code, std::string(content_type), body.size(), head_only);
+    if (!body.empty())
+    {
+        // Log a small prefix to catch cases where packed FS returns empty/
+        // placeholder content.
+        auto prefix_len = std::min<std::size_t>(body.size(), 64);
+        std::string prefix(body.substr(0, prefix_len));
+        for (auto &ch : prefix)
+        {
+            unsigned char u = static_cast<unsigned char>(ch);
+            if (u < 0x20 || u > 0x7E)
+            {
+                ch = '.';
+            }
+        }
+        TT_LOG_DEBUG("rpc: reply prefix ({} bytes): '{}'", prefix_len, prefix);
+    }
     mg_printf(conn,
               "HTTP/1.1 %d %s\r\n"
               "Content-Type: %.*s\r\n"
               "Content-Length: %zu\r\n"
+              "Connection: close\r\n"
               "Cache-Control: no-store\r\n"
               "\r\n",
               code, (code == 200 ? "OK" : (code == 404 ? "Not Found" : "")),
@@ -272,8 +298,15 @@ void reply_bytes(struct mg_connection *conn, int code,
               static_cast<size_t>(body.size()));
     if (!head_only && !body.empty())
     {
-        mg_send(conn, body.data(), body.size());
+        bool ok = mg_send(conn, body.data(), body.size());
+        TT_LOG_INFO("rpc: mg_send conn={} ok={} sent_len={}", conn->id, ok,
+                    body.size());
     }
+
+    // Ensure browsers observe the end of response (prevents DevTools showing
+    // subresources stuck in '(pending)' if something goes wrong with
+    // keepalive).
+    conn->is_draining = 1;
 }
 
 void serve_ui(struct mg_connection *conn, struct mg_http_message *hm,
@@ -299,8 +332,12 @@ void serve_ui(struct mg_connection *conn, struct mg_http_message *hm,
     }
 
     std::string path_storage;
-    if (request_path == "/")
+    // Treat empty or trailing-slash paths as requests for index.html
+    if (request_path.empty() || request_path == "/" ||
+        (!request_path.empty() && request_path.back() == '/'))
     {
+        TT_LOG_INFO("rpc: mapping root/trailing-slash request '{}' to {}",
+                    std::string(request_path), kUiIndexPath);
         path_storage = std::string(kUiIndexPath);
     }
     else
@@ -314,26 +351,47 @@ void serve_ui(struct mg_connection *conn, struct mg_http_message *hm,
         return;
     }
 
-    auto packed = mg_unpacked(path_storage.c_str());
-    if (packed.buf == nullptr || packed.len == 0)
+    auto serve_packed =
+        [&](std::string_view asset_path, struct mg_str const &data)
     {
-        if (should_fallback_to_index(path))
-        {
-            auto fallback = mg_unpacked(std::string(kUiIndexPath).c_str());
-            if (fallback.buf != nullptr && fallback.len > 0)
-            {
-                reply_bytes(conn, 200, content_type_for_path(kUiIndexPath),
-                            std::string_view(fallback.buf, fallback.len),
-                            head_only);
-                return;
-            }
-        }
-        mg_http_reply(conn, 404, "Content-Type: text/plain\r\n", "not found");
+        TT_LOG_INFO("Serving {} from packed FS (conn={} bytes={})", asset_path,
+                    conn->id, static_cast<std::size_t>(data.len));
+        reply_bytes(conn, 200, content_type_for_path(asset_path),
+                    std::string_view(data.buf, data.len), head_only);
+    };
+
+    TT_LOG_INFO("rpc: looking up packed fs key: '{}'", path_storage);
+    auto packed = mg_unpacked(path_storage.c_str());
+    if (packed.buf != nullptr && packed.len > 0)
+    {
+        serve_packed(path, packed);
         return;
     }
-
-    reply_bytes(conn, 200, content_type_for_path(path),
-                std::string_view(packed.buf, packed.len), head_only);
+    TT_LOG_INFO("rpc: packed fs lookup failed for '{}'", path_storage);
+    if (!path_storage.empty() && path_storage.front() == '/')
+    {
+        auto alt = path_storage.substr(1);
+        TT_LOG_INFO("rpc: trying packed fs key without leading slash: '{}'",
+                    alt);
+        auto packed2 = mg_unpacked(alt.c_str());
+        if (packed2.buf != nullptr && packed2.len > 0)
+        {
+            serve_packed(alt, packed2);
+            return;
+        }
+        TT_LOG_INFO("rpc: packed fs lookup failed for '{}'", alt);
+    }
+    if (should_fallback_to_index(path))
+    {
+        auto fallback = mg_unpacked(std::string(kUiIndexPath).c_str());
+        if (fallback.buf != nullptr && fallback.len > 0)
+        {
+            serve_packed(kUiIndexPath, fallback);
+            return;
+        }
+    }
+    TT_LOG_INFO("rpc: packed fs fallback failed for '{}'", path_storage);
+    mg_http_reply(conn, 404, "Content-Type: text/plain\r\n", "not found");
 }
 
 std::string generate_session_id()
@@ -405,7 +463,7 @@ std::optional<std::vector<std::uint8_t>> decode_base64(std::string_view input)
 std::optional<std::string> decode_basic_credentials(std::string_view header)
 {
     static constexpr std::string_view prefix = "Basic ";
-    if (!header.starts_with(prefix))
+    if (!starts_with(header, prefix))
     {
         return std::nullopt;
     }
@@ -510,20 +568,23 @@ bool host_allowed(std::string const &host,
     }
     if (!allowed_hosts.empty())
     {
-        return std::any_of(allowed_hosts.begin(), allowed_hosts.end(),
-                           [&](std::string const &candidate)
-                           {
-                               if (host == candidate)
-                               {
-                                   return true;
-                               }
-                               if (is_loopback_host(host) &&
-                                   is_loopback_host(candidate))
-                               {
-                                   return true;
-                               }
-                               return false;
-                           });
+        bool any_loopback_candidate =
+            std::any_of(allowed_hosts.begin(), allowed_hosts.end(),
+                        [](std::string const &candidate)
+                        { return is_loopback_host(candidate); });
+        for (auto const &candidate : allowed_hosts)
+        {
+            if (host == candidate)
+            {
+                return true;
+            }
+        }
+        // If server is bound to any loopback address, accept other common
+        // loopback names (localhost, 127.0.0.1, ::1).
+        if (any_loopback_candidate && is_loopback_host(host))
+        {
+            return true;
+        }
     }
     return is_loopback_host(host);
 }
@@ -539,6 +600,19 @@ bool origin_allowed(struct mg_http_message *hm,
     if (!origin)
     {
         return true;
+    }
+    // Allow `Origin: null` for local file UIs when the request is coming
+    // from a loopback host. This permits loading local files (file://)
+    // into the UI while preserving restrictions for remote requests.
+    if (*origin == "null")
+    {
+        if (auto nh = normalized_host(hm))
+        {
+            if (is_loopback_host(*nh))
+            {
+                return true;
+            }
+        }
     }
     for (auto const &candidate : options.trusted_origins)
     {
@@ -568,6 +642,54 @@ std::optional<std::string> websocket_token(struct mg_http_message *hm)
         return std::nullopt;
     }
     return std::string(buffer, static_cast<std::size_t>(len));
+}
+
+// Extract token from a request using the supported locations:
+//  - custom token header (options.token_header)
+//  - legacy header X-TinyTorrent-Token
+//  - Authorization: Bearer <token>
+//  - query parameter `token`
+static std::optional<std::string>
+extract_token_from_hm(struct mg_http_message *hm,
+                      tt::rpc::ServerOptions const &options)
+{
+    if (hm == nullptr)
+    {
+        return std::nullopt;
+    }
+    // 1) configured token header
+    if (!options.token_header.empty())
+    {
+        if (auto *h = mg_http_get_header(hm, options.token_header.c_str());
+            h != nullptr)
+        {
+            return std::string(h->buf, h->len);
+        }
+    }
+    // 2) legacy header
+    if (auto *legacy = mg_http_get_header(hm, kLegacyTokenHeader);
+        legacy != nullptr)
+    {
+        return std::string(legacy->buf, legacy->len);
+    }
+    // 3) Authorization: Bearer <token>
+    if (auto *auth = mg_http_get_header(hm, "Authorization"); auth != nullptr)
+    {
+        std::string_view value(auth->buf, auth->len);
+        static constexpr std::string_view bearer = "Bearer ";
+        if (value.size() > bearer.size() && starts_with(value, bearer))
+        {
+            return std::string(value.substr(bearer.size()));
+        }
+    }
+    // 4) query param
+    char qbuf[128] = {};
+    int qlen = mg_http_get_var(&hm->query, "token", qbuf, sizeof(qbuf));
+    if (qlen > 0)
+    {
+        return std::string(qbuf, static_cast<std::size_t>(qlen));
+    }
+    return std::nullopt;
 }
 
 bool session_snapshot_equal(tt::engine::SessionSnapshot const &a,
@@ -853,6 +975,13 @@ void Server::start()
         }
         TT_LOG_INFO("RPC listener bound to {}, exposing {}", display_bind,
                     rpc_path_);
+        // If the listener picked an ephemeral port immediately, notify any
+        // waiters that the RPC layer is ready.
+        if (connection_info_ && connection_info_->port != 0)
+        {
+            ready_.store(true, std::memory_order_release);
+            ready_cv_.notify_all();
+        }
     }
     worker_ = std::thread(&Server::run_loop, this);
     TT_LOG_INFO("RPC worker thread started");
@@ -894,6 +1023,18 @@ void Server::run_loop()
         {
             // TT_LOG_DEBUG("Polling Mongoose event loop");
             mg_mgr_poll(&mgr_, 50);
+            // Poll for listener port resolution (may be assigned shortly
+            // after bind). If the listener becomes available and a port is
+            // assigned, refresh the connection info and notify waiters.
+            if (!ready_.load(std::memory_order_acquire) && listener_ != nullptr)
+            {
+                refresh_connection_port();
+                if (connection_info_ && connection_info_->port != 0)
+                {
+                    ready_.store(true, std::memory_order_release);
+                    ready_cv_.notify_all();
+                }
+            }
             process_pending_tasks();
             drain_pending_responses();
             broadcast_websocket_updates();
@@ -1105,34 +1246,10 @@ bool Server::authorize_request(struct mg_http_message *hm)
     if (options_.token)
     {
         auto const &token = *options_.token;
-        auto matches_token = [&](char const *header_name)
-        {
-            if (auto *header = mg_http_get_header(hm, header_name);
-                header != nullptr)
-            {
-                std::string_view value(header->buf, header->len);
-                return value == token;
-            }
-            return false;
-        };
-        if (matches_token(options_.token_header.c_str()) ||
-            matches_token(kLegacyTokenHeader))
+        if (auto provided = extract_token_from_hm(hm, options_);
+            provided && *provided == token)
         {
             return true;
-        }
-        if (auto *header = mg_http_get_header(hm, "Authorization");
-            header != nullptr)
-        {
-            std::string_view value(header->buf, header->len);
-            static constexpr std::string_view bearer = "Bearer ";
-            if (value.size() > bearer.size() && value.starts_with(bearer))
-            {
-                auto token_value = value.substr(bearer.size());
-                if (token_value == token)
-                {
-                    return true;
-                }
-            }
         }
     }
     if (options_.basic_auth)
@@ -1169,38 +1286,16 @@ bool Server::authorize_ws_upgrade(struct mg_http_message *hm,
     }
     if (options_.token)
     {
-        if (token && *token == *options_.token)
+        auto const &expected = *options_.token;
+        // Prefer the token parameter from the websocket upgrade flow if present
+        if (token && *token == expected)
         {
             return true;
         }
-        auto matches_header = [&](char const *header_name)
-        {
-            if (auto *header = mg_http_get_header(hm, header_name);
-                header != nullptr)
-            {
-                std::string_view value(header->buf, header->len);
-                return value == *options_.token;
-            }
-            return false;
-        };
-        if (matches_header(options_.token_header.c_str()) ||
-            matches_header(kLegacyTokenHeader))
+        if (auto provided = extract_token_from_hm(hm, options_);
+            provided && *provided == expected)
         {
             return true;
-        }
-        if (auto *header = mg_http_get_header(hm, "Authorization");
-            header != nullptr)
-        {
-            std::string_view value(header->buf, header->len);
-            static constexpr std::string_view bearer = "Bearer ";
-            if (value.size() > bearer.size() && value.starts_with(bearer))
-            {
-                auto token_value = value.substr(bearer.size());
-                if (token_value == *options_.token)
-                {
-                    return true;
-                }
-            }
         }
     }
     if (options_.basic_auth)
@@ -1328,10 +1423,38 @@ void Server::handle_http_message(struct mg_connection *conn,
                     "mode allowing)");
     }
 #else
-    if (!normalized || !host_allowed(*normalized, allowed_hosts_))
+    bool host_ok = false;
+    if (normalized)
     {
-        TT_LOG_INFO("HTTP request rejected; unsupported host header {}",
-                    normalized ? *normalized : "<missing>");
+        // If the request Host is loopback in any flavor, accept it.
+        if (is_loopback_host(*normalized))
+        {
+            host_ok = true;
+        }
+        else if (host_allowed(*normalized, allowed_hosts_))
+        {
+            host_ok = true;
+        }
+    }
+    // Allow requests that carry a valid token in the query/header to bypass
+    // brittle Host header checks (useful for UI asset requests with ?token=).
+    if (!host_ok && options_.token)
+    {
+        if (auto provided = extract_token_from_hm(hm, options_);
+            provided && *provided == *options_.token)
+        {
+            host_ok = true;
+        }
+    }
+    if (!host_ok)
+    {
+        auto host_hdr = header_value(hm, "Host");
+        auto origin_hdr = header_value(hm, "Origin");
+        TT_LOG_INFO("HTTP request rejected; unsupported host header {}; "
+                    "Host='{}' Origin='{}'",
+                    normalized ? *normalized : "<missing>",
+                    host_hdr ? *host_hdr : "<missing>",
+                    origin_hdr ? *origin_hdr : "<missing>");
         if (is_rpc || is_ws)
         {
             auto payload = serialize_error("invalid host header");
@@ -1354,7 +1477,10 @@ void Server::handle_http_message(struct mg_connection *conn,
         if (!origin_allowed_flag)
         {
             auto origin_value = header_value(hm, "Origin");
-            TT_LOG_INFO("WebSocket upgrade rejected; origin not allowed {}",
+            auto host_value = header_value(hm, "Host");
+            TT_LOG_INFO("WebSocket upgrade rejected; origin not allowed; "
+                        "Host='{}' Origin='{}'",
+                        host_value ? *host_value : "<missing>",
                         origin_value ? *origin_value : "<missing>");
             auto payload = serialize_error("origin not allowed");
             mg_http_reply(conn, 403, "Content-Type: application/json\r\n", "%s",
@@ -1365,7 +1491,12 @@ void Server::handle_http_message(struct mg_connection *conn,
         auto token = websocket_token(hm);
         if (!authorize_ws_upgrade(hm, token))
         {
-            TT_LOG_INFO("WebSocket upgrade rejected; invalid token");
+            auto host_value = header_value(hm, "Host");
+            auto origin_value = header_value(hm, "Origin");
+            TT_LOG_INFO("WebSocket upgrade rejected; invalid token; Host='{}' "
+                        "Origin='{}'",
+                        host_value ? *host_value : "<missing>",
+                        origin_value ? *origin_value : "<missing>");
             auto payload = serialize_error("invalid token");
             mg_http_reply(conn, 403, "Content-Type: application/json\r\n", "%s",
                           payload.c_str());
@@ -1373,6 +1504,101 @@ void Server::handle_http_message(struct mg_connection *conn,
         }
         mg_ws_upgrade(conn, hm, nullptr);
         return;
+    }
+
+    std::optional<std::string> response_origin;
+    if (origin_allowed_flag && origin_value)
+    {
+        response_origin = *origin_value;
+    }
+
+    bool request_from_loopback = normalized && is_loopback_host(*normalized);
+    std::string sanitized_path = sanitized_uri;
+    std::string_view sanitized_path_view(sanitized_path);
+    bool is_initial_index_load =
+        sanitized_path_view.empty() || sanitized_path_view == "/" ||
+        sanitized_path_view == kUiIndexPath ||
+        (!sanitized_path_view.empty() && sanitized_path_view.back() == '/');
+
+    auto packed_resource_exists = [](std::string const &candidate) -> bool
+    {
+        if (candidate.empty())
+        {
+            return false;
+        }
+        auto check = [](std::string const &lookup) -> bool
+        {
+            auto packed = mg_unpacked(lookup.c_str());
+            return packed.buf != nullptr && packed.len > 0;
+        };
+        if (check(candidate))
+        {
+            return true;
+        }
+        if (candidate.front() == '/')
+        {
+            return check(candidate.substr(1));
+        }
+        return false;
+    };
+
+    auto reply_unauthorized = [&]()
+    {
+        auto host_value = header_value(hm, "Host");
+        auto origin_value_local = header_value(hm, "Origin");
+        if (is_rpc)
+        {
+            TT_LOG_INFO("RPC request rejected; unauthorized authentication "
+                        "attempt; Host='{}' Origin='{}'",
+                        host_value ? *host_value : "<missing>",
+                        origin_value_local ? *origin_value_local : "<missing>");
+            auto headers =
+                build_rpc_headers("text/plain", response_origin, std::nullopt);
+            if (self->options_.basic_auth)
+            {
+                headers += "WWW-Authenticate: Basic realm=\"";
+                headers += self->options_.basic_realm;
+                headers += "\"\r\n";
+            }
+            mg_http_reply(conn, 401, headers.c_str(), "unauthorized");
+        }
+        else
+        {
+            TT_LOG_INFO("HTTP request rejected; unauthorized authentication "
+                        "attempt; Host='{}' Origin='{}'",
+                        host_value ? *host_value : "<missing>",
+                        origin_value_local ? *origin_value_local : "<missing>");
+            std::string headers = "Content-Type: text/plain\r\n";
+            if (self->options_.basic_auth)
+            {
+                headers += "WWW-Authenticate: Basic realm=\"";
+                headers += self->options_.basic_realm;
+                headers += "\"\r\n";
+            }
+            mg_http_reply(conn, 401, headers.c_str(), "unauthorized");
+        }
+    };
+
+    bool token_authorized = self->authorize_request(hm);
+    if (!token_authorized)
+    {
+        bool allow_loopback_asset_without_token = false;
+        if (method == "GET" && request_from_loopback && !is_rpc &&
+            !is_initial_index_load)
+        {
+            std::string resource_key = sanitized_path_view.empty()
+                                           ? std::string(kUiIndexPath)
+                                           : std::string(sanitized_path_view);
+            if (packed_resource_exists(resource_key))
+            {
+                allow_loopback_asset_without_token = true;
+            }
+        }
+        if (!allow_loopback_asset_without_token)
+        {
+            reply_unauthorized();
+            return;
+        }
     }
 
     if (!is_rpc)
@@ -1383,8 +1609,11 @@ void Server::handle_http_message(struct mg_connection *conn,
 #if !defined(TT_BUILD_DEBUG)
     if (!origin_allowed_flag)
     {
-        TT_LOG_INFO("RPC request rejected; origin not allowed {}",
-                    origin_value ? *origin_value : "<missing>");
+        auto host_value = header_value(hm, "Host");
+        TT_LOG_INFO(
+            "RPC request rejected; origin not allowed; Host='{}' Origin='{}'",
+            host_value ? *host_value : "<missing>",
+            origin_value ? *origin_value : "<missing>");
         auto payload = serialize_error("origin not allowed");
         auto headers = build_rpc_headers("application/json", {}, std::nullopt);
         mg_http_reply(conn, 403, headers.c_str(), "%s", payload.c_str());
@@ -1393,11 +1622,6 @@ void Server::handle_http_message(struct mg_connection *conn,
 #else
     // Debug: skip the strict origin check to aid local UI debugging.
 #endif
-    std::optional<std::string> response_origin;
-    if (origin_allowed_flag && origin_value)
-    {
-        response_origin = *origin_value;
-    }
 
     if (method == "OPTIONS")
     {
@@ -1413,28 +1637,6 @@ void Server::handle_http_message(struct mg_connection *conn,
         return;
     }
 
-    auto reply_unauthorized = [&]()
-    {
-        TT_LOG_INFO(
-            "RPC request rejected; unauthorized authentication attempt");
-        auto headers =
-            build_rpc_headers("text/plain", response_origin, std::nullopt);
-        if (self->options_.basic_auth)
-        {
-            headers += "WWW-Authenticate: Basic realm=\"";
-            headers += self->options_.basic_realm;
-            headers += "\"\r\n";
-        }
-        mg_http_reply(conn, 401, headers.c_str(), "unauthorized");
-    };
-    bool token_authorized = self->authorize_request(hm);
-
-    if (!token_authorized)
-    {
-        reply_unauthorized();
-        return;
-    }
-
     auto const &session_header_name = self->options_.session_header;
     auto *session_header = mg_http_get_header(hm, session_header_name.c_str());
     bool session_ok = session_header != nullptr &&
@@ -1442,14 +1644,28 @@ void Server::handle_http_message(struct mg_connection *conn,
                           self->session_id_.size() &&
                       std::memcmp(session_header->buf, self->session_id_.data(),
                                   self->session_id_.size()) == 0;
+    bool skip_session_id = request_from_loopback && token_authorized;
     if (!session_ok)
     {
-        auto headers = build_rpc_headers("application/json", response_origin,
-                                         std::nullopt);
-        headers += session_header_name + ": " + self->session_id_ + "\r\n";
-        auto payload = serialize_error("session id required");
-        mg_http_reply(conn, 409, headers.c_str(), "%s", payload.c_str());
-        return;
+        if (skip_session_id)
+        {
+            TT_LOG_INFO("RPC session id requirement waived for loopback host");
+        }
+        else
+        {
+            auto host_value = header_value(hm, "Host");
+            auto origin_value = header_value(hm, "Origin");
+            TT_LOG_INFO("RPC request rejected; session id required; Host='{}' "
+                        "Origin='{}'",
+                        host_value ? *host_value : "<missing>",
+                        origin_value ? *origin_value : "<missing>");
+            auto headers = build_rpc_headers("application/json",
+                                             response_origin, std::nullopt);
+            headers += session_header_name + ": " + self->session_id_ + "\r\n";
+            auto payload = serialize_error("session id required");
+            mg_http_reply(conn, 409, headers.c_str(), "%s", payload.c_str());
+            return;
+        }
     }
 
     if (hm->body.len == static_cast<size_t>(-1) ||
@@ -1502,10 +1718,17 @@ void Server::handle_ws_open(struct mg_connection *conn,
     }
     auto snapshot = engine_ ? engine_->snapshot()
                             : std::make_shared<engine::SessionSnapshot>();
-    send_ws_message(conn, serialize_ws_snapshot(*snapshot));
+    // Ensure the client's `last_known_snapshot` is set before the client is
+    // visible to broadcast logic. Hold the clients mutex while adding and
+    // sending the initial snapshot to avoid races where patch messages could
+    // be sent before the snapshot is recorded.
+    std::string initial = serialize_ws_snapshot(*snapshot);
     {
         std::lock_guard<std::mutex> lock(ws_clients_mtx_);
         ws_clients_.push_back({conn, std::move(snapshot)});
+        // Send the snapshot while still holding the lock to ensure the
+        // broadcast loop does not observe a client without an initial state.
+        send_ws_message(conn, initial);
     }
 }
 
@@ -1586,6 +1809,20 @@ void Server::enqueue_task(std::function<void()> task)
     std::lock_guard<std::mutex> lock(tasks_mtx_);
     pending_tasks_.push_back(std::move(task));
     mg_wakeup(&mgr_, 0, nullptr, 0);
+}
+
+bool Server::wait_until_ready(std::chrono::milliseconds timeout) const
+{
+    if (ready_.load(std::memory_order_acquire))
+    {
+        return true;
+    }
+    std::unique_lock<std::mutex> lock(ready_mtx_);
+    if (ready_cv_.wait_for(lock, timeout, [this]() { return ready_.load(); }))
+    {
+        return true;
+    }
+    return false;
 }
 
 void Server::process_pending_tasks()
