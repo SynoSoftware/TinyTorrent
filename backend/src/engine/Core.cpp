@@ -86,12 +86,6 @@ struct Core::Impl
     BlocklistManager blocklist_manager;
     std::unique_ptr<BlocklistService> blocklist_service;
 
-    // Initialization synchronization: signal when constructor finished
-    // initializing the services that other threads may depend on.
-    std::mutex init_mtx;
-    std::condition_variable init_cv;
-    bool initialized_{false};
-
     // State
     std::atomic<EngineState> state{EngineState::Running};
     std::atomic_bool shutdown_requested{false};
@@ -268,38 +262,10 @@ struct Core::Impl
         auto dht_state = load_dht_state();
         auto pack = SettingsManager::build_settings_pack(settings_);
 
-        // Lock the outbound interface to a single routable IPv4 candidate so
-        // we can fail over cleanly while libtorrent infers the actual
-        // announce IP.
-        auto outbound_candidates = tt::net::ranked_outbound_ipv4_candidates();
-        if (!outbound_candidates.empty())
-        {
-            auto const &selected = outbound_candidates.front();
-            pack.set_str(libtorrent::settings_pack::outgoing_interfaces,
-                         selected);
-
-            // libtorrent binds UDP tracker/DHT sockets to listen sockets.
-            // To keep the configured port stable across failovers while still
-            // listening on the wildcard address, capture it for the manager.
-            std::string listen_port;
-            if (auto pos = settings_.listen_interface.rfind(':');
-                pos != std::string::npos &&
-                pos + 1 < settings_.listen_interface.size())
-            {
-                listen_port = settings_.listen_interface.substr(pos + 1);
-            }
-            if (listen_port.empty())
-            {
-                listen_port = "6881";
-            }
-            torrent_manager->set_outbound_announce_candidates(
-                std::move(outbound_candidates), std::move(listen_port));
-        }
-        else
-        {
-            TT_LOG_INFO("no outbound IPv4 candidates found; tracker announces "
-                        "may fail");
-        }
+        // Do not pin outgoing or announce interfaces. On Windows (multiple
+        // NICs/VPN/Hyper-V/WSL), pinning can route tracker packets via an
+        // unreachable adapter (WSAENETUNREACH). Let libtorrent infer the
+        // correct source address dynamically.
         libtorrent::v2::session_params params(pack);
         if (dht_state)
             params.dht_state = std::move(*dht_state);
@@ -320,19 +286,6 @@ struct Core::Impl
                         s.incomplete_dir, s.incomplete_dir_enabled);
                 }
             });
-
-        // Mark initialization complete and notify any waiters.
-        {
-            std::lock_guard<std::mutex> lock(init_mtx);
-            initialized_ = true;
-        }
-        init_cv.notify_all();
-    }
-
-    void wait_until_initialized()
-    {
-        std::unique_lock<std::mutex> lock(init_mtx);
-        init_cv.wait(lock, [this]() { return initialized_; });
     }
 
     ~Impl()
@@ -548,8 +501,6 @@ struct Core::Impl
 Core::~Core() = default;
 Core::Core(CoreSettings s) : impl_(std::make_unique<Impl>(std::move(s)))
 {
-    if (impl_)
-        impl_->wait_until_initialized();
 }
 std::unique_ptr<Core> Core::create(CoreSettings s)
 {

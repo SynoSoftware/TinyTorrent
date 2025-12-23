@@ -142,28 +142,27 @@ Core::AddTorrentStatus SessionService::add_torrent(TorrentAddRequest request)
     }
     request.download_path = download_path;
 
-    std::filesystem::path ensure_path = download_path;
+    std::error_code download_ec;
+    std::filesystem::create_directories(download_path, download_ec);
+    if (download_ec)
+    {
+        TT_LOG_WARN("failed to ensure download path {}: {}",
+                    download_path.string(), download_ec.message());
+    }
     if (settings.incomplete_dir_enabled && !settings.incomplete_dir.empty())
     {
-        ensure_path = settings.incomplete_dir;
-    }
-    std::error_code mkdir_ec;
-    std::filesystem::create_directories(ensure_path, mkdir_ec);
-    if (mkdir_ec)
-    {
-        TT_LOG_ERROR("failed to ensure save path {}: {}", ensure_path.string(),
-                     mkdir_ec.message());
-        return Core::AddTorrentStatus::InvalidPath;
+        std::error_code incomplete_ec;
+        std::filesystem::create_directories(settings.incomplete_dir,
+                                            incomplete_ec);
+        if (incomplete_ec)
+        {
+            TT_LOG_WARN("failed to ensure incomplete dir {}: {}",
+                        settings.incomplete_dir.string(),
+                        incomplete_ec.message());
+        }
     }
 
-    if (settings.incomplete_dir_enabled && !settings.incomplete_dir.empty())
-    {
-        params.save_path = settings.incomplete_dir.string();
-    }
-    else
-    {
-        params.save_path = download_path.string();
-    }
+    params.save_path = download_path.string();
 
     params.flags = libtorrent::torrent_flags::auto_managed;
     if (request.paused)
@@ -176,27 +175,8 @@ Core::AddTorrentStatus SessionService::add_torrent(TorrentAddRequest request)
             tt::storage::PersistedTorrent entry;
             entry.hash = *hash;
 
-            // Ensure the path stored in persistence exactly matches the
-            // `save_path` given to libtorrent. Use an absolute u8-encoded
-            // path when possible so both persistence and libtorrent agree.
-            try
-            {
-                std::error_code ec;
-                auto p = std::filesystem::u8path(params.save_path);
-                auto abs = std::filesystem::absolute(p, ec);
-                if (!ec)
-                {
-                    entry.save_path = to_utf8(abs);
-                }
-                else
-                {
-                    entry.save_path = params.save_path;
-                }
-            }
-            catch (...)
-            {
-                entry.save_path = params.save_path;
-            }
+            // Keep persistence in sync with the save_path passed to libtorrent.
+            entry.save_path = params.save_path;
 
             entry.paused = request.paused;
             if (request.uri)
@@ -205,14 +185,6 @@ Core::AddTorrentStatus SessionService::add_torrent(TorrentAddRequest request)
             entry.resume_data = request.resume_data;
             entry.added_at = std::chrono::system_clock::to_time_t(
                 std::chrono::system_clock::now());
-            if (auto previous_added = persistence_->get_added_at(*hash);
-                previous_added)
-            {
-                if (*previous_added > 0)
-                {
-                    entry.added_at = *previous_added;
-                }
-            }
             persistence_->add_or_update_torrent(std::move(entry));
         }
     }
@@ -352,9 +324,10 @@ void SessionService::update_snapshot(std::chrono::steady_clock::time_point now)
         [this, &pending_pause_ids](int id, auto const &h, auto const &s)
     { enforce_limits(id, h, s, &pending_pause_ids); };
 
-    cb.build_snapshot_entry = [this](int id, auto const &s, uint64_t r,
-                                     std::optional<std::int64_t> prev)
-    { return snapshot_builder_->build_snapshot(id, s, r, prev); };
+    cb.build_snapshot_entry =
+        [this](int id, auto const &s, uint64_t r,
+               std::optional<std::int64_t> cached_added_time)
+    { return snapshot_builder_->build_snapshot(id, s, r, cached_added_time); };
 
     cb.ensure_revision = [this](int id) { return ensure_revision(id); };
 

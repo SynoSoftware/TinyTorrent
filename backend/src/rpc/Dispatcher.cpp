@@ -390,7 +390,23 @@ SystemHandlerResult unregister_windows_handler()
     }
     if (status.torrent)
     {
-        ok = delete_key(L"Software\\Classes\\.torrent") && ok;
+        bool can_delete_assoc = false;
+        if (auto current_assoc = read_registry_string(
+                HKEY_CURRENT_USER, kTorrentExtensionKey, L"");
+            current_assoc)
+        {
+            auto assoc_value = to_lower_wide(trim_wide(*current_assoc));
+            auto expected_assoc =
+                to_lower_wide(std::wstring(kTorrentClassName));
+            if (!assoc_value.empty() && assoc_value == expected_assoc)
+            {
+                can_delete_assoc = true;
+            }
+        }
+        if (can_delete_assoc)
+        {
+            ok = delete_key(kTorrentExtensionKey) && ok;
+        }
         ok =
             delete_key_chain({
                 L"Software\\Classes\\TinyTorrent.torrent\\shell\\open\\command",
@@ -2540,30 +2556,12 @@ std::string handle_torrent_add(engine::Core *engine, yyjson_val *arguments)
                 {
                     candidate = std::filesystem::absolute(candidate);
                 }
-                if (auto error = ensure_directory_exists(candidate))
-                {
-                    return serialize_error(*error);
-                }
                 request.download_path = std::move(candidate);
             }
         }
         catch (std::filesystem::filesystem_error const &ex)
         {
             return serialize_error(ex.what());
-        }
-    }
-
-    {
-        auto settings = engine->settings();
-        auto save_path = request.download_path.empty() ? settings.download_path
-                                                       : request.download_path;
-        if (settings.incomplete_dir_enabled && !settings.incomplete_dir.empty())
-        {
-            save_path = settings.incomplete_dir;
-        }
-        if (auto error = ensure_directory_exists(save_path))
-        {
-            return serialize_error(*error);
         }
     }
 
@@ -3575,7 +3573,7 @@ void handle_system_reveal_async(engine::Core *engine, yyjson_val *arguments,
     try
     {
         sta_worker().post(StaWorker::QueuedWork{
-            [engine, target = std::move(target), cb = std::move(cb)]() mutable
+            [target = std::move(target), cb = std::move(cb)]() mutable
             {
                 bool success = false;
                 std::string message;
@@ -3616,14 +3614,6 @@ void handle_system_reveal_async(engine::Core *engine, yyjson_val *arguments,
                 }
                 auto response =
                     serialize_system_action("system-reveal", success, message);
-                if (engine)
-                {
-                    engine->submit_io_task(
-                        [cb = std::move(cb),
-                         response = std::move(response)]() mutable
-                        { cb(std::move(response)); });
-                    return;
-                }
                 cb(std::move(response));
             },
             [] {}});
@@ -3700,7 +3690,7 @@ void handle_system_open_async(engine::Core *engine, yyjson_val *arguments,
     try
     {
         sta_worker().post(StaWorker::QueuedWork{
-            [engine, target = std::move(target), cb = std::move(cb)]() mutable
+            [target = std::move(target), cb = std::move(cb)]() mutable
             {
                 bool success = false;
                 std::string message;
@@ -3739,14 +3729,6 @@ void handle_system_open_async(engine::Core *engine, yyjson_val *arguments,
                 }
                 auto response =
                     serialize_system_action("system-open", success, message);
-                if (engine)
-                {
-                    engine->submit_io_task(
-                        [cb = std::move(cb),
-                         response = std::move(response)]() mutable
-                        { cb(std::move(response)); });
-                    return;
-                }
                 cb(std::move(response));
             },
             [] {}});
