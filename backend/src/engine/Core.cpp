@@ -268,21 +268,19 @@ struct Core::Impl
         auto dht_state = load_dht_state();
         auto pack = SettingsManager::build_settings_pack(settings_);
 
-        // Pin tracker announces to exactly one routable outbound IPv4 address
-        // (qBittorrent semantics). This prevents libtorrent from attempting
-        // announces from multiple listen sockets (loopback/link-local/virtual).
+        // Lock the outbound interface to a single routable IPv4 candidate so
+        // we can fail over cleanly while libtorrent infers the actual
+        // announce IP.
         auto outbound_candidates = tt::net::ranked_outbound_ipv4_candidates();
         if (!outbound_candidates.empty())
         {
             auto const &selected = outbound_candidates.front();
-            pack.set_str(libtorrent::settings_pack::announce_ip, selected);
             pack.set_str(libtorrent::settings_pack::outgoing_interfaces,
                          selected);
 
             // libtorrent binds UDP tracker/DHT sockets to listen sockets.
-            // If we listen on wildcard, it will announce multiple per-adapter
-            // endpoints. Pin listen_interfaces to the selected IPv4 to ensure
-            // trackers only see a single address.
+            // To keep the configured port stable across failovers while still
+            // listening on the wildcard address, capture it for the manager.
             std::string listen_port;
             if (auto pos = settings_.listen_interface.rfind(':');
                 pos != std::string::npos &&
