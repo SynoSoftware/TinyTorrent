@@ -678,7 +678,7 @@ void TorrentManager::handle_tracker_success_for_outbound()
         return;
     }
     outbound_candidate_locked_ = true;
-    TT_LOG_INFO("announce source locked to {}", outbound_active_ip_);
+    TT_LOG_INFO("outgoing interface locked to {}", outbound_active_ip_);
 }
 
 bool TorrentManager::try_failover_outbound_candidate(
@@ -728,12 +728,9 @@ bool TorrentManager::try_failover_outbound_candidate(
         outbound_active_ip_ = candidate;
 
         libtorrent::settings_pack pack;
-        // Use pinned announce/outgoing addresses, but do NOT pin
-        // listen_interfaces to a specific adapter IP. Bind listen sockets
-        // to wildcard (0.0.0.0) while using the outbound IP for announces
-        // and outgoing interfaces.
-        pack.set_str(libtorrent::settings_pack::announce_ip,
-                     outbound_active_ip_);
+        // Update the outgoing interface to the new candidate while leaving
+        // listen sockets on the wildcard address so libtorrent can infer
+        // the announce IP.
         pack.set_str(libtorrent::settings_pack::outgoing_interfaces,
                      outbound_active_ip_);
 
@@ -744,7 +741,7 @@ bool TorrentManager::try_failover_outbound_candidate(
         }
         session_->apply_settings(pack);
 
-        TT_LOG_INFO("announce source failover ({}) -> {}", reason,
+        TT_LOG_INFO("outgoing interface failover ({}) -> {}", reason,
                     outbound_active_ip_);
 
         // Trigger a network refresh so DHT/UDP sockets are rebound to the
@@ -753,15 +750,16 @@ bool TorrentManager::try_failover_outbound_candidate(
 
         if (h.is_valid())
         {
-            // Retry announce after re-pinning. If tracker_index is unknown,
-            // libtorrent will treat -1 as 'all trackers'.
+            // Retry announce after rebinding the outbound interface. If
+            // tracker_index is unknown, libtorrent will treat -1 as 'all
+            // trackers'.
             h.force_reannounce(0);
         }
 
         return true;
     }
 
-    TT_LOG_INFO("announce source failover exhausted (reason: {})", reason);
+    TT_LOG_INFO("outgoing interface failover exhausted (reason: {})", reason);
     return false;
 }
 
@@ -1012,13 +1010,11 @@ void TorrentManager::apply_settings(libtorrent::settings_pack const &pack)
     {
         session_->apply_settings(pack);
 
-        // Keep outbound announce pinning stable even when other subsystems
+        // Keep the outbound interface binding stable even when other subsystems
         // (e.g. SessionService) re-apply network settings.
         if (!outbound_active_ip_.empty() && !outbound_listen_port_.empty())
         {
             libtorrent::settings_pack pinned;
-            pinned.set_str(libtorrent::settings_pack::announce_ip,
-                           outbound_active_ip_);
             pinned.set_str(libtorrent::settings_pack::outgoing_interfaces,
                            outbound_active_ip_);
             // Do not pin listen_interfaces to the outbound IP; bind to
