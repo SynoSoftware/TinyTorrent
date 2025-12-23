@@ -108,7 +108,7 @@ SnapshotBuilder::SnapshotBuilder(
 
 TorrentSnapshot SnapshotBuilder::build_snapshot(
     int rpc_id, libtorrent::v2::torrent_status const &status,
-    std::uint64_t revision, std::optional<std::int64_t> previous_added)
+    std::uint64_t revision, std::optional<std::int64_t> cached_added_time)
 {
     TorrentSnapshot snapshot;
     snapshot.id = rpc_id;
@@ -132,18 +132,13 @@ TorrentSnapshot SnapshotBuilder::build_snapshot(
         std::max(0, status.num_peers - status.num_seeds);
     snapshot.eta = estimate_eta(status);
     snapshot.total_wanted_done = status.total_wanted_done;
-    snapshot.added_time = status.added_time;
-    if (previous_added)
+    if (cached_added_time)
     {
-        snapshot.added_time = *previous_added;
+        snapshot.added_time = *cached_added_time;
     }
-    else if (persistence_ && !snapshot.hash.empty())
+    else
     {
-        if (auto persisted = persistence_->get_added_at(snapshot.hash);
-            persisted)
-        {
-            snapshot.added_time = static_cast<std::int64_t>(*persisted);
-        }
+        snapshot.added_time = status.added_time;
     }
     double ratio = 0.0;
     if (status.total_download > 0)

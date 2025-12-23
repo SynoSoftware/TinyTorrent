@@ -718,10 +718,12 @@ export function TorrentTable({
 
     useEffect(() => {
         setSpeedHistory((prev) => {
-            const next: Record<string, number[]> = {};
+            const next: Record<string, number[]> = { ...prev };
+            const seenIds = new Set<string>();
             // We iterate over the raw torrents to maintain history
             torrents.forEach((torrent) => {
-                const history = prev[torrent.id] ?? [];
+                seenIds.add(torrent.id);
+                const history = next[torrent.id] ?? [];
                 const currentSpeed =
                     torrent.state === "downloading"
                         ? torrent.speed.down
@@ -734,6 +736,11 @@ export function TorrentTable({
                     -SPEED_HISTORY_LIMIT
                 );
                 next[torrent.id] = updated;
+            });
+            Object.keys(next).forEach((id) => {
+                if (!seenIds.has(id)) {
+                    delete next[id];
+                }
             });
             return next;
         });

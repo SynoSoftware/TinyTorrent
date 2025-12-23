@@ -20,7 +20,8 @@ const resampleHistory = (values: number[], targetLength: number) => {
     return Array.from({ length: targetLength }, (_, index) => {
         const start = Math.floor(index * factor);
         const end = Math.min(values.length, Math.floor((index + 1) * factor));
-        const slice = values.slice(start, end || start + 1);
+        const sliceEnd = end > start ? end : start + 1;
+        const slice = values.slice(start, sliceEnd);
         if (!slice.length) {
             return values[start] ?? 0;
         }

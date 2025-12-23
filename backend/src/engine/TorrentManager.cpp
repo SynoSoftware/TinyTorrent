@@ -4,8 +4,6 @@
 #include "utils/Log.hpp"
 #include "utils/Shutdown.hpp"
 
-#include <boost/asio/error.hpp>
-
 #if defined(_WIN32)
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -201,44 +199,6 @@ bool write_metadata_with_fsync(std::filesystem::path const &target,
 namespace tt::engine
 {
 
-namespace
-{
-bool is_hard_network_unreachable(libtorrent::error_code const &ec)
-{
-    if (!ec)
-    {
-        return false;
-    }
-
-    // Do not fail over on timeouts; timeouts are normal tracker behavior.
-    if (ec == boost::asio::error::timed_out)
-    {
-        return false;
-    }
-
-    if (ec == boost::asio::error::network_unreachable ||
-        ec == boost::asio::error::host_unreachable)
-    {
-        return true;
-    }
-
-#if defined(_WIN32)
-    // Winsock hard failures we treat as unreachable/unusable for this source.
-    switch (ec.value())
-    {
-    case WSAENETUNREACH:
-    case WSAEHOSTUNREACH:
-    case WSAEADDRNOTAVAIL:
-        return true;
-    default:
-        break;
-    }
-#endif
-
-    return false;
-}
-} // namespace
-
 TorrentManager::TorrentManager()
 {
     alert_buffer_.reserve(kAlertBufferCapacity);
@@ -259,21 +219,6 @@ TorrentManager::~TorrentManager()
 void TorrentManager::start_session(libtorrent::v2::session_params params)
 {
     session_ = std::make_unique<libtorrent::session>(std::move(params));
-}
-
-void TorrentManager::set_outbound_announce_candidates(
-    std::vector<std::string> candidates, std::string listen_port)
-{
-    outbound_candidates_ = std::move(candidates);
-    outbound_listen_port_ = std::move(listen_port);
-    outbound_candidate_index_ = 0;
-    outbound_candidate_locked_ = false;
-    outbound_unreachable_.clear();
-    outbound_active_ip_.clear();
-    if (!outbound_candidates_.empty())
-    {
-        outbound_active_ip_ = outbound_candidates_.front();
-    }
 }
 
 libtorrent::session *TorrentManager::session() const noexcept
@@ -402,14 +347,14 @@ TorrentManager::build_snapshot(SnapshotBuildCallbacks const &callbacks)
         }
         else if (callbacks.build_snapshot_entry)
         {
-            std::optional<std::int64_t> prev_added = std::nullopt;
+            std::optional<std::int64_t> cached_added_time = std::nullopt;
             auto it = snapshot_cache_.find(id);
             if (it != snapshot_cache_.end())
             {
-                prev_added = it->second.added_time;
+                cached_added_time = it->second.added_time;
             }
             entry = callbacks.build_snapshot_entry(id, status, revision,
-                                                   prev_added);
+                                                   cached_added_time);
         }
         else
         {
@@ -575,52 +520,10 @@ void TorrentManager::process_alerts()
                      libtorrent::alert_cast<libtorrent::tracker_error_alert>(
                          alert))
         {
-            handle_tracker_alert_for_outbound(*tracker_error);
             if (callbacks_.on_tracker_error)
             {
                 callbacks_.on_tracker_error(*tracker_error);
             }
-        }
-        else if (auto *tracker_announce =
-                     libtorrent::alert_cast<libtorrent::tracker_announce_alert>(
-                         alert))
-        {
-#if defined(TT_ENABLE_LOGGING) && !defined(TT_BUILD_MINIMAL)
-            std::string local_ip;
-            try
-            {
-                local_ip =
-                    tracker_announce->local_endpoint.address().to_string();
-            }
-            catch (...)
-            {
-                local_ip = "<unavailable>";
-            }
-
-            TT_LOG_INFO(
-                "tracker announce local={} active={} url={} event={} v={}",
-                local_ip,
-                outbound_active_ip_.empty() ? "<unset>" : outbound_active_ip_,
-                tracker_announce->tracker_url(),
-                static_cast<int>(tracker_announce->event),
-                static_cast<int>(tracker_announce->version));
-
-            if (!outbound_active_ip_.empty() && local_ip != "<unavailable>" &&
-                local_ip != outbound_active_ip_)
-            {
-                TT_LOG_INFO("WARNING: tracker announce local IP differs from "
-                            "pinned announce IP");
-            }
-#else
-            (void)tracker_announce;
-#endif
-        }
-        else if (auto *tracker_reply =
-                     libtorrent::alert_cast<libtorrent::tracker_reply_alert>(
-                         alert))
-        {
-            (void)tracker_reply;
-            handle_tracker_success_for_outbound();
         }
         else if (auto *delete_failed = libtorrent::alert_cast<
                      libtorrent::torrent_delete_failed_alert>(alert))
@@ -665,130 +568,6 @@ void TorrentManager::process_alerts()
             }
         }
     }
-}
-
-void TorrentManager::handle_tracker_success_for_outbound()
-{
-    if (outbound_candidate_locked_)
-    {
-        return;
-    }
-    if (outbound_active_ip_.empty())
-    {
-        return;
-    }
-    outbound_candidate_locked_ = true;
-    TT_LOG_INFO("outgoing interface locked to {}", outbound_active_ip_);
-}
-
-bool TorrentManager::try_failover_outbound_candidate(
-    char const *reason, libtorrent::torrent_handle const &h)
-{
-    if (!session_)
-    {
-        return false;
-    }
-    if (outbound_candidate_locked_)
-    {
-        return false;
-    }
-    if (outbound_candidates_.empty())
-    {
-        return false;
-    }
-
-    // Mark the current as unreachable to prevent retries.
-    if (!outbound_active_ip_.empty())
-    {
-        outbound_unreachable_.insert(outbound_active_ip_);
-    }
-
-    std::size_t next = outbound_candidate_index_;
-    if (!outbound_active_ip_.empty() &&
-        outbound_candidate_index_ < outbound_candidates_.size() &&
-        outbound_candidates_[outbound_candidate_index_] == outbound_active_ip_)
-    {
-        next = outbound_candidate_index_ + 1;
-    }
-
-    for (; next < outbound_candidates_.size(); ++next)
-    {
-        auto const &candidate = outbound_candidates_[next];
-        if (candidate.empty())
-        {
-            continue;
-        }
-        if (outbound_unreachable_.find(candidate) !=
-            outbound_unreachable_.end())
-        {
-            continue;
-        }
-
-        outbound_candidate_index_ = next;
-        outbound_active_ip_ = candidate;
-
-        libtorrent::settings_pack pack;
-        // Update the outgoing interface to the new candidate while leaving
-        // listen sockets on the wildcard address so libtorrent can infer
-        // the announce IP.
-        pack.set_str(libtorrent::settings_pack::outgoing_interfaces,
-                     outbound_active_ip_);
-
-        if (!outbound_listen_port_.empty())
-        {
-            pack.set_str(libtorrent::settings_pack::listen_interfaces,
-                         std::string("0.0.0.0:") + outbound_listen_port_);
-        }
-        session_->apply_settings(pack);
-
-        TT_LOG_INFO("outgoing interface failover ({}) -> {}", reason,
-                    outbound_active_ip_);
-
-        // Trigger a network refresh so DHT/UDP sockets are rebound to the
-        // updated settings.
-        session_->reopen_network_sockets();
-
-        if (h.is_valid())
-        {
-            // Retry announce after rebinding the outbound interface. If
-            // tracker_index is unknown, libtorrent will treat -1 as 'all
-            // trackers'.
-            h.force_reannounce(0);
-        }
-
-        return true;
-    }
-
-    TT_LOG_INFO("outgoing interface failover exhausted (reason: {})", reason);
-    return false;
-}
-
-void TorrentManager::handle_tracker_alert_for_outbound(
-    libtorrent::tracker_error_alert const &alert)
-{
-    if (!session_)
-    {
-        return;
-    }
-    if (outbound_candidates_.empty())
-    {
-        return;
-    }
-
-    // Ensure we have an active IP (set at startup by Core); if not, try to
-    // establish one lazily from the candidate list.
-    if (outbound_active_ip_.empty() && !outbound_candidates_.empty())
-    {
-        outbound_active_ip_ = outbound_candidates_.front();
-        outbound_candidate_index_ = 0;
-    }
-
-    // Only fail over on hard network-unreachable conditions.
-    if (!is_hard_network_unreachable(alert.error))
-    {
-        return;
-    }
-    try_failover_outbound_candidate("tracker unreachable", alert.handle);
 }
 
 void TorrentManager::async_add_torrent(libtorrent::add_torrent_params params)
@@ -1009,20 +788,6 @@ void TorrentManager::apply_settings(libtorrent::settings_pack const &pack)
     if (session_)
     {
         session_->apply_settings(pack);
-
-        // Keep the outbound interface binding stable even when other subsystems
-        // (e.g. SessionService) re-apply network settings.
-        if (!outbound_active_ip_.empty() && !outbound_listen_port_.empty())
-        {
-            libtorrent::settings_pack pinned;
-            pinned.set_str(libtorrent::settings_pack::outgoing_interfaces,
-                           outbound_active_ip_);
-            // Do not pin listen_interfaces to the outbound IP; bind to
-            // wildcard to avoid preventing DHT/UDP sockets from rebinding.
-            pinned.set_str(libtorrent::settings_pack::listen_interfaces,
-                           std::string("0.0.0.0:") + outbound_listen_port_);
-            session_->apply_settings(pinned);
-        }
     }
 }
 

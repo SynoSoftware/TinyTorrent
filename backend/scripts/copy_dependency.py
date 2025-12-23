@@ -1,5 +1,4 @@
 import argparse
-import os
 import shutil
 from pathlib import Path
 
@@ -40,7 +39,35 @@ def main():
         if dest_resolved in dll_resolved.parents:
             continue
         target = dest / dll.name
-        shutil.copy2(dll, target)
+        dll_stat = None
+        try:
+            dll_stat = dll_resolved.stat()
+        except OSError:
+            pass
+
+        skip_copy = False
+        if dll_stat and target.exists():
+            try:
+                target_stat = target.stat()
+                if (
+                    target_stat.st_size == dll_stat.st_size
+                    and int(target_stat.st_mtime) == int(dll_stat.st_mtime)
+                ):
+                    skip_copy = True
+            except OSError:
+                pass
+        if skip_copy:
+            continue
+
+        try:
+            shutil.copy2(dll, target)
+        except PermissionError:
+            print(
+                f"Warning: Could not update {dll.name} (file locked). "
+                "Ensure TinyTorrent is closed.",
+            )
+        except Exception as exc:
+            print(f"Error copying {dll.name}: {exc}")
 
     Path(args.stamp_file).write_text("copied\n")
 
