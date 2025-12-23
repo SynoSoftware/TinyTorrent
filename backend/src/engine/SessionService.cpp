@@ -16,6 +16,7 @@
 #include <filesystem>
 
 #include <libtorrent/magnet_uri.hpp>
+#include <libtorrent/read_resume_data.hpp>
 #include <libtorrent/session_params.hpp>
 #include <libtorrent/torrent_info.hpp>
 
@@ -167,6 +168,44 @@ Core::AddTorrentStatus SessionService::add_torrent(TorrentAddRequest request)
     params.flags = libtorrent::torrent_flags::auto_managed;
     if (request.paused)
         params.flags |= libtorrent::torrent_flags::paused;
+
+    if (!request.resume_data.empty())
+    {
+        libtorrent::error_code resume_ec;
+        libtorrent::span<char const> resume_span(
+            reinterpret_cast<char const *>(request.resume_data.data()),
+            request.resume_data.size());
+        auto resume_params =
+            libtorrent::read_resume_data(resume_span, resume_ec);
+        if (!resume_ec)
+        {
+            if (resume_params.ti == nullptr)
+            {
+                resume_params.ti = params.ti;
+            }
+            if (resume_params.trackers.empty() && !params.trackers.empty())
+            {
+                resume_params.trackers = params.trackers;
+            }
+
+            resume_params.save_path = params.save_path;
+            resume_params.flags |= params.flags;
+
+#if TORRENT_ABI_VERSION == 1
+            resume_params.flags |=
+                libtorrent::torrent_flags::override_resume_data;
+#endif
+
+            params = std::move(resume_params);
+        }
+        else
+        {
+            TT_LOG_INFO("failed to parse resume data: {}", resume_ec.message());
+#if TORRENT_ABI_VERSION == 1
+            params.flags |= libtorrent::torrent_flags::override_resume_data;
+#endif
+        }
+    }
 
     if (auto hash = info_hash_from_params(params); hash)
     {

@@ -45,6 +45,9 @@ constexpr char const kDefaultPartfileExtension[] = ".part";
 constexpr char const kDefaultDhtBootstrapNodes[] =
     "router.bittorrent.com:6881,router.utorrent.com:6881,"
     "dht.transmissionbt.com:6881,router.bitcomet.com:6881";
+
+constexpr int kDefaultActiveDownloads = 50;
+constexpr int kDefaultActiveSeeds = 50;
 } // namespace
 
 libtorrent::settings_pack
@@ -84,6 +87,8 @@ SettingsManager::build_settings_pack(CoreSettings const &s)
     pack.set_int(libtorrent::settings_pack::alert_queue_size, 8192);
     pack.set_int(libtorrent::settings_pack::hashing_threads,
                  std::max(1, s.hashing_threads));
+    pack.set_bool(libtorrent::settings_pack::no_recheck_incomplete_resume,
+                  true);
 #if TORRENT_ABI_VERSION <= 1
     pack.set_int(libtorrent::settings_pack::cache_size,
                  std::max(0, s.disk_cache_mb) * 1024 * 1024);
@@ -91,25 +96,17 @@ SettingsManager::build_settings_pack(CoreSettings const &s)
     pack.set_int(libtorrent::settings_pack::deprecated_cache_size,
                  std::max(0, s.disk_cache_mb) * 1024 * 1024);
 #endif
-    if (s.download_queue_size > 0)
     {
+        int active_downloads = s.download_queue_size > 0
+                                   ? s.download_queue_size
+                                   : kDefaultActiveDownloads;
+        int active_seeds =
+            s.seed_queue_size > 0 ? s.seed_queue_size : kDefaultActiveSeeds;
         pack.set_int(libtorrent::settings_pack::active_downloads,
-                     s.download_queue_size);
-    }
-    if (s.seed_queue_size > 0)
-    {
-        pack.set_int(libtorrent::settings_pack::active_seeds,
-                     s.seed_queue_size);
-    }
-    {
-        int active_downloads =
-            s.download_queue_size > 0 ? s.download_queue_size : 0;
-        int active_seeds = s.seed_queue_size > 0 ? s.seed_queue_size : 0;
-        int active_limit = active_downloads + active_seeds;
-        if (active_limit > 0)
-        {
-            pack.set_int(libtorrent::settings_pack::active_limit, active_limit);
-        }
+                     active_downloads);
+        pack.set_int(libtorrent::settings_pack::active_seeds, active_seeds);
+        pack.set_int(libtorrent::settings_pack::active_limit,
+                     active_downloads + active_seeds);
     }
     pack.set_bool(libtorrent::settings_pack::dont_count_slow_torrents,
                   s.queue_stalled_enabled);
@@ -271,28 +268,31 @@ void SettingsManager::apply_queue(CoreSettings const &s,
                                   libtorrent::settings_pack &pack,
                                   libtorrent::settings_pack *current)
 {
-    pack.set_int(libtorrent::settings_pack::active_downloads,
-                 s.download_queue_size);
-    pack.set_int(libtorrent::settings_pack::active_seeds, s.seed_queue_size);
+    int const active_downloads = s.download_queue_size > 0
+                                     ? s.download_queue_size
+                                     : kDefaultActiveDownloads;
+    int const active_seeds =
+        s.seed_queue_size > 0 ? s.seed_queue_size : kDefaultActiveSeeds;
+
+    pack.set_int(libtorrent::settings_pack::active_downloads, active_downloads);
+    pack.set_int(libtorrent::settings_pack::active_seeds, active_seeds);
+    pack.set_int(libtorrent::settings_pack::active_limit,
+                 active_downloads + active_seeds);
     pack.set_bool(libtorrent::settings_pack::dont_count_slow_torrents,
                   s.queue_stalled_enabled);
+    pack.set_bool(libtorrent::settings_pack::no_recheck_incomplete_resume,
+                  true);
     if (current)
     {
         current->set_int(libtorrent::settings_pack::active_downloads,
-                         s.download_queue_size);
-        current->set_int(libtorrent::settings_pack::active_seeds,
-                         s.seed_queue_size);
+                         active_downloads);
+        current->set_int(libtorrent::settings_pack::active_seeds, active_seeds);
         current->set_bool(libtorrent::settings_pack::dont_count_slow_torrents,
                           s.queue_stalled_enabled);
-        int active_downloads =
-            s.download_queue_size > 0 ? s.download_queue_size : 0;
-        int active_seeds = s.seed_queue_size > 0 ? s.seed_queue_size : 0;
-        int active_limit = active_downloads + active_seeds;
-        if (active_limit > 0)
-        {
-            current->set_int(libtorrent::settings_pack::active_limit,
-                             active_limit);
-        }
+        current->set_int(libtorrent::settings_pack::active_limit,
+                         active_downloads + active_seeds);
+        current->set_bool(
+            libtorrent::settings_pack::no_recheck_incomplete_resume, true);
     }
 }
 
