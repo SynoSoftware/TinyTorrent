@@ -18,6 +18,7 @@ tt_test_common_sources = [
   '../src/engine/StateService.cpp',
   '../src/engine/TorrentManager.cpp',
   '../src/utils/FS.cpp',
+  '../src/utils/Log.cpp',
   '../src/utils/OutboundRoute.cpp',
   '../src/utils/StateStore.cpp',
   '../src/utils/Shutdown.cpp',
@@ -25,7 +26,8 @@ tt_test_common_sources = [
   '../src/vendor/mongoose.c',
   '../src/vendor/tt_packed_fs_data.cpp',
   '../src/vendor/tt_packed_fs.c',
-    '../src/engine/SchedulerService.cpp',
+  '../src/engine/SchedulerService.cpp',
+
 ]
 
 doctest_dep = dependency('doctest', method: 'cmake', modules: ['doctest::doctest'])
@@ -77,3 +79,16 @@ test('rpc-filesystem-test', rpc_filesystem_test_exe)
 test('serializer-test', serializer_test_exe)
 test('memory-leak-test', memory_leak_test_exe)
 test('configuration-test', configuration_test_exe)
+
+ui_serving_test_exe = executable('ui-serving-test',
+  tt_test_common_sources + ['main_test.cpp', 'UiServingTest.cpp'],
+  dependencies: [tt_common_dep, doctest_dep],
+  cpp_args: tt_cpp_args,
+  c_args: tt_c_args,
+)
+
+test(
+  'ui-serving-test',
+  ui_serving_test_exe,
+  timeout: 10
+)

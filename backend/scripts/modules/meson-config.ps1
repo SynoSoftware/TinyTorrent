@@ -274,6 +274,12 @@ function Invoke-MesonTests {
     Log-Info "Running tests ($Configuration)... (logs: $logDir)"
 
     $oldPath = $env:PATH
+    $oldTtEnginePath = $env:TT_ENGINE_PATH
+    $ttEngineExe = Join-Path $buildDir 'tt-engine.exe'
+    if (-not (Test-Path -LiteralPath $ttEngineExe)) {
+        throw "tt-engine executable not found: $ttEngineExe"
+    }
+    $env:TT_ENGINE_PATH = $ttEngineExe
     try {
         if ($Configuration -eq 'Debug') {
             $dllDirs = @()
@@ -301,48 +307,109 @@ function Invoke-MesonTests {
             }
         }
 
-        $executables = Get-ChildItem -LiteralPath $testDir -Filter '*-test.exe' -File -ErrorAction Stop
+        $executables = @(Get-ChildItem -LiteralPath $testDir -Filter '*-test.exe' -File -ErrorAction Stop)
+        if ($executables.Count -eq 0) {
+            Log-Success 'All tests passed.'
+            return
+        }
+
+        $maxParallel = [Math]::Max(1, [Math]::Min($executables.Count, [Environment]::ProcessorCount))
+
+        $pending = New-Object System.Collections.Generic.Queue[System.IO.FileInfo]
         foreach ($exe in $executables) {
-            $stdoutLog = Join-Path $logDir ("{0}.stdout.log" -f $exe.BaseName)
-            $stderrLog = Join-Path $logDir ("{0}.stderr.log" -f $exe.BaseName)
+            $pending.Enqueue($exe)
+        }
 
-            $proc = Start-Process -FilePath $exe.FullName -WorkingDirectory $testDir -NoNewWindow -PassThru -Wait `
-                -RedirectStandardOutput $stdoutLog -RedirectStandardError $stderrLog
+        $runningJobs = @()
+        $failures = @()
 
-            if ($proc.ExitCode -eq 0) {
-                Log-Success "PASS: $($exe.Name)"
+        function Start-TestJob {
+            param([Parameter(Mandatory = $true)][System.IO.FileInfo]$Exe)
+
+            $stdoutLog = Join-Path $logDir ("{0}.stdout.log" -f $Exe.BaseName)
+            $stderrLog = Join-Path $logDir ("{0}.stderr.log" -f $Exe.BaseName)
+
+            $job = Start-Job -ScriptBlock {
+                param($exeFullName, $exeName, $workDir, $stdoutLog, $stderrLog)
+                $proc = Start-Process -FilePath $exeFullName -WorkingDirectory $workDir -NoNewWindow -PassThru -Wait `
+                    -RedirectStandardOutput $stdoutLog -RedirectStandardError $stderrLog
+
+                [PSCustomObject]@{
+                    Name      = $exeName
+                    ExitCode  = $proc.ExitCode
+                    StdoutLog = $stdoutLog
+                    StderrLog = $stderrLog
+                }
+            } -ArgumentList @($Exe.FullName, $Exe.Name, $testDir, $stdoutLog, $stderrLog)
+
+            $job | Add-Member -NotePropertyName TT_ExeName -NotePropertyValue $Exe.Name -Force
+            return $job
+        }
+
+        while ($runningJobs.Count -lt $maxParallel -and $pending.Count -gt 0) {
+            $runningJobs += Start-TestJob -Exe ($pending.Dequeue())
+        }
+
+        while ($runningJobs.Count -gt 0) {
+            $done = Wait-Job -Job $runningJobs -Any -Timeout 1
+            if (-not $done) {
                 continue
             }
 
-            Log-Error "FAIL: $($exe.Name) (exit $($proc.ExitCode))"
-            Log-Info "  stdout: $stdoutLog"
-            Log-Info "  stderr: $stderrLog"
+            $result = $null
+            try {
+                $result = Receive-Job -Job $done -ErrorAction SilentlyContinue
+            }
+            catch {
+                $result = $null
+            }
 
+            $runningJobs = @($runningJobs | Where-Object { $_.Id -ne $done.Id })
+            Remove-Job -Job $done -Force -ErrorAction SilentlyContinue
+
+            if (-not $result) {
+                $failures += [PSCustomObject]@{ Name = $done.TT_ExeName; ExitCode = 1; StdoutLog = ''; StderrLog = '' }
+                Log-Error "FAIL: $($done.TT_ExeName) (no result)"
+            }
+            elseif ($result.ExitCode -eq 0) {
+                Log-Success "PASS: $($result.Name)"
+            }
+            else {
+                Log-Error "FAIL: $($result.Name) (exit $($result.ExitCode))"
+                Log-Info "  stdout: $($result.StdoutLog)"
+                Log-Info "  stderr: $($result.StderrLog)"
+                $failures += $result
+            }
+
+            while ($runningJobs.Count -lt $maxParallel -and $pending.Count -gt 0) {
+                $runningJobs += Start-TestJob -Exe ($pending.Dequeue())
+            }
+        }
+
+        if ($failures.Count -gt 0) {
             $tailLines = 25
-            $stderrTail = @()
-            $stdoutTail = @()
-            if (Test-Path -LiteralPath $stderrLog) {
-                $stderrTail = @(Get-Content -LiteralPath $stderrLog -Tail $tailLines -ErrorAction SilentlyContinue)
+            foreach ($f in $failures) {
+                if ($f.StdoutLog -and (Test-Path -LiteralPath $f.StdoutLog)) {
+                    Log-Error "--- $($f.Name) stdout (last $tailLines lines) ---"
+                    @(Get-Content -LiteralPath $f.StdoutLog -Tail $tailLines -ErrorAction SilentlyContinue) | ForEach-Object { Write-Output $_ }
+                }
+                if ($f.StderrLog -and (Test-Path -LiteralPath $f.StderrLog)) {
+                    Log-Error "--- $($f.Name) stderr (last $tailLines lines) ---"
+                    @(Get-Content -LiteralPath $f.StderrLog -Tail $tailLines -ErrorAction SilentlyContinue) | ForEach-Object { Write-Output $_ }
+                }
             }
-            if (Test-Path -LiteralPath $stdoutLog) {
-                $stdoutTail = @(Get-Content -LiteralPath $stdoutLog -Tail $tailLines -ErrorAction SilentlyContinue)
-            }
-
-            if ($stderrTail.Count -gt 0) {
-                Log-Error "--- stderr (last $tailLines lines) ---"
-                $stderrTail | ForEach-Object { Write-Output $_ }
-            }
-            if ($stdoutTail.Count -gt 0) {
-                Log-Error "--- stdout (last $tailLines lines) ---"
-                $stdoutTail | ForEach-Object { Write-Output $_ }
-            }
-
-            throw "Test failed: $($exe.Name)"
+            throw "Test failed: $($failures[0].Name)"
         }
 
         Log-Success 'All tests passed.'
     }
     finally {
         $env:PATH = $oldPath
+        if ($oldTtEnginePath) {
+            $env:TT_ENGINE_PATH = $oldTtEnginePath
+        }
+        else {
+            Remove-Item env:TT_ENGINE_PATH -ErrorAction SilentlyContinue
+        }
     }
 }

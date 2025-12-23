@@ -11,6 +11,9 @@
 namespace tt::log
 {
 
+// Forward declaration for non-templated file append (defined in Log.cpp).
+void append_log_line_to_file(std::string const &line);
+
 // If TT_ENABLE_LOGGING is defined and non-zero, it takes absolute
 // precedence over TT_BUILD_MINIMAL. This allows enabling logs temporarily
 // in Release builds for diagnostics.
@@ -64,18 +67,7 @@ inline void write_line(char level, std::string_view fmt, Args &&...args)
     // 2) Always append to a fallback file to ensure logs are persisted
     try
     {
-        static std::mutex s_mutex;
-        static std::ofstream s_ofs;
-        if (!s_ofs.is_open())
-        {
-            s_ofs.open("tinytorrent.log", std::ios::app | std::ios::out);
-        }
-        if (s_ofs.is_open())
-        {
-            std::lock_guard<std::mutex> lk(s_mutex);
-            s_ofs << final << '\n';
-            s_ofs.flush();
-        }
+        append_log_line_to_file(final);
     }
     catch (...)
     {
