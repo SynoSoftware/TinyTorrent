@@ -258,7 +258,6 @@ std::string build_rpc_headers(std::string_view content_type,
     headers += "Cache-Control: no-store\r\n";
     return headers;
 }
-
 void reply_bytes(struct mg_connection *conn, int code,
                  std::string_view content_type, std::string_view body,
                  bool head_only)
@@ -267,13 +266,13 @@ void reply_bytes(struct mg_connection *conn, int code,
     {
         return;
     }
+
     TT_LOG_INFO(
         "rpc: http reply conn={} code={} content-type='{}' len={} head={}",
         conn->id, code, std::string(content_type), body.size(), head_only);
+
     if (!body.empty())
     {
-        // Log a small prefix to catch cases where packed FS returns empty/
-        // placeholder content.
         auto prefix_len = std::min<std::size_t>(body.size(), 64);
         std::string prefix(body.substr(0, prefix_len));
         for (auto &ch : prefix)
@@ -286,27 +285,30 @@ void reply_bytes(struct mg_connection *conn, int code,
         }
         TT_LOG_DEBUG("rpc: reply prefix ({} bytes): '{}'", prefix_len, prefix);
     }
-    mg_printf(conn,
-              "HTTP/1.1 %d %s\r\n"
-              "Content-Type: %.*s\r\n"
-              "Content-Length: %zu\r\n"
-              "Connection: close\r\n"
-              "Cache-Control: no-store\r\n"
-              "\r\n",
-              code, (code == 200 ? "OK" : (code == 404 ? "Not Found" : "")),
-              static_cast<int>(content_type.size()), content_type.data(),
-              static_cast<size_t>(body.size()));
-    if (!head_only && !body.empty())
+
+    std::string headers;
+    headers.reserve(64 + content_type.size());
+    headers += "Content-Type: ";
+    headers.append(content_type.data(), content_type.size());
+    headers += "\r\nCache-Control: no-store\r\n";
+
+    if (head_only || body.empty())
     {
-        bool ok = mg_send(conn, body.data(), body.size());
-        TT_LOG_INFO("rpc: mg_send conn={} ok={} sent_len={}", conn->id, ok,
-                    body.size());
+        mg_http_reply(conn, code, headers.c_str(), "");
+    }
+    else
+    {
+        mg_http_reply(conn, code, headers.c_str(), "%.*s", (int)body.size(),
+                      body.data());
     }
 
     // Ensure browsers observe the end of response (prevents DevTools showing
     // subresources stuck in '(pending)' if something goes wrong with
     // keepalive).
-    conn->is_draining = 1;
+    // keeping this line commented as it took me 2 days to figure out why the
+    // frontend didn't load. this line fixed it... but now we have a better
+    // solution (above)
+    // conn->is_draining = 1;
 }
 
 void serve_ui(struct mg_connection *conn, struct mg_http_message *hm,

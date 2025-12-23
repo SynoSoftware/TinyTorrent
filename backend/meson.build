@@ -260,6 +260,7 @@ tt_base_sources = [
   'src/rpc/Serializer.cpp',
   'src/rpc/FsHooks.cpp',
   'src/utils/FS.cpp',
+  'src/utils/Log.cpp',
   'src/utils/OutboundRoute.cpp',
   'src/utils/StateStore.cpp',
   'src/utils/Shutdown.cpp',
@@ -275,11 +276,15 @@ endif
 tt_sources = tt_base_sources + tt_packed_fs_res
 
 
-executable('tt-engine', tt_sources,
+tt_engine_exe = executable('tt-engine', tt_sources,
   dependencies: [tt_common_dep],
   link_args: tt_engine_link_args,
   cpp_args: tt_cpp_args,
   c_args: tt_c_args)
+
+
+set_variable('tt_engine_exe', tt_engine_exe)
+
 
 if host_machine.system() == 'windows'
   tt_gui_sources = []
