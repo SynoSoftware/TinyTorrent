@@ -3,6 +3,7 @@
 #include "engine/Events.hpp"
 #include "engine/PersistenceManager.hpp"
 #include "engine/SettingsManager.hpp"
+#include "utils/Endpoint.hpp"
 #include "utils/Log.hpp"
 
 #include <utility>
@@ -44,11 +45,23 @@ void ConfigurationService::update(SessionUpdate const &update)
 
 void ConfigurationService::set_listen_interface(std::string const &value)
 {
+    auto parts = tt::net::parse_host_port(value);
+    parts.port = tt::net::trim_whitespace(parts.port);
+    if (parts.port.empty())
+    {
+        parts.port = "6881";
+    }
+    if (parts.host.empty())
+    {
+        parts.host = "0.0.0.0";
+        parts.bracketed = false;
+    }
+    auto normalized = tt::net::format_host_port(parts);
     {
         std::unique_lock<std::shared_mutex> lock(mutex_);
-        if (settings_.listen_interface == value)
+        if (settings_.listen_interface == normalized)
             return;
-        settings_.listen_interface = value;
+        settings_.listen_interface = std::move(normalized);
     }
     mark_dirty();
 }

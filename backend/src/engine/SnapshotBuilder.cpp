@@ -134,6 +134,14 @@ SnapshotBuilder::build_snapshot(int rpc_id,
     snapshot.eta = estimate_eta(status);
     snapshot.total_wanted_done = status.total_wanted_done;
     snapshot.added_time = status.added_time;
+    if (persistence_ && !snapshot.hash.empty())
+    {
+        if (auto persisted = persistence_->get_added_at(snapshot.hash);
+            persisted)
+        {
+            snapshot.added_time = static_cast<std::int64_t>(*persisted);
+        }
+    }
     double ratio = 0.0;
     if (status.total_download > 0)
     {

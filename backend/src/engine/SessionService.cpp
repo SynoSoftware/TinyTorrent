@@ -9,9 +9,11 @@
 #include "engine/StateService.hpp"
 #include "engine/TorrentManager.hpp"
 #include "engine/TorrentUtils.hpp"
+#include "utils/FS.hpp"
 #include "utils/Log.hpp"
 
 #include <algorithm>
+#include <filesystem>
 
 #include <libtorrent/magnet_uri.hpp>
 #include <libtorrent/session_params.hpp>
@@ -29,11 +31,11 @@ std::string to_utf8(std::filesystem::path const &p)
 }
 } // namespace
 
-SessionService::SessionService(
-    TorrentManager *manager, PersistenceManager *persistence,
-    std::shared_ptr<StateService> state, HistoryAgent *history,
-    ConfigurationService *config, EventBus *bus)
-    : manager_(manager), persistence_(persistence), state_(std::move(state)),
+SessionService::SessionService(TorrentManager *manager,
+                               PersistenceManager *persistence,
+                               StateService *state, HistoryAgent *history,
+                               ConfigurationService *config, EventBus *bus)
+    : manager_(manager), persistence_(persistence), state_(state),
       history_(history), config_(config), bus_(bus)
 {
     // SnapshotBuilder needs reference to priorities and its mutex for
@@ -132,15 +134,35 @@ Core::AddTorrentStatus SessionService::add_torrent(TorrentAddRequest request)
     }
 
     auto settings = config_->get();
-    auto save_path = request.download_path.empty() ? settings.download_path
-                                                   : request.download_path;
+    auto download_path = request.download_path.empty() ? settings.download_path
+                                                       : request.download_path;
+    if (download_path.empty())
+    {
+        download_path = tt::utils::data_root() / "downloads";
+    }
+    request.download_path = download_path;
+
+    std::filesystem::path ensure_path = download_path;
+    if (settings.incomplete_dir_enabled && !settings.incomplete_dir.empty())
+    {
+        ensure_path = settings.incomplete_dir;
+    }
+    std::error_code mkdir_ec;
+    std::filesystem::create_directories(ensure_path, mkdir_ec);
+    if (mkdir_ec)
+    {
+        TT_LOG_ERROR("failed to ensure save path {}: {}", ensure_path.string(),
+                     mkdir_ec.message());
+        return Core::AddTorrentStatus::InvalidPath;
+    }
+
     if (settings.incomplete_dir_enabled && !settings.incomplete_dir.empty())
     {
         params.save_path = settings.incomplete_dir.string();
     }
     else
     {
-        params.save_path = save_path.string();
+        params.save_path = download_path.string();
     }
 
     params.flags = libtorrent::torrent_flags::auto_managed;
@@ -153,7 +175,7 @@ Core::AddTorrentStatus SessionService::add_torrent(TorrentAddRequest request)
         {
             tt::storage::PersistedTorrent entry;
             entry.hash = *hash;
-            entry.save_path = to_utf8(request.download_path);
+            entry.save_path = params.save_path;
             entry.paused = request.paused;
             if (request.uri)
                 entry.magnet_uri = *request.uri;
@@ -161,6 +183,11 @@ Core::AddTorrentStatus SessionService::add_torrent(TorrentAddRequest request)
             entry.resume_data = request.resume_data;
             entry.added_at = std::chrono::system_clock::to_time_t(
                 std::chrono::system_clock::now());
+            if (auto previous_added = persistence_->get_added_at(*hash);
+                previous_added)
+            {
+                entry.added_at = *previous_added;
+            }
             persistence_->add_or_update_torrent(std::move(entry));
         }
     }

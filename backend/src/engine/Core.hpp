@@ -269,7 +269,8 @@ class Core
     enum class AddTorrentStatus
     {
         Ok,
-        InvalidUri
+        InvalidUri,
+        InvalidPath
     };
 
     explicit Core(CoreSettings settings);

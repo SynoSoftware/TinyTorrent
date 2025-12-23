@@ -1,15 +1,16 @@
-#include "rpc/DialogHelpers.hpp"
 #include "rpc/Dispatcher.hpp"
 #include "RpcTestUtils.hpp"
+#include "rpc/DialogHelpers.hpp"
 #include "utils/Version.hpp"
 
 #include <doctest/doctest.h>
 
-#include <yyjson.h>
 #include <filesystem>
 #include <fstream>
 #include <string_view>
 #include <system_error>
+#include <thread>
+#include <yyjson.h>
 
 using tt::rpc::DialogPathOutcome;
 using tt::rpc::DialogPathsOutcome;
@@ -76,14 +77,14 @@ TEST_CASE("session-set")
 TEST_CASE("session-set creates missing download directory")
 {
     tt::rpc::Dispatcher dispatcher{nullptr};
-    auto temp_root = std::filesystem::temp_directory_path() /
-                     "tinytorrent-controls";
+    auto temp_root =
+        std::filesystem::temp_directory_path() / "tinytorrent-controls";
     auto download_dir = temp_root / "session-set" / "download";
     std::filesystem::remove_all(temp_root);
-    auto request = std::string(
-                       R"({"method":"session-set","arguments":{"download-dir":")") +
-                   escape_json_string(download_dir.string()) +
-                   R"("}})";
+    auto request =
+        std::string(
+            R"({"method":"session-set","arguments":{"download-dir":")") +
+        escape_json_string(download_dir.string()) + R"("}})";
     auto response = dispatch_sync(dispatcher, request);
     ResponseView view{response};
     expect_result(view, "success", "session-set auto-create");
@@ -154,7 +155,10 @@ TEST_CASE("dialog-open-file returns handler paths")
             outcome.paths.push_back("C:\\Users\\user\\Downloads\\file.torrent");
             return outcome;
         });
-    tt::rpc::Dispatcher dispatcher{nullptr};
+    tt::rpc::Dispatcher dispatcher{nullptr,
+                                   {},
+                                   [](std::function<void()> fn)
+                                   { std::thread(std::move(fn)).detach(); }};
     auto response = dispatch_sync(
         dispatcher, R"({"method":"dialog-open-file","arguments":{}})");
     ResponseView view{response};
@@ -190,7 +194,10 @@ TEST_CASE("dialog-select-folder returns overridden path")
             outcome.path = "C:\\Users\\user\\Documents\\Torrents";
             return outcome;
         });
-    tt::rpc::Dispatcher dispatcher{nullptr};
+    tt::rpc::Dispatcher dispatcher{nullptr,
+                                   {},
+                                   [](std::function<void()> fn)
+                                   { std::thread(std::move(fn)).detach(); }};
     auto response = dispatch_sync(
         dispatcher, R"({"method":"dialog-select-folder","arguments":{}})");
     ResponseView view{response};
@@ -208,7 +215,10 @@ TEST_CASE("dialog-save-file cancellation returns null")
             outcome.cancelled = true;
             return outcome;
         });
-    tt::rpc::Dispatcher dispatcher{nullptr};
+    tt::rpc::Dispatcher dispatcher{nullptr,
+                                   {},
+                                   [](std::function<void()> fn)
+                                   { std::thread(std::move(fn)).detach(); }};
     auto response = dispatch_sync(
         dispatcher, R"({"method":"dialog-save-file","arguments":{}})");
     ResponseView view{response};

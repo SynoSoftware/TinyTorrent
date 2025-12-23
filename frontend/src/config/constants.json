@@ -42,6 +42,8 @@
         "shell": {
             "classic": {
                 "outer_radius": 20,
+                "panel_gap": 6,
+                "ring_padding": 4,
                 "handle_hit_area": 10
             },
             "immersive": {

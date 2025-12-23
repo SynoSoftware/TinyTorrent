@@ -364,13 +364,14 @@ void AutomationAgent::finish_watch_entries(
         }
         auto reason = status == Core::AddTorrentStatus::InvalidUri
                           ? "invalid torrent metadata"
+                      : status == Core::AddTorrentStatus::InvalidPath
+                          ? "save path unavailable"
                           : "failed to queue torrent";
-        TT_LOG_INFO("watch-dir enqueue failed for {}: {}",
-                    info.path.string(), reason);
+        TT_LOG_INFO("watch-dir enqueue failed for {}: {}", info.path.string(),
+                    reason);
         mark_watch_file(info.path, ".invalid");
     }
 }
-
 
 void AutomationAgent::mark_watch_file(std::filesystem::path const &source,
                                       char const *suffix)

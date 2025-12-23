@@ -188,7 +188,33 @@ const normalizeSessionStats = (raw: z.infer<typeof zSessionStatsRaw>) => {
     };
 };
 
-const zEncryptionLevel = z.enum(["required", "preferred", "tolerated"]);
+const ENCRYPTION_LEVEL_LABELS = ["required", "preferred", "tolerated"] as const;
+type EncryptionLevelLabel = (typeof ENCRYPTION_LEVEL_LABELS)[number];
+
+const encryptionNumberToLabel: Record<0 | 1 | 2, EncryptionLevelLabel> = {
+    0: "tolerated",
+    1: "preferred",
+    2: "required",
+};
+
+const zEncryptionLevel = z.union([
+    z.enum(ENCRYPTION_LEVEL_LABELS),
+    z
+        .number()
+        .int()
+        .transform((value) => {
+            const label = encryptionNumberToLabel[value as 0 | 1 | 2];
+            if (!label) {
+                logValidationIssue(
+                    "zEncryptionLevel",
+                    value,
+                    "Unknown encryption level (defaulting to tolerated)"
+                );
+                return "tolerated";
+            }
+            return label;
+        }),
+]);
 
 const zTransmissionSessionSettings = z.object({
     "peer-port": z.number().optional(),

@@ -86,7 +86,6 @@ import {
     ShortcutIntent,
     ICON_STROKE_WIDTH,
     ICON_STROKE_WIDTH_DENSE,
-    LAYOUT_METRICS,
 } from "../../../config/logic";
 import constants from "@/config/constants.json";
 

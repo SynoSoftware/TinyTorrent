@@ -361,3 +361,9 @@ Tray only calls RPCs and shows results.
 
 - When you design a build solution, be kind with my time. Ask yourself what's faster for the user? Maybe you can you must confirm with the user deletion of large folders even if temporary or generated.
 - When you change code, run the tests or build as apropriate. fix any issues before calling the task complete
+- Before reporting a task as completed, perform a review of the code and fix all important issues. Repeat until you are fully satisfied. then run ./make.ps1 debug. repeat until no compilation failures, no warinings if possible and all test pass.
+- You are not running on Linux. You are running in Windows with MSYS2/Cygwin userland. Assume GNU/POSIX tools only
+- Extra Windows executables available: `rg`, `fd`, `bat`.
+- For code search, never use `Select-String`. Always use ripgrep:
+  - `rg -n -C 5 "<pattern>" <path>`
+- Never write complex or nested shell one-liners. If a command requires tricky quoting or multiple pipes, move it into a script file instead. All commands must be simple, cross-platform, and Windows-safe.

@@ -44,7 +44,8 @@ std::string serialize_fs_write_result(std::uint64_t bytes_written);
 std::string serialize_dialog_paths(std::vector<std::string> const &paths);
 std::string serialize_dialog_path(std::optional<std::string> const &path);
 std::string serialize_system_action(std::string const &action, bool success,
-                                    std::string const &message);
+                                    std::string const &message,
+                                    bool requires_elevation = false);
 
 std::string serialize_system_create_shortcuts(
     bool success, std::string const &message,

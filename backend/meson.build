@@ -50,6 +50,27 @@ tt_enable_tests = get_option('tt_enable_tests')
 build_type = get_option('buildtype')
 is_minsize = build_type == 'release'
 
+tt_vcpkg_triplet_option = get_option('tt_vcpkg_triplet')
+tt_vcpkg_triplet = tt_vcpkg_triplet_option
+if tt_vcpkg_triplet == 'auto'
+  # Prefer environment-driven triplet selection (vcpkg/CI), otherwise fall back
+  # to a sane default for local builds.
+  triplet_env_script = '''
+import os
+print(os.environ.get("VCPKG_TARGET_TRIPLET") or os.environ.get("VCPKG_DEFAULT_TRIPLET") or "")
+'''
+  env_triplet = run_command(python_prog, '-c', triplet_env_script, check: true).stdout().strip()
+  if env_triplet != ''
+    tt_vcpkg_triplet = env_triplet
+  else
+    if build_type == 'debug'
+      tt_vcpkg_triplet = 'x64-windows-asan'
+    else
+      tt_vcpkg_triplet = 'x64-windows'
+    endif
+  endif
+endif
+
 tt_version = tt_semantic_version
 tt_display_version = tt_version
 tt_v_parts = tt_version.split('.')
@@ -204,7 +225,8 @@ endif
 
 tt_deps = [
   dependency(  'LibtorrentRasterbar',  method: 'cmake',  modules: ['LibtorrentRasterbar::torrent-rasterbar'],  cmake_args: ['-DCMAKE_POLICY_DEFAULT_CMP0091=NEW']),
-  dependency('yyjson', method: 'cmake', modules: ['yyjson::yyjson']),
+  dependency('yyjson', method: 'cmake', modules: ['yyjson::yyjson'],
+             static: true),
   dependency('unofficial-sqlite3', method: 'cmake', modules: ['unofficial::sqlite3::sqlite3']),
 ]
 
@@ -238,6 +260,7 @@ tt_base_sources = [
   'src/rpc/Serializer.cpp',
   'src/rpc/FsHooks.cpp',
   'src/utils/FS.cpp',
+  'src/utils/OutboundRoute.cpp',
   'src/utils/StateStore.cpp',
   'src/utils/Shutdown.cpp',
   'src/vendor/libtorrent/partfile_extension.cpp',
@@ -274,6 +297,40 @@ if host_machine.system() == 'windows'
     cpp_args: tt_cpp_args,
     c_args: tt_c_args,
     win_subsystem: 'windows')
+endif
+
+if host_machine.system() == 'windows'
+  copy_dependency_script = files('scripts/copy_dependency.py')
+  build_type_dir = 'debug'
+  if build_type != 'debug'
+    build_type_dir = 'release'
+  endif
+  dll_dest = join_paths(meson.current_build_dir(), build_type_dir)
+  vcpkg_bin = join_paths(meson.source_root(), 'vcpkg_installed',
+                         tt_vcpkg_triplet, 'bin')
+  vcpkg_debug_bin = join_paths(meson.source_root(), 'vcpkg_installed',
+                               tt_vcpkg_triplet, 'debug', 'bin')
+  build_debug = join_paths(meson.source_root(), 'build', build_type_dir)
+  buildstate_debug = join_paths(meson.source_root(), 'buildstate',
+                                build_type_dir)
+
+  copy_dlls = custom_target(
+    'copy-vcpkg-dlls',
+    input: copy_dependency_script,
+    output: 'dlls.stamp',
+    command: [
+      python_prog,
+      '@INPUT0@',
+      dll_dest,
+      '@OUTPUT0@',
+      vcpkg_bin,
+      vcpkg_debug_bin,
+      build_debug,
+      buildstate_debug
+    ],
+    build_by_default: true,
+    build_always: true
+  )
 endif
 
 if tt_enable_tests

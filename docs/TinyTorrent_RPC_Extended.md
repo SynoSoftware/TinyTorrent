@@ -369,6 +369,69 @@ The frontend must never provide file paths or executable names.
 
 ---
 
+### **4.6 System Handler Integration**
+
+These RPCs manage the association of `magnet:` URIs and `.torrent` files with TinyTorrent.
+Operations touch both the current user hive and the machine hive on Windows, so elevated
+privileges may be necessary. These RPCs must never block on a Windows UAC prompt; if elevated
+rights are required, the backend returns `requiresElevation=true` immediately and the frontend
+is responsible for initiating any elevation flow (e.g., launching an elevated helper).
+
+#### **4.6.1 system-handler-status**
+
+- **Method:** `system-handler-status`
+- **Auth:** Required (`X-TT-Auth`)
+- **Arguments:** None
+
+**Response:**
+
+```json
+{
+  "result": "success",
+  "arguments": {
+    "registered": true,
+    "supported": true,
+    "requiresElevation": false,
+    "magnetRegistered": true,
+    "torrentRegistered": true
+  }
+}
+```
+
+- `registered` is `true` when both the magnet handler and `.torrent` handler are present and
+  designated as the user’s default.
+- `supported` reflects platform capability (Windows-only for TinyTorrent v1.x).
+- `requiresElevation` is `true` when machine-level entries are still present and further
+  modifications will necessitate admin rights.
+- `magnetRegistered` / `torrentRegistered` indicate whether each handler key exists in either
+  HKCU or HKLM.
+
+#### **4.6.2 system-handler-enable**
+
+- **Method:** `system-handler-enable`
+- **Auth:** Required (`X-TT-Auth`)
+- **Arguments:** None
+
+**Behavior:**
+
+- Writes handler registrations under the current user hive.
+- If an existing HKLM entry blocks the change, the backend responds with
+  `requiresElevation=true` so the frontend can prompt the user and/or run an elevated helper.
+
+#### **4.6.3 system-handler-disable**
+
+- **Method:** `system-handler-disable`
+- **Auth:** Required (`X-TT-Auth`)
+- **Arguments:** None
+
+**Behavior:**
+
+- Removes handler keys from both HKCU and HKLM.
+- The backend does not trigger UAC prompts from RPC; it returns `requiresElevation=true` when
+  machine-level keys still exist and require admin rights to modify.
+
+---
+
 ## **5 Native Dialog API (`dialog-*`) — Windows Only**
 
 These RPCs request the backend to invoke **native Windows file and folder dialogs** and return the user’s selection to the frontend.

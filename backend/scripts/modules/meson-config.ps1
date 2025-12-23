@@ -264,6 +264,8 @@ function Invoke-MesonTests {
     $tripletRoot = Get-TripletRoot -Triplet $triplet
     Test-VcpkgTriplet -TripletRoot $tripletRoot -Triplet $triplet
 
+    Ensure-VsEnv
+
     $logDir = Join-Path $buildDir 'test-logs'
     if (-not (Test-Path -LiteralPath $logDir)) {
         [void](New-Item -ItemType Directory -Path $logDir)
@@ -274,7 +276,21 @@ function Invoke-MesonTests {
     $oldPath = $env:PATH
     try {
         if ($Configuration -eq 'Debug') {
-            $dllDirs = @(
+            $dllDirs = @()
+
+            # AddressSanitizer runtime (MSVC ships clang_rt.asan_dynamic-x86_64.dll)
+            $asanDir = $null
+            if ($env:VCToolsInstallDir) {
+                $candidate = Join-Path $env:VCToolsInstallDir 'bin\Hostx64\x64'
+                if (Test-Path -LiteralPath (Join-Path $candidate 'clang_rt.asan_dynamic-x86_64.dll')) {
+                    $asanDir = $candidate
+                }
+            }
+            if ($asanDir) {
+                $dllDirs += $asanDir
+            }
+
+            $dllDirs += @(
                 (Join-Path $tripletRoot 'bin'),
                 (Join-Path $tripletRoot 'debug\bin')
             )
@@ -306,10 +322,10 @@ function Invoke-MesonTests {
             $stderrTail = @()
             $stdoutTail = @()
             if (Test-Path -LiteralPath $stderrLog) {
-                $stderrTail = Get-Content -LiteralPath $stderrLog -Tail $tailLines -ErrorAction SilentlyContinue
+                $stderrTail = @(Get-Content -LiteralPath $stderrLog -Tail $tailLines -ErrorAction SilentlyContinue)
             }
             if (Test-Path -LiteralPath $stdoutLog) {
-                $stdoutTail = Get-Content -LiteralPath $stdoutLog -Tail $tailLines -ErrorAction SilentlyContinue
+                $stdoutTail = @(Get-Content -LiteralPath $stdoutLog -Tail $tailLines -ErrorAction SilentlyContinue)
             }
 
             if ($stderrTail.Count -gt 0) {

@@ -444,6 +444,24 @@ std::optional<int> PersistenceManager::get_rpc_id(std::string const &hash) const
     return std::nullopt;
 }
 
+std::optional<std::uint64_t>
+PersistenceManager::get_added_at(std::string const &hash) const
+{
+    if (hash.empty())
+    {
+        return std::nullopt;
+    }
+    std::shared_lock<std::shared_mutex> lock(cache_mutex_);
+    if (auto it = torrents_.find(hash); it != torrents_.end())
+    {
+        if (it->second.added_at > 0)
+        {
+            return it->second.added_at;
+        }
+    }
+    return std::nullopt;
+}
+
 std::uint64_t
 PersistenceManager::read_uint64_setting(std::string const &key) const
 {
