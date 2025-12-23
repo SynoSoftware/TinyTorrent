@@ -20,15 +20,20 @@ function captureTinyTorrentTokenFromHash() {
     const token = params.get("tt-token");
     if (!token) return;
 
-    sessionStorage.setItem("tt-auth-token", token);
+    // Remove token from URL immediately to avoid leaking it to external referrers.
     params.delete("tt-token");
-
     const newFragment = params.toString();
     const newUrl =
         window.location.pathname +
         window.location.search +
         (newFragment ? `#${newFragment}` : "");
-    window.history.replaceState(null, "", newUrl);
+    try {
+        window.history.replaceState(null, "", newUrl);
+    } catch {
+        // ignore history failures
+    }
+
+    sessionStorage.setItem("tt-auth-token", token);
 }
 
 captureTinyTorrentTokenFromHash();
@@ -45,14 +50,16 @@ createRoot(document.getElementById("root")!).render(
                                 placement="bottom-right"
                                 toastOffset={16}
                                 toastProps={{
-                                    timeout: constants.ui.toast_display_duration_ms,
+                                    timeout:
+                                        constants.ui.toast_display_duration_ms,
                                     hideCloseButton: true,
                                     variant: "flat",
                                     radius: "lg",
                                     classNames: {
                                         base: "border border-default/20 bg-content1/80 backdrop-blur-xl shadow-medium",
                                         title: "text-sm font-semibold text-foreground",
-                                        description: "text-xs text-foreground/70",
+                                        description:
+                                            "text-xs text-foreground/70",
                                     },
                                 }}
                                 regionProps={{

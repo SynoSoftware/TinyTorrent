@@ -395,8 +395,8 @@ export function WorkspaceShell({
             {isImmersiveShell && (
                 <div className="pointer-events-none absolute inset-0 z-0">
                     <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(4,7,16,0.95),rgba(9,12,22,0.92))]" />
-                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(59,130,246,0.35),transparent_60%)] mix-blend-screen opacity-80" />
-                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_5%,rgba(236,72,153,0.25),transparent_50%)] mix-blend-screen opacity-70" />
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(59,130,246,0.2),transparent_60%)] mix-blend-screen opacity-50" />
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_5%,rgba(236,72,153,0.15),transparent_50%)] mix-blend-screen opacity-40" />
                     <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20" />
                     <div className="absolute inset-x-[-20%] bottom-[-30%] h-[55%] rounded-[999px] bg-primary/30 blur-[220px] opacity-40" />
                     <div className="absolute inset-x-[-15%] top-[-35%] h-[50%] rounded-[999px] bg-blue-500/30 blur-[220px] opacity-35" />
@@ -435,7 +435,7 @@ export function WorkspaceShell({
                 >
                     {isImmersiveShell ? (
                         <div
-                            className="glass-panel border border-content1/10 bg-background/70 shadow-[0_25px_70px_rgba(0,0,0,0.45)] backdrop-blur-2xl"
+                            className="acrylic border border-white/10 shadow-[0_25px_70px_rgba(0,0,0,0.45)]"
                             style={{
                                 borderRadius: `${IMMERSIVE_CHROME_RADIUS}px`,
                                 padding: `${IMMERSIVE_CHROME_PADDING}px`,
@@ -450,14 +450,14 @@ export function WorkspaceShell({
                     {isImmersiveShell ? (
                         <>
                             <div
-                                className="glass-panel flex-1 min-h-0 h-full border border-content1/10 bg-background/65 shadow-[0_35px_140px_rgba(0,0,0,0.45)] backdrop-blur-2xl"
+                                className="acrylic flex-1 min-h-0 h-full border border-white/10 shadow-[0_35px_140px_rgba(0,0,0,0.45)]"
                                 style={{
                                     borderRadius: `${IMMERSIVE_MAIN_OUTER_RADIUS}px`,
                                     padding: `${IMMERSIVE_MAIN_PADDING}px`,
                                 }}
                             >
                                 <main
-                                    className="flex-1 min-h-0 h-full overflow-hidden border border-content1/10 bg-background/80 shadow-inner shadow-black/30"
+                                    className="flex-1 min-h-0 h-full overflow-hidden border border-white/5 bg-background/20 shadow-inner"
                                     style={{
                                         borderRadius: `${IMMERSIVE_MAIN_INNER_RADIUS}px`,
                                         padding: `${IMMERSIVE_MAIN_CONTENT_PADDING}px`,

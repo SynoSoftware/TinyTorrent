@@ -52,7 +52,9 @@ export interface EngineAdapter {
     setSuperSeeding?(id: string, enabled: boolean): Promise<void>;
     forceTrackerReannounce?(id: string): Promise<void>;
     detectEngine?(): Promise<EngineInfo>;
-    getExtendedCapabilities?(force?: boolean): Promise<TinyTorrentCapabilities | null>;
+    getExtendedCapabilities?(
+        force?: boolean
+    ): Promise<TinyTorrentCapabilities | null>;
     updateRequestTimeout?(timeout: number): void;
     subscribeToHeartbeat(
         params: HeartbeatSubscriberParams
@@ -66,4 +68,6 @@ export interface EngineAdapter {
     systemHandlerEnable?(): Promise<void>;
     systemHandlerDisable?(): Promise<void>;
     createDirectory?(path: string): Promise<void>;
+    // Destroy the adapter and synchronously release resources (timers, sockets, controllers)
+    destroy?(): void;
 }

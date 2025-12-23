@@ -241,10 +241,17 @@ export const SpeedChart = ({ downHistory, upHistory }: SpeedChartProps) => {
     );
 };
 
+// Shared cache across hook instances to bound memory and centralize trimming.
+const sharedSpeedHistoryCache = new Map<
+    string,
+    { down: number[]; up: number[] }
+>();
+
+export const clearSharedSpeedHistoryCache = () => {
+    sharedSpeedHistoryCache.clear();
+};
+
 export const useTorrentDetailSpeedHistory = (torrent: TorrentDetail | null) => {
-    const cacheRef = useRef(
-        new Map<string, { down: number[]; up: number[] }>()
-    );
     const [downHistory, setDownHistory] = useState<number[]>(() =>
         new Array(HISTORY_POINTS).fill(0)
     );
@@ -254,12 +261,13 @@ export const useTorrentDetailSpeedHistory = (torrent: TorrentDetail | null) => {
 
     useEffect(() => {
         if (!torrent) {
-            cacheRef.current.clear();
+            // When inspector is closed, free global cache to limit memory.
+            sharedSpeedHistoryCache.clear();
             setDownHistory(new Array(HISTORY_POINTS).fill(0));
             setUpHistory(new Array(HISTORY_POINTS).fill(0));
             return;
         }
-        const cached = cacheRef.current.get(torrent.id);
+        const cached = sharedSpeedHistoryCache.get(torrent.id);
         if (cached) {
             setDownHistory(cached.down);
             setUpHistory(cached.up);
@@ -278,17 +286,17 @@ export const useTorrentDetailSpeedHistory = (torrent: TorrentDetail | null) => {
 
     useEffect(() => {
         if (!torrent) return;
-        cacheRef.current.set(torrent.id, {
+        sharedSpeedHistoryCache.set(torrent.id, {
             down: [...downHistory],
             up: [...upHistory],
         });
 
         // Prevent unbounded growth if users click through many torrents.
         const maxEntries = 64;
-        while (cacheRef.current.size > maxEntries) {
-            const oldestKey = cacheRef.current.keys().next().value;
+        while (sharedSpeedHistoryCache.size > maxEntries) {
+            const oldestKey = sharedSpeedHistoryCache.keys().next().value;
             if (!oldestKey) break;
-            cacheRef.current.delete(oldestKey);
+            sharedSpeedHistoryCache.delete(oldestKey);
         }
     }, [downHistory, upHistory, torrent]);
 

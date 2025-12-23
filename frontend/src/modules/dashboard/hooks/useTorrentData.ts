@@ -112,7 +112,10 @@ export function useTorrentData({
                 const cached = previousCache.get(incoming.id);
                 const normalized = {
                     ...incoming,
-                    added: incoming.added ?? cached?.added ?? Date.now(),
+                    added:
+                        incoming.added ??
+                        cached?.added ??
+                        Math.floor(Date.now() / 1000),
                 };
                 const reuseExisting = Boolean(
                     cached && areTorrentsEqual(cached, normalized)
@@ -187,7 +190,7 @@ export function useTorrentData({
         isFinished: false,
         sequentialDownload: false,
         superSeeding: false,
-        added: Date.now(),
+        added: Math.floor(Date.now() / 1000),
         savePath: options.downloadDir,
         isGhost: true,
         ghostLabel: options.label,

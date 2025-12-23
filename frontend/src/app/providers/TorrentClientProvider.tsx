@@ -2,10 +2,14 @@ import {
     createContext,
     useContext,
     useEffect,
-    useMemo,
+    useRef,
+    useState,
     type ReactNode,
 } from "react";
-import { useConnectionConfig, buildRpcEndpoint } from "../context/ConnectionConfigContext";
+import {
+    useConnectionConfig,
+    buildRpcEndpoint,
+} from "../context/ConnectionConfigContext";
 import { TransmissionAdapter } from "../../services/rpc/rpc-base";
 import type { EngineAdapter } from "../../services/rpc/engine-adapter";
 
@@ -13,22 +17,49 @@ const ClientContext = createContext<EngineAdapter | null>(null);
 
 export function ClientProvider({ children }: { children: ReactNode }) {
     const { activeProfile } = useConnectionConfig();
-    const client = useMemo(
+    const clientRef = useRef<EngineAdapter | null>(null);
+    const [client, setClient] = useState<EngineAdapter>(
         () =>
             new TransmissionAdapter({
                 endpoint: buildRpcEndpoint(activeProfile),
                 username: activeProfile.username,
                 password: activeProfile.password,
-            }),
-        [
-            activeProfile.scheme,
-            activeProfile.host,
-            activeProfile.port,
-            activeProfile.username,
-            activeProfile.password,
-            activeProfile.id,
-        ]
+            })
     );
+
+    // Recreate client when profile changes. Destroy previous client before creating new one.
+    useEffect(() => {
+        const prev = clientRef.current;
+        if (prev && typeof (prev as any).destroy === "function") {
+            try {
+                (prev as any).destroy();
+            } catch {}
+        }
+        const next = new TransmissionAdapter({
+            endpoint: buildRpcEndpoint(activeProfile),
+            username: activeProfile.username,
+            password: activeProfile.password,
+        });
+        clientRef.current = next;
+        setClient(next);
+
+        return () => {
+            const cur = clientRef.current;
+            if (cur && typeof (cur as any).destroy === "function") {
+                try {
+                    (cur as any).destroy();
+                } catch {}
+            }
+            clientRef.current = null;
+        };
+    }, [
+        activeProfile.scheme,
+        activeProfile.host,
+        activeProfile.port,
+        activeProfile.username,
+        activeProfile.password,
+        activeProfile.id,
+    ]);
 
     useEffect(() => {
         if (typeof sessionStorage === "undefined") return;

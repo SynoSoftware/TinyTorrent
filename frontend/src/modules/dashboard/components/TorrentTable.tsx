@@ -1108,12 +1108,10 @@ export function TorrentTable({
             const nextSelection: RowSelectionState = isAdditive
                 ? { ...rowSelectionRef.current }
                 : {};
-
-            for (let i = firstIndex; i <= lastIndex; i += 1) {
-                const row = availableRows[i];
-                if (row) {
-                    nextSelection[row.id] = true;
-                }
+            // Use rowIds slice to build selection without iterating the entire row list
+            const selectionIds = rowIds.slice(firstIndex, lastIndex + 1);
+            for (const id of selectionIds) {
+                nextSelection[id] = true;
             }
             setRowSelection(nextSelection);
 
@@ -1437,10 +1435,8 @@ export function TorrentTable({
                         ? [actualAnchorIndex, originalIndex]
                         : [originalIndex, actualAnchorIndex];
                 const newSel: RowSelectionState = {};
-                for (let i = start; i <= end; i++) {
-                    const currentRow = allRows[i];
-                    if (currentRow) newSel[currentRow.id] = true;
-                }
+                const ids = rowIds.slice(start, end + 1);
+                for (const id of ids) newSel[id] = true;
                 setRowSelection(newSel);
                 setFocusIndex(originalIndex);
                 setHighlightedRowId(rowId);
@@ -1530,7 +1526,7 @@ export function TorrentTable({
                 style={{ borderRadius: "inherit" }}
                 className={cn(
                     "flex-1 min-h-0 flex flex-col h-full overflow-hidden relative select-none outline-none",
-                    !embedded && GLASS_BLOCK_SURFACE,
+                    !embedded && "acrylic",
                     !embedded && BLOCK_SHADOW
                 )}
                 onClick={() => setContextMenu(null)}

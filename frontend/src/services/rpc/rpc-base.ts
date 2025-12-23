@@ -122,6 +122,8 @@ export class TransmissionAdapter implements EngineAdapter {
     private engineInfoCache?: EngineInfo;
     private idMap = new Map<string, number>();
     private readonly heartbeat = new HeartbeatManager(this);
+    // Active in-flight request controllers (for abort on destroy)
+    private readonly activeControllers = new Set<AbortController>();
     private tinyTorrentCapabilities?: TinyTorrentCapabilities | null;
     private websocketSession?: TinyTorrentWebSocketSession;
     private tinyTorrentFeaturesEnabled = false;
@@ -180,6 +182,7 @@ export class TransmissionAdapter implements EngineAdapter {
         retryCount = 0
     ): Promise<RpcResponse<T>> {
         const controller = new AbortController();
+        this.activeControllers.add(controller);
         let timeoutId: number | undefined;
         if (this.requestTimeout && this.requestTimeout > 0) {
             timeoutId = window.setTimeout(
@@ -249,6 +252,31 @@ export class TransmissionAdapter implements EngineAdapter {
             if (timeoutId) {
                 window.clearTimeout(timeoutId);
             }
+            // remove controller from active set
+            try {
+                this.activeControllers.delete(controller);
+            } catch {
+                // swallow
+            }
+        }
+    }
+
+    // Synchronously destroy the adapter and release resources.
+    public destroy(): void {
+        try {
+            this.heartbeat.disablePolling();
+        } catch {}
+        try {
+            this.closeWebSocketSession();
+        } catch {}
+        try {
+            for (const ctrl of Array.from(this.activeControllers)) {
+                try {
+                    ctrl.abort();
+                } catch {}
+            }
+        } finally {
+            this.activeControllers.clear();
         }
     }
 
@@ -273,11 +301,7 @@ export class TransmissionAdapter implements EngineAdapter {
             return false;
         }
         const host = resolved.hostname.replace(/^\[|\]$/g, "").toLowerCase();
-        return (
-            host === "localhost" ||
-            host === "127.0.0.1" ||
-            host === "::1"
-        );
+        return host === "localhost" || host === "127.0.0.1" || host === "::1";
     }
 
     private buildWebSocketBaseUrl(path: string): URL | null {
@@ -543,7 +567,9 @@ export class TransmissionAdapter implements EngineAdapter {
         path?: string
     ): Promise<DirectoryBrowseResult> {
         if (!this.supportsFsBrowse()) {
-            throw new Error("fs-browse is not supported by the connected engine");
+            throw new Error(
+                "fs-browse is not supported by the connected engine"
+            );
         }
         const result = await this.send<DirectoryBrowseResult>({
             method: "fs-browse",
@@ -1041,9 +1067,7 @@ class TinyTorrentWebSocketSession {
         }
     }
 
-    private parseSession(
-        value: unknown
-    ): TransmissionSessionStats | undefined {
+    private parseSession(value: unknown): TransmissionSessionStats | undefined {
         if (!value) return undefined;
         try {
             return parseSessionStats(value);

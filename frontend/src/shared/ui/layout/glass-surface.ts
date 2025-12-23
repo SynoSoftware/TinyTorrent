@@ -6,4 +6,4 @@ export const GLASS_MENU_SURFACE =
 
 export const BLOCK_SHADOW = "shadow-small";
 export const PANEL_SHADOW = "shadow-medium";
-export const GLASS_BLOCK_SURFACE = "glass-panel surface-layer-1";
+export const GLASS_BLOCK_SURFACE = "acrylic border-white/5 shadow-inner";
