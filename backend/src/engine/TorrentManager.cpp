@@ -686,12 +686,17 @@ void TorrentManager::handle_torrent_finished(
 void TorrentManager::handle_metadata_received_alert(
     libtorrent::metadata_received_alert const &alert)
 {
-    if (!callbacks_.metadata_file_path || !callbacks_.on_metadata_persisted)
+    auto const &handle = alert.handle;
+    if (!handle.is_valid())
     {
         return;
     }
-    auto const &handle = alert.handle;
-    if (!handle.is_valid())
+
+    // Metadata arrival changes the torrent state materially; request a fresh
+    // resume-data blob so persistence is updated without waiting for a timer.
+    handle.save_resume_data();
+
+    if (!callbacks_.metadata_file_path || !callbacks_.on_metadata_persisted)
     {
         return;
     }
