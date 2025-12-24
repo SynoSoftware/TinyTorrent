@@ -60,6 +60,7 @@ class Server
     void stop();
 
     std::optional<ConnectionInfo> connection_info() const;
+    bool has_active_ws_clients() const;
 
   private:
     void run_loop();
@@ -80,6 +81,7 @@ class Server
     void broadcast_event(std::string const &payload);
     bool send_ws_message(struct mg_connection *conn,
                          std::string const &payload);
+    void schedule_ui_detach_check();
     void process_pending_tasks();
     void enqueue_task(std::function<void()> task);
     void drain_pending_responses();
@@ -99,6 +101,7 @@ class Server
     ServerOptions options_;
     std::string ws_path_ = "/ws";
     std::atomic_bool destroying_{false};
+    std::atomic_bool ui_detach_timer_active_{false};
     // Synchronization for listener readiness (port resolved)
     mutable std::mutex ready_mtx_;
     mutable std::condition_variable ready_cv_;
@@ -133,7 +136,7 @@ class Server
         std::shared_ptr<engine::SessionSnapshot> last_known_snapshot;
     };
     std::vector<WsClient> ws_clients_;
-    std::mutex ws_clients_mtx_; // Protects ws_clients_ from concurrent access
+    mutable std::mutex ws_clients_mtx_; // Protects ws_clients_ from concurrent access
     std::shared_ptr<engine::SessionSnapshot> last_patch_snapshot_;
     std::shared_ptr<engine::SessionSnapshot> pending_snapshot_;
     std::size_t last_blocklist_entries_ = 0;

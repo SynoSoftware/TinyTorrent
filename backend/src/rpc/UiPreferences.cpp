@@ -51,13 +51,24 @@ std::string bool_to_string(bool value)
 
 } // namespace
 
-UiPreferencesStore::UiPreferencesStore(std::filesystem::path state_path)
+UiPreferencesStore::UiPreferencesStore(std::filesystem::path state_path,
+                                       bool read_only)
+    : read_only_(read_only)
 {
     if (state_path.empty())
     {
         return;
     }
-    db_ = std::make_shared<tt::storage::Database>(std::move(state_path));
+    if (read_only_ && !std::filesystem::exists(state_path))
+    {
+        return;
+    }
+    int open_flags = read_only_
+                         ? (SQLITE_OPEN_READONLY | SQLITE_OPEN_FULLMUTEX)
+                         : (SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE |
+                            SQLITE_OPEN_FULLMUTEX);
+    db_ = std::make_shared<tt::storage::Database>(std::move(state_path),
+                                                   open_flags);
 }
 
 UiPreferences UiPreferencesStore::load() const
@@ -83,7 +94,7 @@ UiPreferences UiPreferencesStore::load() const
 
 bool UiPreferencesStore::persist(UiPreferences const &preferences) const
 {
-    if (!is_valid())
+    if (!is_valid() || read_only_)
     {
         return false;
     }

@@ -8,10 +8,12 @@
 
 #include <Windows.h>
 #include <dwmapi.h>
+#include <psapi.h>
 #include <shellapi.h>
 #include <winhttp.h>
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <cwctype>
@@ -21,17 +23,22 @@
 #include <mutex>
 #include <sstream>
 #include <string>
+#include <string_view>
+#include <optional>
 #include <thread>
 
 #include <yyjson.h>
 
 #include "app/DaemonMain.hpp"
 #include "rpc/Server.hpp"
+#include "rpc/UiPreferences.hpp"
 #include "tt_packed_fs_resource.h"
+#include "utils/FS.hpp"
 #include "utils/Shutdown.hpp"
 
 #pragma comment(lib, "Dwmapi.lib")
 #pragma comment(lib, "Winhttp.lib")
+#pragma comment(lib, "Psapi.lib")
 
 #ifndef DWMWA_WINDOW_CORNER_PREFERENCE
 #define DWMWA_WINDOW_CORNER_PREFERENCE 33
@@ -57,6 +64,7 @@ constexpr wchar_t kRpcEndpoint[] = L"/transmission/rpc";
 constexpr wchar_t kStartHiddenArg[] = L"--start-hidden";
 
 static std::atomic<HWND> g_splash_hwnd{nullptr};
+static std::wstring g_splash_message;
 static auto g_app_start_time = std::chrono::steady_clock::now();
 
 // ===== Undocumented compositor API for Acrylic =====
@@ -82,13 +90,15 @@ using SetWindowCompositionAttributeFn =
 
 struct TrayStatus
 {
+    bool rpc_success = false;
     uint64_t down = 0, up = 0;
     size_t active = 0, seeding = 0;
     bool any_error = false;
     bool all_paused = false;
-    bool ui_ready = false;
+    bool ui_attached = false;
     std::string download_dir;
     std::string error_message;
+    tt::rpc::UiPreferences ui_preferences;
 };
 
 struct TrayState
@@ -116,6 +126,10 @@ struct TrayState
     bool auto_open_requested = false;
     std::atomic_bool handshake_completed{false};
     std::string last_error_message;
+    bool start_hidden = false;
+    std::wstring splash_message;
+    tt::rpc::UiPreferences ui_preferences;
+    std::atomic_bool ui_attached{false};
 };
 
 // --- Utilities ---
@@ -143,16 +157,80 @@ std::wstring to_lower(std::wstring value)
 
 std::wstring format_rate(uint64_t bytes)
 {
+    constexpr uint64_t KiB = 1024;
+    constexpr uint64_t MiB = 1024 * 1024;
     std::wstringstream ss;
-    if (bytes >= 1000 * 1000)
-        ss << std::fixed << std::setprecision(1) << (bytes / 1000.0 / 1000.0)
-           << L" MB/s";
-    else if (bytes >= 1000)
-        ss << std::fixed << std::setprecision(0) << (bytes / 1000.0)
-           << L" kB/s";
+    if (bytes >= MiB)
+        ss << std::fixed << std::setprecision(1) << (bytes / static_cast<double>(MiB))
+           << L" MiB/s";
+    else if (bytes >= KiB)
+        ss << std::fixed << std::setprecision(0) << (bytes / static_cast<double>(KiB))
+           << L" KiB/s";
     else
         ss << bytes << L" B/s";
     return ss.str();
+}
+
+std::wstring query_process_basename(DWORD pid)
+{
+    if (pid == 0)
+        return {};
+    HANDLE process =
+        OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+    if (!process)
+        return {};
+    wchar_t buffer[MAX_PATH];
+    DWORD size = MAX_PATH;
+    std::wstring result;
+    if (QueryFullProcessImageNameW(process, 0, buffer, &size))
+    {
+        result.assign(buffer, size);
+        auto pos = result.find_last_of(L"\\/");
+        if (pos != std::wstring::npos)
+        {
+            result.erase(0, pos + 1);
+        }
+        result = to_lower(result);
+    }
+    CloseHandle(process);
+    return result;
+}
+
+bool is_trusted_browser_process(std::wstring const &name)
+{
+    if (name.empty())
+    {
+        return false;
+    }
+    static constexpr std::array<std::wstring_view, 6> trusted = {
+        {L"chrome.exe", L"msedge.exe", L"firefox.exe", L"opera.exe",
+         L"brave.exe", L"vivaldi.exe"}};
+
+    for (auto const &candidate : trusted)
+    {
+        if (name == candidate)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+tt::rpc::UiPreferences load_ui_preferences()
+{
+    tt::rpc::UiPreferences result;
+    auto root = tt::utils::data_root();
+    if (root.empty())
+    {
+        return result;
+    }
+    auto state_path = root / "tinytorrent.db";
+    tt::rpc::UiPreferencesStore store(state_path, true);
+    if (!store.is_valid())
+    {
+        return result;
+    }
+    return store.load();
 }
 
 // --- Browser Logic (Single Instance Activation) ---
@@ -180,13 +258,27 @@ BOOL CALLBACK search_ui_window(HWND hwnd, LPARAM param)
 
     std::wstring title(length, L'\0');
     GetWindowTextW(hwnd, title.data(), length + 1);
+    std::wstring lowered = to_lower(title);
 
-    if (to_lower(title).find(context->needle) != std::wstring::npos)
+    if (lowered.find(context->needle) != std::wstring::npos)
     {
-        context->found = hwnd;
-        return FALSE;
+        auto process_name = query_process_basename(pid);
+        if (is_trusted_browser_process(process_name))
+        {
+            context->found = hwnd;
+            return FALSE;
+        }
     }
     return TRUE;
+}
+
+std::optional<HWND> find_ui_window()
+{
+    UiWindowSearchContext context;
+    context.needle = L"tinytorrent";
+    EnumWindows(search_ui_window, reinterpret_cast<LPARAM>(&context));
+    return context.found ? std::optional<HWND>(context.found)
+                         : std::nullopt;
 }
 
 void open_browser(std::wstring const &url)
@@ -194,21 +286,54 @@ void open_browser(std::wstring const &url)
     if (url.empty())
         return;
 
-    UiWindowSearchContext context;
-    context.needle = L"tinytorrent";
-    EnumWindows(search_ui_window, reinterpret_cast<LPARAM>(&context));
+    auto context = find_ui_window();
 
-    if (context.found)
+    if (context)
     {
-        if (IsIconic(context.found))
-            ShowWindow(context.found, SW_RESTORE);
-        SetForegroundWindow(context.found);
+        DWORD target_pid = 0;
+        GetWindowThreadProcessId(*context, &target_pid);
+        if (target_pid != 0)
+        {
+            AllowSetForegroundWindow(target_pid);
+        }
+        if (IsIconic(*context))
+            ShowWindow(*context, SW_RESTORE);
+        SetForegroundWindow(*context);
     }
     else
     {
+        AllowSetForegroundWindow(ASFW_ANY);
         ShellExecuteW(nullptr, L"open", url.c_str(), nullptr, nullptr,
                       SW_SHOWNORMAL);
     }
+}
+
+bool request_ui_focus(TrayState &state);
+
+void allow_ui_activation()
+{
+    auto context = find_ui_window();
+    if (context)
+    {
+        DWORD target_pid = 0;
+        GetWindowThreadProcessId(*context, &target_pid);
+        if (target_pid != 0)
+        {
+            AllowSetForegroundWindow(target_pid);
+            return;
+        }
+    }
+    AllowSetForegroundWindow(ASFW_ANY);
+}
+
+void focus_or_launch_ui(TrayState &state)
+{
+    allow_ui_activation();
+    if (state.ui_attached.load() && request_ui_focus(state))
+    {
+        return;
+    }
+    open_browser(state.open_url);
 }
 
 // --- Splash Window ---
@@ -241,14 +366,28 @@ LRESULT CALLBACK SplashProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
         PAINTSTRUCT ps;
         HDC hdc = BeginPaint(hwnd, &ps);
         HICON icon = (HICON)GetWindowLongPtrW(hwnd, GWLP_USERDATA);
+        RECT rc;
+        GetClientRect(hwnd, &rc);
+        UINT dpi = GetDpiForWindow(hwnd);
+        int size = MulDiv(256, dpi, 96);
         if (icon)
         {
-            RECT rc;
-            GetClientRect(hwnd, &rc);
-            UINT dpi = GetDpiForWindow(hwnd);
-            int size = MulDiv(256, dpi, 96);
             DrawIconEx(hdc, (rc.right - size) / 2, (rc.bottom - size) / 2, icon,
                        size, size, 0, NULL, DI_NORMAL);
+        }
+        if (!g_splash_message.empty())
+        {
+            RECT text_rc = rc;
+            int text_top = std::max(rc.top + size + 12, rc.bottom - 64);
+            if (text_top < rc.bottom - 12)
+            {
+                text_rc.top = text_top;
+                text_rc.bottom = rc.bottom - 12;
+                SetTextColor(hdc, GetSysColor(COLOR_WINDOWTEXT));
+                SetBkMode(hdc, TRANSPARENT);
+                DrawTextW(hdc, g_splash_message.c_str(), -1, &text_rc,
+                          DT_CENTER | DT_WORDBREAK | DT_END_ELLIPSIS);
+            }
         }
         EndPaint(hwnd, &ps);
         return 0;
@@ -263,10 +402,13 @@ LRESULT CALLBACK SplashProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
     }
 }
 
-void create_splash_window(HINSTANCE instance, HICON icon)
+void create_splash_window(HINSTANCE instance, HICON icon,
+                          std::wstring const &message)
 {
     if (g_splash_hwnd.load())
         return;
+
+    g_splash_message = message;
 
     WNDCLASSEXW wc{sizeof(wc)};
     wc.lpfnWndProc = SplashProc;
@@ -360,9 +502,78 @@ std::string http_post_rpc(TrayState &state, std::string const &payload)
     return result;
 }
 
+bool rpc_response_success(std::string const &body)
+{
+    if (body.empty())
+        return false;
+    yyjson_doc *doc = yyjson_read(body.c_str(), body.size(), 0);
+    if (!doc)
+        return false;
+    bool success = false;
+    if (auto *root = yyjson_doc_get_root(doc); root && yyjson_is_obj(root))
+    {
+        if (auto *result = yyjson_obj_get(root, "result"); result &&
+            yyjson_is_str(result))
+        {
+            success = std::string_view(yyjson_get_str(result)) ==
+                      std::string_view("success");
+        }
+    }
+    yyjson_doc_free(doc);
+    return success;
+}
+
+bool request_ui_focus(TrayState &state)
+{
+    auto body = http_post_rpc(state, R"({"method":"session-ui-focus"})");
+    if (body.empty() || !rpc_response_success(body))
+    {
+        http_post_rpc(state, R"({"method":"session-ui-detach"})");
+        state.ui_attached.store(false);
+        return false;
+    }
+    return true;
+}
+
+tt::rpc::UiPreferences parse_tray_ui_preferences(yyjson_val *arguments)
+{
+    tt::rpc::UiPreferences result;
+    if (arguments == nullptr)
+    {
+        return result;
+    }
+    auto *ui_root = yyjson_obj_get(arguments, "ui");
+    if (ui_root == nullptr || !yyjson_is_obj(ui_root))
+    {
+        return result;
+    }
+    if (auto *value = yyjson_obj_get(ui_root, "autoOpen"); value &&
+        yyjson_is_bool(value))
+    {
+        result.auto_open_ui = yyjson_get_bool(value);
+    }
+    if (auto *value = yyjson_obj_get(ui_root, "autorunHidden"); value &&
+        yyjson_is_bool(value))
+    {
+        result.hide_ui_when_autorun = yyjson_get_bool(value);
+    }
+    if (auto *value = yyjson_obj_get(ui_root, "showSplash"); value &&
+        yyjson_is_bool(value))
+    {
+        result.show_splash = yyjson_get_bool(value);
+    }
+    if (auto *value = yyjson_obj_get(ui_root, "splashMessage");
+        value && yyjson_is_str(value))
+    {
+        result.splash_message = yyjson_get_str(value);
+    }
+    return result;
+}
+
 TrayStatus rpc_get_tray_status(TrayState &state)
 {
     TrayStatus s;
+    s.rpc_success = false;
     auto body = http_post_rpc(state, R"({"method":"session-tray-status"})");
     if (body.empty())
         return s;
@@ -370,6 +581,7 @@ TrayStatus rpc_get_tray_status(TrayState &state)
     yyjson_doc *doc = yyjson_read(body.c_str(), body.size(), 0);
     if (doc)
     {
+        s.rpc_success = true;
         yyjson_val *args =
             yyjson_obj_get(yyjson_doc_get_root(doc), "arguments");
         if (args)
@@ -386,12 +598,13 @@ TrayStatus rpc_get_tray_status(TrayState &state)
                 s.seeding = (size_t)yyjson_get_uint(v);
             if ((v = yyjson_obj_get(args, "allPaused")))
                 s.all_paused = yyjson_get_bool(v);
-            if ((v = yyjson_obj_get(args, "uiReady")))
-                s.ui_ready = yyjson_get_bool(v);
+            if ((v = yyjson_obj_get(args, "uiAttached")))
+                s.ui_attached = yyjson_get_bool(v);
             if ((v = yyjson_obj_get(args, "downloadDir")))
                 s.download_dir = yyjson_get_str(v);
             if ((v = yyjson_obj_get(args, "errorMessage")))
                 s.error_message = yyjson_get_str(v);
+            s.ui_preferences = parse_tray_ui_preferences(args);
         }
         yyjson_doc_free(doc);
     }
@@ -417,7 +630,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
         }
         else if (lparam == WM_LBUTTONDBLCLK)
         {
-            open_browser(state->open_url);
+            focus_or_launch_ui(*state);
         }
         return 0;
 
@@ -427,13 +640,39 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
         if (!s || !state)
             return 0;
 
+        if (s->rpc_success)
+        {
+            state->ui_preferences = s->ui_preferences;
+            std::wstring next_message =
+                widen(state->ui_preferences.splash_message);
+            if (next_message != state->splash_message)
+            {
+                state->splash_message = next_message;
+                auto splash = g_splash_hwnd.load();
+                if (splash)
+                {
+                    g_splash_message = next_message;
+                    InvalidateRect(splash, nullptr, TRUE);
+                }
+            }
+            state->ui_attached.store(s->ui_attached);
+            if (!state->start_hidden)
+            {
+                state->auto_open_requested = state->ui_preferences.auto_open_ui;
+            }
+        }
+        else
+        {
+            state->ui_attached.store(false);
+        }
+
         // Policy: Close splash and/or auto-open UI when backend signals ready
         // or 15s watchdog hits
         bool watchdog_expired =
             std::chrono::steady_clock::now() - g_app_start_time >
             std::chrono::seconds(15);
-        if ((s->ui_ready || watchdog_expired) &&
-            !state->handshake_completed.exchange(true))
+        bool handshake_ready = s->ui_attached || watchdog_expired;
+        if (handshake_ready && !state->handshake_completed.exchange(true))
         {
             HWND splash = g_splash_hwnd.exchange(nullptr);
             if (splash)
@@ -442,7 +681,19 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
             // If the watchdog expired, we still try to open browser to avoid a
             // dead-end
             if (state->auto_open_requested)
-                open_browser(state->open_url);
+            {
+                if (state->ui_attached.load())
+                {
+                    if (!request_ui_focus(*state))
+                    {
+                        open_browser(state->open_url);
+                    }
+                }
+                else
+                {
+                    open_browser(state->open_url);
+                }
+            }
         }
 
         // Update Menu & Tooltip
@@ -480,10 +731,11 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
         switch (LOWORD(wparam))
         {
         case ID_SHOW_SPLASH:
-            create_splash_window(state->hInstance, state->large_icon);
+            create_splash_window(state->hInstance, state->large_icon,
+                                 state->splash_message);
             break;
         case ID_OPEN_UI:
-            open_browser(state->open_url);
+            focus_or_launch_ui(*state);
             break;
         case ID_PAUSE_RESUME:
         {
@@ -546,8 +798,41 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int)
                           GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR);
 
     bool start_hidden = wcsstr(GetCommandLineW(), kStartHiddenArg) != nullptr;
-    if (!start_hidden)
-        create_splash_window(hInstance, icon_large);
+
+    auto startup_ui_prefs = load_ui_preferences();
+    std::wstring startup_splash_message =
+        widen(startup_ui_prefs.splash_message);
+
+    WNDCLASSEXW wc{sizeof(wc),
+                   0,
+                   WndProc,
+                   0,
+                   0,
+                   hInstance,
+                   icon_small,
+                   nullptr,
+                   nullptr,
+                   nullptr,
+                   L"TinyTorrentTrayWindow",
+                   icon_small};
+    RegisterClassExW(&wc);
+
+    auto state = std::make_unique<TrayState>();
+    state->hInstance = hInstance;
+    state->icon = icon_small;
+    state->large_icon = icon_large;
+    state->start_hidden = start_hidden;
+    state->ui_preferences = startup_ui_prefs;
+    state->splash_message = startup_splash_message;
+    state->auto_open_requested =
+        !start_hidden && state->ui_preferences.auto_open_ui;
+    state->hwnd =
+        CreateWindowExW(0, wc.lpszClassName, L"TinyTorrent", 0, 0, 0, 0, 0,
+                        HWND_MESSAGE, nullptr, hInstance, nullptr);
+    SetWindowLongPtrW(state->hwnd, GWLP_USERDATA, (LONG_PTR)state.get());
+
+    if (!start_hidden && startup_ui_prefs.show_splash)
+        create_splash_window(hInstance, icon_large, startup_splash_message);
 
     std::promise<tt::rpc::ConnectionInfo> ready_p;
     auto ready_f = ready_p.get_future();
@@ -571,33 +856,10 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int)
     }
     auto info = ready_f.get();
 
-    auto state = std::make_unique<TrayState>();
-    state->hInstance = hInstance;
     state->port = (unsigned short)info.port;
     state->token = info.token;
-    state->icon = icon_small;
-    state->large_icon = icon_large;
     state->open_url = L"http://127.0.0.1:" + std::to_wstring(info.port) +
                       L"/index.html?token=" + widen(info.token);
-    state->auto_open_requested = !start_hidden;
-
-    WNDCLASSEXW wc{sizeof(wc),
-                   0,
-                   WndProc,
-                   0,
-                   0,
-                   hInstance,
-                   icon_small,
-                   nullptr,
-                   nullptr,
-                   nullptr,
-                   L"TinyTorrentTrayWindow",
-                   icon_small};
-    RegisterClassExW(&wc);
-    state->hwnd =
-        CreateWindowExW(0, wc.lpszClassName, L"TinyTorrent", 0, 0, 0, 0, 0,
-                        HWND_MESSAGE, nullptr, hInstance, nullptr);
-    SetWindowLongPtrW(state->hwnd, GWLP_USERDATA, (LONG_PTR)state.get());
 
     state->menu = CreatePopupMenu();
     AppendMenuW(state->menu, MF_STRING, ID_SHOW_SPLASH, L"TinyTorrent");

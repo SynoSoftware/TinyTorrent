@@ -111,6 +111,8 @@ std::string serialize_ws_event_torrent_finished(int id);
 std::string serialize_ws_event_blocklist_updated(std::size_t count);
 std::string serialize_ws_event_app_shutdown();
 std::string serialize_ws_event_error(std::string const &message, int code);
+std::string serialize_ws_event_ui_focus();
+std::string serialize_session_ui_status(bool attached);
 
 bool torrent_snapshot_equal(engine::TorrentSnapshot const &a,
                             engine::TorrentSnapshot const &b);
