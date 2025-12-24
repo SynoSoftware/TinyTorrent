@@ -183,7 +183,8 @@
             "language_helper": "The HUD updates immediately after you change it.",
             "restore_hud": "Bring back the dismissed HUD cards for instant insights.",
             "system_integration": "System-level services that affect startup, autorun, and tray helpers.",
-            "table_watermark": "Display the ghosted TinyTorrent logo behind the torrent table."
+            "table_watermark": "Display the ghosted TinyTorrent logo behind the torrent table.",
+            "startup": "Control whether the HUD opens automatically, stays hidden on autorun, and how the splash screen is shown."
         },
         "headers": {
             "connection": "Connection",
@@ -194,6 +195,7 @@
             "privacy": "Privacy",
             "speed": "Speed Limits",
             "storage": "Storage",
+            "startup": "Startup Behavior",
             "system": "System Integration"
         },
         "install": {
@@ -261,6 +263,10 @@
             "seedRatioToggle": "Enforce Seed Ratio",
             "startAdded": "Start Added Torrents",
             "tableWatermark": "Show torrent table watermark",
+            "openOnTrayStart": "Open the HUD when the tray app starts",
+            "autorunHidden": "Stay hidden when launched from startup",
+            "showSplash": "Show the splash screen before the HUD appears",
+            "splashMessage": "Splash screen message",
             "turtleMode": "Turtle Mode",
             "uploadLimit": "Upload Limit",
             "upnp": "Enable UPnP / NAT-PMP",

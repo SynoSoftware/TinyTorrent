@@ -1,4 +1,5 @@
 #include "rpc/Serializer.hpp"
+#include "rpc/UiPreferences.hpp"
 
 #include <chrono>
 #include <cmath>
@@ -63,6 +64,21 @@ download_path_or_default(std::filesystem::path const &path)
         return path;
     }
     return tt::utils::data_root() / "downloads";
+}
+
+void add_ui_preferences(yyjson_mut_doc *doc, yyjson_mut_val *parent,
+                        UiPreferences const &preferences)
+{
+    auto *ui_root = yyjson_mut_obj(doc);
+    yyjson_mut_obj_add_val(doc, parent, "ui", ui_root);
+    yyjson_mut_obj_add_bool(doc, ui_root, "autoOpen",
+                            preferences.auto_open_ui);
+    yyjson_mut_obj_add_bool(doc, ui_root, "autorunHidden",
+                            preferences.hide_ui_when_autorun);
+    yyjson_mut_obj_add_bool(doc, ui_root, "showSplash",
+                            preferences.show_splash);
+    yyjson_mut_obj_add_str(doc, ui_root, "splashMessage",
+                           preferences.splash_message.c_str());
 }
 
 void add_session_stats(yyjson_mut_doc *doc, yyjson_mut_val *session,
@@ -446,7 +462,8 @@ std::string serialize_capabilities()
 std::string serialize_session_settings(
     engine::CoreSettings const &settings, std::size_t blocklist_entries,
     std::optional<std::chrono::system_clock::time_point> blocklist_updated,
-    std::string const &rpc_bind, std::string const &listen_error)
+    std::string const &rpc_bind, std::string const &listen_error,
+    UiPreferences const &ui_preferences)
 {
     tt::json::MutableDocument doc;
     if (!doc.is_valid())
@@ -624,6 +641,8 @@ std::string serialize_session_settings(
         yyjson_mut_obj_add_uint(native, arguments, "rpc-port", *port);
     }
 
+    add_ui_preferences(doc.doc(), arguments, ui_preferences);
+
     return doc.write();
 }
 
@@ -689,7 +708,9 @@ std::string serialize_session_tray_status(std::uint64_t download_kbps,
                                           std::size_t seeding_count,
                                           bool any_error, bool all_paused,
                                           std::string const &download_dir,
-                                          std::string const &error_message)
+                                          std::string const &error_message,
+                                          bool ui_ready,
+                                          UiPreferences const &ui_preferences)
 {
     tt::json::MutableDocument doc;
     if (!doc.is_valid())
@@ -714,6 +735,7 @@ std::string serialize_session_tray_status(std::uint64_t download_kbps,
                             static_cast<std::uint64_t>(seeding_count));
     yyjson_mut_obj_add_bool(native, arguments, "anyError", any_error);
     yyjson_mut_obj_add_bool(native, arguments, "allPaused", all_paused);
+    yyjson_mut_obj_add_bool(native, arguments, "uiReady", ui_ready);
     if (!download_dir.empty())
     {
         yyjson_mut_obj_add_str(native, arguments, "downloadDir",
@@ -724,6 +746,8 @@ std::string serialize_session_tray_status(std::uint64_t download_kbps,
         yyjson_mut_obj_add_str(native, arguments, "errorMessage",
                                error_message.c_str());
     }
+
+    add_ui_preferences(doc.doc(), arguments, ui_preferences);
 
     return doc.write(R"({"result":"error"})");
 }

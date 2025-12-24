@@ -530,6 +530,33 @@ export const SETTINGS_TABS: TabDefinition[] = [
                 ],
             },
             {
+                titleKey: "settings.sections.startup",
+                descriptionKey: "settings.descriptions.startup",
+                blocks: [
+                    {
+                        type: "switch",
+                        labelKey: "settings.labels.openOnTrayStart",
+                        stateKey: "auto_open_ui",
+                    },
+                    {
+                        type: "switch",
+                        labelKey: "settings.labels.autorunHidden",
+                        stateKey: "autorun_hidden",
+                    },
+                    {
+                        type: "switch",
+                        labelKey: "settings.labels.showSplash",
+                        stateKey: "show_splash",
+                    },
+                    {
+                        type: "input",
+                        labelKey: "settings.labels.splashMessage",
+                        stateKey: "splash_message",
+                        variant: "bordered",
+                    },
+                ],
+            },
+            {
                 titleKey: "settings.sections.localization",
                 descriptionKey: "settings.descriptions.language",
                 blocks: [

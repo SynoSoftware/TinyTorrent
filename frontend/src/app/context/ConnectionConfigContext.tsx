@@ -8,11 +8,16 @@ import {
 } from "react";
 import type { ReactNode } from "react";
 import constants from "@/config/constants.json";
+import type {
+    ConnectionOverride,
+    ConnectionScheme,
+} from "@/app/utils/connection-params";
+import { consumeConnectionOverride } from "@/app/utils/connection-params";
 
 export interface ConnectionProfile {
     id: string;
     label: string;
-    scheme: "http" | "https";
+    scheme: ConnectionScheme;
     host: string;
     port: string;
     username: string;
@@ -82,6 +87,23 @@ const parseRpcEndpoint = (
         }
     }
     return { host, port, scheme };
+};
+
+const applyUrlOverride = (
+    profile: ConnectionProfile,
+    override: ConnectionOverride
+): ConnectionProfile => {
+    const overrideToken = override.token ?? profile.token;
+    const useToken = Boolean(override.token);
+    return {
+        ...profile,
+        host: override.host ?? profile.host,
+        port: override.port ?? profile.port,
+        scheme: override.scheme ?? profile.scheme,
+        token: overrideToken,
+        username: useToken ? "" : profile.username,
+        password: useToken ? "" : profile.password,
+    };
 };
 
 export const buildRpcEndpoint = (profile: ConnectionProfile) => {
@@ -234,6 +256,7 @@ export function ConnectionConfigProvider({
 }: {
     children: ReactNode;
 }) {
+    const urlOverride = useMemo(() => consumeConnectionOverride(), []);
     const initialProfiles = useMemo(() => loadProfiles(), []);
     const [profiles, setProfiles] = useState<ConnectionProfile[]>(initialProfiles);
     const [activeProfileId, setActiveProfileId] = useState<string>(
@@ -295,13 +318,21 @@ export function ConnectionConfigProvider({
         []
     );
 
-    const activeProfile = useMemo(() => {
+    const baseActiveProfile = useMemo(() => {
         return (
             profiles.find((profile) => profile.id === activeProfileId) ??
             profiles[0] ??
             createDefaultProfile()
         );
     }, [profiles, activeProfileId]);
+
+    const activeProfile = useMemo(
+        () =>
+            urlOverride
+                ? applyUrlOverride(baseActiveProfile, urlOverride)
+                : baseActiveProfile,
+        [baseActiveProfile, urlOverride]
+    );
 
     const value = useMemo(
         () => ({

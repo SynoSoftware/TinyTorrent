@@ -1,6 +1,7 @@
 #include "rpc/Server.hpp"
 
 #include "rpc/Serializer.hpp"
+#include "rpc/UiPreferences.hpp"
 #include "utils/Endpoint.hpp"
 #include "utils/Log.hpp"
 #include "utils/Shutdown.hpp"
@@ -35,6 +36,28 @@
 
 namespace
 {
+using tt::engine::Core;
+using tt::rpc::UiPreferencesStore;
+
+std::shared_ptr<UiPreferencesStore> make_ui_preferences_store(Core *engine)
+{
+    if (engine == nullptr)
+    {
+        return nullptr;
+    }
+    auto path = engine->settings().state_path;
+    if (path.empty())
+    {
+        return nullptr;
+    }
+    auto store = std::make_shared<UiPreferencesStore>(path);
+    if (!store->is_valid())
+    {
+        return nullptr;
+    }
+    return store;
+}
+
 constexpr std::size_t kMaxHttpPayloadSize = 10 * 1024 * 1024;
 constexpr std::uintmax_t kMaxWatchFileSize = 64ull * 1024 * 1024;
 
@@ -845,8 +868,13 @@ void send_ws_ping(struct mg_connection *conn);
 Server::Server(engine::Core *engine, std::string bind_url,
                ServerOptions options)
     : bind_url_(std::move(bind_url)), engine_(engine),
-      dispatcher_(engine, bind_url_, [this](std::function<void()> task)
-                  { enqueue_task(std::move(task)); }),
+      ui_preferences_store_(make_ui_preferences_store(engine)),
+      dispatcher_(engine, bind_url_,
+                  [this](std::function<void()> task)
+                  {
+                      enqueue_task(std::move(task));
+                  },
+                  ui_preferences_store_),
       listener_(nullptr), session_id_(generate_session_id()),
       options_(std::move(options))
 {

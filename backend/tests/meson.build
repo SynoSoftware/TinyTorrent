@@ -1,5 +1,6 @@
 tt_test_common_sources = [
   '../src/rpc/Dispatcher.cpp',
+  '../src/rpc/UiPreferences.cpp',
   '../src/rpc/Serializer.cpp',
   '../src/rpc/FsHooks.cpp',
   '../src/engine/Core.cpp',

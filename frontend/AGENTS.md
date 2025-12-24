@@ -1,3 +1,6 @@
+Frontend: the front end is an UI that runs for a single purpose: to control the daemon that runs with it, on the same machine; it is normally packed together with the exe and must not bother the user with UI connecting to some other server. we are allowing connections to another server just for debug/convenience but only as long as it doesn't interfere with the main design. Although the web technology is designed for client-server connection this app is not to be thought like that. it must not implement code that cause restrictions of features that a native UI in windows would have. the choice of this technology is for final exe size not for the client-server connection design of the web. the architecture: tray UI (access to native windows dialog) - daemon transfer server (minimal memory requirements running in background) - and UI in web browser (so we don't have to ship QT or other frameworks) is designed for smallest exe size and properly designed allows any feature that a native windows app can take. we must always have in mind what we try to achieve and not compromise the final prupose.
+
+
 # **AGENTS.md — TinyTorrent Mission Specification**
 
 **Purpose:**
@@ -35,6 +38,90 @@ TinyTorrent = **modern µTorrent** × **glass UI** × **Windows 11 acrylic polis
 -   **Layout Engine:** `react-resizable-panels` (**CRITICAL**). Do not attempt to write custom drag-handle logic. This library provides the VS Code–like split-pane behavior (smooth resizing, min/max constraints, collapsing).
 -   **Window Controls:** Custom Titlebar implementation (frameless window).
 -   **Context:** `React Context` for global focus tracking (e.g., `FocusContext`: is the user in the Table, the Search, or the Inspector?).
+
+---
+
+## **§2a. Frontend Runtime Model (Authoritative)**
+
+**TinyTorrent’s frontend is not a client in a client–server product.**
+
+It is a **local UI** whose **single purpose** is to control the **local daemon it ships with**, running on the **same machine**, as part of one product.
+
+The default and primary runtime model is:
+
+* UI ↔ daemon
+* local
+* trusted
+* no network concepts exposed to the user
+
+Remote connections are allowed **only** for debugging or convenience and must **never**:
+
+* alter core behavior
+* reduce available features
+* influence UX decisions
+* impose artificial limitations
+
+If a feature behaves differently because the server is “remote”, that is a **design error**.
+
+---
+
+### **Web Technology Is an Implementation Detail**
+
+Web technology is used **only** to:
+
+* minimize final executable size
+* avoid shipping heavy UI frameworks (Qt, GTK, etc.)
+
+It does **not** define the product model.
+
+TinyTorrent must **not** be designed as:
+
+* a web app
+* a browser-constrained client
+* a network-first system
+
+Web-related limitations must **not** restrict features that a native Windows UI would reasonably have.
+
+If a native Windows UI can do something, **TinyTorrent must be able to do it**.
+
+---
+
+### **System Topology**
+
+TinyTorrent is a **local three-part system**:
+
+1. **Tray / Native Shell**
+
+   * Native Windows dialogs
+   * OS integration
+
+2. **Daemon**
+
+   * Minimal memory footprint
+   * Runs in background
+   * Owns all torrent state
+
+3. **UI (Web Runtime)**
+
+   * Control surface only
+   * No business logic
+   * No feature reduction compared to native UI
+
+This architecture exists to achieve **smallest possible size and overhead**, not to emulate a web client–server product.
+
+---
+
+### **Design Constraint**
+
+All frontend decisions must pass this test:
+
+> *Would a native Windows UI reasonably be allowed to do this?*
+
+* Yes → allowed
+* No → reject
+* “Web limitation” → redesign
+
+**Purpose overrides tooling.**
 
 ---
 
@@ -811,7 +898,7 @@ export default defineConfig({
 
 1. Before reporting a task as completed, perform a review of the code and fix all important issues. Repeat until you are fully satisfied.
 2. Run `npm run build` and fix build errors if possible.
-3. You are not running on Linux. You are running in Windows with MSYS2/Cygwin userland. Assume GNU/POSIX tools only
+3. The build machine is Windows. Linux commands are available via msys
 4. Extra Windows executables available: `rg`, `fd`, `bat`.
 5. For code search, never use `Select-String`. Always use ripgrep:
 

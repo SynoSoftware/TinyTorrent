@@ -247,6 +247,14 @@ const zTransmissionSessionSettings = z.object({
     "idle-seeding-limit-enabled": z.boolean().optional(),
     version: z.string().optional(),
     "rpc-version": z.number().optional(),
+    ui: z
+        .object({
+            autoOpen: z.boolean().optional(),
+            autorunHidden: z.boolean().optional(),
+            showSplash: z.boolean().optional(),
+            splashMessage: z.string().optional(),
+        })
+        .optional(),
 });
 
 const zTransmissionFreeSpace = z.object({

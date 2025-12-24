@@ -11,32 +11,13 @@ import { HotkeysProvider } from "react-hotkeys-hook";
 import { DEFAULT_KEYBOARD_SCOPE } from "../shared/hooks/useKeyboardScope";
 import { ConnectionConfigProvider } from "./context/ConnectionConfigContext";
 import constants from "../config/constants.json";
+import {
+    captureConnectionOverrideFromSearch,
+    captureTokenFromHash,
+} from "./utils/connection-params";
 
-function captureTinyTorrentTokenFromHash() {
-    const hash = window.location.hash;
-    if (!hash || hash.length < 2) return;
-    const fragment = hash.startsWith("#") ? hash.slice(1) : hash;
-    const params = new URLSearchParams(fragment);
-    const token = params.get("tt-token");
-    if (!token) return;
-
-    // Remove token from URL immediately to avoid leaking it to external referrers.
-    params.delete("tt-token");
-    const newFragment = params.toString();
-    const newUrl =
-        window.location.pathname +
-        window.location.search +
-        (newFragment ? `#${newFragment}` : "");
-    try {
-        window.history.replaceState(null, "", newUrl);
-    } catch {
-        // ignore history failures
-    }
-
-    sessionStorage.setItem("tt-auth-token", token);
-}
-
-captureTinyTorrentTokenFromHash();
+captureConnectionOverrideFromSearch();
+captureTokenFromHash();
 
 createRoot(document.getElementById("root")!).render(
     <StrictMode>

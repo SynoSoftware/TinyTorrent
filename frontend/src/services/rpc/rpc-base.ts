@@ -458,6 +458,10 @@ export class TransmissionAdapter implements EngineAdapter {
         return result.arguments;
     }
 
+    public async notifyUiReady(): Promise<void> {
+        await this.mutate("session-ui-ready");
+    }
+
     public async fetchSessionSettings(): Promise<TransmissionSessionSettings> {
         const result = await this.send<TransmissionSessionSettings>({
             method: "session-get",

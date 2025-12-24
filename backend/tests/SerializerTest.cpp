@@ -80,8 +80,8 @@ TEST_CASE("serialize_session_settings hides proxy password")
     tt::engine::CoreSettings settings;
     settings.proxy_auth_enabled = true;
     settings.proxy_password = "secret";
-    auto payload =
-        tt::rpc::serialize_session_settings(settings, 0, std::nullopt, {}, {});
+    auto payload = tt::rpc::serialize_session_settings(
+        settings, 0, std::nullopt, {}, {}, tt::rpc::UiPreferences{});
     ResponseView view{payload};
     auto *password = view.argument("proxy-password");
     REQUIRE(password != nullptr);
@@ -93,7 +93,8 @@ TEST_CASE("serialize_session_settings includes listen error when present")
     tt::engine::CoreSettings settings;
     auto listen_error = std::string("listen failed: port busy");
     auto payload = tt::rpc::serialize_session_settings(
-        settings, 0, std::nullopt, {}, listen_error);
+        settings, 0, std::nullopt, {}, listen_error,
+        tt::rpc::UiPreferences{});
     ResponseView view{payload};
     auto *value = view.argument("listen-error");
     REQUIRE(value != nullptr);

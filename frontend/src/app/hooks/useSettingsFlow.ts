@@ -120,6 +120,14 @@ const mapSessionToConfig = (
         DEFAULT_SETTINGS_CONFIG.rename_partial_files,
     start_added_torrents:
         session["start-added-torrents"] ?? DEFAULT_SETTINGS_CONFIG.start_added_torrents,
+    auto_open_ui:
+        session.ui?.autoOpen ?? DEFAULT_SETTINGS_CONFIG.auto_open_ui,
+    autorun_hidden:
+        session.ui?.autorunHidden ?? DEFAULT_SETTINGS_CONFIG.autorun_hidden,
+    show_splash:
+        session.ui?.showSplash ?? DEFAULT_SETTINGS_CONFIG.show_splash,
+    splash_message:
+        session.ui?.splashMessage ?? DEFAULT_SETTINGS_CONFIG.splash_message,
     seedRatioLimit:
         session.seedRatioLimit ?? DEFAULT_SETTINGS_CONFIG.seedRatioLimit,
     seedRatioLimited:
@@ -176,6 +184,13 @@ const mapConfigToSession = (
     } else if (!config.incomplete_dir_enabled) {
         settings["incomplete-dir-enabled"] = false;
     }
+
+    settings.ui = {
+        autoOpen: config.auto_open_ui,
+        autorunHidden: config.autorun_hidden,
+        showSplash: config.show_splash,
+        splashMessage: config.splash_message,
+    };
 
     return settings;
 };

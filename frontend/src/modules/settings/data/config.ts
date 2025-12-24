@@ -27,6 +27,10 @@ export interface SettingsConfig {
     incomplete_dir: string;
     rename_partial_files: boolean;
     start_added_torrents: boolean;
+    auto_open_ui: boolean;
+    autorun_hidden: boolean;
+    show_splash: boolean;
+    splash_message: string;
     seedRatioLimit: number;
     seedRatioLimited: boolean;
     idleSeedingLimit: number;
