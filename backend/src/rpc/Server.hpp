@@ -1,5 +1,6 @@
 #pragma once
 #include "rpc/Dispatcher.hpp"
+#include "rpc/UiPreferences.hpp"
 #include "vendor/mongoose.h"
 
 #include <atomic>
@@ -87,6 +88,7 @@ class Server
     std::string bind_url_;
     std::string rpc_path_;
     engine::Core *engine_;
+    std::shared_ptr<UiPreferencesStore> ui_preferences_store_;
     Dispatcher dispatcher_;
     mg_mgr mgr_;
     struct mg_connection *listener_;

@@ -156,16 +156,12 @@ export function ConnectionCredentialsCard({
         }
         return t("settings.connection.profile_placeholder");
     }, [activeProfile.id, activeProfile.label, t]);
-    const shouldShowAuthControls = rpcStatus !== "idle";
+    const shouldShowAuthControls = true;
     const isAuthModeResolved =
         rpcStatus === "error" ||
         (rpcStatus === "connected" &&
             availability !== "idle" &&
             availability !== "loading");
-    const shouldShowTokenInput =
-        isAuthModeResolved &&
-        rpcStatus === "connected" &&
-        availability === "available";
     const isInsecureBasicAuth = (() => {
         const scheme = activeProfile.scheme;
         if (scheme !== "http") return false;
@@ -276,60 +272,54 @@ export function ConnectionCredentialsCard({
                 </div>
                 {shouldShowAuthControls && (
                     <>
-                        {!isAuthModeResolved && (
-                            <p className="text-xs text-foreground/60">
-                                {t("settings.connection.detecting_signin")}
-                            </p>
-                        )}
-                        {isAuthModeResolved &&
-                            (shouldShowTokenInput ? (
-                                <Input
-                                    label={t("settings.connection.token")}
-                                    labelPlacement="outside"
-                                    variant="bordered"
-                                    size="sm"
-                                    value={activeProfile.token}
-                                    onChange={(event) =>
-                                        handleUpdate({
-                                            token: event.target.value,
-                                        })
-                                    }
-                                />
-                            ) : (
-                                <div className="grid gap-3 sm:grid-cols-2">
-                                    <Input
-                                        label={t(
-                                            "settings.connection.username"
-                                        )}
-                                        labelPlacement="outside"
-                                        variant="bordered"
-                                        size="sm"
-                                        value={activeProfile.username}
-                                        onChange={(event) =>
-                                            handleUpdate({
-                                                username: event.target.value,
-                                            })
-                                        }
-                                    />
-                                    <Input
-                                        label={t(
-                                            "settings.connection.password"
-                                        )}
-                                        labelPlacement="outside"
-                                        variant="bordered"
-                                        size="sm"
-                                        type="password"
-                                        value={activeProfile.password}
-                                        onChange={(event) =>
-                                            handleUpdate({
-                                                password: event.target.value,
-                                            })
-                                        }
-                                    />
-                                </div>
-                            ))}
-                    </>
+                {!isAuthModeResolved && (
+                    <p className="text-xs text-foreground/60">
+                        {t("settings.connection.detecting_signin")}
+                    </p>
                 )}
+                <Input
+                    label={t("settings.connection.token")}
+                    labelPlacement="outside"
+                    variant="bordered"
+                    size="sm"
+                    value={activeProfile.token}
+                    onChange={(event) =>
+                        handleUpdate({
+                            token: event.target.value,
+                        })
+                    }
+                />
+                {!activeProfile.token && (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                        <Input
+                            label={t("settings.connection.username")}
+                            labelPlacement="outside"
+                            variant="bordered"
+                            size="sm"
+                            value={activeProfile.username}
+                            onChange={(event) =>
+                                handleUpdate({
+                                    username: event.target.value,
+                                })
+                            }
+                        />
+                        <Input
+                            label={t("settings.connection.password")}
+                            labelPlacement="outside"
+                            variant="bordered"
+                            size="sm"
+                            type="password"
+                            value={activeProfile.password}
+                            onChange={(event) =>
+                                handleUpdate({
+                                    password: event.target.value,
+                                })
+                            }
+                        />
+                    </div>
+                )}
+            </>
+        )}
             </div>
         </div>
     );

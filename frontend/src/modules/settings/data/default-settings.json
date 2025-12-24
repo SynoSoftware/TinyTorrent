@@ -29,6 +29,10 @@
     "seedRatioLimited": true,
     "idleSeedingLimit": 30,
     "idleSeedingLimited": false,
+    "auto_open_ui": true,
+    "autorun_hidden": false,
+    "show_splash": true,
+    "splash_message": "TinyTorrent is loading...",
     "table_watermark_enabled": true,
     "refresh_interval_ms": 1000,
     "request_timeout_ms": 10000

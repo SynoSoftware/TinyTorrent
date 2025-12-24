@@ -1,9 +1,13 @@
 #pragma once
 
 #include "engine/Core.hpp"
+#include "rpc/UiPreferences.hpp"
 
+#include <atomic>
 #include <functional>
 #include <future>
+#include <memory>
+#include <shared_mutex>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -47,16 +51,23 @@ class Dispatcher
 {
   public:
     Dispatcher(engine::Core *engine, std::string rpc_bind = {},
-               ResponsePoster post_response = {});
+               ResponsePoster post_response = {},
+               std::shared_ptr<UiPreferencesStore> ui_preferences = {});
     void dispatch(std::string_view payload, ResponseCallback cb);
 
   private:
     void register_handlers();
+    UiPreferences ui_preferences() const;
+    void set_ui_preferences(UiPreferences const &preferences);
 
     engine::Core *engine_;
     std::string rpc_bind_;
     std::unordered_map<std::string, DispatchHandler> handlers_;
     ResponsePoster post_response_;
+    std::shared_ptr<UiPreferencesStore> ui_preferences_store_;
+    UiPreferences ui_preferences_;
+    mutable std::shared_mutex ui_preferences_mutex_;
+    std::atomic_bool ui_ready_{false};
 };
 
 } // namespace tt::rpc

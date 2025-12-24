@@ -1,6 +1,7 @@
 #pragma once
 
 #include "engine/Core.hpp"
+#include "rpc/UiPreferences.hpp"
 
 #include <chrono>
 #include <optional>
@@ -65,7 +66,8 @@ std::string serialize_handler_status(bool registered, bool supported,
 std::string serialize_session_settings(
     engine::CoreSettings const &settings, std::size_t blocklist_entries,
     std::optional<std::chrono::system_clock::time_point> blocklist_updated,
-    std::string const &rpc_bind, std::string const &listen_error);
+    std::string const &rpc_bind, std::string const &listen_error,
+    UiPreferences const &ui_preferences);
 std::string serialize_session_stats(engine::SessionSnapshot const &snapshot);
 std::string serialize_session_tray_status(std::uint64_t download_kbps,
                                           std::uint64_t upload_kbps,
@@ -73,7 +75,9 @@ std::string serialize_session_tray_status(std::uint64_t download_kbps,
                                           std::size_t seeding_count,
                                           bool any_error, bool all_paused,
                                           std::string const &download_dir,
-                                          std::string const &error_message);
+                                          std::string const &error_message,
+                                          bool ui_ready,
+                                          UiPreferences const &ui_preferences);
 std::string serialize_add_result(engine::Core::AddTorrentStatus status);
 std::string
 serialize_error(std::string_view message,

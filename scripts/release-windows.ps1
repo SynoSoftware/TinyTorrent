@@ -399,22 +399,27 @@ catch {
     Copy-Item -LiteralPath $buildExe -Destination $finalExe -Force -ErrorAction Stop
 }
 
-$upxPath = Find-Executable -Name "upx" -Id "UPX" -PackageId "upx.upx"
-if (-not $upxPath) {
-    Write-Host "UPX not found (add upx.exe to PATH); skipping compression." -ForegroundColor Yellow
-}
-else {
-    Write-Host "Compressing with UPX ($UWx)..." -ForegroundColor Cyan
-    if ($UWx -eq 'ultra') {
-        & $upxPath --ultra-brute $finalExe
+if (-not $SkipFrontend) {
+    $upxPath = Find-Executable -Name "upx" -Id "UPX" -PackageId "upx.upx"
+    if (-not $upxPath) {
+        Write-Host "UPX not found (add upx.exe to PATH); skipping compression." -ForegroundColor Yellow
     }
     else {
-        & $upxPath --best $finalExe
-    }
+        Write-Host "Compressing with UPX ($UWx)..." -ForegroundColor Cyan
+        if ($UWx -eq 'ultra') {
+            & $upxPath --ultra-brute $finalExe
+        }
+        else {
+            & $upxPath --best $finalExe
+        }
 
-    if ($LASTEXITCODE -ne 0) {
-        throw "UPX failed (exit $LASTEXITCODE)."
+        if ($LASTEXITCODE -ne 0) {
+            throw "UPX failed (exit $LASTEXITCODE)."
+        }
     }
+}
+else {
+    Write-Host "Skipping UPX compression because -SkipFrontend was specified." -ForegroundColor Cyan
 }
 
 Write-Host "Done: $finalExe" -ForegroundColor Green

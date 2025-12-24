@@ -48,6 +48,7 @@
 #include <limits>
 #include <memory>
 #include <mutex>
+#include <shared_mutex>
 #include <optional>
 #include <random>
 #include <string>
@@ -182,11 +183,16 @@ std::optional<std::wstring> read_autorun_value()
                                 kAutorunValueName);
 }
 
-std::wstring compose_autorun_command()
+std::wstring compose_autorun_command(std::wstring extra_args = {})
 {
     if (auto exe = tt::utils::executable_path(); exe && !exe->empty())
     {
-        return std::wstring(L"\"") + exe->wstring() + L"\"";
+        std::wstring command = L"\"" + exe->wstring() + L"\"";
+        if (!extra_args.empty())
+        {
+            command += extra_args;
+        }
+        return command;
     }
     return {};
 }
@@ -2605,7 +2611,8 @@ std::string handle_tt_get_capabilities()
 }
 
 std::string handle_session_get(engine::Core *engine,
-                               std::string const &rpc_bind)
+                               std::string const &rpc_bind,
+                               UiPreferences const &ui_preferences)
 {
     auto settings = engine ? engine->settings() : engine::CoreSettings{};
     auto entries = engine ? engine->blocklist_entry_count() : 0;
@@ -2614,7 +2621,7 @@ std::string handle_session_get(engine::Core *engine,
                        : std::optional<std::chrono::system_clock::time_point>{};
     auto listen_error = engine ? engine->listen_error() : std::string{};
     return serialize_session_settings(settings, entries, updated, rpc_bind,
-                                      listen_error);
+                                      listen_error, ui_preferences);
 }
 
 std::string handle_session_set(engine::Core *engine, yyjson_val *arguments)
@@ -2988,6 +2995,59 @@ std::string handle_session_set(engine::Core *engine, yyjson_val *arguments)
     return serialize_success();
 }
 
+bool update_ui_preferences_from_arguments(yyjson_val *arguments,
+                                          UiPreferences &preferences)
+{
+    if (arguments == nullptr)
+    {
+        return false;
+    }
+    auto *ui_root = yyjson_obj_get(arguments, "ui");
+    if (ui_root == nullptr || !yyjson_is_obj(ui_root))
+    {
+        return false;
+    }
+    bool updated = false;
+    if (auto *value = yyjson_obj_get(ui_root, "autoOpen"); value)
+    {
+        bool next = bool_value(value, preferences.auto_open_ui);
+        if (next != preferences.auto_open_ui)
+        {
+            preferences.auto_open_ui = next;
+            updated = true;
+        }
+    }
+    if (auto *value = yyjson_obj_get(ui_root, "autorunHidden"); value)
+    {
+        bool next = bool_value(value, preferences.hide_ui_when_autorun);
+        if (next != preferences.hide_ui_when_autorun)
+        {
+            preferences.hide_ui_when_autorun = next;
+            updated = true;
+        }
+    }
+    if (auto *value = yyjson_obj_get(ui_root, "showSplash"); value)
+    {
+        bool next = bool_value(value, preferences.show_splash);
+        if (next != preferences.show_splash)
+        {
+            preferences.show_splash = next;
+            updated = true;
+        }
+    }
+    if (auto *value = yyjson_obj_get(ui_root, "splashMessage");
+        value && yyjson_is_str(value))
+    {
+        std::string message(yyjson_get_str(value));
+        if (message != preferences.splash_message)
+        {
+            preferences.splash_message = std::move(message);
+            updated = true;
+        }
+    }
+    return updated;
+}
+
 std::string handle_session_test(engine::Core *engine)
 {
     auto port_interface =
@@ -3004,7 +3064,8 @@ std::string handle_session_stats(engine::Core *engine)
     return serialize_session_stats(*snapshot);
 }
 
-std::string handle_session_tray_status(engine::Core *engine)
+std::string handle_session_tray_status(engine::Core *engine, bool ui_ready,
+                                       UiPreferences const &ui_preferences)
 {
     if (!engine)
     {
@@ -3024,7 +3085,7 @@ std::string handle_session_tray_status(engine::Core *engine)
     return serialize_session_tray_status(
         snapshot->download_rate, snapshot->upload_rate,
         snapshot->active_torrent_count, seeding_count, any_error, all_paused,
-        download_dir, handler_error);
+        download_dir, handler_error, ui_ready, ui_preferences);
 }
 
 std::string handle_session_pause_all(engine::Core *engine)
@@ -4035,14 +4096,18 @@ void handle_dialog_save_file(yyjson_val *arguments,
 #endif
 }
 
-std::string handle_system_autorun_status(engine::Core *engine)
+std::string handle_system_autorun_status(engine::Core *engine,
+                                         UiPreferences const &ui_preferences)
 {
     (void)engine;
 #if defined(_WIN32)
     bool enabled = false;
     bool supported = true;
     bool requires_elevation = false;
-    auto command = compose_autorun_command();
+    std::wstring extra_args =
+        ui_preferences.hide_ui_when_autorun ? L" --start-hidden"
+                                            : std::wstring{};
+    auto command = compose_autorun_command(extra_args);
     if (!command.empty())
     {
         if (auto existing = read_autorun_value();
@@ -4058,7 +4123,8 @@ std::string handle_system_autorun_status(engine::Core *engine)
 }
 
 std::string handle_system_autorun_enable(engine::Core *engine,
-                                         yyjson_val *arguments)
+                                         yyjson_val *arguments,
+                                         UiPreferences const &ui_preferences)
 {
     (void)engine;
 #if defined(_WIN32)
@@ -4076,7 +4142,10 @@ std::string handle_system_autorun_enable(engine::Core *engine,
         TT_LOG_INFO("system-autorun-enable ignoring unsupported scope {}",
                     scope);
     }
-    auto command = compose_autorun_command();
+    std::wstring extra_args =
+        ui_preferences.hide_ui_when_autorun ? L" --start-hidden"
+                                            : std::wstring{};
+    auto command = compose_autorun_command(extra_args);
     if (command.empty())
     {
         return serialize_system_action("system-autorun-enable", false,
@@ -4728,6 +4797,22 @@ std::string handle_group_set()
 
 } // namespace
 
+UiPreferences Dispatcher::ui_preferences() const
+{
+    std::shared_lock lock(ui_preferences_mutex_);
+    return ui_preferences_;
+}
+
+void Dispatcher::set_ui_preferences(UiPreferences const &preferences)
+{
+    if (ui_preferences_store_ && ui_preferences_store_->is_valid())
+    {
+        ui_preferences_store_->persist(preferences);
+    }
+    std::unique_lock lock(ui_preferences_mutex_);
+    ui_preferences_ = preferences;
+}
+
 namespace
 {
 #if defined(_WIN32)
@@ -4933,10 +5018,16 @@ SystemHandlerResult perform_handler_action_impl(HandlerAction action,
 }
 
 Dispatcher::Dispatcher(engine::Core *engine, std::string rpc_bind,
-                       ResponsePoster post_response)
+                       ResponsePoster post_response,
+                       std::shared_ptr<UiPreferencesStore> ui_preferences)
     : engine_(engine), rpc_bind_(std::move(rpc_bind)),
-      post_response_(std::move(post_response))
+      post_response_(std::move(post_response)),
+      ui_preferences_store_(std::move(ui_preferences))
 {
+    if (ui_preferences_store_ && ui_preferences_store_->is_valid())
+    {
+        ui_preferences_ = ui_preferences_store_->load();
+    }
     register_handlers();
 }
 
@@ -4953,15 +5044,32 @@ void Dispatcher::register_handlers()
     add_sync("tt-get-capabilities",
              [](yyjson_val *) { return handle_tt_get_capabilities(); });
     add_sync("session-get", [this](yyjson_val *)
-             { return handle_session_get(engine_, rpc_bind_); });
+             { return handle_session_get(engine_, rpc_bind_, ui_preferences()); });
     add_sync("session-set", [this](yyjson_val *arguments)
-             { return handle_session_set(engine_, arguments); });
+             {
+                 auto response = handle_session_set(engine_, arguments);
+                 auto prefs = ui_preferences();
+                 if (update_ui_preferences_from_arguments(arguments, prefs))
+                 {
+                     set_ui_preferences(prefs);
+                 }
+                 return response;
+             });
     add_sync("session-test",
              [this](yyjson_val *) { return handle_session_test(engine_); });
     add_sync("session-stats",
              [this](yyjson_val *) { return handle_session_stats(engine_); });
     add_sync("session-tray-status", [this](yyjson_val *)
-             { return handle_session_tray_status(engine_); });
+             {
+                 return handle_session_tray_status(
+                     engine_, ui_ready_.load(std::memory_order_acquire),
+                     ui_preferences());
+             });
+    add_sync("session-ui-ready", [this](yyjson_val *)
+             {
+                 ui_ready_.store(true, std::memory_order_release);
+                 return serialize_success();
+             });
     add_sync("session-pause-all", [this](yyjson_val *)
              { return handle_session_pause_all(engine_); });
     add_sync("session-resume-all", [this](yyjson_val *)
@@ -5009,9 +5117,12 @@ void Dispatcher::register_handlers()
     add_sync("system-handler-disable", [this](yyjson_val *)
              { return handle_system_handler_disable(engine_); });
     add_sync("system-autorun-status", [this](yyjson_val *)
-             { return handle_system_autorun_status(engine_); });
+             { return handle_system_autorun_status(engine_, ui_preferences()); });
     add_sync("system-autorun-enable", [this](yyjson_val *arguments)
-             { return handle_system_autorun_enable(engine_, arguments); });
+             {
+                 return handle_system_autorun_enable(engine_, arguments,
+                                                     ui_preferences());
+             });
     add_sync("system-autorun-disable", [this](yyjson_val *)
              { return handle_system_autorun_disable(engine_); });
     add_sync("app-shutdown",

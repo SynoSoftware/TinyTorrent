@@ -95,6 +95,7 @@ export default function App() {
         updateRequestTimeout,
         engineInfo,
         isDetectingEngine,
+        isReady,
     } = useTransmissionSession(torrentClient);
     const { downHistory, upHistory } = usePerformanceHistory();
 
@@ -124,6 +125,7 @@ export default function App() {
 
     const isMountedRef = useRef(false);
     const extensionNoticeShownRef = useRef(false);
+    const uiReadyNotifiedRef = useRef(false);
 
     const { sessionStats, refreshSessionStatsData, liveTransportStatus } =
         useSessionStats({
@@ -550,6 +552,17 @@ export default function App() {
             isMountedRef.current = false;
         };
     }, []);
+
+    useEffect(() => {
+        if (!isReady) {
+            uiReadyNotifiedRef.current = false;
+            return;
+        }
+        if (!uiReadyNotifiedRef.current) {
+            void torrentClient.notifyUiReady?.();
+            uiReadyNotifiedRef.current = true;
+        }
+    }, [isReady, torrentClient]);
 
     useEffect(() => {
         if (!detailData) {

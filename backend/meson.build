@@ -256,6 +256,7 @@ tt_base_sources = [
   'src/engine/SettingsManager.cpp',
   'src/engine/TorrentManager.cpp',
   'src/rpc/Server.cpp',
+  'src/rpc/UiPreferences.cpp',
   'src/rpc/Dispatcher.cpp',
   'src/rpc/Serializer.cpp',
   'src/rpc/FsHooks.cpp',

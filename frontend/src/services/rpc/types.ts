@@ -122,6 +122,12 @@ export interface TransmissionSessionSettings {
     "idle-seeding-limit-enabled"?: boolean;
     version?: string;
     "rpc-version"?: number;
+    ui?: {
+        autoOpen?: boolean;
+        autorunHidden?: boolean;
+        showSplash?: boolean;
+        splashMessage?: string;
+    };
 }
 
 export interface TransmissionFreeSpace {
