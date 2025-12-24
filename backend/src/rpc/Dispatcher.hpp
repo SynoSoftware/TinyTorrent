@@ -46,19 +46,26 @@ bool run_handler_action_elevated(HandlerAction action);
 using ResponseCallback = std::function<void(std::string)>;
 using DispatchHandler = std::function<void(yyjson_val *, ResponseCallback)>;
 using ResponsePoster = std::function<void(std::function<void()>)>;
+using EventPublisher = std::function<void(std::string const &)>;
+using UiClientChecker = std::function<bool()>;
 
 class Dispatcher
 {
   public:
     Dispatcher(engine::Core *engine, std::string rpc_bind = {},
                ResponsePoster post_response = {},
-               std::shared_ptr<UiPreferencesStore> ui_preferences = {});
+               std::shared_ptr<UiPreferencesStore> ui_preferences = {},
+               EventPublisher event_publisher = {},
+               UiClientChecker has_ui_client = {});
     void dispatch(std::string_view payload, ResponseCallback cb);
+    void set_ui_attached(bool attached);
 
   private:
     void register_handlers();
     UiPreferences ui_preferences() const;
     void set_ui_preferences(UiPreferences const &preferences);
+    bool ui_attached() const;
+    std::string handle_session_ui_focus();
 
     engine::Core *engine_;
     std::string rpc_bind_;
@@ -67,7 +74,9 @@ class Dispatcher
     std::shared_ptr<UiPreferencesStore> ui_preferences_store_;
     UiPreferences ui_preferences_;
     mutable std::shared_mutex ui_preferences_mutex_;
-    std::atomic_bool ui_ready_{false};
+    EventPublisher broadcast_event_;
+    UiClientChecker has_ui_client_;
+    std::atomic_bool ui_attached_{false};
 };
 
 } // namespace tt::rpc

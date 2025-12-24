@@ -89,20 +89,26 @@ std::optional<std::vector<std::uint8_t>> copy_column_blob(sqlite3_stmt *stmt,
 
 } // namespace
 
-Database::Database(std::filesystem::path path) : path_(std::move(path))
+Database::Database(std::filesystem::path path, int open_flags)
+    : path_(std::move(path))
 {
     if (path_.empty())
     {
         return;
     }
-    auto parent = path_.parent_path();
-    if (!parent.empty())
+    if ((open_flags & SQLITE_OPEN_CREATE) != 0)
     {
-        std::filesystem::create_directories(parent);
+        auto parent = path_.parent_path();
+        if (!parent.empty())
+        {
+            std::filesystem::create_directories(parent);
+        }
     }
-    int rc = sqlite3_open_v2(path_.string().c_str(), &db_,
-                             SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE |
-                                 SQLITE_OPEN_FULLMUTEX,
+    else if (!std::filesystem::exists(path_))
+    {
+        return;
+    }
+    int rc = sqlite3_open_v2(path_.string().c_str(), &db_, open_flags,
                              nullptr);
     if (rc != SQLITE_OK)
     {
@@ -113,25 +119,36 @@ Database::Database(std::filesystem::path path) : path_(std::move(path))
         return;
     }
     char *err_msg = nullptr;
-    rc = sqlite3_exec(db_, "PRAGMA journal_mode=WAL;", nullptr, nullptr,
-                      &err_msg);
-    if (rc != SQLITE_OK)
+    if ((open_flags & SQLITE_OPEN_READWRITE) != 0)
+    {
+        rc = sqlite3_exec(db_, "PRAGMA journal_mode=WAL;", nullptr, nullptr,
+                          &err_msg);
+        if (rc != SQLITE_OK)
+        {
+            if (err_msg != nullptr)
+            {
+                TT_LOG_INFO("failed to enable WAL journal mode: {}", err_msg);
+                sqlite3_free(err_msg);
+            }
+        }
+        else if (err_msg != nullptr)
+        {
+            sqlite3_free(err_msg);
+        }
+        sqlite3_busy_timeout(db_, kDatabaseBusyTimeoutMs);
+        if (!ensure_schema())
+        {
+            sqlite3_close(db_);
+            db_ = nullptr;
+        }
+    }
+    else
     {
         if (err_msg != nullptr)
         {
-            TT_LOG_INFO("failed to enable WAL journal mode: {}", err_msg);
             sqlite3_free(err_msg);
         }
-    }
-    else if (err_msg != nullptr)
-    {
-        sqlite3_free(err_msg);
-    }
-    sqlite3_busy_timeout(db_, kDatabaseBusyTimeoutMs);
-    if (!ensure_schema())
-    {
-        sqlite3_close(db_);
-        db_ = nullptr;
+        sqlite3_busy_timeout(db_, kDatabaseBusyTimeoutMs);
     }
 }
 

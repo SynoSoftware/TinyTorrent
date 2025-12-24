@@ -709,7 +709,7 @@ std::string serialize_session_tray_status(std::uint64_t download_kbps,
                                           bool any_error, bool all_paused,
                                           std::string const &download_dir,
                                           std::string const &error_message,
-                                          bool ui_ready,
+                                          bool ui_attached,
                                           UiPreferences const &ui_preferences)
 {
     tt::json::MutableDocument doc;
@@ -735,7 +735,7 @@ std::string serialize_session_tray_status(std::uint64_t download_kbps,
                             static_cast<std::uint64_t>(seeding_count));
     yyjson_mut_obj_add_bool(native, arguments, "anyError", any_error);
     yyjson_mut_obj_add_bool(native, arguments, "allPaused", all_paused);
-    yyjson_mut_obj_add_bool(native, arguments, "uiReady", ui_ready);
+    yyjson_mut_obj_add_bool(native, arguments, "uiAttached", ui_attached);
     if (!download_dir.empty())
     {
         yyjson_mut_obj_add_str(native, arguments, "downloadDir",
@@ -749,6 +749,24 @@ std::string serialize_session_tray_status(std::uint64_t download_kbps,
 
     add_ui_preferences(doc.doc(), arguments, ui_preferences);
 
+    return doc.write(R"({"result":"error"})");
+}
+
+std::string serialize_session_ui_status(bool attached)
+{
+    tt::json::MutableDocument doc;
+    if (!doc.is_valid())
+    {
+        return "{}";
+    }
+
+    auto *native = doc.doc();
+    auto *root = yyjson_mut_obj(native);
+    doc.set_root(root);
+    yyjson_mut_obj_add_str(native, root, "result", "success");
+    auto *arguments = yyjson_mut_obj(native);
+    yyjson_mut_obj_add_val(native, root, "arguments", arguments);
+    yyjson_mut_obj_add_bool(native, arguments, "attached", attached);
     return doc.write(R"({"result":"error"})");
 }
 
@@ -1202,6 +1220,11 @@ std::string serialize_ws_event_blocklist_updated(std::size_t count)
 std::string serialize_ws_event_app_shutdown()
 {
     return serialize_ws_event_base("app-shutdown", std::nullopt);
+}
+
+std::string serialize_ws_event_ui_focus()
+{
+    return serialize_ws_event_base("ui-focus", std::nullopt);
 }
 
 std::string serialize_ws_event_error(std::string const &message, int code)

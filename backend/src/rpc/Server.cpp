@@ -60,6 +60,7 @@ std::shared_ptr<UiPreferencesStore> make_ui_preferences_store(Core *engine)
 
 constexpr std::size_t kMaxHttpPayloadSize = 10 * 1024 * 1024;
 constexpr std::uintmax_t kMaxWatchFileSize = 64ull * 1024 * 1024;
+constexpr auto kUiDetachGrace = std::chrono::seconds(2);
 
 constexpr std::string_view kUiIndexPath = "/index.html";
 
@@ -874,7 +875,16 @@ Server::Server(engine::Core *engine, std::string bind_url,
                   {
                       enqueue_task(std::move(task));
                   },
-                  ui_preferences_store_),
+                 ui_preferences_store_,
+                 [this](std::string const &payload)
+                 {
+                     auto payload_copy = std::string(payload);
+                     enqueue_task(
+                         [this, payload = std::move(payload_copy)]()
+                         { broadcast_event(payload); });
+                 },
+                 [this]()
+                 { return has_active_ws_clients(); }),
       listener_(nullptr), session_id_(generate_session_id()),
       options_(std::move(options))
 {
@@ -1305,6 +1315,12 @@ bool Server::authorize_request(struct mg_http_message *hm)
 std::optional<ConnectionInfo> Server::connection_info() const
 {
     return connection_info_;
+}
+
+bool Server::has_active_ws_clients() const
+{
+    std::lock_guard<std::mutex> lock(ws_clients_mtx_);
+    return !ws_clients_.empty();
 }
 
 bool Server::authorize_ws_upgrade(struct mg_http_message *hm,
@@ -1782,6 +1798,10 @@ void Server::handle_connection_closed(struct mg_connection *conn, int /*ev*/)
                                          [conn](WsClient const &client)
                                          { return client.conn == conn; }),
                           ws_clients_.end());
+        if (ws_clients_.empty())
+        {
+            schedule_ui_detach_check();
+        }
     }
 
     // Remove from active requests
@@ -1877,6 +1897,34 @@ void Server::send_response(std::uint64_t req_id, std::string const &response)
                       response.c_str());
         active_requests_.erase(it);
     }
+}
+
+void Server::schedule_ui_detach_check()
+{
+    if (destroying_.load(std::memory_order_acquire))
+    {
+        return;
+    }
+    bool already = ui_detach_timer_active_.exchange(true);
+    if (already)
+    {
+        return;
+    }
+    std::thread([this]()
+    {
+        std::this_thread::sleep_for(kUiDetachGrace);
+        enqueue_task([this]()
+        {
+            std::lock_guard<std::mutex> lock(ws_clients_mtx_);
+            if (!destroying_.load(std::memory_order_acquire) &&
+                ws_clients_.empty())
+            {
+                dispatcher_.set_ui_attached(false);
+            }
+            ui_detach_timer_active_.store(false,
+                                           std::memory_order_release);
+        });
+    }).detach();
 }
 
 void Server::broadcast_event(std::string const &payload)

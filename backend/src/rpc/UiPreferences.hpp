@@ -20,7 +20,8 @@ struct UiPreferences
 class UiPreferencesStore
 {
 public:
-    explicit UiPreferencesStore(std::filesystem::path state_path);
+    explicit UiPreferencesStore(std::filesystem::path state_path,
+                                bool read_only = false);
 
     UiPreferences load() const;
     bool persist(UiPreferences const &preferences) const;
@@ -28,6 +29,7 @@ public:
 
 private:
     std::shared_ptr<tt::storage::Database> db_;
+    bool read_only_ = false;
 };
 
 } // namespace tt::rpc

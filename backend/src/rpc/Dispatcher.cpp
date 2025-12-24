@@ -3064,7 +3064,8 @@ std::string handle_session_stats(engine::Core *engine)
     return serialize_session_stats(*snapshot);
 }
 
-std::string handle_session_tray_status(engine::Core *engine, bool ui_ready,
+std::string handle_session_tray_status(engine::Core *engine,
+                                       bool ui_attached,
                                        UiPreferences const &ui_preferences)
 {
     if (!engine)
@@ -3082,10 +3083,10 @@ std::string handle_session_tray_status(engine::Core *engine, bool ui_ready,
         snapshot->torrent_count > 0 && snapshot->active_torrent_count == 0;
     auto download_dir = engine->settings().download_path.string();
     auto handler_error = handler_error_message();
-    return serialize_session_tray_status(
-        snapshot->download_rate, snapshot->upload_rate,
-        snapshot->active_torrent_count, seeding_count, any_error, all_paused,
-        download_dir, handler_error, ui_ready, ui_preferences);
+        return serialize_session_tray_status(
+            snapshot->download_rate, snapshot->upload_rate,
+            snapshot->active_torrent_count, seeding_count, any_error, all_paused,
+            download_dir, handler_error, ui_attached, ui_preferences);
 }
 
 std::string handle_session_pause_all(engine::Core *engine)
@@ -5019,10 +5020,14 @@ SystemHandlerResult perform_handler_action_impl(HandlerAction action,
 
 Dispatcher::Dispatcher(engine::Core *engine, std::string rpc_bind,
                        ResponsePoster post_response,
-                       std::shared_ptr<UiPreferencesStore> ui_preferences)
+                       std::shared_ptr<UiPreferencesStore> ui_preferences,
+                       EventPublisher event_publisher,
+                       UiClientChecker has_ui_client)
     : engine_(engine), rpc_bind_(std::move(rpc_bind)),
-      post_response_(std::move(post_response)),
-      ui_preferences_store_(std::move(ui_preferences))
+      handlers_(), post_response_(std::move(post_response)),
+      ui_preferences_store_(std::move(ui_preferences)),
+      broadcast_event_(std::move(event_publisher)),
+      has_ui_client_(std::move(has_ui_client))
 {
     if (ui_preferences_store_ && ui_preferences_store_->is_valid())
     {
@@ -5061,13 +5066,26 @@ void Dispatcher::register_handlers()
              [this](yyjson_val *) { return handle_session_stats(engine_); });
     add_sync("session-tray-status", [this](yyjson_val *)
              {
-                 return handle_session_tray_status(
-                     engine_, ui_ready_.load(std::memory_order_acquire),
-                     ui_preferences());
+                 return handle_session_tray_status(engine_, ui_attached(),
+                                                   ui_preferences());
              });
+    add_sync("session-ui-status", [this](yyjson_val *)
+             { return serialize_session_ui_status(ui_attached()); });
+    add_sync("session-ui-attach", [this](yyjson_val *)
+             {
+                 set_ui_attached(true);
+                 return serialize_success();
+             });
+    add_sync("session-ui-detach", [this](yyjson_val *)
+             {
+                 set_ui_attached(false);
+                 return serialize_success();
+             });
+    add_sync("session-ui-focus", [this](yyjson_val *)
+             { return handle_session_ui_focus(); });
     add_sync("session-ui-ready", [this](yyjson_val *)
              {
-                 ui_ready_.store(true, std::memory_order_release);
+                 set_ui_attached(true);
                  return serialize_success();
              });
     add_sync("session-pause-all", [this](yyjson_val *)
@@ -5177,6 +5195,34 @@ void Dispatcher::register_handlers()
     add_sync("torrent-rename-path", [this](yyjson_val *arguments)
              { return handle_torrent_rename_path(engine_, arguments); });
     add_sync("group-set", [](yyjson_val *) { return handle_group_set(); });
+}
+
+bool Dispatcher::ui_attached() const
+{
+    return ui_attached_.load(std::memory_order_acquire);
+}
+
+void Dispatcher::set_ui_attached(bool attached)
+{
+    ui_attached_.store(attached, std::memory_order_release);
+}
+
+std::string Dispatcher::handle_session_ui_focus()
+{
+    if (!ui_attached())
+    {
+        return serialize_error("UI is not attached");
+    }
+    if (has_ui_client_ && !has_ui_client_())
+    {
+        set_ui_attached(false);
+        return serialize_error("UI unavailable");
+    }
+    if (broadcast_event_)
+    {
+        broadcast_event_(serialize_ws_event_ui_focus());
+    }
+    return serialize_success();
 }
 
 void Dispatcher::dispatch(std::string_view payload, ResponseCallback cb)

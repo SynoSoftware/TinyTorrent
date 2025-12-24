@@ -41,7 +41,10 @@ std::vector<std::string> deserialize_label_list(std::string const &payload);
 class Database
 {
   public:
-    explicit Database(std::filesystem::path path);
+    explicit Database(std::filesystem::path path,
+                      int open_flags = SQLITE_OPEN_READWRITE |
+                                       SQLITE_OPEN_CREATE |
+                                       SQLITE_OPEN_FULLMUTEX);
     ~Database();
 
     Database(Database const &) = delete;
