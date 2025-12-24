@@ -1,5 +1,8 @@
 import { useMemo } from "react";
 import constants from "../../../../../config/constants.json";
+// Layout metrics (unit/zoom/etc.) are provided by `useLayoutMetrics` when
+// needed; color tokens are a theme concern and are read directly from the
+// rendered CSS (HeroUI tokens). Avoid embedding literal colors here.
 
 export const clamp = (value: number, min: number, max: number) =>
     Math.min(Math.max(value, min), max);
@@ -20,7 +23,7 @@ export const cancelScheduledFrame = (handle: FrameHandle | null) => {
     }
 };
 
-type CanvasPalette = {
+export type CanvasPalette = {
     primary: string;
     success: string;
     warning: string;
@@ -36,38 +39,27 @@ type CanvasPalette = {
     danger: string;
 };
 
-const buildCanvasPalette = (): CanvasPalette => {
-    const computedStyles =
-        typeof window !== "undefined"
-            ? window.getComputedStyle(document.documentElement)
-            : null;
-    const readVar = (name: string, fallback: string) => {
-        const value = computedStyles?.getPropertyValue(name)?.trim();
-        return value || fallback;
-    };
-    const primary = readVar("--heroui-primary", "#06b6d4");
-    const success = readVar("--heroui-success", "#22c55e");
-    const downloading = readVar("--heroui-primary", "#06b6d4");
-    const warning = readVar("--heroui-warning", "#f97316");
-    const missing = readVar("--heroui-content1", "rgba(255,255,255,0.12)");
-    return {
-        primary,
-        success,
-        warning,
-        downloading,
-        missing,
-        foreground: readVar("--heroui-foreground", "#f8fafc"),
-        content1: readVar("--heroui-content1", "#111827"),
-        highlight: "rgba(255,255,255,0.65)",
-        glowSuccess: "rgba(34,197,94,0.45)",
-        glowDownloading: "rgba(6,182,212,0.45)",
-        glowWarning: "rgba(245,158,11,0.55)",
-        placeholder: "rgba(255,255,255,0.08)",
-        danger: readVar("--heroui-danger", "#ef4444"),
-    };
+export const useCanvasPalette = (): CanvasPalette => {
+    return useMemo(() => {
+        const styles = getComputedStyle(document.documentElement);
+        const read = (name: string) => styles.getPropertyValue(name).trim();
+        return {
+            primary: read("--heroui-primary"),
+            success: read("--heroui-success"),
+            warning: read("--heroui-warning"),
+            downloading: read("--heroui-primary"),
+            missing: read("--heroui-content1"),
+            foreground: read("--heroui-foreground"),
+            content1: read("--heroui-content1"),
+            highlight: "rgba(255,255,255,0.65)",
+            glowSuccess: "rgba(34,197,94,0.45)",
+            glowDownloading: "rgba(6,182,212,0.45)",
+            glowWarning: "rgba(245,158,11,0.55)",
+            placeholder: "rgba(255,255,255,0.08)",
+            danger: read("--heroui-danger"),
+        } as CanvasPalette;
+    }, []);
 };
-
-export const useCanvasPalette = () => useMemo(buildCanvasPalette, []);
 
 export const getAvailabilityColor = (value: number, maxPeers: number) => {
     const ratio = Math.min(Math.max(value / maxPeers, 0), 1);
@@ -77,3 +69,29 @@ export const getAvailabilityColor = (value: number, maxPeers: number) => {
 };
 
 export const HISTORY_POINTS = constants.performance.history_data_points;
+
+export const computeCanvasBackingScale = (zoomLevel = 1) => {
+    const dpr =
+        typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
+    return dpr * (Number.isFinite(zoomLevel) && zoomLevel > 0 ? zoomLevel : 1);
+};
+
+export const setupCanvasBackingStore = (
+    canvas: HTMLCanvasElement,
+    width: number,
+    height: number,
+    zoomLevel = 1
+) => {
+    const scale = computeCanvasBackingScale(zoomLevel);
+    const pixelWidth = Math.max(1, Math.floor(width * scale));
+    const pixelHeight = Math.max(1, Math.floor(height * scale));
+    canvas.width = pixelWidth;
+    canvas.height = pixelHeight;
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
+    const ctx = canvas.getContext("2d");
+    if (ctx) {
+        ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    }
+    return ctx;
+};

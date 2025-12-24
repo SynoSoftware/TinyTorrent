@@ -214,12 +214,16 @@ export function ModeLayout({
     const getShellStyles = (partName: "table" | "inspector") => {
         const isActive = activePart === partName;
         const frameClass = isActive ? "z-20" : "z-10";
+        const activeBorders = isActive
+            ? "ring-2 ring-inset ring-primary/40 border-primary/20"
+            : "border-transparent";
         return {
             className: cn(
                 "relative h-full transition-all duration-200 flex flex-col box-border min-w-0 min-h-0",
                 !isImmersiveShell && GLASS_BLOCK_SURFACE,
                 !isImmersiveShell && "border",
                 frameClass,
+                activeBorders,
                 isImmersiveShell && "bg-transparent"
             ),
             style: isImmersiveShell ? undefined : shell.frameStyle,
@@ -262,13 +266,30 @@ export function ModeLayout({
                             repeatType: "reverse",
                         }}
                     />
-                    <div className="relative z-10 flex flex-col items-center gap-2 rounded-2xl border border-primary/30 bg-background/90 px-6 py-4 text-center text-[11px] font-semibold uppercase tracking-[0.3em] text-foreground/70 shadow-lg backdrop-blur-md">
+                    <div
+                        className="relative z-10 flex flex-col items-center rounded-2xl border border-primary/30 bg-background/90 text-center text-foreground/70 shadow-lg backdrop-blur-md"
+                        style={{
+                            gap: "var(--tt-navbar-gap)",
+                            paddingLeft: "var(--tt-drop-overlay-padding-x)",
+                            paddingRight: "var(--tt-drop-overlay-padding-x)",
+                            paddingTop: "var(--tt-drop-overlay-padding-y)",
+                            paddingBottom: "var(--tt-drop-overlay-padding-y)",
+                        }}
+                    >
                         <FileUp
-                            size={28}
+                            style={{
+                                width: "var(--tt-drop-icon-size)",
+                                height: "var(--tt-drop-icon-size)",
+                            }}
                             strokeWidth={ICON_STROKE_WIDTH}
                             className="text-primary"
                         />
-                        <span className="text-sm font-semibold text-foreground">
+                        <span
+                            style={{
+                                fontSize: "var(--tt-drop-title-font-size)",
+                                fontWeight: 600,
+                            }}
+                        >
                             {t("drop_overlay.title")}
                         </span>
                     </div>

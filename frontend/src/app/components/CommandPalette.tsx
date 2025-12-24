@@ -53,8 +53,7 @@ export function CommandPalette({
     const groupedActions = useMemo(() => {
         const result = new Map<string, CommandAction[]>();
         allActions.forEach((action) => {
-            const group =
-                action.group ?? t("command_palette.group.ungrouped");
+            const group = action.group ?? t("command_palette.group.ungrouped");
             const bucket = result.get(group) ?? [];
             bucket.push(action);
             result.set(group, bucket);
@@ -110,7 +109,7 @@ export function CommandPalette({
                     <motion.div
                         {...PANEL_ANIMATION}
                         transition={{ duration: 0.2 }}
-                        className="relative z-10 w-full max-w-2xl rounded-[28px] border border-content1/20 bg-content1/80 shadow-[0_30px_70px_rgba(0,0,0,0.55)] backdrop-blur-3xl"
+                        className="relative z-10 w-full max-w-2xl rounded-[length:var(--r-md)] border border-content1/20 bg-content1/80 shadow-[0_30px_70px_rgba(0,0,0,0.55)] backdrop-blur-3xl"
                     >
                         <Command
                             value={query}
@@ -126,10 +125,10 @@ export function CommandPalette({
                                 placeholder={t("command_palette.placeholder")}
                                 className="rounded-none border-0 bg-transparent px-6 py-4 text-base font-semibold outline-none placeholder:text-foreground/50"
                             />
-                            <Command.List className="max-h-[320px] overflow-y-auto px-6 pb-4 pt-2">
+                            <Command.List className="max-h-[length:calc(80*var(--u)*var(--z))] overflow-y-auto px-6 pb-4 pt-2">
                                 {groupedActions.map(({ group, entries }) => (
                                     <div key={group} className="pb-4">
-                                        <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-default-500">
+                                        <div className="text-[length:var(--fz-scaled)] font-semibold uppercase tracking-[0.2em] text-default-500">
                                             {group}
                                         </div>
                                         <Command.Group>
@@ -138,21 +137,29 @@ export function CommandPalette({
                                                     key={action.id}
                                                     value={action.id}
                                                     onSelect={() =>
-                                                        void handleSelect(action)
+                                                        void handleSelect(
+                                                            action
+                                                        )
                                                     }
                                                     className="glass-panel mt-2 flex cursor-pointer flex-col border border-content1/10 bg-background/80 py-3 px-4 text-left transition hover:border-foreground/40 hover:bg-background/90 focus:border-primary focus:outline-none"
                                                 >
                                                     <div className="flex items-center justify-between text-sm font-semibold text-foreground">
-                                                        <span>{action.title}</span>
+                                                        <span>
+                                                            {action.title}
+                                                        </span>
                                                         {action.shortcut && (
-                                                            <div className="flex gap-2 text-[10px] font-mono uppercase text-foreground/50">
+                                                            <div className="flex gap-2 text-[length:var(--fz-scaled)] font-mono uppercase text-foreground/50">
                                                                 {action.shortcut.map(
                                                                     (key) => (
                                                                         <span
-                                                                            key={key}
+                                                                            key={
+                                                                                key
+                                                                            }
                                                                             className="rounded-full border border-foreground/30 px-2 py-0.5"
                                                                         >
-                                                                            {key}
+                                                                            {
+                                                                                key
+                                                                            }
                                                                         </span>
                                                                     )
                                                                 )}

@@ -51,7 +51,7 @@ export function SwitchSliderRenderer({
                         {t(block.labelKey)}
                     </span>
                 </Switch>
-                <div className="text-[11px] font-mono font-medium text-foreground/80 bg-content2 px-2 py-1 rounded-md min-w-[60px] text-center">
+                <div className="text-[length:var(--fz-scaled)] font-mono font-medium text-foreground/80 bg-content2 px-2 py-1 rounded-md min-w-[length:calc(15*var(--u)*var(--z))] text-center">
                     {block.valueSuffixKey
                         ? t(block.valueSuffixKey, { value: sliderValue })
                         : sliderValue}
@@ -182,13 +182,13 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
             onCommit={handleCommit}
             classNames={{
                 inputWrapper: cn(
-                    "h-[42px] transition-colors",
+                    "h-[length:var(--button-h)] transition-colors",
                     isDisabled ? "opacity-50" : "group-hover:border-primary/50"
                 ),
                 input: cn(
                     "text-foreground/90",
                     isMono
-                        ? "font-mono text-[13px] tracking-tight"
+                        ? "font-mono text-[length:var(--fz-scaled)] tracking-tight"
                         : "font-medium text-sm"
                 ),
                 label: "text-foreground/60 font-medium text-xs uppercase tracking-wider mb-1",
@@ -218,7 +218,7 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
                 variant="flat"
                 color="primary"
                 onPress={handleSideAction}
-                className="h-[42px] px-5 shrink-0 font-semibold text-xs tracking-wider uppercase bg-primary/10 hover:bg-primary/20 text-primary transition-colors data-[pressed=true]:scale-95"
+                className="h-[length:var(--button-h)] px-5 shrink-0 font-semibold text-xs tracking-wider uppercase bg-primary/10 hover:bg-primary/20 text-primary transition-colors data-[pressed=true]:scale-95"
                 isDisabled={sideActionDisabled}
             >
                 {t(sideAction.labelKey)}
@@ -278,7 +278,7 @@ export function DaySelectorRenderer({
                             color={isSelected ? "primary" : undefined}
                             onPress={() => toggleDay(day.mask)}
                             className={cn(
-                                "uppercase tracking-[0.2em] text-[10px] h-8 px-3 min-w-0",
+                                "uppercase tracking-[0.2em] text-[length:var(--fz-scaled)] h-8 px-3 min-w-0",
                                 isSelected ? "font-bold" : "text-foreground/60"
                             )}
                         >
@@ -310,7 +310,10 @@ export function SelectRenderer({
                     ? [String(config[block.stateKey])]
                     : []
             }
-            classNames={{ trigger: "h-[42px]", value: "text-sm font-medium" }}
+            classNames={{
+                trigger: "h-[length:var(--button-h)]",
+                value: "text-sm font-medium",
+            }}
             onSelectionChange={(keys) => {
                 const [next] = [...keys];
                 if (next) updateConfig(block.stateKey, next);
@@ -406,7 +409,7 @@ export function RawConfigRenderer({
             </div>
             <div className="rounded-2xl border border-content1/20 bg-content1/30">
                 <textarea
-                    className="w-full resize-none border-none bg-transparent px-4 py-3 text-[11px] font-mono leading-relaxed text-foreground/80 selection:bg-primary/40 focus:outline-none"
+                    className="w-full resize-none border-none bg-transparent px-4 py-3 text-[length:var(--fz-scaled)] font-mono leading-relaxed text-foreground/80 selection:bg-primary/40 focus:outline-none"
                     rows={10}
                     value={configJson}
                     readOnly

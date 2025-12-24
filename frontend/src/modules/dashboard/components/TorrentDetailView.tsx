@@ -145,7 +145,7 @@ function DetailHeaderContent({
                         classNames={{
                             base: "h-6 px-3 flex-shrink-0",
                             content:
-                                "text-[9px] font-bold uppercase tracking-[0.3em]",
+                                "text-[length:var(--fz-scaled)] font-bold uppercase tracking-[0.3em]",
                         }}
                     >
                         {t(statusMeta.labelKey)}
@@ -255,7 +255,7 @@ export function TorrentDetailView({
 
     if (!torrent) {
         return (
-            <div className="flex h-full min-h-0 flex-col items-center justify-center px-5 text-center text-[10px] uppercase tracking-[0.4em] text-foreground/50">
+            <div className="flex h-full min-h-0 flex-col items-center justify-center px-5 text-center text-[length:var(--fz-scaled)] uppercase tracking-[0.4em] text-foreground/50">
                 {t("torrent_modal.placeholder")}
             </div>
         );
@@ -518,7 +518,7 @@ export function TorrentDetailView({
                                                             {tracker.announce}
                                                         </span>
 
-                                                        <span className="text-[10px] text-foreground/40">
+                                                        <span className="text-[length:var(--fz-scaled)] text-foreground/40">
                                                             {t(
                                                                 "torrent_modal.trackers.tier"
                                                             )}{" "}
@@ -538,7 +538,7 @@ export function TorrentDetailView({
                                                 </div>
 
                                                 <div className="text-right">
-                                                    <span className="text-[10px] font-bold uppercase tracking-wider text-foreground/30">
+                                                    <span className="text-[length:var(--fz-scaled)] font-bold uppercase tracking-wider text-foreground/30">
                                                         {t(
                                                             "torrent_modal.trackers.peers_label"
                                                         )}

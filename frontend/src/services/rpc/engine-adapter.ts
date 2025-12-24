@@ -25,6 +25,7 @@ export interface EngineAdapter {
     setTinyTorrentFeaturesEnabled?(enabled: boolean): void;
     handshake?(): Promise<unknown>;
     notifyUiReady?(): Promise<void>;
+    notifyUiDetached?(): Promise<void>;
     fetchSessionSettings?(): Promise<TransmissionSessionSettings>;
     updateSessionSettings?(
         settings: Partial<TransmissionSessionSettings>

@@ -11,6 +11,14 @@ import type { ReactNode } from "react";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import type { TinyTorrentCapabilities } from "@/services/rpc/entities";
 import type { RpcStatus } from "@/shared/types/rpc";
+import {
+    buildRpcEndpoint,
+    useConnectionConfig,
+} from "@/app/context/ConnectionConfigContext";
+import {
+    recordNotification,
+    shouldSuppressNotification,
+} from "@/services/rpc/rpc-base";
 
 export type RpcExtensionAvailability =
     | "idle"
@@ -28,6 +36,7 @@ interface RpcExtensionContextValue {
     refresh: () => Promise<void>;
     shouldUseExtension: boolean;
     isMocked: boolean;
+    mockNoticeVisible: boolean;
 }
 
 const STORAGE_KEY = "tiny-torrent.rpc-extension.enabled";
@@ -68,12 +77,54 @@ export function RpcExtensionProvider({
         useState<RpcExtensionAvailability>("idle");
     const [isRefreshing, setIsRefreshing] = useState(false);
     const unavailableToastRef = useRef(false);
+    const { activeProfile } = useConnectionConfig();
+    const normalizedEndpoint = useMemo(
+        () => buildRpcEndpoint(activeProfile).replace(/\/$/, ""),
+        [activeProfile]
+    );
+    const [mockNoticeVisible, setMockNoticeVisible] = useState(false);
+    const mockNoticeTriggeredRef = useRef(false);
+    const mockNoticeEndpointRef = useRef<string | null>(null);
+    const shouldUseExtension = enabled && availability === "available";
+    const isMocked =
+        enabled &&
+        (availability === "unavailable" || availability === "error");
 
     useEffect(() => {
         if (typeof window === "undefined") return;
         window.localStorage.setItem(STORAGE_KEY, String(enabled));
         client.setTinyTorrentFeaturesEnabled?.(enabled);
     }, [client, enabled]);
+
+    useEffect(() => {
+        if (!enabled || !isMocked) {
+            setMockNoticeVisible(false);
+            mockNoticeTriggeredRef.current = false;
+            mockNoticeEndpointRef.current = null;
+            return;
+        }
+
+        const alreadyNotified =
+            mockNoticeTriggeredRef.current &&
+            mockNoticeEndpointRef.current === normalizedEndpoint;
+
+        if (alreadyNotified) {
+            setMockNoticeVisible(true);
+            return;
+        }
+
+        if (shouldSuppressNotification(normalizedEndpoint)) {
+            setMockNoticeVisible(false);
+            mockNoticeTriggeredRef.current = false;
+            mockNoticeEndpointRef.current = null;
+            return;
+        }
+
+        recordNotification(normalizedEndpoint);
+        mockNoticeTriggeredRef.current = true;
+        mockNoticeEndpointRef.current = normalizedEndpoint;
+        setMockNoticeVisible(true);
+    }, [enabled, isMocked, normalizedEndpoint]);
 
     const refresh = useCallback(async () => {
         setIsRefreshing(true);
@@ -119,7 +170,7 @@ export function RpcExtensionProvider({
 
     useEffect(() => {
         if (!onUnavailable) return;
-        if (enabled && availability === "unavailable") {
+        if (mockNoticeVisible && availability === "unavailable") {
             if (!unavailableToastRef.current) {
                 onUnavailable();
                 unavailableToastRef.current = true;
@@ -127,12 +178,7 @@ export function RpcExtensionProvider({
         } else {
             unavailableToastRef.current = false;
         }
-    }, [availability, enabled, onUnavailable]);
-
-    const shouldUseExtension = enabled && availability === "available";
-    const isMocked =
-        enabled &&
-        (availability === "unavailable" || availability === "error");
+    }, [availability, mockNoticeVisible, onUnavailable]);
 
     const value = useMemo(
         () => ({
@@ -144,6 +190,7 @@ export function RpcExtensionProvider({
             refresh,
             shouldUseExtension,
             isMocked,
+            mockNoticeVisible,
         }),
         [
             availability,
@@ -151,6 +198,7 @@ export function RpcExtensionProvider({
             enabled,
             isMocked,
             isRefreshing,
+            mockNoticeVisible,
             refresh,
             setEnabled,
             shouldUseExtension,

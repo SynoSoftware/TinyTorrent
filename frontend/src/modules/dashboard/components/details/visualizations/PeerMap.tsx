@@ -5,7 +5,8 @@ import { motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import { ZoomIn, ZoomOut } from "lucide-react";
 import { GLASS_TOOLTIP_CLASSNAMES } from "./constants";
-import { clamp } from "./canvasUtils";
+import { clamp, useCanvasPalette } from "./canvasUtils";
+import useLayoutMetrics from "@/shared/hooks/useLayoutMetrics";
 import { PEER_MAP_CONFIG } from "../../../../../config/logic";
 import { formatSpeed } from "../../../../../shared/utils/format";
 import type { TorrentPeerEntity } from "../../../../../services/rpc/entities";
@@ -38,6 +39,9 @@ export const PeerMap = ({ peers }: PeerMapProps) => {
             ),
         [peers]
     );
+    const { unit } = useLayoutMetrics();
+    const palette = useCanvasPalette();
+
     const nodes = useMemo(() => {
         if (!peers.length) return [];
         const radius = 70;
@@ -48,9 +52,10 @@ export const PeerMap = ({ peers }: PeerMapProps) => {
             const distance = 30 + (speed / maxRate) * 40;
             const x = center + Math.cos(angle) * distance;
             const y = center + Math.sin(angle) * distance;
-            const size = 6 + (peer.progress ?? 0) * 12;
+            const unitPx = unit || 4;
+            const size = unitPx * 1.5 + (peer.progress ?? 0) * (unitPx * 3);
             const isChoking = peer.peerIsChoking;
-            const fill = isChoking ? "hsl(0,80%,60%)" : "hsl(150,80%,60%)";
+            const fill = isChoking ? palette.danger : palette.success;
             const driftX = (Math.random() - 0.5) * PEER_DRIFT_AMPLITUDE;
             const driftY = (Math.random() - 0.5) * PEER_DRIFT_AMPLITUDE;
             const duration =
@@ -114,31 +119,28 @@ export const PeerMap = ({ peers }: PeerMapProps) => {
         lastPointerRef.current = null;
     }, []);
 
-    const handleWheel = useCallback(
-        (event: WheelEvent<SVGSVGElement>) => {
-            event.preventDefault();
-            setScale((prev) =>
-                clamp(
-                    prev + (event.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP),
-                    MIN_SCALE,
-                    MAX_SCALE
-                )
-            );
-        },
-        []
-    );
+    const handleWheel = useCallback((event: WheelEvent<SVGSVGElement>) => {
+        event.preventDefault();
+        setScale((prev) =>
+            clamp(
+                prev + (event.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP),
+                MIN_SCALE,
+                MAX_SCALE
+            )
+        );
+    }, []);
 
     return (
         <motion.div
             layout
-            className="flex flex-col flex-1 min-h-[320px] rounded-2xl border border-content1/20 bg-content1/15 p-4 space-y-3 overflow-hidden"
+            className="flex flex-col flex-1 min-h-[length:calc(80*var(--u)*var(--z))] rounded-2xl border border-content1/20 bg-content1/15 p-4 space-y-3 overflow-hidden"
         >
             <div className="flex items-center justify-between">
                 <div className="flex flex-col">
-                    <span className="text-[11px] uppercase tracking-[0.3em] text-foreground/50">
+                    <span className="text-[length:var(--fz-scaled)] uppercase tracking-[0.3em] text-foreground/50">
                         {t("torrent_modal.peer_map.title")}
                     </span>
-                    <span className="text-[10px] font-mono text-foreground/50">
+                    <span className="text-[length:var(--fz-scaled)] font-mono text-foreground/50">
                         {t("torrent_modal.peer_map.total", {
                             count: peers.length,
                         })}
@@ -149,7 +151,7 @@ export const PeerMap = ({ peers }: PeerMapProps) => {
                         size="sm"
                         variant="flat"
                         color="default"
-                        className="h-7 w-7"
+                        className="h-[length:var(--button-h)] w-[length:var(--button-h)]"
                         onPress={() => handleZoom("out")}
                     >
                         <ZoomOut
@@ -162,7 +164,7 @@ export const PeerMap = ({ peers }: PeerMapProps) => {
                         size="sm"
                         variant="flat"
                         color="default"
-                        className="h-7 w-7"
+                        className="h-[length:var(--button-h)] w-[length:var(--button-h)]"
                         onPress={() => handleZoom("in")}
                     >
                         <ZoomIn

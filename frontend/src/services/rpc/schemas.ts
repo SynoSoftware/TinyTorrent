@@ -213,7 +213,7 @@ const zEncryptionLevelBase = z.union([
 // Non-critical enum: tolerate unknown values by falling back to 'tolerated'.
 const zEncryptionLevel = zEncryptionLevelBase.catch("tolerated");
 
-const zTransmissionSessionSettings = z.object({
+export const zTransmissionSessionSettings = z.object({
     "peer-port": z.number().optional(),
     "peer-port-random-on-start": z.boolean().optional(),
     "port-forwarding-enabled": z.boolean().optional(),
@@ -257,7 +257,7 @@ const zTransmissionSessionSettings = z.object({
         .optional(),
 });
 
-const zTransmissionFreeSpace = z.object({
+export const zTransmissionFreeSpace = z.object({
     path: z.string(),
     sizeBytes: z.number(),
     totalSize: z.number(),
@@ -273,7 +273,7 @@ const zDirectoryEntry = z.object({
     freeBytes: z.number().optional(),
 });
 
-const zDirectoryBrowseResponse = z.object({
+export const zDirectoryBrowseResponse = z.object({
     path: z.string(),
     parentPath: z.string().optional(),
     separator: z.string().optional(),
@@ -385,13 +385,13 @@ export const getTinyTorrentCapabilities = (
     }
 };
 
-const zSystemAutorunStatus = z.object({
+export const zSystemAutorunStatus = z.object({
     enabled: z.boolean(),
     supported: z.boolean(),
     requiresElevation: z.boolean(),
 });
 
-const zSystemHandlerStatus = z.object({
+export const zSystemHandlerStatus = z.object({
     registered: z.boolean(),
     supported: z.boolean(),
     requiresElevation: z.boolean(),
@@ -418,3 +418,46 @@ export const getSystemHandlerStatus = (
         throw error;
     }
 };
+
+// --- Exposed Zod schemas for strict parsing in RPC layer ---
+export const zTransmissionTorrentArray = zTorrentListResponse.transform(
+    (v) => v.torrents
+);
+
+export const zTransmissionTorrentDetailSingle =
+    zTorrentDetailResponse.transform((v) => v.torrents[0]);
+
+export const zSessionStats = zSessionStatsRaw.transform((raw) =>
+    normalizeSessionStats(raw)
+);
+
+export const zTinyTorrentCapabilitiesNormalized =
+    zTinyTorrentCapabilities.transform((parsed) => ({
+        version: parsed.version,
+        serverVersion: parsed["server-version"],
+        rpcVersion: parsed["rpc-version"],
+        websocketEndpoint:
+            parsed["websocket-endpoint"] ?? parsed["websocket-path"],
+        websocketPath: parsed["websocket-path"] ?? parsed["websocket-endpoint"],
+        platform: parsed.platform,
+        features: parsed.features,
+    }));
+
+export const zTransmissionTorrentRenameResult = z.object({
+    id: z.number(),
+    name: z.string(),
+    path: z.string(),
+});
+
+export const zSystemInstallResult = z.object({
+    action: z.string(),
+    success: z.boolean(),
+    permissionDenied: z.boolean().optional(),
+    message: z.string().optional(),
+    shortcuts: z.record(z.string(), z.any()).optional(),
+    installSuccess: z.boolean().optional(),
+    installMessage: z.string().optional(),
+    installedPath: z.string().optional(),
+    handlersRegistered: z.boolean().optional(),
+    handlerMessage: z.string().optional(),
+});

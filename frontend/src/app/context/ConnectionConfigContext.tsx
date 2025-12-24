@@ -13,6 +13,7 @@ import type {
     ConnectionScheme,
 } from "@/app/utils/connection-params";
 import { consumeConnectionOverride } from "@/app/utils/connection-params";
+import Runtime from "@/app/runtime";
 
 export interface ConnectionProfile {
     id: string;
@@ -41,7 +42,10 @@ interface ConnectionConfigContextValue {
 const STORAGE_KEY = "tiny-torrent.connection.profiles";
 const ACTIVE_KEY = "tiny-torrent.connection.active";
 export const DEFAULT_PROFILE_ID = "default-connection";
-const LEGACY_DEFAULT_PROFILE_LABELS = new Set(["Local Transmission", "Local server"]);
+const LEGACY_DEFAULT_PROFILE_LABELS = new Set([
+    "Local Transmission",
+    "Local server",
+]);
 const DEFAULT_PROFILE_LABEL = "";
 
 const DEFAULT_RPC_PATH = constants.defaults.rpc_endpoint;
@@ -71,8 +75,7 @@ const parseRpcEndpoint = (
         const url = new URL(normalized);
         host = url.hostname || host;
         port = url.port || DEFAULT_RPC_PORT;
-        scheme =
-            url.protocol.replace(":", "") === "https" ? "https" : "http";
+        scheme = url.protocol.replace(":", "") === "https" ? "https" : "http";
     } catch {
         const bracketIndex = raw.indexOf("://");
         const hostPort = bracketIndex >= 0 ? raw.slice(bracketIndex + 3) : raw;
@@ -146,7 +149,10 @@ const generateId = () =>
         ? crypto.randomUUID()
         : Math.random().toString(36).slice(2, 10);
 
-const sanitizeProfile = (raw: unknown, fallbackLabel: string): ConnectionProfile | null => {
+const sanitizeProfile = (
+    raw: unknown,
+    fallbackLabel: string
+): ConnectionProfile | null => {
     if (!raw || typeof raw !== "object") {
         return null;
     }
@@ -177,13 +183,9 @@ const sanitizeProfile = (raw: unknown, fallbackLabel: string): ConnectionProfile
             ? entry.label.trim()
             : fallbackLabel;
     const username =
-        typeof entry.username === "string"
-            ? entry.username
-            : DEFAULT_USERNAME;
+        typeof entry.username === "string" ? entry.username : DEFAULT_USERNAME;
     const password =
-        typeof entry.password === "string"
-            ? entry.password
-            : DEFAULT_PASSWORD;
+        typeof entry.password === "string" ? entry.password : DEFAULT_PASSWORD;
     const token =
         typeof entry.token === "string" && entry.token.trim()
             ? entry.token.trim()
@@ -257,10 +259,19 @@ export function ConnectionConfigProvider({
     children: ReactNode;
 }) {
     const urlOverride = useMemo(() => consumeConnectionOverride(), []);
-    const initialProfiles = useMemo(() => loadProfiles(), []);
-    const [profiles, setProfiles] = useState<ConnectionProfile[]>(initialProfiles);
-    const [activeProfileId, setActiveProfileId] = useState<string>(
-        () => loadActiveProfileId(initialProfiles)
+    const initialProfiles = useMemo(
+        () =>
+            Runtime.allowEditingProfiles()
+                ? loadProfiles()
+                : [createDefaultProfile()],
+        []
+    );
+    const [profiles, setProfiles] =
+        useState<ConnectionProfile[]>(initialProfiles);
+    const [activeProfileId, setActiveProfileId] = useState<string>(() =>
+        !Runtime.allowEditingProfiles()
+            ? initialProfiles[0].id
+            : loadActiveProfileId(initialProfiles)
     );
 
     useEffect(() => {
@@ -280,6 +291,7 @@ export function ConnectionConfigProvider({
     }, [activeProfileId]);
 
     const addProfile = useCallback(() => {
+        if (!Runtime.allowEditingProfiles()) return; // disabled in native host
         const newProfile: ConnectionProfile = {
             id: generateId(),
             label: `Connection ${profiles.length + 1}`,
@@ -296,9 +308,11 @@ export function ConnectionConfigProvider({
 
     const removeProfile = useCallback(
         (id: string) => {
+            if (!Runtime.allowEditingProfiles()) return; // disabled in native host
             if (profiles.length === 1) return;
             const next = profiles.filter((profile) => profile.id !== id);
-            const fallback = next.length === 0 ? [createDefaultProfile()] : next;
+            const fallback =
+                next.length === 0 ? [createDefaultProfile()] : next;
             setProfiles(fallback);
             if (activeProfileId === id) {
                 setActiveProfileId(fallback[0].id);
@@ -309,6 +323,7 @@ export function ConnectionConfigProvider({
 
     const updateProfile = useCallback(
         (id: string, patch: Partial<Omit<ConnectionProfile, "id">>) => {
+            if (!Runtime.allowEditingProfiles()) return; // Prevent editing profiles in native/local mode
             setProfiles((prev) =>
                 prev.map((profile) =>
                     profile.id === id ? { ...profile, ...patch } : profile
@@ -326,13 +341,19 @@ export function ConnectionConfigProvider({
         );
     }, [profiles, activeProfileId]);
 
-    const activeProfile = useMemo(
-        () =>
-            urlOverride
-                ? applyUrlOverride(baseActiveProfile, urlOverride)
-                : baseActiveProfile,
-        [baseActiveProfile, urlOverride]
-    );
+    const activeProfile = useMemo(() => {
+        const base = urlOverride
+            ? applyUrlOverride(baseActiveProfile, urlOverride)
+            : baseActiveProfile;
+        if (!Runtime.allowEditingProfiles()) {
+            return {
+                ...base,
+                host: DEFAULT_RPC_HOST,
+                port: DEFAULT_RPC_PORT,
+            };
+        }
+        return base;
+    }, [baseActiveProfile, urlOverride]);
 
     const value = useMemo(
         () => ({

@@ -150,14 +150,16 @@ export function SystemInstallSection({
     const locationButtons = SYSTEM_INSTALL_LOCATIONS.map((location) => {
         const isSelected = installLocations.includes(location.key);
         const cannotDeselect = isSelected && installLocations.length === 1;
-        const locationButtonDisabled = isSystemInstallDisabled || cannotDeselect;
+        const locationButtonDisabled =
+            isSystemInstallDisabled || cannotDeselect;
         return (
             <Button
                 key={location.key}
                 size="sm"
                 variant={isSelected ? "shadow" : "light"}
                 color={isSelected ? "primary" : undefined}
-                className="uppercase tracking-[0.2em] text-[10px] h-8 px-3"
+                className="uppercase tracking-[0.2em] h-8 px-3"
+                style={{ fontSize: "var(--tt-font-size-base)" }}
                 onPress={() => {
                     if (locationButtonDisabled) {
                         return;
@@ -210,7 +212,10 @@ export function SystemInstallSection({
                 />
             </div>
             <div className="space-y-2">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-foreground/50">
+                <p
+                    className="font-semibold uppercase tracking-[0.25em] text-foreground/50"
+                    style={{ fontSize: "var(--tt-font-size-base)" }}
+                >
                     {t("settings.labels.installLocations")}
                 </p>
                 <div className="flex flex-wrap gap-2">{locationButtons}</div>
@@ -237,7 +242,10 @@ export function SystemInstallSection({
                     </span>
                 </Switch>
                 {handlerRequiresElevation && (
-                    <p className="text-[10px] text-foreground/60">
+                    <p
+                        style={{ fontSize: "var(--tt-font-size-base)" }}
+                        className="text-foreground/60"
+                    >
                         {t("settings.install.handler_requires_elevation")}
                     </p>
                 )}
@@ -270,27 +278,36 @@ export function SystemInstallSection({
                         : t("settings.install.button")}
                 </Button>
                 {systemInstallError && (
-                    <p className="text-sm text-danger">{systemInstallError}</p>
+                    <p
+                        style={{ fontSize: "var(--tt-font-size-base)" }}
+                        className="text-danger"
+                    >
+                        {systemInstallError}
+                    </p>
                 )}
                 {installResult && (
                     <div className="space-y-3 rounded-2xl border border-content1/20 bg-content1/30 p-4">
                         <div className="flex items-center justify-between gap-2">
                             <span
                                 className={cn(
-                                    "text-sm font-semibold uppercase tracking-[0.2em]",
+                                    "font-semibold uppercase tracking-[0.2em]",
                                     installResult.success
                                         ? "text-success"
                                         : "text-danger"
                                 )}
+                                style={{ fontSize: "var(--tt-font-size-base)" }}
                             >
                                 {installResult.success
                                     ? t("settings.install.result_success")
-                                    : t(
-                                          "settings.install.result_partial"
-                                      )}
+                                    : t("settings.install.result_partial")}
                             </span>
                             {installResult.permissionDenied && (
-                                <span className="text-[10px] font-semibold uppercase tracking-[0.3em] text-danger">
+                                <span
+                                    className="font-semibold uppercase tracking-[0.3em] text-danger"
+                                    style={{
+                                        fontSize: "var(--tt-font-size-base)",
+                                    }}
+                                >
                                     {t(
                                         "settings.install.result_permission_denied"
                                     )}
@@ -304,46 +321,58 @@ export function SystemInstallSection({
                         )}
                         <div className="space-y-2">
                             <div>
-                                <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-foreground/50">
+                                <p
+                                    className="font-semibold uppercase tracking-[0.25em] text-foreground/50"
+                                    style={{
+                                        fontSize: "var(--tt-font-size-base)",
+                                    }}
+                                >
                                     {t("settings.install.shortcuts_header")}
                                 </p>
                                 {shortcutEntries.length ? (
                                     <ul className="mt-1 space-y-1 text-sm text-foreground/70">
-                                        {shortcutEntries.map(
-                                            ([key, value]) => {
-                                                const labelKey =
-                                                    SYSTEM_INSTALL_LOCATIONS.find(
-                                                        (location) =>
-                                                            location.key === key
-                                                    )?.labelKey;
-                                                return (
-                                                    <li
-                                                        key={key}
-                                                        className="flex flex-col gap-0.5"
-                                                    >
-                                                        {labelKey && (
-                                                            <span className="text-[10px] uppercase tracking-[0.3em] text-foreground/40">
-                                                                {t(labelKey)}
-                                                            </span>
-                                                        )}
-                                                        <span className="break-all text-sm text-foreground/70">
-                                                            {value}
+                                        {shortcutEntries.map(([key, value]) => {
+                                            const labelKey =
+                                                SYSTEM_INSTALL_LOCATIONS.find(
+                                                    (location) =>
+                                                        location.key === key
+                                                )?.labelKey;
+                                            return (
+                                                <li
+                                                    key={key}
+                                                    className="flex flex-col gap-0.5"
+                                                >
+                                                    {labelKey && (
+                                                        <span
+                                                            className="uppercase tracking-[0.3em] text-foreground/40"
+                                                            style={{
+                                                                fontSize:
+                                                                    "var(--tt-font-size-base)",
+                                                            }}
+                                                        >
+                                                            {t(labelKey)}
                                                         </span>
-                                                    </li>
-                                                );
-                                            }
-                                        )}
+                                                    )}
+                                                    <span className="break-all text-sm text-foreground/70">
+                                                        {value}
+                                                    </span>
+                                                </li>
+                                            );
+                                        })}
                                     </ul>
                                 ) : (
                                     <p className="mt-1 text-sm text-foreground/60">
-                                        {t(
-                                            "settings.install.shortcuts_none"
-                                        )}
+                                        {t("settings.install.shortcuts_none")}
                                     </p>
                                 )}
                             </div>
                             <div>
-                                <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-foreground/50">
+                                <p
+                                    className="font-semibold uppercase tracking-[0.3em] text-foreground/50"
+                                    style={{
+                                        fontSize: "var(--tt-font-size-base)",
+                                    }}
+                                >
                                     {t("settings.install.program_files_label")}
                                 </p>
                                 <p className="text-sm text-foreground/70">
@@ -352,7 +381,13 @@ export function SystemInstallSection({
                             </div>
                             {showHandlerSection && (
                                 <div>
-                                    <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-foreground/50">
+                                    <p
+                                        className="font-semibold uppercase tracking-[0.3em] text-foreground/50"
+                                        style={{
+                                            fontSize:
+                                                "var(--tt-font-size-base)",
+                                        }}
+                                    >
                                         {t("settings.install.handlers_header")}
                                     </p>
                                     <p className="text-sm text-foreground/70">

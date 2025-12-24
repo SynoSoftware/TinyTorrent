@@ -1,6 +1,102 @@
 import type { MotionProps, Transition } from "framer-motion";
 import constants from "./constants.json";
 
+// Design-system authority declaration
+export const DESIGN_SYSTEM_AUTHORITY = {
+    source: "index.css",
+    primitives: ["--u", "--fz", "--z"],
+    note: "All geometry must be derived from CSS primitives; JSON must contain intent only.",
+};
+
+function checkDeprecatedGeometrySettings() {
+    try {
+        const warnings: string[] = [];
+        const layout = (constants as any).layout ?? {};
+        const table = layout.table ?? {};
+        if (typeof table.row_height === "number")
+            warnings.push("layout.table.row_height");
+        if (typeof table.icon_size === "number")
+            warnings.push("layout.table.icon_size");
+        if (
+            typeof table.font_size === "string" &&
+            /text-\[|h-\[|w-\[/.test(table.font_size)
+        )
+            warnings.push("layout.table.font_size (tailwind escape)");
+
+        const ui = layout.ui ?? {};
+        const navbar = ui.navbar ?? {};
+        const statusbar = ui.statusbar ?? {};
+        const drop = ui.drop_overlay ?? {};
+        const fileExplorer = ui.file_explorer ?? {};
+
+        const numericProps = [
+            "height",
+            "padding",
+            "gap",
+            "brand_icon",
+            "tab_font",
+            "meta_font",
+            "search_width",
+            "icon_sm",
+            "icon_md",
+            "icon_lg",
+            "icon_xl",
+            "button_h",
+            "button_min_w",
+            "min_100",
+            "min_120",
+            "min_80",
+            "padding_x",
+            "padding_y",
+            "icon_size",
+            "title_font",
+            "font_size",
+            "row_height",
+            "depth_indent",
+            "row_padding_left",
+            "context_menu_width",
+            "context_menu_margin",
+            "priority_badge_font_size",
+            "priority_badge_padding_x",
+            "priority_badge_padding_y",
+            "file_icon_size",
+            "checkbox_padding",
+        ];
+
+        for (const p of numericProps) {
+            if (typeof (navbar as any)[p] === "number")
+                warnings.push(`layout.ui.navbar.${p}`);
+            if (typeof (statusbar as any)[p] === "number")
+                warnings.push(`layout.ui.statusbar.${p}`);
+            if (typeof (drop as any)[p] === "number")
+                warnings.push(`layout.ui.drop_overlay.${p}`);
+            if (typeof (fileExplorer as any)[p] === "number")
+                warnings.push(`layout.ui.file_explorer.${p}`);
+        }
+
+        const shell = layout.shell ?? {};
+        if (shell.classic && typeof shell.classic.outer_radius === "number")
+            warnings.push("layout.shell.classic.outer_radius");
+        if (shell.immersive && typeof shell.immersive.outer_radius === "number")
+            warnings.push("layout.shell.immersive.outer_radius");
+
+        if (warnings.length) {
+            // single consolidated warning
+            // Keep this non-fatal: it surfaces to devs immediately.
+            // eslint-disable-next-line no-console
+            console.warn(
+                "[DesignSystem] Deprecated geometry found in constants.json. Index.css is authoritative. Remove pixel geometry from JSON. Keys:",
+                warnings
+            );
+        }
+    } catch (e) {
+        // ignore
+    }
+}
+
+// Run check at module init to warn devs if JSON still contains geometry numbers.
+checkDeprecatedGeometrySettings();
+
 const normalizeRepeat = (value?: number) => (value === -1 ? Infinity : value);
 
 const adaptTransition = <T extends Transition>(transition: T) => ({
@@ -43,10 +139,11 @@ const DEFAULT_LAYOUT_PEER_MAP = {
 } as const;
 
 const DEFAULT_TABLE_LAYOUT = {
-    row_height: 32,
-    font_size: "text-[11px]",
+    // Geometry is CSS-driven; defaults here are CSS var references.
+    row_height: "var(--tt-row-h)",
+    font_size: "var(--fz-scaled)",
     font_mono: "font-mono",
-    icon_size: 14,
+    icon_size: "var(--icon)",
     overscan: 20,
 } as const;
 
@@ -134,8 +231,8 @@ export type ShellTokens = {
     handleHitArea: number;
     innerRadius: number;
     insetRadius: number;
-    frameStyle: { borderRadius: string; padding: string };
-    contentStyle: { borderRadius: string };
+    frameStyle: { borderRadius: string | number; padding: string | number };
+    contentStyle: { borderRadius: string | number };
 };
 
 export const SHELL_TOKENS_CLASSIC: ShellTokens = {
@@ -146,11 +243,11 @@ export const SHELL_TOKENS_CLASSIC: ShellTokens = {
     innerRadius: classicInnerRadius,
     insetRadius: classicInsetRadius,
     frameStyle: {
-        borderRadius: `${classicOuterRadius}px`,
-        padding: `${classicRingPadding}px`,
+        borderRadius: classicOuterRadius,
+        padding: classicRingPadding,
     },
     contentStyle: {
-        borderRadius: `${classicInnerRadius}px`,
+        borderRadius: classicInnerRadius,
     },
 };
 
@@ -162,16 +259,20 @@ export const SHELL_TOKENS_IMMERSIVE: ShellTokens = {
     innerRadius: immersiveInnerRadius,
     insetRadius: immersiveInsetRadius,
     frameStyle: {
-        borderRadius: `${immersiveOuterRadius}px`,
-        padding: `${immersiveRingPadding}px`,
+        borderRadius: immersiveOuterRadius,
+        padding: immersiveRingPadding,
     },
     contentStyle: {
-        borderRadius: `${immersiveInnerRadius}px`,
+        borderRadius: immersiveInnerRadius,
     },
 };
 
 export const getShellTokens = (style: ShellStyle): ShellTokens =>
     style === "immersive" ? SHELL_TOKENS_IMMERSIVE : SHELL_TOKENS_CLASSIC;
+
+export const IS_NATIVE_HOST =
+    import.meta.env.VITE_INTERNAL_MODE === "true" ||
+    !!(window as any).__TINY_TORRENT_NATIVE__;
 
 export const SHELL_RADIUS = classicOuterRadius;
 export const SHELL_HANDLE_HIT_AREA = classicHandleHitArea;
@@ -221,12 +322,121 @@ const tableLayout = layoutConfig.table ?? DEFAULT_TABLE_LAYOUT;
 const detailsLayout = layoutConfig.details ?? {};
 
 export const TABLE_LAYOUT = {
-    rowHeight: tableLayout.row_height,
-    fontSize: tableLayout.font_size,
+    // These values are CSS-driven tokens; runtime code that needs
+    // numeric pixel heights should read the computed style instead.
+    rowHeight: "var(--tt-row-h)",
+    fontSize: "var(--tt-font-size-base)",
     fontMono: tableLayout.font_mono,
-    iconSize: tableLayout.icon_size,
+    iconSize: "var(--tt-icon-size)",
     overscan: tableLayout.overscan,
 } as const;
+
+// --- UI Token Bases from constants.json (used to initialize CSS variables) ---
+const uiLayout = (layoutConfig.ui ?? {}) as Record<string, any>;
+
+// Export canonical scale bases (single source of truth for unit/font/zoom).
+// These values are derived from `constants.json` and must be imported by
+// runtime readers (hooks/components) that need numeric scale tokens.
+const scaleCfgTop = uiLayout.scale ?? {};
+export const SCALE_BASES = {
+    unit: readNumber((scaleCfgTop as any).unit, 4),
+    fontBase: readNumber(
+        (scaleCfgTop as any).font_base ?? (scaleCfgTop as any).fontBase,
+        11
+    ),
+    zoom: readNumber(
+        (scaleCfgTop as any).zoom ?? (scaleCfgTop as any).level ?? 1,
+        1
+    ),
+};
+
+const navbarConfig = uiLayout.navbar ?? {};
+const statusbarConfig = uiLayout.statusbar ?? {};
+const dropOverlayConfig = uiLayout.drop_overlay ?? {};
+
+export const UI_BASES = {
+    navbar: {
+        height: readNumber(navbarConfig.height, 56),
+        padding: readNumber(navbarConfig.padding, 24),
+        gap: readNumber(navbarConfig.gap, 16),
+        brandIcon: readNumber(navbarConfig.brand_icon, 40),
+        tabFont: readNumber(navbarConfig.tab_font, 11),
+        metaFont: readNumber(navbarConfig.meta_font, 10),
+        searchWidth: readNumber(navbarConfig.search_width, 160),
+        searchWidthLg: readNumber(navbarConfig.search_width_lg, 224),
+    },
+    statusbar: {
+        height: readNumber(statusbarConfig.height, 76),
+        iconSm: readNumber(statusbarConfig.icon_sm, 12),
+        iconMd: readNumber(statusbarConfig.icon_md, 14),
+        iconLg: readNumber(statusbarConfig.icon_lg, 16),
+        iconXl: readNumber(statusbarConfig.icon_xl, 48),
+        buttonH: readNumber(statusbarConfig.button_h, 42),
+        buttonMinW: readNumber(statusbarConfig.button_min_w, 84),
+        min100: readNumber(statusbarConfig.min_100, 100),
+        min120: readNumber(statusbarConfig.min_120, 120),
+        min80: readNumber(statusbarConfig.min_80, 80),
+    },
+    dropOverlay: {
+        paddingX: readNumber(dropOverlayConfig.padding_x, 24),
+        paddingY: readNumber(dropOverlayConfig.padding_y, 16),
+        iconSize: readNumber(dropOverlayConfig.icon_size, 28),
+        titleFont: readNumber(dropOverlayConfig.title_font, 14),
+        fontSize: readNumber(dropOverlayConfig.font_size, 11),
+    },
+    fileExplorer: {
+        rowHeight: readNumber((uiLayout.file_explorer ?? {}).row_height, 32),
+        depthIndent: readNumber(
+            (uiLayout.file_explorer ?? {}).depth_indent,
+            16
+        ),
+        rowPaddingLeft: readNumber(
+            (uiLayout.file_explorer ?? {}).row_padding_left,
+            8
+        ),
+        contextMenuWidth: readNumber(
+            (uiLayout.file_explorer ?? {}).context_menu_width,
+            220
+        ),
+        contextMenuMargin: readNumber(
+            (uiLayout.file_explorer ?? {}).context_menu_margin,
+            8
+        ),
+        priorityBadgeFontSize: readNumber(
+            (uiLayout.file_explorer ?? {}).priority_badge_font_size,
+            10
+        ),
+        priorityBadgePaddingX: readNumber(
+            (uiLayout.file_explorer ?? {}).priority_badge_padding_x,
+            8
+        ),
+        priorityBadgePaddingY: readNumber(
+            (uiLayout.file_explorer ?? {}).priority_badge_padding_y,
+            4
+        ),
+        fileIconSize: readNumber(
+            (uiLayout.file_explorer ?? {}).file_icon_size,
+            16
+        ),
+        checkboxPadding: readNumber(
+            (uiLayout.file_explorer ?? {}).checkbox_padding,
+            4
+        ),
+    },
+};
+
+export function applyCssTokenBases() {
+    if (typeof document === "undefined") return;
+    const root = document.documentElement.style;
+    // Simplified: only export the canonical scale primitives.
+    // All other UI tokens are derived in CSS from these two values.
+    const uiLayout = (layoutConfig.ui ?? {}) as Record<string, any>;
+    const scaleCfg = uiLayout.scale ?? {};
+    // Preserve CSS defaults for unit and font base to avoid FOUC.
+    // Only set runtime zoom-level here (JS-driven zoom overrides).
+    const zoom = readNumber(scaleCfg.zoom ?? scaleCfg.level ?? 1, 1);
+    root.setProperty("--tt-zoom-level", String(zoom));
+}
 
 // Minimum visual thickness (in pixels) for panel resize handles.
 export const MIN_HANDLE_VISUAL_WIDTH = 1;

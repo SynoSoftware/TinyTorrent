@@ -53,9 +53,15 @@ export function DiskSpaceGauge({
 
     return (
         <div className={containerClasses}>
-            <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.3em] text-foreground/60">
+            <div
+                className="flex items-center justify-between font-semibold uppercase tracking-[0.3em] text-foreground/60"
+                style={{ fontSize: "var(--tt-font-size-base)" }}
+            >
                 <span>{t("modals.disk_gauge.title")}</span>
-                <span className="text-[10px] font-mono text-foreground/40">
+                <span
+                    style={{ fontSize: "var(--tt-font-size-base)" }}
+                    className="font-mono text-foreground/40"
+                >
                     {path ?? t("modals.disk_gauge.path_unknown")}
                 </span>
             </div>
@@ -66,7 +72,10 @@ export function DiskSpaceGauge({
                     indicatorClassName={indicatorClasses}
                 />
             </div>
-            <div className="flex justify-between text-[11px] font-mono text-foreground/60">
+            <div
+                className="flex justify-between font-mono text-foreground/60"
+                style={{ fontSize: "var(--tt-font-size-base)" }}
+            >
                 <span>
                     {t("modals.disk_gauge.used")}{" "}
                     {usedBytes !== undefined ? formatBytes(usedBytes) : "-"}
@@ -81,11 +90,21 @@ export function DiskSpaceGauge({
                 </span>
             </div>
             {isLoading && (
-                <p className="text-[10px] text-foreground/50">
+                <p
+                    style={{ fontSize: "var(--tt-font-size-base)" }}
+                    className="text-foreground/50"
+                >
                     {t("modals.disk_gauge.updating")}
                 </p>
             )}
-            {error && <p className="text-[10px] text-danger">{error}</p>}
+            {error && (
+                <p
+                    style={{ fontSize: "var(--tt-font-size-base)" }}
+                    className="text-danger"
+                >
+                    {error}
+                </p>
+            )}
         </div>
     );
 }

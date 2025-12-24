@@ -352,7 +352,10 @@ export function AddTorrentModal({
             backdrop="blur"
             size="2xl"
             classNames={{
-                base: cn(GLASS_MODAL_SURFACE, "w-full max-w-[720px]"),
+                base: cn(
+                    GLASS_MODAL_SURFACE,
+                    "w-full max-w-[length:calc(180*var(--u)*var(--z))]"
+                ),
                 closeButton: "hover:bg-content1/10 active:bg-content1/20",
             }}
             motionProps={INTERACTION_CONFIG.modalBloom}
@@ -433,27 +436,50 @@ export function AddTorrentModal({
                                         />
                                     </div>
                                 </div>
-                                <p className="text-[11px] text-foreground/50">
+                                <p
+                                    style={{
+                                        fontSize: "var(--tt-font-size-base)",
+                                    }}
+                                    className="text-foreground/50"
+                                >
                                     {t("modals.file_help")}
                                 </p>
                             </div>
                             {torrentMetadata && (
                                 <div className="rounded-xl border border-content1/20 bg-content1/15 px-4 py-4 space-y-2">
                                     <div className="flex items-center justify-between">
-                                        <span className="text-[11px] uppercase tracking-[0.3em] text-foreground/60">
+                                        <span
+                                            style={{
+                                                fontSize:
+                                                    "var(--tt-font-size-base)",
+                                            }}
+                                            className="uppercase tracking-[0.3em] text-foreground/60"
+                                        >
                                             {t("modals.file_tree_title")}
                                         </span>
-                                        <span className="text-[11px] text-foreground/50">
+                                        <span
+                                            style={{
+                                                fontSize:
+                                                    "var(--tt-font-size-base)",
+                                            }}
+                                            className="text-foreground/50"
+                                        >
                                             {t("modals.file_count", {
                                                 count: torrentMetadata.files
                                                     .length,
                                             })}
                                         </span>
                                     </div>
-                                    <p className="text-[11px] text-foreground/50">
+                                    <p
+                                        style={{
+                                            fontSize:
+                                                "var(--tt-font-size-base)",
+                                        }}
+                                        className="text-foreground/50"
+                                    >
                                         {t("modals.file_tree_description")}
                                     </p>
-                                    <div className="max-h-[280px] overflow-y-auto">
+                                    <div className="max-h-[length:calc(70*var(--u)*var(--z))] overflow-y-auto">
                                         <FileExplorerTree
                                             files={fileTreeEntries}
                                             emptyMessage={t(
@@ -465,11 +491,18 @@ export function AddTorrentModal({
                                 </div>
                             )}
                             {selectedFile && !torrentMetadata && (
-                                <div className="rounded-xl border border-content1/20 bg-background/30 px-4 py-3 text-[11px] text-foreground/50">
-                                    {isParsingTorrent
-                                        ? t("modals.file_tree_loading")
-                                        : parseError ??
-                                          t("modals.file_tree_waiting")}
+                                <div
+                                    className="rounded-xl border border-content1/20 bg-background/30 px-4 py-3"
+                                    style={{
+                                        fontSize: "var(--tt-font-size-base)",
+                                    }}
+                                >
+                                    <span className="text-foreground/50">
+                                        {isParsingTorrent
+                                            ? t("modals.file_tree_loading")
+                                            : parseError ??
+                                              t("modals.file_tree_waiting")}
+                                    </span>
                                 </div>
                             )}
                             <div className="grid grid-cols-2 gap-4">
@@ -505,7 +538,11 @@ export function AddTorrentModal({
                                                     onPress={
                                                         openDirectoryPicker
                                                     }
-                                                    className="text-[10px] font-semibold uppercase tracking-[0.3em] px-3 py-1"
+                                                    className="font-semibold uppercase tracking-[0.3em] px-3 py-1"
+                                                    style={{
+                                                        fontSize:
+                                                            "var(--tt-font-size-base)",
+                                                    }}
                                                 >
                                                     {t(
                                                         "settings.button.browse"
@@ -583,7 +620,7 @@ export function AddTorrentModal({
                                 </Button>
                             </div>
                             {isSpaceInsufficient && (
-                                <p className="text-[10px] text-warning">
+                                <p className="text-[length:var(--fz-scaled)] text-warning">
                                     {t("modals.disk_gauge.insufficient")}
                                 </p>
                             )}

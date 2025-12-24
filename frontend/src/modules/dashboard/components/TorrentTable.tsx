@@ -24,6 +24,7 @@ import {
     Dropdown,
     DropdownItem,
     DropdownMenu,
+    DropdownSection,
     DropdownTrigger,
     Modal,
     ModalBody,
@@ -37,6 +38,7 @@ import {
     getCoreRowModel,
     getSortedRowModel,
     useReactTable,
+    type Column,
     type ColumnDef,
     type Header,
     type Row,
@@ -45,7 +47,7 @@ import {
     type VisibilityState,
 } from "@tanstack/react-table";
 import { type VirtualItem, useVirtualizer } from "@tanstack/react-virtual";
-import { AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { ArrowDown, ArrowUp, FileUp } from "lucide-react";
 import React, {
     memo,
@@ -59,6 +61,7 @@ import React, {
 } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
+import type { ItemElement } from "@react-types/shared";
 
 import {
     BLOCK_SHADOW,
@@ -67,6 +70,7 @@ import {
     GLASS_MODAL_SURFACE,
     PANEL_SHADOW,
 } from "../../../shared/ui/layout/glass-surface";
+import useLayoutMetrics from "@/shared/hooks/useLayoutMetrics";
 import { useKeyboardScope } from "../../../shared/hooks/useKeyboardScope";
 import type { TorrentStatus } from "../../../services/rpc/entities";
 
@@ -94,7 +98,8 @@ const STORAGE_KEY = "tiny-torrent.table-state.v2.8";
 const CELL_PADDING_CLASS = "pl-2 pr-3";
 const CELL_BASE_CLASSES =
     "flex items-center overflow-hidden h-full truncate box-border leading-none";
-const CONTEXT_MENU_MARGIN = 16;
+const DEFAULT_CONTEXT_MENU_MARGIN = 16;
+
 const SPEED_HISTORY_LIMIT = 30;
 const DND_OVERLAY_CLASSES = "pointer-events-none fixed inset-0 z-40";
 
@@ -125,6 +130,14 @@ interface MarqueeState {
     startContentY: number;
     isAdditive: boolean;
 }
+
+type HeaderMenuItem =
+    | {
+          type: "column";
+          column: Column<Torrent>;
+          label: string;
+      }
+    | { type: "separator"; key: string };
 
 const SHORTCUT_KEY_LABELS: Record<string, string> = {
     ctrl: "Ctrl",
@@ -177,6 +190,8 @@ const DEFAULT_MAGNET_PREFIX = constants.defaults.magnet_protocol_prefix;
 const getContextMenuShortcut = (action: ContextMenuKey) =>
     formatShortcutLabel(CONTEXT_MENU_SHORTCUTS[action]);
 
+// Row height and other CSS-derived metrics are provided by `useLayoutMetrics`
+
 export type OptimisticStatusEntry = {
     state: TorrentStatus;
     expiresAt: number;
@@ -200,38 +215,57 @@ interface TorrentTableProps {
 }
 
 // --- HELPERS ---
-const clampContextMenuPoint = (x: number, y: number) => {
+const clampContextMenuPoint = (
+    x: number,
+    y: number,
+    marginOverride?: number
+) => {
     if (typeof window === "undefined") {
         return { x, y };
     }
-    const maxX = Math.max(
-        CONTEXT_MENU_MARGIN,
-        window.innerWidth - CONTEXT_MENU_MARGIN
-    );
-    const maxY = Math.max(
-        CONTEXT_MENU_MARGIN,
-        window.innerHeight - CONTEXT_MENU_MARGIN
-    );
+    const margin =
+        typeof marginOverride === "number"
+            ? marginOverride
+            : DEFAULT_CONTEXT_MENU_MARGIN;
+    const maxX = Math.max(margin, window.innerWidth - margin);
+    const maxY = Math.max(margin, window.innerHeight - margin);
     return {
-        x: Math.min(Math.max(x, CONTEXT_MENU_MARGIN), maxX),
-        y: Math.min(Math.max(y, CONTEXT_MENU_MARGIN), maxY),
+        x: Math.min(Math.max(x, margin), maxX),
+        y: Math.min(Math.max(y, margin), maxY),
     };
 };
 
-const createVirtualElement = (x: number, y: number) => {
-    const { x: boundedX, y: boundedY } = clampContextMenuPoint(x, y);
+interface VirtualElement {
+    x: number;
+    y: number;
+    getBoundingClientRect: () => DOMRect;
+}
+
+const createVirtualElement = (
+    x: number,
+    y: number,
+    marginOverride?: number
+): VirtualElement => {
+    const { x: boundedX, y: boundedY } = clampContextMenuPoint(
+        x,
+        y,
+        marginOverride
+    );
     return {
-        getBoundingClientRect: () => ({
-            width: 0,
-            height: 0,
-            top: boundedY,
-            right: boundedX,
-            bottom: boundedY,
-            left: boundedX,
-            x: boundedX,
-            y: boundedY,
-            toJSON: () => {},
-        }),
+        x: boundedX,
+        y: boundedY,
+        getBoundingClientRect: () =>
+            ({
+                width: 0,
+                height: 0,
+                top: boundedY,
+                right: boundedX,
+                bottom: boundedY,
+                left: boundedX,
+                x: boundedX,
+                y: boundedY,
+                toJSON: () => {},
+            } as DOMRect),
     };
 };
 
@@ -297,7 +331,7 @@ const DraggableHeader = memo(
                     className={cn(
                         CELL_BASE_CLASSES,
                         "flex-1 gap-2",
-                        "text-[10px] font-bold uppercase tracking-[0.15em] text-foreground/60",
+                        "text-[length:var(--fz-scaled)] font-bold uppercase tracking-[0.15em] text-foreground/60",
                         isOverlay && "text-foreground",
                         CELL_PADDING_CLASS,
                         align === "center" && "justify-center",
@@ -337,10 +371,10 @@ const DraggableHeader = memo(
                     >
                         <div
                             className={cn(
-                                "w-[1px] h-4 bg-foreground/10 transition-colors rounded-full",
+                                "w-[length:var(--bw)] h-4 bg-foreground/10 transition-colors rounded-full",
                                 "group-hover:bg-primary/50",
                                 column.getIsResizing() &&
-                                    "bg-primary w-[2px] h-6"
+                                    "bg-primary w-[length:calc(2*var(--bw))] h-6"
                             )}
                         />
                     </div>
@@ -370,7 +404,7 @@ const ColumnHeaderPreview = ({
             <div
                 className={cn(
                     CELL_BASE_CLASSES,
-                    "flex-1 gap-2 text-[10px] font-bold uppercase tracking-[0.15em] text-foreground/70",
+                    "flex-1 gap-2 text-[length:var(--fz-scaled)] font-bold uppercase tracking-[0.15em] text-foreground/70",
                     CELL_PADDING_CLASS,
                     align === "center" && "justify-center",
                     align === "end" && "justify-end",
@@ -541,7 +575,10 @@ const VirtualRow = memo(
                 onContextMenu={(e) => onContextMenu(e, row.original)}
             >
                 {/* INNER DIV: Handles all visuals. Separating layout from paint prevents glitching. */}
-                <div
+                <motion.div
+                    layout
+                    layoutId={`torrent-row-${row.id}`}
+                    initial={false}
                     className={cn(
                         "relative flex items-center w-full h-full px-0",
                         // SELECTION STATE: Stronger contrast, no border, NO TRANSITION
@@ -555,7 +592,7 @@ const VirtualRow = memo(
                     )}
                 >
                     {renderVisibleCells(row)}
-                </div>
+                </motion.div>
             </div>
         );
     }
@@ -624,6 +661,7 @@ export function TorrentTable({
     const focusReturnRef = useRef<HTMLElement | null>(null);
     const marqueeStateRef = useRef<MarqueeState | null>(null);
     const marqueeClickBlockRef = useRef(false);
+    const isMarqueeDraggingRef = useRef(false);
     const marqueeBlockResetRef = useRef<ReturnType<
         typeof window.setTimeout
     > | null>(null);
@@ -694,6 +732,9 @@ export function TorrentTable({
             const startClientX = event.clientX - rect.left;
             const startClientY = event.clientY - rect.top;
             const startContentY = startClientY + container.scrollTop;
+
+            // mark that a marquee drag is in progress
+            isMarqueeDraggingRef.current = true;
 
             marqueeStateRef.current = {
                 startClientX,
@@ -809,6 +850,10 @@ export function TorrentTable({
     const [contextMenu, setContextMenu] = useState<{
         virtualElement: ReturnType<typeof createVirtualElement>;
         torrent: Torrent;
+    } | null>(null);
+    const [headerContextMenu, setHeaderContextMenu] = useState<{
+        virtualElement: ReturnType<typeof createVirtualElement>;
+        columnId: string | null;
     } | null>(null);
     const [anchorIndex, setAnchorIndex] = useState<number | null>(null);
     const [focusIndex, setFocusIndex] = useState<number | null>(null);
@@ -956,7 +1001,7 @@ export function TorrentTable({
                     const label = def.labelKey ? t(def.labelKey) : "";
                     const HeaderIcon = def.headerIcon;
                     return HeaderIcon ? (
-                        <div className="flex items-center gap-1 text-[9px] font-semibold uppercase tracking-[0.3em] text-foreground/60">
+                        <div className="flex items-center gap-1 text-[length:var(--fz-scaled)] font-semibold uppercase tracking-[0.3em] text-foreground/60">
                             <HeaderIcon
                                 size={12}
                                 strokeWidth={ICON_STROKE_WIDTH_DENSE}
@@ -1018,16 +1063,24 @@ export function TorrentTable({
     });
 
     const { rows } = table.getRowModel();
+    const { rowHeight, fileContextMenuMargin, fileContextMenuWidth } =
+        useLayoutMetrics();
+
     const rowVirtualizer = useVirtualizer({
         count: rows.length,
         getScrollElement: () => parentRef.current,
-        estimateSize: () => TABLE_LAYOUT.rowHeight,
+        estimateSize: () => rowHeight,
         overscan: TABLE_LAYOUT.overscan,
     });
 
     useEffect(() => {
         rowsRef.current = rows;
     }, [rows]);
+
+    // Throttle marquee selection updates via requestAnimationFrame to avoid
+    // issuing React state updates at mousemove frequency which causes layout jank.
+    const pendingSelectionRef = useRef<RowSelectionState | null>(null);
+    const rafHandleRef = useRef<number | null>(null);
 
     useEffect(() => {
         const handleMouseMove = (event: MouseEvent) => {
@@ -1045,6 +1098,59 @@ export function TorrentTable({
                 width: Math.abs(currentClientX - state.startClientX),
                 height: Math.abs(currentClientY - state.startClientY),
             });
+
+            // Live selection while dragging: translate viewport coords to content coords
+            // using the current scrollTop so that scrolling during drag updates selection.
+            try {
+                const scrollTop = container.scrollTop;
+                const startContentY = state.startClientY + scrollTop;
+                const currentContentY = currentClientY + scrollTop;
+                const minY = Math.max(
+                    0,
+                    Math.min(startContentY, currentContentY)
+                );
+                const maxY = Math.max(
+                    0,
+                    Math.max(startContentY, currentContentY)
+                );
+                const totalHeight = (rowsRef.current?.length || 0) * rowHeight;
+                const topContent = Math.max(0, minY);
+                const bottomContent = Math.max(0, Math.min(maxY, totalHeight));
+                if (bottomContent > topContent) {
+                    const firstIndex = Math.floor(topContent / rowHeight);
+                    const lastIndex = Math.floor(
+                        (bottomContent - 1) / rowHeight
+                    );
+                    const isAdditive =
+                        state.isAdditive ||
+                        (event as unknown as MouseEvent).shiftKey;
+                    const nextSelection: RowSelectionState = isAdditive
+                        ? { ...rowSelectionRef.current }
+                        : {};
+                    const selectionIds = rowIds.slice(
+                        firstIndex,
+                        lastIndex + 1
+                    );
+                    for (const id of selectionIds) nextSelection[id] = true;
+                    // Schedule commit via rAF instead of updating every mousemove
+                    pendingSelectionRef.current = nextSelection;
+                    if (rafHandleRef.current === null) {
+                        rafHandleRef.current = window.requestAnimationFrame(
+                            () => {
+                                if (pendingSelectionRef.current) {
+                                    setRowSelection(
+                                        pendingSelectionRef.current
+                                    );
+                                    pendingSelectionRef.current = null;
+                                }
+                                rafHandleRef.current = null;
+                            }
+                        );
+                    }
+                }
+            } catch {
+                // ignore selection errors during drag
+            }
         };
 
         const handleMouseUp = (event: MouseEvent) => {
@@ -1052,11 +1158,19 @@ export function TorrentTable({
             const container = parentRef.current;
             if (!state || !container) {
                 setMarqueeRect(null);
+                // clear dragging flag after the click event has a chance to fire
+                setTimeout(() => {
+                    isMarqueeDraggingRef.current = false;
+                }, 0);
                 return;
             }
             const rect = container.getBoundingClientRect();
+            const scrollTop =
+                parentRef.current?.scrollTop ?? container.scrollTop ?? 0;
             const endClientY = event.clientY - rect.top;
-            const endContentY = endClientY + container.scrollTop;
+            // Recalculate start relative to current scroll to avoid selection jumps
+            const startContentY = state.startClientY + scrollTop;
+            const endContentY = endClientY + scrollTop;
 
             marqueeStateRef.current = null;
             setMarqueeRect(null);
@@ -1073,7 +1187,7 @@ export function TorrentTable({
                 return;
             }
 
-            const totalHeight = availableRows.length * TABLE_LAYOUT.rowHeight;
+            const totalHeight = availableRows.length * rowHeight;
 
             // CORRECTED MATH: Calculate absolute Top and Bottom regardless of drag direction
             const minY = Math.min(state.startContentY, endContentY);
@@ -1095,10 +1209,8 @@ export function TorrentTable({
             }
 
             // Map Y-coordinates to Row Indices
-            const firstIndex = Math.floor(topContent / TABLE_LAYOUT.rowHeight);
-            const lastIndex = Math.floor(
-                (bottomContent - 1) / TABLE_LAYOUT.rowHeight
-            ); // -1 to avoid selecting next row if exactly on border
+            const firstIndex = Math.floor(topContent / rowHeight);
+            const lastIndex = Math.floor((bottomContent - 1) / rowHeight); // -1 to avoid selecting next row if exactly on border
 
             if (firstIndex > lastIndex) return; // Should not happen with corrected math, but safety check
 
@@ -1120,7 +1232,7 @@ export function TorrentTable({
                 0,
                 Math.min(
                     availableRows.length - 1,
-                    Math.floor(endContentY / TABLE_LAYOUT.rowHeight)
+                    Math.floor(endContentY / rowHeight)
                 )
             );
 
@@ -1144,6 +1256,10 @@ export function TorrentTable({
                 marqueeClickBlockRef.current = false;
                 marqueeBlockResetRef.current = null;
             }, 0);
+            // clear marquee dragging flag after release (allow click event to be blocked)
+            setTimeout(() => {
+                isMarqueeDraggingRef.current = false;
+            }, 0);
         };
 
         window.addEventListener("mousemove", handleMouseMove);
@@ -1154,6 +1270,11 @@ export function TorrentTable({
             if (marqueeBlockResetRef.current) {
                 window.clearTimeout(marqueeBlockResetRef.current);
                 marqueeBlockResetRef.current = null;
+            }
+            // cancel any pending rAF
+            if (rafHandleRef.current !== null) {
+                window.cancelAnimationFrame(rafHandleRef.current);
+                rafHandleRef.current = null;
             }
         };
     }, [rowVirtualizer]);
@@ -1406,6 +1527,8 @@ export function TorrentTable({
     // --- EVENTS ---
     const handleRowClick = useCallback(
         (e: React.MouseEvent, rowId: string, originalIndex: number) => {
+            // Prevent row click from firing while marquee-dragging
+            if (isMarqueeDraggingRef.current) return;
             const target = e.target as HTMLElement;
             if (marqueeClickBlockRef.current) {
                 marqueeClickBlockRef.current = false;
@@ -1469,13 +1592,11 @@ export function TorrentTable({
         (e: React.MouseEvent, torrent: Torrent) => {
             e.preventDefault();
             if (torrent.isGhost) return;
-            const rowElement = findRowElement(torrent.id);
-            const rowRect = rowElement?.getBoundingClientRect();
-            const targetY =
-                rowRect !== undefined
-                    ? rowRect.top + rowRect.height / 2
-                    : e.clientY;
-            const virtualElement = createVirtualElement(e.clientX, targetY);
+            const virtualElement = createVirtualElement(
+                e.clientX,
+                e.clientY,
+                fileContextMenuMargin
+            );
             setContextMenu({ virtualElement, torrent });
 
             const allRows = table.getRowModel().rows;
@@ -1488,7 +1609,30 @@ export function TorrentTable({
             setAnchorIndex(row.index);
             setFocusIndex(row.index);
         },
-        [rowSelection, table, findRowElement]
+        [rowSelection, table]
+    );
+
+    const handleHeaderContextMenu = useCallback(
+        (event: React.MouseEvent, columnId: string | null) => {
+            event.preventDefault();
+            event.stopPropagation();
+            const virtualElement = createVirtualElement(
+                event.clientX,
+                event.clientY,
+                fileContextMenuMargin
+            );
+            setHeaderContextMenu({ virtualElement, columnId });
+        },
+        [fileContextMenuMargin]
+    );
+
+    const handleHeaderContainerContextMenu = useCallback(
+        (event: React.MouseEvent<HTMLDivElement>) => {
+            const target = event.target as HTMLElement;
+            if (target.closest("[role='columnheader']")) return;
+            handleHeaderContextMenu(event, null);
+        },
+        [handleHeaderContextMenu]
     );
 
     const activeHeader = useMemo(() => {
@@ -1507,6 +1651,50 @@ export function TorrentTable({
             setContextMenu(null);
         }
     }, [contextMenu, torrents]);
+
+    const headerMenuTriggerRect = headerContextMenu
+        ? headerContextMenu.virtualElement.getBoundingClientRect()
+        : null;
+
+    const headerMenuActiveColumn = useMemo(() => {
+        if (!headerContextMenu?.columnId) return null;
+        return table.getColumn(headerContextMenu.columnId) ?? null;
+    }, [headerContextMenu, table]);
+
+    const headerMenuItems = useMemo<HeaderMenuItem[]>(() => {
+        if (!headerContextMenu) return [];
+        const columns = table
+            .getAllLeafColumns()
+            .filter((column) => column.id !== "selection");
+        const getColumnLabel = (column: Column<Torrent>) =>
+            t(
+                COLUMN_DEFINITIONS[column.id as ColumnId]?.labelKey ??
+                    column.id
+            );
+        const createColumnItem = (column: Column<Torrent>): HeaderMenuItem => ({
+            type: "column",
+            column,
+            label: getColumnLabel(column),
+        });
+        const createSeparatorItem = (key: string): HeaderMenuItem => ({
+            type: "separator",
+            key,
+        });
+        const alphabetical = [...columns].sort((a, b) =>
+            getColumnLabel(a).localeCompare(getColumnLabel(b))
+        );
+        if (!headerMenuActiveColumn) {
+            return alphabetical.map(createColumnItem);
+        }
+        const others = alphabetical.filter(
+            (column) => column.id !== headerMenuActiveColumn.id
+        );
+        return [
+            createColumnItem(headerMenuActiveColumn),
+            createSeparatorItem(`${headerMenuActiveColumn.id}-separator`),
+            ...others.map(createColumnItem),
+        ];
+    }, [headerContextMenu, headerMenuActiveColumn, table, t]);
 
     const headerContainerClass = cn(
         "flex w-full sticky top-0 z-20 border-b border-content1/20 bg-content1/10 backdrop-blur-sm px-0"
@@ -1538,7 +1726,10 @@ export function TorrentTable({
                     onDragEnd={handleDragEnd}
                 >
                     <div className={tableShellClass}>
-                        <div className={headerContainerClass}>
+                        <div
+                            className={headerContainerClass}
+                            onContextMenu={handleHeaderContainerContextMenu}
+                        >
                             <SortableContext
                                 items={columnOrder}
                                 strategy={horizontalListSortingStrategy}
@@ -1552,12 +1743,12 @@ export function TorrentTable({
                                             <DraggableHeader
                                                 key={header.id}
                                                 header={header}
-                                                onContextMenu={(e) => {
-                                                    e.preventDefault();
-                                                    openColumnModal(
-                                                        e.currentTarget as HTMLElement
-                                                    );
-                                                }}
+                                                onContextMenu={(e) =>
+                                                    handleHeaderContextMenu(
+                                                        e,
+                                                        header.column.id
+                                                    )
+                                                }
                                             />
                                         ))}
                                     </div>
@@ -1597,11 +1788,11 @@ export function TorrentTable({
                                             })}
                                         </span>
                                     </div>
-                                    <p className="text-[10px] uppercase tracking-[0.25em] text-foreground/40">
+                                    <p className="text-[length:var(--fz-scaled)] uppercase tracking-[0.25em] text-foreground/40">
                                         {t("table.empty_hint_subtext")}
                                     </p>
                                     <div className="w-full max-w-3xl space-y-2">
-                                        <div className="grid grid-cols-[48px_minmax(0,1fr)_120px] gap-3 rounded-2xl border border-content1/20 bg-background/40 px-3 py-2 text-[10px] uppercase tracking-[0.4em] text-foreground/50">
+                                        <div className="grid grid-cols-[48px_minmax(0,1fr)_120px] gap-3 rounded-2xl border border-content1/20 bg-background/40 px-3 py-2 text-[length:var(--fz-scaled)] uppercase tracking-[0.4em] text-foreground/50">
                                             <span className="h-3 w-full rounded-full bg-content1/20" />
                                             <span>
                                                 {t("table.header_name")}
@@ -1726,7 +1917,7 @@ export function TorrentTable({
                             {marqueeRect && (
                                 <div
                                     aria-hidden="true"
-                                    className="pointer-events-none absolute rounded-[8px] border border-primary/60 bg-primary/20"
+                                    className="pointer-events-none absolute rounded-[length:var(--r-sm)] border border-primary/60 bg-primary/20"
                                     style={{
                                         left: marqueeRect.left,
                                         top: marqueeRect.top,
@@ -1750,130 +1941,233 @@ export function TorrentTable({
                     )}
                 </DndContext>
 
-                <AnimatePresence>
-                    {contextMenu && (
-                        <Dropdown
-                            isOpen
-                            onClose={() => setContextMenu(null)}
-                            placement="bottom-start"
-                            shouldFlip
-                        >
-                            <DropdownTrigger>
-                                <div
-                                    style={{
-                                        position: "fixed",
-                                        top: contextMenu.virtualElement.getBoundingClientRect()
-                                            .top,
-                                        left: contextMenu.virtualElement.getBoundingClientRect()
-                                            .left,
-                                        width: 0,
-                                        height: 0,
-                                    }}
-                                />
-                            </DropdownTrigger>
-                            <DropdownMenu
-                                variant="flat"
-                                className={GLASS_MENU_SURFACE}
-                                onAction={(key) => {
-                                    void handleContextMenuAction(
-                                        key as
-                                            | ContextMenuKey
-                                            | "cols"
-                                            | "open-folder"
-                                            | "copy-magnet"
-                                            | "copy-hash"
-                                    );
-                                }}
+                {contextMenu &&
+                    renderOverlayPortal(
+                        <AnimatePresence>
+                            <Dropdown
+                                isOpen
+                                onClose={() => setContextMenu(null)}
+                                placement="bottom-start"
+                                shouldFlip
                             >
-                                <DropdownItem
-                                    key="pause"
-                                    shortcut={getContextMenuShortcut("pause")}
+                                <DropdownTrigger>
+                                    <div
+                                        style={{
+                                            position: "fixed",
+                                            top: contextMenu.virtualElement.getBoundingClientRect()
+                                                .top,
+                                            left: contextMenu.virtualElement.getBoundingClientRect()
+                                                .left,
+                                            width: 0,
+                                            height: 0,
+                                        }}
+                                    />
+                                </DropdownTrigger>
+                                <DropdownMenu
+                                    variant="flat"
+                                    className={GLASS_MENU_SURFACE}
+                                    onAction={(key) => {
+                                        void handleContextMenuAction(
+                                            key as
+                                                | ContextMenuKey
+                                                | "cols"
+                                                | "open-folder"
+                                                | "copy-magnet"
+                                                | "copy-hash"
+                                        );
+                                    }}
                                 >
-                                    {t("table.actions.pause")}
-                                </DropdownItem>
-                                <DropdownItem
-                                    key="resume"
-                                    shortcut={getContextMenuShortcut("resume")}
-                                >
-                                    {t("table.actions.resume")}
-                                </DropdownItem>
-                                <DropdownItem
-                                    key="recheck"
-                                    shortcut={getContextMenuShortcut("recheck")}
-                                >
-                                    {t("table.actions.recheck")}
-                                </DropdownItem>
-                                <DropdownItem
-                                    key="queue-title"
-                                    isDisabled
-                                    className="border-t border-content1/20 mt-2 pt-2 px-4 text-[10px] font-bold uppercase tracking-[0.4em] text-foreground/50"
-                                >
-                                    {t("table.queue.title")}
-                                </DropdownItem>
-                                <>
-                                    {queueMenuActions.map((action) => (
-                                        <DropdownItem
-                                            key={action.key}
-                                            className="pl-10 text-sm"
-                                            shortcut={getContextMenuShortcut(
-                                                action.key as ContextMenuKey
-                                            )}
-                                        >
-                                            {action.label}
-                                        </DropdownItem>
-                                    ))}
-                                </>
-                                <DropdownItem
-                                    key="data-title"
-                                    isDisabled
-                                    className="border-t border-content1/20 mt-2 pt-2 px-4 text-[10px] font-bold uppercase tracking-[0.4em] text-foreground/50"
-                                >
-                                    {t("table.data.title")}
-                                </DropdownItem>
-                                <DropdownItem
-                                    key="open-folder"
-                                    isDisabled={
-                                        !onOpenFolder ||
-                                        !contextMenu.torrent.savePath
-                                    }
-                                >
-                                    {t("table.actions.open_folder")}
-                                </DropdownItem>
-                                <DropdownItem
-                                    key="copy-magnet"
-                                    isDisabled={!isClipboardSupported}
-                                >
-                                    {t("table.actions.copy_magnet")}
-                                </DropdownItem>
-                                <DropdownItem
-                                    key="copy-hash"
-                                    isDisabled={!isClipboardSupported}
-                                >
-                                    {t("table.actions.copy_hash")}
-                                </DropdownItem>
-                                <DropdownItem
-                                    key="remove"
-                                    color="danger"
-                                    shortcut={getContextMenuShortcut("remove")}
-                                >
-                                    {t("table.actions.remove")}
-                                </DropdownItem>
-                                <DropdownItem
-                                    key="remove-with-data"
-                                    color="danger"
-                                    shortcut={getContextMenuShortcut(
-                                        "remove-with-data"
+                                    <DropdownItem
+                                        key="pause"
+                                        shortcut={getContextMenuShortcut("pause")}
+                                    >
+                                        {t("table.actions.pause")}
+                                    </DropdownItem>
+                                    <DropdownItem
+                                        key="resume"
+                                        shortcut={getContextMenuShortcut("resume")}
+                                    >
+                                        {t("table.actions.resume")}
+                                    </DropdownItem>
+                                    <DropdownItem
+                                        key="recheck"
+                                        shortcut={getContextMenuShortcut("recheck")}
+                                    >
+                                        {t("table.actions.recheck")}
+                                    </DropdownItem>
+                                    <DropdownItem
+                                        key="queue-title"
+                                        isDisabled
+                                        className="border-t border-content1/20 mt-2 pt-2 px-4 text-[length:var(--fz-scaled)] font-bold uppercase tracking-[0.4em] text-foreground/50"
+                                    >
+                                        {t("table.queue.title")}
+                                    </DropdownItem>
+                                    <>
+                                        {queueMenuActions.map((action) => (
+                                            <DropdownItem
+                                                key={action.key}
+                                                className="pl-10 text-sm"
+                                                shortcut={getContextMenuShortcut(
+                                                    action.key as ContextMenuKey
+                                                )}
+                                            >
+                                                {action.label}
+                                            </DropdownItem>
+                                        ))}
+                                    </>
+                                    <DropdownItem
+                                        key="data-title"
+                                        isDisabled
+                                        className="border-t border-content1/20 mt-2 pt-2 px-4 text-[length:var(--fz-scaled)] font-bold uppercase tracking-[0.4em] text-foreground/50"
+                                    >
+                                        {t("table.data.title")}
+                                    </DropdownItem>
+                                    <DropdownItem
+                                        key="open-folder"
+                                        isDisabled={
+                                            !onOpenFolder ||
+                                            !contextMenu.torrent.savePath
+                                        }
+                                    >
+                                        {t("table.actions.open_folder")}
+                                    </DropdownItem>
+                                    <DropdownItem
+                                        key="copy-magnet"
+                                        isDisabled={!isClipboardSupported}
+                                    >
+                                        {t("table.actions.copy_magnet")}
+                                    </DropdownItem>
+                                    <DropdownItem
+                                        key="copy-hash"
+                                        isDisabled={!isClipboardSupported}
+                                    >
+                                        {t("table.actions.copy_hash")}
+                                    </DropdownItem>
+                                    <DropdownItem
+                                        key="remove"
+                                        color="danger"
+                                        shortcut={getContextMenuShortcut("remove")}
+                                    >
+                                        {t("table.actions.remove")}
+                                    </DropdownItem>
+                                    <DropdownItem
+                                        key="remove-with-data"
+                                        color="danger"
+                                        shortcut={getContextMenuShortcut(
+                                            "remove-with-data"
+                                        )}
+                                    >
+                                        {t("table.actions.remove_with_data")}
+                                    </DropdownItem>
+                                    <DropdownItem key="cols" showDivider>
+                                        {t("table.column_picker_title")}
+                                    </DropdownItem>
+                                </DropdownMenu>
+                            </Dropdown>
+                        </AnimatePresence>
+                    )}
+
+                {headerContextMenu &&
+                    headerMenuTriggerRect &&
+                    renderOverlayPortal(
+                        <AnimatePresence>
+                            <Dropdown
+                                isOpen
+                                onClose={() => setHeaderContextMenu(null)}
+                                placement="bottom-start"
+                                shouldFlip
+                                closeOnSelect={false}
+                            >
+                                <DropdownTrigger>
+                                    <div
+                                        style={{
+                                            position: "fixed",
+                                            top: headerMenuTriggerRect.top,
+                                            left: headerMenuTriggerRect.left,
+                                            width: 0,
+                                            height: 0,
+                                        }}
+                                    />
+                                </DropdownTrigger>
+                                <DropdownMenu
+                                    variant="flat"
+                                    className={cn(
+                                        GLASS_MENU_SURFACE,
+                                        "min-w-[220px]"
                                     )}
                                 >
-                                    {t("table.actions.remove_with_data")}
-                                </DropdownItem>
-                                <DropdownItem key="cols" showDivider>
-                                    {t("table.column_picker_title")}
-                                </DropdownItem>
-                            </DropdownMenu>
-                        </Dropdown>
+                                    <DropdownItem
+                                        key="hide-column"
+                                        color="danger"
+                                        isDisabled={!headerMenuActiveColumn}
+                                        className="px-4 py-2 text-[length:var(--fz-scaled)] font-semibold"
+                                        onPress={() =>
+                                            headerMenuActiveColumn?.toggleVisibility(
+                                                false
+                                            )
+                                        }
+                                    >
+                                        {t("table.actions.hide_column")}
+                                    </DropdownItem>
+                                    <DropdownItem
+                                        key="header-divider"
+                                        isReadOnly
+                                        className="p-0 h-0"
+                                    >
+                                        <div className="border-t border-content1/20 my-1 mx-4" />
+                                    </DropdownItem>
+                                    <DropdownSection
+                                        key="columns-section"
+                                        title={t("table.column_picker_title")}
+                                    >
+                                        {(
+                                            headerMenuItems.map((item) => {
+                                                if (item.type === "separator") {
+                                                    return (
+                                                        <DropdownItem
+                                                            key={item.key}
+                                                            isReadOnly
+                                                            className="p-0 h-0"
+                                                        >
+                                                            <div className="border-t border-content1/10 my-1" />
+                                                        </DropdownItem>
+                                                    );
+                                                }
+                                                const isVisible =
+                                                    item.column.getIsVisible();
+                                                return (
+                                                    <DropdownItem
+                                                        key={item.column.id}
+                                                        className="pl-12 text-[length:var(--fz-scaled)]"
+                                                        closeOnSelect={false}
+                                                        onPress={() =>
+                                                            item.column.toggleVisibility(
+                                                                !isVisible
+                                                            )
+                                                        }
+                                                        startContent={
+                                                            <Checkbox
+                                                                isSelected={
+                                                                    isVisible
+                                                                }
+                                                                size="sm"
+                                                                disableAnimation
+                                                                classNames={{
+                                                                    base: "mr-2",
+                                                                }}
+                                                            />
+                                                        }
+                                                    >
+                                                        {item.label}
+                                                    </DropdownItem>
+                                                );
+                                            })
+                                        ) as ItemElement<object>[]}
+                                    </DropdownSection>
+                                </DropdownMenu>
+                            </Dropdown>
+                        </AnimatePresence>
                     )}
-                </AnimatePresence>
             </div>
 
             <Modal

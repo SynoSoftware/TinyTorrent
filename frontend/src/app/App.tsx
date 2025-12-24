@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Runtime from "@/app/runtime";
 import { useHotkeys } from "react-hotkeys-hook";
+import useWorkbenchScale from "./hooks/useWorkbenchScale";
 import { useTranslation } from "react-i18next";
 
 import { usePerformanceHistory } from "../shared/hooks/usePerformanceHistory";
@@ -134,6 +136,50 @@ export default function App() {
             isMountedRef,
             sessionReady: rpcStatus === "connected",
         });
+
+    // Workbench zoom: initialize global scale hook
+    const { scale, increase, decrease, reset } = useWorkbenchScale();
+
+    useEffect(() => {
+        const onKeyDown = (e: KeyboardEvent) => {
+            // Zoom IN
+            if (
+                e.altKey &&
+                !e.ctrlKey &&
+                !e.metaKey &&
+                !e.shiftKey &&
+                (e.code === "Equal" || e.code === "NumpadAdd")
+            ) {
+                e.preventDefault();
+                increase();
+                return;
+            }
+
+            // Zoom OUT
+            if (
+                e.altKey &&
+                !e.ctrlKey &&
+                !e.metaKey &&
+                !e.shiftKey &&
+                (e.code === "Minus" || e.code === "NumpadSubtract")
+            ) {
+                e.preventDefault();
+                decrease();
+                return;
+            }
+
+            // Reset zoom
+            if ((e.ctrlKey || e.metaKey) && e.code === "Digit0") {
+                if (Runtime.suppressBrowserZoomDefaults()) {
+                    e.preventDefault();
+                }
+                reset();
+            }
+        };
+
+        window.addEventListener("keydown", onKeyDown);
+        return () => window.removeEventListener("keydown", onKeyDown);
+    }, [increase, decrease, reset]);
 
     const refreshSessionStatsDataRef = useRef<() => Promise<void>>(
         async () => {}
@@ -563,6 +609,40 @@ export default function App() {
             uiReadyNotifiedRef.current = true;
         }
     }, [isReady, torrentClient]);
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+
+        // Use a stable ref to always point to the latest torrentClient without
+        // recreating a ref object inside the effect on every render.
+        const torrentClientRef = (App as any)._torrentClientRef as
+            | { current: typeof torrentClient }
+            | undefined;
+        if (!torrentClientRef) {
+            // attach a module-scoped ref to the App function object so we can
+            // reuse it across re-renders without re-allocating inside the effect.
+            (App as any)._torrentClientRef = { current: torrentClient };
+        } else {
+            torrentClientRef.current = torrentClient;
+        }
+
+        const detachUi = () => {
+            const ref = (App as any)._torrentClientRef as {
+                current: typeof torrentClient;
+            } | null;
+            try {
+                void ref?.current?.notifyUiDetached?.();
+            } catch {
+                // swallow errors during unload
+            }
+        };
+
+        window.addEventListener("beforeunload", detachUi);
+        // Do not call detachUi on component unmount (avoid firing when profiles change)
+        return () => {
+            window.removeEventListener("beforeunload", detachUi);
+        };
+    }, [torrentClient]);
 
     useEffect(() => {
         if (!detailData) {

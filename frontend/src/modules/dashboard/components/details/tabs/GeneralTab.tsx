@@ -1,5 +1,11 @@
 import { Button, Switch } from "@heroui/react";
-import { ArrowDownCircle, ArrowUpCircle, Copy, Folder, Hash } from "lucide-react";
+import {
+    ArrowDownCircle,
+    ArrowUpCircle,
+    Copy,
+    Folder,
+    Hash,
+} from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
@@ -47,11 +53,15 @@ const GeneralInfoCard = ({
                 />
             </div>
             <div className="flex-1">
-                <div className="text-[10px] uppercase tracking-[0.3em] text-foreground/40">
+                <div className="text-[length:var(--fz-scaled)] uppercase tracking-[0.3em] text-foreground/40">
                     {label}
                 </div>
-                <div className="text-lg font-semibold text-foreground">{value}</div>
-                <div className="text-[11px] text-foreground/50">{helper}</div>
+                <div className="text-lg font-semibold text-foreground">
+                    {value}
+                </div>
+                <div className="text-[length:var(--fz-scaled)] text-foreground/50">
+                    {helper}
+                </div>
             </div>
         </div>
     </GlassPanel>
@@ -75,7 +85,7 @@ export const GeneralTab = ({
     return (
         <div className="space-y-6">
             <GlassPanel className="space-y-3 border border-content1/20 bg-content1/30 p-4">
-                <div className="flex items-center justify-between gap-4 text-[10px] uppercase tracking-[0.3em] text-foreground/50">
+                <div className="flex items-center justify-between gap-4 text-[length:var(--fz-scaled)] uppercase tracking-[0.3em] text-foreground/50">
                     <div className="flex flex-col">
                         <span className="text-xs font-semibold text-foreground">
                             {progressPercent.toFixed(1)}%
@@ -106,10 +116,10 @@ export const GeneralTab = ({
             <GlassPanel className="p-4 space-y-4 bg-content1/30 border border-content1/20">
                 <div className="flex items-center justify-between gap-4">
                     <div className="flex flex-col gap-1">
-                        <span className="text-[10px] uppercase tracking-[0.3em] text-foreground/40">
+                        <span className="text-[length:var(--fz-scaled)] uppercase tracking-[0.3em] text-foreground/40">
                             {t("torrent_modal.controls.title")}
                         </span>
-                        <p className="text-[11px] text-foreground/50">
+                        <p className="text-[length:var(--fz-scaled)] text-foreground/50">
                             {t("torrent_modal.controls.description")}
                         </p>
                     </div>
@@ -138,11 +148,11 @@ export const GeneralTab = ({
                             <span className="text-sm font-medium">
                                 {t("torrent_modal.controls.sequential")}
                             </span>
-                            <span className="text-[11px] text-foreground/50">
+                            <span className="text-[length:var(--fz-scaled)] text-foreground/50">
                                 {t("torrent_modal.controls.sequential_helper")}
                             </span>
                             {!sequentialSupported && (
-                                <span className="text-[10px] text-warning">
+                                <span className="text-[length:var(--fz-scaled)] text-warning">
                                     {t("torrent_modal.controls.not_supported")}
                                 </span>
                             )}
@@ -161,11 +171,13 @@ export const GeneralTab = ({
                             <span className="text-sm font-medium">
                                 {t("torrent_modal.controls.super_seeding")}
                             </span>
-                            <span className="text-[11px] text-foreground/50">
-                                {t("torrent_modal.controls.super_seeding_helper")}
+                            <span className="text-[length:var(--fz-scaled)] text-foreground/50">
+                                {t(
+                                    "torrent_modal.controls.super_seeding_helper"
+                                )}
                             </span>
                             {!superSeedingSupported && (
-                                <span className="text-[10px] text-warning">
+                                <span className="text-[length:var(--fz-scaled)] text-warning">
                                     {t("torrent_modal.controls.not_supported")}
                                 </span>
                             )}
@@ -209,7 +221,7 @@ export const GeneralTab = ({
                             strokeWidth={ICON_STROKE_WIDTH}
                             className="text-foreground/50"
                         />
-                        <span className="text-[10px] uppercase tracking-[0.3em] text-foreground/40">
+                        <span className="text-[length:var(--fz-scaled)] uppercase tracking-[0.3em] text-foreground/40">
                             {t("torrent_modal.labels.save_path")}
                         </span>
                     </div>
@@ -225,7 +237,7 @@ export const GeneralTab = ({
                                 strokeWidth={ICON_STROKE_WIDTH}
                                 className="text-foreground/50"
                             />
-                            <span className="text-[10px] uppercase tracking-[0.3em] text-foreground/40">
+                            <span className="text-[length:var(--fz-scaled)] uppercase tracking-[0.3em] text-foreground/40">
                                 {t("torrent_modal.labels.info_hash")}
                             </span>
                         </div>
