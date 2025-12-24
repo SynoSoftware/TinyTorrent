@@ -80,25 +80,47 @@ export function Navbar({
             style={shell.frameStyle}
         >
             <div
-                className="flex h-14 w-full items-center justify-between gap-6 px-6"
-                style={shell.contentStyle}
+                className="flex w-full items-center justify-between"
+                style={{
+                    ...shell.contentStyle,
+                    height: "var(--tt-navbar-h)",
+                    paddingLeft: "var(--tt-navbar-padding)",
+                    paddingRight: "var(--tt-navbar-padding)",
+                    gap: "var(--tt-navbar-gap)",
+                }}
             >
                 {/* LEFT ZONE: Identity & Navigation */}
-                <div className="flex items-center gap-6">
+                <div
+                    className="flex items-center"
+                    style={{ gap: "var(--tt-navbar-gap)" }}
+                >
                     {/* Brand */}
                     <div className="flex items-center gap-3 pr-2">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-xl">
-                            <TinyTorrentIcon
-                                title={t("brand.name")}
-                                className="h-10 w-10"
-                            />
+                        <div
+                            className="flex items-center justify-center rounded-xl"
+                            style={{
+                                width: "var(--tt-brand-icon-size)",
+                                height: "var(--tt-brand-icon-size)",
+                            }}
+                        >
+                            <TinyTorrentIcon title={t("brand.name")} />
                         </div>
                         {/* Hidden on small screens if needed, keeping accessible */}
                         <div className="hidden flex-col sm:flex">
-                            <span className="text-sm font-bold tracking-tight text-foreground">
+                            <span
+                                className="font-bold tracking-tight text-foreground"
+                                style={{
+                                    fontSize: "var(--tt-navbar-tab-font-size)",
+                                }}
+                            >
                                 {t("brand.name")}
                             </span>
-                            <span className="text-[10px] text-default-400 font-mono font-medium">
+                            <span
+                                className="text-default-400 font-mono font-medium"
+                                style={{
+                                    fontSize: "var(--tt-navbar-meta-font-size)",
+                                }}
+                            >
                                 {t("brand.version", { version: APP_VERSION })}
                             </span>
                         </div>
@@ -119,7 +141,7 @@ export function Navbar({
                             tabList:
                                 "bg-default-100/50 p-1 border border-default-200/50 shadow-inner gap-1",
                             cursor: "bg-background shadow-sm border border-default-100",
-                            tab: "h-7 px-3 text-[11px] font-semibold text-default-500 data-[selected=true]:text-foreground transition-colors",
+                            tab: "px-3 font-semibold text-default-500 data-[selected=true]:text-foreground transition-colors",
                         }}
                     >
                         <Tab
@@ -157,12 +179,13 @@ export function Navbar({
                     {/* Search - Pushed to start of right zone */}
                     <Input
                         classNames={{
-                            base: "w-40 lg:w-56 h-9 transition-all hover:w-60 focus-within:w-60",
+                            base: "transition-all",
                             mainWrapper: "h-full",
                             input: "text-small text-foreground/90 whitespace-nowrap overflow-hidden text-ellipsis placeholder:opacity-70",
                             inputWrapper:
                                 "h-full flex items-center gap-2 flex-nowrap font-normal text-default-500 bg-default-100/50 hover:bg-default-200/50 border-transparent focus-within:bg-default-100 focus-within:border-primary/20 shadow-inner rounded-full transition-colors",
                         }}
+                        style={{ width: "var(--tt-search-width)" }}
                         placeholder={t("nav.search_placeholder")}
                         size="sm"
                         value={searchQuery}
@@ -180,7 +203,10 @@ export function Navbar({
                         }
                     />
 
-                    <div className="h-6 w-px bg-default-200/50 mx-1" />
+                    <div
+                        className="w-px bg-default-200/50 mx-1"
+                        style={{ height: "calc(var(--tt-navbar-h) / 2)" }}
+                    />
 
                     {/* Context Actions (Selection Dependent) */}
                     <div
@@ -225,7 +251,10 @@ export function Navbar({
                         />
                     </div>
 
-                    <div className="h-6 w-px bg-default-200/50 mx-1" />
+                    <div
+                        className="w-px bg-default-200/50 mx-1"
+                        style={{ height: "calc(var(--tt-navbar-h) / 2)" }}
+                    />
 
                     {/* Primary Action */}
                     <ToolbarIconButton
@@ -270,11 +299,11 @@ export function Navbar({
                                         Math.max(rehashStatus.value, 0),
                                         100
                                     )}
-                                    trackClassName="h-[2px] bg-transparent"
+                                    trackClassName="h-[length:calc(2*var(--bw))] bg-transparent"
                                     indicatorClassName="h-full bg-gradient-to-r from-primary to-secondary shadow-[0_0_10px_rgba(var(--primary),0.5)]"
                                 />
                                 {/* Tooltip on hover */}
-                                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-black/80 text-white text-[10px] px-2 py-1 rounded shadow-lg whitespace-nowrap pointer-events-none">
+                                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-black/80 text-white text-[length:var(--fz-scaled)] px-2 py-1 rounded shadow-lg whitespace-nowrap pointer-events-none">
                                     {rehashStatus.label}:{" "}
                                     {Math.round(rehashStatus.value)}%
                                 </div>

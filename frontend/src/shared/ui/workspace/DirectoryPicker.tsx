@@ -98,14 +98,7 @@ export function DirectoryPicker({
         return () => {
             active = false;
         };
-    }, [
-        currentPath,
-        isMocked,
-        isOpen,
-        shouldUseExtension,
-        t,
-        torrentClient,
-    ]);
+    }, [currentPath, isMocked, isOpen, shouldUseExtension, t, torrentClient]);
 
     const commitPath = (value: string) => {
         const normalized = value.trim();
@@ -213,7 +206,10 @@ export function DirectoryPicker({
                         )}
                     </div>
                 </div>
-                <span className="text-[10px] font-semibold uppercase tracking-[0.4em] text-foreground/40">
+                <span
+                    style={{ fontSize: "var(--tt-font-size-base)" }}
+                    className="font-semibold uppercase tracking-[0.4em] text-foreground/40"
+                >
                     {t("directory_browser.open")}
                 </span>
             </button>
@@ -232,7 +228,10 @@ export function DirectoryPicker({
             size="xl"
             backdrop="blur"
             classNames={{
-                base: cn(GLASS_MODAL_SURFACE, "max-w-[640px] w-full"),
+                base: cn(
+                    GLASS_MODAL_SURFACE,
+                    "max-w-[length:calc(40*var(--u)*var(--z))] w-full"
+                ),
             }}
             motionProps={INTERACTION_CONFIG.modalBloom}
         >
@@ -285,7 +284,10 @@ export function DirectoryPicker({
                             />
                             {t("directory_browser.up")}
                         </Button>
-                        <span className="text-[11px] uppercase tracking-[0.35em] text-foreground/40">
+                        <span
+                            style={{ fontSize: "var(--tt-font-size-base)" }}
+                            className="uppercase tracking-[0.35em] text-foreground/40"
+                        >
                             {isRoot
                                 ? t("directory_browser.root_label")
                                 : resolvedPath}

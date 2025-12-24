@@ -1,12 +1,6 @@
 import { Button, Tooltip, cn } from "@heroui/react";
 import type { MouseEvent } from "react";
-import {
-    useCallback,
-    useEffect,
-    useMemo,
-    useRef,
-    useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { ZoomIn, ZoomOut } from "lucide-react";
 import { GLASS_TOOLTIP_CLASSNAMES } from "./constants";
@@ -113,10 +107,8 @@ export const AvailabilityHeatmap = ({
     }, [availabilityList, sampleCount]);
 
     const maxPeers =
-        availabilityList.reduce(
-            (max, count) => Math.max(max, count ?? 0),
-            0
-        ) || 1;
+        availabilityList.reduce((max, count) => Math.max(max, count ?? 0), 0) ||
+        1;
     const gridRows = Math.max(
         1,
         Math.ceil(sampledCells.length / PIECE_COLUMNS)
@@ -272,7 +264,7 @@ export const AvailabilityHeatmap = ({
 
     if (!hasAvailability) {
         return (
-            <div className="rounded-2xl border border-content1/20 bg-content1/10 p-4 text-[11px] text-foreground/50 text-center">
+            <div className="rounded-2xl border border-content1/20 bg-content1/10 p-4 text-[length:var(--fz-scaled)] text-foreground/50 text-center">
                 {emptyLabel}
             </div>
         );
@@ -284,7 +276,7 @@ export const AvailabilityHeatmap = ({
                 <span className="text-xs font-semibold uppercase tracking-[0.3em] text-foreground/50">
                     {label}
                 </span>
-                <div className="flex items-center gap-3 text-[10px] text-foreground/50">
+                <div className="flex items-center gap-3 text-[length:var(--fz-scaled)] text-foreground/50">
                     <span className="flex items-center gap-1">
                         <span className="w-2 h-2 rounded-full bg-[hsl(0,80%,54%)]" />
                         {legendRare}
@@ -305,7 +297,7 @@ export const AvailabilityHeatmap = ({
                     >
                         <ZoomOut size={12} className="text-current" />
                     </Button>
-                    <span className="text-[10px] font-mono text-foreground/60">
+                    <span className="text-[length:var(--fz-scaled)] font-mono text-foreground/60">
                         x{zoomLevel.toFixed(1)}
                     </span>
                     <Button

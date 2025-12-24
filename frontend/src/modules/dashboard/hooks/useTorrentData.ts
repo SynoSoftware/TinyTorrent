@@ -263,8 +263,88 @@ export function useTorrentData({
     }, []);
 
     const handleHeartbeatUpdate = useCallback(
-        ({ torrents: heartbeatTorrents }: HeartbeatPayload) => {
+        ({ torrents: heartbeatTorrents, changedIds }: HeartbeatPayload) => {
             if (!heartbeatTorrents) return;
+            // If heartbeat reports no changed IDs, skip committing to avoid work
+            if (Array.isArray(changedIds) && changedIds.length === 0) return;
+
+            // If we have a small set of changedIds, apply a diff update to the
+            // existing snapshot cache to avoid recreating the whole list.
+            if (
+                Array.isArray(changedIds) &&
+                heartbeatTorrents.length > 0 &&
+                changedIds.length > 0 &&
+                changedIds.length < heartbeatTorrents.length
+            ) {
+                // Build a map of incoming torrents for quick lookup
+                const incomingMap = new Map<string, Torrent>();
+                for (const t of heartbeatTorrents) incomingMap.set(t.id, t);
+
+                const prevCache = snapshotCacheRef.current;
+                let anyChange = false;
+
+                // Update only entries listed in changedIds
+                for (const id of changedIds) {
+                    const incoming = incomingMap.get(id);
+                    if (!incoming) {
+                        // removed torrent
+                        if (prevCache.has(id)) {
+                            prevCache.delete(id);
+                            anyChange = true;
+                        }
+                        continue;
+                    }
+                    const cached = prevCache.get(id);
+                    const normalized = {
+                        ...incoming,
+                        added:
+                            incoming.added ??
+                            cached?.added ??
+                            Math.floor(Date.now() / 1000),
+                    };
+                    const reuseExisting = Boolean(
+                        cached && areTorrentsEqual(cached, normalized)
+                    );
+                    const nextTorrent = reuseExisting ? cached! : normalized;
+                    if (!reuseExisting) {
+                        prevCache.set(id, nextTorrent);
+                        anyChange = true;
+                    }
+                }
+
+                // If nothing changed in data, don't re-render
+                if (!anyChange) return;
+
+                // Rebuild ordered list based on previous order, but ensure new/removed ids are handled
+                const previousOrder = snapshotOrderRef.current;
+                const nextOrder: string[] = [];
+                const seen = new Set<string>();
+
+                // Prefer keeping previous order when possible
+                for (const id of previousOrder) {
+                    if (prevCache.has(id)) {
+                        nextOrder.push(id);
+                        seen.add(id);
+                    }
+                }
+                // Add any new ids from incoming snapshot that weren't present
+                for (const t of heartbeatTorrents) {
+                    if (!seen.has(t.id) && prevCache.has(t.id)) {
+                        nextOrder.push(t.id);
+                        seen.add(t.id);
+                    }
+                }
+
+                snapshotOrderRef.current = nextOrder;
+
+                const nextList = nextOrder
+                    .map((id) => snapshotCacheRef.current.get(id)!)
+                    .filter(Boolean) as Torrent[];
+                setTorrents(nextList);
+                return;
+            }
+
+            // Fallback to full commit when changedIds not provided or indicates full change
             commitTorrentSnapshot(heartbeatTorrents);
         },
         [commitTorrentSnapshot]

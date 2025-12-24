@@ -48,6 +48,7 @@ import {
     STATUS_CHIP_GAP,
     STATUS_CHIP_RADIUS,
 } from "../../../config/logic";
+import useLayoutMetrics from "@/shared/hooks/useLayoutMetrics";
 import { GLASS_MENU_SURFACE } from "../../../shared/ui/layout/glass-surface";
 import { SmoothProgressBar } from "../../../shared/ui/components/SmoothProgressBar";
 import type { Table } from "@tanstack/react-table";
@@ -121,8 +122,11 @@ const getEffectiveProgress = (torrent: Torrent) => {
 
 const DENSE_TEXT = `${TABLE_LAYOUT.fontSize} ${TABLE_LAYOUT.fontMono} leading-none cap-height-text`;
 const DENSE_NUMERIC = `${DENSE_TEXT} tabular-nums`;
-const SPARKLINE_WIDTH = 64;
-const SPARKLINE_HEIGHT = 12;
+const DEFAULT_SPARKLINE_WIDTH = 64;
+const DEFAULT_SPARKLINE_HEIGHT = 12;
+
+// Sparkline dimensions should be based on the layout metric hook to avoid
+// synchronous layout thrashing from calling getComputedStyle in hot paths.
 const STATUS_CHIP_STYLE: CSSProperties = {
     gap: `${STATUS_CHIP_GAP}px`,
     borderRadius: `${STATUS_CHIP_RADIUS}px`,
@@ -169,6 +173,14 @@ const SpeedColumnCell = ({ torrent, table }: ColumnRendererProps) => {
 
     const maxHistorySpeed = Math.max(...sparklineHistory);
     const maxSpeed = Math.max(speedValue ?? 0, maxHistorySpeed, 1);
+    // Use layout hook to derive sparkline sizing without forcing layout on each render
+    // (hook updates on resize / theme change only)
+    const { rowHeight } = useLayoutMetrics();
+    const resolvedRow = Number.isFinite(rowHeight)
+        ? rowHeight
+        : DEFAULT_SPARKLINE_HEIGHT * 2.5;
+    const SPARKLINE_WIDTH = Math.max(24, Math.round(resolvedRow * 2.3));
+    const SPARKLINE_HEIGHT = Math.max(6, Math.round(resolvedRow * 0.45));
     const sparklineHeight = SPARKLINE_HEIGHT - 1;
     const path = buildSplinePath(
         sparklineHistory,
@@ -345,7 +357,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
                         classNames={{
                             base: "h-5 px-2 inline-flex items-center whitespace-nowrap flex-nowrap",
                             content:
-                                "font-bold text-[9px] uppercase tracking-wider leading-none whitespace-nowrap",
+                                "font-bold text-[length:var(--fz-scaled)] uppercase tracking-wider leading-none whitespace-nowrap",
                         }}
                     >
                         <span className="truncate" title={t(conf.labelKey)}>

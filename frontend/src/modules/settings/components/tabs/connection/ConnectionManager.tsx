@@ -1,6 +1,6 @@
 import { Button, Chip, Input, Switch } from "@heroui/react";
 import { RefreshCw, CheckCircle, XCircle, Download } from "lucide-react";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { RpcStatus } from "@/shared/types/rpc";
 import type { TinyTorrentCapabilities } from "@/services/rpc/entities";
@@ -11,6 +11,7 @@ import {
     type ConnectionProfile,
     DEFAULT_PROFILE_ID,
 } from "@/app/context/ConnectionConfigContext";
+import Runtime from "@/app/runtime";
 import {
     useRpcExtension,
     type RpcExtensionAvailability,
@@ -40,6 +41,7 @@ interface ConnectionManagerState {
     showTokenInput: boolean;
     websocketEndpoint?: string;
     isMocked: boolean;
+    mockNoticeVisible: boolean;
 }
 
 function useConnectionManagerState(
@@ -54,6 +56,7 @@ function useConnectionManagerState(
         enabled,
         setEnabled,
         isMocked,
+        mockNoticeVisible,
     } = useRpcExtension();
     const handleUpdate = useCallback(
         (
@@ -96,6 +99,7 @@ function useConnectionManagerState(
         showTokenInput,
         websocketEndpoint,
         isMocked,
+        mockNoticeVisible,
     };
 }
 
@@ -106,6 +110,7 @@ export function ConnectionCredentialsCard({
     onReconnect,
 }: ConnectionManagerProps) {
     const { t } = useTranslation();
+    const [showAdvanced, setShowAdvanced] = useState(false);
     const { activeProfile, handleUpdate, isOffline, availability } =
         useConnectionManagerState(rpcStatus);
     const connectionStatusLabel = useMemo(() => {
@@ -174,6 +179,39 @@ export function ConnectionCredentialsCard({
         if (isLocal) return false;
         return Boolean(activeProfile.username || activeProfile.password);
     })();
+    // In native/local host mode, collapse remote controls behind an Advanced toggle.
+    if (!Runtime.allowEditingProfiles() && !showAdvanced) {
+        return (
+            <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                    <div className="min-w-0 space-y-1">
+                        <h3 className="text-sm font-semibold text-foreground truncate">
+                            {profileLabel}
+                        </h3>
+                        <p className="text-xs text-foreground/60 font-mono break-all">
+                            {serverUrl}
+                        </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            onPress={() => setShowAdvanced(true)}
+                        >
+                            {t("settings.connection.show_advanced", "Advanced")}
+                        </Button>
+                    </div>
+                </div>
+                <p className="text-xs text-foreground/60">
+                    {t(
+                        "settings.connection.local_mode_info",
+                        "Using bundled local daemon — remote settings are disabled."
+                    )}
+                </p>
+            </div>
+        );
+    }
+
     return (
         <div className="space-y-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -255,7 +293,8 @@ export function ConnectionCredentialsCard({
                         onChange={(event) =>
                             handleUpdate({ host: event.target.value })
                         }
-                        className="h-[42px]"
+                        className="h-[length:var(--button-h)]"
+                        disabled={!Runtime.enableRemoteInputs()}
                     />
                     <Input
                         label={t("settings.connection.port")}
@@ -267,59 +306,71 @@ export function ConnectionCredentialsCard({
                         onChange={(event) =>
                             handleUpdate({ port: event.target.value })
                         }
-                        className="h-[42px]"
+                        className="h-[length:var(--button-h)]"
+                        disabled={!Runtime.enableRemoteInputs()}
                     />
                 </div>
                 {shouldShowAuthControls && (
                     <>
-                {!isAuthModeResolved && (
-                    <p className="text-xs text-foreground/60">
-                        {t("settings.connection.detecting_signin")}
+                        {!isAuthModeResolved && (
+                            <p className="text-xs text-foreground/60">
+                                {t("settings.connection.detecting_signin")}
+                            </p>
+                        )}
+                        <Input
+                            label={t("settings.connection.token")}
+                            labelPlacement="outside"
+                            variant="bordered"
+                            size="sm"
+                            value={activeProfile.token}
+                            onChange={(event) =>
+                                handleUpdate({
+                                    token: event.target.value,
+                                })
+                            }
+                            disabled={!Runtime.enableRemoteInputs()}
+                        />
+                        {!activeProfile.token && (
+                            <div className="grid gap-3 sm:grid-cols-2">
+                                <Input
+                                    label={t("settings.connection.username")}
+                                    labelPlacement="outside"
+                                    variant="bordered"
+                                    size="sm"
+                                    value={activeProfile.username}
+                                    onChange={(event) =>
+                                        handleUpdate({
+                                            username: event.target.value,
+                                        })
+                                    }
+                                    disabled={!Runtime.enableRemoteInputs()}
+                                />
+                                <Input
+                                    label={t("settings.connection.password")}
+                                    labelPlacement="outside"
+                                    variant="bordered"
+                                    size="sm"
+                                    type="password"
+                                    value={activeProfile.password}
+                                    onChange={(event) =>
+                                        handleUpdate({
+                                            password: event.target.value,
+                                        })
+                                    }
+                                    disabled={!Runtime.enableRemoteInputs()}
+                                />
+                            </div>
+                        )}
+                    </>
+                )}
+                {!Runtime.allowEditingProfiles() && (
+                    <p className="text-xs text-foreground/60 mt-2">
+                        {t(
+                            "settings.connection.local_mode_info",
+                            "Using bundled local daemon — remote settings are disabled."
+                        )}
                     </p>
                 )}
-                <Input
-                    label={t("settings.connection.token")}
-                    labelPlacement="outside"
-                    variant="bordered"
-                    size="sm"
-                    value={activeProfile.token}
-                    onChange={(event) =>
-                        handleUpdate({
-                            token: event.target.value,
-                        })
-                    }
-                />
-                {!activeProfile.token && (
-                    <div className="grid gap-3 sm:grid-cols-2">
-                        <Input
-                            label={t("settings.connection.username")}
-                            labelPlacement="outside"
-                            variant="bordered"
-                            size="sm"
-                            value={activeProfile.username}
-                            onChange={(event) =>
-                                handleUpdate({
-                                    username: event.target.value,
-                                })
-                            }
-                        />
-                        <Input
-                            label={t("settings.connection.password")}
-                            labelPlacement="outside"
-                            variant="bordered"
-                            size="sm"
-                            type="password"
-                            value={activeProfile.password}
-                            onChange={(event) =>
-                                handleUpdate({
-                                    password: event.target.value,
-                                })
-                            }
-                        />
-                    </div>
-                )}
-            </>
-        )}
             </div>
         </div>
     );
@@ -329,7 +380,7 @@ export function ConnectionExtensionCard({
     rpcStatus,
 }: ConnectionExtensionCardProps) {
     const { t } = useTranslation();
-    const { enabled, isMocked, setEnabled, availability } =
+    const { enabled, setEnabled, availability, mockNoticeVisible } =
         useConnectionManagerState(rpcStatus);
     const extensionModeHelper = useMemo(() => {
         switch (availability) {
@@ -348,8 +399,6 @@ export function ConnectionExtensionCard({
                 return t("settings.connection.extension_mode_helper");
         }
     }, [availability, t]);
-
-    const shouldShowMockNotice = enabled && isMocked;
 
     return (
         <div className="space-y-2">
@@ -372,7 +421,7 @@ export function ConnectionExtensionCard({
                     </span>
                 </div>
             </Switch>
-            {shouldShowMockNotice && (
+            {mockNoticeVisible && (
                 <p className="text-xs text-warning/80">
                     {t("settings.connection.extended_mock_notice")}
                 </p>

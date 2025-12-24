@@ -33,27 +33,31 @@
             }
         },
         "table": {
-            "row_height": 32,
-            "font_size": "text-[11px]",
+            "density": "normal",
             "font_mono": "font-mono",
-            "icon_size": 14,
             "overscan": 20
         },
-        "shell": {
-            "classic": {
-                "outer_radius": 20,
-                "panel_gap": 6,
-                "ring_padding": 4,
-                "handle_hit_area": 10
+        "ui": {
+            "navbar": {
+                "density": "normal"
             },
-            "immersive": {
-                "outer_radius": 24,
-                "chrome_padding": 8,
-                "main_padding": 8,
-                "main_content_padding": 8,
-                "hud_card_radius": 28,
-                "handle_hit_area": 20
+            "statusbar": {
+                "density": "normal"
+            },
+            "drop_overlay": {
+                "density": "normal"
+            },
+            "file_explorer": {
+                "density": "normal"
+            },
+            "scale": {
+                "unit": 4,
+                "font_base": 11
             }
+        },
+        "shell": {
+            "classic": { "density": "normal" },
+            "immersive": { "density": "relaxed" }
         },
         "details": {
             "tab_content_max_height": 360
@@ -87,7 +91,7 @@
             "layers": [
                 {
                     "id": "outer",
-                    "className": "absolute inset-0 rounded-[32px] border border-primary/40 bg-gradient-to-br from-primary/30 via-transparent to-transparent shadow-[0_25px_120px_rgba(16,185,129,0.35)]",
+                    "className": "absolute inset-0 rounded-[length:var(--r-lg)] border border-primary/40 bg-gradient-to-br from-primary/30 via-transparent to-transparent shadow-[0_25px_120px_rgba(16,185,129,0.35)]",
                     "initial": {
                         "scale": 0.94,
                         "opacity": 0
@@ -107,7 +111,7 @@
                 },
                 {
                     "id": "middle",
-                    "className": "absolute inset-6 rounded-[28px] border border-primary/40",
+                    "className": "absolute inset-6 rounded-[length:var(--r-md)] border border-primary/40",
                     "initial": {
                         "scale": 0.9,
                         "opacity": 0
@@ -129,7 +133,7 @@
                 },
                 {
                     "id": "inner",
-                    "className": "absolute inset-12 rounded-[26px] border border-primary/30 opacity-70",
+                    "className": "absolute inset-12 rounded-[length:var(--r-sm)] border border-primary/30 opacity-70",
                     "initial": {
                         "scale": 0.95,
                         "opacity": 0

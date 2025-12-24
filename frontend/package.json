@@ -7,6 +7,7 @@
         "dev": "vite",
         "build": "tsc -b && vite build",
         "lint": "eslint .",
+        "enforce:geometry": "node ./scripts/enforce-geometry.cjs",
         "preview": "vite preview"
     },
     "dependencies": {

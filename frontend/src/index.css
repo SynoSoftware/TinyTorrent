@@ -4,6 +4,87 @@
 @source '../node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}';
 @custom-variant dark (&:is(.dark *));
 
+/* Core design-system primitives and derived geometry
+   - Minimal, authoritative primitives: --u, --fz, --z, --bw, --sw, --blur
+   - All geometry is derived here. Components must use semantic roles or aliases.
+   - Backward-compatible aliases kept, but DO NOT REDEFINE them elsewhere. */
+:root {
+    /* runtime/config primitives (may be written by applyCssTokenBases) */
+    --tt-zoom-level: 1; /* user scale multiplier (runtime) */
+    --tt-unit-base: 4; /* spatial quantum (runtime) */
+    --tt-font-base: 11; /* base font px (runtime) */
+
+    /* Core law primitives (authoritative) */
+    --u: calc(var(--tt-unit-base, 4) * 1px);
+    --fz: calc(var(--tt-font-base, 11) * 1px);
+    --z: var(--tt-zoom-level, 1);
+
+    /* Perceptual clamps (NOT linearly scaled) */
+    --bw: 1px; /* border width — optical constant */
+    --sw: 1.5; /* icon stroke base (unitless multiplier) */
+    --blur: 18px; /* glass blur baseline (clamped) */
+
+    /* Derived geometry (only from --u, --fz, --z) */
+    --fz-scaled: calc(var(--fz) * var(--z));
+
+    /* rows & rhythm */
+    --row: calc(7 * var(--u) * var(--z));
+    --row-lg: calc(9 * var(--u) * var(--z));
+    --p-1: calc(1 * var(--u) * var(--z));
+    --p-2: calc(2 * var(--u) * var(--z));
+    --p-3: calc(3 * var(--u) * var(--z));
+    --p-4: calc(4 * var(--u) * var(--z));
+
+    /* radii (optical — do NOT scale with --z) */
+    --r-sm: calc(2 * var(--u));
+    --r-md: calc(4 * var(--u));
+    --r-lg: calc(6 * var(--u));
+
+    /* icons follow typography (scaled) */
+    --icon: calc(1.25 * var(--fz-scaled));
+    --icon-lg: calc(1.6 * var(--fz-scaled));
+
+    /* perceptual non-linear outputs (clamped) */
+    --stroke: clamp(1px, calc(var(--sw) * var(--z) * 1px), 2px);
+    --glass-blur: clamp(14px, var(--blur), 22px);
+
+    /* Semantic roles (derive only; do not introduce new numbers) */
+    --navbar-h: calc(2 * var(--row));
+    --statusbar-h: calc(2.5 * var(--row));
+    --button-h: var(--row-lg);
+    --button-min-w: calc(6 * var(--u) * var(--z));
+    --table-row: var(--row);
+    --table-font: var(--fz-scaled);
+
+    /* Backward-compatible aliases (read-only; keep single source here) */
+    --tt-unit: var(--u);
+    --tt-font-size-base: var(--fz);
+    --tt-row-h: var(--table-row);
+    --tt-navbar-h: var(--navbar-h);
+    --tt-navbar-padding: var(--p-3);
+    --tt-navbar-gap: var(--p-2);
+    --tt-brand-icon-size: var(--icon);
+    --tt-search-width: calc(40 * var(--u) * var(--z));
+
+    --tt-statusbar-h: var(--statusbar-h);
+    --tt-status-icon-sm: calc(3 * var(--u) * var(--z));
+    --tt-status-icon-md: calc(3.5 * var(--u) * var(--z));
+    --tt-status-icon-lg: calc(4 * var(--u) * var(--z));
+    --tt-status-icon-xl: calc(12 * var(--u) * var(--z));
+    --tt-button-h: var(--button-h);
+    --tt-button-min-w: var(--button-min-w);
+
+    --tt-file-row-padding-left: var(--p-2);
+    --tt-file-depth-indent: calc(4 * var(--u) * var(--z));
+    --tt-file-context-menu-width: calc(55 * var(--u) * var(--z));
+    --tt-file-context-menu-margin: var(--p-2);
+    --tt-priority-badge-font-size: var(--fz-scaled);
+    --tt-priority-badge-padding-x: var(--p-2);
+    --tt-priority-badge-padding-y: var(--p-1);
+    --tt-file-icon-size: calc(4 * var(--u) * var(--z));
+    --tt-file-checkbox-padding: var(--p-1);
+}
+
 /* index.css - AGGRESSIVE TUNING FOR VISIBILITY */
 @layer components {
     main [data-slot="input-wrapper"],
@@ -157,27 +238,6 @@
 :root {
     --app-scrollbar-thumb: rgba(255, 255, 255, 0.18);
     --app-scrollbar-thumb-hover: rgba(255, 255, 255, 0.35);
-}
-
-@layer components {
-    .app-titlebar {
-        -webkit-app-region: drag;
-        position: relative;
-        border-radius: inherit;
-    }
-
-    .app-titlebar
-        :where(
-            button,
-            input,
-            textarea,
-            select,
-            a,
-            [role="button"],
-            [role="tab"]
-        ) {
-        -webkit-app-region: no-drag;
-    }
 }
 
 @layer components {

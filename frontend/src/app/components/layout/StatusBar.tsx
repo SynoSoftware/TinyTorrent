@@ -29,26 +29,19 @@ import {
 // --- UI CONFIGURATION & TOKENS ---
 const UI_CONFIG = {
     layout: {
-        height: "h-[76px]",
+        // height is driven by CSS token `--tt-statusbar-h`
         sectionGap: "gap-4",
         internalGap: "gap-2",
         hudGap: "gap-6",
     },
     sizing: {
-        icon: {
-            sm: "w-3 h-3",
-            md: "w-3.5 h-3.5",
-            lg: "w-4 h-4",
-            xl: "w-6 h-6",
-            // New larger size for the chip internals since the chip is bigger
-            chip: "w-5 h-5",
-        },
-        button: {
-            // Increased from h-8 to h-[42px] to match the visual height of the text stacks
-            height: "h-[42px]",
-            width: "min-w-[84px]",
-        },
+        // Icon sizing will be applied via inline styles using CSS tokens
         dot: "w-2 h-2",
+        icon: {
+            chip: "w-5 h-5",
+            md: "w-4 h-4",
+            lg: "w-6 h-6",
+        },
     },
     opacity: {
         dim: "opacity-30",
@@ -56,9 +49,9 @@ const UI_CONFIG = {
         high: "opacity-80",
     },
     typography: {
-        label: "text-[9px] font-bold uppercase tracking-wider",
-        value: "text-[11px] font-semibold tabular-nums",
-        speed: "text-2xl font-bold tracking-tight leading-none",
+        label: "font-bold uppercase tracking-wider",
+        value: "font-semibold tabular-nums",
+        speed: "font-bold tracking-tight leading-none",
     },
 };
 
@@ -213,11 +206,15 @@ export function StatusBar({
         >
             <div
                 className={cn(
-                    "flex items-center justify-between px-6",
-                    UI_CONFIG.layout.height,
+                    "flex items-center justify-between",
                     UI_CONFIG.layout.sectionGap
                 )}
-                style={shell.contentStyle}
+                style={{
+                    ...shell.contentStyle,
+                    height: "var(--tt-statusbar-h)",
+                    paddingLeft: "var(--tt-navbar-padding)",
+                    paddingRight: "var(--tt-navbar-padding)",
+                }}
             >
                 {/* --- LEFT: SPEED MODULES --- */}
                 <div
@@ -239,9 +236,18 @@ export function StatusBar({
                                 UI_CONFIG.layout.internalGap
                             )}
                         >
-                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-content1/10 text-foreground/50 transition-colors group-hover:bg-success/10 group-hover:text-success">
+                            <div
+                                className="flex items-center justify-center rounded-2xl bg-content1/10 text-foreground/50 transition-colors group-hover:bg-success/10 group-hover:text-success"
+                                style={{
+                                    width: "var(--tt-status-icon-xl)",
+                                    height: "var(--tt-status-icon-xl)",
+                                }}
+                            >
                                 <ArrowDown
-                                    className={UI_CONFIG.sizing.icon.xl}
+                                    style={{
+                                        width: "var(--tt-status-icon-lg)",
+                                        height: "var(--tt-status-icon-lg)",
+                                    }}
                                     strokeWidth={ICON_STROKE_WIDTH}
                                 />
                             </div>
@@ -264,7 +270,10 @@ export function StatusBar({
                                 </span>
                             </div>
                         </div>
-                        <div className="flex-1 h-full min-w-[100px] py-2 opacity-30 grayscale transition-all duration-500 group-hover:grayscale-0 group-hover:opacity-100">
+                        <div
+                            className="flex-1 h-full py-2 opacity-30 grayscale transition-all duration-500 group-hover:grayscale-0 group-hover:opacity-100"
+                            style={{ minWidth: "var(--tt-status-min-100)" }}
+                        >
                             <NetworkGraph
                                 data={downHistory}
                                 color="success"
@@ -274,7 +283,10 @@ export function StatusBar({
                     </div>
 
                     {/* SEPARATOR */}
-                    <div className="h-8 w-px bg-content1/10" />
+                    <div
+                        className="w-px bg-content1/10"
+                        style={{ height: "var(--tt-status-sep-height)" }}
+                    />
 
                     {/* UPLOAD ZONE */}
                     <div
@@ -289,9 +301,18 @@ export function StatusBar({
                                 UI_CONFIG.layout.internalGap
                             )}
                         >
-                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-content1/10 text-foreground/50 transition-colors group-hover:bg-primary/10 group-hover:text-primary">
+                            <div
+                                className="flex items-center justify-center rounded-2xl bg-content1/10 text-foreground/50 transition-colors group-hover:bg-primary/10 group-hover:text-primary"
+                                style={{
+                                    width: "var(--tt-status-icon-xl)",
+                                    height: "var(--tt-status-icon-xl)",
+                                }}
+                            >
                                 <ArrowUp
-                                    className={UI_CONFIG.sizing.icon.xl}
+                                    style={{
+                                        width: "var(--tt-status-icon-lg)",
+                                        height: "var(--tt-status-icon-lg)",
+                                    }}
                                     strokeWidth={ICON_STROKE_WIDTH}
                                 />
                             </div>
@@ -314,7 +335,10 @@ export function StatusBar({
                                 </span>
                             </div>
                         </div>
-                        <div className="flex-1 h-full min-w-[100px] opacity-30 grayscale transition-all duration-500 group-hover:grayscale-0 group-hover:opacity-100">
+                        <div
+                            className="flex-1 h-full opacity-30 grayscale transition-all duration-500 group-hover:grayscale-0 group-hover:opacity-100"
+                            style={{ minWidth: "var(--tt-status-min-100)" }}
+                        >
                             <NetworkGraph
                                 data={upHistory}
                                 color="primary"
@@ -327,12 +351,19 @@ export function StatusBar({
                 {/* --- RIGHT: SYSTEM HUD --- */}
                 <div
                     className={cn(
-                        "flex shrink-0 items-center pl-6 border-l border-content1/10 h-12",
+                        "flex shrink-0 items-center border-l border-content1/10",
                         UI_CONFIG.layout.hudGap
                     )}
+                    style={{
+                        paddingLeft: "var(--tt-navbar-gap)",
+                        height: "var(--tt-statusbar-h)",
+                    }}
                 >
                     {/* SECTION: CONTEXT INFO */}
-                    <div className="flex flex-col items-end gap-1 whitespace-nowrap min-w-[120px]">
+                    <div
+                        className="flex flex-col items-end gap-1 whitespace-nowrap"
+                        style={{ minWidth: "var(--tt-status-min-120)" }}
+                    >
                         <span
                             className={cn(
                                 UI_CONFIG.typography.label,
@@ -345,7 +376,7 @@ export function StatusBar({
                             <span
                                 className={cn(
                                     UI_CONFIG.typography.value,
-                                    "text-foreground max-w-[200px] truncate text-right"
+                                    "text-foreground max-w-[length:calc(12*var(--u)*var(--z))] truncate text-right"
                                 )}
                                 title={summaryValue}
                             >
@@ -372,7 +403,10 @@ export function StatusBar({
                     </div>
 
                     {/* SECTION: NETWORK */}
-                    <div className="flex flex-col items-end gap-1 whitespace-nowrap min-w-[80px]">
+                    <div
+                        className="flex flex-col items-end gap-1 whitespace-nowrap"
+                        style={{ minWidth: "var(--tt-status-min-80)" }}
+                    >
                         <span
                             className={cn(
                                 UI_CONFIG.typography.label,
@@ -410,8 +444,6 @@ export function StatusBar({
                             className={cn(
                                 // Layout & Shape
                                 "relative flex items-center justify-center gap-3 rounded-xl border px-4 transition-all duration-300",
-                                UI_CONFIG.sizing.button.height,
-                                UI_CONFIG.sizing.button.width,
                                 // Interaction
                                 "active:scale-95 focus-visible:outline-none focus-visible:ring focus-visible:ring-primary/60 cursor-pointer",
                                 // Theme application
@@ -421,6 +453,10 @@ export function StatusBar({
                                 statusVisual.shadow
                             )}
                             title={getChipTooltip()}
+                            style={{
+                                height: "var(--tt-button-h)",
+                                minWidth: "var(--tt-button-min-w)",
+                            }}
                         >
                             {/* 1. Transport Icon (Left - The 'Power' Source) */}
                             <TransportIcon
@@ -437,11 +473,14 @@ export function StatusBar({
                             {/* 2. Divider (Subtle separator) */}
                             <div
                                 className={cn(
-                                    "h-4 w-px",
+                                    "w-px",
                                     rpcStatus === "connected"
                                         ? "bg-current opacity-20"
                                         : "bg-foreground/10"
                                 )}
+                                style={{
+                                    height: "var(--tt-status-sep-height)",
+                                }}
                             />
 
                             {/* 3. Engine Identity (Right - The 'Target') */}

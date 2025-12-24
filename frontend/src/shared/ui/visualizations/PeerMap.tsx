@@ -5,7 +5,11 @@ import { motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import { ZoomIn, ZoomOut } from "lucide-react";
 import { GLASS_TOOLTIP_CLASSNAMES } from "../../../modules/dashboard/components/details/visualizations/constants";
-import { clamp, useCanvasPalette } from "../../../modules/dashboard/components/details/visualizations/canvasUtils";
+import {
+    clamp,
+    useCanvasPalette,
+} from "../../../modules/dashboard/components/details/visualizations/canvasUtils";
+import useLayoutMetrics from "@/shared/hooks/useLayoutMetrics";
 import { PEER_MAP_CONFIG } from "../../../config/logic";
 import { formatSpeed } from "../../utils/format";
 import type { TorrentPeerEntity } from "../../../services/rpc/entities";
@@ -40,6 +44,8 @@ export const PeerMap = ({ peers }: PeerMapProps) => {
         [peers]
     );
 
+    const { unit } = useLayoutMetrics();
+
     const nodes = useMemo(() => {
         if (!peers.length) return [];
         const radius = 70;
@@ -50,7 +56,8 @@ export const PeerMap = ({ peers }: PeerMapProps) => {
             const distance = 30 + (speed / maxRate) * 40;
             const x = center + Math.cos(angle) * distance;
             const y = center + Math.sin(angle) * distance;
-            const size = 6 + (peer.progress ?? 0) * 12;
+            const unitPx = unit || 4;
+            const size = unitPx * 1.5 + (peer.progress ?? 0) * (unitPx * 3);
 
             // Use semantic palette
             const fill = peer.peerIsChoking ? palette.danger : palette.success;
@@ -128,7 +135,7 @@ export const PeerMap = ({ peers }: PeerMapProps) => {
     return (
         <motion.div
             layout
-            className="flex flex-col flex-1 min-h-[320px] rounded-2xl border border-content1/20 bg-content1/10 p-4 space-y-3 overflow-hidden"
+            className="flex flex-col flex-1 min-h-[length:calc(80*var(--u)*var(--z))] rounded-2xl border border-content1/20 bg-content1/10 p-4 space-y-3 overflow-hidden"
         >
             <div className="flex items-center justify-between">
                 <div className="flex flex-col">

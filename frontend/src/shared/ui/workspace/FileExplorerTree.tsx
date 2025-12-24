@@ -16,6 +16,7 @@ import { useTranslation } from "react-i18next";
 import { formatBytes } from "@/shared/utils/format";
 import type { LibtorrentPriority } from "@/services/rpc/entities";
 import { ICON_STROKE_WIDTH } from "@/config/logic";
+import useLayoutMetrics from "@/shared/hooks/useLayoutMetrics";
 
 export interface FileExplorerEntry {
     name: string;
@@ -56,9 +57,6 @@ type FileContextMenuState = {
     x: number;
     y: number;
 };
-
-const CONTEXT_MENU_WIDTH = 220;
-const CONTEXT_MENU_MARGIN = 8;
 
 type FileExplorerNode = {
     id: string;
@@ -107,8 +105,9 @@ const buildFileTree = (entries: FileExplorerEntry[]): FileExplorerNode[] => {
     return root;
 };
 
+// priority badge base classes (visuals) - font size & padding come from CSS tokens
 const PRIORITY_BADGE_BASE =
-    "text-[10px] font-semibold uppercase tracking-[0.2em] px-2 py-0.5 rounded-full";
+    "font-semibold uppercase tracking-[0.2em] rounded-full";
 const PRIORITY_LABELS: Record<LibtorrentPriority, string> = {
     0: "Do Not Download",
     1: "Low Priority",
@@ -153,7 +152,8 @@ const flattenVisibleNodes = (
     return result;
 };
 
-const ROW_HEIGHT = 32;
+// Row height is driven by CSS token `--tt-row-h` (fallback to 32)
+// We read the token inside the component to provide a numeric estimate to the virtualizer.
 
 export function FileExplorerTree({
     files,
@@ -223,23 +223,32 @@ export function FileExplorerTree({
     const focusContainer = useCallback(() => {
         containerRef.current?.focus({ preventScroll: true });
     }, []);
+    const {
+        rowHeight,
+        fileContextMenuWidth: contextMenuWidth,
+        fileContextMenuMargin: contextMenuMargin,
+    } = useLayoutMetrics();
+
     const clampContextMenuPosition = useCallback(
-        (x: number, y: number, menuWidth = CONTEXT_MENU_WIDTH) => {
+        (x: number, y: number, menuWidth = contextMenuWidth) => {
             const rect = containerRef.current?.getBoundingClientRect();
             if (!rect) {
                 return { x, y };
             }
             const maxX = Math.max(
-                rect.width - menuWidth - CONTEXT_MENU_MARGIN,
-                CONTEXT_MENU_MARGIN
+                rect.width - menuWidth - contextMenuMargin,
+                contextMenuMargin
             );
-            const maxY = Math.max(rect.height - CONTEXT_MENU_MARGIN, CONTEXT_MENU_MARGIN);
+            const maxY = Math.max(
+                rect.height - contextMenuMargin,
+                contextMenuMargin
+            );
             return {
-                x: Math.min(Math.max(x, CONTEXT_MENU_MARGIN), maxX),
-                y: Math.min(Math.max(y, CONTEXT_MENU_MARGIN), maxY),
+                x: Math.min(Math.max(x, contextMenuMargin), maxX),
+                y: Math.min(Math.max(y, contextMenuMargin), maxY),
             };
         },
-        []
+        [contextMenuMargin, contextMenuWidth]
     );
     const getRangeIndexes = useCallback(
         (targetIndex: number, anchorIndex: number | null) => {
@@ -261,8 +270,7 @@ export function FileExplorerTree({
     );
     const handleRowSelection = useCallback(
         (event: MouseEvent<HTMLDivElement>, index: number) => {
-            const rangeSelection =
-                event.shiftKey && lastSelectedIndex !== null;
+            const rangeSelection = event.shiftKey && lastSelectedIndex !== null;
             const additiveSelection = event.metaKey || event.ctrlKey;
             if (rangeSelection) {
                 const nextSelection = getRangeIndexes(index, lastSelectedIndex);
@@ -393,7 +401,7 @@ export function FileExplorerTree({
     const rowVirtualizer = useVirtualizer({
         count: visibleNodes.length,
         getScrollElement: () => containerRef.current,
-        estimateSize: () => ROW_HEIGHT,
+        estimateSize: () => rowHeight,
         overscan: 6,
         getItemKey: (index) => visibleNodes[index]?.id ?? index,
     });
@@ -429,7 +437,7 @@ export function FileExplorerTree({
             >
                 {rowVirtualizer.getVirtualItems().map((virtualRow) => {
                     const { node, depth } = visibleNodes[virtualRow.index];
-                    const paddingLeft = depth * 16 + 8;
+                    const paddingLeft = `calc(var(--tt-file-depth-indent) * ${depth} + var(--tt-file-row-padding-left))`;
                     const isFolder = node.isFolder;
                     const rowKey = `${node.id}-${virtualRow.index}`;
                     if (isFolder) {
@@ -475,17 +483,13 @@ export function FileExplorerTree({
                                         {isExpanded ? (
                                             <ChevronDown
                                                 size={16}
-                                                strokeWidth={
-                                                    ICON_STROKE_WIDTH
-                                                }
+                                                strokeWidth={ICON_STROKE_WIDTH}
                                                 className="text-current"
                                             />
                                         ) : (
                                             <ChevronRight
                                                 size={16}
-                                                strokeWidth={
-                                                    ICON_STROKE_WIDTH
-                                                }
+                                                strokeWidth={ICON_STROKE_WIDTH}
                                                 className="text-current"
                                             />
                                         )}
@@ -506,27 +510,31 @@ export function FileExplorerTree({
                                             classNames={{ wrapper: "m-0" }}
                                         />
                                     </div>
-                                        <button
-                                            type="button"
-                                            onClick={(event) => {
-                                                event.stopPropagation();
-                                                toggleExpanded(node.id);
-                                            }}
-                                            className="flex items-center justify-center rounded-full p-1 text-foreground/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
-                                        >
-                                            <Folder
-                                                size={16}
-                                                strokeWidth={
-                                                    ICON_STROKE_WIDTH
-                                                }
-                                                className="text-current"
-                                            />
-                                        </button>
+                                    <button
+                                        type="button"
+                                        onClick={(event) => {
+                                            event.stopPropagation();
+                                            toggleExpanded(node.id);
+                                        }}
+                                        className="flex items-center justify-center rounded-full p-1 text-foreground/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                                    >
+                                        <Folder
+                                            size={16}
+                                            strokeWidth={ICON_STROKE_WIDTH}
+                                            className="text-current"
+                                        />
+                                    </button>
                                     <div className="flex flex-col text-sm font-medium text-foreground leading-tight">
                                         <span className="text-foreground">
                                             {node.name}
                                         </span>
-                                        <span className="text-[11px] text-foreground/50">
+                                        <span
+                                            style={{
+                                                fontSize:
+                                                    "var(--tt-font-size-base)",
+                                            }}
+                                            className="text-foreground/50"
+                                        >
                                             {count} file{count === 1 ? "" : "s"}
                                         </span>
                                     </div>
@@ -595,19 +603,39 @@ export function FileExplorerTree({
                                         {node.name}
                                     </span>
                                     {priorityLabel && (
-                                        <span className={priorityBadgeClass}>
+                                        <span
+                                            className={priorityBadgeClass}
+                                            style={{
+                                                fontSize:
+                                                    "var(--tt-priority-badge-font-size)",
+                                                padding:
+                                                    "var(--tt-priority-badge-padding-y) var(--tt-priority-badge-padding-x)",
+                                            }}
+                                        >
                                             {priorityLabel}
                                         </span>
                                     )}
                                 </div>
                                 {typeof node.file.length === "number" &&
                                     node.file.length > 0 && (
-                                        <span className="text-[11px] font-mono text-foreground/50">
+                                        <span
+                                            style={{
+                                                fontSize:
+                                                    "var(--tt-font-size-base)",
+                                            }}
+                                            className="font-mono text-foreground/50"
+                                        >
                                             {formatBytes(node.file.length)}
                                         </span>
                                     )}
                                 {typeof node.file.progress === "number" && (
-                                    <span className="text-[11px] font-mono text-foreground/40">
+                                    <span
+                                        style={{
+                                            fontSize:
+                                                "var(--tt-font-size-base)",
+                                        }}
+                                        className="font-mono text-foreground/40"
+                                    >
                                         {(node.file.progress * 100).toFixed(0)}%
                                     </span>
                                 )}
@@ -623,7 +651,7 @@ export function FileExplorerTree({
                     style={{
                         top: fileContextMenu.y,
                         left: fileContextMenu.x,
-                        minWidth: CONTEXT_MENU_WIDTH,
+                        minWidth: contextMenuWidth,
                     }}
                     onPointerDown={(event) => event.stopPropagation()}
                     onContextMenu={(event) => event.preventDefault()}
@@ -633,9 +661,7 @@ export function FileExplorerTree({
                             key={item.key}
                             type="button"
                             className="w-full rounded-xl px-3 py-2 text-left text-sm font-medium text-foreground transition-colors data-[hover=true]:bg-content2/70 data-[pressed=true]:bg-content2/80 hover:text-foreground"
-                            onClick={() =>
-                                handleFileContextAction(item.key)
-                            }
+                            onClick={() => handleFileContextAction(item.key)}
                         >
                             {item.label}
                         </button>

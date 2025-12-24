@@ -357,6 +357,7 @@
             "recheck": "Force Recheck",
             "remove": "Remove",
             "remove_with_data": "Remove and Delete Files",
+            "hide_column": "Hide Column",
             "resume": "Resume"
         },
         "column_desc_added": "When the torrent was added",

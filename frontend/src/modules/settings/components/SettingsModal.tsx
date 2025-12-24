@@ -25,6 +25,7 @@ import type {
     SystemHandlerStatus,
 } from "@/services/rpc/entities";
 import { ICON_STROKE_WIDTH } from "@/config/logic";
+import Runtime from "@/app/runtime";
 import { INTERACTION_CONFIG } from "@/config/logic";
 import { DirectoryPicker } from "@/shared/ui/workspace/DirectoryPicker";
 import { APP_VERSION } from "@/shared/version";
@@ -392,6 +393,8 @@ export function SettingsModal({
     const visibleTabs = useMemo(
         () =>
             SETTINGS_TABS.filter((tab) => {
+                if (!Runtime.allowEditingProfiles() && tab.id === "connection")
+                    return false;
                 if (tab.isCustom) {
                     if (tab.id === "system") {
                         return systemTabVisible;
@@ -574,7 +577,7 @@ export function SettingsModal({
             classNames={{
                 base: cn(
                     GLASS_MODAL_SURFACE,
-                    "flex flex-row h-[85vh] max-h-[800px] min-h-[500px] overflow-hidden"
+                    "flex flex-row h-[length:calc(200*var(--u)*var(--z))] max-h-[length:calc(200*var(--u)*var(--z))] min-h-[length:calc(125*var(--u)*var(--z))] overflow-hidden"
                 ),
                 wrapper: "overflow-hidden",
             }}
@@ -642,7 +645,7 @@ export function SettingsModal({
                             ))}
                         </div>
                         <div className="p-6 border-t border-content1/10 shrink-0">
-                            <div className="text-[10px] text-foreground/30 font-mono tracking-widest">
+                            <div className="text-[length:var(--fz-scaled)] text-foreground/30 font-mono tracking-widest">
                                 {t("brand.version", { version: APP_VERSION })}
                             </div>
                         </div>
@@ -667,7 +670,7 @@ export function SettingsModal({
                                         {t(activeTabDefinition.headerKey)}
                                     </h1>
                                     {hasUnsavedChanges && (
-                                        <span className="text-[9px] uppercase tracking-[0.2em] font-bold text-warning animate-pulse">
+                                        <span className="text-[length:var(--fz-scaled)] uppercase tracking-[0.2em] font-bold text-warning animate-pulse">
                                             {t("settings.unsaved_changes")}
                                         </span>
                                     )}

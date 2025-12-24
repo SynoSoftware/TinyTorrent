@@ -13,18 +13,23 @@ import type {
     SystemInstallOptions,
     SystemInstallResult,
 } from "./types";
+import { z } from "zod";
 import {
-    getFreeSpace,
-    getSessionSettings,
-    getSessionStats as parseSessionStats,
-    getTinyTorrentCapabilities,
-    getSystemAutorunStatus,
-    getSystemHandlerStatus,
-    getTorrentDetail,
-    getTorrentList,
-    parseDirectoryBrowseResult,
     parseRpcResponse,
-} from "./schemas";
+    zTransmissionTorrentArray,
+    zTransmissionTorrentDetailSingle,
+    zSessionStats,
+    zTransmissionSessionSettings,
+    zTransmissionFreeSpace,
+    zDirectoryBrowseResponse,
+    zTinyTorrentCapabilitiesNormalized,
+    zSystemAutorunStatus,
+    zSystemHandlerStatus,
+    zTransmissionTorrentRenameResult,
+    zSystemInstallResult,
+    getTorrentList,
+    getSessionStats,
+} from "@/services/rpc/schemas";
 import constants from "../../config/constants.json";
 import type { EngineAdapter } from "./engine-adapter";
 import { HeartbeatManager } from "./heartbeat";
@@ -112,6 +117,36 @@ const DETAIL_FIELDS = [
     "pieceAvailability",
 ];
 
+// Suppression logic for notifications
+const SUPPRESSION_KEY = "tiny-torrent.notified-extensions-map";
+const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+
+export function shouldSuppressNotification(endpoint: string): boolean {
+    try {
+        const raw = localStorage.getItem(SUPPRESSION_KEY);
+        const map = raw ? JSON.parse(raw) : {};
+        const lastNotified = map[endpoint];
+
+        if (lastNotified && Date.now() - lastNotified < TWENTY_FOUR_HOURS) {
+            return true;
+        }
+    } catch (e) {
+        return false; // Fallback to showing if storage is corrupted
+    }
+    return false;
+}
+
+export function recordNotification(endpoint: string) {
+    try {
+        const raw = localStorage.getItem(SUPPRESSION_KEY);
+        const map = raw ? JSON.parse(raw) : {};
+        map[endpoint] = Date.now();
+        localStorage.setItem(SUPPRESSION_KEY, JSON.stringify(map));
+    } catch (e) {
+        // Ignore storage errors
+    }
+}
+
 export class TransmissionAdapter implements EngineAdapter {
     private endpoint: string;
     private sessionId?: string;
@@ -127,6 +162,15 @@ export class TransmissionAdapter implements EngineAdapter {
     private tinyTorrentCapabilities?: TinyTorrentCapabilities | null;
     private websocketSession?: TinyTorrentWebSocketSession;
     private tinyTorrentFeaturesEnabled = false;
+    private notifiedExtendedCapabilities = false;
+
+    public get shouldNotifyExtendedFeatures(): boolean {
+        return this.notifiedExtendedCapabilities;
+    }
+
+    public consumeExtendedFeaturesNotification() {
+        this.notifiedExtendedCapabilities = false;
+    }
 
     private getTinyTorrentAuthToken(): string | undefined {
         const token = sessionStorage.getItem("tt-auth-token");
@@ -179,8 +223,10 @@ export class TransmissionAdapter implements EngineAdapter {
 
     private async send<T>(
         payload: RpcRequest<string>,
-        retryCount = 0
-    ): Promise<RpcResponse<T>> {
+        schema: z.ZodSchema<T>,
+        retryCount = 0,
+        keepalive = false
+    ): Promise<T> {
         const controller = new AbortController();
         this.activeControllers.add(controller);
         let timeoutId: number | undefined;
@@ -206,18 +252,27 @@ export class TransmissionAdapter implements EngineAdapter {
                 headers.Authorization = authHeader;
             }
 
-            const response = await fetch(this.endpoint, {
+            const requestInit: RequestInit = {
                 method: "POST",
                 headers,
                 body: JSON.stringify(payload),
                 signal: controller.signal,
-            });
+            };
+            if (keepalive) {
+                requestInit.keepalive = true;
+            }
+            const response = await fetch(this.endpoint, requestInit);
 
             if (response.status === 409) {
                 const token = response.headers.get("X-Transmission-Session-Id");
                 if (token && token !== this.sessionId && retryCount < 1) {
                     this.sessionId = token;
-                    return this.send(payload, retryCount + 1);
+                    return this.send(
+                        payload,
+                        schema,
+                        retryCount + 1,
+                        keepalive
+                    );
                 }
             }
 
@@ -243,11 +298,8 @@ export class TransmissionAdapter implements EngineAdapter {
                     `Transmission RPC responded with ${parsed.result}`
                 );
             }
-            const args = (parsed.arguments ?? ({} as T)) as T;
-            return {
-                ...parsed,
-                arguments: args,
-            };
+            const args = parsed.arguments ?? {};
+            return schema.parse(args as unknown) as T;
         } finally {
             if (timeoutId) {
                 window.clearTimeout(timeoutId);
@@ -281,7 +333,7 @@ export class TransmissionAdapter implements EngineAdapter {
     }
 
     private async mutate(method: string, args: Record<string, unknown> = {}) {
-        await this.send<void>({ method, arguments: args });
+        await this.send({ method, arguments: args }, z.any());
     }
 
     private resolveEndpointUrl(): URL | null {
@@ -350,6 +402,14 @@ export class TransmissionAdapter implements EngineAdapter {
                 onUpdate: this.handleLiveStateUpdate,
                 onConnected: () => this.heartbeat.disablePolling(),
                 onDisconnected: () => this.heartbeat.enablePolling(),
+                onUiFocus: () => {
+                    if (
+                        typeof window !== "undefined" &&
+                        typeof window.focus === "function"
+                    ) {
+                        window.focus();
+                    }
+                },
                 onError: (error) => {
                     console.error("[tiny-torrent][ws]", error);
                 },
@@ -358,18 +418,59 @@ export class TransmissionAdapter implements EngineAdapter {
         this.websocketSession.start(wsBaseUrl);
     }
 
-    private async refreshExtendedCapabilities(): Promise<void> {
+    /**
+     * Refreshes the server capabilities and determines if the UI should be notified
+     * of extended features based on persistent 24h suppression logic.
+     */
+    public async refreshExtendedCapabilities(force = false): Promise<void> {
         try {
-            const response = await this.send<Record<string, unknown>>({
-                method: "tt-get-capabilities",
-            });
-            this.tinyTorrentCapabilities = getTinyTorrentCapabilities(
-                response.arguments
+            const response = await this.send(
+                { method: "tt-get-capabilities" },
+                zTinyTorrentCapabilitiesNormalized
             );
+
+            const isNewDiscovery = !this.tinyTorrentCapabilities && response;
+            this.tinyTorrentCapabilities = response;
+
+            if (isNewDiscovery) {
+                // Normalize URL to prevent "http://localhost:9091" vs "http://localhost:9091/" issues
+                const normalizedEndpoint = this.endpoint.replace(/\/$/, "");
+                const suppressed =
+                    shouldSuppressNotification(normalizedEndpoint);
+
+                if (force || !suppressed) {
+                    this.notifiedExtendedCapabilities = true;
+                    recordNotification(normalizedEndpoint);
+                    console.info(
+                        "[RPC] Notification triggered for",
+                        normalizedEndpoint
+                    );
+                }
+            }
         } catch {
             this.tinyTorrentCapabilities = null;
         }
-        this.ensureWebsocketConnection();
+    }
+
+    public async handshake(): Promise<TransmissionSessionSettings> {
+        const result = await this.send(
+            { method: "session-get" },
+            zTransmissionSessionSettings
+        );
+        this.sessionSettingsCache = result;
+
+        // Reset the session-level notification flag
+        this.notifiedExtendedCapabilities = false;
+
+        this.engineInfoCache = undefined;
+        this.tinyTorrentCapabilities = undefined;
+        this.closeWebSocketSession();
+
+        // FIX: Use 'this' instead of 'adapter'.
+        // Pass 'true' because a manual handshake (connect) should always show the warning.
+        await this.refreshExtendedCapabilities(true);
+
+        return result;
     }
 
     private handleLiveStateUpdate = ({
@@ -447,26 +548,64 @@ export class TransmissionAdapter implements EngineAdapter {
         await this.mutate(method, { ids });
     }
 
-    public async handshake(): Promise<TransmissionSessionSettings> {
-        const result = await this.send<TransmissionSessionSettings>({
-            method: "session-get",
-        });
-        this.sessionSettingsCache = result.arguments;
-        this.engineInfoCache = undefined;
-        this.tinyTorrentCapabilities = undefined;
-        this.closeWebSocketSession();
-        return result.arguments;
+    public async notifyUiReady(): Promise<void> {
+        await this.mutate("session-ui-attach");
     }
 
-    public async notifyUiReady(): Promise<void> {
-        await this.mutate("session-ui-ready");
+    public async notifyUiDetached(): Promise<void> {
+        const request = { method: "session-ui-detach" };
+        // Use fetch with keepalive so we can include required headers
+        // (notably X-Transmission-Session-Id). sendBeacon does not allow
+        // custom headers and will often result in 409 from Transmission.
+        try {
+            const headers: Record<string, string> = {
+                "Content-Type": "application/json",
+            };
+            const ttAuth = this.getTinyTorrentAuthToken();
+            if (ttAuth && this.isLoopbackEndpoint()) {
+                headers["X-TT-Auth"] = ttAuth;
+            }
+            if (this.sessionId) {
+                headers["X-Transmission-Session-Id"] = this.sessionId;
+            }
+            const authHeader = this.getAuthorizationHeader();
+            if (authHeader) headers.Authorization = authHeader;
+
+            const payload = JSON.stringify(request);
+            const requestInit: RequestInit = {
+                method: "POST",
+                headers,
+                body: payload,
+                keepalive: true,
+            };
+
+            const resp = await fetch(this.endpoint, requestInit);
+            if (resp.status === 409) {
+                const token = resp.headers.get("X-Transmission-Session-Id");
+                if (token && token !== this.sessionId) {
+                    this.sessionId = token;
+                    // retry once with updated session id
+                    headers["X-Transmission-Session-Id"] = this.sessionId;
+                    await fetch(this.endpoint, {
+                        ...requestInit,
+                        headers,
+                    });
+                }
+            }
+            // best-effort; don't throw on non-OK because this is fire-and-forget
+            return;
+        } catch (e) {
+            // fallback to adapter send which supports retries and header logic
+        }
+
+        await this.send(request, z.any(), 0, true);
     }
 
     public async fetchSessionSettings(): Promise<TransmissionSessionSettings> {
-        const result = await this.send<TransmissionSessionSettings>({
-            method: "session-get",
-        });
-        const settings = getSessionSettings(result.arguments);
+        const settings = await this.send(
+            { method: "session-get" },
+            zTransmissionSessionSettings
+        );
         this.sessionSettingsCache = settings;
         return settings;
     }
@@ -510,7 +649,10 @@ export class TransmissionAdapter implements EngineAdapter {
     public async updateSessionSettings(
         settings: Partial<TransmissionSessionSettings>
     ): Promise<void> {
-        await this.send<void>({ method: "session-set", arguments: settings });
+        await this.send(
+            { method: "session-set", arguments: settings },
+            z.any()
+        );
         this.sessionSettingsCache = {
             ...(this.sessionSettingsCache ?? {}),
             ...settings,
@@ -518,17 +660,19 @@ export class TransmissionAdapter implements EngineAdapter {
     }
 
     public async testPort(): Promise<boolean> {
-        const result = await this.send<{ portIsOpen?: boolean }>({
-            method: "session-test",
-        });
-        return Boolean(result.arguments?.portIsOpen);
+        const result = await this.send(
+            { method: "session-test" },
+            z.object({ portIsOpen: z.boolean().optional() })
+        );
+        return Boolean(result.portIsOpen);
     }
 
     public async fetchSessionStats(): Promise<TransmissionSessionStats> {
-        const result = await this.send<TransmissionSessionStats>({
-            method: "session-stats",
-        });
-        return parseSessionStats(result.arguments);
+        const stats = await this.send(
+            { method: "session-stats" },
+            zSessionStats
+        );
+        return stats;
     }
 
     public async getSessionStats(): Promise<SessionStats> {
@@ -554,11 +698,11 @@ export class TransmissionAdapter implements EngineAdapter {
     }
 
     public async checkFreeSpace(path: string): Promise<TransmissionFreeSpace> {
-        const result = await this.send<TransmissionFreeSpace>({
-            method: "free-space",
-            arguments: { path },
-        });
-        return getFreeSpace(result.arguments);
+        const fs = await this.send(
+            { method: "free-space", arguments: { path } },
+            zTransmissionFreeSpace
+        );
+        return fs;
     }
 
     private supportsFsBrowse(): boolean {
@@ -575,11 +719,11 @@ export class TransmissionAdapter implements EngineAdapter {
                 "fs-browse is not supported by the connected engine"
             );
         }
-        const result = await this.send<DirectoryBrowseResult>({
-            method: "fs-browse",
-            arguments: path ? { path } : undefined,
-        });
-        return parseDirectoryBrowseResult(result.arguments);
+        const result = await this.send(
+            { method: "fs-browse", arguments: path ? { path } : undefined },
+            zDirectoryBrowseResponse
+        );
+        return result;
     }
 
     public async createDirectory(path: string): Promise<void> {
@@ -616,25 +760,27 @@ export class TransmissionAdapter implements EngineAdapter {
         if (options.installToProgramFiles !== undefined) {
             args.installToProgramFiles = options.installToProgramFiles;
         }
-        const result = await this.send<SystemInstallResult>({
-            method: "system-install",
-            arguments: args,
-        });
-        return result.arguments;
+        const result = await this.send(
+            { method: "system-install", arguments: args },
+            zSystemInstallResult
+        );
+        return result as SystemInstallResult;
     }
 
     public async getSystemAutorunStatus(): Promise<AutorunStatus> {
-        const result = await this.send<AutorunStatus>({
-            method: "system-autorun-status",
-        });
-        return getSystemAutorunStatus(result.arguments);
+        const result = await this.send(
+            { method: "system-autorun-status" },
+            zSystemAutorunStatus
+        );
+        return result;
     }
 
     public async getSystemHandlerStatus(): Promise<SystemHandlerStatus> {
-        const result = await this.send<SystemHandlerStatus>({
-            method: "system-handler-status",
-        });
-        return getSystemHandlerStatus(result.arguments);
+        const result = await this.send(
+            { method: "system-handler-status" },
+            zSystemHandlerStatus
+        );
+        return result;
     }
 
     public async systemAutorunEnable(scope = "user"): Promise<void> {
@@ -654,49 +800,52 @@ export class TransmissionAdapter implements EngineAdapter {
     }
 
     private async fetchTransmissionTorrents(): Promise<TransmissionTorrent[]> {
-        const result = await this.send<TorrentGetResponse<TransmissionTorrent>>(
+        const list = await this.send(
             {
                 method: "torrent-get",
                 arguments: {
                     fields: SUMMARY_FIELDS,
                 },
-            }
+            },
+            zTransmissionTorrentArray
         );
-        return getTorrentList(result.arguments);
+        return list as TransmissionTorrent[];
     }
 
     private async fetchTransmissionTorrentSummaryByIdentifier(
         identifier: string | number
     ): Promise<TransmissionTorrent> {
-        const result = await this.send<TorrentGetResponse<TransmissionTorrent>>(
+        const list = await this.send(
             {
                 method: "torrent-get",
                 arguments: {
                     fields: SUMMARY_FIELDS,
                     ids: [identifier],
                 },
-            }
+            },
+            zTransmissionTorrentArray
         );
-        const [torrent] = getTorrentList(result.arguments);
+        const [torrent] = list as TransmissionTorrent[];
         if (!torrent) {
             throw new Error(`Torrent ${identifier} not found`);
         }
-        return torrent;
+        return torrent as TransmissionTorrent;
     }
 
     private async fetchTransmissionTorrentDetails(
         id: number
     ): Promise<TransmissionTorrentDetail> {
-        const result = await this.send<
-            TorrentGetResponse<TransmissionTorrentDetail>
-        >({
-            method: "torrent-get",
-            arguments: {
-                fields: DETAIL_FIELDS,
-                ids: [id],
+        const detail = await this.send(
+            {
+                method: "torrent-get",
+                arguments: {
+                    fields: DETAIL_FIELDS,
+                    ids: [id],
+                },
             },
-        });
-        return getTorrentDetail(result.arguments);
+            zTransmissionTorrentDetailSingle
+        );
+        return detail as TransmissionTorrentDetail;
     }
 
     public async getTorrents(): Promise<TorrentEntity[]> {
@@ -726,10 +875,7 @@ export class TransmissionAdapter implements EngineAdapter {
         } else {
             throw new Error("No torrent source provided");
         }
-        await this.send<AddTorrentResponse>({
-            method: "torrent-add",
-            arguments: args,
-        });
+        await this.send({ method: "torrent-add", arguments: args }, z.any());
     }
 
     public async pause(ids: string[]): Promise<void> {
@@ -794,12 +940,15 @@ export class TransmissionAdapter implements EngineAdapter {
 
     public async forceTrackerReannounce(id: string): Promise<void> {
         const rpcId = await this.resolveRpcId(id);
-        await this.send<void>({
-            method: "torrent-reannounce",
-            arguments: {
-                ids: [rpcId],
+        await this.send(
+            {
+                method: "torrent-reannounce",
+                arguments: {
+                    ids: [rpcId],
+                },
             },
-        });
+            z.any()
+        );
     }
 
     public async startTorrents(ids: number[], now = false): Promise<void> {
@@ -820,15 +969,18 @@ export class TransmissionAdapter implements EngineAdapter {
         path: string,
         name: string
     ): Promise<TransmissionTorrentRenameResult> {
-        const result = await this.send<TransmissionTorrentRenameResult>({
-            method: "torrent-rename-path",
-            arguments: {
-                ids: [id],
-                path,
-                name,
+        const result = await this.send(
+            {
+                method: "torrent-rename-path",
+                arguments: {
+                    ids: [id],
+                    path,
+                    name,
+                },
             },
-        });
-        return result.arguments;
+            zTransmissionTorrentRenameResult
+        );
+        return result;
     }
 
     public async setTorrentLocation(
@@ -888,6 +1040,7 @@ interface TinyTorrentWebSocketSessionOptions {
     onConnected?: () => void;
     onDisconnected?: () => void;
     onError?: (error: unknown) => void;
+    onUiFocus?: () => void;
 }
 
 type SyncSnapshotMessage = {
@@ -910,10 +1063,17 @@ type SyncPatchMessage = {
     };
 };
 
+type TinyTorrentEventMessage = {
+    type: "event";
+    data?: {
+        event?: string;
+    };
+};
+
 type TinyTorrentWebSocketMessage =
     | SyncSnapshotMessage
     | SyncPatchMessage
-    | { type: "event"; data?: unknown };
+    | TinyTorrentEventMessage;
 
 class TinyTorrentWebSocketSession {
     private baseUrl?: URL;
@@ -1018,6 +1178,8 @@ class TinyTorrentWebSocketSession {
             this.handleSnapshot(parsed.data);
         } else if (parsed.type === "sync-patch") {
             this.handlePatch(parsed.data);
+        } else if (parsed.type === "event") {
+            this.handleEvent(parsed.data);
         }
     };
 
@@ -1059,6 +1221,16 @@ class TinyTorrentWebSocketSession {
         this.emitUpdate();
     }
 
+    private handleEvent(data: TinyTorrentEventMessage["data"]) {
+        const eventName = data?.event;
+        if (!eventName) {
+            return;
+        }
+        if (eventName === "ui-focus") {
+            this.options.onUiFocus?.();
+        }
+    }
+
     private parseTorrents(
         value: TransmissionTorrent[] | undefined
     ): TransmissionTorrent[] {
@@ -1074,7 +1246,7 @@ class TinyTorrentWebSocketSession {
     private parseSession(value: unknown): TransmissionSessionStats | undefined {
         if (!value) return undefined;
         try {
-            return parseSessionStats(value);
+            return getSessionStats(value as unknown);
         } catch (error) {
             this.options.onError?.(error);
             return undefined;

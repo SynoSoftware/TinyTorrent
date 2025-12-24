@@ -11,6 +11,7 @@ import { HotkeysProvider } from "react-hotkeys-hook";
 import { DEFAULT_KEYBOARD_SCOPE } from "../shared/hooks/useKeyboardScope";
 import { ConnectionConfigProvider } from "./context/ConnectionConfigContext";
 import constants from "../config/constants.json";
+import { applyCssTokenBases } from "../config/logic";
 import {
     captureConnectionOverrideFromSearch,
     captureTokenFromHash,
@@ -18,6 +19,9 @@ import {
 
 captureConnectionOverrideFromSearch();
 captureTokenFromHash();
+
+// Apply CSS variable bases from constants.json before rendering
+applyCssTokenBases();
 
 createRoot(document.getElementById("root")!).render(
     <StrictMode>

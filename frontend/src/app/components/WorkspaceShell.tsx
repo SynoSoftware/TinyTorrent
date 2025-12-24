@@ -398,8 +398,8 @@ export function WorkspaceShell({
                     <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(59,130,246,0.2),transparent_60%)] mix-blend-screen opacity-50" />
                     <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_5%,rgba(236,72,153,0.15),transparent_50%)] mix-blend-screen opacity-40" />
                     <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20" />
-                    <div className="absolute inset-x-[-20%] bottom-[-30%] h-[55%] rounded-[999px] bg-primary/30 blur-[220px] opacity-40" />
-                    <div className="absolute inset-x-[-15%] top-[-35%] h-[50%] rounded-[999px] bg-blue-500/30 blur-[220px] opacity-35" />
+                    <div className="absolute inset-x-[-20%] bottom-[-30%] h-[length:calc(120*var(--u)*var(--z))] rounded-full bg-primary/30 blur-[length:var(--glass-blur)] opacity-40" />
+                    <div className="absolute inset-x-[-15%] top-[-35%] h-[length:calc(100*var(--u)*var(--z))] rounded-full bg-blue-500/30 blur-[length:var(--glass-blur)] opacity-35" />
                 </div>
             )}
 
@@ -429,7 +429,7 @@ export function WorkspaceShell({
                     className={cn(
                         "mx-auto flex w-full flex-1 flex-col",
                         isImmersiveShell
-                            ? "max-w-[1400px] gap-6 px-4 py-6 sm:px-6 lg:px-10"
+                            ? "max-w-[length:calc(350*var(--u)*var(--z))] gap-6 px-4 py-6 sm:px-6 lg:px-10"
                             : "gap-2 px-4 py-4"
                     )}
                 >
@@ -530,7 +530,7 @@ export function WorkspaceShell({
                                                     </button>
                                                     <div className="flex items-start justify-between gap-3">
                                                         <div>
-                                                            <p className="text-[10px] font-semibold uppercase tracking-[0.4em] text-foreground/40">
+                                                            <p className="text-[length:var(--fz-scaled)] font-semibold uppercase tracking-[0.4em] text-foreground/40">
                                                                 {card.label}
                                                             </p>
                                                             <p className="mt-1 text-lg font-semibold text-foreground">
