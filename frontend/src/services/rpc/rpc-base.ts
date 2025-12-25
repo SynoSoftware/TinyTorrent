@@ -403,11 +403,8 @@ export class TransmissionAdapter implements EngineAdapter {
                 onConnected: () => this.heartbeat.disablePolling(),
                 onDisconnected: () => this.heartbeat.enablePolling(),
                 onUiFocus: () => {
-                    if (
-                        typeof window !== "undefined" &&
-                        typeof window.focus === "function"
-                    ) {
-                        window.focus();
+                    if ((this as any).handleUiFocusSignal) {
+                        (this as any).handleUiFocusSignal();
                     }
                 },
                 onError: (error) => {
@@ -1086,9 +1083,47 @@ class TinyTorrentWebSocketSession {
     private readonly torrentsMap = new Map<number, TransmissionTorrent>();
     private lastSessionStats?: TransmissionSessionStats;
     private readonly options: TinyTorrentWebSocketSessionOptions;
+    private focusRestoreTimer?: number;
 
     constructor(options: TinyTorrentWebSocketSessionOptions) {
         this.options = options;
+    }
+
+    private handleUiFocusSignal() {
+        if (typeof window === "undefined") {
+            return;
+        }
+        const token = this.options.getToken();
+        const focusKey = token ? `TT-FOCUS-${token}` : null;
+        const originalTitle =
+            typeof document !== "undefined" ? document.title : "";
+
+        if (focusKey) {
+            document.title = focusKey;
+        }
+
+        if (typeof window.focus === "function") {
+            window.focus();
+        }
+
+        if (!focusKey) {
+            return;
+        }
+
+        if (this.focusRestoreTimer) {
+            window.clearTimeout(this.focusRestoreTimer);
+        }
+
+        this.focusRestoreTimer = window.setTimeout(() => {
+            if (
+                focusKey &&
+                typeof document !== "undefined" &&
+                document.title === focusKey
+            ) {
+                document.title = originalTitle;
+            }
+            this.focusRestoreTimer = undefined;
+        }, 500);
     }
 
     public start(baseUrl: URL) {
