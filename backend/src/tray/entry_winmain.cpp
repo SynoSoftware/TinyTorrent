@@ -16,7 +16,7 @@
 #include <array>
 #include <atomic>
 #include <chrono>
-#include <cwctype>
+#include <cwchar>
 #include <future>
 #include <iomanip>
 #include <memory>
@@ -148,13 +148,6 @@ std::wstring widen(std::string const &value)
     return out;
 }
 
-std::wstring to_lower(std::wstring value)
-{
-    std::transform(value.begin(), value.end(), value.begin(), [](wchar_t ch)
-                   { return static_cast<wchar_t>(std::towlower(ch)); });
-    return value;
-}
-
 std::wstring format_rate(uint64_t bytes)
 {
     constexpr uint64_t KiB = 1024;
@@ -169,51 +162,6 @@ std::wstring format_rate(uint64_t bytes)
     else
         ss << bytes << L" B/s";
     return ss.str();
-}
-
-std::wstring query_process_basename(DWORD pid)
-{
-    if (pid == 0)
-        return {};
-    HANDLE process =
-        OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
-    if (!process)
-        return {};
-    wchar_t buffer[MAX_PATH];
-    DWORD size = MAX_PATH;
-    std::wstring result;
-    if (QueryFullProcessImageNameW(process, 0, buffer, &size))
-    {
-        result.assign(buffer, size);
-        auto pos = result.find_last_of(L"\\/");
-        if (pos != std::wstring::npos)
-        {
-            result.erase(0, pos + 1);
-        }
-        result = to_lower(result);
-    }
-    CloseHandle(process);
-    return result;
-}
-
-bool is_trusted_browser_process(std::wstring const &name)
-{
-    if (name.empty())
-    {
-        return false;
-    }
-    static constexpr std::array<std::wstring_view, 6> trusted = {
-        {L"chrome.exe", L"msedge.exe", L"firefox.exe", L"opera.exe",
-         L"brave.exe", L"vivaldi.exe"}};
-
-    for (auto const &candidate : trusted)
-    {
-        if (name == candidate)
-        {
-            return true;
-        }
-    }
-    return false;
 }
 
 tt::rpc::UiPreferences load_ui_preferences()
@@ -233,107 +181,62 @@ tt::rpc::UiPreferences load_ui_preferences()
     return store.load();
 }
 
-// --- Browser Logic (Single Instance Activation) ---
-
-struct UiWindowSearchContext
-{
-    HWND found = nullptr;
-    std::wstring needle;
-};
-
-BOOL CALLBACK search_ui_window(HWND hwnd, LPARAM param)
-{
-    auto *context = reinterpret_cast<UiWindowSearchContext *>(param);
-    if (!IsWindowVisible(hwnd))
-        return TRUE;
-
-    DWORD pid = 0;
-    GetWindowThreadProcessId(hwnd, &pid);
-    if (pid == GetCurrentProcessId())
-        return TRUE;
-
-    int length = GetWindowTextLengthW(hwnd);
-    if (length <= 0)
-        return TRUE;
-
-    std::wstring title(length, L'\0');
-    GetWindowTextW(hwnd, title.data(), length + 1);
-    std::wstring lowered = to_lower(title);
-
-    if (lowered.find(context->needle) != std::wstring::npos)
-    {
-        auto process_name = query_process_basename(pid);
-        if (is_trusted_browser_process(process_name))
-        {
-            context->found = hwnd;
-            return FALSE;
-        }
-    }
-    return TRUE;
-}
-
-std::optional<HWND> find_ui_window()
-{
-    UiWindowSearchContext context;
-    context.needle = L"tinytorrent";
-    EnumWindows(search_ui_window, reinterpret_cast<LPARAM>(&context));
-    return context.found ? std::optional<HWND>(context.found)
-                         : std::nullopt;
-}
-
-void open_browser(std::wstring const &url)
-{
-    if (url.empty())
-        return;
-
-    auto context = find_ui_window();
-
-    if (context)
-    {
-        DWORD target_pid = 0;
-        GetWindowThreadProcessId(*context, &target_pid);
-        if (target_pid != 0)
-        {
-            AllowSetForegroundWindow(target_pid);
-        }
-        if (IsIconic(*context))
-            ShowWindow(*context, SW_RESTORE);
-        SetForegroundWindow(*context);
-    }
-    else
-    {
-        AllowSetForegroundWindow(ASFW_ANY);
-        ShellExecuteW(nullptr, L"open", url.c_str(), nullptr, nullptr,
-                      SW_SHOWNORMAL);
-    }
-}
+// --- Browser Logic (Deterministic Zero-Heuristic Activation) ---
 
 bool request_ui_focus(TrayState &state);
 
-void allow_ui_activation()
-{
-    auto context = find_ui_window();
-    if (context)
-    {
-        DWORD target_pid = 0;
-        GetWindowThreadProcessId(*context, &target_pid);
-        if (target_pid != 0)
-        {
-            AllowSetForegroundWindow(target_pid);
-            return;
-        }
-    }
-    AllowSetForegroundWindow(ASFW_ANY);
-}
-
 void focus_or_launch_ui(TrayState &state)
 {
-    allow_ui_activation();
+    AllowSetForegroundWindow(ASFW_ANY);
     if (state.ui_attached.load() && request_ui_focus(state))
     {
-        return;
+        if (!state.token.empty())
+        {
+            auto focus_key = std::wstring(L"TT-FOCUS-") + widen(state.token);
+            for (int attempt = 0; attempt < 10; ++attempt)
+            {
+                struct SearchContext
+                {
+                    std::wstring key;
+                    HWND found = nullptr;
+                };
+                SearchContext ctx{ focus_key, nullptr };
+
+                EnumWindows([](HWND hwnd, LPARAM lp) -> BOOL {
+                    auto* pCtx = reinterpret_cast<SearchContext*>(lp);
+                    wchar_t title[512];
+                    if (GetWindowTextW(hwnd, title, 512) > 0)
+                    {
+                        if (wcsstr(title, pCtx->key.c_str()) != nullptr)
+                        {
+                            pCtx->found = hwnd;
+                            return FALSE;
+                        }
+                    }
+                    return TRUE;
+                },
+                reinterpret_cast<LPARAM>(&ctx));
+
+                if (ctx.found)
+                {
+                    if (IsIconic(ctx.found))
+                    {
+                        ShowWindow(ctx.found, SW_RESTORE);
+                    }
+                    SetForegroundWindow(ctx.found);
+                    return;
+                }
+                Sleep(50);
+            }
+        }
+        state.ui_attached.store(false);
     }
-    open_browser(state.open_url);
+
+    if (!state.open_url.empty())
+    {
+        ShellExecuteW(nullptr, L"open", state.open_url.c_str(), nullptr, nullptr,
+                      SW_SHOWNORMAL);
+    }
 }
 
 // --- Splash Window ---
@@ -682,17 +585,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
             // dead-end
             if (state->auto_open_requested)
             {
-                if (state->ui_attached.load())
-                {
-                    if (!request_ui_focus(*state))
-                    {
-                        open_browser(state->open_url);
-                    }
-                }
-                else
-                {
-                    open_browser(state->open_url);
-                }
+                focus_or_launch_ui(*state);
             }
         }
 
