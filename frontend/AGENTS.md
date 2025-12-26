@@ -1,5 +1,3 @@
-Frontend: the front end is an UI that runs for a single purpose: to control the daemon that runs with it, on the same machine; it is normally packed together with the exe and must not bother the user with UI connecting to some other server. we are allowing connections to another server just for debug/convenience but only as long as it doesn't interfere with the main design. Although the web technology is designed for client-server connection this app is not to be thought like that. it must not implement code that cause restrictions of features that a native UI in windows would have. the choice of this technology is for final exe size not for the client-server connection design of the web. the architecture: tray UI (access to native windows dialog) - daemon transfer server (minimal memory requirements running in background) - and UI in web browser (so we don't have to ship QT or other frameworks) is designed for smallest exe size and properly designed allows any feature that a native windows app can take. we must always have in mind what we try to achieve and not compromise the final prupose.
-
 
 # **AGENTS.md — TinyTorrent Mission Specification**
 
@@ -12,36 +10,56 @@ Single authoritative reference for the architecture, UI/UX rules, design tokens,
 
 TinyTorrent = **modern µTorrent** × **glass UI** × **Windows 11 acrylic polish** × **VS Code workbench**.
 
-### Identity pillars:
+### Identity pillars
 
--   **Speed:** No lag. No hesitation.
--   **Stealth:** Dark-first visual identity (system mode respected automatically).
--   **Zero Bloat:** Extremely small executable.
--   **World-Class Visuals:** Premium, clean, and effortless.
--   **Native HUD Feel:** Glass, blur, depth, minimal chrome.
--   **Workbench, Not a Webpage:** Split panes, pinned inspectors, OS-level behavior.
--   **Accessibility:** Controls must be visually clear, easy to target, and comfortable for less-technical users without compromising professional data density.
-
----
-
-# **2. Architecture**
-
--   **Frontend:** React 19 + TypeScript + Vite
--   **Styling:** TailwindCSS v4 + HeroUI
--   **Motion:** Framer Motion — required for all interactive state changes (layout, sorting, drag). Complex components must use motion to express structure.
--   **Drag & Drop:** `react-dropzone` (full-window detection)
--   **Icons:** Lucide (tree-shaken)
--   **State:** React Hooks; Zustand only when truly necessary
--   **Data/Validation:** **Zod** is mandatory for all RPC boundaries. Never trust the backend blindly.
--   **Virtualization:** `@tanstack/react-virtual` is **mandatory** for any list > 50 items (Torrents, Files, Peers).
--   **Command Palette:** `cmdk` for keyboard-driven navigation (`Cmd+K`).
--   **Layout Engine:** `react-resizable-panels` (**CRITICAL**). Do not attempt to write custom drag-handle logic. This library provides the VS Code–like split-pane behavior (smooth resizing, min/max constraints, collapsing).
--   **Window Controls:** Custom Titlebar implementation (frameless window).
--   **Context:** `React Context` for global focus tracking (e.g., `FocusContext`: is the user in the Table, the Search, or the Inspector?).
+- **Speed:** No lag. No hesitation.
+- **Stealth:** Dark-first visual identity (system mode respected automatically).
+- **Zero Bloat:** Extremely small executable size.
+- **World-Class Visuals:** Premium, jaw-dropping, and effortless. **Not compact—confident.**
+- **Native HUD Feel:** Glass, blur, depth, minimal chrome.
+- **Workbench, Not a Webpage:** Split panes, pinned inspectors, OS-level behavior.
+- **Accessibility:** Controls must be visually clear, easy to target, and comfortable. Use intentional whitespace and large hit-targets to create a "premium tool" feel.
 
 ---
 
-## **§2a. Frontend Runtime Model (Authoritative)**
+# **2. Absolute Clarification: Desktop Feel ≠ Compact UI**
+
+**Compact UI is explicitly NOT a goal.** TinyTorrent is not a spreadsheet; it is a high-end command center.
+
+### **The Density Rule (Authoritative)**
+>
+> **Density is achieved through information design, not UI shrinkage.**
+
+- **Visual Excellence:** Bigger, confident controls. Large hit-targets that feel "expensive" and premium.
+- **Avoid Fragility:** No "precision clicking." If a design choice shows more rows but makes the UI feel cramped, it is a design error.
+- **Desktop Tool Feel:** This refers to **behavioral determinism** (shortcuts, selection, focus, right-click authority), not to the size of the buttons.
+- **HeroUI:** HeroUI is our premium control layer. Its components must **never** be visually neutered or shrunk to appear "compact." Default or larger sizing is preferred.
+
+---
+
+# **3. Architecture**
+
+**Frontend Core Philosophy:**
+The front end is an UI that runs for a single purpose: to control the daemon that runs with it, on the same machine; it is normally packed together with the exe and must not bother the user with UI connecting to some other server. we are allowing connections to another server just for debug/convenience but only as long as it doesn't interfere with the main design. Although the web technology is designed for client-server connection this app is not to be thought like that. it must not implement code that cause restrictions of features that a native UI in windows would have. the choice of this technology is for final exe size not for the client-server connection design of the web. the architecture: tray UI (access to native windows dialog) - daemon transfer server (minimal memory requirements running in background) - and UI in web browser (so we don't have to ship QT or other frameworks) is designed for smallest exe size and properly designed allows any feature that a native windows app can take. we must always have in mind what we try to achieve and not compromise the final purpose.
+
+### **Stack:**
+
+- **Frontend:** React 19 + TypeScript + Vite
+- **Styling:** TailwindCSS v4 + HeroUI (Premium Control Layer)
+- **Motion:** Framer Motion — required for all interactive state changes (layout, sorting, drag). Complex components must use motion to express structure.
+- **Drag & Drop:** `react-dropzone` (full-window detection)
+- **Icons:** Lucide (tree-shaken)
+- **State:** React Hooks; Zustand only when truly necessary
+- **Data/Validation:** **Zod** is mandatory for all RPC boundaries. Never trust the backend blindly.
+- **Virtualization:** `@tanstack/react-virtual` is **mandatory** for any list > 50 items (Torrents, Files, Peers).
+- **Command Palette:** `cmdk` for keyboard-driven navigation (`Cmd+K`).
+- **Layout Engine:** `react-resizable-panels` (**CRITICAL**). This library provides the VS Code–like split-pane behavior (smooth resizing, min/max constraints, collapsing).
+- **Window Controls:** Custom Titlebar implementation (frameless window).
+- **Context:** `React Context` for global focus tracking (e.g., `FocusContext`: is the user in the Table, the Search, or the Inspector?).
+
+---
+
+## **§3a. Frontend Runtime Model (Authoritative)**
 
 **TinyTorrent’s frontend is not a client in a client–server product.**
 
@@ -49,17 +67,17 @@ It is a **local UI** whose **single purpose** is to control the **local daemon i
 
 The default and primary runtime model is:
 
-* UI ↔ daemon
-* local
-* trusted
-* no network concepts exposed to the user
+- UI ↔ daemon
+- local
+- trusted
+- no network concepts exposed to the user
 
 Remote connections are allowed **only** for debugging or convenience and must **never**:
 
-* alter core behavior
-* reduce available features
-* influence UX decisions
-* impose artificial limitations
+- alter core behavior
+- reduce available features
+- influence UX decisions
+- impose artificial limitations
 
 If a feature behaves differently because the server is “remote”, that is a **design error**.
 
@@ -69,16 +87,16 @@ If a feature behaves differently because the server is “remote”, that is a *
 
 Web technology is used **only** to:
 
-* minimize final executable size
-* avoid shipping heavy UI frameworks (Qt, GTK, etc.)
+- minimize final executable size
+- avoid shipping heavy UI frameworks (Qt, GTK, etc.)
 
 It does **not** define the product model.
 
 TinyTorrent must **not** be designed as:
 
-* a web app
-* a browser-constrained client
-* a network-first system
+- a web app
+- a browser-constrained client
+- a network-first system
 
 Web-related limitations must **not** restrict features that a native Windows UI would reasonably have.
 
@@ -92,42 +110,39 @@ TinyTorrent is a **local three-part system**:
 
 1. **Tray / Native Shell**
 
-   * Native Windows dialogs
-   * **WebView2 Window Host** (Zero-bloat native shell)
+   - Native Windows dialogs
+   - **WebView2 Window Host** (Zero-bloat native shell)
 
 2. **Daemon**
 
-   * Minimal memory footprint
-   * Runs in background
-   * Owns all torrent state
+   - Minimal memory footprint
+   - Runs in background
+   - Owns all torrent state
 
 3. **UI (Managed Native Window)**
 
-   * React-driven workbench hosted in the Native Shell
-   * No business logic
-   * Uses **Native Message Bridge** for OS-level features (Focus, Dialogs)
+   - React-driven workbench hosted in the Native Shell
+   - No business logic
+   - Uses **Native Message Bridge** for OS-level features (Focus, Dialogs)
 
 This architecture exists to achieve **smallest possible size and overhead**, not to emulate a web client–server product.
 
 ---
 
-## **§2b. The Native Bridge (WebView2 Rules)**
+## **§3b. The Native Bridge (WebView2 Rules)**
 
 When running as a desktop app, the UI must bypass browser-layer limitations:
 
 1. **Deterministic Focus**
  The Native Shell owns the window handle (`HWND`). Standard Win32 `SetForegroundWindow` is used for activation. The "Title Swap Handshake" is deprecated.
 
-
 2. **System Services**
    The UI communicates with the Native Shell via `window.chrome.webview.postMessage`.
-    * **Native Path:** UI → Native Shell (C++) → Win32 API.
-    * **Fallback Path:** UI → Daemon (RPC) → Logic (for remote/standard browser use).
-
+    - **Native Path:** UI → Native Shell (C++) → Win32 API.
+    - **Fallback Path:** UI → Daemon (RPC) → Logic (for remote/standard browser use).
 
 3. **Window Lifecycle**
  The window is a "View." Closing the window must **Hide** the window, not terminate the process. Termination is only handled via the Tray's "Exit" or `app-shutdown` command.
-
 
 ---
 
@@ -137,9 +152,9 @@ All frontend decisions must pass this test:
 
 > *Would a native Windows UI reasonably be allowed to do this?*
 
-* Yes → allowed
-* No → reject
-* “Web limitation” → redesign
+- Yes → allowed
+- No → reject
+- “Web limitation” → redesign
 
 **Purpose overrides tooling.**
 
@@ -176,13 +191,13 @@ To prevent "Slow Table / Fast CPU Burn":
 
 ## **UI Scale System**
 
--   All interactive element sizes (icons, hit areas, paddings) are derived from central config.
--   Do **not** use Tailwind pixel-based sizing classes (`w-5`, `h-6`, `text-[14px]`) directly.
--   All sizing must reference scale tokens or semantic utility classes derived from config.
+- All interactive element sizes (icons, hit areas, paddings) are derived from central config.
+- Do **not** use Tailwind pixel-based sizing classes (`w-5`, `h-6`, `text-[14px]`) directly.
+- All sizing must reference scale tokens or semantic utility classes derived from config.
 
 ---
 
-# **3. Theming & Semantic Tokens**
+# **4. Theming & Semantic Tokens**
 
 **Mandatory:**
 Use **HeroUI semantic tokens** everywhere.
@@ -200,11 +215,11 @@ We use Tailwind's opacity modifier (`/opacity`) on HeroUI tokens. This preserves
 **Rule:**
 Every "Glass" layer (Layers 1 & 2) must have a subtle border (`border-default/xx`) to define its edge. Using `border-default` ensures the border is dark in Light Mode and light in Dark Mode automatically.
 
--   **Layer 0 (App Shell):**
+- **Layer 0 (App Shell):**
 
-    -   Transparency should allow OS window material to show through if supported (Mica-like effect).
-    -   Fallback colors and noise parameters are defined centrally in `config/constants.json`; no inline hex in JSX/TSX.
-    -   The app background must visually read as "Chrome Gray", not pure white/black. Content tables sit **on top** using `bg-background`.
+  - Transparency should allow OS window material to show through if supported (Mica-like effect).
+  - Fallback colors and noise parameters are defined centrally in `config/constants.json`; no inline hex in JSX/TSX.
+  - The app background must visually read as "Chrome Gray", not pure white/black. Content tables sit **on top** using `bg-background`.
 
 ### **Semantic Status Mapping**
 
@@ -226,19 +241,19 @@ These mappings must be consistent across the app (Text, Badges, Icons, Graphs):
 
 **Use:**
 
--   `var(--heroui-background)`
--   `var(--heroui-content1)`
--   `var(--heroui-foreground)`
--   `var(--heroui-primary)`
--   `var(--heroui-default)` (for borders/dividers)
--   Tailwind utilities only when they wrap these semantic tokens.
+- `var(--heroui-background)`
+- `var(--heroui-content1)`
+- `var(--heroui-foreground)`
+- `var(--heroui-primary)`
+- `var(--heroui-default)` (for borders/dividers)
+- Tailwind utilities only when they wrap these semantic tokens.
 
 **Avoid:**
 
--   Custom hex / rgb colors in JSX/TSX
--   Tailwind named colors (`bg-slate-900`, etc.)
--   Hard-coded `border-white` / `border-black` (breaks theme switching)
--   Manual `rgba()` color calculations
+- Custom hex / rgb colors in JSX/TSX
+- Tailwind named colors (`bg-slate-900`, etc.)
+- Hard-coded `border-white` / `border-black` (breaks theme switching)
+- Manual `rgba()` color calculations
 
 All shell-level constants (fallback grays, noise strength, etc.) live in `config/constants.json`, never inline.
 
@@ -252,34 +267,33 @@ All spacing, sizing, radius, and scale values must come from configuration token
 
 When fixing zoom-related or css magic number issues issues:
 
- - You may NOT introduce any new numeric literals (integers or floats), even inside `calc()`.
- - Replacements must use:
+- You may NOT introduce any new numeric literals (integers or floats), even inside `calc()`.
+- Replacements must use:
 
-   - existing semantic tokens, or
-   - existing primitives (`--u`, `--z`, `--fz`) *without introducing new coefficients*.
- - If no suitable token exists, the element must be left unchanged and flagged instead.
+  - existing semantic tokens, or
+  - existing primitives (`--u`, `--z`, `--fz`) *without introducing new coefficients*.
+- If no suitable token exists, the element must be left unchanged and flagged instead.
 
  **Consistency & Convergence Rule**
 >
- - Do NOT introduce one-off variables.
- - If a numeric value represents a concept that appears more than once (width, padding, icon size, column size, max-width, etc.), it MUST map to a **single semantic variable**.
- - Before introducing or using any variable, check whether an existing variable already represents the same meaning.
- - If no such variable exists, DO NOT invent a new one — flag it instead.
- - Multiple variables for the same semantic role are forbidden.
-
+- Do NOT introduce one-off variables.
+- If a numeric value represents a concept that appears more than once (width, padding, icon size, column size, max-width, etc.), it MUST map to a **single semantic variable**.
+- Before introducing or using any variable, check whether an existing variable already represents the same meaning.
+- If no such variable exists, DO NOT invent a new one — flag it instead.
+- Multiple variables for the same semantic role are forbidden.
 
 ### **Aesthetic**
 
--   Detect system dark/light mode and use it automatically; fallback = Dark.
--   Detect system/browser language and use it; fallback = English.
--   Glass layers (backdrop-blur) for all UI surfaces that float or overlay.
--   Controls (buttons, icons, chips) use enlarged visual size and comfortable hit areas to improve usability without inflating layouts.
--   Strong typography hierarchy (Swiss style).
--   Layered shadows used sparingly for depth — never decoration.
+- Detect system dark/light mode and use it automatically; fallback = Dark.
+- Detect system/browser language and use it; fallback = English.
+- Glass layers (backdrop-blur) for all UI surfaces that float or overlay.
+- Controls (buttons, icons, chips) use enlarged visual size and comfortable hit areas to improve usability without inflating layouts.
+- Strong typography hierarchy (Swiss style).
+- Layered shadows used sparingly for depth — never decoration.
 
 ---
 
-# **4. UI/UX Philosophy**
+# **5. UI/UX Philosophy**
 
 ### **The "Tool" Interaction Model**
 
@@ -317,11 +331,11 @@ TinyTorrent is an **OS-level tool**, not a webpage.
 
 ### **Focus Model (VS Code–Style)**
 
--   Only **one Part** (Main, Inspector) holds "active focus" at a time.
--   Arrow keys, PageUp/PageDown, Home/End operate on the **active Part** only.
--   Switching Parts updates the global `FocusContext`.
--   The active Part must show a subtle focus border using HeroUI tokens (no custom colors).
--   `Escape` clears selection within the active Part but does **not** change which Part is active.
+- Only **one Part** (Main, Inspector) holds "active focus" at a time.
+- Arrow keys, PageUp/PageDown, Home/End operate on the **active Part** only.
+- Switching Parts updates the global `FocusContext`.
+- The active Part must show a subtle focus border using HeroUI tokens (no custom colors).
+- `Escape` clears selection within the active Part but does **not** change which Part is active.
 
 ---
 
@@ -329,33 +343,33 @@ TinyTorrent is an **OS-level tool**, not a webpage.
 
 Every interaction must be:
 
--   Physically obvious
--   Reversible
--   Continuous
--   Consistent with a professional workbench tool
+- Physically obvious
+- Reversible
+- Continuous
+- Consistent with a professional workbench tool
 
 Complex widgets must behave like a **workspace**:
 
--   zoomable
--   pannable
--   resizable
--   draggable
--   comparable
--   reorderable
--   state-aware
--   motion-coherent
+- zoomable
+- pannable
+- resizable
+- draggable
+- comparable
+- reorderable
+- state-aware
+- motion-coherent
 
 ---
 
 ### **Interaction Principles**
 
--   Full-window drop zone with animated overlay.
--   Auto-paste for magnet links (detect & parse from clipboard).
--   Context menus everywhere (rows, inspector areas).
--   Keyboard-first for core actions.
--   Continuous feedback — no dead states.
--   Minimal chrome, maximal clarity.
--   No click-hunting — controls appear where they’re needed.
+- Full-window drop zone with animated overlay.
+- Auto-paste for magnet links (detect & parse from clipboard).
+- Context menus everywhere (rows, inspector areas).
+- Keyboard-first for core actions.
+- Continuous feedback — no dead states.
+- Minimal chrome, maximal clarity.
+- No click-hunting — controls appear where they’re needed.
 
 ---
 
@@ -363,29 +377,29 @@ Complex widgets must behave like a **workspace**:
 
 Motion clarifies structure; it is not decoration.
 
--   Lists use `framer-motion`'s `layout` prop so rows glide into place when sorted/filtered.
--   Buttons: micro-scale + subtle color shift on hover/press.
--   Icons: task-specific motion (subtle spin for "checking", pulse for "active", etc.).
--   Rows: animate on reorder/selection.
--   Progress bars: smooth transitions, never jumpy.
--   Modals: fade + slide + depth bloom (Layer 2).
--   Overlays: opacity + blur transitions.
--   Workbench zoom/pan: eased, continuous.
+- Lists use `framer-motion`'s `layout` prop so rows glide into place when sorted/filtered.
+- Buttons: micro-scale + subtle color shift on hover/press.
+- Icons: task-specific motion (subtle spin for "checking", pulse for "active", etc.).
+- Rows: animate on reorder/selection.
+- Progress bars: smooth transitions, never jumpy.
+- Modals: fade + slide + depth bloom (Layer 2).
+- Overlays: opacity + blur transitions.
+- Workbench zoom/pan: eased, continuous.
 
 ---
 
-# **5. Component System**
+# **6. Component System**
 
 ### **Core**
 
--   HeroUI for controls
--   Sticky blurred header
--   Monospace font for numbers/speeds
--   Sans-serif for names/labels
--   Thin, minimal progress bars
--   Optional sparkline SVGs allowed
--   No row flicker on updates
--   Row-level motion for selection, hover, reorder
+- HeroUI for controls (Confident sizing, no shrinking)
+- Sticky blurred header
+- Monospace font for numbers/speeds
+- Sans-serif for names/labels
+- Thin, minimal progress bars
+- Optional sparkline SVGs allowed
+- No row flicker on updates
+- Row-level motion for selection, hover, reorder
 
 ---
 
@@ -393,72 +407,72 @@ Motion clarifies structure; it is not decoration.
 
 Do not build a "God Component".
 
--   **Dashboard Grid (`Dashboard_Grid.tsx`)**
+- **Dashboard Grid (`Dashboard_Grid.tsx`)**
 
-    -   Heavy
-    -   Virtualized
-    -   Supports row drag & drop (queue management)
-    -   Marquee selection
-    -   Optional sparklines
+  - Heavy
+  - Virtualized
+  - Supports row drag & drop (queue management)
+  - Marquee selection
+  - Optional sparklines
 
--   **Details Grid (`SimpleVirtualTable.tsx`)**
+- **Details Grid (`SimpleVirtualTable.tsx`)**
 
-    -   Light
-    -   Virtualized
-    -   Sorting only
-    -   Used for Files/Peers
+  - Light
+  - Virtualized
+  - Sorting only
+  - Used for Files/Peers
 
 ---
 
 ### **Modals**
 
--   Instant autofocus on primary field
--   Layer 2 visuals (blur + depth shadow)
--   Framer Motion transitions
--   Must feel like floating panels inside a HUD
--   No heavy chrome, no wasted margins
+- Instant autofocus on primary field
+- Layer 2 visuals (blur + depth shadow)
+- Framer Motion transitions
+- Must feel like floating panels inside a HUD
+- No heavy chrome, no wasted margins
 
 **Usage Rule:**
 
--   Modals are **only** for blocking actions:
+- Modals are **only** for blocking actions:
 
-    -   Add Torrent
-    -   Settings
-    -   Confirm Delete (and similar destructive actions)
+  - Add Torrent
+  - Settings
+  - Confirm Delete (and similar destructive actions)
 
--   **Never** use modals for passive data viewing (details, peers, files). These belong in the **Inspector Pane**.
+- **Never** use modals for passive data viewing (details, peers, files). These belong in the **Inspector Pane**.
 
 ---
 
 ### **Buttons**
 
--   Primary = `variant="shadow"` (HeroUI)
--   Secondary = `light` / `ghost`
--   Toolbar commands = icon-only buttons
--   All buttons must animate on hover/press (scale + shadow or background)
+- Primary = `variant="shadow"` (HeroUI)
+- Secondary = `light` / `ghost`
+- Toolbar commands = icon-only buttons
+- All buttons must animate on hover/press (scale + shadow or background)
 
 ---
 
 ### **Drag & Drop Overlay**
 
--   Full-window detection via `react-dropzone`
--   Glass layer with kinetic fade-in
--   Bold “Drop to Add Torrent” text (localized)
--   Dims background but keeps context visible
--   Cancels instantly on drag-out
+- Full-window detection via `react-dropzone`
+- Glass layer with kinetic fade-in
+- Bold “Drop to Add Torrent” text (localized)
+- Dims background but keeps context visible
+- Cancels instantly on drag-out
 
 ---
 
 ### **Iconography (Lucide)**
 
--   Icons as data:
+- Icons as data:
 
-    -   Play/Pause/Stop/Check for state
-    -   Arrows for priority/up/down
-    -   Filetype icons for files
+  - Play/Pause/Stop/Check for state
+  - Arrows for priority/up/down
+  - Filetype icons for files
 
--   Icons must always use semantic colors via HeroUI tokens.
--   Icon sizing is driven by the global UI scale config, not hard-coded pixel sizes.
+- Icons must always use semantic colors via HeroUI tokens.
+- Icon sizing is driven by the global UI scale config, not hard-coded pixel sizes.
 
 ---
 
@@ -466,14 +480,14 @@ Do not build a "God Component".
 
 Any component that presents data visually (e.g., peer map, bandwidth graphs) must behave like a **workspace**:
 
--   Smooth zoom (scroll wheel / pinch)
--   Smooth pan (click-drag)
--   Reset view control
--   Motion-driven transforms for transitions
+- Smooth zoom (scroll wheel / pinch)
+- Smooth pan (click-drag)
+- Reset view control
+- Motion-driven transforms for transitions
 
 ---
 
-## **5a. The Workbench Layout (Panel Strategy)**
+## **6a. The Workbench Layout (Panel Strategy)**
 
 Instead of "modals for details", TinyTorrent uses a **Master–Detail Workbench**.
 
@@ -522,21 +536,21 @@ Instead of "modals for details", TinyTorrent uses a **Master–Detail Workbench*
 
 ---
 
-## **5b. Workbench Model (VS Code Architecture)**
+## **6b. Workbench Model (VS Code Architecture)**
 
 TinyTorrent adopts a simplified VS Code workbench structure:
 
--   **Part** → major region (Main, Inspector)
--   **Container** → persistent layout node that holds one or more panes
--   **Pane** → resizable element managed by `react-resizable-panels`
--   **View** → React component rendered inside a pane (e.g., TorrentGridView, FilesView, PeersView)
+- **Part** → major region (Main, Inspector)
+- **Container** → persistent layout node that holds one or more panes
+- **Pane** → resizable element managed by `react-resizable-panels`
+- **View** → React component rendered inside a pane (e.g., TorrentGridView, FilesView, PeersView)
 
 **Rules:**
 
--   Parts never unmount.
--   Containers always exist, even when collapsed to size 0.
--   Views may change or be swapped, but their hosting pane stays mounted.
--   All resizing, collapsing, and restoring happens at the **Pane** level.
+- Parts never unmount.
+- Containers always exist, even when collapsed to size 0.
+- Views may change or be swapped, but their hosting pane stays mounted.
+- All resizing, collapsing, and restoring happens at the **Pane** level.
 
 This model guarantees IDE-like continuity: stable scroll state, predictable focus, and zero layout pop-in.
 
@@ -544,17 +558,17 @@ This model guarantees IDE-like continuity: stable scroll state, predictable focu
 
 ## **Layout Implementation Strategy**
 
--   The **main application layout** is built entirely using `react-resizable-panels`.
--   Flexbox/Grid is allowed **inside views**, not for structuring Parts.
--   Every Part (Main, Inspector) maps to a Pane.
--   Panes never unmount; collapse → size 0, expand → restore last size.
--   Handles are invisible until hovered, then show a 1 px separator line.
--   Pinning = assigning a non-zero `defaultSize` or `minSize`.
--   Unpinning = collapsing the pane back to size 0.
+- The **main application layout** is built entirely using `react-resizable-panels`.
+- Flexbox/Grid is allowed **inside views**, not for structuring Parts.
+- Every Part (Main, Inspector) maps to a Pane.
+- Panes never unmount; collapse → size 0, expand → restore last size.
+- Handles are invisible until hovered, then show a 1 px separator line.
+- Pinning = assigning a non-zero `defaultSize` or `minSize`.
+- Unpinning = collapsing the pane back to size 0.
 
 ---
 
-# **6. RPC Layer (Protocol Strategy)**
+# **7. RPC Layer (Protocol Strategy)**
 
 TinyTorrent is in a **Transition Phase**.
 
@@ -584,69 +598,69 @@ The frontend runs on a **dual transport**:
 
 ## **Connection & Authentication UI (Hard Rules)**
 
--   Before a connection attempt completes, show only server address + port (no credential fields).
--   After the attempt completes (success or error), detect whether the server is a standard Transmission server or a TinyTorrent server.
--   Only then render the correct credential UI:
-    -   Transmission server → username + password
-    -   TinyTorrent server → authorization token
--   Always attempt to connect automatically using saved credentials; if none are saved, attempt an anonymous connection.
--   Regardless of the result, the user can edit credentials and reconnect.
+- Before a connection attempt completes, show only server address + port (no credential fields).
+- After the attempt completes (success or error), detect whether the server is a standard Transmission server or a TinyTorrent server.
+- Only then render the correct credential UI:
+  - Transmission server → username + password
+  - TinyTorrent server → authorization token
+- Always attempt to connect automatically using saved credentials; if none are saved, attempt an anonymous connection.
+- Regardless of the result, the user can edit credentials and reconnect.
 
 ---
 
 ## **Design Rules**
 
--   **Transmission RPC is the Law**
+- **Transmission RPC is the Law**
     Use Transmission RPC spec for everything (Session, Stats, Torrent Get/Set). No custom protocol for base operations.
 
--   **Zod at the Gate**
+- **Zod at the Gate**
     All incoming data is validated. If the future libtorrent daemon sends malformed Transmission DTOs, Zod must catch it before it reaches UI.
 
--   **EngineAdapter Interface**
+- **EngineAdapter Interface**
     UI components are backend-agnostic and call `adapter.getTorrents()`, `adapter.getDetails(id)`, etc.
 
-    -   Now: adapter uses `fetch('/transmission/rpc')`.
-    -   Future: adapter may receive pushed frames, but the UI contract is unchanged.
+  - Now: adapter uses `fetch('/transmission/rpc')`.
+  - Future: adapter may receive pushed frames, but the UI contract is unchanged.
 
 ---
 
 ## **Data Handling**
 
--   Strictly typed — use `transmission-rpc-typescript` types (or equivalent) as source of truth.
--   Even over HTTP polling, use `ids` to request only changed torrents.
--   Prefer **delta updates** to keep standard daemon load minimal.
+- Strictly typed — use `transmission-rpc-typescript` types (or equivalent) as source of truth.
+- Even over HTTP polling, use `ids` to request only changed torrents.
+- Prefer **delta updates** to keep standard daemon load minimal.
 
 ---
 
-# **7. Internationalization (Stack Level)**
+# **8. Internationalization (Stack Level)**
 
--   i18next
--   Only `en.json` is required for MVP.
--   All text must come from translation keys — no exceptions.
+- i18next
+- Only `en.json` is required for MVP.
+- All text must come from translation keys — no exceptions.
 
 ---
 
-# **8. Quality & Performance Standards**
+# **9. Quality & Performance Standards**
 
 ### Requirements
 
--   Virtualization mandatory for lists > 50 items.
--   No console noise.
--   No unused imports.
--   Strict TypeScript everywhere.
--   Minimal bundle size.
--   Clean build (`npm run build` must pass).
--   Visually consistent, dark-mode-first UI with correct light mode.
+- Virtualization mandatory for lists > 50 items.
+- No console noise.
+- No unused imports.
+- Strict TypeScript everywhere.
+- Minimal bundle size.
+- Clean build (`npm run build` must pass).
+- Visually consistent, dark-mode-first UI with correct light mode.
 
 ### Rendering
 
--   Efficient row-level updates (selectors + fine-grained subscriptions).
--   Minimized unnecessary React re-renders.
--   No layout thrash (no repeated sync `measure → mutate` chains).
+- Efficient row-level updates (selectors + fine-grained subscriptions).
+- Minimized unnecessary React re-renders.
+- No layout thrash (no repeated sync `measure → mutate` chains).
 
 ---
 
-# **9. MVP Deliverables**
+# **10. MVP Deliverables**
 
 1. Glass App Shell (Layered Depth System).
 2. Dashboard Grid (Virtual, Sortable, Queue-Draggable).
@@ -659,67 +673,68 @@ The frontend runs on a **dual transport**:
 
 ---
 
-# **10. UX Excellence Directive**
+# **11. UX Excellence Directive**
 
 All agents operate as **tool-UI designers**, not marketing site designers.
 
 TinyTorrent must deliver **Adaptive Excellence**:
 
--   **Unified Professional Interface**
+- **Unified Professional Interface**
 
-    -   Single visual mode: Modern glass/blur workbench.
-    -   Functionality remains dense and keyboard-friendly.
-    -   Split-pane view: Details via Inspector, not popup chaos.
+  - Single visual mode: Modern glass/blur workbench.
+  - Functionality remains dense and keyboard-friendly.
+  - Split-pane view: Details via Inspector, not popup chaos.
 
--   **Professional Tool, Not a Webpage**
+- **Professional Tool, Not a Webpage**
 
-    -   Behavior is deterministic and precise.
-    -   Controls remain visually expressive and easy to target.
-    -   Respect old µTorrent/Transmission muscle memory, but deliver a fluid, modern workbench.
+  - Behavior is deterministic and precise.
+  - Controls remain visually expressive and easy to target.
+  - Respect old µTorrent/Transmission muscle memory, but deliver a fluid, modern workbench.
+  - **Jaw-Dropping Aesthetics:** The app must look better than any desktop tool ever has.
 
 ---
 
-# **11. Architectural Principles (Mandatory)**
+# **12. Architectural Principles (Mandatory)**
 
--   **HeroUI governs controls (buttons, inputs, menus).**
+- **HeroUI governs controls (buttons, inputs, menus).**
     The **Workbench Shell** (titlebar, panels, splitters, chrome, glass layers) is 100% custom.
     Tailwind + Motion define all shell surfaces, transitions, and layout behavior.
     No external UI frameworks beyond HeroUI + `react-resizable-panels`.
 
--   **One responsibility per unit.**
+- **One responsibility per unit.**
     Every component, hook, and module does exactly one thing.
 
--   **Pure UI.**
+- **Pure UI.**
     Components render. They don’t fetch, store, or decide business rules.
 
--   **Hard layer boundaries.**
+- **Hard layer boundaries.**
     Data flows: RPC → services → state/hooks → components.
     Never backwards, never sideways.
 
--   **Typed reality, not guesses.**
-    Data structures must match real RPC shapes exactly.
+- **Typed reality, not guesses.**
+    Data structures match real RPC shapes exactly.
 
--   **No magic.**
+- **No magic.**
     No hidden behaviors, no unexplained values, no silent side effects.
 
--   **Replaceable building blocks.**
+- **Replaceable building blocks.**
     Every UI piece should be swappable without breaking unrelated parts.
 
--   **Local state first.**
+- **Local state first.**
     Global state only when multiple distant parts truly need it.
 
--   **Deterministic behavior.**
+- **Deterministic behavior.**
     No randomness, no implicit rules. Everything explicit.
 
--   **Code must age well.**
+- **Code must age well.**
     Every change should increase clarity, not decrease it.
 
--   **Don’t reinvent solved problems.**
+- **Don’t reinvent solved problems.**
     Use libraries with purpose; avoid both legacy junk and unnecessary reinvention.
 
 ---
 
-# **12. Project Structure (Optimized for Single Developer)**
+# **13. Project Structure (Optimized for Single Developer)**
 
 Flat, high-maintenance structure optimized for speed and co-location.
 
@@ -769,38 +784,38 @@ src/
 
 ### **1. Features (`modules/`)**
 
--   Flat > nested. No `parts/`, `tabs/`, `components/` folders inside a module.
--   Use underscores to group related siblings: `Dashboard_Grid.tsx`.
--   Local hooks belong in `hooks.ts` inside the module.
+- Flat > nested. No `parts/`, `tabs/`, `components/` folders inside a module.
+- Use underscores to group related siblings: `Dashboard_Grid.tsx`.
+- Local hooks belong in `hooks.ts` inside the module.
 
 ### **2. Configuration (`config/`)**
 
--   Two-file rule:
+- Two-file rule:
 
     1. `constants.json` — literals only.
     2. `logic.ts` — types and computed logic.
 
--   No other files in root `config/`.
+- No other files in root `config/`.
 
 ### **3. Services (`services/`)**
 
--   Every service must define Zod schemas for its external data.
--   All RPC/network goes through adapters in `services/rpc`.
+- Every service must define Zod schemas for its external data.
+- All RPC/network goes through adapters in `services/rpc`.
 
 ### **4. Simplicity**
 
--   No folders without real code.
--   Avoid deep nesting.
--   Keep related logic physically close.
+- No folders without real code.
+- Avoid deep nesting.
+- Keep related logic physically close.
 
 ### **5. No Empty Folders**
 
--   Folders exist only if they contain meaningful code.
--   Delete any folder that becomes empty.
+- Folders exist only if they contain meaningful code.
+- Delete any folder that becomes empty.
 
 ---
 
-# **13. Coding Standards**
+# **14. Coding Standards**
 
 These guarantee consistency and prevent drift.
 
@@ -810,25 +825,25 @@ These guarantee consistency and prevent drift.
 
 **Components → PascalCase (with underscores for siblings)**
 
--   `DashboardView.tsx`
--   `Dashboard_Grid.tsx`
+- `DashboardView.tsx`
+- `Dashboard_Grid.tsx`
 
 **Hooks & Logic → camelCase**
 
--   `hooks.ts`
--   `useVirtualGrid.ts`
+- `hooks.ts`
+- `useVirtualGrid.ts`
 
 **Services → kebab-case**
 
--   `engine-adapter.ts`
+- `engine-adapter.ts`
 
 ---
 
 ## **2. Configuration Access**
 
--   Never hardcode numbers or colors in code.
--   Import literals from `@/config/constants.json`.
--   Import config logic from `@/config/logic.ts`.
+- Never hardcode numbers or colors in code.
+- Import literals from `@/config/constants.json`.
+- Import config logic from `@/config/logic.ts`.
 
 ---
 
@@ -847,16 +862,16 @@ Order inside a component file:
 
 ## **4. Service Isolation**
 
--   UI never calls `fetch` directly.
--   UI → hooks → service adapters → Zod → network.
+- UI never calls `fetch` directly.
+- UI → hooks → service adapters → Zod → network.
 
 ---
 
 ## **5. Indentation & Hygiene**
 
--   4-space indentation.
--   No empty folders.
--   Delete unused files immediately.
+- 4-space indentation.
+- No empty folders.
+- Delete unused files immediately.
 
 ## **6. Absolute Import Policy (Mandatory)**
 
@@ -916,25 +931,38 @@ export default defineConfig({
 });
 ```
 
-```
 ---
 
-# **14. Internationalization (Enforcement)**
+# **15. Internationalization (Enforcement)**
 
--   No hard-coded English anywhere in the codebase.
--   All visible UI text must be referenced through `t("…")`.
--   Work with `en.json` only. Ignore other translation files even if they exist.
--   When a new UI string is needed:
+- No hard-coded English anywhere in the codebase.
+- All visible UI text must be referenced through `t("…")`.
+- Work with `en.json` only. Ignore other translation files even if they exist.
+- When a new UI string is needed:
 
     1. Add key/value to `en.json`.
     2. Use `t("key")` in the component.
 
--   Agents must never output inline English text in JSX/TSX.
--   If a string appears inline, it must be moved to `en.json` automatically.
+- Agents must never output inline English text in JSX/TSX.
+- If a string appears inline, it must be moved to `en.json` automatically.
 
 ---
 
-# **Other**
+# **16. Final Authority Rule**
+
+When in doubt, the agent must ask:
+
+> **"Does this make the app feel more powerful, more confident, and more jaw-dropping?"**
+
+- If the answer is "It saves space" or "It looks compact," **reject it**.
+- If the answer is "It feels premium, cinematic, and authoritative," **accept it**.
+
+**One-Line North Star:**
+TinyTorrent must behave like a desktop tool and look better than desktop tools ever have.
+
+---
+
+# **Other Rules**
 
 1. Before reporting a task as completed, perform a review of the code and fix all important issues. Repeat until you are fully satisfied.
 2. Run `npm run build` and fix build errors if possible.
@@ -945,4 +973,3 @@ export default defineConfig({
     - `rg -n -C 5 "<pattern>" <path>`
 
 6. Never write complex or nested shell one-liners. If a command requires tricky quoting or multiple pipes, move it into a script file instead. All commands must be simple, cross-platform, and Windows-safe.
-```
