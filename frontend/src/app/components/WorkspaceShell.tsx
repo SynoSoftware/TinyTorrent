@@ -349,7 +349,7 @@ export function WorkspaceShell({
                                 { count: pendingDelete?.torrents.length ?? 0 }
                             )}
                         </ModalBody>
-                        <ModalFooter className="flex justify-end gap-3">
+                        <ModalFooter className="flex justify-end gap-tools">
                             <Button
                                 variant="light"
                                 onPress={() => clearPendingDelete()}
@@ -384,9 +384,9 @@ export function WorkspaceShell({
                     <div className="absolute inset-0 bg-background/95" />
                     <div className="absolute inset-0 mix-blend-screen opacity-50 bg-primary/20" />
                     <div className="absolute inset-0 mix-blend-screen opacity-40 bg-content1/15" />
-                    <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20" />
-                    <div className="absolute inset-x-[-20%] bottom-[-30%] h-shell-accent-large rounded-full bg-primary/30 blur-(--glass-blur) opacity-40" />
-                    <div className="absolute inset-x-[-15%] top-[-35%] h-shell-accent-medium rounded-full bg-blue-500/30 blur-(--glass-blur) opacity-35" />
+                    <div className="absolute inset-0 bg-noise opacity-20" />
+                    <div className="absolute left-1/2 -translate-x-1/2 bottom-0 h-shell-accent-large rounded-full bg-primary/30 blur-glass opacity-40" />
+                    <div className="absolute left-1/2 -translate-x-1/2 top-0 h-shell-accent-medium rounded-full bg-primary/30 blur-glass opacity-35" />
                 </div>
             )}
 
@@ -397,7 +397,11 @@ export function WorkspaceShell({
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: 6 }}
                         transition={TOAST_SPRING_TRANSITION}
-                        className="fixed bottom-6 right-6 z-40"
+                        className="fixed z-40"
+                        style={{
+                            bottom: "var(--spacing-panel)",
+                            right: "var(--spacing-panel)",
+                        }}
                     >
                         <Button
                             size="md"
@@ -416,13 +420,18 @@ export function WorkspaceShell({
                     className={cn(
                         "mx-auto flex w-full flex-1 flex-col",
                         isImmersiveShell
-                            ? "max-w-(--tt-shell-main-max-w) gap-6 px-4 py-6 sm:px-6 lg:px-10"
-                            : "gap-tools px-4 py-4"
+                            ? "gap-stage px-panel py-stage sm:px-stage lg:px-stage"
+                            : "gap-tools px-panel py-panel"
                     )}
+                    style={
+                        isImmersiveShell
+                            ? { maxWidth: "var(--tt-shell-main-max-w)" }
+                            : undefined
+                    }
                 >
                     {isImmersiveShell ? (
                         <div
-                            className="acrylic border border-white/10 shadow-[0_25px_70px_rgba(0,0,0,0.45)]"
+                            className="acrylic border border-white/10 shadow-hud"
                             style={{
                                 borderRadius: `${IMMERSIVE_CHROME_RADIUS}px`,
                                 padding: `${IMMERSIVE_CHROME_PADDING}px`,
@@ -437,7 +446,7 @@ export function WorkspaceShell({
                     {isImmersiveShell ? (
                         <>
                             <div
-                                className="acrylic flex-1 min-h-0 h-full border border-white/10 shadow-[0_35px_140px_rgba(0,0,0,0.45)]"
+                                className="acrylic flex-1 min-h-0 h-full border border-white/10 shadow-hud"
                                 style={{
                                     borderRadius: `${IMMERSIVE_MAIN_OUTER_RADIUS}px`,
                                     padding: `${IMMERSIVE_MAIN_PADDING}px`,
@@ -454,7 +463,7 @@ export function WorkspaceShell({
                                 </main>
                             </div>
                             {visibleHudCards.length > 0 ? (
-                                <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                                <section className="grid gap-panel md:grid-cols-2 xl:grid-cols-3">
                                     <AnimatePresence>
                                         {visibleHudCards.map((card) => {
                                             const Icon = card.icon;
@@ -482,7 +491,7 @@ export function WorkspaceShell({
                                                     }}
                                                     whileHover={{ y: -4 }}
                                                     className={cn(
-                                                        "glass-panel relative overflow-hidden border border-content1/10 bg-background/55 p-4 shadow-[0_20px_70px_rgba(0,0,0,0.4)]",
+                                                        "glass-panel relative overflow-hidden border border-content1/10 bg-background/55 p-panel shadow-hud",
                                                         card.surfaceClass
                                                     )}
                                                     style={{
@@ -496,7 +505,11 @@ export function WorkspaceShell({
                                                                 card.id
                                                             )
                                                         }
-                                                        className="absolute right-3 top-3 rounded-full bg-content1/20 p-1 text-foreground/60 transition hover:bg-content1/40 hover:text-foreground"
+                                                        className="absolute rounded-full bg-content1/20 p-tight text-foreground/60 transition hover:bg-content1/40 hover:text-foreground"
+                                                        style={{
+                                                            right: "var(--spacing-tight)",
+                                                            top: "var(--spacing-tight)",
+                                                        }}
                                                         aria-label={t(
                                                             "workspace.stage.dismiss_card",
                                                             {
@@ -534,10 +547,10 @@ export function WorkspaceShell({
                                                             <p className="text-sm text-foreground/60">
                                                                 {card.title}
                                                             </p>
-                                                            <p className="mt-1 text-lg font-semibold text-foreground">
+                                                            <p className="mt-tight text-lg font-semibold text-foreground">
                                                                 {card.label}
                                                             </p>
-                                                            <p className="mt-3 text-sm text-foreground/60">
+                                                            <p className="mt-panel text-sm text-foreground/60">
                                                                 {
                                                                     card.description
                                                                 }
@@ -554,7 +567,7 @@ export function WorkspaceShell({
                             )}
 
                             <div
-                                className="glass-panel border border-content1/10 bg-background/75 shadow-[0_25px_100px_rgba(0,0,0,0.45)] backdrop-blur-3xl"
+                                className="glass-panel border border-content1/10 bg-background/75 shadow-hud backdrop-blur-3xl"
                                 style={{
                                     borderRadius: `${IMMERSIVE_CHROME_RADIUS}px`,
                                     padding: `${IMMERSIVE_CHROME_PADDING}px`,

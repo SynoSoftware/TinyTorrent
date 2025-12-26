@@ -158,7 +158,7 @@ export function SystemInstallSection({
                 size="md"
                 variant={isSelected ? "shadow" : "ghost"}
                 color={isSelected ? "primary" : undefined}
-                className="uppercase h-8 px-3"
+                className="uppercase h-button px-panel"
                 style={{
                     fontSize: "var(--tt-font-size-base)",
                     letterSpacing: "var(--tt-tracking-wide)",
@@ -192,7 +192,7 @@ export function SystemInstallSection({
 
     return (
         <div className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-panel md:grid-cols-2">
                 <Input
                     label={t("settings.labels.installName")}
                     labelPlacement="outside"
@@ -214,9 +214,9 @@ export function SystemInstallSection({
                     onChange={(event) => setInstallArgs(event.target.value)}
                 />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-tight">
                 <p
-                    className="font-semibold uppercase tracking-[0.3em] text-foreground/50"
+                    className="font-semibold uppercase tracking-0-3 text-foreground/50"
                     style={{
                         fontSize: "var(--tt-font-size-base)",
                         letterSpacing: "var(--tt-tracking-wide)",
@@ -224,9 +224,11 @@ export function SystemInstallSection({
                 >
                     {t("settings.labels.installLocations")}
                 </p>
-                <div className="flex flex-wrap gap-2">{locationButtons}</div>
+                <div className="flex flex-wrap gap-tools">
+                    {locationButtons}
+                </div>
             </div>
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-tools">
                 <Switch
                     size="md"
                     isSelected={autorunSwitch.isSelected}
@@ -269,7 +271,7 @@ export function SystemInstallSection({
                     </span>
                 </Switch>
             </div>
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-tools">
                 <Button
                     size="md"
                     variant="shadow"
@@ -292,8 +294,8 @@ export function SystemInstallSection({
                     </p>
                 )}
                 {installResult && (
-                    <div className="space-y-3 rounded-2xl border border-content1/20 bg-content1/30 p-4">
-                        <div className="flex items-center justify-between gap-2">
+                    <div className="space-y-3 rounded-2xl border border-content1/20 bg-content1/30 p-panel">
+                        <div className="flex items-center justify-between gap-tools">
                             <span
                                 className={cn(
                                     "font-semibold uppercase",
@@ -330,7 +332,7 @@ export function SystemInstallSection({
                                 {installResult.message}
                             </p>
                         )}
-                        <div className="space-y-2">
+                        <div className="space-y-tight">
                             <div>
                                 <p
                                     className="font-semibold uppercase text-foreground/50"
@@ -343,7 +345,7 @@ export function SystemInstallSection({
                                     {t("settings.install.shortcuts_header")}
                                 </p>
                                 {shortcutEntries.length ? (
-                                    <ul className="mt-1 space-y-1 text-sm text-foreground/70">
+                                    <ul className="mt-tight space-y-tight text-sm text-foreground/70">
                                         {shortcutEntries.map(([key, value]) => {
                                             const labelKey =
                                                 SYSTEM_INSTALL_LOCATIONS.find(
@@ -353,7 +355,7 @@ export function SystemInstallSection({
                                             return (
                                                 <li
                                                     key={key}
-                                                    className="flex flex-col gap-0.5"
+                                                    className="flex flex-col gap-tight"
                                                 >
                                                     {labelKey && (
                                                         <span
@@ -376,14 +378,14 @@ export function SystemInstallSection({
                                         })}
                                     </ul>
                                 ) : (
-                                    <p className="mt-1 text-sm text-foreground/60">
+                                    <p className="mt-tight text-sm text-foreground/60">
                                         {t("settings.install.shortcuts_none")}
                                     </p>
                                 )}
                             </div>
                             <div>
                                 <p
-                                    className="font-semibold uppercase tracking-[0.3em] text-foreground/50"
+                                    className="font-semibold uppercase tracking-0-3 text-foreground/50"
                                     style={{
                                         fontSize: "var(--tt-font-size-base)",
                                     }}
@@ -397,7 +399,7 @@ export function SystemInstallSection({
                             {showHandlerSection && (
                                 <div>
                                     <p
-                                        className="font-semibold uppercase tracking-[0.3em] text-foreground/50"
+                                        className="font-semibold uppercase tracking-0-3 text-foreground/50"
                                         style={{
                                             fontSize:
                                                 "var(--tt-font-size-base)",

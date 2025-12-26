@@ -4,7 +4,7 @@
 @source '../node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}';
 @custom-variant dark (&:is(.dark *));
 
-@@theme {
+@theme {
     /* --- 1. Primitives --- */
     --u: 4px;
     --fz: 14px;
@@ -12,8 +12,14 @@
     --tt-uz: calc(var(--u) * var(--z));
 
     /* --- 2. Logical Roles (The Consistency Authority) --- */
-    --tt-p-panel: calc(var(--tt-uz) * 6); /* Interior of panels */
-    --tt-p-tight: calc(var(--tt-uz) * 3); /* Spacing for small items */
+    /* --- Panel spacing tiers (Tiered-Panel system) --- */
+    --tt-p-tight: calc(var(--tt-uz) * 2); /* p-tight (old p-1/p-2) */
+    --tt-p-panel: calc(
+        var(--tt-uz) * 4
+    ); /* p-panel (standard card/tab padding) */
+    --tt-p-stage: calc(
+        var(--tt-uz) * 6
+    ); /* p-stage (headers, modals, major sections) */
     --tt-gap-stage: calc(var(--tt-uz) * 4); /* Gaps between panels */
     --tt-gap-tools: calc(var(--tt-uz) * 2); /* Gaps between controls */
 
@@ -26,11 +32,29 @@
 
     /* --- 4. Mapping to Utilities --- */
     --spacing-panel: var(--tt-p-panel);
+    --spacing-stage: var(--tt-p-stage);
     --spacing-tight: var(--tt-p-tight);
     --gap-stage: var(--tt-gap-stage);
     --gap-tools: var(--tt-gap-tools);
     /* Backward-compatible alias to map to Tailwind semantic spacing names */
     --spacing-tools: var(--tt-gap-tools);
+    /* --- Column width tokens (Contextual Semantic Restoration) --- */
+    --tt-w-col-id: calc(var(--tt-uz) * 12); /* w-12 -> id column */
+    --tt-w-col-speed: calc(var(--tt-uz) * 24); /* w-24 -> speed column */
+    --tt-w-col-client: calc(
+        var(--tt-uz) * 28
+    ); /* w-28 -> client identification column */
+
+    /* --- Torrent table column topology (semantic, zoom-aware) --- */
+    --tt-col-icon: calc(var(--tt-uz) * 12); /* icon / checkbox column */
+    --tt-col-main: minmax(0, 1fr); /* fluid main column */
+    --tt-col-meta: calc(var(--tt-uz) * 30); /* meta/right column */
+
+    /* Friendly utility aliases */
+    --w-col-id: var(--tt-w-col-id);
+    --w-col-speed: var(--tt-w-col-speed);
+    --w-col-client: var(--tt-w-col-client);
+    /* (removed duplicate spacing-tight; authoritative value is --tt-p-tight above) */
     /* --- Forensic-mapped tokens (flagged items) --- */
     --tt-col-sparkline: calc(
         var(--tt-uz) * 16
@@ -205,6 +229,13 @@
         will-change: transform, filter;
     }
 
+    /* Torrent table grid topology bridge (single class) */
+    .grid-cols-torrent {
+        grid-template-columns: var(--tt-col-icon) var(--tt-col-main) var(
+                --tt-col-meta
+            );
+    }
+
     .pressable-row:active {
         transform: translateY(1px) scale(0.98);
         filter: brightness(1.08);
@@ -219,6 +250,77 @@
     .pressable-tab:active {
         transform: scale(0.92);
         filter: brightness(1.1);
+    }
+
+    /* Forensic: semantic replacements for banned arbitrary Tailwind brackets */
+    .tracking-0-2 {
+        letter-spacing: var(--tt-tracking-wide);
+    }
+    .tracking-0-3 {
+        letter-spacing: var(--tt-tracking-ultra);
+    }
+    .tracking-0-4 {
+        letter-spacing: var(--tt-tracking-ultra);
+    }
+
+    .blur-glass {
+        backdrop-filter: blur(var(--glass-blur));
+        -webkit-backdrop-filter: blur(var(--glass-blur));
+    }
+
+    .bg-noise {
+        background-image: url("https://grainy-gradients.vercel.app/noise.svg");
+        background-repeat: no-repeat;
+        background-size: cover;
+    }
+
+    .z-top {
+        z-index: 12000;
+    }
+
+    .shadow-success-glow {
+        box-shadow: 0 0 20px -5px rgba(var(--heroui-success-500), 0.2);
+    }
+    .shadow-danger-glow {
+        box-shadow: 0 0 20px -5px rgba(var(--heroui-danger-500), 0.2);
+    }
+    .shadow-visual-large {
+        box-shadow: 0 25px 75px rgba(0, 0, 0, 0.35);
+    }
+    .shadow-menu-large {
+        box-shadow: 0 18px 60px rgba(0, 0, 0, 0.55);
+    }
+    .shadow-dot {
+        box-shadow: 0 0 8px rgba(0, 0, 0, 0.25);
+    }
+    .shadow-availability {
+        box-shadow: 0 0 25px rgba(14, 165, 233, 0.25);
+    }
+    .shadow-context {
+        box-shadow: 0 20px 45px rgba(0, 0, 0, 0.35);
+    }
+
+    .drop-shadow-primary-small {
+        filter: drop-shadow(0 0 2px rgba(var(--heroui-primary-500), 0.3));
+    }
+
+    .opacity-03 {
+        opacity: 0.03;
+    }
+
+    .scale-98 {
+        transform: scale(0.98);
+    }
+
+    .max-w-tracker-name {
+        max-width: var(--tt-tracker-name-max-w);
+    }
+    .min-w-dir-picker {
+        min-width: var(--tt-directory-picker-max-w);
+    }
+
+    .max-w-tooltip {
+        max-width: var(--tt-modal-max-width);
     }
 
     /* LIGHT - emerald paper */
@@ -543,6 +645,9 @@ main .torrent-table-watermark {
     .gap-tools {
         gap: var(--spacing-tools);
     }
+    .gap-tight {
+        gap: var(--spacing-tight);
+    }
 
     .gap-stage {
         gap: var(--gap-stage);
@@ -632,6 +737,24 @@ main .torrent-table-watermark {
         max-height: var(--tt-command-palette-max-h);
     }
 
+    /* Column width utilities (Contextual Semantic Restoration) */
+    .w-col-id {
+        width: var(--w-col-id);
+    }
+
+    .w-col-speed {
+        width: var(--w-col-speed);
+    }
+
+    .w-col-client {
+        width: var(--w-col-client);
+    }
+
+    /* Sparkline width utility */
+    .w-sparkline {
+        width: var(--tt-col-sparkline);
+    }
+
     .h-shell-accent-large {
         height: var(--tt-shell-accent-large);
     }
@@ -640,17 +763,19 @@ main .torrent-table-watermark {
         height: var(--tt-shell-accent-medium);
     }
 
-    /* Small legacy text utilities (map numeric Tailwind bracket usages to semantic names) */
-    .text-9px {
-        font-size: 9px;
+    /* Consolidated label typography */
+    .text-label {
+        font-size: var(--font-size-label);
+        line-height: 1;
     }
 
-    .text-10px {
-        font-size: 10px;
+    /* Shadow tokens for HUD and nav to avoid arbitrary bracket shadows */
+    .shadow-hud {
+        box-shadow: 0 35px 60px rgba(0, 0, 0, 0.45);
     }
 
-    .text-11px {
-        font-size: 11px;
+    .shadow-nav {
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.28);
     }
     .h-peers-hud {
         height: var(--tt-peers-hud-height);

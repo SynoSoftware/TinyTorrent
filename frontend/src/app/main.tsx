@@ -44,7 +44,7 @@ createRoot(document.getElementById("root")!).render(
                                 },
                             }}
                             regionProps={{
-                                className: "z-[12000]",
+                                className: "z-top",
                             }}
                         />
                     </WorkspaceModalProvider>

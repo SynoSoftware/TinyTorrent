@@ -21,8 +21,8 @@ export const PiecesTab = ({
     const { t } = useTranslation();
 
     return (
-        <div className="h-full flex flex-col gap-4">
-            <GlassPanel className="flex-1 overflow-hidden p-4">
+        <div className="h-full flex flex-col gap-panel">
+            <GlassPanel className="flex-1 overflow-hidden p-panel">
                 <PiecesMap
                     percent={piecePercent}
                     pieceCount={pieceCount}
@@ -30,7 +30,7 @@ export const PiecesTab = ({
                     pieceStates={pieceStates}
                 />
             </GlassPanel>
-            <GlassPanel className="flex-1 overflow-hidden p-4">
+            <GlassPanel className="flex-1 overflow-hidden p-panel">
                 <AvailabilityHeatmap
                     pieceAvailability={pieceAvailability}
                     label={t("torrent_modal.availability.label")}

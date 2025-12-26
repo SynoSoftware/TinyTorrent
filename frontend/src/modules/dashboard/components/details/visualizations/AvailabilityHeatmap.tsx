@@ -249,14 +249,14 @@ export const AvailabilityHeatmap = ({
 
     if (!hasAvailability) {
         return (
-            <div className="rounded-2xl border border-content1/20 bg-content1/10 p-4 text-scaled text-foreground/50 text-center">
+            <div className="rounded-2xl border border-content1/20 bg-content1/10 p-panel text-scaled text-foreground/50 text-center">
                 {emptyLabel}
             </div>
         );
     }
 
     return (
-        <motion.div layout className="flex flex-col gap-3">
+        <motion.div layout className="flex flex-col gap-tools">
             <div className="flex items-center justify-between">
                 <span
                     className="text-xs font-semibold uppercase text-foreground/50"
@@ -264,15 +264,15 @@ export const AvailabilityHeatmap = ({
                 >
                     {label}
                 </span>
-                <div className="flex items-center gap-3 text-scaled text-foreground/50">
-                    <span className="flex items-center gap-1">
+                <div className="flex items-center gap-tools text-scaled text-foreground/50">
+                    <span className="flex items-center gap-tight">
                         <span
                             className="size-dot rounded-full"
                             style={{ backgroundColor: "var(--heroui-danger)" }}
                         />
                         {legendRare}
                     </span>
-                    <span className="flex items-center gap-1">
+                    <span className="flex items-center gap-tight">
                         <span
                             className="size-dot rounded-full"
                             style={{ backgroundColor: "var(--heroui-primary)" }}
@@ -280,7 +280,7 @@ export const AvailabilityHeatmap = ({
                         {legendCommon}
                     </span>
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-tight">
                     <Button
                         size="md"
                         variant="shadow"
@@ -310,9 +310,9 @@ export const AvailabilityHeatmap = ({
             </div>
             <div
                 className={cn(
-                    "rounded-2xl border border-content1/20 bg-content1/10 p-2 transition-all duration-200",
+                    "rounded-2xl border border-content1/20 bg-content1/10 p-tight transition-all duration-200",
                     {
-                        "opacity-70 shadow-[0_0_25px_rgba(14,165,233,0.25)] ring-1 ring-primary/40":
+                        "opacity-70 shadow-availability ring-1 ring-primary/40":
                             isZooming,
                     }
                 )}

@@ -189,7 +189,7 @@ export function DirectoryPicker({
                     "focus-visible:outline-none focus-visible:ring focus-visible:ring-primary/40"
                 )}
             >
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-tools">
                     <Folder
                         size={20}
                         strokeWidth={ICON_STROKE_WIDTH}
@@ -241,7 +241,7 @@ export function DirectoryPicker({
             motionProps={INTERACTION_CONFIG.modalBloom}
         >
             <ModalContent>
-                <ModalHeader className="flex flex-col gap-1 pb-0">
+                <ModalHeader className="flex flex-col gap-tight ">
                     <h3 className="text-lg font-bold text-foreground">
                         {t("directory_browser.title")}
                     </h3>
@@ -252,8 +252,8 @@ export function DirectoryPicker({
                         {resolvedPath || t("directory_browser.root_label")}
                     </p>
                 </ModalHeader>
-                <ModalBody className="space-y-4 pt-3 pb-0">
-                    <div className="space-y-2">
+                <ModalBody className="space-y-4 pt-panel ">
+                    <div className="space-y-tight">
                         <Input
                             label={t("directory_browser.path_label")}
                             labelPlacement="outside"
@@ -283,7 +283,7 @@ export function DirectoryPicker({
                             variant="shadow"
                             onPress={goUp}
                             disabled={!browseResult?.parentPath}
-                            className="flex items-center gap-2"
+                            className="flex items-center gap-tools"
                         >
                             <ArrowLeft
                                 size={14}
@@ -306,7 +306,7 @@ export function DirectoryPicker({
                     </div>
                     <div className="relative h-lg overflow-y-auto rounded-2xl border border-content1/20 bg-content1/10 p-tight">
                         {isLoading && (
-                            <div className="space-y-2">
+                            <div className="space-y-tight">
                                 {Array.from({ length: 4 }).map((_, index) => (
                                     <Skeleton
                                         key={index}
@@ -328,8 +328,8 @@ export function DirectoryPicker({
                             entries.map(renderEntry)}
                     </div>
                 </ModalBody>
-                <ModalFooter className="flex flex-col gap-3 pt-0">
-                    <div className="flex w-full gap-3">
+                <ModalFooter className="flex flex-col gap-tools ">
+                    <div className="flex w-full gap-tools">
                         <Button
                             variant="shadow"
                             size="md"

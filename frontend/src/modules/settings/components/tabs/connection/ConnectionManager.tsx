@@ -184,7 +184,7 @@ export function ConnectionCredentialsCard({
         return (
             <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                    <div className="min-w-0 space-y-1">
+                    <div className="min-w-0 space-y-tight">
                         <h3 className="text-sm font-semibold text-foreground truncate">
                             {profileLabel}
                         </h3>
@@ -192,7 +192,7 @@ export function ConnectionCredentialsCard({
                             {serverUrl}
                         </p>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-tools">
                         <Button
                             size="md"
                             variant="ghost"
@@ -214,8 +214,8 @@ export function ConnectionCredentialsCard({
 
     return (
         <div className="space-y-5">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div className="min-w-0 space-y-1">
+            <div className="flex flex-col gap-tools sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0 space-y-tight">
                     <h3 className="text-sm font-semibold text-foreground truncate">
                         {profileLabel}
                     </h3>
@@ -223,8 +223,8 @@ export function ConnectionCredentialsCard({
                         {serverUrl}
                     </p>
                 </div>
-                <div className="flex flex-wrap items-center gap-8">
-                    <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-stage">
+                    <div className="flex items-center gap-tools">
                         <Chip
                             size="md"
                             variant="shadow"
@@ -272,7 +272,7 @@ export function ConnectionCredentialsCard({
                     </Button>
                 </div>
             </div>
-            <div className="grid gap-3">
+            <div className="grid gap-tools">
                 {isOffline && (
                     <p
                         className="text-xs uppercase text-warning"
@@ -286,7 +286,7 @@ export function ConnectionCredentialsCard({
                         {t("settings.connection.insecure_basic_auth_warning")}
                     </p>
                 )}
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-tools sm:grid-cols-2">
                     <Input
                         label={t("settings.connection.host")}
                         labelPlacement="outside"
@@ -334,7 +334,7 @@ export function ConnectionCredentialsCard({
                             disabled={!Runtime.enableRemoteInputs()}
                         />
                         {!activeProfile.token && (
-                            <div className="grid gap-3 sm:grid-cols-2">
+                            <div className="grid gap-tools sm:grid-cols-2">
                                 <Input
                                     label={t("settings.connection.username")}
                                     labelPlacement="outside"
@@ -367,7 +367,7 @@ export function ConnectionCredentialsCard({
                     </>
                 )}
                 {!Runtime.allowEditingProfiles() && (
-                    <p className="text-xs text-foreground/60 mt-2">
+                    <p className="text-xs text-foreground/60 mt-tight">
                         {t(
                             "settings.connection.local_mode_info",
                             "Using bundled local daemon — remote settings are disabled."
@@ -404,7 +404,7 @@ export function ConnectionExtensionCard({
     }, [availability, t]);
 
     return (
-        <div className="space-y-2">
+        <div className="space-y-tight">
             <Switch
                 size="md"
                 isSelected={enabled}
@@ -412,10 +412,10 @@ export function ConnectionExtensionCard({
                 aria-label={t("settings.connection.extension_mode_label")}
                 classNames={{
                     base: "w-full max-w-none items-start",
-                    wrapper: "shrink-0 mt-1",
+                    wrapper: "shrink-0 mt-tight",
                 }}
             >
-                <div className="flex flex-col gap-1">
+                <div className="flex flex-col gap-tight">
                     <span className="text-sm font-semibold text-foreground">
                         {t("settings.connection.extension_mode_label")}
                     </span>

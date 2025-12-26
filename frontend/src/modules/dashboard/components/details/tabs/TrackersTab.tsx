@@ -42,12 +42,12 @@ export const TrackersTab = ({
     }
 
     return (
-        <div className="flex h-full flex-col gap-4">
+        <div className="flex h-full flex-col gap-panel">
             {/* Workbench Toolbar */}
-            <div className="flex items-center justify-between px-1">
+            <div className="flex items-center justify-between px-tight">
                 <div className="flex items-center gap-tools">
                     <Activity size={14} className="text-primary" />
-                    <span className="text-xs font-bold uppercase tracking-[0.2em] text-foreground/60">
+                    <span className="text-xs font-bold uppercase tracking-0-2 text-foreground/60">
                         {t("torrent_modal.trackers.title", {
                             defaultValue: "Trackers",
                         })}
@@ -65,37 +65,37 @@ export const TrackersTab = ({
             </div>
 
             {/* Cinematic Table */}
-            <GlassPanel className="relative min-h-0 flex-1 overflow-hidden border-default/10 p-0">
+            <GlassPanel className="relative min-h-0 flex-1 overflow-hidden border-default/10 ">
                 <div className="h-full overflow-auto">
                     <table className="w-full border-separate border-spacing-0 text-left">
                         <thead className="sticky top-0 z-20 bg-background/80 backdrop-blur-md">
                             <tr className="text-label font-bold uppercase tracking-widest text-foreground/40">
-                                <th className="border-b border-default/10 py-3 pl-4 pr-2">
+                                <th className="border-b border-default/10 py-panel pl-panel pr-tight">
                                     <Activity size={12} />
                                 </th>
-                                <th className="border-b border-default/10 px-2 py-3">
+                                <th className="border-b border-default/10 px-tight py-panel">
                                     {t("torrent_modal.trackers.hostname", {
                                         defaultValue: "Host",
                                     })}
                                 </th>
-                                <th className="border-b border-default/10 px-2 py-3">
+                                <th className="border-b border-default/10 px-tight py-panel">
                                     {t("torrent_modal.trackers.next_announce", {
                                         defaultValue: "Next",
                                     })}
                                 </th>
-                                <th className="border-b border-default/10 px-2 py-3">
+                                <th className="border-b border-default/10 px-tight py-panel">
                                     {t("torrent_modal.trackers.peers_label", {
                                         defaultValue: "Peers",
                                     })}
                                 </th>
-                                <th className="border-b border-default/10 py-3 pl-2 pr-4 text-right">
+                                <th className="border-b border-default/10 py-panel pl-tight pr-panel text-right">
                                     {t("torrent_modal.trackers.status", {
                                         defaultValue: "Status",
                                     })}
                                 </th>
                             </tr>
                         </thead>
-                        <tbody className="font-mono text-11px">
+                        <tbody className="font-mono text-scaled">
                             {trackers.map((tracker) => {
                                 const trackerKey =
                                     tracker.id ??
@@ -134,27 +134,27 @@ export const TrackersTab = ({
                                         key={trackerKey}
                                         className="group transition-colors hover:bg-primary/5"
                                     >
-                                        <td className="border-b border-default/5 py-3 pl-4 pr-2">
+                                        <td className="border-b border-default/5 py-panel pl-panel pr-tight">
                                             <div
-                                                className={`size-dot rounded-full shadow-[0_0_8px] ${
+                                                className={`size-dot rounded-full shadow-dot ${
                                                     isOnline
                                                         ? "bg-success shadow-success/50"
                                                         : "bg-warning shadow-warning/50"
                                                 }`}
                                             />
                                         </td>
-                                        <td className="max-w-[--tt-tracker-name-max-w] truncate border-b border-default/5 px-2 py-3 font-sans font-medium text-foreground/80">
+                                        <td className="max-w-tracker-name truncate border-b border-default/5 px-tight py-panel font-sans font-medium text-foreground/80">
                                             {hostname}
                                         </td>
-                                        <td className="border-b border-default/5 px-2 py-3 tabular-nums text-foreground/50">
-                                            <div className="flex items-center gap-1.5">
+                                        <td className="border-b border-default/5 px-tight py-panel tabular-nums text-foreground/50">
+                                            <div className="flex items-center gap-tight">
                                                 <Timer size={10} />
                                                 {formatCountdown(
                                                     nextAnnounceSecs
                                                 )}
                                             </div>
                                         </td>
-                                        <td className="border-b border-default/5 px-2 py-3 text-foreground/70">
+                                        <td className="border-b border-default/5 px-tight py-panel text-foreground/70">
                                             <div className="flex items-center gap-tools">
                                                 <Users
                                                     size={10}
@@ -170,7 +170,7 @@ export const TrackersTab = ({
                                                 )}
                                             </div>
                                         </td>
-                                        <td className="border-b border-default/5 py-3 pl-2 pr-4 text-right font-sans text-label font-bold uppercase tracking-wider">
+                                        <td className="border-b border-default/5 py-panel pl-tight pr-panel text-right font-sans text-label font-bold uppercase tracking-wider">
                                             <span
                                                 className={
                                                     isOnline
@@ -205,7 +205,7 @@ export const TrackersTab = ({
                 {/* Layer 2 Add Trackers Panel (IDE-style Drawer) */}
                 {showAdd && (
                     <div className="absolute inset-0 z-30 flex flex-col bg-background/40 backdrop-blur-xl">
-                        <div className="flex items-center justify-between border-b border-default/10 px-4 py-3">
+                        <div className="flex items-center justify-between border-b border-default/10 px-panel py-panel">
                             <span className="text-xs font-bold uppercase tracking-widest text-primary">
                                 {t("torrent_modal.trackers.add", {
                                     defaultValue: "Add Trackers",
@@ -220,7 +220,7 @@ export const TrackersTab = ({
                                 <X size={16} />
                             </Button>
                         </div>
-                        <div className="flex-1 p-4">
+                        <div className="flex-1 p-panel">
                             <Textarea
                                 variant="bordered"
                                 placeholder={t(
@@ -240,7 +240,7 @@ export const TrackersTab = ({
                                 minRows={6}
                             />
                         </div>
-                        <div className="flex justify-end gap-tools border-t border-default/10 p-3 bg-background/20">
+                        <div className="flex justify-end gap-tools border-t border-default/10 p-panel bg-background/20">
                             <Button
                                 size="md"
                                 variant="shadow"

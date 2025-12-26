@@ -87,18 +87,18 @@ export const ContentTab = ({
 
     if (filesCount === 0) {
         return (
-            <div className="flex h-full min-h-0 flex-col gap-4">
-                <GlassPanel className="p-4 space-y-3 border border-warning/30 bg-warning/10">
+            <div className="flex h-full min-h-0 flex-col gap-panel">
+                <GlassPanel className="p-panel space-y-3 border border-warning/30 bg-warning/10">
                     <div className="font-semibold text-warning text-sm">
                         {t("torrent_modal.files_empty")}
                     </div>
-                    <div className="text-warning text-xs mb-2">
+                    <div className="text-warning text-xs mb-tight">
                         {t("torrent_modal.files_recovery_desc", {
                             defaultValue:
                                 "This torrent may be missing file metadata. Try rechecking or re-downloading.",
                         })}
                     </div>
-                    <div className="flex gap-tools mt-2">
+                    <div className="flex gap-tools mt-tight">
                         <Button
                             size="md"
                             variant="shadow"
@@ -141,10 +141,10 @@ export const ContentTab = ({
         );
     }
     return (
-        <div className="flex h-full min-h-0 flex-col gap-4">
-            <GlassPanel className="p-4 space-y-3">
-                <div className="flex items-center justify-between gap-4">
-                    <div className="flex flex-col gap-1">
+        <div className="flex h-full min-h-0 flex-col gap-panel">
+            <GlassPanel className="p-panel space-y-3">
+                <div className="flex items-center justify-between gap-panel">
+                    <div className="flex flex-col gap-tight">
                         <span
                             className="text-xs font-semibold uppercase text-foreground/60"
                             style={{
@@ -166,16 +166,16 @@ export const ContentTab = ({
                 </div>
             </GlassPanel>
 
-            <GlassPanel className="flex flex-1 min-h-0 flex-col border border-default/15 p-0">
+            <GlassPanel className="flex flex-1 min-h-0 flex-col border border-default/15 ">
                 <div
-                    className="border-b border-default/10 px-4 py-3 text-xs font-semibold uppercase text-foreground/50"
+                    className="border-b border-default/10 px-panel py-panel text-xs font-semibold uppercase text-foreground/50"
                     style={{ letterSpacing: "var(--tt-tracking-ultra)" }}
                 >
                     {t("torrent_modal.tabs.content")}
                 </div>
                 <div className="flex-1 min-h-0 overflow-hidden">
                     <div
-                        className="h-full min-h-0 overflow-y-auto px-4 py-3"
+                        className="h-full min-h-0 overflow-y-auto px-panel py-panel"
                         style={{ maxHeight: DETAILS_TAB_CONTENT_MAX_HEIGHT }}
                     >
                         <FileExplorerTree

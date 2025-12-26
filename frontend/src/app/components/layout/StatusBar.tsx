@@ -30,9 +30,9 @@ import {
 const UI_CONFIG = {
     layout: {
         // height is driven by CSS token `--tt-statusbar-h`
-        sectionGap: "gap-4",
+        sectionGap: "gap-panel",
         internalGap: "gap-tools",
-        hudGap: "gap-6",
+        hudGap: "gap-stage",
     },
     sizing: {
         // Icon sizing will be applied via inline styles using CSS tokens
@@ -101,14 +101,14 @@ export function StatusBar({
             bg: "bg-success/5 hover:bg-success/10",
             border: "border-success/20",
             text: "text-success",
-            shadow: "shadow-[0_0_20px_-5px_rgba(var(--heroui-success-500),0.2)]",
+            shadow: "shadow-success-glow",
             glow: "bg-success",
         },
         error: {
             bg: "bg-danger/5 hover:bg-danger/10",
             border: "border-danger/20",
             text: "text-danger",
-            shadow: "shadow-[0_0_20px_-5px_rgba(var(--heroui-danger-500),0.2)]",
+            shadow: "shadow-danger-glow",
             glow: "bg-danger",
         },
     };
@@ -215,7 +215,7 @@ export function StatusBar({
                 {/* --- LEFT: SPEED MODULES --- */}
                 <div
                     className={cn(
-                        "flex flex-1 items-center h-full py-2",
+                        "flex flex-1 items-center h-full py-tight",
                         UI_CONFIG.layout.sectionGap
                     )}
                 >
@@ -247,7 +247,7 @@ export function StatusBar({
                                     strokeWidth={ICON_STROKE_WIDTH}
                                 />
                             </div>
-                            <div className="flex flex-col justify-center gap-0.5">
+                            <div className="flex flex-col justify-center gap-tight">
                                 <span
                                     className={cn(
                                         UI_CONFIG.typography.label,
@@ -267,7 +267,7 @@ export function StatusBar({
                             </div>
                         </div>
                         <div
-                            className="flex-1 h-full py-2 opacity-30 grayscale transition-all duration-500 group-hover:grayscale-0 group-hover:opacity-100"
+                            className="flex-1 h-full py-tight opacity-30 grayscale transition-all duration-500 group-hover:grayscale-0 group-hover:opacity-100"
                             style={{ minWidth: "var(--tt-status-min-100)" }}
                         >
                             <NetworkGraph
@@ -312,7 +312,7 @@ export function StatusBar({
                                     strokeWidth={ICON_STROKE_WIDTH}
                                 />
                             </div>
-                            <div className="flex flex-col justify-center gap-0.5">
+                            <div className="flex flex-col justify-center gap-tight">
                                 <span
                                     className={cn(
                                         UI_CONFIG.typography.label,
@@ -357,7 +357,7 @@ export function StatusBar({
                 >
                     {/* SECTION: CONTEXT INFO */}
                     <div
-                        className="flex flex-col items-end gap-1 whitespace-nowrap"
+                        className="flex flex-col items-end gap-tight whitespace-nowrap"
                         style={{ minWidth: "var(--tt-status-min-120)" }}
                     >
                         <span
@@ -400,7 +400,7 @@ export function StatusBar({
 
                     {/* SECTION: NETWORK */}
                     <div
-                        className="flex flex-col items-end gap-1 whitespace-nowrap"
+                        className="flex flex-col items-end gap-tight whitespace-nowrap"
                         style={{ minWidth: "var(--tt-status-min-80)" }}
                     >
                         <span
@@ -439,7 +439,7 @@ export function StatusBar({
                             onClick={onEngineClick}
                             className={cn(
                                 // Layout & Shape
-                                "relative flex items-center justify-center gap-3 rounded-xl border px-4 transition-all duration-300",
+                                "relative flex items-center justify-center gap-tools rounded-xl border px-panel transition-all duration-300",
                                 // Interaction
                                 "active:scale-95 focus-visible:outline-none focus-visible:ring focus-visible:ring-primary/60 cursor-pointer",
                                 // Theme application

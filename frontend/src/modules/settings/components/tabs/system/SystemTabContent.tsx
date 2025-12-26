@@ -20,7 +20,7 @@ export function SystemTabContent() {
             title={t("settings.sections.install")}
             description={t("settings.descriptions.install")}
         >
-            <div className="space-y-6 mt-4">
+            <div className="space-y-stage mt-panel">
                 <SystemInstallSection
                     autorunSwitch={autorunSwitch}
                     handlerSwitch={handlerSwitch}

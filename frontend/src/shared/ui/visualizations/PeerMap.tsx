@@ -179,7 +179,7 @@ export const PeerMap = ({ peers }: PeerMapProps) => {
     return (
         <motion.div
             layout
-            className="flex flex-col flex-1 min-h-0 rounded-2xl border border-content1/20 bg-content1/10 p-4 space-y-3 overflow-hidden"
+            className="flex flex-col flex-1 min-h-0 rounded-2xl border border-content1/20 bg-content1/10 p-panel space-y-3 overflow-hidden"
         >
             <div className="flex items-center justify-between">
                 <div className="flex flex-col">
@@ -195,7 +195,7 @@ export const PeerMap = ({ peers }: PeerMapProps) => {
                         })}
                     </span>
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-tight">
                     <Button
                         isIconOnly
                         size="md"

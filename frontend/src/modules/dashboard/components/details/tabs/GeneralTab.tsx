@@ -44,8 +44,8 @@ const GeneralInfoCard = ({
     helper,
     accent,
 }: GeneralInfoCardProps) => (
-    <GlassPanel className="p-4">
-        <div className="flex items-start gap-3">
+    <GlassPanel className="p-panel">
+        <div className="flex items-start gap-tools">
             <div className="flex size-icon-btn-lg items-center justify-center rounded-xl border border-content1/20 bg-content1/30">
                 <Icon
                     size={18}
@@ -91,21 +91,21 @@ export const GeneralTab = ({
         torrent.errorString.includes("No data found");
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-stage">
             {showNoDataError && (
-                <GlassPanel className="p-4 border border-warning/30 bg-warning/10 flex flex-col gap-tools">
+                <GlassPanel className="p-panel border border-warning/30 bg-warning/10 flex flex-col gap-tools">
                     <div className="font-semibold text-warning text-sm">
                         {t("torrent_modal.errors.no_data_found_title", {
                             defaultValue: "No data found!",
                         })}
                     </div>
-                    <div className="text-warning text-xs mb-2">
+                    <div className="text-warning text-xs mb-tight">
                         {t("torrent_modal.errors.no_data_found_desc", {
                             defaultValue:
                                 "Ensure your drives are connected or use 'Set Location'. To re-download, remove the torrent and re-add it.",
                         })}
                     </div>
-                    <div className="flex gap-tools mt-2">
+                    <div className="flex gap-tools mt-tight">
                         <Button
                             size="md"
                             variant="shadow"
@@ -146,9 +146,9 @@ export const GeneralTab = ({
                     </div>
                 </GlassPanel>
             )}
-            <GlassPanel className="space-y-3 border border-content1/20 bg-content1/30 p-4">
+            <GlassPanel className="space-y-3 border border-content1/20 bg-content1/30 p-panel">
                 <div
-                    className="flex items-center justify-between gap-4 text-scaled uppercase text-foreground/50"
+                    className="flex items-center justify-between gap-panel text-scaled uppercase text-foreground/50"
                     style={{ letterSpacing: "var(--tt-tracking-ultra)" }}
                 >
                     <div className="flex flex-col">
@@ -170,7 +170,7 @@ export const GeneralTab = ({
                         <span>{t("torrent_modal.stats.active")}</span>
                     </div>
                 </div>
-                <div className="h-2 rounded-full bg-background/30">
+                <div className="h-sep rounded-full bg-background/30">
                     <SmoothProgressBar
                         value={progressPercent}
                         trackClassName="h-full bg-transparent"
@@ -178,9 +178,9 @@ export const GeneralTab = ({
                     />
                 </div>
             </GlassPanel>
-            <GlassPanel className="p-4 space-y-4 bg-content1/30 border border-content1/20">
-                <div className="flex items-center justify-between gap-4">
-                    <div className="flex flex-col gap-1">
+            <GlassPanel className="p-panel space-y-4 bg-content1/30 border border-content1/20">
+                <div className="flex items-center justify-between gap-panel">
+                    <div className="flex flex-col gap-tight">
                         <span
                             className="text-scaled uppercase text-foreground/40"
                             style={{
@@ -197,14 +197,14 @@ export const GeneralTab = ({
                         size="md"
                         variant="shadow"
                         color="primary"
-                        className="h-8"
+                        className="h-button"
                         onPress={onForceTrackerReannounce}
                         isDisabled={!onForceTrackerReannounce}
                     >
                         {t("torrent_modal.controls.force_reannounce")}
                     </Button>
                 </div>
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-tools sm:grid-cols-2">
                     <Switch
                         size="md"
                         color="success"
@@ -214,7 +214,7 @@ export const GeneralTab = ({
                             onSequentialToggle?.(Boolean(value))
                         }
                     >
-                        <div className="flex flex-col items-start gap-1">
+                        <div className="flex flex-col items-start gap-tight">
                             <span className="text-sm font-medium">
                                 {t("torrent_modal.controls.sequential")}
                             </span>
@@ -237,7 +237,7 @@ export const GeneralTab = ({
                             onSuperSeedingToggle?.(Boolean(value))
                         }
                     >
-                        <div className="flex flex-col items-start gap-1">
+                        <div className="flex flex-col items-start gap-tight">
                             <span className="text-sm font-medium">
                                 {t("torrent_modal.controls.super_seeding")}
                             </span>
@@ -256,7 +256,7 @@ export const GeneralTab = ({
                 </div>
             </GlassPanel>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-panel sm:grid-cols-2">
                 <GeneralInfoCard
                     icon={ArrowDownCircle}
                     label={t("torrent_modal.stats.downloaded")}
@@ -283,8 +283,8 @@ export const GeneralTab = ({
                 />
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <GlassPanel className="p-4 space-y-3">
+            <div className="grid grid-cols-1 gap-panel sm:grid-cols-2">
+                <GlassPanel className="p-panel space-y-3">
                     <div className="flex items-center gap-tools">
                         <Folder
                             size={16}
@@ -300,11 +300,11 @@ export const GeneralTab = ({
                             {t("torrent_modal.labels.save_path")}
                         </span>
                     </div>
-                    <code className="font-mono text-xs text-foreground/70 bg-content1/20 px-2 py-1 rounded wrap-break-word">
+                    <code className="font-mono text-xs text-foreground/70 bg-content1/20 px-tight py-tight rounded wrap-break-word">
                         {downloadDir}
                     </code>
                 </GlassPanel>
-                <GlassPanel className="p-4 space-y-3">
+                <GlassPanel className="p-panel space-y-3">
                     <div className="flex items-center justify-between gap-tools">
                         <div className="flex items-center gap-tools">
                             <Hash
@@ -312,7 +312,7 @@ export const GeneralTab = ({
                                 strokeWidth={ICON_STROKE_WIDTH}
                                 className="text-foreground/50"
                             />
-                            <span className="text-scaled uppercase tracking-[0.3em] text-foreground/40">
+                            <span className="text-scaled uppercase tracking-0-3 text-foreground/40">
                                 {t("torrent_modal.labels.info_hash")}
                             </span>
                         </div>
@@ -331,7 +331,7 @@ export const GeneralTab = ({
                             />
                         </Button>
                     </div>
-                    <code className="font-mono text-xs text-foreground/70 bg-content1/20 px-2 py-1 rounded wrap-break-word">
+                    <code className="font-mono text-xs text-foreground/70 bg-content1/20 px-tight py-tight rounded wrap-break-word">
                         {torrent.hash}
                     </code>
                 </GlassPanel>

@@ -97,7 +97,7 @@ export function CommandPalette({
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.2 }}
-                    className="fixed inset-0 z-50 flex items-start justify-center px-4 pt-6"
+                    className="fixed inset-0 z-50 flex items-start justify-center px-panel pt-stage"
                 >
                     <motion.div
                         initial={{ opacity: 0 }}
@@ -109,7 +109,7 @@ export function CommandPalette({
                     <motion.div
                         {...PANEL_ANIMATION}
                         transition={{ duration: 0.2 }}
-                        className="relative z-10 w-full max-w-2xl rounded-[var(--r-md)] border border-content1/20 bg-content1/80 shadow-[0_30px_70px_rgba(0,0,0,0.55)] backdrop-blur-3xl"
+                        className="relative z-10 w-full max-w-2xl rounded-md border border-content1/20 bg-content1/80 shadow-hud backdrop-blur-3xl"
                     >
                         <Command
                             value={query}
@@ -123,12 +123,12 @@ export function CommandPalette({
                         >
                             <Command.Input
                                 placeholder={t("command_palette.placeholder")}
-                                className="rounded-none border-0 bg-transparent px-6 py-4 text-base font-semibold outline-none placeholder:text-foreground/50"
+                                className="rounded-none border-0 bg-transparent px-panel py-panel text-base font-semibold outline-none placeholder:text-foreground/50"
                             />
-                            <Command.List className="max-h-command-palette overflow-y-auto px-6 pb-4 pt-2">
+                            <Command.List className="max-h-command-palette overflow-y-auto px-panel py-panel">
                                 {groupedActions.map(({ group, entries }) => (
-                                    <div key={group} className="pb-4">
-                                        <div className="text-scaled font-semibold uppercase tracking-[0.2em] text-default-500">
+                                    <div key={group} className="pb-panel">
+                                        <div className="text-scaled font-semibold uppercase tracking-0-2 text-default-500">
                                             {group}
                                         </div>
                                         <Command.Group>
@@ -141,7 +141,7 @@ export function CommandPalette({
                                                             action
                                                         )
                                                     }
-                                                    className="glass-panel mt-2 flex cursor-pointer flex-col border border-content1/10 bg-background/80 py-3 px-4 text-left transition hover:border-foreground/40 hover:bg-background/90 focus:border-primary focus:outline-none"
+                                                    className="glass-panel mt-tight flex cursor-pointer flex-col border border-content1/10 bg-background/80 py-panel px-panel text-left transition hover:border-foreground/40 hover:bg-background/90 focus:border-primary focus:outline-none"
                                                 >
                                                     <div className="flex items-center justify-between text-sm font-semibold text-foreground">
                                                         <span>
@@ -155,7 +155,7 @@ export function CommandPalette({
                                                                             key={
                                                                                 key
                                                                             }
-                                                                            className="rounded-full border border-foreground/30 px-2 py-0.5"
+                                                                            className="rounded-full border border-foreground/30 px-tight py-tight"
                                                                         >
                                                                             {
                                                                                 key
@@ -176,7 +176,7 @@ export function CommandPalette({
                                         </Command.Group>
                                     </div>
                                 ))}
-                                <Command.Empty className="py-6 text-center text-sm text-foreground/60">
+                                <Command.Empty className="py-panel text-center text-sm text-foreground/60">
                                     {t("command_palette.empty")}
                                 </Command.Empty>
                             </Command.List>

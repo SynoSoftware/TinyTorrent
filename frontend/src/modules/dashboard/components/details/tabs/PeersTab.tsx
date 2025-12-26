@@ -135,7 +135,7 @@ export const PeersTab = ({
     // 2. Protocol Intelligence Helper
     const renderFlags = (flagStr: string) => {
         return (
-            <div className="flex gap-0.5">
+            <div className="flex gap-tight">
                 {flagStr.split("").map((f, i) => (
                     <Tooltip
                         key={i}
@@ -153,7 +153,7 @@ export const PeersTab = ({
     };
 
     return (
-        <div className="flex flex-col h-full min-h-0 overflow-hidden gap-3">
+        <div className="flex flex-col h-full min-h-0 overflow-hidden gap-tools">
             {/* COORDINATED RADAR HUD */}
             <GlassPanel className="flex-none h-peers-hud">
                 <PeerMap
@@ -166,12 +166,12 @@ export const PeersTab = ({
 
             {/* HIGH-DENSITY DATA GRID */}
             <div className="flex-1 min-h-0 relative overflow-hidden rounded-2xl border border-content1/30 bg-content1/10 flex flex-col">
-                <div className="flex items-center gap-4 px-4 py-2 text-label font-black uppercase text-foreground/30 tracking-[0.2em] border-b border-content1/10">
-                    <span className="w-12">Flags</span>
+                <div className="flex items-center gap-panel px-panel py-tight text-label font-black uppercase text-foreground/30 tracking-0-2 border-b border-content1/10">
+                    <span className="w-col-id">Flags</span>
                     <span className="flex-1">Endpoint</span>
-                    <span className="w-28">Client Identification</span>
-                    <span className="w-24 text-right">Downstream</span>
-                    <span className="w-24 text-right">Upstream</span>
+                    <span className="w-col-client">Client Identification</span>
+                    <span className="w-col-speed text-right">Downstream</span>
+                    <span className="w-col-speed text-right">Upstream</span>
                 </div>
 
                 <div
@@ -200,7 +200,7 @@ export const PeersTab = ({
                                 <div
                                     key={peer.address}
                                     className={cn(
-                                        "absolute left-0 right-0 flex items-center px-4 transition-colors border-b border-content1/5",
+                                        "absolute left-0 right-0 flex items-center px-panel transition-colors border-b border-content1/5",
                                         isHovered
                                             ? "bg-primary/10"
                                             : "hover:bg-content1/5",
@@ -218,11 +218,11 @@ export const PeersTab = ({
                                         handlePeerContextMenu(e, peer)
                                     }
                                 >
-                                    <div className="w-12 font-mono text-xs text-foreground/60">
+                                    <div className="w-col-id font-mono text-xs text-foreground/60">
                                         {renderFlags(peer.flagStr)}
                                     </div>
 
-                                    <div className="flex-1 min-w-0 flex items-center gap-2">
+                                    <div className="flex-1 min-w-0 flex items-center gap-tools">
                                         {isEncrypted && (
                                             <ShieldCheck
                                                 size={12}
@@ -247,17 +247,17 @@ export const PeersTab = ({
                                         </span>
                                     </div>
 
-                                    <div className="w-28 text-tiny text-foreground/40 truncate">
+                                    <div className="w-col-client text-tiny text-foreground/40 truncate">
                                         {peer.clientName || "—"}
                                     </div>
 
-                                    <div className="w-24 font-mono text-xs text-success text-right tabular-nums">
+                                    <div className="w-col-speed font-mono text-xs text-success text-right tabular-nums">
                                         {peer.rateToClient > 0
                                             ? formatSpeed(peer.rateToClient)
                                             : "—"}
                                     </div>
 
-                                    <div className="w-24 font-mono text-xs text-primary text-right tabular-nums">
+                                    <div className="w-col-speed font-mono text-xs text-primary text-right tabular-nums">
                                         {peer.rateToPeer > 0
                                             ? formatSpeed(peer.rateToPeer)
                                             : "—"}
@@ -270,7 +270,7 @@ export const PeersTab = ({
                     {/* ACTION OVERLAY */}
                     {peerContextMenu && (
                         <div
-                            className="pointer-events-auto absolute z-50 rounded-2xl border border-content1/40 bg-content1/90 p-1 backdrop-blur-3xl shadow-2xl"
+                            className="pointer-events-auto absolute z-50 rounded-2xl border border-content1/40 bg-content1/90 p-tight backdrop-blur-3xl shadow-2xl"
                             style={{
                                 top: peerContextMenu.y,
                                 left: peerContextMenu.x,
@@ -278,7 +278,7 @@ export const PeersTab = ({
                             }}
                             onPointerDown={(e) => e.stopPropagation()}
                         >
-                            <div className="px-3 py-2 border-b border-content1/10 mb-1 flex items-center gap-2">
+                            <div className="px-panel py-tight border-b border-content1/10 mb-tight flex items-center gap-tools">
                                 <Info
                                     size={14}
                                     className="text-foreground/30"
@@ -289,7 +289,7 @@ export const PeersTab = ({
                             </div>
                             <button
                                 onClick={() => handleAction("copy_ip")}
-                                className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium hover:bg-content1/10 transition-colors"
+                                className="w-full flex items-center gap-tools px-panel py-tight rounded-xl text-sm font-medium hover:bg-content1/10 transition-colors"
                             >
                                 <Copy
                                     size={16}
@@ -299,7 +299,7 @@ export const PeersTab = ({
                             </button>
                             <button
                                 onClick={() => handleAction("add_peer")}
-                                className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium hover:bg-content1/10 transition-colors"
+                                className="w-full flex items-center gap-tools px-panel py-tight rounded-xl text-sm font-medium hover:bg-content1/10 transition-colors"
                             >
                                 <UserPlus
                                     size={16}
@@ -309,7 +309,7 @@ export const PeersTab = ({
                             </button>
                             <button
                                 onClick={() => handleAction("ban_ip")}
-                                className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium text-danger hover:bg-danger/10 transition-colors border-t border-content1/10 mt-1"
+                                className="w-full flex items-center gap-tools px-panel py-tight rounded-xl text-sm font-medium text-danger hover:bg-danger/10 transition-colors border-t border-content1/10 mt-tight"
                             >
                                 <Ban
                                     size={16}

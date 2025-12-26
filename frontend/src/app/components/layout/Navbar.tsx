@@ -95,7 +95,7 @@ export function Navbar({
                     style={{ gap: "var(--tt-navbar-gap)" }}
                 >
                     {/* Brand */}
-                    <div className="flex items-center gap-3 pr-2">
+                    <div className="flex items-center gap-tools pr-tight">
                         <div
                             className="flex items-center justify-center rounded-xl"
                             style={{
@@ -137,17 +137,17 @@ export function Navbar({
                         selectedKey={filter}
                         onSelectionChange={(k) => setFilter(k as string)}
                         classNames={{
-                            base: "p-0",
+                            base: "",
                             tabList:
-                                "bg-default-100/50 p-1 border border-default-200/50 shadow-inner gap-1",
+                                "bg-default-100/50 p-tight border border-default-200/50 shadow-inner gap-tight",
                             cursor: "bg-background shadow-sm border border-default-100",
-                            tab: "px-3 font-semibold text-default-500 data-[selected=true]:text-foreground transition-colors",
+                            tab: "px-panel font-semibold text-default-500 transition-colors",
                         }}
                     >
                         <Tab
                             key="all"
                             title={
-                                <div className="flex items-center gap-1.5">
+                                <div className="flex items-center gap-tight">
                                     <ListChecks size={13} strokeWidth={2} />
                                     {t("nav.filter_all")}
                                 </div>
@@ -156,7 +156,7 @@ export function Navbar({
                         <Tab
                             key="downloading"
                             title={
-                                <div className="flex items-center gap-1.5">
+                                <div className="flex items-center gap-tight">
                                     <DownloadCloud size={13} strokeWidth={2} />
                                     {t("nav.filter_downloading")}
                                 </div>
@@ -165,7 +165,7 @@ export function Navbar({
                         <Tab
                             key="seeding"
                             title={
-                                <div className="flex items-center gap-1.5">
+                                <div className="flex items-center gap-tight">
                                     <UploadCloud size={13} strokeWidth={2} />
                                     {t("nav.filter_seeding")}
                                 </div>
@@ -175,7 +175,7 @@ export function Navbar({
                 </div>
 
                 {/* RIGHT ZONE: Action Center */}
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-tools">
                     {/* Search - Pushed to start of right zone */}
                     <Input
                         classNames={{
@@ -183,7 +183,7 @@ export function Navbar({
                             mainWrapper: "h-full",
                             input: "text-small text-foreground/90 whitespace-nowrap overflow-hidden text-ellipsis placeholder:opacity-70",
                             inputWrapper:
-                                "h-full flex items-center gap-2 flex-nowrap font-normal text-default-500 bg-default-100/50 hover:bg-default-200/50 border-transparent focus-within:bg-default-100 focus-within:border-primary/20 shadow-inner rounded-full transition-colors",
+                                "h-full flex items-center gap-tools flex-nowrap font-normal text-default-500 bg-default-100/50 hover:bg-default-200/50 border-transparent focus-within:bg-default-100 focus-within:border-primary/20 shadow-inner rounded-full transition-colors",
                         }}
                         style={{ width: "var(--tt-search-width)" }}
                         placeholder={t("nav.search_placeholder")}
@@ -204,14 +204,14 @@ export function Navbar({
                     />
 
                     <div
-                        className="w-px bg-default-200/50 mx-1"
+                        className="w-px bg-default-200/50 mx-tight"
                         style={{ height: "calc(var(--tt-navbar-h) / 2)" }}
                     />
 
                     {/* Context Actions (Selection Dependent) */}
                     <div
                         className={cn(
-                            "flex items-center gap-1 transition-opacity duration-200",
+                            "flex items-center gap-tools transition-opacity duration-200",
                             !hasSelection
                                 ? "opacity-30 pointer-events-none grayscale"
                                 : "opacity-100"
@@ -252,7 +252,7 @@ export function Navbar({
                     </div>
 
                     <div
-                        className="w-px bg-default-200/50 mx-1"
+                        className="w-px bg-default-200/50 mx-tight"
                         style={{ height: "calc(var(--tt-navbar-h) / 2)" }}
                     />
 
@@ -265,10 +265,10 @@ export function Navbar({
                         className="bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary-600 ring-1 ring-primary/20"
                     />
 
-                    <div className="h-sep w-px bg-default-200/50 mx-1" />
+                    <div className="h-sep w-px bg-default-200/50 mx-tight" />
 
                     {/* System / Global */}
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-tight">
                         <ToolbarIconButton
                             Icon={
                                 workspaceStyle === "immersive"
@@ -300,10 +300,10 @@ export function Navbar({
                                         100
                                     )}
                                     trackClassName="h-track bg-transparent"
-                                    indicatorClassName="h-full bg-gradient-to-r from-primary to-secondary shadow-[0_0_10px_rgba(var(--primary),0.5)]"
+                                    indicatorClassName="h-full bg-gradient-to-r from-primary to-secondary shadow-nav"
                                 />
                                 {/* Tooltip on hover */}
-                                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-black/80 text-white text-scaled px-2 py-1 rounded shadow-lg whitespace-nowrap pointer-events-none">
+                                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-black/80 text-white text-scaled px-tight py-tight rounded shadow-lg whitespace-nowrap pointer-events-none">
                                     {rehashStatus.label}:{" "}
                                     {Math.round(rehashStatus.value)}%
                                 </div>

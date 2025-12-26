@@ -450,7 +450,7 @@ export function ModeLayout({
                 {detailData && isDetailFullscreen && (
                     <motion.div
                         key={`fullscreen-detail-${detailData.id}`}
-                        className="fixed inset-0 z-40 flex items-center justify-center p-6"
+                        className="fixed inset-0 z-40 flex items-center justify-center p-stage"
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}

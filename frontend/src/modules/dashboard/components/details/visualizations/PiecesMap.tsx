@@ -110,7 +110,7 @@ export const PiecesMap = ({
     }, [hoverPosition, hoveredPiece]);
 
     return (
-        <div className="flex flex-col gap-4 h-full">
+        <div className="flex flex-col gap-panel h-full">
             <div
                 className="flex flex-wrap justify-between text-tiny uppercase text-foreground/50"
                 style={{ letterSpacing: "var(--tt-tracking-wide)" }}
@@ -140,7 +140,7 @@ export const PiecesMap = ({
                     </span>
                 </span>
             </div>
-            <div className="rounded-2xl border border-content1/20 bg-content1/10 p-4">
+            <div className="rounded-2xl border border-content1/20 bg-content1/10 p-panel">
                 <div className="relative">
                     <canvas
                         ref={canvasRef}
@@ -155,7 +155,7 @@ export const PiecesMap = ({
                     />
                     {tooltipLines.length > 0 && tooltipStyle && (
                         <div
-                            className="pointer-events-none absolute z-10 max-w-[230px] rounded-2xl border border-content1/30 bg-content1/90 px-3 py-2 text-tiny text-foreground/90 shadow-large backdrop-blur-xl"
+                            className="pointer-events-none absolute z-10 max-w-tooltip rounded-2xl border border-content1/30 bg-content1/90 px-panel py-tight text-tiny text-foreground/90 shadow-large backdrop-blur-xl"
                             style={tooltipStyle}
                         >
                             {tooltipLines.map((line, index) => (
@@ -175,22 +175,22 @@ export const PiecesMap = ({
                     )}
                     {/* Badge for all pieces verified */}
                     {doneCount === totalPieces && totalPieces > 0 && (
-                        <div className="absolute top-2 right-2 bg-success/80 text-white text-xs font-bold px-3 py-1 rounded shadow-lg">
+                        <div className="absolute top-2 right-2 bg-success/80 text-white text-xs font-bold px-panel py-tight rounded shadow-lg">
                             {t("torrent_modal.stats.verified")}: {doneCount}
                         </div>
                     )}
                     {/* Tooltip for unknown piece size */}
                     {pieceSizeLabel ===
                         t("torrent_modal.stats.unknown_size") && (
-                        <div className="absolute left-2 bottom-2 bg-content1/90 text-xs text-foreground/80 px-2 py-1 rounded shadow">
+                        <div className="absolute left-2 bottom-2 bg-content1/90 text-xs text-foreground/80 px-tight py-tight rounded shadow">
                             {t("torrent_modal.stats.unknown_size")}
                         </div>
                     )}
                 </div>
             </div>
             {/* Accessibility legend for piece states */}
-            <div className="flex gap-4 mt-2 items-center">
-                <span className="flex items-center gap-1">
+            <div className="flex gap-panel mt-tight items-center">
+                <span className="flex items-center gap-tight">
                     <span
                         style={{
                             width: 16,
@@ -204,7 +204,7 @@ export const PiecesMap = ({
                         {t("torrent_modal.stats.verified")}
                     </span>
                 </span>
-                <span className="flex items-center gap-1">
+                <span className="flex items-center gap-tight">
                     <span
                         style={{
                             width: 16,
@@ -219,7 +219,7 @@ export const PiecesMap = ({
                         {t("torrent_modal.stats.downloading")}
                     </span>
                 </span>
-                <span className="flex items-center gap-1">
+                <span className="flex items-center gap-tight">
                     <span
                         style={{
                             width: 16,

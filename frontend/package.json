@@ -10,6 +10,7 @@
         "enforce:geometry": "node ./scripts/enforce-geometry.cjs",
         "classify:zoom": "node ./scripts/classify_zoom.cjs",
         "generate:zoom-report": "node ./scripts/generate_zoom_report.cjs",
+        "generate:tailwind-mapping": "node scripts/generate_tailwind_mapping.cjs",
         "preview": "vite preview"
     },
     "dependencies": {

@@ -139,7 +139,7 @@ export const TorrentDetailView: React.FC<
                             type="button"
                             aria-pressed={active === tab}
                             onClick={() => setActive(tab)}
-                            className={`px-3 py-1 rounded-full text-scaled ${
+                            className={`px-panel py-tight rounded-full text-scaled ${
                                 active === tab
                                     ? "bg-primary/20"
                                     : "bg-transparent"
@@ -149,12 +149,12 @@ export const TorrentDetailView: React.FC<
                         </button>
                     ))}
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-tight">
                     {/* Popout: only when not fullscreen/modal and handler exists */}
                     {!isDetailFullscreen && onPopout && (
                         <button
                             type="button"
-                            className="p-1 rounded hover:bg-primary/10"
+                            className="p-tight rounded hover:bg-primary/10"
                             aria-label="Popout"
                             onClick={onPopout}
                         >
@@ -165,7 +165,7 @@ export const TorrentDetailView: React.FC<
                     {isDetailFullscreen && onDock && (
                         <button
                             type="button"
-                            className="p-1 rounded hover:bg-primary/10"
+                            className="p-tight rounded hover:bg-primary/10"
                             aria-label="Dock"
                             onClick={onDock}
                         >
@@ -176,7 +176,7 @@ export const TorrentDetailView: React.FC<
                     {onClose && (
                         <button
                             type="button"
-                            className="p-1 rounded hover:bg-primary/10"
+                            className="p-tight rounded hover:bg-primary/10"
                             aria-label="Close"
                             onClick={onClose}
                         >
