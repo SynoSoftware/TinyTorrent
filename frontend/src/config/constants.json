@@ -37,6 +37,9 @@
             "font_mono": "font-mono",
             "overscan": 20
         },
+        "menu": {
+            "min_width": 220
+        },
         "ui": {
             "navbar": {
                 "density": "normal"

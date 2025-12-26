@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { usePerformanceHistory } from "@/shared/hooks/usePerformanceHistory";
+
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import type { HeartbeatPayload } from "@/services/rpc/heartbeat";
 import type { RpcStatus } from "@/shared/types/rpc";
@@ -91,7 +91,7 @@ export function useTorrentData({
     const [isInitialLoadFinished, setIsInitialLoadFinished] = useState(false);
     const isMountedRef = useRef(false);
     const initialLoadRef = useRef(false);
-    const { pushSpeeds } = usePerformanceHistory();
+
     const snapshotCacheRef = useRef<Map<string, Torrent>>(new Map());
     const snapshotOrderRef = useRef<string[]>([]);
     const [ghosts, setGhosts] = useState<Torrent[]>([]);
@@ -145,7 +145,7 @@ export function useTorrentData({
                 (acc, torrent) => acc + torrent.speed.up,
                 0
             );
-            pushSpeeds(totalDown, totalUp);
+            // pushSpeeds removed: engine-owned history is canonical
             onRpcStatusChange?.("connected");
             if (!initialLoadRef.current) {
                 initialLoadRef.current = true;
@@ -160,7 +160,7 @@ export function useTorrentData({
             const nextList = nextOrder.map((id) => nextCache.get(id)!);
             setTorrents(nextList);
         },
-        [onRpcStatusChange, pushSpeeds]
+        [onRpcStatusChange]
     );
 
     const buildGhostTorrent = (options: GhostTorrentOptions): Torrent => ({

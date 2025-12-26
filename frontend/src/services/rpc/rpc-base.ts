@@ -546,7 +546,14 @@ export class TransmissionAdapter implements EngineAdapter {
     }
 
     public async notifyUiReady(): Promise<void> {
-        await this.mutate("session-ui-attach");
+        // Only call session-ui-attach if backend is TinyTorrent (capabilities detected)
+        if (
+            this.tinyTorrentCapabilities &&
+            this.tinyTorrentCapabilities.features?.includes?.("ui-attach")
+        ) {
+            await this.mutate("session-ui-attach");
+        }
+        // For stock Transmission, do nothing (method not recognized)
     }
 
     public async notifyUiDetached(): Promise<void> {

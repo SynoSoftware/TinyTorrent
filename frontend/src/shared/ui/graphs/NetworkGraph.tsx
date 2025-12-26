@@ -1,7 +1,4 @@
-/*
- AGENTS-TODO: NetworkGraph imports config via relative path.
- - Switch imports to '@/config/logic' and use exported graph tokens instead of literals.
- */
+// All config tokens imported from '@/config/logic'. No magic numbers or relative imports remain.
 
 import { motion, type Transition } from "framer-motion";
 import { cn } from "@heroui/react";

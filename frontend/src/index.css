@@ -15,9 +15,14 @@
     --tt-font-base: 11; /* base font px (runtime) */
 
     /* Core law primitives (authoritative) */
-    --u: 4px;
-    --fz: 11px;
-    --z: 1;
+    --u: calc(var(--tt-unit-base, 4) * 1px);
+    --fz: calc(var(--tt-font-base, 11) * 1px);
+    --z: var(--tt-zoom-level, 1);
+
+    /* Semantic tracking tokens */
+    --tt-tracking-tight: -0.01em;
+    --tt-tracking-wide: 0.15em;
+    --tt-tracking-ultra: 0.3em;
 
     /* Perceptual clamps (NOT linearly scaled) */
     --bw: 1px; /* border width — optical constant */
@@ -63,7 +68,7 @@
     --tt-navbar-h: var(--navbar-h);
     --tt-navbar-padding: var(--p-3);
     --tt-navbar-gap: var(--p-2);
-    --tt-brand-icon-size: var(--icon);
+    --tt-brand-icon-size: calc(var(--icon) * 3);
     --tt-search-width: calc(40 * var(--u) * var(--z));
 
     --tt-statusbar-h: var(--statusbar-h);
@@ -357,7 +362,6 @@
     /* Semantic text sizing utility mapping to scaled font variable */
     .text-scaled {
         font-size: var(--tt-font-size-base);
-        line-height: 1.1;
     }
 
     :where(body, .overlay-scrollbar) {

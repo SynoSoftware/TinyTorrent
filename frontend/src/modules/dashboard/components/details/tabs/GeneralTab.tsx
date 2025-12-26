@@ -54,7 +54,10 @@ const GeneralInfoCard = ({
                 />
             </div>
             <div className="flex-1">
-                <div className="text-scaled uppercase tracking-[0.3em] text-foreground/40">
+                <div
+                    className="text-scaled uppercase text-foreground/40"
+                    style={{ letterSpacing: "var(--tt-tracking-ultra)" }}
+                >
                     {label}
                 </div>
                 <div className="text-lg font-semibold text-foreground">
@@ -76,15 +79,78 @@ export const GeneralTab = ({
     onForceTrackerReannounce,
     progressPercent,
     timeRemainingLabel,
-    activePeers,
 }: GeneralTabProps) => {
     const { t } = useTranslation();
     const handleCopyHash = () => writeClipboard(torrent.hash);
 
+    // Compute peer count (no .isActive property in TorrentPeerEntity)
+    const peerCount = Array.isArray(torrent.peers) ? torrent.peers.length : 0;
+
+    const showNoDataError =
+        typeof torrent.errorString === "string" &&
+        torrent.errorString.includes("No data found");
+
     return (
         <div className="space-y-6">
+            {showNoDataError && (
+                <GlassPanel className="p-4 border border-warning/30 bg-warning/10 flex flex-col gap-2">
+                    <div className="font-semibold text-warning text-sm">
+                        {t("torrent_modal.errors.no_data_found_title", {
+                            defaultValue: "No data found!",
+                        })}
+                    </div>
+                    <div className="text-warning text-xs mb-2">
+                        {t("torrent_modal.errors.no_data_found_desc", {
+                            defaultValue:
+                                "Ensure your drives are connected or use 'Set Location'. To re-download, remove the torrent and re-add it.",
+                        })}
+                    </div>
+                    <div className="flex gap-2 mt-2">
+                        <Button
+                            size="sm"
+                            variant="shadow"
+                            color="primary"
+                            onPress={() => {
+                                /* TODO: trigger folder picker */
+                            }}
+                        >
+                            {t("directory_browser.select", {
+                                name: t("torrent_modal.labels.save_path"),
+                                defaultValue: "Set Location",
+                            })}
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant="shadow"
+                            color="danger"
+                            onPress={() => {
+                                /* TODO: remove and re-add torrent */
+                            }}
+                        >
+                            {t("modals.download", {
+                                defaultValue: "Re-download",
+                            })}
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant="shadow"
+                            color="default"
+                            onPress={() => {
+                                /* TODO: retry fetch */
+                            }}
+                        >
+                            {t("toolbar.feedback.refresh", {
+                                defaultValue: "Retry",
+                            })}
+                        </Button>
+                    </div>
+                </GlassPanel>
+            )}
             <GlassPanel className="space-y-3 border border-content1/20 bg-content1/30 p-4">
-                <div className="flex items-center justify-between gap-4 text-scaled uppercase tracking-[0.3em] text-foreground/50">
+                <div
+                    className="flex items-center justify-between gap-4 text-scaled uppercase text-foreground/50"
+                    style={{ letterSpacing: "var(--tt-tracking-ultra)" }}
+                >
                     <div className="flex flex-col">
                         <span className="text-xs font-semibold text-foreground">
                             {formatPercent(progressPercent, 1)}
@@ -99,7 +165,7 @@ export const GeneralTab = ({
                     </div>
                     <div className="flex flex-col items-end text-primary">
                         <span className="text-xs font-semibold font-mono">
-                            {activePeers}
+                            {peerCount}
                         </span>
                         <span>{t("torrent_modal.stats.active")}</span>
                     </div>
@@ -115,7 +181,12 @@ export const GeneralTab = ({
             <GlassPanel className="p-4 space-y-4 bg-content1/30 border border-content1/20">
                 <div className="flex items-center justify-between gap-4">
                     <div className="flex flex-col gap-1">
-                        <span className="text-scaled uppercase tracking-[0.3em] text-foreground/40">
+                        <span
+                            className="text-scaled uppercase text-foreground/40"
+                            style={{
+                                letterSpacing: "var(--tt-tracking-ultra)",
+                            }}
+                        >
                             {t("torrent_modal.controls.title")}
                         </span>
                         <p className="text-scaled text-foreground/50">
@@ -220,11 +291,16 @@ export const GeneralTab = ({
                             strokeWidth={ICON_STROKE_WIDTH}
                             className="text-foreground/50"
                         />
-                        <span className="text-scaled uppercase tracking-[0.3em] text-foreground/40">
+                        <span
+                            className="text-scaled uppercase text-foreground/40"
+                            style={{
+                                letterSpacing: "var(--tt-tracking-ultra)",
+                            }}
+                        >
                             {t("torrent_modal.labels.save_path")}
                         </span>
                     </div>
-                    <code className="font-mono text-xs text-foreground/70 bg-content1/20 px-2 py-1 rounded break-words">
+                    <code className="font-mono text-xs text-foreground/70 bg-content1/20 px-2 py-1 rounded wrap-break-word">
                         {downloadDir}
                     </code>
                 </GlassPanel>
@@ -255,7 +331,7 @@ export const GeneralTab = ({
                             />
                         </Button>
                     </div>
-                    <code className="font-mono text-xs text-foreground/70 bg-content1/20 px-2 py-1 rounded break-words">
+                    <code className="font-mono text-xs text-foreground/70 bg-content1/20 px-2 py-1 rounded wrap-break-word">
                         {torrent.hash}
                     </code>
                 </GlassPanel>

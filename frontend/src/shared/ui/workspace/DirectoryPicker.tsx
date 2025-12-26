@@ -200,15 +200,23 @@ export function DirectoryPicker({
                             {entry.name}
                         </span>
                         {subtitle && (
-                            <span className="text-xs uppercase tracking-[0.3em] text-foreground/50">
+                            <span
+                                className="text-xs uppercase text-foreground/50"
+                                style={{
+                                    letterSpacing: "var(--tt-tracking-ultra)",
+                                }}
+                            >
                                 {subtitle}
                             </span>
                         )}
                     </div>
                 </div>
                 <span
-                    style={{ fontSize: "var(--tt-font-size-base)" }}
-                    className="font-semibold uppercase tracking-[0.4em] text-foreground/40"
+                    style={{
+                        fontSize: "var(--tt-font-size-base)",
+                        letterSpacing: "var(--tt-tracking-ultra)",
+                    }}
+                    className="font-semibold uppercase text-foreground/40"
                 >
                     {t("directory_browser.open")}
                 </span>
@@ -240,7 +248,10 @@ export function DirectoryPicker({
                     <h3 className="text-lg font-bold text-foreground">
                         {t("directory_browser.title")}
                     </h3>
-                    <p className="text-xs uppercase tracking-[0.35em] text-foreground/50">
+                    <p
+                        className="text-xs uppercase text-foreground/50"
+                        style={{ letterSpacing: "var(--tt-tracking-wide)" }}
+                    >
                         {resolvedPath || t("directory_browser.root_label")}
                     </p>
                 </ModalHeader>
@@ -285,8 +296,11 @@ export function DirectoryPicker({
                             {t("directory_browser.up")}
                         </Button>
                         <span
-                            style={{ fontSize: "var(--tt-font-size-base)" }}
-                            className="uppercase tracking-[0.35em] text-foreground/40"
+                            style={{
+                                fontSize: "var(--tt-font-size-base)",
+                                letterSpacing: "var(--tt-tracking-wide)",
+                            }}
+                            className="uppercase text-foreground/40"
                         >
                             {isRoot
                                 ? t("directory_browser.root_label")

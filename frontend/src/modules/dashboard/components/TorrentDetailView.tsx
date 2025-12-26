@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { Dock, PictureInPicture as Popout, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { GeneralTab } from "./details/tabs/GeneralTab";
 import { ContentTab } from "./details/tabs/ContentTab";
@@ -7,6 +8,12 @@ import { SpeedTab } from "./details/tabs/SpeedTab";
 import { PeersTab } from "./details/tabs/PeersTab";
 import { TrackersTab } from "./details/tabs/TrackersTab";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
+import type { PeerContextAction } from "./details/tabs/PeersTab";
+import type { TorrentPeerEntity } from "@/services/rpc/entities";
+import type {
+    FileExplorerContextAction,
+    FileExplorerEntry,
+} from "@/shared/ui/workspace/FileExplorerTree";
 
 export type DetailTab =
     | "general"
@@ -19,15 +26,21 @@ export type DetailTab =
 export type PeerSortStrategy = string;
 
 export interface TorrentDetailViewProps {
-    torrent?: TorrentDetail | null | unknown;
+    torrent?: TorrentDetail | null;
     className?: string;
     onClose?: () => void;
     onFilesToggle?: (
         indexes: number[],
         wanted: boolean
     ) => void | Promise<void>;
-    onFileContextAction?: (action: any, entry: any) => void;
-    onPeerContextAction?: (action: any, peer: any) => void;
+    onFileContextAction?: (
+        action: FileExplorerContextAction,
+        entry: FileExplorerEntry
+    ) => void;
+    onPeerContextAction?: (
+        action: PeerContextAction,
+        peer: TorrentPeerEntity
+    ) => void;
     peerSortStrategy?: PeerSortStrategy;
     inspectorTabCommand?: DetailTab | null;
     onInspectorTabCommandHandled?: () => void;
@@ -36,9 +49,6 @@ export interface TorrentDetailViewProps {
     onForceTrackerReannounce?: () => void | Promise<void>;
     sequentialSupported?: boolean;
     superSeedingSupported?: boolean;
-    isFullscreen?: boolean;
-    onDock?: () => void;
-    onPopout?: () => void;
 }
 
 /**
@@ -46,19 +56,43 @@ export interface TorrentDetailViewProps {
  * props through. This restores the inspector UI while preserving per-tab
  * components implemented under `details/tabs/`.
  */
-export const TorrentDetailView: React.FC<TorrentDetailViewProps> = (props) => {
+export const TorrentDetailView: React.FC<
+    TorrentDetailViewProps & {
+        isDetailFullscreen?: boolean;
+        onDock?: () => void;
+        onPopout?: () => void;
+    }
+> = ({
+    torrent,
+    className,
+    onFilesToggle,
+    onFileContextAction,
+    onPeerContextAction,
+    inspectorTabCommand,
+    onInspectorTabCommandHandled,
+    onSequentialToggle,
+    onSuperSeedingToggle,
+    onForceTrackerReannounce,
+    sequentialSupported,
+    superSeedingSupported,
+    isDetailFullscreen = false,
+    onDock,
+    onPopout,
+    onClose,
+}) => {
     const { t } = useTranslation();
     const [active, setActive] = useState<DetailTab>("general");
 
     // If an external command targets a specific tab, honour it and notify
     useEffect(() => {
-        if (props.inspectorTabCommand) {
-            setActive(props.inspectorTabCommand);
-            props.onInspectorTabCommandHandled?.();
+        if (inspectorTabCommand && inspectorTabCommand !== active) {
+            setActive(inspectorTabCommand);
+            onInspectorTabCommandHandled?.();
         }
-    }, [props.inspectorTabCommand, props.onInspectorTabCommandHandled]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [inspectorTabCommand, onInspectorTabCommandHandled]);
 
-    const torrent = props.torrent as TorrentDetail | undefined | null;
+    // torrent is already strictly typed as TorrentDetail | null | undefined
 
     const tabs = useMemo(
         () =>
@@ -93,24 +127,63 @@ export const TorrentDetailView: React.FC<TorrentDetailViewProps> = (props) => {
 
     return (
         <div
-            className={props.className ?? "h-full min-h-0 flex flex-col"}
+            className={className ?? "h-full min-h-0 flex flex-col"}
             tabIndex={0}
             onKeyDown={handleKey}
         >
-            <div className="flex items-center gap-2 px-3 py-2">
-                {tabs.map((tab) => (
-                    <button
-                        key={tab}
-                        type="button"
-                        aria-pressed={active === tab}
-                        onClick={() => setActive(tab)}
-                        className={`px-3 py-1 rounded-full text-scaled ${
-                            active === tab ? "bg-primary/20" : "bg-transparent"
-                        }`}
-                    >
-                        {t(`inspector.tab.${tab}`) as unknown as string}
-                    </button>
-                ))}
+            <div className="flex items-center justify-between gap-2 px-3 py-2">
+                <div className="flex items-center gap-2">
+                    {tabs.map((tab) => (
+                        <button
+                            key={tab}
+                            type="button"
+                            aria-pressed={active === tab}
+                            onClick={() => setActive(tab)}
+                            className={`px-3 py-1 rounded-full text-scaled ${
+                                active === tab
+                                    ? "bg-primary/20"
+                                    : "bg-transparent"
+                            }`}
+                        >
+                            {t(`inspector.tab.${tab}`) as unknown as string}
+                        </button>
+                    ))}
+                </div>
+                <div className="flex items-center gap-1">
+                    {/* Popout: only when not fullscreen/modal and handler exists */}
+                    {!isDetailFullscreen && onPopout && (
+                        <button
+                            type="button"
+                            className="p-1 rounded hover:bg-primary/10"
+                            aria-label="Popout"
+                            onClick={onPopout}
+                        >
+                            <Popout size={18} />
+                        </button>
+                    )}
+                    {/* Dock: only when fullscreen/modal and handler exists */}
+                    {isDetailFullscreen && onDock && (
+                        <button
+                            type="button"
+                            className="p-1 rounded hover:bg-primary/10"
+                            aria-label="Dock"
+                            onClick={onDock}
+                        >
+                            <Dock size={18} />
+                        </button>
+                    )}
+                    {/* Close: unchanged */}
+                    {onClose && (
+                        <button
+                            type="button"
+                            className="p-1 rounded hover:bg-primary/10"
+                            aria-label="Close"
+                            onClick={onClose}
+                        >
+                            <X size={18} />
+                        </button>
+                    )}
+                </div>
             </div>
 
             <div className="flex-1 min-h-0 overflow-hidden">
@@ -118,13 +191,11 @@ export const TorrentDetailView: React.FC<TorrentDetailViewProps> = (props) => {
                     <GeneralTab
                         torrent={torrent}
                         downloadDir={torrent.downloadDir ?? ""}
-                        sequentialSupported={props.sequentialSupported}
-                        superSeedingSupported={props.superSeedingSupported}
-                        onSequentialToggle={props.onSequentialToggle}
-                        onSuperSeedingToggle={props.onSuperSeedingToggle}
-                        onForceTrackerReannounce={
-                            props.onForceTrackerReannounce
-                        }
+                        sequentialSupported={sequentialSupported}
+                        superSeedingSupported={superSeedingSupported}
+                        onSequentialToggle={onSequentialToggle}
+                        onSuperSeedingToggle={onSuperSeedingToggle}
+                        onForceTrackerReannounce={onForceTrackerReannounce}
                         progressPercent={Math.round(
                             (torrent.progress ?? 0) * 100
                         )}
@@ -136,8 +207,8 @@ export const TorrentDetailView: React.FC<TorrentDetailViewProps> = (props) => {
                     <ContentTab
                         files={torrent.files ?? []}
                         emptyMessage={t("torrent_modal.files_empty")}
-                        onFilesToggle={props.onFilesToggle}
-                        onFileContextAction={props.onFileContextAction}
+                        onFilesToggle={onFilesToggle}
+                        onFileContextAction={onFileContextAction}
                     />
                 )}
                 {active === "pieces" && torrent && (
@@ -158,9 +229,8 @@ export const TorrentDetailView: React.FC<TorrentDetailViewProps> = (props) => {
                 {active === "peers" && torrent && (
                     <PeersTab
                         peers={torrent.peers ?? []}
-                        onPeerContextAction={(a, p) =>
-                            props.onPeerContextAction?.(a as any, p as any)
-                        }
+                        onPeerContextAction={onPeerContextAction}
+                        torrentProgress={torrent.progress ?? 0}
                     />
                 )}
                 {active === "speed" && torrent && (

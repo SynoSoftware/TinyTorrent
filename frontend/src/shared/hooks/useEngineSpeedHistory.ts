@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTorrentClient } from "@/app/providers/TorrentClientProvider";
+import { useEngineHeartbeat } from "@/shared/hooks/useEngineHeartbeat";
 
-export const useEngineSpeedHistory = (
-    torrentId: string | null | undefined,
-    tick?: number
-) => {
+// Push-based: subscribes to engine heartbeat, updates history only when engine emits
+export const useEngineSpeedHistory = (torrentId: string | null | undefined) => {
     const client = useTorrentClient();
-    const size = Number.isFinite((client as any).historySize)
-        ? (client as any).historySize
-        : undefined;
+    const { tick } = useEngineHeartbeat({
+        mode: "detail",
+        detailId: torrentId,
+    });
+    // Removed unused 'size' and 'any' type usages
     const empty = useMemo(() => ({ down: [], up: [] }), []);
     const [history, setHistory] = useState<{ down: number[]; up: number[] }>(
         empty
@@ -19,28 +20,44 @@ export const useEngineSpeedHistory = (
             setHistory({ down: [], up: [] });
             return;
         }
-        let mounted = true;
-        const fetch = async () => {
-            try {
-                const data = await client.getSpeedHistory?.(torrentId);
-                if (!mounted) return;
-                if (
-                    data &&
-                    Array.isArray(data.down) &&
-                    Array.isArray(data.up)
-                ) {
-                    setHistory({ down: data.down, up: data.up });
-                    return;
+        // On every engine heartbeat, get the latest snapshot (sync, no polling)
+        try {
+            const data = client.getSpeedHistory?.(torrentId);
+            if (data && typeof (data as any)?.then === "function") {
+                // Defensive: if adapter returns a Promise, resolve it
+                (data as Promise<{ down: number[]; up: number[] }>)
+                    .then((result) => {
+                        if (
+                            result &&
+                            Array.isArray(result.down) &&
+                            Array.isArray(result.up)
+                        ) {
+                            setHistory({ down: result.down, up: result.up });
+                        } else {
+                            setHistory({ down: [], up: [] });
+                        }
+                    })
+                    .catch(() => setHistory({ down: [], up: [] }));
+            } else if (
+                data &&
+                typeof data === "object" &&
+                !(typeof (data as any)?.then === "function")
+            ) {
+                const maybe = data as { down?: unknown; up?: unknown };
+                if (Array.isArray(maybe.down) && Array.isArray(maybe.up)) {
+                    setHistory({
+                        down: maybe.down,
+                        up: maybe.up,
+                    });
+                } else {
+                    setHistory({ down: [], up: [] });
                 }
-            } catch {
-                // ignore
+            } else {
+                setHistory({ down: [], up: [] });
             }
-            if (mounted) setHistory({ down: [], up: [] });
-        };
-        void fetch();
-        return () => {
-            mounted = false;
-        };
+        } catch {
+            setHistory({ down: [], up: [] });
+        }
     }, [client, torrentId, tick]);
 
     return history;

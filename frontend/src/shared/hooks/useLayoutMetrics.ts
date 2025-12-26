@@ -56,50 +56,55 @@ export default function useLayoutMetrics(): LayoutMetrics {
     const [metrics, setMetrics] = useState<LayoutMetrics>(initial);
     const ref = useRef<LayoutMetrics>(initial);
 
+    // Throttle updateMetrics to avoid excessive reflows
+    const rafRef = useRef<number | null>(null);
     const updateMetrics = useCallback(() => {
-        try {
-            const styles = getComputedStyle(document.documentElement);
-            const next: LayoutMetrics = {
-                rowHeight: readNumberVar(styles, "--tt-row-h", baseRow),
-                fileContextMenuMargin: readNumberVar(
-                    styles,
-                    "--tt-file-context-menu-margin",
-                    baseMenuMargin
-                ),
-                fileContextMenuWidth: readNumberVar(
-                    styles,
-                    "--tt-file-context-menu-width",
-                    baseMenuWidth
-                ),
-                unit: readNumberVar(styles, "--tt-unit", baseUnit),
-                fontBase: readNumberVar(
-                    styles,
-                    "--tt-font-size-base",
-                    baseFont
-                ),
-                iconSize: readNumberVar(styles, "--tt-icon-size", 12),
-                zoomLevel: parseZoom(
-                    styles.getPropertyValue("--tt-zoom-level"),
-                    SCALE_BASES.zoom
-                ),
-            };
-
-            if (
-                ref.current.rowHeight !== next.rowHeight ||
-                ref.current.fileContextMenuMargin !==
-                    next.fileContextMenuMargin ||
-                ref.current.fileContextMenuWidth !==
-                    next.fileContextMenuWidth ||
-                ref.current.unit !== next.unit ||
-                ref.current.fontBase !== next.fontBase ||
-                ref.current.zoomLevel !== next.zoomLevel
-            ) {
-                ref.current = next;
-                setMetrics(next);
+        if (rafRef.current !== null) return;
+        rafRef.current = window.requestAnimationFrame(() => {
+            rafRef.current = null;
+            try {
+                const styles = getComputedStyle(document.documentElement);
+                const next: LayoutMetrics = {
+                    rowHeight: readNumberVar(styles, "--tt-row-h", baseRow),
+                    fileContextMenuMargin: readNumberVar(
+                        styles,
+                        "--tt-file-context-menu-margin",
+                        baseMenuMargin
+                    ),
+                    fileContextMenuWidth: readNumberVar(
+                        styles,
+                        "--tt-file-context-menu-width",
+                        baseMenuWidth
+                    ),
+                    unit: readNumberVar(styles, "--tt-unit", baseUnit),
+                    fontBase: readNumberVar(
+                        styles,
+                        "--tt-font-size-base",
+                        baseFont
+                    ),
+                    iconSize: readNumberVar(styles, "--tt-icon-size", 12),
+                    zoomLevel: parseZoom(
+                        styles.getPropertyValue("--tt-zoom-level"),
+                        SCALE_BASES.zoom
+                    ),
+                };
+                if (
+                    ref.current.rowHeight !== next.rowHeight ||
+                    ref.current.fileContextMenuMargin !==
+                        next.fileContextMenuMargin ||
+                    ref.current.fileContextMenuWidth !==
+                        next.fileContextMenuWidth ||
+                    ref.current.unit !== next.unit ||
+                    ref.current.fontBase !== next.fontBase ||
+                    ref.current.zoomLevel !== next.zoomLevel
+                ) {
+                    ref.current = next;
+                    setMetrics(next);
+                }
+            } catch {
+                // Leave metrics unchanged if DOM access fails.
             }
-        } catch {
-            // Leave metrics unchanged if DOM access fails.
-        }
+        });
     }, [baseFont, baseMenuMargin, baseMenuWidth, baseRow, baseUnit]);
 
     useEffect(() => {
@@ -127,7 +132,9 @@ export default function useLayoutMetrics(): LayoutMetrics {
         return () => {
             try {
                 mo.disconnect();
-            } catch {}
+            } catch {
+                // ignore
+            }
         };
     }, [initial, updateMetrics]);
 

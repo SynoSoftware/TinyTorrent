@@ -51,7 +51,7 @@ export function SwitchSliderRenderer({
                         {t(block.labelKey)}
                     </span>
                 </Switch>
-                <div className="text-scaled font-mono font-medium text-foreground/80 bg-content2 px-2 py-1 rounded-md min-w-[var(--tt-badge-min-width)] text-center">
+                <div className="text-scaled font-mono font-medium text-foreground/80 bg-content2 px-2 py-1 rounded-md min-w-(--tt-badge-min-width) text-center">
                     {block.valueSuffixKey
                         ? t(block.valueSuffixKey, { value: sliderValue })
                         : sliderValue}
@@ -218,7 +218,7 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
                 variant="flat"
                 color="primary"
                 onPress={handleSideAction}
-                className="h-[var(--button-h)] px-5 shrink-0 font-semibold text-xs tracking-wider uppercase bg-primary/10 hover:bg-primary/20 text-primary transition-colors data-[pressed=true]:scale-95"
+                className="h-(--button-h) px-5 shrink-0 font-semibold text-xs tracking-wider uppercase bg-primary/10 hover:bg-primary/20 text-primary transition-colors data-[pressed=true]:scale-95"
                 isDisabled={sideActionDisabled}
             >
                 {t(sideAction.labelKey)}
@@ -263,7 +263,10 @@ export function DaySelectorRenderer({
     return (
         <div className="space-y-3">
             <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold uppercase tracking-[0.2em] text-foreground/70">
+                <span
+                    className="text-xs font-semibold uppercase text-foreground/70"
+                    style={{ letterSpacing: "var(--tt-tracking-wide)" }}
+                >
                     {t(block.labelKey)}
                 </span>
             </div>
@@ -278,9 +281,10 @@ export function DaySelectorRenderer({
                             color={isSelected ? "primary" : undefined}
                             onPress={() => toggleDay(day.mask)}
                             className={cn(
-                                "uppercase tracking-[0.2em] text-scaled h-8 px-3 min-w-0",
+                                "h-(--button-h) px-3 shrink-0 font-semibold text-xs tracking-wider uppercase bg-primary/10 hover:bg-primary/20 text-primary transition-colors data-[pressed=true]:scale-95 text-scaled min-w-0",
                                 isSelected ? "font-bold" : "text-foreground/60"
                             )}
+                            style={{ letterSpacing: "var(--tt-tracking-wide)" }}
                         >
                             {t(day.labelKey).substring(0, 3)}
                         </Button>

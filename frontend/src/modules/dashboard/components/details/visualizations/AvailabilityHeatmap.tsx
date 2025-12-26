@@ -44,15 +44,16 @@ export const AvailabilityHeatmap = ({
     const palette = useCanvasPalette();
     const [zoomIndex, setZoomIndex] = useState(0);
     const [isZooming, setIsZooming] = useState(false);
-    const { tick } = useEngineHeartbeat({ mode: "detail" });
+    // Decoupled: visuals update only when pieceAvailability changes
     const availabilityList = useMemo(
         () => pieceAvailability ?? [],
         [pieceAvailability]
     );
+    // Engine heartbeat for redraws
+    const { tick } = useEngineHeartbeat({ mode: "detail" });
     const hasAvailability = availabilityList.length > 0;
 
     const startZoomPulse = useCallback(() => {
-        // Mark zooming active; will be cleared on next engine tick to avoid UI timers.
         setIsZooming(true);
     }, []);
 
@@ -201,10 +202,10 @@ export const AvailabilityHeatmap = ({
 
     // Clear zoom pulse on the next engine tick to avoid UI timers.
     useEffect(() => {
-        if (tick !== undefined && isZooming) {
+        if (isZooming) {
             setIsZooming(false);
         }
-    }, [tick, isZooming]);
+    }, [tick]);
 
     const handleHeatmapHover = useCallback(
         (event: MouseEvent<HTMLCanvasElement>) => {
@@ -257,7 +258,10 @@ export const AvailabilityHeatmap = ({
     return (
         <motion.div layout className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold uppercase tracking-[0.3em] text-foreground/50">
+                <span
+                    className="text-xs font-semibold uppercase text-foreground/50"
+                    style={{ letterSpacing: "var(--tt-tracking-ultra)" }}
+                >
                     {label}
                 </span>
                 <div className="flex items-center gap-3 text-scaled text-foreground/50">

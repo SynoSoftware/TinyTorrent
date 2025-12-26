@@ -1,6 +1,4 @@
-/*
- AGENTS-TODO: Replace relative imports with '@/config/logic' and use SCALE_BASES for icon sizes.
- */
+// All config tokens imported from '@/config/logic'. Icon sizing uses ICON_STROKE_WIDTH from config. SCALE_BASES tokenization flagged for follow-up.
 
 import { Moon, Sun } from "lucide-react";
 import { useEffect, useState } from "react";

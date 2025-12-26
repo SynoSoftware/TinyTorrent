@@ -106,8 +106,7 @@ const buildFileTree = (entries: FileExplorerEntry[]): FileExplorerNode[] => {
 };
 
 // priority badge base classes (visuals) - font size & padding come from CSS tokens
-const PRIORITY_BADGE_BASE =
-    "font-semibold uppercase tracking-[0.2em] rounded-full";
+const PRIORITY_BADGE_BASE = "font-semibold uppercase rounded-full";
 const PRIORITY_LABELS: Record<LibtorrentPriority, string> = {
     0: "Do Not Download",
     1: "Low Priority",
@@ -610,6 +609,8 @@ export function FileExplorerTree({
                                                     "var(--tt-priority-badge-font-size)",
                                                 padding:
                                                     "var(--tt-priority-badge-padding-y) var(--tt-priority-badge-padding-x)",
+                                                letterSpacing:
+                                                    "var(--tt-tracking-wide)",
                                             }}
                                         >
                                             {priorityLabel}

@@ -60,8 +60,6 @@ export type EngineDisplayType = "tinytorrent" | "transmission" | "unknown";
 interface StatusBarProps {
     workspaceStyle: WorkspaceStyle;
     sessionStats: SessionStats | null;
-    downHistory: number[];
-    upHistory: number[];
     rpcStatus: RpcStatus;
     liveTransportStatus: HeartbeatSource;
     selectedTorrent?: TorrentEntity | null;
@@ -72,8 +70,6 @@ interface StatusBarProps {
 export function StatusBar({
     workspaceStyle,
     sessionStats,
-    downHistory,
-    upHistory,
     rpcStatus,
     liveTransportStatus,
     selectedTorrent,
@@ -275,7 +271,7 @@ export function StatusBar({
                             style={{ minWidth: "var(--tt-status-min-100)" }}
                         >
                             <NetworkGraph
-                                data={downHistory}
+                                data={[]}
                                 color="success"
                                 className="h-full w-full"
                             />
@@ -340,7 +336,7 @@ export function StatusBar({
                             style={{ minWidth: "var(--tt-status-min-100)" }}
                         >
                             <NetworkGraph
-                                data={upHistory}
+                                data={[]}
                                 color="primary"
                                 className="h-full w-full"
                             />
@@ -376,7 +372,7 @@ export function StatusBar({
                             <span
                                 className={cn(
                                     UI_CONFIG.typography.value,
-                                    "text-foreground max-w-[var(--tt-statusbar-short-max-w)] truncate text-right"
+                                    "text-foreground max-w-(--tt-statusbar-short-max-w) truncate text-right"
                                 )}
                                 title={summaryValue}
                             >

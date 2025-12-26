@@ -193,7 +193,7 @@ const SpeedColumnCell = ({ torrent, table }: ColumnRendererProps) => {
         <div className="flex items-center justify-end gap-2 min-w-0">
             <span
                 className={cn(
-                    "flex-shrink-0 text-right min-w-0",
+                    "shrink-0 text-right min-w-0",
                     DENSE_NUMERIC,
                     "font-medium",
                     isDownloading

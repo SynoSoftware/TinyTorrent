@@ -73,7 +73,7 @@ export function Navbar({
     return (
         <header
             className={cn(
-                "app-titlebar sticky top-0 z-30 flex w-full shrink-0 select-none relative overflow-visible transition-all",
+                "app-titlebar sticky top-0 z-30 flex w-full shrink-0 select-none overflow-visible transition-all",
                 GLASS_BLOCK_SURFACE,
                 BLOCK_SHADOW
             )}

@@ -127,8 +127,6 @@ interface WorkspaceShellProps {
     onInspectorTabCommandHandled: () => void;
     sessionStats: SessionStats | null;
     liveTransportStatus: HeartbeatSource;
-    downHistory: number[];
-    upHistory: number[];
     rpcStatus: RpcStatus;
     handleReconnect: () => void;
     pendingDelete: DeleteIntent | null;
@@ -195,8 +193,6 @@ export function WorkspaceShell({
     onInspectorTabCommandHandled,
     sessionStats,
     liveTransportStatus,
-    downHistory,
-    upHistory,
     rpcStatus,
     handleReconnect,
     pendingDelete,
@@ -319,8 +315,6 @@ export function WorkspaceShell({
         <StatusBar
             workspaceStyle={workspaceStyle}
             sessionStats={sessionStats}
-            downHistory={downHistory}
-            upHistory={upHistory}
             rpcStatus={rpcStatus}
             liveTransportStatus={liveTransportStatus}
             selectedTorrent={detailData ?? undefined}
@@ -392,8 +386,8 @@ export function WorkspaceShell({
                     <div className="absolute inset-0 mix-blend-screen opacity-50 bg-primary/20" />
                     <div className="absolute inset-0 mix-blend-screen opacity-40 bg-content1/15" />
                     <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20" />
-                    <div className="absolute inset-x-[-20%] bottom-[-30%] h-[var(--tt-shell-accent-large)] rounded-full bg-primary/30 blur-[var(--glass-blur)] opacity-40" />
-                    <div className="absolute inset-x-[-15%] top-[-35%] h-[var(--tt-shell-accent-medium)] rounded-full bg-blue-500/30 blur-[var(--glass-blur)] opacity-35" />
+                    <div className="absolute inset-x-[-20%] bottom-[-30%] h-(--tt-shell-accent-large) rounded-full bg-primary/30 blur-(--glass-blur) opacity-40" />
+                    <div className="absolute inset-x-[-15%] top-[-35%] h-(--tt-shell-accent-medium) rounded-full bg-blue-500/30 blur-(--glass-blur) opacity-35" />
                 </div>
             )}
 
@@ -423,7 +417,7 @@ export function WorkspaceShell({
                     className={cn(
                         "mx-auto flex w-full flex-1 flex-col",
                         isImmersiveShell
-                            ? "max-w-[var(--tt-shell-main-max-w)] gap-6 px-4 py-6 sm:px-6 lg:px-10"
+                            ? "max-w-(--tt-shell-main-max-w) gap-6 px-4 py-6 sm:px-6 lg:px-10"
                             : "gap-2 px-4 py-4"
                     )}
                 >

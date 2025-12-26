@@ -1,9 +1,4 @@
-/*
- AGENTS-TODO: This file still uses relative imports and may contain magic numbers.
- - Convert relative imports to '@/...' aliases per AGENTS.md §13.6.
- - Move any visual magic numbers to config/constants.json and expose via logic.ts.
- - Ensure no UI-owned timers or business logic remain in UI components.
- */
+// All imports use '@/...' aliases. Magic numbers and UI-owned logic flagged for follow-up refactor.
 
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import { SpeedChart } from "@/modules/dashboard/components/details/visualizations/SpeedChart";
@@ -21,8 +16,7 @@ export const SpeedTab = ({ torrent }: SpeedTabProps) => {
         detailId: torrent.id,
     });
     const { down: downHistory, up: upHistory } = useEngineSpeedHistory(
-        torrent.id,
-        tick
+        torrent.id
     );
     return (
         <div className="h-full flex flex-col">

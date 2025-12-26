@@ -1,7 +1,4 @@
-/*
- AGENTS-TODO: This type file was referenced via relative imports in multiple modules.
- - Review and replace any callers using deep-relative imports with '@/modules/...'.
- */
+// All imports use '@/modules/...' aliases. No deep-relative imports remain.
 
 import type {
     TorrentDetailEntity,

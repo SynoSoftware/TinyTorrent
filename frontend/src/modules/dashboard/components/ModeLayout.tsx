@@ -213,20 +213,15 @@ export function ModeLayout({
 
     const getShellStyles = (partName: "table" | "inspector") => {
         const isActive = activePart === partName;
-        const frameClass = isActive ? "z-20" : "z-10";
-        const activeBorders = isActive
-            ? "ring-2 ring-inset ring-primary/40 border-primary/20"
-            : "border-transparent";
         return {
             className: cn(
-                "relative h-full transition-all duration-200 flex flex-col box-border min-w-0 min-h-0",
-                !isImmersiveShell && GLASS_BLOCK_SURFACE,
-                !isImmersiveShell && "border",
-                frameClass,
-                activeBorders,
-                isImmersiveShell && "bg-transparent"
+                "relative h-full w-full flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden transition-all duration-200",
+                isActive
+                    ? "border-t-2 border-t-primary/60"
+                    : "border-t border-t-white/5",
+                "bg-transparent"
             ),
-            style: isImmersiveShell ? undefined : shell.frameStyle,
+            style: {},
         };
     };
 
@@ -302,7 +297,7 @@ export function ModeLayout({
         <PanelGroup
             direction={splitDirection}
             autoSaveId="tiny-torrent.workbench.layout"
-            className="flex-1 min-h-0 h-full w-full relative flex flex-col overflow-hidden"
+            className="flex-1 min-h-0 h-full w-full relative overflow-hidden"
         >
             {/* --- MAIN PANEL --- */}
             <Panel className="relative flex-1 min-h-0">
@@ -435,7 +430,8 @@ export function ModeLayout({
                                     superSeedingSupported={
                                         superSeedingSupported
                                     }
-                                    isFullscreen={isDetailFullscreen}
+                                    isDetailFullscreen={false}
+                                    onDock={handleDetailDock}
                                     onPopout={handleDetailPopout}
                                 />
                             </motion.div>
@@ -489,8 +485,9 @@ export function ModeLayout({
                                 }
                                 sequentialSupported={sequentialSupported}
                                 superSeedingSupported={superSeedingSupported}
-                                isFullscreen
+                                isDetailFullscreen={isDetailFullscreen}
                                 onDock={handleDetailDock}
+                                onPopout={handleDetailPopout}
                             />
                         </motion.div>
                     </motion.div>

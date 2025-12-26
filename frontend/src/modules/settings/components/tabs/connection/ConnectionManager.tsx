@@ -274,7 +274,10 @@ export function ConnectionCredentialsCard({
             </div>
             <div className="grid gap-3">
                 {isOffline && (
-                    <p className="text-xs uppercase tracking-[0.2em] text-warning">
+                    <p
+                        className="text-xs uppercase text-warning"
+                        style={{ letterSpacing: "var(--tt-tracking-wide)" }}
+                    >
                         {t("settings.connection.offline_warning")}
                     </p>
                 )}

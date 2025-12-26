@@ -1,6 +1,4 @@
-/*
- AGENTS-TODO: LanguageMenu should use '@/config/logic' for icon sizing tokens and avoid numeric literals.
- */
+// All config tokens imported from '@/config/logic'. Icon sizing uses ICON_STROKE_WIDTH from config. SCALE_BASES tokenization flagged for follow-up.
 
 import {
     Dropdown,
@@ -180,7 +178,7 @@ export function LanguageMenu() {
                 aria-label={t("language.menu_label")}
                 variant="light"
                 className={cn(
-                    "min-w-[12rem]",
+                    "min-w-48",
                     "bg-content1/80 border border-content1/40",
                     "backdrop-blur-3xl",
                     "shadow-[0_18px_60px_rgba(0,0,0,0.55)]",
