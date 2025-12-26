@@ -5,13 +5,13 @@ import "../index.css";
 import "../i18n/index";
 import App from "./App";
 import { ClientProvider } from "./providers/TorrentClientProvider";
-import { PerformanceHistoryProvider } from "../shared/hooks/usePerformanceHistory";
+import { PerformanceHistoryProvider } from "@/shared/hooks/usePerformanceHistory";
 import { WorkspaceModalProvider } from "./WorkspaceModalContext";
 import { HotkeysProvider } from "react-hotkeys-hook";
-import { DEFAULT_KEYBOARD_SCOPE } from "../shared/hooks/useKeyboardScope";
+import { DEFAULT_KEYBOARD_SCOPE } from "@/shared/hooks/useKeyboardScope";
 import { ConnectionConfigProvider } from "./context/ConnectionConfigContext";
-import constants from "../config/constants.json";
-import { applyCssTokenBases } from "../config/logic";
+import { CONFIG } from "@/config/logic";
+import { applyCssTokenBases } from "@/config/logic";
 import {
     captureConnectionOverrideFromSearch,
     captureTokenFromHash,
@@ -36,7 +36,7 @@ createRoot(document.getElementById("root")!).render(
                                 toastOffset={16}
                                 toastProps={{
                                     timeout:
-                                        constants.ui.toast_display_duration_ms,
+                                        CONFIG.ui.toast_display_duration_ms,
                                     hideCloseButton: true,
                                     variant: "flat",
                                     radius: "lg",

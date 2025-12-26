@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import constants from "../../../../../config/constants.json";
+import { CONFIG } from "@/config/logic";
 // Layout metrics (unit/zoom/etc.) are provided by `useLayoutMetrics` when
 // needed; color tokens are a theme concern and are read directly from the
 // rendered CSS (HeroUI tokens). Avoid embedding literal colors here.
@@ -41,6 +41,26 @@ export type CanvasPalette = {
 
 export const useCanvasPalette = (): CanvasPalette => {
     return useMemo(() => {
+        if (typeof window === "undefined") {
+            // SSR-safe: return CSS var placeholders so server render doesn't access DOM.
+            // These values will be replaced on the client when the hook runs again.
+            return {
+                primary: "var(--heroui-primary)",
+                success: "var(--heroui-success)",
+                warning: "var(--heroui-warning)",
+                downloading: "var(--heroui-primary)",
+                missing: "var(--heroui-content1)",
+                foreground: "var(--heroui-foreground)",
+                content1: "var(--heroui-content1)",
+                highlight: "rgba(255,255,255,0.65)",
+                glowSuccess: "rgba(34,197,94,0.45)",
+                glowDownloading: "rgba(6,182,212,0.45)",
+                glowWarning: "rgba(245,158,11,0.55)",
+                placeholder: "rgba(255,255,255,0.08)",
+                danger: "var(--heroui-danger)",
+            } as CanvasPalette;
+        }
+
         const styles = getComputedStyle(document.documentElement);
         const read = (name: string) => styles.getPropertyValue(name).trim();
         return {
@@ -61,6 +81,20 @@ export const useCanvasPalette = (): CanvasPalette => {
     }, []);
 };
 
+// Expose a small helper to read arbitrary CSS tokens from a centralized location
+// so consumer components do not call getComputedStyle(document.documentElement)
+// directly in render paths. This keeps the DOM access centralized and memoized.
+export const getCssToken = (name: string): string => {
+    if (typeof window === "undefined") return "";
+    try {
+        const styles = getComputedStyle(document.documentElement);
+        const v = styles.getPropertyValue(name);
+        return v ? v.trim() : "";
+    } catch {
+        return "";
+    }
+};
+
 export const getAvailabilityColor = (value: number, maxPeers: number) => {
     const ratio = Math.min(Math.max(value / maxPeers, 0), 1);
     const hue = ratio * 220;
@@ -68,7 +102,7 @@ export const getAvailabilityColor = (value: number, maxPeers: number) => {
     return `hsl(${hue}, 75%, ${lightness}%)`;
 };
 
-export const HISTORY_POINTS = constants.performance.history_data_points;
+export const HISTORY_POINTS = CONFIG.performance.history_data_points;
 
 export const computeCanvasBackingScale = (zoomLevel = 1) => {
     const dpr =

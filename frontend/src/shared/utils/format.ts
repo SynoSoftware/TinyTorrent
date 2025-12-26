@@ -60,3 +60,9 @@ export const formatRelativeTime = (timestamp?: number) => {
     const amount = Math.round(delta / unit.value);
     return relativeFormatter.format(amount, unit.unit);
 };
+
+export const formatPercent = (value: number, digits = 1) =>
+    `${Number.isFinite(value) ? value.toFixed(digits) : "0"}%`;
+
+export const formatRatio = (value: number, digits = 2) =>
+    `${Number.isFinite(value) ? value.toFixed(digits) : "-"}`;

@@ -8,11 +8,11 @@ import {
 } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import useLayoutMetrics from "@/shared/hooks/useLayoutMetrics";
-import { GlassPanel } from "../../../../../shared/ui/layout/GlassPanel";
-import { formatSpeed } from "../../../../../shared/utils/format";
-import type { TorrentPeerEntity } from "../../../../../services/rpc/entities";
-import { PeerScatter } from "../visualizations/PeerScatter";
-import { usePeerHover } from "../../../../../shared/hooks/usePeerHover";
+import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
+import { formatSpeed } from "@/shared/utils/format";
+import type { TorrentPeerEntity } from "@/services/rpc/entities";
+import { PeerScatter } from "@/modules/dashboard/components/details/visualizations/PeerScatter";
+import { usePeerHover } from "@/shared/hooks/usePeerHover";
 import { useTranslation } from "react-i18next";
 
 const DEFAULT_ROW_HEIGHT = 34;
@@ -60,10 +60,14 @@ export const PeersTab = ({
         useState<PeerContextMenuState | null>(null);
     const { rowHeight, fileContextMenuMargin, fileContextMenuWidth } =
         useLayoutMetrics();
+    const normalizedRowHeight =
+        Number.isFinite(rowHeight) && rowHeight > 0
+            ? rowHeight
+            : DEFAULT_ROW_HEIGHT;
     const rowVirtualizer = useVirtualizer({
         count: orderedPeers.length,
         getScrollElement: () => listRef.current,
-        estimateSize: () => rowHeight || DEFAULT_ROW_HEIGHT,
+        estimateSize: () => normalizedRowHeight,
         overscan: 6,
     });
     const virtualItems = rowVirtualizer.getVirtualItems();
@@ -141,7 +145,7 @@ export const PeersTab = ({
                 return (
                     <div
                         key={virtualRow.key}
-                        className={`absolute left-0 right-0 flex items-center px-3 text-[length:var(--fz-scaled)] text-foreground select-none transition-colors ${
+                        className={`absolute left-0 right-0 flex items-center px-3 text-scaled text-foreground select-none transition-colors ${
                             hoveredPeer === peer.address
                                 ? "bg-white/5"
                                 : "hover:bg-white/5"
@@ -156,13 +160,13 @@ export const PeersTab = ({
                             handlePeerContextMenu(event, peer)
                         }
                     >
-                        <div className="w-6 text-left text-[length:var(--fz-scaled)] uppercase tracking-[0.2em]">
+                        <div className="w-6 text-left text-scaled uppercase tracking-[0.2em]">
                             {peer.flagStr}
                         </div>
-                        <div className="flex-1 min-w-0 text-[length:var(--fz-scaled)] font-mono">
+                        <div className="flex-1 min-w-0 text-scaled font-mono">
                             {peer.address}
                         </div>
-                        <div className="w-28 text-[length:var(--fz-scaled)] text-foreground/60 truncate">
+                        <div className="w-28 text-scaled text-foreground/60 truncate">
                             {peer.clientName}
                         </div>
                         <div className="w-20 flex items-center gap-1">
@@ -189,7 +193,7 @@ export const PeersTab = ({
 
     return (
         <div className="flex flex-col h-full min-h-0 overflow-hidden gap-3">
-            <GlassPanel className="flex-none h-[length:calc(45*var(--u)*var(--z))]">
+            <GlassPanel className="flex-none h-[var(--tt-peers-hud-height)]">
                 <PeerScatter
                     peers={peers}
                     height={180}

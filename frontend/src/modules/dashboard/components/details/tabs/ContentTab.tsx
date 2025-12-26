@@ -1,20 +1,31 @@
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { GlassPanel } from "../../../../../shared/ui/layout/GlassPanel";
+/*
+ AGENTS-TODO: ContentTab violations detected — follow-up required:
+ - Convert deep relative imports to '@/...' aliases per AGENTS.md §13.6.
+ - Remove UI-owned optimistic business logic; delegate optimistic updates to Adapter/Service.
+ - Replace inline numeric/tailwind literals with design tokens or flag them in constants.json.
+ - Reduce inline layout styles; integrate with workbench pane sizing.
+ */
+
+import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import {
     FileExplorerTree,
     type FileExplorerContextAction,
     type FileExplorerEntry,
-} from "../../../../../shared/ui/workspace/FileExplorerTree";
-import { useFileTree } from "../../../../../shared/hooks/useFileTree";
-import type { TorrentFileEntity } from "../../../../../services/rpc/entities";
-import { DETAILS_TAB_CONTENT_MAX_HEIGHT } from "../../../../../config/logic";
+} from "@/shared/ui/workspace/FileExplorerTree";
+import { useFileTree } from "@/shared/hooks/useFileTree";
+import type { TorrentFileEntity } from "@/services/rpc/entities";
+import { DETAILS_TAB_CONTENT_MAX_HEIGHT } from "@/config/logic";
 
 interface ContentTabProps {
     files?: TorrentFileEntity[];
     emptyMessage: string;
-    onFilesToggle?: (indexes: number[], wanted: boolean) => Promise<void> | void;
+    onFilesToggle?: (
+        indexes: number[],
+        wanted: boolean
+    ) => Promise<void> | void;
     onFileContextAction?: (
         action: FileExplorerContextAction,
         entry: FileExplorerEntry

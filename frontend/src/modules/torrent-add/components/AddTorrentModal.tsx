@@ -1,3 +1,10 @@
+/*
+ AGENTS-TODO: Contains relative imports and UI logic that should be refactored.
+ - Replace relative imports with '@/...' aliases.
+ - Move layout magic numbers into config tokens.
+ - Ensure file/adapter responsibilities (don't keep business logic in UI).
+ */
+
 import {
     Button,
     Input,
@@ -19,22 +26,19 @@ import {
     type ChangeEvent,
 } from "react";
 import { useTranslation } from "react-i18next";
-import { DirectoryPicker } from "../../../shared/ui/workspace/DirectoryPicker";
+import { DirectoryPicker } from "@/shared/ui/workspace/DirectoryPicker";
 import {
     FileExplorerTree,
     type FileExplorerEntry,
-} from "../../../shared/ui/workspace/FileExplorerTree";
-import { DiskSpaceGauge } from "../../../shared/ui/workspace/DiskSpaceGauge";
-import {
-    parseTorrentFile,
-    type TorrentMetadata,
-} from "../../../shared/utils/torrent";
+} from "@/shared/ui/workspace/FileExplorerTree";
+import { DiskSpaceGauge } from "@/shared/ui/workspace/DiskSpaceGauge";
+import { parseTorrentFile, type TorrentMetadata } from "@/shared/utils/torrent";
 import type { TransmissionFreeSpace } from "@/services/rpc/types";
 import { getDriveSpace } from "@/services/rpc/rpc-extended";
-import { ICON_STROKE_WIDTH } from "../../../config/logic";
-import { INTERACTION_CONFIG } from "../../../config/logic";
-import { GLASS_MODAL_SURFACE } from "../../../shared/ui/layout/glass-surface";
-import type { AddTorrentContext } from "../../../app/hooks/useAddTorrent";
+import { ICON_STROKE_WIDTH } from "@/config/logic";
+import { INTERACTION_CONFIG } from "@/config/logic";
+import { GLASS_MODAL_SURFACE } from "@/shared/ui/layout/glass-surface";
+import type { AddTorrentContext } from "@/app/hooks/useAddTorrent";
 import { useRpcExtension } from "@/app/context/RpcExtensionContext";
 import { useTorrentClient } from "@/app/providers/TorrentClientProvider";
 
@@ -354,7 +358,7 @@ export function AddTorrentModal({
             classNames={{
                 base: cn(
                     GLASS_MODAL_SURFACE,
-                    "w-full max-w-[length:calc(180*var(--u)*var(--z))]"
+                    "w-full max-w-[var(--tt-modal-max-width)]"
                 ),
                 closeButton: "hover:bg-content1/10 active:bg-content1/20",
             }}
@@ -479,7 +483,7 @@ export function AddTorrentModal({
                                     >
                                         {t("modals.file_tree_description")}
                                     </p>
-                                    <div className="max-h-[length:calc(70*var(--u)*var(--z))] overflow-y-auto">
+                                    <div className="max-h-[var(--tt-modal-body-max-height)] overflow-y-auto">
                                         <FileExplorerTree
                                             files={fileTreeEntries}
                                             emptyMessage={t(
@@ -620,7 +624,7 @@ export function AddTorrentModal({
                                 </Button>
                             </div>
                             {isSpaceInsufficient && (
-                                <p className="text-[length:var(--fz-scaled)] text-warning">
+                                <p className="text-scaled text-warning">
                                     {t("modals.disk_gauge.insufficient")}
                                 </p>
                             )}

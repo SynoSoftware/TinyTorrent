@@ -5,11 +5,14 @@ import { motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import { ZoomIn, ZoomOut } from "lucide-react";
 import { GLASS_TOOLTIP_CLASSNAMES } from "./constants";
-import { clamp, useCanvasPalette } from "./canvasUtils";
+import {
+    clamp,
+    useCanvasPalette,
+} from "@/modules/dashboard/components/details/visualizations/canvasUtils";
 import useLayoutMetrics from "@/shared/hooks/useLayoutMetrics";
-import { PEER_MAP_CONFIG } from "../../../../../config/logic";
-import { formatSpeed } from "../../../../../shared/utils/format";
-import type { TorrentPeerEntity } from "../../../../../services/rpc/entities";
+import { PEER_MAP_CONFIG } from "@/config/logic";
+import { formatSpeed } from "@/shared/utils/format";
+import type { TorrentPeerEntity } from "@/services/rpc/entities";
 
 const PEER_DRIFT_AMPLITUDE = PEER_MAP_CONFIG.drift_amplitude;
 const PEER_DRIFT_DURATION_MIN = PEER_MAP_CONFIG.drift_duration.min;
@@ -44,26 +47,53 @@ export const PeerMap = ({ peers }: PeerMapProps) => {
 
     const nodes = useMemo(() => {
         if (!peers.length) return [];
-        const radius = 70;
-        const center = 90;
+        const cfgLayout = (PEER_MAP_CONFIG as any).layout ?? PEER_MAP_CONFIG;
+        const layout = {
+            center: (cfgLayout && cfgLayout.center) ?? 90,
+            radius: (cfgLayout && cfgLayout.radius) ?? 70,
+            base_node_size: (cfgLayout && cfgLayout.base_node_size) ?? 6,
+            progress_scale: (cfgLayout && cfgLayout.progress_scale) ?? 12,
+        };
+        const radius = layout.radius;
+        const center = layout.center;
+        const baseNode = layout.base_node_size;
+        const progressScale = layout.progress_scale;
+
+        // Deterministic hash helper to derive consistent offsets from peer identity
+        const hashString = (s: string) => {
+            let h = 2166136261 >>> 0;
+            for (let i = 0; i < s.length; i++) {
+                h ^= s.charCodeAt(i) & 0xff;
+                h = Math.imul(h, 16777619) >>> 0;
+            }
+            return h >>> 0;
+        };
+
         return peers.map((peer, index) => {
             const angle = (index / peers.length) * Math.PI * 2;
             const speed = peer.rateToClient + peer.rateToPeer;
-            const distance = 30 + (speed / maxRate) * 40;
+            const distance = radius * 0.3 + (speed / maxRate) * (radius * 0.6);
             const x = center + Math.cos(angle) * distance;
             const y = center + Math.sin(angle) * distance;
             const unitPx = unit || 4;
-            const size = unitPx * 1.5 + (peer.progress ?? 0) * (unitPx * 3);
+            const size = baseNode + (peer.progress ?? 0) * progressScale;
             const isChoking = peer.peerIsChoking;
             const fill = isChoking ? palette.danger : palette.success;
-            const driftX = (Math.random() - 0.5) * PEER_DRIFT_AMPLITUDE;
-            const driftY = (Math.random() - 0.5) * PEER_DRIFT_AMPLITUDE;
+
+            // Deterministic offsets derived from peer address (no randomness)
+            const seed = hashString(
+                peer.address || (peer as any).id || String(index)
+            );
+            const frac = (seed % 1000) / 1000;
+            const driftX = (frac - 0.5) * PEER_DRIFT_AMPLITUDE;
+            const driftY = ((seed >>> 10) % 1000) / 1000 - 0.5;
             const duration =
                 PEER_DRIFT_DURATION_MIN +
-                Math.random() *
+                (((seed >>> 5) % 1000) / 1000) *
                     (PEER_DRIFT_DURATION_MAX - PEER_DRIFT_DURATION_MIN);
-            const delay = Math.random() * 1.5;
-            const delayY = delay + Math.random() * 0.7;
+            const delay = (((seed >>> 15) % 1000) / 1000) * 1.5;
+            const delayY = delay + (((seed >>> 20) % 1000) / 1000) * 0.7;
+
             return {
                 peer,
                 x,
@@ -77,7 +107,7 @@ export const PeerMap = ({ peers }: PeerMapProps) => {
                 delayY,
             };
         });
-    }, [maxRate, peers]);
+    }, [maxRate, peers, unit, palette]);
 
     const handleZoom = (direction: "in" | "out") => {
         setScale((prev) =>
@@ -133,14 +163,14 @@ export const PeerMap = ({ peers }: PeerMapProps) => {
     return (
         <motion.div
             layout
-            className="flex flex-col flex-1 min-h-[length:calc(80*var(--u)*var(--z))] rounded-2xl border border-content1/20 bg-content1/15 p-4 space-y-3 overflow-hidden"
+            className="flex flex-col flex-1 rounded-2xl border border-content1/20 bg-content1/15 p-4 space-y-3 overflow-hidden"
         >
             <div className="flex items-center justify-between">
                 <div className="flex flex-col">
-                    <span className="text-[length:var(--fz-scaled)] uppercase tracking-[0.3em] text-foreground/50">
+                    <span className="text-scaled uppercase tracking-[0.3em] text-foreground/50">
                         {t("torrent_modal.peer_map.title")}
                     </span>
-                    <span className="text-[length:var(--fz-scaled)] font-mono text-foreground/50">
+                    <span className="text-scaled font-mono text-foreground/50">
                         {t("torrent_modal.peer_map.total", {
                             count: peers.length,
                         })}
@@ -151,7 +181,7 @@ export const PeerMap = ({ peers }: PeerMapProps) => {
                         size="sm"
                         variant="flat"
                         color="default"
-                        className="h-[length:var(--button-h)] w-[length:var(--button-h)]"
+                        className="h-[var(--button-h)] w-[var(--button-h)]"
                         onPress={() => handleZoom("out")}
                     >
                         <ZoomOut
@@ -164,7 +194,7 @@ export const PeerMap = ({ peers }: PeerMapProps) => {
                         size="sm"
                         variant="flat"
                         color="default"
-                        className="h-[length:var(--button-h)] w-[length:var(--button-h)]"
+                        className="h-[var(--button-h)] w-[var(--button-h)]"
                         onPress={() => handleZoom("in")}
                     >
                         <ZoomIn
@@ -247,17 +277,24 @@ export const PeerMap = ({ peers }: PeerMapProps) => {
                                 y,
                                 size,
                                 fill,
-                                driftX,
-                                driftY,
-                                duration,
-                                delay,
-                                delayY,
+                                driftX: _driftX,
+                                driftY: _driftY,
+                                duration: _duration,
+                                delay: _delay,
+                                delayY: _delayY,
                             }) => (
                                 <Tooltip
                                     key={`${peer.address}-${x}-${y}`}
-                                    content={`${peer.address} • ${formatSpeed(
-                                        peer.rateToClient
-                                    )} DL / ${formatSpeed(peer.rateToPeer)} UL`}
+                                    content={t(
+                                        "torrent_modal.peer_map.tooltip",
+                                        {
+                                            address: peer.address,
+                                            dl: formatSpeed(peer.rateToClient),
+                                            ul: formatSpeed(peer.rateToPeer),
+                                            download: t("peers.download"),
+                                            upload: t("peers.upload"),
+                                        }
+                                    )}
                                     delay={0}
                                     closeDelay={0}
                                     classNames={GLASS_TOOLTIP_CLASSNAMES}
@@ -271,32 +308,6 @@ export const PeerMap = ({ peers }: PeerMapProps) => {
                                         strokeWidth={
                                             peer.peerIsChoking ? 0.5 : 1
                                         }
-                                        animate={{
-                                            translateX: [0, driftX, -driftX, 0],
-                                            translateY: [0, driftY, -driftY, 0],
-                                        }}
-                                        transition={{
-                                            translateX: {
-                                                duration,
-                                                repeat: Infinity,
-                                                repeatType: "mirror",
-                                                ease: "easeInOut",
-                                                delay,
-                                            },
-                                            translateY: {
-                                                duration,
-                                                repeat: Infinity,
-                                                repeatType: "mirror",
-                                                ease: "easeInOut",
-                                                delay: delayY,
-                                            },
-                                            default: {
-                                                type: "spring",
-                                                stiffness: 300,
-                                                damping: 20,
-                                            },
-                                        }}
-                                        whileHover={{ scale: 1.2 }}
                                     />
                                 </Tooltip>
                             )

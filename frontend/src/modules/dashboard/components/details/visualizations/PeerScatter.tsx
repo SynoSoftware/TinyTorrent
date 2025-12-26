@@ -1,10 +1,11 @@
 import type { MouseEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import useLayoutMetrics from "@/shared/hooks/useLayoutMetrics";
 import { useTranslation } from "react-i18next";
-import { formatSpeed } from "../../../../../shared/utils/format";
+import { formatSpeed } from "@/shared/utils/format";
 import { useCanvasPalette } from "./canvasUtils";
-import type { TorrentPeerEntity } from "../../../../../services/rpc/entities";
-import { DETAILS_SCATTER_CONFIG } from "../../../../../config/logic";
+import type { TorrentPeerEntity } from "@/services/rpc/entities";
+import { DETAILS_SCATTER_CONFIG } from "@/config/logic";
 
 interface PeerScatterProps {
     peers: TorrentPeerEntity[];
@@ -23,6 +24,7 @@ export const PeerScatter = ({
 }: PeerScatterProps) => {
     const { t } = useTranslation();
     const palette = useCanvasPalette();
+    const { fontBase } = useLayoutMetrics();
     const containerRef = useRef<HTMLDivElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [dimensions, setDimensions] = useState({ width: 0, height: height });
@@ -100,7 +102,9 @@ export const PeerScatter = ({
         ctx.strokeStyle = palette.content1; // Used as subtle grid
         ctx.fillStyle = palette.foreground;
         ctx.globalAlpha = 0.4; // Valid to use global alpha with semantic colors
-        ctx.font = "10px sans-serif";
+        // Use font size from layout metrics (centralized, cached)
+        const _fz = Number.isFinite(fontBase) ? `${fontBase}px` : "11px";
+        ctx.font = `${_fz} sans-serif`;
         ctx.textAlign = "center";
 
         const usableHeight =

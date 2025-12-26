@@ -93,7 +93,7 @@ TinyTorrent is a **local three-part system**:
 1. **Tray / Native Shell**
 
    * Native Windows dialogs
-   * OS integration
+   * **WebView2 Window Host** (Zero-bloat native shell)
 
 2. **Daemon**
 
@@ -101,13 +101,33 @@ TinyTorrent is a **local three-part system**:
    * Runs in background
    * Owns all torrent state
 
-3. **UI (Web Runtime)**
+3. **UI (Managed Native Window)**
 
-   * Control surface only
+   * React-driven workbench hosted in the Native Shell
    * No business logic
-   * No feature reduction compared to native UI
+   * Uses **Native Message Bridge** for OS-level features (Focus, Dialogs)
 
 This architecture exists to achieve **smallest possible size and overhead**, not to emulate a web client–server product.
+
+---
+
+## **§2b. The Native Bridge (WebView2 Rules)**
+
+When running as a desktop app, the UI must bypass browser-layer limitations:
+
+1. **Deterministic Focus**
+ The Native Shell owns the window handle (`HWND`). Standard Win32 `SetForegroundWindow` is used for activation. The "Title Swap Handshake" is deprecated.
+
+
+2. **System Services**
+   The UI communicates with the Native Shell via `window.chrome.webview.postMessage`.
+    * **Native Path:** UI → Native Shell (C++) → Win32 API.
+    * **Fallback Path:** UI → Daemon (RPC) → Logic (for remote/standard browser use).
+
+
+3. **Window Lifecycle**
+ The window is a "View." Closing the window must **Hide** the window, not terminate the process. Termination is only handled via the Tray's "Exit" or `app-shutdown` command.
+
 
 ---
 
@@ -227,6 +247,26 @@ All shell-level constants (fallback grays, noise strength, etc.) live in `config
 ## **No Magic Numbers**
 
 All spacing, sizing, radius, and scale values must come from configuration tokens and not from inline constants or ad-hoc Tailwind values.
+
+ **No-New-Numbers Rule**
+
+When fixing zoom-related or css magic number issues issues:
+
+ - You may NOT introduce any new numeric literals (integers or floats), even inside `calc()`.
+ - Replacements must use:
+
+   - existing semantic tokens, or
+   - existing primitives (`--u`, `--z`, `--fz`) *without introducing new coefficients*.
+ - If no suitable token exists, the element must be left unchanged and flagged instead.
+
+ **Consistency & Convergence Rule**
+>
+ - Do NOT introduce one-off variables.
+ - If a numeric value represents a concept that appears more than once (width, padding, icon size, column size, max-width, etc.), it MUST map to a **single semantic variable**.
+ - Before introducing or using any variable, check whether an existing variable already represents the same meaning.
+ - If no such variable exists, DO NOT invent a new one — flag it instead.
+ - Multiple variables for the same semantic role are forbidden.
+
 
 ### **Aesthetic**
 
@@ -529,7 +569,7 @@ The frontend runs on a **dual transport**:
 
 1. **Baseline (HTTP Polling)**
 
-    - Mandatory for MVP.
+    - Fallback for remote debugging or standard Transmission compatibility.
     - The app must fully function using standard HTTP RPC calls (POST to `/transmission/rpc`).
     - Compatible with stock Transmission.
     - Polling interval is adaptive (e.g., 2s in table view, 5s in background).
@@ -537,7 +577,7 @@ The frontend runs on a **dual transport**:
 2. **Upgrade Path (Server-Push / WebSocket)**
 
     - If backend identifies as "Standard Transmission", client stays in **HTTP Polling** mode.
-    - If backend identifies as "TinyTorrent" engine, client upgrades to **Server-Push (event-driven)** mode.
+    - If backend identifies as "TinyTorrent", client upgrades to **Server-Push** and activates the **Native Bridge** (if available).
     - In push mode, client stops polling; server pushes state deltas via WebSocket.
 
 ---

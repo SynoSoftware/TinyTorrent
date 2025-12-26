@@ -2,14 +2,14 @@ import { cn } from "@heroui/react";
 import type { MouseEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { formatBytes } from "../../../../../shared/utils/format";
+import { formatBytes } from "@/shared/utils/format";
 import {
     cancelScheduledFrame,
     scheduleFrame,
     useCanvasPalette,
 } from "./canvasUtils";
 import type { FrameHandle } from "./canvasUtils";
-import { DETAILS_PIECE_MAP_CONFIG } from "../../../../../config/logic";
+import { DETAILS_PIECE_MAP_CONFIG } from "@/config/logic";
 type PieceStatus = "done" | "downloading" | "missing";
 interface PiecesMapProps {
     percent: number;
@@ -114,8 +114,7 @@ export const PiecesMap = ({
         ? formatBytes(pieceSize)
         : t("torrent_modal.labels.unknown");
     const canvasWidth =
-        DETAILS_PIECE_MAP_CONFIG.columns *
-            DETAILS_PIECE_MAP_CONFIG.cell_size +
+        DETAILS_PIECE_MAP_CONFIG.columns * DETAILS_PIECE_MAP_CONFIG.cell_size +
         (DETAILS_PIECE_MAP_CONFIG.columns - 1) *
             DETAILS_PIECE_MAP_CONFIG.cell_gap;
     const canvasHeight =
@@ -178,8 +177,10 @@ export const PiecesMap = ({
             };
 
             cells.forEach((cell, index) => {
-        const column = index % DETAILS_PIECE_MAP_CONFIG.columns;
-        const row = Math.floor(index / DETAILS_PIECE_MAP_CONFIG.columns);
+                const column = index % DETAILS_PIECE_MAP_CONFIG.columns;
+                const row = Math.floor(
+                    index / DETAILS_PIECE_MAP_CONFIG.columns
+                );
                 const x = column * cellPitch;
                 const y = row * cellPitch;
                 ctx.save();
@@ -255,8 +256,7 @@ export const PiecesMap = ({
                 setHoverPosition(null);
                 return;
             }
-            const cellIndex =
-                row * DETAILS_PIECE_MAP_CONFIG.columns + column;
+            const cellIndex = row * DETAILS_PIECE_MAP_CONFIG.columns + column;
             const cell = cells[cellIndex];
             if (!cell) {
                 setHoveredPiece(null);

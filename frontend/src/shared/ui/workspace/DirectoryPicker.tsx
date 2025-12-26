@@ -28,7 +28,7 @@ import { useRpcExtension } from "@/app/context/RpcExtensionContext";
 import { useTorrentClient } from "@/app/providers/TorrentClientProvider";
 import { ICON_STROKE_WIDTH } from "@/config/logic";
 import { INTERACTION_CONFIG } from "@/config/logic";
-import { GLASS_MODAL_SURFACE } from "../layout/glass-surface";
+import { GLASS_MODAL_SURFACE } from "@/shared/ui/layout/glass-surface";
 
 interface DirectoryPickerProps {
     isOpen: boolean;
@@ -230,7 +230,7 @@ export function DirectoryPicker({
             classNames={{
                 base: cn(
                     GLASS_MODAL_SURFACE,
-                    "max-w-[length:calc(40*var(--u)*var(--z))] w-full"
+                    "max-w-[var(--tt-directory-picker-max-w)] w-full"
                 ),
             }}
             motionProps={INTERACTION_CONFIG.modalBloom}

@@ -1,8 +1,12 @@
+/*
+ AGENTS-TODO: Replace relative imports with '@/config/logic' and use SCALE_BASES for icon sizes.
+ */
+
 import { Moon, Sun } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ICON_STROKE_WIDTH } from "../../../config/logic";
-import { ToolbarIconButton } from "../layout/toolbar-button";
+import { ICON_STROKE_WIDTH } from "@/config/logic";
+import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
 
 const STORAGE_KEY = "tiny-torrent-theme";
 

@@ -66,9 +66,9 @@ export default heroui({
             extend: "dark",
             layout: {
                 radius: {
-                    small: "4px",
-                    medium: "6px",
-                    large: "8px",
+                    small: "var(--r-sm)",
+                    medium: "var(--r-md)",
+                    large: "var(--r-lg)",
                 },
             },
             colors: {

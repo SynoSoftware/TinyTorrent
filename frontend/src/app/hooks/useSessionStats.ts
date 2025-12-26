@@ -1,10 +1,10 @@
 import { useCallback, useState, useEffect } from "react";
 import type { MutableRefObject } from "react";
 
-import type { EngineAdapter } from "../../services/rpc/engine-adapter";
-import type { SessionStats } from "../../services/rpc/entities";
-import type { RpcStatus } from "../../shared/types/rpc";
-import type { HeartbeatSource } from "../../services/rpc/heartbeat";
+import type { EngineAdapter } from "@/services/rpc/engine-adapter";
+import type { SessionStats } from "@/services/rpc/entities";
+import type { RpcStatus } from "@/shared/types/rpc";
+import type { HeartbeatSource } from "@/services/rpc/heartbeat";
 
 interface UseSessionStatsParams {
     torrentClient: EngineAdapter;

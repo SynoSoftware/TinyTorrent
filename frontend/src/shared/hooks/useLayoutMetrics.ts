@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { UI_BASES, SCALE_BASES } from "@/config/logic";
 
 // Public, minimal metric surface. This hook is a reader only — it does NOT
@@ -11,12 +11,25 @@ export type LayoutMetrics = {
     unit: number;
     fontBase: number;
     zoomLevel: number;
+    iconSize: number;
 };
 
 function parseZoom(raw: string | null | undefined, fallback: number) {
     if (!raw) return fallback;
     const n = parseFloat(String(raw).trim());
     return Number.isFinite(n) ? n : fallback;
+}
+
+function readNumberVar(
+    styles: CSSStyleDeclaration,
+    property: string,
+    fallback: number
+) {
+    const raw = styles.getPropertyValue(property);
+    if (!raw) return fallback;
+    const parsed = parseFloat(raw);
+    if (!Number.isFinite(parsed)) return fallback;
+    return parsed;
 }
 
 export default function useLayoutMetrics(): LayoutMetrics {
@@ -27,47 +40,79 @@ export default function useLayoutMetrics(): LayoutMetrics {
     const baseUnit = SCALE_BASES.unit;
     const baseFont = SCALE_BASES.fontBase;
 
-    const initial: LayoutMetrics = {
-        rowHeight: baseRow,
-        fileContextMenuMargin: baseMenuMargin,
-        fileContextMenuWidth: baseMenuWidth,
-        unit: baseUnit,
-        fontBase: baseFont,
-        zoomLevel: SCALE_BASES.zoom,
-    };
+    const initial = useMemo(
+        () => ({
+            rowHeight: baseRow,
+            fileContextMenuMargin: baseMenuMargin,
+            fileContextMenuWidth: baseMenuWidth,
+            unit: baseUnit,
+            fontBase: baseFont,
+            iconSize: Math.round(baseFont * 1.25),
+            zoomLevel: SCALE_BASES.zoom,
+        }),
+        [baseRow, baseMenuMargin, baseMenuWidth, baseUnit, baseFont]
+    );
 
     const [metrics, setMetrics] = useState<LayoutMetrics>(initial);
     const ref = useRef<LayoutMetrics>(initial);
 
-    const computeZoom = useCallback(() => {
-        // Only read the single runtime override CSS var that JS writes:
-        // `--tt-zoom-level`. Do NOT read or infer colors or other tokens here.
+    const updateMetrics = useCallback(() => {
         try {
             const styles = getComputedStyle(document.documentElement);
-            const raw = styles.getPropertyValue("--tt-zoom-level");
-            const zoom = parseZoom(raw, SCALE_BASES.zoom);
-            if (ref.current.zoomLevel !== zoom) {
-                const updated = { ...ref.current, zoomLevel: zoom };
-                ref.current = updated;
-                setMetrics(updated);
+            const next: LayoutMetrics = {
+                rowHeight: readNumberVar(styles, "--tt-row-h", baseRow),
+                fileContextMenuMargin: readNumberVar(
+                    styles,
+                    "--tt-file-context-menu-margin",
+                    baseMenuMargin
+                ),
+                fileContextMenuWidth: readNumberVar(
+                    styles,
+                    "--tt-file-context-menu-width",
+                    baseMenuWidth
+                ),
+                unit: readNumberVar(styles, "--tt-unit", baseUnit),
+                fontBase: readNumberVar(
+                    styles,
+                    "--tt-font-size-base",
+                    baseFont
+                ),
+                iconSize: readNumberVar(styles, "--tt-icon-size", 12),
+                zoomLevel: parseZoom(
+                    styles.getPropertyValue("--tt-zoom-level"),
+                    SCALE_BASES.zoom
+                ),
+            };
+
+            if (
+                ref.current.rowHeight !== next.rowHeight ||
+                ref.current.fileContextMenuMargin !==
+                    next.fileContextMenuMargin ||
+                ref.current.fileContextMenuWidth !==
+                    next.fileContextMenuWidth ||
+                ref.current.unit !== next.unit ||
+                ref.current.fontBase !== next.fontBase ||
+                ref.current.zoomLevel !== next.zoomLevel
+            ) {
+                ref.current = next;
+                setMetrics(next);
             }
-        } catch (e) {
-            // In this product we run on a deterministic local runtime; there is
-            // no design fallback here. If compute fails, leave metrics as-is.
+        } catch {
+            // Leave metrics unchanged if DOM access fails.
         }
-    }, []);
+    }, [baseFont, baseMenuMargin, baseMenuWidth, baseRow, baseUnit]);
 
     useEffect(() => {
-        // Initialize from config-derived values first, then read runtime zoom.
         ref.current = initial;
         setMetrics(initial);
 
-        // Observe only style attribute changes that may contain the runtime
-        // zoom-level override. This keeps observation narrow and cheap.
         const mo = new MutationObserver((mutations) => {
-            for (const m of mutations) {
-                if (m.type === "attributes" && m.attributeName === "style") {
-                    computeZoom();
+            for (const mutation of mutations) {
+                if (
+                    mutation.type === "attributes" &&
+                    mutation.attributeName === "style"
+                ) {
+                    updateMetrics();
                     break;
                 }
             }
@@ -77,15 +122,14 @@ export default function useLayoutMetrics(): LayoutMetrics {
             attributeFilter: ["style"],
         });
 
-        // Also check once on mount in case the runtime zoom is already set.
-        computeZoom();
+        updateMetrics();
 
         return () => {
             try {
                 mo.disconnect();
             } catch {}
         };
-    }, [computeZoom]);
+    }, [initial, updateMetrics]);
 
     return metrics;
 }

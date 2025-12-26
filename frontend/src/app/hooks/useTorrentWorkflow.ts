@@ -1,16 +1,16 @@
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { DeleteIntent } from "../types/workspace";
+import type { DeleteIntent } from "@/app/types/workspace";
 import {
     GLOBAL_ACTION_FEEDBACK_CONFIG,
     useActionFeedback,
     type FeedbackAction,
 } from "./useActionFeedback";
 import { useOptimisticStatuses } from "./useOptimisticStatuses";
-import type { Torrent } from "../../modules/dashboard/types/torrent";
-import type { TorrentTableAction } from "../../modules/dashboard/components/TorrentTable";
-import type { TorrentStatus } from "../../services/rpc/entities";
+import type { Torrent } from "@/modules/dashboard/types/torrent";
+import type { TorrentTableAction } from "@/modules/dashboard/components/TorrentTable";
+import type { TorrentStatus } from "@/services/rpc/entities";
 
 interface UseTorrentWorkflowParams {
     torrents: Torrent[];
@@ -31,7 +31,9 @@ export function useTorrentWorkflow({
     const { announceAction, showFeedback } = useActionFeedback();
     const { optimisticStatuses, updateOptimisticStatuses } =
         useOptimisticStatuses(torrents);
-    const [pendingDelete, setPendingDelete] = useState<DeleteIntent | null>(null);
+    const [pendingDelete, setPendingDelete] = useState<DeleteIntent | null>(
+        null
+    );
 
     const requestDelete = useCallback(
         (
@@ -54,7 +56,10 @@ export function useTorrentWorkflow({
     }, []);
 
     const getOptimisticStateForAction = useCallback(
-        (action: TorrentTableAction, torrent: Torrent): TorrentStatus | undefined => {
+        (
+            action: TorrentTableAction,
+            torrent: Torrent
+        ): TorrentStatus | undefined => {
             if (action === "pause") {
                 return "paused";
             }
@@ -77,9 +82,7 @@ export function useTorrentWorkflow({
                     return state ? ({ id: torrent.id, state } as const) : null;
                 })
                 .filter(
-                    (
-                        update
-                    ): update is { id: string; state: TorrentStatus } =>
+                    (update): update is { id: string; state: TorrentStatus } =>
                         Boolean(update)
                 );
             if (optimisticTargets.length) {
@@ -115,11 +118,7 @@ export function useTorrentWorkflow({
     const handleTorrentAction = useCallback(
         async (action: TorrentTableAction, torrent: Torrent) => {
             if (action === "remove" || action === "remove-with-data") {
-                requestDelete(
-                    [torrent],
-                    action,
-                    action === "remove-with-data"
-                );
+                requestDelete([torrent], action, action === "remove-with-data");
                 return;
             }
             const hasFeedback = action in GLOBAL_ACTION_FEEDBACK_CONFIG;
@@ -140,11 +139,7 @@ export function useTorrentWorkflow({
             if (!selectedTorrents.length) return;
             const targets = [...selectedTorrents];
             if (action === "remove" || action === "remove-with-data") {
-                requestDelete(
-                    targets,
-                    action,
-                    action === "remove-with-data"
-                );
+                requestDelete(targets, action, action === "remove-with-data");
                 return;
             }
             const hasFeedback = action in GLOBAL_ACTION_FEEDBACK_CONFIG;
@@ -157,7 +152,12 @@ export function useTorrentWorkflow({
                 announceAction(actionKey, "done", targets.length);
             }
         },
-        [announceAction, requestDelete, runActionsWithOptimism, selectedTorrents]
+        [
+            announceAction,
+            requestDelete,
+            runActionsWithOptimism,
+            selectedTorrents,
+        ]
     );
 
     const confirmDelete = useCallback(async () => {

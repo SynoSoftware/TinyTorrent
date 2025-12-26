@@ -9,15 +9,15 @@
    - All geometry is derived here. Components must use semantic roles or aliases.
    - Backward-compatible aliases kept, but DO NOT REDEFINE them elsewhere. */
 :root {
-    /* runtime/config primitives (may be written by applyCssTokenBases) */
+    /* Structural fallbacks for layout tokens (prevents CLS/first-paint collapse) */
     --tt-zoom-level: 1; /* user scale multiplier (runtime) */
     --tt-unit-base: 4; /* spatial quantum (runtime) */
     --tt-font-base: 11; /* base font px (runtime) */
 
     /* Core law primitives (authoritative) */
-    --u: calc(var(--tt-unit-base, 4) * 1px);
-    --fz: calc(var(--tt-font-base, 11) * 1px);
-    --z: var(--tt-zoom-level, 1);
+    --u: 4px;
+    --fz: 11px;
+    --z: 1;
 
     /* Perceptual clamps (NOT linearly scaled) */
     --bw: 1px; /* border width — optical constant */
@@ -25,19 +25,19 @@
     --blur: 18px; /* glass blur baseline (clamped) */
 
     /* Derived geometry (only from --u, --fz, --z) */
-    --fz-scaled: calc(var(--fz) * var(--z));
+    --fz-scaled: 11px;
 
     /* rows & rhythm */
-    --row: calc(7 * var(--u) * var(--z));
-    --row-lg: calc(9 * var(--u) * var(--z));
-    --p-1: calc(1 * var(--u) * var(--z));
-    --p-2: calc(2 * var(--u) * var(--z));
-    --p-3: calc(3 * var(--u) * var(--z));
-    --p-4: calc(4 * var(--u) * var(--z));
+    --row: 28px;
+    --row-lg: 36px;
+    --p-1: 4px;
+    --p-2: 8px;
+    --p-3: 12px;
+    --p-4: 16px;
 
     /* radii (optical — do NOT scale with --z) */
-    --r-sm: calc(2 * var(--u));
-    --r-md: calc(4 * var(--u));
+    --r-sm: 8px;
+    --r-md: 16px;
     --r-lg: calc(6 * var(--u));
 
     /* icons follow typography (scaled) */
@@ -58,7 +58,7 @@
 
     /* Backward-compatible aliases (read-only; keep single source here) */
     --tt-unit: var(--u);
-    --tt-font-size-base: var(--fz);
+    --tt-font-size-base: var(--fz-scaled);
     --tt-row-h: var(--table-row);
     --tt-navbar-h: var(--navbar-h);
     --tt-navbar-padding: var(--p-3);
@@ -83,6 +83,23 @@
     --tt-priority-badge-padding-y: var(--p-1);
     --tt-file-icon-size: calc(4 * var(--u) * var(--z));
     --tt-file-checkbox-padding: var(--p-1);
+
+    /* Added semantic tokens for previously inline arbitrary Tailwind calcs */
+    --tt-modal-max-width: calc(180 * var(--u) * var(--z));
+    --tt-modal-body-max-height: calc(70 * var(--u) * var(--z));
+    --tt-settings-h: calc(200 * var(--u) * var(--z));
+    --tt-settings-max-h: calc(200 * var(--u) * var(--z));
+    --tt-settings-min-h: calc(125 * var(--u) * var(--z));
+    --tt-badge-min-width: calc(15 * var(--u) * var(--z));
+    --tt-divider-width: calc(2 * var(--bw));
+    --tt-peers-hud-height: calc(45 * var(--u) * var(--z));
+    --tt-directory-picker-max-w: calc(40 * var(--u) * var(--z));
+    --tt-shell-accent-large: calc(120 * var(--u) * var(--z));
+    --tt-shell-accent-medium: calc(100 * var(--u) * var(--z));
+    --tt-shell-main-max-w: calc(350 * var(--u) * var(--z));
+    --tt-statusbar-short-max-w: calc(12 * var(--u) * var(--z));
+    --tt-track-h: calc(2 * var(--bw));
+    --tt-command-palette-max-h: calc(80 * var(--u) * var(--z));
 }
 
 /* index.css - AGGRESSIVE TUNING FOR VISIBILITY */
@@ -335,6 +352,12 @@
     .cap-height-text {
         line-height: 1;
         transform: translateY(-0.75px);
+    }
+
+    /* Semantic text sizing utility mapping to scaled font variable */
+    .text-scaled {
+        font-size: var(--tt-font-size-base);
+        line-height: 1.1;
     }
 
     :where(body, .overlay-scrollbar) {

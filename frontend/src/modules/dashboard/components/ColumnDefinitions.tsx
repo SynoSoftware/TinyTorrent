@@ -31,6 +31,17 @@ import {
     Users,
 } from "lucide-react";
 import { type TFunction } from "i18next";
+import type { Torrent } from "@/modules/dashboard/types/torrent";
+import { type CSSProperties, type ReactNode } from "react";
+import {
+    TABLE_LAYOUT,
+    ICON_STROKE_WIDTH_DENSE,
+    STATUS_CHIP_GAP,
+    STATUS_CHIP_RADIUS,
+} from "@/config/logic";
+import useLayoutMetrics from "@/shared/hooks/useLayoutMetrics";
+import { GLASS_MENU_SURFACE } from "@/shared/ui/layout/glass-surface";
+import { SmoothProgressBar } from "@/shared/ui/components/SmoothProgressBar";
 import {
     formatBytes,
     formatDate,
@@ -38,19 +49,8 @@ import {
     formatRelativeTime,
     formatSpeed,
     formatTime,
-} from "../../../shared/utils/format";
-import { buildSplinePath } from "../../../shared/utils/spline";
-import type { Torrent } from "../types/torrent";
-import { type CSSProperties, type ReactNode } from "react";
-import {
-    TABLE_LAYOUT,
-    ICON_STROKE_WIDTH_DENSE,
-    STATUS_CHIP_GAP,
-    STATUS_CHIP_RADIUS,
-} from "../../../config/logic";
-import useLayoutMetrics from "@/shared/hooks/useLayoutMetrics";
-import { GLASS_MENU_SURFACE } from "../../../shared/ui/layout/glass-surface";
-import { SmoothProgressBar } from "../../../shared/ui/components/SmoothProgressBar";
+} from "@/shared/utils/format";
+import { buildSplinePath } from "@/shared/utils/spline";
 import type { Table } from "@tanstack/react-table";
 import type { OptimisticStatusMap } from "./TorrentTable";
 
@@ -348,16 +348,19 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
                         color={conf.color}
                         startContent={
                             <Icon
-                                size={TABLE_LAYOUT.iconSize}
                                 strokeWidth={ICON_STROKE_WIDTH_DENSE}
-                                className="text-current"
+                                className="text-current aspect-square"
+                                style={{
+                                    width: "var(--tt-icon-size)",
+                                    height: "var(--tt-icon-size)",
+                                }}
                             />
                         }
                         style={STATUS_CHIP_STYLE}
                         classNames={{
                             base: "h-5 px-2 inline-flex items-center whitespace-nowrap flex-nowrap",
                             content:
-                                "font-bold text-[length:var(--fz-scaled)] uppercase tracking-wider leading-none whitespace-nowrap",
+                                "font-bold text-scaled uppercase tracking-wider leading-none whitespace-nowrap",
                         }}
                     >
                         <span className="truncate" title={t(conf.labelKey)}>
@@ -447,9 +450,12 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
                 )}
             >
                 <Users
-                    size={TABLE_LAYOUT.iconSize}
                     strokeWidth={ICON_STROKE_WIDTH_DENSE}
-                    className="opacity-50 text-current"
+                    className="opacity-50 text-current aspect-square"
+                    style={{
+                        width: "var(--tt-icon-size)",
+                        height: "var(--tt-icon-size)",
+                    }}
                 />
                 <span>{torrent.peerSummary.connected}</span>
                 <span className="opacity-30">/</span>

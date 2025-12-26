@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import type { MutableRefObject } from "react";
 
-import type { RpcStatus } from "../../shared/types/rpc";
-import type { TransmissionSessionSettings } from "../../services/rpc/types";
-import type { EngineAdapter } from "../../services/rpc/engine-adapter";
+import type { RpcStatus } from "@/shared/types/rpc";
+import type { TransmissionSessionSettings } from "@/services/rpc/types";
+import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import {
     DEFAULT_SETTINGS_CONFIG,
     type SettingsConfig,
-} from "../../modules/settings/data/config";
+} from "@/modules/settings/data/config";
 
 const USER_PREFERENCES_KEY = "tiny-torrent.user-preferences";
 type PreferencePayload = Pick<
@@ -94,7 +94,8 @@ const mapSessionToConfig = (
         DEFAULT_SETTINGS_CONFIG.alt_speed_end
     ),
     alt_speed_time_day:
-        session["alt-speed-time-day"] ?? DEFAULT_SETTINGS_CONFIG.alt_speed_time_day,
+        session["alt-speed-time-day"] ??
+        DEFAULT_SETTINGS_CONFIG.alt_speed_time_day,
     peer_limit_global:
         session["peer-limit-global"] ??
         DEFAULT_SETTINGS_CONFIG.peer_limit_global,
@@ -107,7 +108,8 @@ const mapSessionToConfig = (
     blocklist_url:
         session["blocklist-url"] ?? DEFAULT_SETTINGS_CONFIG.blocklist_url,
     blocklist_enabled:
-        session["blocklist-enabled"] ?? DEFAULT_SETTINGS_CONFIG.blocklist_enabled,
+        session["blocklist-enabled"] ??
+        DEFAULT_SETTINGS_CONFIG.blocklist_enabled,
     download_dir:
         session["download-dir"] ?? DEFAULT_SETTINGS_CONFIG.download_dir,
     incomplete_dir_enabled:
@@ -119,13 +121,12 @@ const mapSessionToConfig = (
         session["rename-partial-files"] ??
         DEFAULT_SETTINGS_CONFIG.rename_partial_files,
     start_added_torrents:
-        session["start-added-torrents"] ?? DEFAULT_SETTINGS_CONFIG.start_added_torrents,
-    auto_open_ui:
-        session.ui?.autoOpen ?? DEFAULT_SETTINGS_CONFIG.auto_open_ui,
+        session["start-added-torrents"] ??
+        DEFAULT_SETTINGS_CONFIG.start_added_torrents,
+    auto_open_ui: session.ui?.autoOpen ?? DEFAULT_SETTINGS_CONFIG.auto_open_ui,
     autorun_hidden:
         session.ui?.autorunHidden ?? DEFAULT_SETTINGS_CONFIG.autorun_hidden,
-    show_splash:
-        session.ui?.showSplash ?? DEFAULT_SETTINGS_CONFIG.show_splash,
+    show_splash: session.ui?.showSplash ?? DEFAULT_SETTINGS_CONFIG.show_splash,
     splash_message:
         session.ui?.splashMessage ?? DEFAULT_SETTINGS_CONFIG.splash_message,
     seedRatioLimit:
@@ -133,7 +134,8 @@ const mapSessionToConfig = (
     seedRatioLimited:
         session.seedRatioLimited ?? DEFAULT_SETTINGS_CONFIG.seedRatioLimited,
     idleSeedingLimit:
-        session["idle-seeding-limit"] ?? DEFAULT_SETTINGS_CONFIG.idleSeedingLimit,
+        session["idle-seeding-limit"] ??
+        DEFAULT_SETTINGS_CONFIG.idleSeedingLimit,
     idleSeedingLimited:
         session["idle-seeding-limit-enabled"] ??
         DEFAULT_SETTINGS_CONFIG.idleSeedingLimited,

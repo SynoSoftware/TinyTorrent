@@ -1,18 +1,27 @@
 import { Button } from "@heroui/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { formatSpeed } from "../../../../../shared/utils/format";
-import type { TorrentDetail } from "../../../../../modules/dashboard/types/torrent";
+import { formatSpeed } from "@/shared/utils/format";
+import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
 import {
     CHART_HEIGHT,
     CHART_WIDTH,
     SPEED_WINDOW_OPTIONS,
-} from "../../../../../config/logic";
-import { HISTORY_POINTS } from "./canvasUtils";
+} from "@/config/logic";
+import {
+    HISTORY_POINTS,
+    getCssToken,
+    useCanvasPalette,
+} from "@/modules/dashboard/components/details/visualizations/canvasUtils";
 
 type Point = { x: number; y: number };
-const SHIFT_DURATION_MS = 1600;
-const DOWN_STROKE = "#22c55e";
-const UP_STROKE = "#6366f1";
+// Visual tokens are provided by the design constants and exposed via `logic.ts`.
+// This removes ad-hoc numeric literals from component code (No-New-Numbers).
+import {
+    SPEED_CHART_LINE_WIDTH,
+    SPEED_CHART_FILL_ALPHA,
+    SPEED_CHART_DOWN_STROKE_TOKEN,
+    SPEED_CHART_UP_STROKE_TOKEN,
+} from "@/config/logic";
 
 const resampleHistory = (values: number[], targetLength: number) => {
     if (values.length <= targetLength) return [...values];
@@ -47,18 +56,24 @@ const buildPoints = (
 const drawSeries = (
     ctx: CanvasRenderingContext2D,
     points: Point[],
-    fillStyle: CanvasGradient,
     strokeStyle: string
 ) => {
     if (!points.length) return;
+    // Build path for fill
     ctx.beginPath();
     ctx.moveTo(points[0].x, CHART_HEIGHT);
     points.forEach((point) => ctx.lineTo(point.x, point.y));
     ctx.lineTo(points.at(-1)?.x ?? CHART_WIDTH, CHART_HEIGHT);
     ctx.closePath();
-    ctx.fillStyle = fillStyle;
-    ctx.fill();
 
+    // Fill using the stroke color with reduced alpha (driven by design token).
+    ctx.save();
+    ctx.globalAlpha = SPEED_CHART_FILL_ALPHA;
+    ctx.fillStyle = strokeStyle;
+    ctx.fill();
+    ctx.restore();
+
+    // Stroke the series
     ctx.beginPath();
     points.forEach((point, index) => {
         if (index === 0) {
@@ -68,7 +83,7 @@ const drawSeries = (
         ctx.lineTo(point.x, point.y);
     });
     ctx.strokeStyle = strokeStyle;
-    ctx.lineWidth = 3;
+    ctx.lineWidth = SPEED_CHART_LINE_WIDTH;
     ctx.lineCap = "round";
     ctx.stroke();
 };
@@ -78,9 +93,16 @@ type SpeedWindowKey = (typeof SPEED_WINDOW_OPTIONS)[number]["key"];
 interface SpeedChartProps {
     downHistory: number[];
     upHistory: number[];
+    // `tick` is an engine-driven heartbeat counter. Incremented on every engine heartbeat.
+    // Redraw happens on tick changes so the UI advances time even when values are identical.
+    tick?: number;
 }
 
-export const SpeedChart = ({ downHistory, upHistory }: SpeedChartProps) => {
+export const SpeedChart = ({
+    downHistory,
+    upHistory,
+    tick,
+}: SpeedChartProps) => {
     const [selectedWindow, setSelectedWindow] = useState<SpeedWindowKey>("1m");
     const latestDown = downHistory.at(-1) ?? 0;
     const latestUp = upHistory.at(-1) ?? 0;
@@ -118,80 +140,38 @@ export const SpeedChart = ({ downHistory, upHistory }: SpeedChartProps) => {
     }, [downValues, upValues, spacing, maxValue]);
 
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
-    const animationRef = useRef<number | null>(null);
-    const animationStartRef = useRef(performance.now());
-    const pointsRef = useRef(points);
 
+    // Render snapshot on any relevant change. Crucially, include `tick` so that
+    // time advances even when speed values are identical between heartbeats.
     useEffect(() => {
-        pointsRef.current = points;
-        animationStartRef.current = performance.now();
-    }, [points]);
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+        const dpr =
+            typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
+        canvas.width = CHART_WIDTH * dpr;
+        canvas.height = CHART_HEIGHT * dpr;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, CHART_WIDTH, CHART_HEIGHT);
 
-    const drawFrame = useCallback(
-        (timestamp: number) => {
-            const canvas = canvasRef.current;
-            const { down, up } = pointsRef.current;
-            if (!canvas || !down.length || !up.length) {
-                animationRef.current = requestAnimationFrame(drawFrame);
-                return;
-            }
-            const ctx = canvas.getContext("2d");
-            if (!ctx) {
-                animationRef.current = requestAnimationFrame(drawFrame);
-                return;
-            }
-            const dpr =
-                typeof window !== "undefined"
-                    ? window.devicePixelRatio || 1
-                    : 1;
-            canvas.width = CHART_WIDTH * dpr;
-            canvas.height = CHART_HEIGHT * dpr;
-            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-            ctx.clearRect(0, 0, CHART_WIDTH, CHART_HEIGHT);
+        // Resolve colors via centralized helper (useCanvasPalette/getCssToken)
+        const palette = useCanvasPalette();
+        // Prefer explicit tokens when possible, fall back to palette entries
+        const downToken =
+            getCssToken(SPEED_CHART_DOWN_STROKE_TOKEN) || palette.primary;
+        const upToken =
+            getCssToken(SPEED_CHART_UP_STROKE_TOKEN) || palette.success;
 
-            const delta = timestamp - animationStartRef.current;
-            let progress = Math.min(delta / SHIFT_DURATION_MS, 1);
-            const offset = spacing * progress;
-            ctx.save();
-            ctx.translate(-offset, 0);
-
-            const downGradient = ctx.createLinearGradient(
-                0,
-                0,
-                0,
-                CHART_HEIGHT
-            );
-            downGradient.addColorStop(0, "rgba(34,197,94,0.35)");
-            downGradient.addColorStop(1, "rgba(34,197,94,0)");
-
-            const upGradient = ctx.createLinearGradient(0, 0, 0, CHART_HEIGHT);
-            upGradient.addColorStop(0, "rgba(99,102,241,0.35)");
-            upGradient.addColorStop(1, "rgba(99,102,241,0)");
-
-            drawSeries(ctx, down, downGradient, DOWN_STROKE);
-            drawSeries(ctx, up, upGradient, UP_STROKE);
-
-            ctx.restore();
-            if (progress >= 1) {
-                animationStartRef.current = timestamp;
-            }
-            animationRef.current = requestAnimationFrame(drawFrame);
-        },
-        [spacing]
-    );
-
-    useEffect(() => {
-        animationRef.current = requestAnimationFrame(drawFrame);
-        return () => {
-            if (animationRef.current) {
-                cancelAnimationFrame(animationRef.current);
-            }
-        };
-    }, [drawFrame]);
+        // Draw fills/strokes using the resolved semantic colors. For fills we use
+        // `globalAlpha` to simulate a soft gradient without parsing color strings.
+        drawSeries(ctx, points.down, downToken);
+        drawSeries(ctx, points.up, upToken);
+    }, [points, spacing, tick]);
 
     return (
         <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between text-[11px] font-mono text-foreground/60">
+            <div className="flex items-center justify-between text-[var(--font-size-sm)] font-mono text-foreground/60">
                 <div className="flex items-center gap-4">
                     <span className="flex items-center gap-1 text-success">
                         ↓ {formatSpeed(latestDown)}
@@ -215,7 +195,7 @@ export const SpeedChart = ({ downHistory, upHistory }: SpeedChartProps) => {
                                     ? "primary"
                                     : "default"
                             }
-                            className="rounded-full px-3 text-[11px]"
+                            className="rounded-full px-[var(--p-3)] text-[var(--font-size-sm)]"
                             onPress={() => setSelectedWindow(option.key)}
                             aria-pressed={selectedWindow === option.key}
                         >
@@ -241,64 +221,10 @@ export const SpeedChart = ({ downHistory, upHistory }: SpeedChartProps) => {
     );
 };
 
-// Shared cache across hook instances to bound memory and centralize trimming.
-const sharedSpeedHistoryCache = new Map<
-    string,
-    { down: number[]; up: number[] }
->();
-
-export const clearSharedSpeedHistoryCache = () => {
-    sharedSpeedHistoryCache.clear();
-};
-
-export const useTorrentDetailSpeedHistory = (torrent: TorrentDetail | null) => {
-    const [downHistory, setDownHistory] = useState<number[]>(() =>
-        new Array(HISTORY_POINTS).fill(0)
-    );
-    const [upHistory, setUpHistory] = useState<number[]>(() =>
-        new Array(HISTORY_POINTS).fill(0)
-    );
-
-    useEffect(() => {
-        if (!torrent) {
-            // When inspector is closed, free global cache to limit memory.
-            sharedSpeedHistoryCache.clear();
-            setDownHistory(new Array(HISTORY_POINTS).fill(0));
-            setUpHistory(new Array(HISTORY_POINTS).fill(0));
-            return;
-        }
-        const cached = sharedSpeedHistoryCache.get(torrent.id);
-        if (cached) {
-            setDownHistory(cached.down);
-            setUpHistory(cached.up);
-        } else {
-            const empty = new Array(HISTORY_POINTS).fill(0);
-            setDownHistory(empty);
-            setUpHistory(empty);
-        }
-    }, [torrent]);
-
-    useEffect(() => {
-        if (!torrent) return;
-        setDownHistory((prev) => [...prev.slice(1), torrent.speed.down]);
-        setUpHistory((prev) => [...prev.slice(1), torrent.speed.up]);
-    }, [torrent?.id, torrent?.speed.down, torrent?.speed.up]);
-
-    useEffect(() => {
-        if (!torrent) return;
-        sharedSpeedHistoryCache.set(torrent.id, {
-            down: [...downHistory],
-            up: [...upHistory],
-        });
-
-        // Prevent unbounded growth if users click through many torrents.
-        const maxEntries = 64;
-        while (sharedSpeedHistoryCache.size > maxEntries) {
-            const oldestKey = sharedSpeedHistoryCache.keys().next().value;
-            if (!oldestKey) break;
-            sharedSpeedHistoryCache.delete(oldestKey);
-        }
-    }, [downHistory, upHistory, torrent]);
-
-    return { downHistory, upHistory };
-};
+// NOTE: Removing UI-owned global cache. Per AGENTS.md the engine must own history and retention.
+// This hook provides a minimal instance-local history derived directly from the `torrent` prop
+// and should be replaced by an engine-driven subscription (EngineAdapter) as soon as available.
+// NOTE: History ownership has been moved to the engine/heartbeat layer.
+// `useEngineSpeedHistory` (shared hook) should be used by tabs/components
+// to read engine-provided, fixed-length buffers. The previous UI-owned
+// `useTorrentDetailSpeedHistory` has been intentionally removed.

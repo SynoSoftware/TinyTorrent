@@ -2,9 +2,9 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, Link2, MousePointer, PlugZap } from "lucide-react";
 
-import type { EngineInfo } from "../../services/rpc/entities";
-import type { RpcStatus } from "../../shared/types/rpc";
-import type { AmbientHudCard } from "../types/workspace";
+import type { EngineInfo } from "@/services/rpc/entities";
+import type { RpcStatus } from "@/shared/types/rpc";
+import type { AmbientHudCard } from "@/app/types/workspace";
 
 const formatMicrocopyValue = (value: string, max = 48) => {
     if (!value) return "";
@@ -46,8 +46,7 @@ export function useHudCards({
         let connectionDescription = "";
         let connectionSurface = "";
         let connectionIconBg = "";
-        const connectionIcon =
-            rpcStatus === "error" ? AlertTriangle : PlugZap;
+        const connectionIcon = rpcStatus === "error" ? AlertTriangle : PlugZap;
 
         if (rpcStatus === "connected") {
             connectionTitle = t("workspace.stage.connection_online_title", {
@@ -109,7 +108,8 @@ export function useHudCards({
               });
         const dragDescription = isDragActive
             ? t("workspace.stage.drop_active_description", {
-                  defaultValue: "We'll parse and schedule this payload instantly.",
+                  defaultValue:
+                      "We'll parse and schedule this payload instantly.",
               })
             : pendingTorrentFile
             ? t("workspace.stage.drop_file_ready_description", {
@@ -201,8 +201,7 @@ export function useHudCards({
     ]);
 
     const visibleHudCards = useMemo(
-        () =>
-            hudCards.filter((card) => !dismissedHudCardSet.has(card.id)),
+        () => hudCards.filter((card) => !dismissedHudCardSet.has(card.id)),
         [hudCards, dismissedHudCardSet]
     );
 

@@ -6,7 +6,7 @@ import {
     useCallback,
     type ReactNode,
 } from "react";
-import constants from "../../config/constants.json";
+import { CONFIG } from "@/config/logic";
 
 type PerformanceHistoryContextValue = {
     downHistory: number[];
@@ -23,7 +23,7 @@ export function PerformanceHistoryProvider({
 }: {
     children: ReactNode;
 }) {
-    const points = constants.performance.history_data_points;
+    const points = CONFIG.performance.history_data_points;
     const [downHistory, setDownHistory] = useState(() =>
         new Array(points).fill(0)
     );

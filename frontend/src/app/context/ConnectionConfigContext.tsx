@@ -7,7 +7,7 @@ import {
     useState,
 } from "react";
 import type { ReactNode } from "react";
-import constants from "@/config/constants.json";
+import { CONFIG } from "@/config/logic";
 import type {
     ConnectionOverride,
     ConnectionScheme,
@@ -48,7 +48,7 @@ const LEGACY_DEFAULT_PROFILE_LABELS = new Set([
 ]);
 const DEFAULT_PROFILE_LABEL = "";
 
-const DEFAULT_RPC_PATH = constants.defaults.rpc_endpoint;
+const DEFAULT_RPC_PATH = CONFIG.defaults.rpc_endpoint;
 const NORMALIZED_RPC_PATH = DEFAULT_RPC_PATH.startsWith("/")
     ? DEFAULT_RPC_PATH
     : `/${DEFAULT_RPC_PATH}`;

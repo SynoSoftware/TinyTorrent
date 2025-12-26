@@ -1,6 +1,9 @@
 import type { MotionProps, Transition } from "framer-motion";
 import constants from "./constants.json";
 
+// Single-owner export for all config consumers
+export const CONFIG = constants;
+
 // Design-system authority declaration
 export const DESIGN_SYSTEM_AUTHORITY = {
     source: "index.css",
@@ -141,9 +144,8 @@ const DEFAULT_LAYOUT_PEER_MAP = {
 const DEFAULT_TABLE_LAYOUT = {
     // Geometry is CSS-driven; defaults here are CSS var references.
     row_height: "var(--tt-row-h)",
-    font_size: "var(--fz-scaled)",
+    font_size: "text-sm",
     font_mono: "font-mono",
-    icon_size: "var(--icon)",
     overscan: 20,
 } as const;
 
@@ -318,16 +320,18 @@ export const IMMERSIVE_MAIN_OUTER_RADIUS =
 const pieceMapLayout = layoutConfig.piece_map ?? DEFAULT_LAYOUT_PIECE_MAP;
 const heatmapLayout = layoutConfig.heatmap ?? DEFAULT_LAYOUT_HEATMAP;
 const peerMapLayout = layoutConfig.peer_map ?? DEFAULT_LAYOUT_PEER_MAP;
-const tableLayout = layoutConfig.table ?? DEFAULT_TABLE_LAYOUT;
+const tableLayout = {
+    ...DEFAULT_TABLE_LAYOUT,
+    ...(layoutConfig.table ?? {}),
+};
 const detailsLayout = layoutConfig.details ?? {};
 
 export const TABLE_LAYOUT = {
     // These values are CSS-driven tokens; runtime code that needs
     // numeric pixel heights should read the computed style instead.
     rowHeight: "var(--tt-row-h)",
-    fontSize: "var(--tt-font-size-base)",
+    fontSize: tableLayout.font_size,
     fontMono: tableLayout.font_mono,
-    iconSize: "var(--tt-icon-size)",
     overscan: tableLayout.overscan,
 } as const;
 
@@ -602,10 +606,27 @@ type DetailsScatterConfig = {
     };
 };
 
+type DetailsAvailabilityHeatmapConfig = {
+    shadow_blur_max: number;
+    hover_stroke_width: number;
+    hover_stroke_inset: number;
+    cell_stroke_inset: number;
+    use_ui_sampling_shim?: boolean;
+};
+
+type DetailsSpeedChartConfig = {
+    line_width: number;
+    fill_alpha: number;
+    down_stroke_token: string;
+    up_stroke_token: string;
+};
+
 type DetailsVisualizationsConfig = {
     piece_map: DetailsPieceMapConfig;
     peer_map: DetailsPeerMapConfig;
     scatter: DetailsScatterConfig;
+    availability_heatmap: DetailsAvailabilityHeatmapConfig;
+    speed_chart: DetailsSpeedChartConfig;
     tooltip_animation: MotionProps;
 };
 
@@ -650,6 +671,18 @@ const DEFAULT_DETAILS_VISUALIZATIONS: DetailsVisualizationsConfig = {
         exit: { opacity: 0, scale: 0.95 },
         transition: { duration: 0.1 },
     },
+    availability_heatmap: {
+        shadow_blur_max: 16,
+        hover_stroke_width: 1.1,
+        hover_stroke_inset: 0.6,
+        cell_stroke_inset: 0.6,
+    },
+    speed_chart: {
+        line_width: 3,
+        fill_alpha: 0.35,
+        down_stroke_token: "--heroui-success",
+        up_stroke_token: "--heroui-primary",
+    },
 };
 
 const DETAILS_VISUALIZATIONS =
@@ -661,6 +694,28 @@ export const DETAILS_PEER_MAP_CONFIG = DETAILS_VISUALIZATIONS.peer_map;
 export const DETAILS_SCATTER_CONFIG = DETAILS_VISUALIZATIONS.scatter;
 export const DETAILS_TOOLTIP_ANIMATION =
     DETAILS_VISUALIZATIONS.tooltip_animation;
+
+// Availability heatmap visual tokens (moved from hard-coded literals)
+export const DETAILS_AVAILABILITY_HEATMAP =
+    DETAILS_VISUALIZATIONS.availability_heatmap;
+export const HEATMAP_SHADOW_BLUR_MAX =
+    DETAILS_AVAILABILITY_HEATMAP.shadow_blur_max;
+export const HEATMAP_HOVER_STROKE_WIDTH =
+    DETAILS_AVAILABILITY_HEATMAP.hover_stroke_width;
+export const HEATMAP_HOVER_STROKE_INSET =
+    DETAILS_AVAILABILITY_HEATMAP.hover_stroke_inset;
+export const HEATMAP_CELL_STROKE_INSET =
+    DETAILS_AVAILABILITY_HEATMAP.cell_stroke_inset;
+export const HEATMAP_USE_UI_SAMPLING_SHIM = Boolean(
+    DETAILS_AVAILABILITY_HEATMAP.use_ui_sampling_shim
+);
+
+export const DETAILS_SPEED_CHART = DETAILS_VISUALIZATIONS.speed_chart;
+export const SPEED_CHART_LINE_WIDTH = DETAILS_SPEED_CHART.line_width;
+export const SPEED_CHART_FILL_ALPHA = DETAILS_SPEED_CHART.fill_alpha;
+export const SPEED_CHART_DOWN_STROKE_TOKEN =
+    DETAILS_SPEED_CHART.down_stroke_token;
+export const SPEED_CHART_UP_STROKE_TOKEN = DETAILS_SPEED_CHART.up_stroke_token;
 
 type ShortcutIntentMap = {
     SelectAll: "action.select_all";

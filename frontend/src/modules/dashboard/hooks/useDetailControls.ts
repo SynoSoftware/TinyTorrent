@@ -1,7 +1,7 @@
 import { useCallback, type MutableRefObject } from "react";
-import type { TorrentDetail } from "../types/torrent";
-import type { EngineAdapter } from "../../../services/rpc/engine-adapter";
-import type { RpcStatus } from "../../../shared/types/rpc";
+import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
+import type { EngineAdapter } from "@/services/rpc/engine-adapter";
+import type { RpcStatus } from "@/shared/types/rpc";
 
 interface UseDetailControlsParams {
     detailData: TorrentDetail | null;

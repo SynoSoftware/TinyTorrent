@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import type { Torrent } from "../../modules/dashboard/types/torrent";
-import type { TorrentStatus } from "../../services/rpc/entities";
+import type { Torrent } from "@/modules/dashboard/types/torrent";
+import type { TorrentStatus } from "@/services/rpc/entities";
 
 export type OptimisticStatusMap = Record<
     string,

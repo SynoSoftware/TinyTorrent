@@ -13,17 +13,17 @@ import {
 } from "@heroui/react";
 import { AlertTriangle, Link2, MousePointer, PlugZap, X } from "lucide-react";
 
-import type { EngineAdapter } from "../../services/rpc/engine-adapter";
+import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import type {
     SystemInstallOptions,
     SystemInstallResult,
-} from "../../services/rpc/types";
-import { ModeLayout } from "../../modules/dashboard/components/ModeLayout";
-import { AddTorrentModal } from "../../modules/torrent-add/components/AddTorrentModal";
-import { SettingsModal } from "../../modules/settings/components/SettingsModal";
+} from "@/services/rpc/types";
+import { ModeLayout } from "@/modules/dashboard/components/ModeLayout";
+import { AddTorrentModal } from "@/modules/torrent-add/components/AddTorrentModal";
+import { SettingsModal } from "@/modules/settings/components/SettingsModal";
 import { Navbar } from "./layout/Navbar";
 import { StatusBar, type EngineDisplayType } from "./layout/StatusBar";
-import type { SettingsConfig } from "../../modules/settings/data/config";
+import type { SettingsConfig } from "@/modules/settings/data/config";
 import {
     ICON_STROKE_WIDTH,
     IMMERSIVE_CHROME_PADDING,
@@ -34,38 +34,32 @@ import {
     IMMERSIVE_MAIN_OUTER_RADIUS,
     IMMERSIVE_MAIN_PADDING,
     INTERACTION_CONFIG,
-} from "../../config/logic";
-import { GLASS_MODAL_SURFACE } from "../../shared/ui/layout/glass-surface";
+} from "@/config/logic";
+import { GLASS_MODAL_SURFACE } from "@/shared/ui/layout/glass-surface";
 import type {
     AmbientHudCard,
     DeleteIntent,
     RehashStatus,
-} from "../types/workspace";
+} from "@/app/types/workspace";
 import type {
     FileExplorerContextAction,
     FileExplorerEntry,
-} from "../../shared/ui/workspace/FileExplorerTree";
-import type {
-    Torrent,
-    TorrentDetail,
-} from "../../modules/dashboard/types/torrent";
+} from "@/shared/ui/workspace/FileExplorerTree";
+import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
 import type {
     OptimisticStatusMap,
     TorrentTableAction,
-} from "../../modules/dashboard/components/TorrentTable";
-import type { PeerContextAction } from "../../modules/dashboard/components/details/tabs/PeersTab";
+} from "@/modules/dashboard/components/TorrentTable";
+import type { PeerContextAction } from "@/modules/dashboard/components/details/tabs/PeersTab";
 import type {
     DetailTab,
     PeerSortStrategy,
-} from "../../modules/dashboard/components/TorrentDetailView";
-import type {
-    SessionStats,
-    TorrentPeerEntity,
-} from "../../services/rpc/entities";
-import type { HeartbeatSource } from "../../services/rpc/heartbeat";
-import type { RpcStatus } from "../../shared/types/rpc";
-import type { AddTorrentContext } from "../hooks/useAddTorrent";
-import type { WorkspaceStyle } from "../hooks/useWorkspaceShell";
+} from "@/modules/dashboard/components/TorrentDetailView";
+import type { SessionStats, TorrentPeerEntity } from "@/services/rpc/entities";
+import type { HeartbeatSource } from "@/services/rpc/heartbeat";
+import type { RpcStatus } from "@/shared/types/rpc";
+import type { AddTorrentContext } from "@/app/hooks/useAddTorrent";
+import type { WorkspaceStyle } from "@/app/hooks/useWorkspaceShell";
 import { useRpcExtension } from "@/app/context/RpcExtensionContext";
 
 type AddTorrentPayload = {
@@ -394,12 +388,12 @@ export function WorkspaceShell({
 
             {isImmersiveShell && (
                 <div className="pointer-events-none absolute inset-0 z-0">
-                    <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(4,7,16,0.95),rgba(9,12,22,0.92))]" />
-                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(59,130,246,0.2),transparent_60%)] mix-blend-screen opacity-50" />
-                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_5%,rgba(236,72,153,0.15),transparent_50%)] mix-blend-screen opacity-40" />
+                    <div className="absolute inset-0 bg-background/95" />
+                    <div className="absolute inset-0 mix-blend-screen opacity-50 bg-primary/20" />
+                    <div className="absolute inset-0 mix-blend-screen opacity-40 bg-content1/15" />
                     <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20" />
-                    <div className="absolute inset-x-[-20%] bottom-[-30%] h-[length:calc(120*var(--u)*var(--z))] rounded-full bg-primary/30 blur-[length:var(--glass-blur)] opacity-40" />
-                    <div className="absolute inset-x-[-15%] top-[-35%] h-[length:calc(100*var(--u)*var(--z))] rounded-full bg-blue-500/30 blur-[length:var(--glass-blur)] opacity-35" />
+                    <div className="absolute inset-x-[-20%] bottom-[-30%] h-[var(--tt-shell-accent-large)] rounded-full bg-primary/30 blur-[var(--glass-blur)] opacity-40" />
+                    <div className="absolute inset-x-[-15%] top-[-35%] h-[var(--tt-shell-accent-medium)] rounded-full bg-blue-500/30 blur-[var(--glass-blur)] opacity-35" />
                 </div>
             )}
 
@@ -429,7 +423,7 @@ export function WorkspaceShell({
                     className={cn(
                         "mx-auto flex w-full flex-1 flex-col",
                         isImmersiveShell
-                            ? "max-w-[length:calc(350*var(--u)*var(--z))] gap-6 px-4 py-6 sm:px-6 lg:px-10"
+                            ? "max-w-[var(--tt-shell-main-max-w)] gap-6 px-4 py-6 sm:px-6 lg:px-10"
                             : "gap-2 px-4 py-4"
                     )}
                 >
@@ -530,7 +524,7 @@ export function WorkspaceShell({
                                                     </button>
                                                     <div className="flex items-start justify-between gap-3">
                                                         <div>
-                                                            <p className="text-[length:var(--fz-scaled)] font-semibold uppercase tracking-[0.4em] text-foreground/40">
+                                                            <p className="text-scaled font-semibold uppercase tracking-[0.4em] text-foreground/40">
                                                                 {card.label}
                                                             </p>
                                                             <p className="mt-1 text-lg font-semibold text-foreground">

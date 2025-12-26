@@ -1,7 +1,13 @@
-import { useCallback, useRef, useState, useEffect, type MutableRefObject } from "react";
-import type { EngineAdapter } from "../../../services/rpc/engine-adapter";
-import type { RpcStatus } from "../../../shared/types/rpc";
-import type { TorrentDetail } from "../types/torrent";
+import {
+    useCallback,
+    useRef,
+    useState,
+    useEffect,
+    type MutableRefObject,
+} from "react";
+import type { EngineAdapter } from "@/services/rpc/engine-adapter";
+import type { RpcStatus } from "@/shared/types/rpc";
+import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
 
 interface UseTorrentDetailParams {
     torrentClient: EngineAdapter;
@@ -106,7 +112,13 @@ export function useTorrentDetail({
         return () => {
             subscription.unsubscribe();
         };
-    }, [sessionReady, detailData?.id, torrentClient, reportRpcStatus, isMountedRef]);
+    }, [
+        sessionReady,
+        detailData?.id,
+        torrentClient,
+        reportRpcStatus,
+        isMountedRef,
+    ]);
 
     return {
         detailData,

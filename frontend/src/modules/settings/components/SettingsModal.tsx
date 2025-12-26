@@ -577,7 +577,7 @@ export function SettingsModal({
             classNames={{
                 base: cn(
                     GLASS_MODAL_SURFACE,
-                    "flex flex-row h-[length:calc(200*var(--u)*var(--z))] max-h-[length:calc(200*var(--u)*var(--z))] min-h-[length:calc(125*var(--u)*var(--z))] overflow-hidden"
+                    "flex flex-row h-[var(--tt-settings-h)] max-h-[var(--tt-settings-max-h)] min-h-[var(--tt-settings-min-h)] overflow-hidden"
                 ),
                 wrapper: "overflow-hidden",
             }}
@@ -645,7 +645,7 @@ export function SettingsModal({
                             ))}
                         </div>
                         <div className="p-6 border-t border-content1/10 shrink-0">
-                            <div className="text-[length:var(--fz-scaled)] text-foreground/30 font-mono tracking-widest">
+                            <div className="text-scaled text-foreground/30 font-mono tracking-widest">
                                 {t("brand.version", { version: APP_VERSION })}
                             </div>
                         </div>
@@ -670,7 +670,7 @@ export function SettingsModal({
                                         {t(activeTabDefinition.headerKey)}
                                     </h1>
                                     {hasUnsavedChanges && (
-                                        <span className="text-[length:var(--fz-scaled)] uppercase tracking-[0.2em] font-bold text-warning animate-pulse">
+                                        <span className="text-scaled uppercase tracking-[0.2em] font-bold text-warning animate-pulse">
                                             {t("settings.unsaved_changes")}
                                         </span>
                                     )}

@@ -1,5 +1,11 @@
+/*
+ AGENTS-TODO: Uses relative imports for config tokens.
+ - Replace with '@/config/logic' import aliases.
+ - Ensure icon sizing follows SCALE_BASES from logic.ts rather than hard-coded px.
+ */
+
 import { Button, cn } from "@heroui/react";
-import { ICON_STROKE_WIDTH } from "../../../config/logic";
+import { ICON_STROKE_WIDTH } from "@/config/logic";
 import {
     forwardRef,
     type ComponentPropsWithoutRef,
@@ -10,8 +16,7 @@ import type { LucideIcon } from "lucide-react";
 export const TOOLBAR_ICON_CLASSES =
     "flex items-center justify-center text-foreground/70 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring focus-visible:ring-primary/60";
 
-export const TOOLBAR_ICON_BUTTON_CLASSES =
-    `${TOOLBAR_ICON_CLASSES} bg-content1/10 border border-content1/20`;
+export const TOOLBAR_ICON_BUTTON_CLASSES = `${TOOLBAR_ICON_CLASSES} bg-content1/10 border border-content1/20`;
 
 export type ToolbarIconButtonProps = ComponentPropsWithoutRef<typeof Button> & {
     Icon?: LucideIcon;
@@ -27,15 +32,15 @@ export const ToolbarIconButton = forwardRef<
     ref
 ) {
     const { disabled, ...buttonProps } = restProps;
-    const content = icon ?? (
-        Icon ? (
+    const content =
+        icon ??
+        (Icon ? (
             <Icon
                 size={22}
                 strokeWidth={ICON_STROKE_WIDTH}
                 className="text-current"
             />
-        ) : null
-    );
+        ) : null);
 
     return (
         <Button

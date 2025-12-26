@@ -5,16 +5,23 @@ import {
     findMagnetInString,
     normalizeMagnetLink,
     resolveDeepLinkMagnet,
-} from "../utils/magnet";
+} from "@/app/utils/magnet";
 
 interface UseAddModalStateParams {
     openAddModal: () => void;
     isAddModalOpen: boolean;
 }
 
-export function useAddModalState({ openAddModal, isAddModalOpen }: UseAddModalStateParams) {
-    const [pendingTorrentFile, setPendingTorrentFile] = useState<File | null>(null);
-    const [incomingMagnetLink, setIncomingMagnetLink] = useState<string | null>(null);
+export function useAddModalState({
+    openAddModal,
+    isAddModalOpen,
+}: UseAddModalStateParams) {
+    const [pendingTorrentFile, setPendingTorrentFile] = useState<File | null>(
+        null
+    );
+    const [incomingMagnetLink, setIncomingMagnetLink] = useState<string | null>(
+        null
+    );
     const deepLinkHandledRef = useRef(false);
 
     const onDrop = useCallback(
@@ -56,9 +63,7 @@ export function useAddModalState({ openAddModal, isAddModalOpen }: UseAddModalSt
                 if (!active || !clipboardText) return;
                 const magnet =
                     normalizeMagnetLink(clipboardText) ??
-                    normalizeMagnetLink(
-                        findMagnetInString(clipboardText)
-                    );
+                    normalizeMagnetLink(findMagnetInString(clipboardText));
                 if (magnet) {
                     setIncomingMagnetLink(magnet);
                 }

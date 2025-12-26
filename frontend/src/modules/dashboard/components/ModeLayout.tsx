@@ -9,7 +9,7 @@ import {
 } from "react-resizable-panels";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useFocusState } from "../../../app/context/FocusContext";
+import { useFocusState } from "@/app/context/FocusContext";
 
 import {
     TorrentTable,
@@ -21,20 +21,20 @@ import {
     type DetailTab,
     type PeerSortStrategy,
 } from "./TorrentDetailView";
-import type { Torrent, TorrentDetail } from "../types/torrent";
+import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
 import {
     ICON_STROKE_WIDTH,
     getShellTokens,
     MIN_HANDLE_VISUAL_WIDTH,
-} from "../../../config/logic";
-import type { WorkspaceStyle } from "../../../app/hooks/useWorkspaceShell";
-import type { TorrentPeerEntity } from "../../../services/rpc/entities";
+} from "@/config/logic";
+import type { WorkspaceStyle } from "@/app/hooks/useWorkspaceShell";
+import type { TorrentPeerEntity } from "@/services/rpc/entities";
 import type {
     FileExplorerContextAction,
     FileExplorerEntry,
-} from "../../../shared/ui/workspace/FileExplorerTree";
+} from "@/shared/ui/workspace/FileExplorerTree";
 import type { PeerContextAction } from "./details/tabs/PeersTab";
-import { GLASS_BLOCK_SURFACE } from "../../../shared/ui/layout/glass-surface";
+import { GLASS_BLOCK_SURFACE } from "@/shared/ui/layout/glass-surface";
 
 const ANIMATION = {
     spring: {

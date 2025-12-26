@@ -293,7 +293,7 @@ export function ConnectionCredentialsCard({
                         onChange={(event) =>
                             handleUpdate({ host: event.target.value })
                         }
-                        className="h-[length:var(--button-h)]"
+                        className="h-[var(--button-h)]"
                         disabled={!Runtime.enableRemoteInputs()}
                     />
                     <Input
@@ -306,7 +306,7 @@ export function ConnectionCredentialsCard({
                         onChange={(event) =>
                             handleUpdate({ port: event.target.value })
                         }
-                        className="h-[length:var(--button-h)]"
+                        className="h-[var(--button-h)]"
                         disabled={!Runtime.enableRemoteInputs()}
                     />
                 </div>

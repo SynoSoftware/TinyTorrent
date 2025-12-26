@@ -4,12 +4,12 @@ import type { MutableRefObject } from "react";
 import type {
     GhostTorrentOptions,
     GhostTorrentStrategy,
-} from "../../modules/dashboard/hooks/useTorrentData";
-import type { EngineAdapter } from "../../services/rpc/engine-adapter";
-import type { RpcStatus } from "../../shared/types/rpc";
-import type { TorrentStatus } from "../../services/rpc/entities";
-import type { Torrent } from "../../modules/dashboard/types/torrent";
-import type { TransmissionFreeSpace } from "../../services/rpc/types";
+} from "@/modules/dashboard/hooks/useTorrentData";
+import type { EngineAdapter } from "@/services/rpc/engine-adapter";
+import type { RpcStatus } from "@/shared/types/rpc";
+import type { TorrentStatus } from "@/services/rpc/entities";
+import type { Torrent } from "@/modules/dashboard/types/torrent";
+import type { TransmissionFreeSpace } from "@/services/rpc/types";
 
 interface UseAddTorrentParams {
     torrentClient: EngineAdapter;
