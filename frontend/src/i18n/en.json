@@ -540,6 +540,7 @@
             "downloading": "Downloading",
             "missing": "Missing",
             "piece_size": "Piece Size",
+            "unknown_size": "Unknown size",
             "pieces": "Pieces",
             "ratio": "Ratio: {{ratio}}",
             "time_remaining": "Time Remaining",
@@ -584,6 +585,36 @@
             "dismiss_card": "Dismiss card",
             "hud_dismissed": "Insights hidden. Restore to view connection, drag, and deep-link helpers.",
             "restore_hud": "Restore insights"
+        }
+    },
+    "inspector": {
+        "tab": {
+            "general": "General",
+            "content": "Content",
+            "pieces": "Pieces",
+            "trackers": "Trackers",
+            "peers": "Peers",
+            "speed": "Speed"
+        }
+    },
+    "general": {
+        "unknown": "Unknown"
+    },
+    "peers": {
+        "action_copy_ip": "Copy IP",
+        "action_add_peer": "Add Peer",
+        "action_ban_ip": "Ban IP",
+        "flags": {
+            "downloading": "Downloading from peer",
+            "uploading": "Uploading to peer",
+            "uninterested_remote": "Peer is uninterested in us",
+            "uninterested_local": "We are uninterested in peer",
+            "choked_remote": "Peer choked us",
+            "dex_discovery": "Discovered via PEX",
+            "dht_discovery": "Discovered via DHT",
+            "encrypted": "Encrypted connection",
+            "utp": "uTP (Micro Transport Protocol)",
+            "unknown": "Unknown flag"
         }
     }
 }

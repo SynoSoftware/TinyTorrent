@@ -158,8 +158,11 @@ export function SystemInstallSection({
                 size="sm"
                 variant={isSelected ? "shadow" : "light"}
                 color={isSelected ? "primary" : undefined}
-                className="uppercase tracking-[0.2em] h-8 px-3"
-                style={{ fontSize: "var(--tt-font-size-base)" }}
+                className="uppercase h-8 px-3"
+                style={{
+                    fontSize: "var(--tt-font-size-base)",
+                    letterSpacing: "var(--tt-tracking-wide)",
+                }}
                 onPress={() => {
                     if (locationButtonDisabled) {
                         return;
@@ -213,8 +216,11 @@ export function SystemInstallSection({
             </div>
             <div className="space-y-2">
                 <p
-                    className="font-semibold uppercase tracking-[0.25em] text-foreground/50"
-                    style={{ fontSize: "var(--tt-font-size-base)" }}
+                    className="font-semibold uppercase text-foreground/50"
+                    style={{
+                        fontSize: "var(--tt-font-size-base)",
+                        letterSpacing: "var(--tt-tracking-wide)",
+                    }}
                 >
                     {t("settings.labels.installLocations")}
                 </p>
@@ -290,12 +296,15 @@ export function SystemInstallSection({
                         <div className="flex items-center justify-between gap-2">
                             <span
                                 className={cn(
-                                    "font-semibold uppercase tracking-[0.2em]",
+                                    "font-semibold uppercase",
                                     installResult.success
                                         ? "text-success"
                                         : "text-danger"
                                 )}
-                                style={{ fontSize: "var(--tt-font-size-base)" }}
+                                style={{
+                                    fontSize: "var(--tt-font-size-base)",
+                                    letterSpacing: "var(--tt-tracking-wide)",
+                                }}
                             >
                                 {installResult.success
                                     ? t("settings.install.result_success")
@@ -303,9 +312,11 @@ export function SystemInstallSection({
                             </span>
                             {installResult.permissionDenied && (
                                 <span
-                                    className="font-semibold uppercase tracking-[0.3em] text-danger"
+                                    className="font-semibold uppercase text-danger"
                                     style={{
                                         fontSize: "var(--tt-font-size-base)",
+                                        letterSpacing:
+                                            "var(--tt-tracking-ultra)",
                                     }}
                                 >
                                     {t(
@@ -322,9 +333,11 @@ export function SystemInstallSection({
                         <div className="space-y-2">
                             <div>
                                 <p
-                                    className="font-semibold uppercase tracking-[0.25em] text-foreground/50"
+                                    className="font-semibold uppercase text-foreground/50"
                                     style={{
                                         fontSize: "var(--tt-font-size-base)",
+                                        letterSpacing:
+                                            "var(--tt-tracking-wide)",
                                     }}
                                 >
                                     {t("settings.install.shortcuts_header")}
@@ -344,10 +357,12 @@ export function SystemInstallSection({
                                                 >
                                                     {labelKey && (
                                                         <span
-                                                            className="uppercase tracking-[0.3em] text-foreground/40"
+                                                            className="uppercase text-foreground/40"
                                                             style={{
                                                                 fontSize:
                                                                     "var(--tt-font-size-base)",
+                                                                letterSpacing:
+                                                                    "var(--tt-tracking-ultra)",
                                                             }}
                                                         >
                                                             {t(labelKey)}

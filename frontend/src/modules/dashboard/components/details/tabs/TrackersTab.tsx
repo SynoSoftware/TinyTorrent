@@ -13,7 +13,10 @@ export const TrackersTab = ({ trackers, emptyMessage }: TrackersTabProps) => {
 
     if (!trackers.length) {
         return (
-            <GlassPanel className="p-4 text-xs uppercase tracking-[0.35em] text-foreground/50">
+            <GlassPanel
+                className="p-4 text-xs uppercase text-foreground/50"
+                style={{ letterSpacing: "var(--tt-tracking-wide)" }}
+            >
                 {emptyMessage}
             </GlassPanel>
         );
@@ -46,14 +49,26 @@ export const TrackersTab = ({ trackers, emptyMessage }: TrackersTabProps) => {
                                     <p className="text-sm font-semibold text-foreground truncate">
                                         {tracker.announce}
                                     </p>
-                                    <p className="text-xs uppercase tracking-[0.35em] text-foreground/60">
+                                    <p
+                                        className="text-xs uppercase text-foreground/60"
+                                        style={{
+                                            letterSpacing:
+                                                "var(--tt-tracking-wide)",
+                                        }}
+                                    >
                                         {t("torrent_modal.trackers.tier")}{" "}
                                         {tracker.tier}
                                     </p>
                                 </div>
                             </div>
                             <div className="text-right">
-                                <p className="text-xs font-semibold uppercase tracking-[0.35em] text-foreground/60">
+                                <p
+                                    className="text-xs font-semibold uppercase text-foreground/60"
+                                    style={{
+                                        letterSpacing:
+                                            "var(--tt-tracking-wide)",
+                                    }}
+                                >
                                     {t("torrent_modal.trackers.peers_label")}
                                 </p>
                                 <p className="font-mono text-xs text-foreground/70">
@@ -68,7 +83,12 @@ export const TrackersTab = ({ trackers, emptyMessage }: TrackersTabProps) => {
                             <span className="truncate">
                                 {tracker.lastAnnounceResult || "-"}
                             </span>
-                            <span className="text-xs font-semibold uppercase tracking-[0.35em] text-foreground/80">
+                            <span
+                                className="text-xs font-semibold uppercase text-foreground/80"
+                                style={{
+                                    letterSpacing: "var(--tt-tracking-wide)",
+                                }}
+                            >
                                 {statusLabel}
                             </span>
                         </div>

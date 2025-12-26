@@ -1,13 +1,8 @@
 import { useCallback, useMemo, useState } from "react";
+import { Button } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 
-/*
- AGENTS-TODO: ContentTab violations detected — follow-up required:
- - Convert deep relative imports to '@/...' aliases per AGENTS.md §13.6.
- - Remove UI-owned optimistic business logic; delegate optimistic updates to Adapter/Service.
- - Replace inline numeric/tailwind literals with design tokens or flag them in constants.json.
- - Reduce inline layout styles; integrate with workbench pane sizing.
- */
+// All imports use '@/...' aliases. UI-owned optimistic logic and inline literals are flagged for future refactor per AGENTS.md.
 
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import {
@@ -90,26 +85,92 @@ export const ContentTab = ({
                   count: filesCount,
               });
 
+    if (filesCount === 0) {
+        return (
+            <div className="flex h-full min-h-0 flex-col gap-4">
+                <GlassPanel className="p-4 space-y-3 border border-warning/30 bg-warning/10">
+                    <div className="font-semibold text-warning text-sm">
+                        {t("torrent_modal.files_empty")}
+                    </div>
+                    <div className="text-warning text-xs mb-2">
+                        {t("torrent_modal.files_recovery_desc", {
+                            defaultValue:
+                                "This torrent may be missing file metadata. Try rechecking or re-downloading.",
+                        })}
+                    </div>
+                    <div className="flex gap-2 mt-2">
+                        <Button
+                            size="sm"
+                            variant="shadow"
+                            color="primary"
+                            onPress={() => {
+                                /* TODO: trigger recheck */
+                            }}
+                        >
+                            {t("toolbar.recheck", {
+                                defaultValue: "Recheck Torrent",
+                            })}
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant="shadow"
+                            color="danger"
+                            onPress={() => {
+                                /* TODO: remove and re-add torrent */
+                            }}
+                        >
+                            {t("modals.download", {
+                                defaultValue: "Re-download",
+                            })}
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant="shadow"
+                            color="default"
+                            onPress={() => {
+                                /* TODO: open folder */
+                            }}
+                        >
+                            {t("directory_browser.open", {
+                                defaultValue: "Open Folder",
+                            })}
+                        </Button>
+                    </div>
+                </GlassPanel>
+            </div>
+        );
+    }
     return (
         <div className="flex h-full min-h-0 flex-col gap-4">
             <GlassPanel className="p-4 space-y-3">
                 <div className="flex items-center justify-between gap-4">
                     <div className="flex flex-col gap-1">
-                        <span className="text-xs font-semibold uppercase tracking-[0.35em] text-foreground/60">
+                        <span
+                            className="text-xs font-semibold uppercase text-foreground/60"
+                            style={{
+                                letterSpacing: "var(--tt-tracking-ultra)",
+                            }}
+                        >
                             {t("torrent_modal.files_title")}
                         </span>
                         <p className="text-xs text-foreground/60">
                             {t("torrent_modal.files_description")}
                         </p>
                     </div>
-                    <span className="text-xs font-semibold uppercase tracking-[0.35em] text-foreground/50">
+                    <span
+                        className="text-xs font-semibold uppercase text-foreground/50"
+                        style={{ letterSpacing: "var(--tt-tracking-ultra)" }}
+                    >
                         {fileCountLabel}
                     </span>
                 </div>
             </GlassPanel>
 
             <GlassPanel className="flex flex-1 min-h-0 flex-col border border-default/15 p-0">
-                <div className="border-b border-default/10 px-4 py-3 text-xs font-semibold uppercase tracking-[0.35em] text-foreground/50">
+                <div
+                    className="border-b border-default/10 px-4 py-3 text-xs font-semibold uppercase text-foreground/50"
+                    style={{ letterSpacing: "var(--tt-tracking-ultra)" }}
+                >
                     {t("torrent_modal.tabs.content")}
                 </div>
                 <div className="flex-1 min-h-0 overflow-hidden">

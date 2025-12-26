@@ -54,8 +54,11 @@ export function DiskSpaceGauge({
     return (
         <div className={containerClasses}>
             <div
-                className="flex items-center justify-between font-semibold uppercase tracking-[0.3em] text-foreground/60"
-                style={{ fontSize: "var(--tt-font-size-base)" }}
+                className="flex items-center justify-between font-semibold uppercase text-foreground/60"
+                style={{
+                    fontSize: "var(--tt-font-size-base)",
+                    letterSpacing: "var(--tt-tracking-ultra)",
+                }}
             >
                 <span>{t("modals.disk_gauge.title")}</span>
                 <span

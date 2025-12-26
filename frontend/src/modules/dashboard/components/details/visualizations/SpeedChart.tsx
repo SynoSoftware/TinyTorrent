@@ -140,6 +140,8 @@ export const SpeedChart = ({
     }, [downValues, upValues, spacing, maxValue]);
 
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
+    // Always call hooks at the top level (AGENTS.md compliance)
+    const palette = useCanvasPalette();
 
     // Render snapshot on any relevant change. Crucially, include `tick` so that
     // time advances even when speed values are identical between heartbeats.
@@ -155,9 +157,7 @@ export const SpeedChart = ({
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         ctx.clearRect(0, 0, CHART_WIDTH, CHART_HEIGHT);
 
-        // Resolve colors via centralized helper (useCanvasPalette/getCssToken)
-        const palette = useCanvasPalette();
-        // Prefer explicit tokens when possible, fall back to palette entries
+        // Use palette from top-level hook
         const downToken =
             getCssToken(SPEED_CHART_DOWN_STROKE_TOKEN) || palette.primary;
         const upToken =
@@ -171,7 +171,7 @@ export const SpeedChart = ({
 
     return (
         <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between text-[var(--font-size-sm)] font-mono text-foreground/60">
+            <div className="flex items-center justify-between font-mono text-foreground/60">
                 <div className="flex items-center gap-4">
                     <span className="flex items-center gap-1 text-success">
                         ↓ {formatSpeed(latestDown)}
@@ -195,7 +195,7 @@ export const SpeedChart = ({
                                     ? "primary"
                                     : "default"
                             }
-                            className="rounded-full px-[var(--p-3)] text-[var(--font-size-sm)]"
+                            className="rounded-full px-(--p-3) text-(--font-size-sm)"
                             onPress={() => setSelectedWindow(option.key)}
                             aria-pressed={selectedWindow === option.key}
                         >

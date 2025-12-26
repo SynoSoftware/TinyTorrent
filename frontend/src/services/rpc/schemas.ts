@@ -43,74 +43,114 @@ const logValidationIssue = (
     }
 };
 
-const zTransmissionTorrentFile = z.object({
-    bytesCompleted: z.number(),
-    length: z.number(),
-    name: z.string(),
-    percentDone: z.number(),
-    priority: z.number(),
-    wanted: z.boolean(),
-});
+const zTransmissionTorrentFile = z
+    .object({
+        bytesCompleted: z.number(),
+        length: z.number(),
+        name: z.string(),
+        percentDone: z.number(),
+        priority: z.number(),
+        wanted: z.boolean(),
+    })
+    .passthrough()
+    .catch({
+        bytesCompleted: 0,
+        length: 0,
+        name: "",
+        percentDone: 0,
+        priority: 0,
+        wanted: false,
+    });
 
-const zTransmissionTorrentTracker = z.object({
-    announce: z.string(),
-    tier: z.number(),
-    announceState: z.number().optional(),
-    lastAnnounceTime: z.number(),
-    lastAnnounceResult: z.string(),
-    lastAnnounceSucceeded: z.boolean(),
-    lastScrapeTime: z.number(),
-    lastScrapeResult: z.string(),
-    lastScrapeSucceeded: z.boolean(),
-    seederCount: z.number(),
-    leecherCount: z.number(),
-    scrapeState: z.number().optional(),
-});
+const zTransmissionTorrentTracker = z
+    .object({
+        announce: z.string(),
+        tier: z.number(),
+        announceState: z.number().optional(),
+        lastAnnounceTime: z.number(),
+        lastAnnounceResult: z.string(),
+        lastAnnounceSucceeded: z.boolean(),
+        lastScrapeTime: z.number(),
+        lastScrapeResult: z.string(),
+        lastScrapeSucceeded: z.boolean(),
+        seederCount: z.number(),
+        leecherCount: z.number(),
+        scrapeState: z.number().optional(),
+    })
+    .passthrough()
+    .catch({
+        announce: "",
+        tier: 0,
+        lastAnnounceTime: 0,
+        lastAnnounceResult: "",
+        lastAnnounceSucceeded: false,
+        lastScrapeTime: 0,
+        lastScrapeResult: "",
+        lastScrapeSucceeded: false,
+        seederCount: 0,
+        leecherCount: 0,
+    });
 
-const zTransmissionTorrentPeer = z.object({
-    address: z.string(),
-    clientIsChoking: z.boolean(),
-    clientIsInterested: z.boolean(),
-    peerIsChoking: z.boolean(),
-    peerIsInterested: z.boolean(),
-    clientName: z.string(),
-    rateToClient: z.number(),
-    rateToPeer: z.number(),
-    progress: z.number(),
-    flagStr: z.string(),
-    country: z.string().optional(),
-});
+const zTransmissionTorrentPeer = z
+    .object({
+        address: z.string(),
+        clientIsChoking: z.boolean(),
+        clientIsInterested: z.boolean(),
+        peerIsChoking: z.boolean(),
+        peerIsInterested: z.boolean(),
+        clientName: z.string(),
+        rateToClient: z.number(),
+        rateToPeer: z.number(),
+        progress: z.number(),
+        flagStr: z.string(),
+        country: z.string().optional(),
+    })
+    .passthrough()
+    .catch({
+        address: "",
+        clientIsChoking: false,
+        clientIsInterested: false,
+        peerIsChoking: false,
+        peerIsInterested: false,
+        clientName: "",
+        rateToClient: 0,
+        rateToPeer: 0,
+        progress: 0,
+        flagStr: "",
+    });
 
-const zTransmissionTorrent = z.object({
-    id: z.number(),
-    hashString: z.string(),
-    name: z.string(),
-    totalSize: z.number(),
-    percentDone: z.number(),
-    recheckProgress: z.number().optional(),
-    status: zRpcTorrentStatus,
-    rateDownload: z.number(),
-    rateUpload: z.number(),
-    peersConnected: z.number(),
-    eta: z.number(),
-    addedDate: z.number(),
-    queuePosition: z.number().optional(),
-    uploadRatio: z.number(),
-    uploadedEver: z.number(),
-    downloadedEver: z.number(),
-    downloadDir: z.string().optional(),
-    leftUntilDone: z.number().optional(),
-    sizeWhenDone: z.number().optional(),
-    error: z.number().optional(),
-    errorString: z.string().optional(),
-    peersSendingToUs: z.number().optional(),
-    peersGettingFromUs: z.number().optional(),
-    isFinished: z.boolean().optional(),
-    sequentialDownload: z.boolean().optional(),
-    superSeeding: z.boolean().optional(),
-});
+const zTransmissionTorrent = z
+    .object({
+        id: z.number(),
+        hashString: z.string(),
+        name: z.string(),
+        totalSize: z.number(),
+        percentDone: z.number(),
+        recheckProgress: z.number().optional(),
+        status: zRpcTorrentStatus,
+        rateDownload: z.number(),
+        rateUpload: z.number(),
+        peersConnected: z.number(),
+        eta: z.number(),
+        addedDate: z.number(),
+        queuePosition: z.number().optional(),
+        uploadRatio: z.number(),
+        uploadedEver: z.number(),
+        downloadedEver: z.number(),
+        downloadDir: z.string().optional(),
+        leftUntilDone: z.number().optional(),
+        sizeWhenDone: z.number().optional(),
+        error: z.number().optional(),
+        errorString: z.string().optional(),
+        peersSendingToUs: z.number().optional(),
+        peersGettingFromUs: z.number().optional(),
+        isFinished: z.boolean().optional(),
+        sequentialDownload: z.boolean().optional(),
+        superSeeding: z.boolean().optional(),
+    })
+    .passthrough();
 
-const zTransmissionTorrentDetail = zTransmissionTorrent.extend({
+const zTransmissionTorrentDetailBase = z.object({
     files: z.array(zTransmissionTorrentFile).default([]),
     trackers: z.array(zTransmissionTorrentTracker).default([]),
     peers: z.array(zTransmissionTorrentPeer).default([]),
@@ -118,15 +158,51 @@ const zTransmissionTorrentDetail = zTransmissionTorrent.extend({
     pieceSize: z.number().optional(),
     pieceStates: z.array(z.number()).optional(),
     pieceAvailability: z.array(z.number()).optional(),
+    labels: z.array(z.string()).default([]),
+    isPrivate: z.boolean().default(false),
 });
+const zTransmissionTorrentDetail = zTransmissionTorrent
+    .merge(zTransmissionTorrentDetailBase)
+    .passthrough()
+    .catch({
+        id: 0,
+        hashString: "",
+        name: "",
+        totalSize: 0,
+        percentDone: 0,
+        status: 0,
+        rateDownload: 0,
+        rateUpload: 0,
+        peersConnected: 0,
+        eta: 0,
+        addedDate: 0,
+        uploadRatio: 0,
+        uploadedEver: 0,
+        downloadedEver: 0,
+        files: [],
+        trackers: [],
+        peers: [],
+        labels: [],
+        isPrivate: false,
+        pieceCount: undefined,
+        pieceSize: undefined,
+        pieceStates: undefined,
+        pieceAvailability: undefined,
+    });
 
-const zTorrentListResponse = z.object({
-    torrents: z.array(zTransmissionTorrent),
-});
+const zTorrentListResponse = z
+    .object({
+        torrents: z.array(zTransmissionTorrent),
+    })
+    .passthrough()
+    .catch({ torrents: [] });
 
-const zTorrentDetailResponse = z.object({
-    torrents: z.array(zTransmissionTorrentDetail),
-});
+const zTorrentDetailResponse = z
+    .object({
+        torrents: z.array(zTransmissionTorrentDetail),
+    })
+    .passthrough()
+    .catch({ torrents: [] });
 
 const zSessionStatsTotals = z.object({
     uploadedBytes: z.number(),
@@ -294,22 +370,29 @@ export const getTorrentList = (payload: unknown): TransmissionTorrent[] => {
             .torrents as TransmissionTorrent[];
     } catch (error) {
         logValidationIssue("getTorrentList", payload, error);
-        throw error;
+        // Always return empty array on error for UI stability
+        return [];
     }
 };
 export const getTorrentDetail = (
     payload: unknown
-): TransmissionTorrentDetail => {
+): TransmissionTorrentDetail | null => {
     try {
         const result = zTorrentDetailResponse.parse(payload);
         const [torrent] = result.torrents;
         if (!torrent) {
-            throw new Error("Torrent not found in RPC response");
+            logValidationIssue(
+                "getTorrentDetail",
+                payload,
+                "Torrent not found in RPC response"
+            );
+            return null;
         }
         return torrent as TransmissionTorrentDetail;
     } catch (error) {
         logValidationIssue("getTorrentDetail", payload, error);
-        throw error;
+        // Always return null on error for UI stability
+        return null;
     }
 };
 export const getSessionStats = (payload: unknown): TransmissionSessionStats => {

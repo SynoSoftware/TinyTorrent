@@ -22,12 +22,18 @@ export function SettingsSection({
             )}
         >
             {title && (
-                <h3 className="text-scaled font-bold uppercase tracking-[0.3em] text-foreground/40 mb-3 mt-0 leading-tight">
+                <h3
+                    className="text-scaled font-bold uppercase text-foreground/40 mb-3 mt-0 leading-tight"
+                    style={{ letterSpacing: "var(--tt-tracking-ultra)" }}
+                >
                     {title}
                 </h3>
             )}
             {description && (
-                <p className="mb-4 text-scaled uppercase tracking-[0.25em] text-foreground/50">
+                <p
+                    className="mb-4 text-scaled uppercase text-foreground/50"
+                    style={{ letterSpacing: "var(--tt-tracking-wide)" }}
+                >
                     {description}
                 </p>
             )}

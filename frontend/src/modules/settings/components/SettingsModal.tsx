@@ -670,7 +670,13 @@ export function SettingsModal({
                                         {t(activeTabDefinition.headerKey)}
                                     </h1>
                                     {hasUnsavedChanges && (
-                                        <span className="text-scaled uppercase tracking-[0.2em] font-bold text-warning animate-pulse">
+                                        <span
+                                            className="text-scaled uppercase font-bold text-warning animate-pulse"
+                                            style={{
+                                                letterSpacing:
+                                                    "var(--tt-tracking-wide)",
+                                            }}
+                                        >
                                             {t("settings.unsaved_changes")}
                                         </span>
                                     )}

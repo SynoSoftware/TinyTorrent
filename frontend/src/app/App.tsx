@@ -4,7 +4,6 @@ import { useHotkeys } from "react-hotkeys-hook";
 import useWorkbenchScale from "./hooks/useWorkbenchScale";
 import { useTranslation } from "react-i18next";
 
-import { usePerformanceHistory } from "@/shared/hooks/usePerformanceHistory";
 import { useTransmissionSession } from "./hooks/useTransmissionSession";
 import { useWorkspaceShell } from "./hooks/useWorkspaceShell";
 import { useWorkspaceModals } from "./WorkspaceModalContext";
@@ -96,7 +95,6 @@ export default function App() {
         isDetectingEngine,
         isReady,
     } = useTransmissionSession(torrentClient);
-    const { downHistory, upHistory } = usePerformanceHistory();
 
     const {
         isAddModalOpen,
@@ -135,7 +133,7 @@ export default function App() {
         });
 
     // Workbench zoom: initialize global scale hook
-    const { scale, increase, decrease, reset } = useWorkbenchScale();
+    const { increase, decrease, reset } = useWorkbenchScale();
 
     useEffect(() => {
         const onKeyDown = (e: KeyboardEvent) => {
@@ -721,8 +719,6 @@ export default function App() {
                     }
                     sessionStats={sessionStats}
                     liveTransportStatus={liveTransportStatus}
-                    downHistory={downHistory}
-                    upHistory={upHistory}
                     rpcStatus={rpcStatus}
                     handleReconnect={handleReconnect}
                     pendingDelete={pendingDelete}

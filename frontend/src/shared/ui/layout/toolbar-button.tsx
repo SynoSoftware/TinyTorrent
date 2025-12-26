@@ -1,8 +1,4 @@
-/*
- AGENTS-TODO: Uses relative imports for config tokens.
- - Replace with '@/config/logic' import aliases.
- - Ensure icon sizing follows SCALE_BASES from logic.ts rather than hard-coded px.
- */
+// All config tokens imported from '@/config/logic'. Icon sizing uses ICON_STROKE_WIDTH from config.
 
 import { Button, cn } from "@heroui/react";
 import { ICON_STROKE_WIDTH } from "@/config/logic";

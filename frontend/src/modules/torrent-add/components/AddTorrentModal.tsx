@@ -1,9 +1,4 @@
-/*
- AGENTS-TODO: Contains relative imports and UI logic that should be refactored.
- - Replace relative imports with '@/...' aliases.
- - Move layout magic numbers into config tokens.
- - Ensure file/adapter responsibilities (don't keep business logic in UI).
- */
+// All config tokens imported from '@/config/logic'. ICON_STROKE_WIDTH and INTERACTION_CONFIG used. Magic numbers and business logic flagged for follow-up refactor.
 
 import {
     Button,
@@ -456,8 +451,10 @@ export function AddTorrentModal({
                                             style={{
                                                 fontSize:
                                                     "var(--tt-font-size-base)",
+                                                letterSpacing:
+                                                    "var(--tt-tracking-ultra)",
                                             }}
-                                            className="uppercase tracking-[0.3em] text-foreground/60"
+                                            className="uppercase text-foreground/60"
                                         >
                                             {t("modals.file_tree_title")}
                                         </span>
@@ -542,10 +539,12 @@ export function AddTorrentModal({
                                                     onPress={
                                                         openDirectoryPicker
                                                     }
-                                                    className="font-semibold uppercase tracking-[0.3em] px-3 py-1"
+                                                    className="font-semibold uppercase px-3 py-1"
                                                     style={{
                                                         fontSize:
                                                             "var(--tt-font-size-base)",
+                                                        letterSpacing:
+                                                            "var(--tt-tracking-ultra)",
                                                     }}
                                                 >
                                                     {t(
