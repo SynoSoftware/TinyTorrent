@@ -155,8 +155,8 @@ export function SystemInstallSection({
         return (
             <Button
                 key={location.key}
-                size="sm"
-                variant={isSelected ? "shadow" : "light"}
+                size="md"
+                variant={isSelected ? "shadow" : "ghost"}
                 color={isSelected ? "primary" : undefined}
                 className="uppercase h-8 px-3"
                 style={{
@@ -197,7 +197,7 @@ export function SystemInstallSection({
                     label={t("settings.labels.installName")}
                     labelPlacement="outside"
                     placeholder=" "
-                    size="sm"
+                    size="md"
                     variant="bordered"
                     value={installName}
                     isDisabled={isSystemInstallDisabled}
@@ -207,7 +207,7 @@ export function SystemInstallSection({
                     label={t("settings.labels.installArgs")}
                     labelPlacement="outside"
                     placeholder=" "
-                    size="sm"
+                    size="md"
                     variant="bordered"
                     value={installArgs}
                     isDisabled={isSystemInstallDisabled}
@@ -216,7 +216,7 @@ export function SystemInstallSection({
             </div>
             <div className="space-y-2">
                 <p
-                    className="font-semibold uppercase text-foreground/50"
+                    className="font-semibold uppercase tracking-[0.3em] text-foreground/50"
                     style={{
                         fontSize: "var(--tt-font-size-base)",
                         letterSpacing: "var(--tt-tracking-wide)",
@@ -228,7 +228,7 @@ export function SystemInstallSection({
             </div>
             <div className="flex flex-col gap-3">
                 <Switch
-                    size="sm"
+                    size="md"
                     isSelected={autorunSwitch.isSelected}
                     isDisabled={autorunSwitch.isDisabled}
                     onValueChange={autorunSwitch.onChange}
@@ -238,7 +238,7 @@ export function SystemInstallSection({
                     </span>
                 </Switch>
                 <Switch
-                    size="sm"
+                    size="md"
                     isSelected={handlerSwitch.isSelected}
                     isDisabled={handlerSwitch.isDisabled}
                     onValueChange={handlerSwitch.onChange}
@@ -256,7 +256,7 @@ export function SystemInstallSection({
                     </p>
                 )}
                 <Switch
-                    size="sm"
+                    size="md"
                     isSelected={installToProgramFiles}
                     isDisabled={
                         isSystemInstallDisabled ||

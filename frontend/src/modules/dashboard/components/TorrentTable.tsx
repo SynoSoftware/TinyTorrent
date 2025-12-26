@@ -317,7 +317,7 @@ const DraggableHeader = memo(
                 onClick={canSort ? column.getToggleSortingHandler() : undefined}
                 onContextMenu={onContextMenu}
                 className={cn(
-                    "relative flex items-center h-10 border-r border-content1/10 transition-colors group select-none overflow-hidden",
+                    "relative flex items-center h-row border-r border-content1/10 transition-colors group select-none overflow-hidden",
                     "box-border",
                     "border-l-2 border-l-transparent",
                     canSort
@@ -333,7 +333,7 @@ const DraggableHeader = memo(
                 <div
                     className={cn(
                         CELL_BASE_CLASSES,
-                        "flex-1 gap-2",
+                        "flex-1 gap-tools",
                         "text-scaled font-bold uppercase text-foreground/60",
                         isOverlay && "text-foreground",
                         CELL_PADDING_CLASS,
@@ -375,7 +375,7 @@ const DraggableHeader = memo(
                     >
                         <div
                             className={cn(
-                                "w-(--bw) h-4 bg-foreground/10 transition-colors rounded-full",
+                                "w-(--bw) h-indicator bg-foreground/10 transition-colors rounded-full",
                                 "group-hover:bg-primary/50",
                                 column.getIsResizing() &&
                                     "bg-primary w-(--tt-divider-width) h-6"
@@ -401,7 +401,7 @@ const ColumnHeaderPreview = ({
     return (
         <div
             className={cn(
-                "relative flex h-10 items-center border-r border-content1/10 bg-content1/90 px-(--p-2) transition-all",
+                "relative flex h-row items-center border-r border-content1/10 bg-content1/90 px-(--p-2) transition-all",
                 PANEL_SHADOW
             )}
             style={{ width: column.getSize(), boxSizing: "border-box" }}
@@ -409,7 +409,7 @@ const ColumnHeaderPreview = ({
             <div
                 className={cn(
                     CELL_BASE_CLASSES,
-                    "flex-1 gap-2 text-scaled font-bold uppercase text-foreground/70",
+                    "flex-1 gap-tools text-scaled font-bold uppercase text-foreground/70",
                     CELL_PADDING_CLASS,
                     align === "center" && "justify-center",
                     align === "end" && "justify-end",
@@ -1779,7 +1779,7 @@ export function TorrentTable({
                                                 height: TABLE_LAYOUT.rowHeight,
                                             }}
                                         >
-                                            <Skeleton className="h-4 w-full rounded-md bg-content1/10" />
+                                            <Skeleton className="h-indicator w-full rounded-md bg-content1/10" />
                                         </div>
                                     ))}
                                 </div>
@@ -1820,7 +1820,7 @@ export function TorrentTable({
                                                     "var(--tt-tracking-ultra)",
                                             }}
                                         >
-                                            <span className="h-3 w-full rounded-full bg-content1/20" />
+                                            <span className="h-indicator w-full rounded-full bg-content1/20" />
                                             <span>
                                                 {t("table.header_name")}
                                             </span>
@@ -1834,9 +1834,9 @@ export function TorrentTable({
                                                     key={index}
                                                     className="grid grid-cols-[48px_minmax(0,1fr)_120px] gap-3 rounded-2xl bg-content1/10 px-3 py-2"
                                                 >
-                                                    <span className="h-3 w-full rounded-full bg-content1/20" />
-                                                    <span className="h-3 w-full rounded-full bg-content1/20" />
-                                                    <span className="h-3 w-full rounded-full bg-content1/20" />
+                                                    <span className="h-indicator w-full rounded-full bg-content1/20" />
+                                                    <span className="h-indicator w-full rounded-full bg-content1/20" />
+                                                    <span className="h-indicator w-full rounded-full bg-content1/20" />
                                                 </div>
                                             )
                                         )}
@@ -1991,7 +1991,7 @@ export function TorrentTable({
                                     />
                                 </DropdownTrigger>
                                 <DropdownMenu
-                                    variant="flat"
+                                    variant="shadow"
                                     className={GLASS_MENU_SURFACE}
                                     onAction={(key) => {
                                         void handleContextMenuAction(
@@ -2133,7 +2133,7 @@ export function TorrentTable({
                                     />
                                 </DropdownTrigger>
                                 <DropdownMenu
-                                    variant="flat"
+                                    variant="shadow"
                                     className={cn(
                                         GLASS_MENU_SURFACE,
                                         "min-w-(--tt-menu-min-width)"
@@ -2193,7 +2193,7 @@ export function TorrentTable({
                                                                 isSelected={
                                                                     isVisible
                                                                 }
-                                                                size="sm"
+                                                                size="md"
                                                                 disableAnimation
                                                                 classNames={{
                                                                     base: "mr-2",

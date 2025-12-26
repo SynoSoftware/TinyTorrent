@@ -126,13 +126,13 @@ export function Navbar({
                         </div>
                     </div>
 
-                    <div className="h-8 w-px bg-default-200/50" />
+                    <div className="h-sep w-px bg-default-200/50" />
 
                     {/* Filters */}
                     <Tabs
                         aria-label="Filter"
                         variant="light"
-                        size="sm"
+                        size="md"
                         radius="full"
                         selectedKey={filter}
                         onSelectionChange={(k) => setFilter(k as string)}
@@ -187,7 +187,7 @@ export function Navbar({
                         }}
                         style={{ width: "var(--tt-search-width)" }}
                         placeholder={t("nav.search_placeholder")}
-                        size="sm"
+                        size="md"
                         value={searchQuery}
                         data-command-search="true"
                         onFocus={() => setActivePart("search")}
@@ -265,7 +265,7 @@ export function Navbar({
                         className="bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary-600 ring-1 ring-primary/20"
                     />
 
-                    <div className="h-6 w-px bg-default-200/50 mx-1" />
+                    <div className="h-sep w-px bg-default-200/50 mx-1" />
 
                     {/* System / Global */}
                     <div className="flex items-center gap-1">
@@ -299,7 +299,7 @@ export function Navbar({
                                         Math.max(rehashStatus.value, 0),
                                         100
                                     )}
-                                    trackClassName="h-[var(--tt-track-h)] bg-transparent"
+                                    trackClassName="h-track bg-transparent"
                                     indicatorClassName="h-full bg-gradient-to-r from-primary to-secondary shadow-[0_0_10px_rgba(var(--primary),0.5)]"
                                 />
                                 {/* Tooltip on hover */}

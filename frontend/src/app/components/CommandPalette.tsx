@@ -125,7 +125,7 @@ export function CommandPalette({
                                 placeholder={t("command_palette.placeholder")}
                                 className="rounded-none border-0 bg-transparent px-6 py-4 text-base font-semibold outline-none placeholder:text-foreground/50"
                             />
-                            <Command.List className="max-h-[var(--tt-command-palette-max-h)] overflow-y-auto px-6 pb-4 pt-2">
+                            <Command.List className="max-h-command-palette overflow-y-auto px-6 pb-4 pt-2">
                                 {groupedActions.map(({ group, entries }) => (
                                     <div key={group} className="pb-4">
                                         <div className="text-scaled font-semibold uppercase tracking-[0.2em] text-default-500">
@@ -148,7 +148,7 @@ export function CommandPalette({
                                                             {action.title}
                                                         </span>
                                                         {action.shortcut && (
-                                                            <div className="flex gap-2 text-scaled font-mono uppercase text-foreground/50">
+                                                            <div className="flex gap-tools text-scaled font-mono uppercase text-foreground/50">
                                                                 {action.shortcut.map(
                                                                     (key) => (
                                                                         <span

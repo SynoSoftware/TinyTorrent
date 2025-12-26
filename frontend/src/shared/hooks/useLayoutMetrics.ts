@@ -40,17 +40,30 @@ export default function useLayoutMetrics(): LayoutMetrics {
     const baseUnit = SCALE_BASES.unit;
     const baseFont = SCALE_BASES.fontBase;
 
+    // If UI_BASES provides a CSS token string (e.g. "var(--tt-h-md)"),
+    // derive a conservative numeric fallback based on the unit scale.
+    const numericBaseRow =
+        typeof baseRow === "number" ? baseRow : Math.round(baseUnit * 12);
+    const numericBaseMenuWidth =
+        typeof baseMenuWidth === "number"
+            ? baseMenuWidth
+            : Math.round(baseUnit * 55);
+    const numericBaseMenuMargin =
+        typeof baseMenuMargin === "number"
+            ? baseMenuMargin
+            : Math.round(baseUnit * 2);
+
     const initial = useMemo(
         () => ({
-            rowHeight: baseRow,
-            fileContextMenuMargin: baseMenuMargin,
-            fileContextMenuWidth: baseMenuWidth,
+            rowHeight: numericBaseRow,
+            fileContextMenuMargin: numericBaseMenuMargin,
+            fileContextMenuWidth: numericBaseMenuWidth,
             unit: baseUnit,
             fontBase: baseFont,
             iconSize: Math.round(baseFont * 1.25),
             zoomLevel: SCALE_BASES.zoom,
         }),
-        [baseRow, baseMenuMargin, baseMenuWidth, baseUnit, baseFont]
+        [numericBaseRow, baseMenuMargin, baseMenuWidth, baseUnit, baseFont]
     );
 
     const [metrics, setMetrics] = useState<LayoutMetrics>(initial);
@@ -65,16 +78,20 @@ export default function useLayoutMetrics(): LayoutMetrics {
             try {
                 const styles = getComputedStyle(document.documentElement);
                 const next: LayoutMetrics = {
-                    rowHeight: readNumberVar(styles, "--tt-row-h", baseRow),
+                    rowHeight: readNumberVar(
+                        styles,
+                        "--tt-row-h",
+                        numericBaseRow
+                    ),
                     fileContextMenuMargin: readNumberVar(
                         styles,
                         "--tt-file-context-menu-margin",
-                        baseMenuMargin
+                        numericBaseMenuMargin
                     ),
                     fileContextMenuWidth: readNumberVar(
                         styles,
                         "--tt-file-context-menu-width",
-                        baseMenuWidth
+                        numericBaseMenuWidth
                     ),
                     unit: readNumberVar(styles, "--tt-unit", baseUnit),
                     fontBase: readNumberVar(

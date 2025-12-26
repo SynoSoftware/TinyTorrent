@@ -31,16 +31,16 @@ const UI_CONFIG = {
     layout: {
         // height is driven by CSS token `--tt-statusbar-h`
         sectionGap: "gap-4",
-        internalGap: "gap-2",
+        internalGap: "gap-tools",
         hudGap: "gap-6",
     },
     sizing: {
         // Icon sizing will be applied via inline styles using CSS tokens
-        dot: "w-2 h-2",
+        dot: "size-dot",
         icon: {
-            chip: "w-5 h-5",
-            md: "w-4 h-4",
-            lg: "w-6 h-6",
+            chip: "size-icon-btn",
+            md: "size-icon-btn",
+            lg: "size-icon-btn-lg",
         },
     },
     opacity: {
@@ -368,7 +368,7 @@ export function StatusBar({
                         >
                             {summaryLabel}
                         </span>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-tools">
                             <span
                                 className={cn(
                                     UI_CONFIG.typography.value,
@@ -411,7 +411,7 @@ export function StatusBar({
                         >
                             {t("status_bar.network")}
                         </span>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-tools">
                             <span
                                 className={cn(
                                     UI_CONFIG.typography.value,

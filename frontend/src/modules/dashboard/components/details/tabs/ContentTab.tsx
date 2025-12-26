@@ -98,9 +98,9 @@ export const ContentTab = ({
                                 "This torrent may be missing file metadata. Try rechecking or re-downloading.",
                         })}
                     </div>
-                    <div className="flex gap-2 mt-2">
+                    <div className="flex gap-tools mt-2">
                         <Button
-                            size="sm"
+                            size="md"
                             variant="shadow"
                             color="primary"
                             onPress={() => {
@@ -112,7 +112,7 @@ export const ContentTab = ({
                             })}
                         </Button>
                         <Button
-                            size="sm"
+                            size="md"
                             variant="shadow"
                             color="danger"
                             onPress={() => {
@@ -124,7 +124,7 @@ export const ContentTab = ({
                             })}
                         </Button>
                         <Button
-                            size="sm"
+                            size="md"
                             variant="shadow"
                             color="default"
                             onPress={() => {

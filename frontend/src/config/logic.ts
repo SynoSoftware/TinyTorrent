@@ -11,94 +11,7 @@ export const DESIGN_SYSTEM_AUTHORITY = {
     note: "All geometry must be derived from CSS primitives; JSON must contain intent only.",
 };
 
-function checkDeprecatedGeometrySettings() {
-    try {
-        const warnings: string[] = [];
-        const layout = (constants as any).layout ?? {};
-        const table = layout.table ?? {};
-        if (typeof table.row_height === "number")
-            warnings.push("layout.table.row_height");
-        if (typeof table.icon_size === "number")
-            warnings.push("layout.table.icon_size");
-        if (
-            typeof table.font_size === "string" &&
-            /text-\[|h-\[|w-\[/.test(table.font_size)
-        )
-            warnings.push("layout.table.font_size (tailwind escape)");
-
-        const ui = layout.ui ?? {};
-        const navbar = ui.navbar ?? {};
-        const statusbar = ui.statusbar ?? {};
-        const drop = ui.drop_overlay ?? {};
-        const fileExplorer = ui.file_explorer ?? {};
-
-        const numericProps = [
-            "height",
-            "padding",
-            "gap",
-            "brand_icon",
-            "tab_font",
-            "meta_font",
-            "search_width",
-            "icon_sm",
-            "icon_md",
-            "icon_lg",
-            "icon_xl",
-            "button_h",
-            "button_min_w",
-            "min_100",
-            "min_120",
-            "min_80",
-            "padding_x",
-            "padding_y",
-            "icon_size",
-            "title_font",
-            "font_size",
-            "row_height",
-            "depth_indent",
-            "row_padding_left",
-            "context_menu_width",
-            "context_menu_margin",
-            "priority_badge_font_size",
-            "priority_badge_padding_x",
-            "priority_badge_padding_y",
-            "file_icon_size",
-            "checkbox_padding",
-        ];
-
-        for (const p of numericProps) {
-            if (typeof (navbar as any)[p] === "number")
-                warnings.push(`layout.ui.navbar.${p}`);
-            if (typeof (statusbar as any)[p] === "number")
-                warnings.push(`layout.ui.statusbar.${p}`);
-            if (typeof (drop as any)[p] === "number")
-                warnings.push(`layout.ui.drop_overlay.${p}`);
-            if (typeof (fileExplorer as any)[p] === "number")
-                warnings.push(`layout.ui.file_explorer.${p}`);
-        }
-
-        const shell = layout.shell ?? {};
-        if (shell.classic && typeof shell.classic.outer_radius === "number")
-            warnings.push("layout.shell.classic.outer_radius");
-        if (shell.immersive && typeof shell.immersive.outer_radius === "number")
-            warnings.push("layout.shell.immersive.outer_radius");
-
-        if (warnings.length) {
-            // single consolidated warning
-            // Keep this non-fatal: it surfaces to devs immediately.
-            // eslint-disable-next-line no-console
-            console.warn(
-                "[DesignSystem] Deprecated geometry found in constants.json. Index.css is authoritative. Remove pixel geometry from JSON. Keys:",
-                warnings
-            );
-        }
-    } catch (e) {
-        // ignore
-    }
-}
-
-// Run check at module init to warn devs if JSON still contains geometry numbers.
-checkDeprecatedGeometrySettings();
+// Design system: geometry is authoritative in CSS; JSON contains intent only.
 
 const normalizeRepeat = (value?: number) => (value === -1 ? Infinity : value);
 
@@ -143,8 +56,8 @@ const DEFAULT_LAYOUT_PEER_MAP = {
 
 const DEFAULT_TABLE_LAYOUT = {
     // Geometry is CSS-driven; defaults here are CSS var references.
-    row_height: "var(--tt-row-h)",
-    font_size: "text-sm",
+    row_height: "var(--tt-h-row)",
+    font_size: "text-scaled",
     font_mono: "font-mono",
     overscan: 20,
 } as const;
@@ -329,8 +242,8 @@ const detailsLayout = layoutConfig.details ?? {};
 export const TABLE_LAYOUT = {
     // These values are CSS-driven tokens; runtime code that needs
     // numeric pixel heights should read the computed style instead.
-    rowHeight: "var(--tt-row-h)",
-    fontSize: tableLayout.font_size,
+    rowHeight: "var(--tt-h-row)",
+    fontSize: "text-base",
     fontMono: tableLayout.font_mono,
     overscan: tableLayout.overscan,
 } as const;
@@ -360,72 +273,45 @@ const dropOverlayConfig = uiLayout.drop_overlay ?? {};
 
 export const UI_BASES = {
     navbar: {
-        height: readNumber(navbarConfig.height, 56),
-        padding: readNumber(navbarConfig.padding, 24),
-        gap: readNumber(navbarConfig.gap, 16),
-        brandIcon: readNumber(navbarConfig.brand_icon, 40),
-        tabFont: readNumber(navbarConfig.tab_font, 11),
-        metaFont: readNumber(navbarConfig.meta_font, 10),
-        searchWidth: readNumber(navbarConfig.search_width, 160),
-        searchWidthLg: readNumber(navbarConfig.search_width_lg, 224),
+        height: "var(--height-nav)",
+        padding: "var(--spacing-workbench)",
+        gap: "var(--spacing-workbench)",
+        brandIcon: "var(--tt-brand-icon-size)",
+        tabFont: "var(--fz-scaled)",
+        metaFont: "var(--fz-scaled)",
+        searchWidth: "var(--tt-search-width)",
+        searchWidthLg: "var(--tt-search-width)",
     },
     statusbar: {
-        height: readNumber(statusbarConfig.height, 76),
-        iconSm: readNumber(statusbarConfig.icon_sm, 12),
-        iconMd: readNumber(statusbarConfig.icon_md, 14),
-        iconLg: readNumber(statusbarConfig.icon_lg, 16),
-        iconXl: readNumber(statusbarConfig.icon_xl, 48),
-        buttonH: readNumber(statusbarConfig.button_h, 42),
-        buttonMinW: readNumber(statusbarConfig.button_min_w, 84),
-        min100: readNumber(statusbarConfig.min_100, 100),
-        min120: readNumber(statusbarConfig.min_120, 120),
-        min80: readNumber(statusbarConfig.min_80, 80),
+        height: "var(--height-status)",
+        iconSm: "var(--tt-status-icon-sm)",
+        iconMd: "var(--tt-status-icon-md)",
+        iconLg: "var(--tt-status-icon-lg)",
+        iconXl: "var(--tt-status-icon-xl)",
+        buttonH: "var(--tt-button-h)",
+        buttonMinW: "var(--tt-button-min-w)",
+        min100: "var(--tt-badge-min-width)",
+        min120: "var(--tt-badge-min-width)",
+        min80: "var(--tt-badge-min-width)",
     },
     dropOverlay: {
-        paddingX: readNumber(dropOverlayConfig.padding_x, 24),
-        paddingY: readNumber(dropOverlayConfig.padding_y, 16),
-        iconSize: readNumber(dropOverlayConfig.icon_size, 28),
-        titleFont: readNumber(dropOverlayConfig.title_font, 14),
-        fontSize: readNumber(dropOverlayConfig.font_size, 11),
+        paddingX: "var(--spacing-workbench)",
+        paddingY: "var(--spacing-workbench)",
+        iconSize: "var(--tt-brand-icon-size)",
+        titleFont: "var(--fz-scaled)",
+        fontSize: "var(--fz-scaled)",
     },
     fileExplorer: {
-        rowHeight: readNumber((uiLayout.file_explorer ?? {}).row_height, 32),
-        depthIndent: readNumber(
-            (uiLayout.file_explorer ?? {}).depth_indent,
-            16
-        ),
-        rowPaddingLeft: readNumber(
-            (uiLayout.file_explorer ?? {}).row_padding_left,
-            8
-        ),
-        contextMenuWidth: readNumber(
-            (uiLayout.file_explorer ?? {}).context_menu_width,
-            220
-        ),
-        contextMenuMargin: readNumber(
-            (uiLayout.file_explorer ?? {}).context_menu_margin,
-            8
-        ),
-        priorityBadgeFontSize: readNumber(
-            (uiLayout.file_explorer ?? {}).priority_badge_font_size,
-            10
-        ),
-        priorityBadgePaddingX: readNumber(
-            (uiLayout.file_explorer ?? {}).priority_badge_padding_x,
-            8
-        ),
-        priorityBadgePaddingY: readNumber(
-            (uiLayout.file_explorer ?? {}).priority_badge_padding_y,
-            4
-        ),
-        fileIconSize: readNumber(
-            (uiLayout.file_explorer ?? {}).file_icon_size,
-            16
-        ),
-        checkboxPadding: readNumber(
-            (uiLayout.file_explorer ?? {}).checkbox_padding,
-            4
-        ),
+        rowHeight: "var(--tt-h-row)",
+        depthIndent: "var(--tt-file-depth-indent)",
+        rowPaddingLeft: "var(--tt-file-row-padding-left)",
+        contextMenuWidth: "var(--tt-file-context-menu-width)",
+        contextMenuMargin: "var(--tt-file-context-menu-margin)",
+        priorityBadgeFontSize: "var(--tt-priority-badge-font-size)",
+        priorityBadgePaddingX: "var(--tt-priority-badge-padding-x)",
+        priorityBadgePaddingY: "var(--tt-priority-badge-padding-y)",
+        fileIconSize: "var(--tt-file-icon-size)",
+        checkboxPadding: "var(--tt-file-checkbox-padding)",
     },
 };
 

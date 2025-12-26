@@ -185,7 +185,7 @@ export function DirectoryPicker({
                     setPendingPath(entry.path);
                 }}
                 className={cn(
-                    "flex w-full items-center justify-between gap-3 rounded-2xl border border-content1/20 bg-content1/10 px-4 py-3 text-left transition hover:border-primary/40 hover:bg-content1/20",
+                    "flex w-full items-center justify-between gap-stage rounded-2xl border border-content1/20 bg-content1/10 px-panel py-panel text-left transition hover:border-primary/40 hover:bg-content1/20",
                     "focus-visible:outline-none focus-visible:ring focus-visible:ring-primary/40"
                 )}
             >
@@ -236,10 +236,7 @@ export function DirectoryPicker({
             size="xl"
             backdrop="blur"
             classNames={{
-                base: cn(
-                    GLASS_MODAL_SURFACE,
-                    "max-w-[var(--tt-directory-picker-max-w)] w-full"
-                ),
+                base: cn(GLASS_MODAL_SURFACE, "max-w-dir-picker w-full"),
             }}
             motionProps={INTERACTION_CONFIG.modalBloom}
         >
@@ -261,7 +258,7 @@ export function DirectoryPicker({
                             label={t("directory_browser.path_label")}
                             labelPlacement="outside"
                             variant="bordered"
-                            size="sm"
+                            size="md"
                             value={pendingPath}
                             placeholder=" "
                             onChange={(event) =>
@@ -282,8 +279,8 @@ export function DirectoryPicker({
                     </div>
                     <div className="flex items-center justify-between">
                         <Button
-                            size="sm"
-                            variant="light"
+                            size="md"
+                            variant="shadow"
                             onPress={goUp}
                             disabled={!browseResult?.parentPath}
                             className="flex items-center gap-2"
@@ -307,13 +304,13 @@ export function DirectoryPicker({
                                 : resolvedPath}
                         </span>
                     </div>
-                    <div className="relative h-64 overflow-y-auto rounded-2xl border border-content1/20 bg-content1/10 p-2">
+                    <div className="relative h-lg overflow-y-auto rounded-2xl border border-content1/20 bg-content1/10 p-tight">
                         {isLoading && (
                             <div className="space-y-2">
                                 {Array.from({ length: 4 }).map((_, index) => (
                                     <Skeleton
                                         key={index}
-                                        className="h-12 w-full rounded-2xl bg-content1/20"
+                                        className="h-md w-full rounded-2xl bg-content1/20"
                                     />
                                 ))}
                             </div>
@@ -334,15 +331,15 @@ export function DirectoryPicker({
                 <ModalFooter className="flex flex-col gap-3 pt-0">
                     <div className="flex w-full gap-3">
                         <Button
-                            variant="light"
-                            size="sm"
+                            variant="shadow"
+                            size="md"
                             onPress={onClose}
                             className="flex-1 text-foreground/50"
                         >
                             {t("modals.cancel")}
                         </Button>
                         <Button
-                            size="sm"
+                            size="md"
                             color="primary"
                             variant="shadow"
                             className="flex-1"

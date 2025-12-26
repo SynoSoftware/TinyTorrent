@@ -42,7 +42,7 @@ export function SwitchSliderRenderer({
         <div className="space-y-3">
             <div className="flex justify-between items-center">
                 <Switch
-                    size="sm"
+                    size="md"
                     isSelected={isSwitchOn}
                     color={block.color}
                     onValueChange={(val) => updateConfig(block.switchKey, val)}
@@ -58,7 +58,7 @@ export function SwitchSliderRenderer({
                 </div>
             </div>
             <Slider
-                size="sm"
+                size="md"
                 step={block.slider.step}
                 maxValue={block.slider.max}
                 minValue={block.slider.min}
@@ -84,7 +84,7 @@ export function SwitchRenderer({
     const isDisabled = dependsOn ? !(config[dependsOn] as boolean) : false;
 
     return (
-        <div className="flex justify-between items-center h-10">
+        <div className="flex justify-between items-center h-control-row">
             <span
                 className={cn(
                     "text-sm font-medium text-foreground/80",
@@ -94,7 +94,7 @@ export function SwitchRenderer({
                 {t(block.labelKey)}
             </span>
             <Switch
-                size="sm"
+                size="md"
                 color={block.color}
                 isSelected={config[block.stateKey] as boolean}
                 onValueChange={(val) => updateConfig(block.stateKey, val)}
@@ -182,7 +182,7 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
             onCommit={handleCommit}
             classNames={{
                 inputWrapper: cn(
-                    "h-[var(--button-h)] transition-colors",
+                    "h-button transition-colors",
                     isDisabled ? "opacity-50" : "group-hover:border-primary/50"
                 ),
                 input: cn(
@@ -214,11 +214,11 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
         <div className="flex w-full items-end gap-3 group">
             <div className="flex-1 min-w-0">{inputNode}</div>
             <Button
-                size="sm"
-                variant="flat"
+                size="md"
+                variant="shadow"
                 color="primary"
                 onPress={handleSideAction}
-                className="h-(--button-h) px-5 shrink-0 font-semibold text-xs tracking-wider uppercase bg-primary/10 hover:bg-primary/20 text-primary transition-colors data-[pressed=true]:scale-95"
+                className="h-button px-5 shrink-0 font-semibold text-xs tracking-wider uppercase bg-primary/10 hover:bg-primary/20 text-primary transition-colors data-[pressed=true]:scale-95"
                 isDisabled={sideActionDisabled}
             >
                 {t(sideAction.labelKey)}
@@ -276,12 +276,12 @@ export function DaySelectorRenderer({
                     return (
                         <Button
                             key={day.id}
-                            size="sm"
-                            variant={isSelected ? "shadow" : "light"}
+                            size="md"
+                            variant={isSelected ? "shadow" : "ghost"}
                             color={isSelected ? "primary" : undefined}
                             onPress={() => toggleDay(day.mask)}
                             className={cn(
-                                "h-(--button-h) px-3 shrink-0 font-semibold text-xs tracking-wider uppercase bg-primary/10 hover:bg-primary/20 text-primary transition-colors data-[pressed=true]:scale-95 text-scaled min-w-0",
+                                "h-button px-3 shrink-0 font-semibold text-xs tracking-wider uppercase bg-primary/10 hover:bg-primary/20 text-primary transition-colors data-[pressed=true]:scale-95 text-scaled min-w-0",
                                 isSelected ? "font-bold" : "text-foreground/60"
                             )}
                             style={{ letterSpacing: "var(--tt-tracking-wide)" }}
@@ -307,7 +307,7 @@ export function SelectRenderer({
         <Select
             label={t(block.labelKey)}
             labelPlacement="outside"
-            size="sm"
+            size="md"
             variant={block.variant ?? "bordered"}
             selectedKeys={
                 config[block.stateKey] !== undefined
@@ -315,7 +315,7 @@ export function SelectRenderer({
                     : []
             }
             classNames={{
-                trigger: "h-[var(--button-h)]",
+                trigger: "h-button",
                 value: "text-sm font-medium",
             }}
             onSelectionChange={(keys) => {
@@ -401,8 +401,8 @@ export function RawConfigRenderer({
                     )}
                 </div>
                 <Button
-                    size="sm"
-                    variant="light"
+                    size="md"
+                    variant="shadow"
                     color="primary"
                     onPress={onCopyConfigJson}
                 >

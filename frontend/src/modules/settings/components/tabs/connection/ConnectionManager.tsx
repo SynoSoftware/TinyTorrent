@@ -194,7 +194,7 @@ export function ConnectionCredentialsCard({
                     </div>
                     <div className="flex items-center gap-2">
                         <Button
-                            size="sm"
+                            size="md"
                             variant="ghost"
                             onPress={() => setShowAdvanced(true)}
                         >
@@ -226,8 +226,8 @@ export function ConnectionCredentialsCard({
                 <div className="flex flex-wrap items-center gap-8">
                     <div className="flex items-center gap-2">
                         <Chip
-                            size="sm"
-                            variant="light"
+                            size="md"
+                            variant="shadow"
                             color={statusColor}
                             startContent={
                                 statusColor === "success" ? (
@@ -241,15 +241,15 @@ export function ConnectionCredentialsCard({
                         </Chip>
                         {serverType && serverTypeLabel && (
                             <Chip
-                                size="sm"
-                                variant="light"
+                                size="md"
+                                variant="shadow"
                                 color="default"
                                 startContent={
                                     serverType === "tinytorrent" ? (
                                         <img
                                             src="/tinyTorrent.svg"
                                             alt=""
-                                            className="h-3.5 w-3.5"
+                                            className="size-dot"
                                         />
                                     ) : serverType === "transmission" ? (
                                         <Download size={14} />
@@ -261,7 +261,7 @@ export function ConnectionCredentialsCard({
                         )}
                     </div>
                     <Button
-                        size="sm"
+                        size="md"
                         variant="shadow"
                         color="primary"
                         onPress={onReconnect}
@@ -291,25 +291,25 @@ export function ConnectionCredentialsCard({
                         label={t("settings.connection.host")}
                         labelPlacement="outside"
                         variant="bordered"
-                        size="sm"
+                        size="md"
                         value={activeProfile.host}
                         onChange={(event) =>
                             handleUpdate({ host: event.target.value })
                         }
-                        className="h-[var(--button-h)]"
+                        className="h-button"
                         disabled={!Runtime.enableRemoteInputs()}
                     />
                     <Input
                         label={t("settings.connection.port")}
                         variant="bordered"
                         labelPlacement="outside"
-                        size="sm"
+                        size="md"
                         type="text"
                         value={activeProfile.port}
                         onChange={(event) =>
                             handleUpdate({ port: event.target.value })
                         }
-                        className="h-[var(--button-h)]"
+                        className="h-button"
                         disabled={!Runtime.enableRemoteInputs()}
                     />
                 </div>
@@ -324,7 +324,7 @@ export function ConnectionCredentialsCard({
                             label={t("settings.connection.token")}
                             labelPlacement="outside"
                             variant="bordered"
-                            size="sm"
+                            size="md"
                             value={activeProfile.token}
                             onChange={(event) =>
                                 handleUpdate({
@@ -339,7 +339,7 @@ export function ConnectionCredentialsCard({
                                     label={t("settings.connection.username")}
                                     labelPlacement="outside"
                                     variant="bordered"
-                                    size="sm"
+                                    size="md"
                                     value={activeProfile.username}
                                     onChange={(event) =>
                                         handleUpdate({
@@ -352,7 +352,7 @@ export function ConnectionCredentialsCard({
                                     label={t("settings.connection.password")}
                                     labelPlacement="outside"
                                     variant="bordered"
-                                    size="sm"
+                                    size="md"
                                     type="password"
                                     value={activeProfile.password}
                                     onChange={(event) =>
@@ -406,7 +406,7 @@ export function ConnectionExtensionCard({
     return (
         <div className="space-y-2">
             <Switch
-                size="sm"
+                size="md"
                 isSelected={enabled}
                 onValueChange={(value) => setEnabled(value)}
                 aria-label={t("settings.connection.extension_mode_label")}

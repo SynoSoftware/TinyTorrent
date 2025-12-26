@@ -577,7 +577,7 @@ export function SettingsModal({
             classNames={{
                 base: cn(
                     GLASS_MODAL_SURFACE,
-                    "flex flex-row h-[var(--tt-settings-h)] max-h-[var(--tt-settings-max-h)] min-h-[var(--tt-settings-min-h)] overflow-hidden"
+                    "flex flex-row h-settings max-h-settings min-h-settings overflow-hidden"
                 ),
                 wrapper: "overflow-hidden",
             }}
@@ -594,14 +594,14 @@ export function SettingsModal({
                                 : "translate-x-0"
                         )}
                     >
-                        <div className="p-6 border-b border-content1/10 flex justify-between items-center h-16 shrink-0">
+                        <div className="p-6 border-b border-content1/10 flex justify-between items-center h-modal-header shrink-0">
                             <h2 className="text-lg font-bold tracking-tight text-foreground">
                                 {t("settings.modal.title")}
                             </h2>
                             <Button
                                 isIconOnly
-                                variant="light"
-                                size="sm"
+                                variant="shadow"
+                                size="md"
                                 className="sm:hidden text-foreground/50"
                                 onPress={onClose}
                             >
@@ -654,12 +654,12 @@ export function SettingsModal({
                     {/* CONTENT AREA */}
                     <div className="flex-1 min-h-0 flex flex-col bg-content1/10 backdrop-blur-lg relative w-full">
                         {/* Header */}
-                        <div className="sticky top-0 z-10 shrink-0 h-16 border-b border-content1/10 flex items-center justify-between px-6 bg-content1/30 backdrop-blur-xl">
+                        <div className="sticky top-0 z-10 shrink-0 h-modal-header border-b border-content1/10 flex items-center justify-between px-6 bg-content1/30 backdrop-blur-xl">
                             <div className="flex items-center gap-3">
                                 <Button
                                     isIconOnly
-                                    variant="light"
-                                    size="sm"
+                                    variant="shadow"
+                                    size="md"
                                     className="sm:hidden -ml-2 text-foreground/50"
                                     onPress={() => setIsMobileMenuOpen(true)}
                                 >
@@ -685,8 +685,8 @@ export function SettingsModal({
                             <Button
                                 isIconOnly
                                 radius="full"
-                                size="sm"
-                                variant="light"
+                                size="md"
+                                variant="shadow"
                                 onPress={onClose}
                                 className="text-foreground/40 hover:text-foreground hidden sm:flex"
                             >
@@ -732,8 +732,8 @@ export function SettingsModal({
                         {/* Footer Actions */}
                         <div className="sticky bottom-0 z-10 shrink-0 border-t border-content1/10 bg-content1/40 backdrop-blur-xl px-6 py-4 flex items-center justify-between">
                             <Button
-                                size="sm"
-                                variant="light"
+                                size="md"
+                                variant="shadow"
                                 color="danger"
                                 className="opacity-70 hover:opacity-100 hidden sm:flex"
                                 onPress={handleReset}

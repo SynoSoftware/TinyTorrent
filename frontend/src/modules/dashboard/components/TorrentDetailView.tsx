@@ -131,8 +131,8 @@ export const TorrentDetailView: React.FC<
             tabIndex={0}
             onKeyDown={handleKey}
         >
-            <div className="flex items-center justify-between gap-2 px-3 py-2">
-                <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between gap-tools px-tight py-tight">
+                <div className="flex items-center gap-tools">
                     {tabs.map((tab) => (
                         <button
                             key={tab}

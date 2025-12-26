@@ -453,7 +453,7 @@ export function FileExplorerTree({
 
     return (
         <div className="flex flex-col h-full">
-            <div className="flex items-center gap-2 p-2 sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-content1/10">
+            <div className="flex items-center gap-tools p-tight sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-content1/10">
                 <input
                     type="text"
                     value={search}
@@ -526,7 +526,7 @@ export function FileExplorerTree({
                                     }}
                                 >
                                     <div
-                                        className="flex items-center gap-2 py-2 cursor-pointer hover:bg-content1/10 rounded pl-1 h-full"
+                                        className="flex items-center gap-tools py-tight cursor-pointer hover:bg-content1/10 rounded pl-1 h-full"
                                         style={{ paddingLeft }}
                                         onClick={(event) => {
                                             if (
@@ -629,7 +629,7 @@ export function FileExplorerTree({
                         const isRowSelected = selectedIndexes.has(
                             node.file.index
                         );
-                        const rowClasses = `flex items-center gap-2 py-2 rounded cursor-pointer h-full transition-colors ${
+                        const rowClasses = `flex items-center gap-tools py-tight rounded cursor-pointer h-full transition-colors ${
                             isRowSelected
                                 ? "bg-primary/10"
                                 : "hover:bg-content1/10"
@@ -745,7 +745,7 @@ export function FileExplorerTree({
                             <button
                                 key={item.key}
                                 type="button"
-                                className="w-full rounded-xl px-3 py-2 text-left text-sm font-medium text-foreground transition-colors data-[hover=true]:bg-content2/70 data-[pressed=true]:bg-content2/80 hover:text-foreground"
+                                className="w-full rounded-xl px-tight py-tight text-left text-sm font-medium text-foreground transition-colors data-[hover=true]:bg-content2/70 data-[pressed=true]:bg-content2/80 hover:text-foreground"
                                 onClick={() =>
                                     handleFileContextAction(item.key)
                                 }
