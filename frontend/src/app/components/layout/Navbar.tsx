@@ -299,11 +299,11 @@ export function Navbar({
                                         Math.max(rehashStatus.value, 0),
                                         100
                                     )}
-                                    trackClassName="h-[length:calc(2*var(--bw))] bg-transparent"
+                                    trackClassName="h-[var(--tt-track-h)] bg-transparent"
                                     indicatorClassName="h-full bg-gradient-to-r from-primary to-secondary shadow-[0_0_10px_rgba(var(--primary),0.5)]"
                                 />
                                 {/* Tooltip on hover */}
-                                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-black/80 text-white text-[length:var(--fz-scaled)] px-2 py-1 rounded shadow-lg whitespace-nowrap pointer-events-none">
+                                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-black/80 text-white text-scaled px-2 py-1 rounded shadow-lg whitespace-nowrap pointer-events-none">
                                     {rehashStatus.label}:{" "}
                                     {Math.round(rehashStatus.value)}%
                                 </div>

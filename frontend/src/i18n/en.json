@@ -511,7 +511,8 @@
         },
         "peer_map": {
             "title": "Peer Map",
-            "total": "{{count}} peers on swarm"
+            "total": "{{count}} peers on swarm",
+            "tooltip": "{{address}} • {{dl}} {{download}} / {{ul}} {{upload}}"
         },
         "peers": {
             "download": "DL",

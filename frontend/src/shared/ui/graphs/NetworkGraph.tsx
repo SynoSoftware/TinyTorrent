@@ -1,11 +1,16 @@
+/*
+ AGENTS-TODO: NetworkGraph imports config via relative path.
+ - Switch imports to '@/config/logic' and use exported graph tokens instead of literals.
+ */
+
 import { motion, type Transition } from "framer-motion";
 import { cn } from "@heroui/react";
 
 import {
     buildSplinePathFromPoints,
     createSplinePoints,
-} from "../../utils/spline";
-import { INTERACTION_CONFIG } from "../../../config/logic";
+} from "@/shared/utils/spline";
+import { INTERACTION_CONFIG } from "@/config/logic";
 
 const { networkGraph } = INTERACTION_CONFIG;
 const GRAPH_WIDTH = networkGraph.width;
@@ -18,11 +23,7 @@ interface NetworkGraphProps {
     className?: string;
 }
 
-export const NetworkGraph = ({
-    data,
-    color,
-    className,
-}: NetworkGraphProps) => {
+export const NetworkGraph = ({ data, color, className }: NetworkGraphProps) => {
     const normalizedData = data.length ? data : [0];
     const maxValue = Math.max(...normalizedData, 1);
     const points = createSplinePoints(
@@ -36,7 +37,9 @@ export const NetworkGraph = ({
         linePath || `M0,${GRAPH_HEIGHT} L${GRAPH_WIDTH},${GRAPH_HEIGHT}`;
     const areaPath =
         points.length > 0
-            ? `${safeLinePath} L${points[points.length - 1].x.toFixed(2)},${GRAPH_HEIGHT} L${points[0].x.toFixed(2)},${GRAPH_HEIGHT} Z`
+            ? `${safeLinePath} L${points[points.length - 1].x.toFixed(
+                  2
+              )},${GRAPH_HEIGHT} L${points[0].x.toFixed(2)},${GRAPH_HEIGHT} Z`
             : `${safeLinePath} L${GRAPH_WIDTH},${GRAPH_HEIGHT} L0,${GRAPH_HEIGHT} Z`;
 
     const areaTransition: Transition = {

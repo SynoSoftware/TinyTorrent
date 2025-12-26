@@ -94,7 +94,7 @@ const handleMouseUp = (e: MouseEvent) => {
 
 ### 4. Medium: Maintenance Nightmare (Tailwind "Escaping")
 The patch replaces standard Tailwind classes with dynamic CSS variable injections:
-`className="text-[length:var(--fz-scaled)]"`
+`className="text-\[length:var(--fz-scaled)\]"`
 *   **The Problem:** You have effectively bypassed the benefits of Tailwind. By using `[length:var(...)]` everywhere, you lose the ability to use Tailwind’s compiler optimizations, and the code becomes significantly harder to read.
 *   **What it breaks:** Developer Velocity. New developers cannot look at the code and know what the font size is. They have to trace `App.tsx` -> `logic.ts` -> `constants.json` -> `index.css`.
 *   **Fix:** You should define these scaling behaviors in `tailwind.config.js` as custom theme extensions that map to your CSS variables.
@@ -108,7 +108,7 @@ Remade. **Tailwind v4–correct. No config.js lies. No escapes. No ambiguity.**
 The patch replaces standard Tailwind utilities with escaped arbitrary values:
 
 ```tsx
-className="text-[length:var(--fz-scaled)]"
+className="text-\[length:var(--fz-scaled)\]"
 ```
 
 * **The problem:** This bypasses Tailwind’s utility system entirely. Arbitrary value escapes opt out of Tailwind’s compiler guarantees, break token discoverability, and turn semantic styling into stringly-typed CSS.

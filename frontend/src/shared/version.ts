@@ -1,4 +1,4 @@
-import manifest from "../../../version.json";
+import manifest from "@/version.json";
 
 const normalizedVersion =
     typeof manifest.version === "string" && manifest.version.trim().length > 0

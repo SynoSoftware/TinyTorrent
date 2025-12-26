@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { TransmissionSessionSettings } from "../../services/rpc/types";
-import type { EngineInfo } from "../../services/rpc/entities";
-import type { EngineAdapter } from "../../services/rpc/engine-adapter";
-import type { RpcStatus } from "../../shared/types/rpc";
+import type { TransmissionSessionSettings } from "@/services/rpc/types";
+import type { EngineInfo } from "@/services/rpc/entities";
+import type { EngineAdapter } from "@/services/rpc/engine-adapter";
+import type { RpcStatus } from "@/shared/types/rpc";
 import { useRpcConnection } from "./useRpcConnection";
 
 type UseTransmissionSessionResult = {

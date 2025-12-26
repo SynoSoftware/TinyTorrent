@@ -30,7 +30,7 @@ import {
     getTorrentList,
     getSessionStats,
 } from "@/services/rpc/schemas";
-import constants from "../../config/constants.json";
+import { CONFIG } from "@/config/logic";
 import type { EngineAdapter } from "./engine-adapter";
 import { HeartbeatManager } from "./heartbeat";
 import type {
@@ -75,7 +75,7 @@ type AddTorrentResponse = {
 };
 
 const DEFAULT_ENDPOINT =
-    import.meta.env.VITE_RPC_ENDPOINT ?? constants.defaults.rpc_endpoint;
+    import.meta.env.VITE_RPC_ENDPOINT ?? CONFIG.defaults.rpc_endpoint;
 
 const SUMMARY_FIELDS: Array<keyof TransmissionTorrent> = [
     "id",
@@ -688,6 +688,23 @@ export class TransmissionAdapter implements EngineAdapter {
         params: HeartbeatSubscriberParams
     ): HeartbeatSubscription {
         return this.heartbeat.subscribe(params);
+    }
+
+    /**
+     * Return the engine-owned speed history for a torrent.
+     * This delegates to the internal HeartbeatManager which maintains fixed-length buffers.
+     */
+    public async getSpeedHistory(
+        id: string
+    ): Promise<{ down: number[]; up: number[] }> {
+        try {
+            // HeartbeatManager provides a synchronous getter that returns copies of buffers.
+            // Call it directly and return the result as a resolved Promise.
+            const data = this.heartbeat.getSpeedHistory(id);
+            return Promise.resolve(data);
+        } catch (e) {
+            return Promise.resolve({ down: [], up: [] });
+        }
     }
 
     public async closeSession(): Promise<void> {

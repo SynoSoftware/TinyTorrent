@@ -1,7 +1,7 @@
 import { useHotkeys } from "react-hotkeys-hook";
-import type { Torrent } from "../types/torrent";
-import type { TorrentTableAction } from "../components/TorrentTable";
-import { KEYMAP, ShortcutIntent } from "../../../config/logic";
+import type { Torrent } from "@/modules/dashboard/types/torrent";
+import type { TorrentTableAction } from "@/modules/dashboard/components/TorrentTable";
+import { KEYMAP, ShortcutIntent } from "@/config/logic";
 
 interface UseTorrentShortcutsProps {
     scope: string;
@@ -56,7 +56,10 @@ export function useTorrentShortcuts({
                 onRequestDetails(primaryTorrent);
             }
         },
-        { scopes: scope, enabled: hasPrimaryTorrent && Boolean(onRequestDetails) },
+        {
+            scopes: scope,
+            enabled: hasPrimaryTorrent && Boolean(onRequestDetails),
+        },
         [primaryTorrent, onRequestDetails]
     );
 

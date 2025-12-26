@@ -1,4 +1,5 @@
-import { HEARTBEAT_INTERVALS } from "../../config/logic";
+import { HEARTBEAT_INTERVALS } from "@/config/logic";
+import { CONFIG } from "@/config/logic";
 import type {
     SessionStats,
     TorrentDetailEntity,
@@ -59,7 +60,16 @@ export class HeartbeatManager {
     private lastSessionStats?: SessionStats;
     private lastSource?: HeartbeatSource;
     private readonly detailCache = new Map<string, TorrentDetailEntity>();
+    // Per-torrent speed history buffers (engine-owned). Each entry is a
+    // fixed-length circular buffer of samples; newest samples appended at the end.
+    private readonly speedHistory = new Map<
+        string,
+        { down: number[]; up: number[] }
+    >();
     private client: HeartbeatClient;
+
+    private readonly historySize: number =
+        (CONFIG as any).performance?.history_data_points ?? 60;
 
     private computeHash(torrents: TorrentEntity[]) {
         // Low-allocation compact hash using FNV-1a (32-bit) over the
@@ -151,6 +161,18 @@ export class HeartbeatManager {
         this.client = client;
     }
 
+    public getSpeedHistory(id: string) {
+        const size = this.historySize;
+        const existing = this.speedHistory.get(id);
+        if (!existing) {
+            return {
+                down: new Array(size).fill(0),
+                up: new Array(size).fill(0),
+            };
+        }
+        return { down: [...existing.down], up: [...existing.up] };
+    }
+
     public subscribe(params: HeartbeatSubscriberParams): HeartbeatSubscription {
         const id = Symbol("heartbeat-subscription");
         this.subscribers.set(id, { id, params });
@@ -204,6 +226,67 @@ export class HeartbeatManager {
         this.lastSource = payload.source ?? "websocket";
         const prev = this.lastTorrents;
         this.lastTorrents = payload.torrents;
+        // Update per-torrent speed history from provided payload
+        try {
+            for (const t of payload.torrents) {
+                const id = t.id;
+                const down =
+                    typeof t.speed?.down === "number" ? t.speed.down : 0;
+                const up = typeof t.speed?.up === "number" ? t.speed.up : 0;
+                const existing = this.speedHistory.get(id);
+                if (!existing) {
+                    const arrDown = new Array(this.historySize).fill(0);
+                    const arrUp = new Array(this.historySize).fill(0);
+                    arrDown.shift();
+                    arrDown.push(down);
+                    arrUp.shift();
+                    arrUp.push(up);
+                    this.speedHistory.set(id, { down: arrDown, up: arrUp });
+                } else {
+                    existing.down.shift();
+                    existing.down.push(down);
+                    existing.up.shift();
+                    existing.up.push(up);
+                }
+            }
+        } catch {
+            // Best-effort: avoid crashing heartbeat on history bookkeeping errors
+        }
+        // Enforce invariant: engine state reflects current torrents only.
+        // Prune speedHistory for removed torrent IDs (prevents memory leaks).
+        try {
+            const currentTorrentIds = new Set(
+                payload.torrents.map((t) => t.id)
+            );
+            for (const key of this.speedHistory.keys()) {
+                if (!currentTorrentIds.has(key)) {
+                    this.speedHistory.delete(key);
+                }
+            }
+            for (const t of payload.torrents) {
+                const id = t.id;
+                const down =
+                    typeof t.speed?.down === "number" ? t.speed.down : 0;
+                const up = typeof t.speed?.up === "number" ? t.speed.up : 0;
+                const existing = this.speedHistory.get(id);
+                if (!existing) {
+                    const arrDown = new Array(this.historySize).fill(0);
+                    const arrUp = new Array(this.historySize).fill(0);
+                    arrDown.shift();
+                    arrDown.push(down);
+                    arrUp.shift();
+                    arrUp.push(up);
+                    this.speedHistory.set(id, { down: arrDown, up: arrUp });
+                } else {
+                    existing.down.shift();
+                    existing.down.push(down);
+                    existing.up.shift();
+                    existing.up.push(up);
+                }
+            }
+        } catch {
+            // Best-effort: avoid crashing heartbeat on history bookkeeping errors
+        }
         payload.changedIds = this.computeChangedIds(payload.torrents, prev);
         this.lastSessionStats = payload.sessionStats;
         this.broadcastToSubscribers(payload);
@@ -314,6 +397,65 @@ export class HeartbeatManager {
                 this.client.getTorrents(),
                 this.client.getSessionStats(),
             ]);
+            // Update internal speed history buffers before broadcasting.
+            try {
+                for (const t of torrents) {
+                    const id = t.id;
+                    const down =
+                        typeof t.speed?.down === "number" ? t.speed.down : 0;
+                    const up = typeof t.speed?.up === "number" ? t.speed.up : 0;
+                    const existing = this.speedHistory.get(id);
+                    if (!existing) {
+                        const arrDown = new Array(this.historySize).fill(0);
+                        const arrUp = new Array(this.historySize).fill(0);
+                        arrDown.shift();
+                        arrDown.push(down);
+                        arrUp.shift();
+                        arrUp.push(up);
+                        this.speedHistory.set(id, { down: arrDown, up: arrUp });
+                    } else {
+                        existing.down.shift();
+                        existing.down.push(down);
+                        existing.up.shift();
+                        existing.up.push(up);
+                    }
+                }
+            } catch {
+                // ignore history update failures to keep heartbeat robust
+            }
+            // Enforce invariant: engine state reflects current torrents only.
+            // Prune speedHistory for removed torrent IDs (prevents memory leaks).
+            try {
+                const currentTorrentIds = new Set(torrents.map((t) => t.id));
+                for (const key of this.speedHistory.keys()) {
+                    if (!currentTorrentIds.has(key)) {
+                        this.speedHistory.delete(key);
+                    }
+                }
+                for (const t of torrents) {
+                    const id = t.id;
+                    const down =
+                        typeof t.speed?.down === "number" ? t.speed.down : 0;
+                    const up = typeof t.speed?.up === "number" ? t.speed.up : 0;
+                    const existing = this.speedHistory.get(id);
+                    if (!existing) {
+                        const arrDown = new Array(this.historySize).fill(0);
+                        const arrUp = new Array(this.historySize).fill(0);
+                        arrDown.shift();
+                        arrDown.push(down);
+                        arrUp.shift();
+                        arrUp.push(up);
+                        this.speedHistory.set(id, { down: arrDown, up: arrUp });
+                    } else {
+                        existing.down.shift();
+                        existing.down.push(down);
+                        existing.up.shift();
+                        existing.up.push(up);
+                    }
+                }
+            } catch {
+                // ignore history update failures to keep heartbeat robust
+            }
             // Produce a compact, cheap hash for the torrent list.
             const currentHash = this.computeHash(torrents);
             const prevTorrents = this.lastTorrents;

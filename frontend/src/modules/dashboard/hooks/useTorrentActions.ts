@@ -1,9 +1,9 @@
 import { useCallback, type MutableRefObject } from "react";
-import type { TorrentTableAction } from "../components/TorrentTable";
-import type { QueueActionHandlers } from "./useTorrentData";
-import type { Torrent } from "../types/torrent";
-import type { EngineAdapter } from "../../../services/rpc/engine-adapter";
-import type { RpcStatus } from "../../../shared/types/rpc";
+import type { TorrentTableAction } from "@/modules/dashboard/components/TorrentTable";
+import type { QueueActionHandlers } from "@/modules/dashboard/hooks/useTorrentData";
+import type { Torrent } from "@/modules/dashboard/types/torrent";
+import type { EngineAdapter } from "@/services/rpc/engine-adapter";
+import type { RpcStatus } from "@/shared/types/rpc";
 
 interface UseTorrentActionsParams {
     torrentClient: EngineAdapter;

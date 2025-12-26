@@ -1,6 +1,6 @@
 import type { LucideIcon } from "lucide-react";
-import type { Torrent } from "../../modules/dashboard/types/torrent";
-import type { TorrentTableAction } from "../../modules/dashboard/components/TorrentTable";
+import type { Torrent } from "@/modules/dashboard/types/torrent";
+import type { TorrentTableAction } from "@/modules/dashboard/components/TorrentTable";
 
 export type RehashStatus = {
     active: boolean;
@@ -8,7 +8,10 @@ export type RehashStatus = {
     label: string;
 };
 
-export type DeleteAction = Extract<TorrentTableAction, "remove" | "remove-with-data">;
+export type DeleteAction = Extract<
+    TorrentTableAction,
+    "remove" | "remove-with-data"
+>;
 
 export type DeleteIntent = {
     torrents: Torrent[];

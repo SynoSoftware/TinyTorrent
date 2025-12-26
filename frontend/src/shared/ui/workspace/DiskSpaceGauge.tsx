@@ -1,7 +1,7 @@
 import { cn } from "@heroui/react";
 import { useTranslation } from "react-i18next";
-import { formatBytes } from "../../utils/format";
-import { SmoothProgressBar } from "../components/SmoothProgressBar";
+import { formatBytes } from "@/shared/utils/format";
+import { SmoothProgressBar } from "@/shared/ui/components/SmoothProgressBar";
 
 export interface DiskSpaceGaugeProps {
     freeBytes?: number;

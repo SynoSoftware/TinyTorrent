@@ -1,18 +1,23 @@
+/*
+ AGENTS-TODO: Convert relative imports to '@/...' aliases and remove any magic numbers.
+ Ensure deterministic layout (no Math.random), no UI-owned timers, and use config tokens.
+ */
+
 import { Button, Tooltip, cn } from "@heroui/react";
 import type { PointerEvent, WheelEvent } from "react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import { ZoomIn, ZoomOut } from "lucide-react";
-import { GLASS_TOOLTIP_CLASSNAMES } from "../../../modules/dashboard/components/details/visualizations/constants";
+import { GLASS_TOOLTIP_CLASSNAMES } from "@/modules/dashboard/components/details/visualizations/constants";
 import {
     clamp,
     useCanvasPalette,
-} from "../../../modules/dashboard/components/details/visualizations/canvasUtils";
+} from "@/modules/dashboard/components/details/visualizations/canvasUtils";
 import useLayoutMetrics from "@/shared/hooks/useLayoutMetrics";
-import { PEER_MAP_CONFIG } from "../../../config/logic";
-import { formatSpeed } from "../../utils/format";
-import type { TorrentPeerEntity } from "../../../services/rpc/entities";
+import { PEER_MAP_CONFIG } from "@/config/logic";
+import { formatSpeed } from "@/shared/utils/format";
+import type { TorrentPeerEntity } from "@/services/rpc/entities";
 
 const PEER_DRIFT_AMPLITUDE = PEER_MAP_CONFIG.drift_amplitude;
 const PEER_DRIFT_DURATION_MIN = PEER_MAP_CONFIG.drift_duration.min;
@@ -46,6 +51,24 @@ export const PeerMap = ({ peers }: PeerMapProps) => {
 
     const { unit } = useLayoutMetrics();
 
+    // deterministic pseudo-random generator based on a string seed
+    const seeded01 = (seed: string) => {
+        // simple xorshift-ish 32-bit hash -> [0,1)
+        let h = 2166136261 >>> 0;
+        for (let i = 0; i < seed.length; i++) {
+            h ^= seed.charCodeAt(i);
+            h = Math.imul(h, 16777619) >>> 0;
+        }
+        // mix
+        h += h << 13;
+        h ^= h >>> 7;
+        h += h << 3;
+        h ^= h >>> 17;
+        h += h << 5;
+        // convert to float
+        return (h >>> 0) / 4294967296;
+    };
+
     const nodes = useMemo(() => {
         if (!peers.length) return [];
         const radius = 70;
@@ -62,20 +85,24 @@ export const PeerMap = ({ peers }: PeerMapProps) => {
             // Use semantic palette
             const fill = peer.peerIsChoking ? palette.danger : palette.success;
 
+            const seedBase = `${peer.address}-${index}`;
+            const r1 = seeded01(seedBase + "-a");
+            const r2 = seeded01(seedBase + "-b");
+            const r3 = seeded01(seedBase + "-c");
+            const r4 = seeded01(seedBase + "-d");
             return {
                 peer,
                 x,
                 y,
                 size,
                 fill,
-                driftX: (Math.random() - 0.5) * PEER_DRIFT_AMPLITUDE,
-                driftY: (Math.random() - 0.5) * PEER_DRIFT_AMPLITUDE,
+                driftX: (r1 - 0.5) * PEER_DRIFT_AMPLITUDE,
+                driftY: (r2 - 0.5) * PEER_DRIFT_AMPLITUDE,
                 duration:
                     PEER_DRIFT_DURATION_MIN +
-                    Math.random() *
-                        (PEER_DRIFT_DURATION_MAX - PEER_DRIFT_DURATION_MIN),
-                delay: Math.random() * 1.5,
-                delayY: Math.random() * 1.5 + 0.7,
+                    r3 * (PEER_DRIFT_DURATION_MAX - PEER_DRIFT_DURATION_MIN),
+                delay: r4 * 1.5,
+                delayY: r2 * 1.5 + 0.7,
             };
         });
     }, [maxRate, peers, palette]);
@@ -135,7 +162,7 @@ export const PeerMap = ({ peers }: PeerMapProps) => {
     return (
         <motion.div
             layout
-            className="flex flex-col flex-1 min-h-[length:calc(80*var(--u)*var(--z))] rounded-2xl border border-content1/20 bg-content1/10 p-4 space-y-3 overflow-hidden"
+            className="flex flex-col flex-1 min-h-[calc(80*var(--u)*var(--z))] rounded-2xl border border-content1/20 bg-content1/10 p-4 space-y-3 overflow-hidden"
         >
             <div className="flex items-center justify-between">
                 <div className="flex flex-col">

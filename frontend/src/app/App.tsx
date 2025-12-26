@@ -4,7 +4,7 @@ import { useHotkeys } from "react-hotkeys-hook";
 import useWorkbenchScale from "./hooks/useWorkbenchScale";
 import { useTranslation } from "react-i18next";
 
-import { usePerformanceHistory } from "../shared/hooks/usePerformanceHistory";
+import { usePerformanceHistory } from "@/shared/hooks/usePerformanceHistory";
 import { useTransmissionSession } from "./hooks/useTransmissionSession";
 import { useWorkspaceShell } from "./hooks/useWorkspaceShell";
 import { useWorkspaceModals } from "./WorkspaceModalContext";
@@ -14,10 +14,10 @@ import { useSettingsFlow } from "./hooks/useSettingsFlow";
 import { useSessionStats } from "./hooks/useSessionStats";
 import { useTorrentWorkflow } from "./hooks/useTorrentWorkflow";
 import { useHudCards } from "./hooks/useHudCards";
-import { useTorrentData } from "../modules/dashboard/hooks/useTorrentData";
-import { useTorrentDetail } from "../modules/dashboard/hooks/useTorrentDetail";
-import { useDetailControls } from "../modules/dashboard/hooks/useDetailControls";
-import { useTorrentActions } from "../modules/dashboard/hooks/useTorrentActions";
+import { useTorrentData } from "@/modules/dashboard/hooks/useTorrentData";
+import { useTorrentDetail } from "@/modules/dashboard/hooks/useTorrentDetail";
+import { useDetailControls } from "@/modules/dashboard/hooks/useDetailControls";
+import { useTorrentActions } from "@/modules/dashboard/hooks/useTorrentActions";
 import { CommandPalette } from "./components/CommandPalette";
 import type {
     CommandAction,
@@ -27,15 +27,12 @@ import { WorkspaceShell } from "./components/WorkspaceShell";
 import { RpcExtensionProvider } from "./context/RpcExtensionContext";
 import { useTorrentClient } from "./providers/TorrentClientProvider";
 import { FocusProvider, useFocusState } from "./context/FocusContext";
-import type {
-    Torrent,
-    TorrentDetail,
-} from "../modules/dashboard/types/torrent";
+import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
 import type { RehashStatus } from "./types/workspace";
 import type {
     DetailTab,
     PeerSortStrategy,
-} from "../modules/dashboard/components/TorrentDetailView";
+} from "@/modules/dashboard/components/TorrentDetailView";
 
 interface FocusControllerProps {
     selectedTorrents: Torrent[];
@@ -169,7 +166,14 @@ export default function App() {
             }
 
             // Reset zoom
-            if ((e.ctrlKey || e.metaKey) && e.code === "Digit0") {
+            if (
+                ((e.ctrlKey || e.metaKey) && e.code === "Digit0") ||
+                (e.altKey &&
+                    !e.ctrlKey &&
+                    !e.metaKey &&
+                    !e.shiftKey &&
+                    e.code === "NumpadMultiply")
+            ) {
                 if (Runtime.suppressBrowserZoomDefaults()) {
                     e.preventDefault();
                 }

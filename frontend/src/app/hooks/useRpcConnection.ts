@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { EngineAdapter } from "../../services/rpc/engine-adapter";
-import type { RpcStatus } from "../../shared/types/rpc";
+import type { EngineAdapter } from "@/services/rpc/engine-adapter";
+import type { RpcStatus } from "@/shared/types/rpc";
 
 type UseRpcConnectionResult = {
     rpcStatus: RpcStatus;

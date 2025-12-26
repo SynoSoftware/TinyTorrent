@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { usePerformanceHistory } from "../../../shared/hooks/usePerformanceHistory";
-import type { EngineAdapter } from "../../../services/rpc/engine-adapter";
-import type { HeartbeatPayload } from "../../../services/rpc/heartbeat";
-import type { RpcStatus } from "../../../shared/types/rpc";
-import type { Torrent } from "../types/torrent";
-import type { TorrentStatus } from "../../../services/rpc/entities";
+import { usePerformanceHistory } from "@/shared/hooks/usePerformanceHistory";
+import type { EngineAdapter } from "@/services/rpc/engine-adapter";
+import type { HeartbeatPayload } from "@/services/rpc/heartbeat";
+import type { RpcStatus } from "@/shared/types/rpc";
+import type { Torrent } from "@/modules/dashboard/types/torrent";
+import type { TorrentStatus } from "@/services/rpc/entities";
 
 type UseTorrentDataOptions = {
     client: EngineAdapter;
@@ -265,8 +265,16 @@ export function useTorrentData({
     const handleHeartbeatUpdate = useCallback(
         ({ torrents: heartbeatTorrents, changedIds }: HeartbeatPayload) => {
             if (!heartbeatTorrents) return;
+            onRpcStatusChange?.("connected");
             // If heartbeat reports no changed IDs, skip committing to avoid work
-            if (Array.isArray(changedIds) && changedIds.length === 0) return;
+            const isInitialLoad = snapshotCacheRef.current.size === 0;
+            if (
+                !isInitialLoad &&
+                Array.isArray(changedIds) &&
+                changedIds.length === 0
+            ) {
+                return;
+            }
 
             // If we have a small set of changedIds, apply a diff update to the
             // existing snapshot cache to avoid recreating the whole list.
@@ -347,7 +355,7 @@ export function useTorrentData({
             // Fallback to full commit when changedIds not provided or indicates full change
             commitTorrentSnapshot(heartbeatTorrents);
         },
-        [commitTorrentSnapshot]
+        [commitTorrentSnapshot, onRpcStatusChange]
     );
 
     useEffect(() => {

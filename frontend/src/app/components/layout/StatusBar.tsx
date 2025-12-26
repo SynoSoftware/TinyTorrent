@@ -376,7 +376,7 @@ export function StatusBar({
                             <span
                                 className={cn(
                                     UI_CONFIG.typography.value,
-                                    "text-foreground max-w-[length:calc(12*var(--u)*var(--z))] truncate text-right"
+                                    "text-foreground max-w-[var(--tt-statusbar-short-max-w)] truncate text-right"
                                 )}
                                 title={summaryValue}
                             >

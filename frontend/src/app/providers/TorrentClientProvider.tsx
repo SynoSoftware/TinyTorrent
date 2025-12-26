@@ -9,9 +9,9 @@ import {
 import {
     useConnectionConfig,
     buildRpcEndpoint,
-} from "../context/ConnectionConfigContext";
-import { TransmissionAdapter } from "../../services/rpc/rpc-base";
-import type { EngineAdapter } from "../../services/rpc/engine-adapter";
+} from "@/app/context/ConnectionConfigContext";
+import { TransmissionAdapter } from "@/services/rpc/rpc-base";
+import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 
 const ClientContext = createContext<EngineAdapter | null>(null);
 

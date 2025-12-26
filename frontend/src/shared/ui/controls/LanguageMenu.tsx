@@ -1,3 +1,7 @@
+/*
+ AGENTS-TODO: LanguageMenu should use '@/config/logic' for icon sizing tokens and avoid numeric literals.
+ */
+
 import {
     Dropdown,
     DropdownTrigger,
@@ -14,8 +18,8 @@ import {
     useState,
 } from "react";
 import { useTranslation } from "react-i18next";
-import { ICON_STROKE_WIDTH } from "../../../config/logic";
-import { ToolbarIconButton } from "../layout/toolbar-button";
+import { ICON_STROKE_WIDTH } from "@/config/logic";
+import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
 
 type LanguageCode = "en" | "nl" | "es" | "zh";
 

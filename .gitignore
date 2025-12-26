@@ -47,3 +47,5 @@ dump*.txt
 .aider*
 backend/src/vendor/tt_packed_fs.c
 backend/src/vendor/tt_packed_fs.bin
+frontend/scripts/zoom_report.json
+scripts/zoom_report.json

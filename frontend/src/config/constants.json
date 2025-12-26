@@ -91,7 +91,7 @@
             "layers": [
                 {
                     "id": "outer",
-                    "className": "absolute inset-0 rounded-[length:var(--r-lg)] border border-primary/40 bg-gradient-to-br from-primary/30 via-transparent to-transparent shadow-[0_25px_120px_rgba(16,185,129,0.35)]",
+                    "className": "absolute inset-0 rounded-[var(--r-lg)] border border-primary/40 bg-gradient-to-br from-primary/30 via-transparent to-transparent shadow-[0_25px_120px_rgba(16,185,129,0.35)]",
                     "initial": {
                         "scale": 0.94,
                         "opacity": 0
@@ -111,7 +111,7 @@
                 },
                 {
                     "id": "middle",
-                    "className": "absolute inset-6 rounded-[length:var(--r-md)] border border-primary/40",
+                    "className": "absolute inset-6 rounded-[var(--r-md)] border border-primary/40",
                     "initial": {
                         "scale": 0.9,
                         "opacity": 0
@@ -133,7 +133,7 @@
                 },
                 {
                     "id": "inner",
-                    "className": "absolute inset-12 rounded-[length:var(--r-sm)] border border-primary/30 opacity-70",
+                    "className": "absolute inset-12 rounded-[var(--r-sm)] border border-primary/30 opacity-70",
                     "initial": {
                         "scale": 0.95,
                         "opacity": 0
@@ -262,6 +262,19 @@
                 "transition": {
                     "duration": 0.1
                 }
+            },
+            "availability_heatmap": {
+                "shadow_blur_max": 16,
+                "hover_stroke_width": 1.1,
+                "hover_stroke_inset": 0.6,
+                "cell_stroke_inset": 0.6,
+                "use_ui_sampling_shim": true
+            },
+            "speed_chart": {
+                "line_width": 3,
+                "fill_alpha": 0.35,
+                "down_stroke_token": "--heroui-success",
+                "up_stroke_token": "--heroui-primary"
             }
         }
     }

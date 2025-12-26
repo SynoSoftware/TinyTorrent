@@ -2,8 +2,8 @@ import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { addToast } from "@heroui/toast";
 
-import type { FeedbackTone } from "../../shared/types/feedback";
-import constants from "../../config/constants.json";
+import type { FeedbackTone } from "@/shared/types/feedback";
+import { CONFIG } from "@/config/logic";
 
 export const GLOBAL_ACTION_FEEDBACK_CONFIG = {
     resume: {
@@ -31,12 +31,9 @@ export const GLOBAL_ACTION_FEEDBACK_CONFIG = {
 export type FeedbackAction = keyof typeof GLOBAL_ACTION_FEEDBACK_CONFIG;
 export type FeedbackStage = "start" | "done";
 
-const TOAST_DURATION_MS = constants.ui.toast_display_duration_ms;
+const TOAST_DURATION_MS = CONFIG.ui.toast_display_duration_ms;
 
-const TONE_TO_TOAST: Record<
-    FeedbackTone,
-    (message: string) => void
-> = {
+const TONE_TO_TOAST: Record<FeedbackTone, (message: string) => void> = {
     info: (message) => {
         addToast({
             title: message,
@@ -83,8 +80,7 @@ export function useActionFeedback() {
 
     const announceAction = useCallback(
         (action: FeedbackAction, stage: FeedbackStage, count: number) => {
-            const descriptor =
-                GLOBAL_ACTION_FEEDBACK_CONFIG[action][stage];
+            const descriptor = GLOBAL_ACTION_FEEDBACK_CONFIG[action][stage];
             showFeedback(
                 t(descriptor.key, { count }),
                 descriptor.tone as FeedbackTone

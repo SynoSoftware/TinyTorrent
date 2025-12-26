@@ -70,6 +70,11 @@ export interface EngineAdapter {
     systemHandlerEnable?(): Promise<void>;
     systemHandlerDisable?(): Promise<void>;
     createDirectory?(path: string): Promise<void>;
+    /**
+     * Retrieve the recent speed history buffer for a torrent.
+     * Implementations should return arrays with a fixed length (history points).
+     */
+    getSpeedHistory?(id: string): Promise<{ down: number[]; up: number[] }>;
     // Destroy the adapter and synchronously release resources (timers, sockets, controllers)
     destroy?(): void;
 }

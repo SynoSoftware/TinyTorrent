@@ -5,19 +5,22 @@ import { motion } from "framer-motion";
 import { ZoomIn, ZoomOut } from "lucide-react";
 import { GLASS_TOOLTIP_CLASSNAMES } from "./constants";
 import {
-    cancelScheduledFrame,
     getAvailabilityColor,
-    scheduleFrame,
     useCanvasPalette,
-} from "./canvasUtils";
-import type { FrameHandle } from "./canvasUtils";
+} from "@/modules/dashboard/components/details/visualizations/canvasUtils";
 import {
     HEATMAP_CANVAS_CELL_GAP,
     HEATMAP_CANVAS_CELL_SIZE,
     HEATMAP_SAMPLE_LIMIT,
     HEATMAP_ZOOM_LEVELS,
     PIECE_COLUMNS,
-} from "../../../../../config/logic";
+    HEATMAP_SHADOW_BLUR_MAX,
+    HEATMAP_HOVER_STROKE_WIDTH,
+    HEATMAP_HOVER_STROKE_INSET,
+    HEATMAP_CELL_STROKE_INSET,
+    HEATMAP_USE_UI_SAMPLING_SHIM,
+} from "@/config/logic";
+import { useEngineHeartbeat } from "@/shared/hooks/useEngineHeartbeat";
 
 interface AvailabilityHeatmapProps {
     pieceAvailability?: number[];
@@ -41,9 +44,7 @@ export const AvailabilityHeatmap = ({
     const palette = useCanvasPalette();
     const [zoomIndex, setZoomIndex] = useState(0);
     const [isZooming, setIsZooming] = useState(false);
-    const zoomPulseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
-        null
-    );
+    const { tick } = useEngineHeartbeat({ mode: "detail" });
     const availabilityList = useMemo(
         () => pieceAvailability ?? [],
         [pieceAvailability]
@@ -51,22 +52,8 @@ export const AvailabilityHeatmap = ({
     const hasAvailability = availabilityList.length > 0;
 
     const startZoomPulse = useCallback(() => {
+        // Mark zooming active; will be cleared on next engine tick to avoid UI timers.
         setIsZooming(true);
-        if (zoomPulseTimeoutRef.current) {
-            clearTimeout(zoomPulseTimeoutRef.current);
-        }
-        zoomPulseTimeoutRef.current = setTimeout(() => {
-            setIsZooming(false);
-            zoomPulseTimeoutRef.current = null;
-        }, 220);
-    }, []);
-
-    useEffect(() => {
-        return () => {
-            if (zoomPulseTimeoutRef.current) {
-                clearTimeout(zoomPulseTimeoutRef.current);
-            }
-        };
     }, []);
 
     const handleZoom = useCallback(
@@ -87,7 +74,17 @@ export const AvailabilityHeatmap = ({
     );
 
     const zoomLevel = HEATMAP_ZOOM_LEVELS[zoomIndex] ?? 1;
+    // Compatibility shim: sampling & decimation are performed client-side
+    // until the engine/adapter provides an already-windowed availability list.
+    // This behavior is controlled by `HEATMAP_USE_UI_SAMPLING_SHIM` so it can
+    // be explicitly disabled once the engine takes ownership.
     const sampleLimit = Math.round(HEATMAP_SAMPLE_LIMIT * zoomLevel);
+    const USE_UI_SAMPLING_SHIM = HEATMAP_USE_UI_SAMPLING_SHIM;
+    if (!USE_UI_SAMPLING_SHIM) {
+        // When the shim is disabled we assume the adapter supplied a prepared
+        // `pieceAvailability` array sized to the heatmap window; clamp sampleLimit
+        // conservatively to the available length.
+    }
     const sampleCount = Math.min(availabilityList.length, sampleLimit);
     const sampledCells = useMemo(() => {
         const step =
@@ -131,73 +128,56 @@ export const AvailabilityHeatmap = ({
         (gridRows - 1) * HEATMAP_CANVAS_CELL_GAP;
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const [hoveredCell, setHoveredCell] = useState<HeatmapHover | null>(null);
-    const heatmapFrameRef = useRef<FrameHandle | null>(null);
     const cellPitch = HEATMAP_CANVAS_CELL_SIZE + HEATMAP_CANVAS_CELL_GAP;
 
     const drawHeatmap = useCallback(() => {
-        if (heatmapFrameRef.current) {
-            cancelScheduledFrame(heatmapFrameRef.current);
-        }
-        heatmapFrameRef.current = scheduleFrame(() => {
-            const canvas = canvasRef.current;
-            if (!canvas) {
-                heatmapFrameRef.current = null;
-                return;
-            }
-            const ctx = canvas.getContext("2d");
-            if (!ctx) {
-                heatmapFrameRef.current = null;
-                return;
-            }
-            const dpr =
-                typeof window !== "undefined"
-                    ? window.devicePixelRatio || 1
-                    : 1;
-            canvas.width = canvasWidth * dpr;
-            canvas.height = canvasHeight * dpr;
-            ctx.setTransform(1, 0, 0, 1, 0, 0);
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+        const dpr =
+            typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
+        canvas.width = canvasWidth * dpr;
+        canvas.height = canvasHeight * dpr;
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-            heatCells.forEach((cell, index) => {
-                const column = index % PIECE_COLUMNS;
-                const row = Math.floor(index / PIECE_COLUMNS);
-                const x = column * cellPitch;
-                const y = row * cellPitch;
-                ctx.save();
-                if (cell) {
-                    const color = getAvailabilityColor(cell.value, maxPeers);
-                    ctx.fillStyle = color;
-                    if (cell.value > 0) {
-                        ctx.shadowColor = color;
-                        ctx.shadowBlur = Math.min(
-                            16,
-                            (cell.value / maxPeers) * 16 + 1
-                        );
-                    }
-                } else {
-                    ctx.fillStyle = palette.placeholder;
-                    ctx.shadowBlur = 0;
-                }
-                ctx.fillRect(
-                    x,
-                    y,
-                    HEATMAP_CANVAS_CELL_SIZE,
-                    HEATMAP_CANVAS_CELL_SIZE
-                );
-                if (hoveredCell?.gridIndex === index) {
-                    ctx.strokeStyle = palette.highlight;
-                    ctx.lineWidth = 1.1;
-                    ctx.strokeRect(
-                        x + 0.6,
-                        y + 0.6,
-                        HEATMAP_CANVAS_CELL_SIZE - 1.2,
-                        HEATMAP_CANVAS_CELL_SIZE - 1.2
+        heatCells.forEach((cell, index) => {
+            const column = index % PIECE_COLUMNS;
+            const row = Math.floor(index / PIECE_COLUMNS);
+            const x = column * cellPitch;
+            const y = row * cellPitch;
+            ctx.save();
+            if (cell) {
+                const color = getAvailabilityColor(cell.value, maxPeers);
+                ctx.fillStyle = color;
+                if (cell.value > 0) {
+                    ctx.shadowColor = color;
+                    ctx.shadowBlur = Math.min(
+                        HEATMAP_SHADOW_BLUR_MAX,
+                        (cell.value / maxPeers) * HEATMAP_SHADOW_BLUR_MAX + 1
                     );
                 }
-                ctx.restore();
-            });
-            heatmapFrameRef.current = null;
+            } else {
+                ctx.fillStyle = palette.placeholder;
+                ctx.shadowBlur = 0;
+            }
+            ctx.fillRect(
+                x,
+                y,
+                HEATMAP_CANVAS_CELL_SIZE,
+                HEATMAP_CANVAS_CELL_SIZE
+            );
+            if (hoveredCell?.gridIndex === index) {
+                ctx.strokeStyle = palette.highlight;
+                // Use configured hover stroke width and inset tokens
+                ctx.lineWidth = HEATMAP_HOVER_STROKE_WIDTH;
+                const inset = HEATMAP_HOVER_STROKE_INSET;
+                const w = HEATMAP_CANVAS_CELL_SIZE - inset * 2;
+                ctx.strokeRect(x + inset, y + inset, w, w);
+            }
+            ctx.restore();
         });
     }, [
         canvasHeight,
@@ -210,17 +190,21 @@ export const AvailabilityHeatmap = ({
         palette.placeholder,
     ]);
 
+    // Redraw on data or engine heartbeat. We avoid creating our own timers.
     useEffect(() => {
         drawHeatmap();
-    }, [drawHeatmap]);
-
-    useEffect(() => {
-        return () => cancelScheduledFrame(heatmapFrameRef.current);
-    }, []);
+    }, [drawHeatmap, tick]);
 
     useEffect(() => {
         setHoveredCell(null);
     }, [heatCells]);
+
+    // Clear zoom pulse on the next engine tick to avoid UI timers.
+    useEffect(() => {
+        if (tick !== undefined && isZooming) {
+            setIsZooming(false);
+        }
+    }, [tick, isZooming]);
 
     const handleHeatmapHover = useCallback(
         (event: MouseEvent<HTMLCanvasElement>) => {
@@ -264,7 +248,7 @@ export const AvailabilityHeatmap = ({
 
     if (!hasAvailability) {
         return (
-            <div className="rounded-2xl border border-content1/20 bg-content1/10 p-4 text-[length:var(--fz-scaled)] text-foreground/50 text-center">
+            <div className="rounded-2xl border border-content1/20 bg-content1/10 p-4 text-scaled text-foreground/50 text-center">
                 {emptyLabel}
             </div>
         );
@@ -276,13 +260,19 @@ export const AvailabilityHeatmap = ({
                 <span className="text-xs font-semibold uppercase tracking-[0.3em] text-foreground/50">
                     {label}
                 </span>
-                <div className="flex items-center gap-3 text-[length:var(--fz-scaled)] text-foreground/50">
+                <div className="flex items-center gap-3 text-scaled text-foreground/50">
                     <span className="flex items-center gap-1">
-                        <span className="w-2 h-2 rounded-full bg-[hsl(0,80%,54%)]" />
+                        <span
+                            className="w-2 h-2 rounded-full"
+                            style={{ backgroundColor: "var(--heroui-danger)" }}
+                        />
                         {legendRare}
                     </span>
                     <span className="flex items-center gap-1">
-                        <span className="w-2 h-2 rounded-full bg-[hsl(220,80%,54%)]" />
+                        <span
+                            className="w-2 h-2 rounded-full"
+                            style={{ backgroundColor: "var(--heroui-primary)" }}
+                        />
                         {legendCommon}
                     </span>
                 </div>
@@ -297,7 +287,7 @@ export const AvailabilityHeatmap = ({
                     >
                         <ZoomOut size={12} className="text-current" />
                     </Button>
-                    <span className="text-[length:var(--fz-scaled)] font-mono text-foreground/60">
+                    <span className="text-scaled font-mono text-foreground/60">
                         x{zoomLevel.toFixed(1)}
                     </span>
                     <Button
