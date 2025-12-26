@@ -294,7 +294,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
         render: ({ torrent }) => {
             const displayProgress = getEffectiveProgress(torrent);
             return (
-                <div className="flex flex-col gap-1.5 w-full min-w-0">
+                <div className="flex flex-col gap-tight w-full min-w-0">
                     <div
                         className={cn(
                             "flex justify-between items-end font-medium opacity-80",
@@ -308,8 +308,8 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
                     </div>
                     <SmoothProgressBar
                         value={displayProgress * 100}
-                        className="h-1"
-                        trackClassName="h-1 bg-content1/20"
+                        className="h-sep"
+                        trackClassName="h-sep bg-content1/20"
                         indicatorClassName={cn(
                             "h-full",
                             torrent.state === "paused"
@@ -358,7 +358,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
                         }
                         style={STATUS_CHIP_STYLE}
                         classNames={{
-                            base: "h-5 px-2 inline-flex items-center whitespace-nowrap flex-nowrap",
+                            base: "h-indicator px-tight inline-flex items-center whitespace-nowrap flex-nowrap",
                             content:
                                 "font-bold text-scaled uppercase tracking-wider leading-none whitespace-nowrap",
                         }}
@@ -445,7 +445,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
         render: ({ torrent }) => (
             <div
                 className={cn(
-                    "flex items-center justify-end gap-1 text-foreground/60 min-w-0",
+                    "flex items-center justify-end gap-tight text-foreground/60 min-w-0",
                     DENSE_NUMERIC
                 )}
             >

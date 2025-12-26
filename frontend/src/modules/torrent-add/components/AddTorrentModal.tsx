@@ -359,8 +359,8 @@ export function AddTorrentModal({
             <ModalContent>
                 {(handleClose) => (
                     <>
-                        <ModalHeader className="flex flex-col gap-1">
-                            <h3 className="text-lg font-bold flex items-center gap-2">
+                        <ModalHeader className="flex flex-col gap-tight">
+                            <h3 className="text-lg font-bold flex items-center gap-tools">
                                 <FileUp
                                     size={22}
                                     strokeWidth={ICON_STROKE_WIDTH + 0.5}
@@ -369,7 +369,7 @@ export function AddTorrentModal({
                                 {t("modals.add_title")}
                             </h3>
                         </ModalHeader>
-                        <ModalBody className="py-6 space-y-6">
+                        <ModalBody className="py-panel space-y-stage">
                             <Input
                                 autoFocus
                                 value={magnetLink}
@@ -383,13 +383,13 @@ export function AddTorrentModal({
                                 classNames={{
                                     label: "text-foreground/50 font-medium text-xs uppercase tracking-wider",
                                     inputWrapper:
-                                        "bg-content1/15 border-content1/20 data-[hover=true]:border-primary/50 group-data-[focus=true]:border-primary transition-colors",
+                                        "bg-content1/15 border-content1/20 hover:border-primary/50 group-focus:border-primary transition-colors",
                                     input: "font-mono text-sm",
                                 }}
                             />
-                            <div className="rounded-xl border border-content1/20 bg-content1/15 px-4 py-3 space-y-2">
+                            <div className="rounded-xl border border-content1/20 bg-content1/15 px-panel py-panel space-y-tight">
                                 <div className="flex items-center justify-between text-foreground/60">
-                                    <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider">
+                                    <div className="flex items-center gap-tools text-xs font-bold uppercase tracking-wider">
                                         <FileText
                                             size={16}
                                             strokeWidth={ICON_STROKE_WIDTH}
@@ -407,13 +407,13 @@ export function AddTorrentModal({
                                         </Button>
                                     )}
                                 </div>
-                                <div className="flex items-center justify-between gap-3">
+                                <div className="flex items-center justify-between gap-tools">
                                     <p className="text-sm font-mono text-foreground/70 truncate">
                                         {selectedFile
                                             ? selectedFile.name
                                             : t("modals.file_placeholder")}
                                     </p>
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-tools">
                                         <Button
                                             size="md"
                                             variant="bordered"
@@ -442,7 +442,7 @@ export function AddTorrentModal({
                                 </p>
                             </div>
                             {torrentMetadata && (
-                                <div className="rounded-xl border border-content1/20 bg-content1/15 px-4 py-4 space-y-2">
+                                <div className="rounded-xl border border-content1/20 bg-content1/15 px-panel py-panel space-y-tight">
                                     <div className="flex items-center justify-between">
                                         <span
                                             style={{
@@ -490,7 +490,7 @@ export function AddTorrentModal({
                             )}
                             {selectedFile && !torrentMetadata && (
                                 <div
-                                    className="rounded-xl border border-content1/20 bg-background/30 px-4 py-3"
+                                    className="rounded-xl border border-content1/20 bg-background/30 px-panel py-panel"
                                     style={{
                                         fontSize: "var(--tt-font-size-base)",
                                     }}
@@ -503,9 +503,9 @@ export function AddTorrentModal({
                                     </span>
                                 </div>
                             )}
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="rounded-xl border border-content1/20 bg-content1/15 px-4 py-3 space-y-2">
-                                    <div className="flex items-center gap-2 text-foreground/60">
+                            <div className="grid grid-cols-2 gap-panel">
+                                <div className="rounded-xl border border-content1/20 bg-content1/15 px-panel py-panel space-y-tight">
+                                    <div className="flex items-center gap-tools text-foreground/60">
                                         <HardDrive
                                             size={18}
                                             strokeWidth={ICON_STROKE_WIDTH}
@@ -536,7 +536,7 @@ export function AddTorrentModal({
                                                     onPress={
                                                         openDirectoryPicker
                                                     }
-                                                    className="font-semibold uppercase px-3 py-1"
+                                                    className="font-semibold uppercase px-panel py-tight"
                                                     style={{
                                                         fontSize:
                                                             "var(--tt-font-size-base)",
@@ -552,9 +552,9 @@ export function AddTorrentModal({
                                         }
                                     />
                                 </div>
-                                <div className="rounded-xl border border-content1/20 bg-content1/15 px-4 py-3 space-y-2 flex flex-col">
+                                <div className="rounded-xl border border-content1/20 bg-content1/15 px-panel py-panel space-y-tight flex flex-col">
                                     <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-2 text-foreground/60">
+                                        <div className="flex items-center gap-tools text-foreground/60">
                                             <Zap
                                                 size={18}
                                                 strokeWidth={ICON_STROKE_WIDTH}
@@ -578,7 +578,7 @@ export function AddTorrentModal({
                                 </div>
                             </div>
                         </ModalBody>
-                        <ModalFooter className="flex flex-col gap-3">
+                        <ModalFooter className="flex flex-col gap-tools">
                             {canUseExtensionHelpers && (
                                 <DiskSpaceGauge
                                     freeBytes={directorySpace?.sizeBytes}
@@ -590,7 +590,7 @@ export function AddTorrentModal({
                                     isInsufficient={isSpaceInsufficient}
                                 />
                             )}
-                            <div className="flex w-full items-center justify-between gap-3">
+                            <div className="flex w-full items-center justify-between gap-tools">
                                 <Button
                                     variant="flat"
                                     onPress={handleClose}

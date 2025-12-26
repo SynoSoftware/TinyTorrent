@@ -17,13 +17,13 @@ export function SettingsSection({
     return (
         <Card
             className={cn(
-                "p-5 rounded-2xl border border-content1/20 bg-content1/10",
+                "p-panel rounded-2xl border border-content1/20 bg-content1/10",
                 className
             )}
         >
             {title && (
                 <h3
-                    className="text-scaled font-bold uppercase text-foreground/40 mb-3 mt-0 leading-tight"
+                    className="text-scaled font-bold uppercase text-foreground/40 mb-panel  leading-tight"
                     style={{ letterSpacing: "var(--tt-tracking-ultra)" }}
                 >
                     {title}
@@ -31,7 +31,7 @@ export function SettingsSection({
             )}
             {description && (
                 <p
-                    className="mb-4 text-scaled uppercase text-foreground/50"
+                    className="mb-panel text-scaled uppercase text-foreground/50"
                     style={{ letterSpacing: "var(--tt-tracking-wide)" }}
                 >
                     {description}

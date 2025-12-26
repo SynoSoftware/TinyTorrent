@@ -417,7 +417,7 @@ export function FileExplorerTree({
 
     if (!files.length) {
         return (
-            <div className="rounded-xl border border-content1/20 bg-content1/15 p-4 text-xs text-foreground/50 text-center">
+            <div className="rounded-xl border border-content1/20 bg-content1/15 p-panel text-xs text-foreground/50 text-center">
                 {emptyMessage ?? t("torrent_modal.files_empty")}
             </div>
         );
@@ -445,7 +445,7 @@ export function FileExplorerTree({
 
     if (!visibleNodes.length) {
         return (
-            <div className="rounded-xl border border-content1/20 bg-content1/15 p-4 text-xs text-foreground/50 text-center">
+            <div className="rounded-xl border border-content1/20 bg-content1/15 p-panel text-xs text-foreground/50 text-center">
                 {emptyMessage ?? t("torrent_modal.files_empty")}
             </div>
         );
@@ -461,7 +461,7 @@ export function FileExplorerTree({
                     placeholder={t("torrent_modal.files_search_placeholder", {
                         defaultValue: "Search files...",
                     })}
-                    className="flex-1 px-2 py-1 rounded bg-content1/20 text-foreground outline-none"
+                    className="flex-1 px-tight py-tight rounded bg-content1/20 text-foreground outline-none"
                     style={{ minWidth: 0 }}
                 />
                 {allExtensions.length > 0 && (
@@ -472,7 +472,7 @@ export function FileExplorerTree({
                             if (e.target.value)
                                 handleSelectByExtension(e.target.value);
                         }}
-                        className="px-2 py-1 rounded bg-content1/20 text-foreground outline-none"
+                        className="px-tight py-tight rounded bg-content1/20 text-foreground outline-none"
                     >
                         <option value="">
                             {t("torrent_modal.files_select_extension", {
@@ -526,7 +526,7 @@ export function FileExplorerTree({
                                     }}
                                 >
                                     <div
-                                        className="flex items-center gap-tools py-tight cursor-pointer hover:bg-content1/10 rounded pl-1 h-full"
+                                        className="flex items-center gap-tools py-tight cursor-pointer hover:bg-content1/10 rounded pl-tight h-full"
                                         style={{ paddingLeft }}
                                         onClick={(event) => {
                                             if (
@@ -544,7 +544,7 @@ export function FileExplorerTree({
                                                 event.stopPropagation();
                                                 toggleExpanded(node.id);
                                             }}
-                                            className="flex items-center justify-center rounded-full p-1 text-foreground/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                                            className="flex items-center justify-center rounded-full p-tight text-foreground/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
                                         >
                                             {isExpanded ? (
                                                 <ChevronDown
@@ -577,7 +577,7 @@ export function FileExplorerTree({
                                                 onValueChange={() =>
                                                     handleFolderToggle(node)
                                                 }
-                                                classNames={{ wrapper: "m-0" }}
+                                                classNames={{ wrapper: "" }}
                                             />
                                         </div>
                                         <button
@@ -586,7 +586,7 @@ export function FileExplorerTree({
                                                 event.stopPropagation();
                                                 toggleExpanded(node.id);
                                             }}
-                                            className="flex items-center justify-center rounded-full p-1 text-foreground/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                                            className="flex items-center justify-center rounded-full p-tight text-foreground/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
                                         >
                                             <Folder
                                                 size={16}
@@ -670,7 +670,7 @@ export function FileExplorerTree({
                                                     Boolean(value)
                                                 )
                                             }
-                                            classNames={{ wrapper: "m-0" }}
+                                            classNames={{ wrapper: "" }}
                                         />
                                     </div>
                                     <FileText
@@ -678,7 +678,7 @@ export function FileExplorerTree({
                                         strokeWidth={ICON_STROKE_WIDTH}
                                         className="text-foreground/50"
                                     />
-                                    <div className="flex-1 min-w-0 flex flex-col gap-1">
+                                    <div className="flex-1 min-w-0 flex flex-col gap-tight">
                                         <span className="text-sm font-medium text-foreground truncate">
                                             {node.name}
                                         </span>
@@ -732,7 +732,7 @@ export function FileExplorerTree({
                 {fileContextMenu && (
                     <div
                         ref={menuRef}
-                        className="pointer-events-auto absolute z-50 rounded-2xl border border-content1/40 bg-content1/80 p-1 backdrop-blur-3xl shadow-[0_20px_45px_rgba(0,0,0,0.35)]"
+                        className="pointer-events-auto absolute z-50 rounded-2xl border border-content1/40 bg-content1/80 p-tight backdrop-blur-3xl shadow-context"
                         style={{
                             top: fileContextMenu.y,
                             left: fileContextMenu.x,
@@ -745,7 +745,7 @@ export function FileExplorerTree({
                             <button
                                 key={item.key}
                                 type="button"
-                                className="w-full rounded-xl px-tight py-tight text-left text-sm font-medium text-foreground transition-colors data-[hover=true]:bg-content2/70 data-[pressed=true]:bg-content2/80 hover:text-foreground"
+                                className="w-full rounded-xl px-tight py-tight text-left text-sm font-medium text-foreground transition-colors hover:bg-content2/70 active:bg-content2/80 hover:text-foreground"
                                 onClick={() =>
                                     handleFileContextAction(item.key)
                                 }

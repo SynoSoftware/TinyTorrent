@@ -97,7 +97,7 @@ import { CONFIG } from "@/config/logic";
 
 // --- CONSTANTS ---
 const STORAGE_KEY = "tiny-torrent.table-state.v2.8";
-const CELL_PADDING_CLASS = "pl-2 pr-3";
+const CELL_PADDING_CLASS = "pl-tight pr-panel";
 const CELL_BASE_CLASSES =
     "flex items-center overflow-hidden h-full truncate box-border leading-none";
 const DEFAULT_CONTEXT_MENU_MARGIN = 16;
@@ -339,7 +339,7 @@ const DraggableHeader = memo(
                         CELL_PADDING_CLASS,
                         align === "center" && "justify-center",
                         align === "end" && "justify-end",
-                        isSelection && "justify-center px-0"
+                        isSelection && "justify-center "
                     )}
                     style={{ letterSpacing: "var(--tt-tracking-tight)" }}
                 >
@@ -378,7 +378,7 @@ const DraggableHeader = memo(
                                 "w-(--bw) h-indicator bg-foreground/10 transition-colors rounded-full",
                                 "group-hover:bg-primary/50",
                                 column.getIsResizing() &&
-                                    "bg-primary w-(--tt-divider-width) h-6"
+                                    "bg-primary w-(--tt-divider-width) h-indicator"
                             )}
                         />
                     </div>
@@ -401,7 +401,7 @@ const ColumnHeaderPreview = ({
     return (
         <div
             className={cn(
-                "relative flex h-row items-center border-r border-content1/10 bg-content1/90 px-(--p-2) transition-all",
+                "relative flex h-row items-center border-r border-content1/10 bg-content1/90 px-(--p-tight) transition-all",
                 PANEL_SHADOW
             )}
             style={{ width: column.getSize(), boxSizing: "border-box" }}
@@ -413,7 +413,7 @@ const ColumnHeaderPreview = ({
                     CELL_PADDING_CLASS,
                     align === "center" && "justify-center",
                     align === "end" && "justify-end",
-                    isSelection && "justify-center px-0"
+                    isSelection && "justify-center "
                 )}
                 style={{ letterSpacing: "var(--tt-tracking-tight)" }}
             >
@@ -573,7 +573,7 @@ const VirtualRow = memo(
                     // Dragging overrides
                     isQueueSortActive ? "cursor-grab" : "cursor-default",
                     isDragging &&
-                        "opacity-50 grayscale scale-[0.98] z-50 cursor-grabbing"
+                        "opacity-50 grayscale scale-98 z-50 cursor-grabbing"
                 )}
                 style={rowStyle}
                 onClick={(e) => onClick(e, row.id, virtualRow.index)}
@@ -586,7 +586,7 @@ const VirtualRow = memo(
                     layoutId={`torrent-row-${row.id}`}
                     initial={false}
                     className={cn(
-                        "relative flex items-center w-full h-full px-0",
+                        "relative flex items-center w-full h-full ",
                         // SELECTION STATE: Stronger contrast, no border, NO TRANSITION
                         isSelected ? "bg-primary/20" : "hover:bg-content1/10",
 
@@ -1009,7 +1009,7 @@ export function TorrentTable({
                     const HeaderIcon = def.headerIcon;
                     return HeaderIcon ? (
                         <div
-                            className="flex items-center gap-1 text-scaled font-semibold uppercase text-foreground/60"
+                            className="flex items-center gap-tight text-scaled font-semibold uppercase text-foreground/60"
                             style={{
                                 letterSpacing: "var(--tt-tracking-ultra)",
                             }}
@@ -1706,7 +1706,7 @@ export function TorrentTable({
     }, [headerContextMenu, headerMenuActiveColumn, table, t]);
 
     const headerContainerClass = cn(
-        "flex w-full sticky top-0 z-20 border-b border-content1/20 bg-content1/10 backdrop-blur-sm px-0"
+        "flex w-full sticky top-0 z-20 border-b border-content1/20 bg-content1/10 backdrop-blur-sm "
     );
     const tableShellClass = cn(
         "relative flex-1 h-full min-h-0 flex flex-col overflow-hidden"
@@ -1774,7 +1774,7 @@ export function TorrentTable({
                                     {Array.from({ length: 15 }).map((_, i) => (
                                         <div
                                             key={i}
-                                            className="flex items-center w-full border-b border-content1/5 px-4"
+                                            className="flex items-center w-full border-b border-content1/5 px-panel"
                                             style={{
                                                 height: TABLE_LAYOUT.rowHeight,
                                             }}
@@ -1784,9 +1784,9 @@ export function TorrentTable({
                                     ))}
                                 </div>
                             ) : torrents.length === 0 ? (
-                                <div className="h-full flex flex-col items-center justify-center gap-6 px-6 text-foreground/60">
+                                <div className="h-full flex flex-col items-center justify-center gap-stage px-stage text-foreground/60">
                                     <div
-                                        className="flex items-center gap-2 text-xs font-semibold uppercase text-foreground/60"
+                                        className="flex items-center gap-tools text-xs font-semibold uppercase text-foreground/60"
                                         style={{
                                             letterSpacing:
                                                 "var(--tt-tracking-ultra)",
@@ -1812,9 +1812,9 @@ export function TorrentTable({
                                     >
                                         {t("table.empty_hint_subtext")}
                                     </p>
-                                    <div className="w-full max-w-3xl space-y-2">
+                                    <div className="w-full max-w-3xl space-y-tight">
                                         <div
-                                            className="grid grid-cols-[48px_minmax(0,1fr)_120px] gap-3 rounded-2xl border border-content1/20 bg-background/40 px-3 py-2 text-scaled uppercase text-foreground/50"
+                                            className="grid grid-cols-torrent gap-tools rounded-2xl border border-content1/20 bg-background/40 px-panel py-panel text-scaled uppercase text-foreground/50"
                                             style={{
                                                 letterSpacing:
                                                     "var(--tt-tracking-ultra)",
@@ -1832,7 +1832,7 @@ export function TorrentTable({
                                             (_, index) => (
                                                 <div
                                                     key={index}
-                                                    className="grid grid-cols-[48px_minmax(0,1fr)_120px] gap-3 rounded-2xl bg-content1/10 px-3 py-2"
+                                                    className="grid grid-cols-torrent gap-tools rounded-2xl bg-content1/10 px-panel py-panel"
                                                 >
                                                     <span className="h-indicator w-full rounded-full bg-content1/20" />
                                                     <span className="h-indicator w-full rounded-full bg-content1/20" />
@@ -2031,7 +2031,7 @@ export function TorrentTable({
                                     <DropdownItem
                                         key="queue-title"
                                         isDisabled
-                                        className="border-t border-content1/20 mt-2 pt-(--p-2) px-4 text-scaled font-bold uppercase text-foreground/50"
+                                        className="border-t border-content1/20 mt-tight pt-(--p-tight) px-panel text-scaled font-bold uppercase text-foreground/50"
                                         style={{
                                             letterSpacing:
                                                 "var(--tt-tracking-ultra)",
@@ -2043,7 +2043,7 @@ export function TorrentTable({
                                         {queueMenuActions.map((action) => (
                                             <DropdownItem
                                                 key={action.key}
-                                                className="pl-10 text-sm"
+                                                className="pl-stage text-sm"
                                                 shortcut={getContextMenuShortcut(
                                                     action.key as ContextMenuKey
                                                 )}
@@ -2055,7 +2055,7 @@ export function TorrentTable({
                                     <DropdownItem
                                         key="data-title"
                                         isDisabled
-                                        className="border-t border-content1/20 mt-2 pt-(--p-2) px-4 text-scaled font-bold uppercase text-foreground/50"
+                                        className="border-t border-content1/20 mt-tight pt-(--p-tight) px-panel text-scaled font-bold uppercase text-foreground/50"
                                         style={{
                                             letterSpacing:
                                                 "var(--tt-tracking-ultra)",
@@ -2143,7 +2143,7 @@ export function TorrentTable({
                                         key="hide-column"
                                         color="danger"
                                         isDisabled={!headerMenuActiveColumn}
-                                        className="px-4 py-(--p-2) text-scaled font-semibold"
+                                        className="px-panel py-(--p-tight) text-scaled font-semibold"
                                         onPress={() =>
                                             headerMenuActiveColumn?.toggleVisibility(
                                                 false
@@ -2155,9 +2155,9 @@ export function TorrentTable({
                                     <DropdownItem
                                         key="header-divider"
                                         isReadOnly
-                                        className="p-0 h-0"
+                                        className=" "
                                     >
-                                        <div className="border-t border-content1/20 my-1 mx-4" />
+                                        <div className="border-t border-content1/20 my-tight mx-panel" />
                                     </DropdownItem>
                                     <DropdownSection
                                         key="columns-section"
@@ -2170,9 +2170,9 @@ export function TorrentTable({
                                                         <DropdownItem
                                                             key={item.key}
                                                             isReadOnly
-                                                            className="p-0 h-0"
+                                                            className=" "
                                                         >
-                                                            <div className="border-t border-content1/10 my-1" />
+                                                            <div className="border-t border-content1/10 my-tight" />
                                                         </DropdownItem>
                                                     );
                                                 }
@@ -2181,7 +2181,7 @@ export function TorrentTable({
                                                 return (
                                                     <DropdownItem
                                                         key={item.column.id}
-                                                        className="pl-12 text-scaled"
+                                                        className="pl-stage text-scaled"
                                                         closeOnSelect={false}
                                                         onPress={() =>
                                                             item.column.toggleVisibility(
@@ -2196,7 +2196,7 @@ export function TorrentTable({
                                                                 size="md"
                                                                 disableAnimation
                                                                 classNames={{
-                                                                    base: "mr-2",
+                                                                    base: "mr-tight",
                                                                 }}
                                                             />
                                                         }
@@ -2241,7 +2241,7 @@ export function TorrentTable({
                                     return (
                                         <div
                                             key={column.id}
-                                            className="flex justify-between p-2"
+                                            className="flex justify-between p-tight"
                                         >
                                             <span>
                                                 {t(

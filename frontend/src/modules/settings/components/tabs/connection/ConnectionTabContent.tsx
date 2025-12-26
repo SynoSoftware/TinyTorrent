@@ -21,7 +21,7 @@ export function ConnectionTabContent() {
                     onReconnect={onReconnect}
                     rpcStatus={rpcStatus}
                 />
-                <Divider className="my-3 opacity-50" />
+                <Divider className="my-panel opacity-50" />
                 <ConnectionExtensionCard rpcStatus={rpcStatus} />
             </div>
         </SettingsSection>

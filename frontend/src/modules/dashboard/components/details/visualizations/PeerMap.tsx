@@ -180,18 +180,18 @@ export const PeerMap = ({
 
     return (
         <div
-            className="flex flex-col flex-1 rounded-2xl border border-content1/20 bg-content1/5 p-4 space-y-3 overflow-hidden relative"
+            className="flex flex-col flex-1 rounded-2xl border border-content1/20 bg-content1/5 p-panel space-y-3 overflow-hidden relative"
             onPointerDown={registerActivity}
             onMouseMove={registerActivity}
         >
             <div className="flex items-center justify-between z-20 pointer-events-none">
                 <div className="flex flex-col">
-                    <span className="text-label font-black uppercase text-foreground/30 tracking-[0.4em]">
+                    <span className="text-label font-black uppercase text-foreground/30 tracking-0-4">
                         {mode === "instrument"
                             ? t("peers.diagnostic_radar")
                             : t("peers.swarm_pulse")}
                     </span>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-tools">
                         <Activity
                             size={10}
                             className={cn(
@@ -211,7 +211,7 @@ export const PeerMap = ({
                         <motion.div
                             initial={{ opacity: 0, x: 5 }}
                             animate={{ opacity: 1, x: 0 }}
-                            className="flex gap-2 items-center"
+                            className="flex gap-tools items-center"
                         >
                             <span className="text-label font-mono text-foreground/40 uppercase">
                                 Aperture:{" "}
@@ -240,7 +240,7 @@ export const PeerMap = ({
                                 : palette.warning
                         }
                         strokeWidth={2}
-                        className="opacity-[0.03] transition-colors duration-1000"
+                        className="opacity-03 transition-colors duration-1000"
                     />
 
                     <AnimatePresence>
@@ -348,7 +348,7 @@ export const PeerMap = ({
                                             className={cn(
                                                 "transition-all",
                                                 node.isUTP &&
-                                                    "drop-shadow-[0_0_2px_rgba(var(--heroui-primary-500),0.3)]"
+                                                    "drop-shadow-primary-small"
                                             )}
                                         />
 

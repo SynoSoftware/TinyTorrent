@@ -66,7 +66,7 @@ export function SettingsFormBuilder({ tab }: SettingsFormBuilderProps) {
                                 : undefined
                         }
                     >
-                        <div className="space-y-6 mt-4">
+                        <div className="space-y-stage mt-panel">
                             {visibleBlocks.map((block, blockIndex) => {
                                 const Renderer = BLOCK_COMPONENTS[block.type];
                                 if (!Renderer) return null;

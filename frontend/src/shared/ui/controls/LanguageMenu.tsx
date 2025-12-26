@@ -178,12 +178,12 @@ export function LanguageMenu() {
                 aria-label={t("language.menu_label")}
                 variant="light"
                 className={cn(
-                    "min-w-48",
+                    "min-w-dir-picker",
                     "bg-content1/80 border border-content1/40",
                     "backdrop-blur-3xl",
-                    "shadow-[0_18px_60px_rgba(0,0,0,0.55)]",
+                    "shadow-menu-large",
                     "rounded-2xl",
-                    "p-1"
+                    "p-tight"
                 )}
                 itemClasses={{
                     base: cn(
@@ -192,11 +192,9 @@ export function LanguageMenu() {
                         "flex items-center justify-between",
                         "rounded-xl",
                         "transition-colors",
-                        "data-[hover=true]:bg-content2/70",
-                        "data-[hover=true]:text-foreground",
-                        "data-[pressed=true]:bg-content2/80",
-                        "data-[selected=true]:bg-primary/15",
-                        "data-[selected=true]:text-primary"
+                        "hover:bg-content2/70",
+                        "hover:text-foreground",
+                        "active:bg-content2/80"
                     ),
                 }}
             >
@@ -208,6 +206,11 @@ export function LanguageMenu() {
                             key={option.code}
                             onPress={() => setSelection(option.code)}
                             isSelected={isActive}
+                            className={
+                                isActive
+                                    ? "bg-primary/15 text-primary"
+                                    : undefined
+                            }
                             startContent={
                                 <span className="text-lg leading-none">
                                     {option.flagIcon}

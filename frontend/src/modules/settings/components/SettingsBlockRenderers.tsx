@@ -51,7 +51,10 @@ export function SwitchSliderRenderer({
                         {t(block.labelKey)}
                     </span>
                 </Switch>
-                <div className="text-scaled font-mono font-medium text-foreground/80 bg-content2 px-2 py-1 rounded-md min-w-(--tt-badge-min-width) text-center">
+                <div
+                    className="text-scaled font-mono font-medium text-foreground/80 bg-content2 px-tight py-tight rounded-md text-center"
+                    style={{ minWidth: "var(--tt-badge-min-width)" }}
+                >
                     {block.valueSuffixKey
                         ? t(block.valueSuffixKey, { value: sliderValue })
                         : sliderValue}
@@ -191,7 +194,7 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
                         ? "font-mono text-scaled tracking-tight"
                         : "font-medium text-sm"
                 ),
-                label: "text-foreground/60 font-medium text-xs uppercase tracking-wider mb-1",
+                label: "text-foreground/60 font-medium text-xs uppercase tracking-wider mb-tight",
             }}
             endContent={
                 block.endIcon ? (
@@ -211,14 +214,14 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
     }
 
     return (
-        <div className="flex w-full items-end gap-3 group">
+        <div className="flex w-full items-end gap-tools group">
             <div className="flex-1 min-w-0">{inputNode}</div>
             <Button
                 size="md"
                 variant="shadow"
                 color="primary"
                 onPress={handleSideAction}
-                className="h-button px-5 shrink-0 font-semibold text-xs tracking-wider uppercase bg-primary/10 hover:bg-primary/20 text-primary transition-colors data-[pressed=true]:scale-95"
+                className="h-button px-stage shrink-0 font-semibold text-xs tracking-wider uppercase bg-primary/10 hover:bg-primary/20 text-primary transition-colors active:scale-95"
                 isDisabled={sideActionDisabled}
             >
                 {t(sideAction.labelKey)}
@@ -234,7 +237,7 @@ export function InputPairRenderer({
 }) {
     const gridCols = block.inputs.length === 1 ? "grid-cols-1" : "grid-cols-2";
     return (
-        <div className={cn("grid gap-4", gridCols)}>
+        <div className={cn("grid gap-panel", gridCols)}>
             {block.inputs.map((inputBlock, idx) => (
                 <SingleInputRenderer
                     key={inputBlock.stateKey || idx}
@@ -270,7 +273,7 @@ export function DaySelectorRenderer({
                     {t(block.labelKey)}
                 </span>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-tools">
                 {ALT_SPEED_DAY_OPTIONS.map((day) => {
                     const isSelected = Boolean(selectedMask & day.mask);
                     return (
@@ -281,7 +284,7 @@ export function DaySelectorRenderer({
                             color={isSelected ? "primary" : undefined}
                             onPress={() => toggleDay(day.mask)}
                             className={cn(
-                                "h-button px-3 shrink-0 font-semibold text-xs tracking-wider uppercase bg-primary/10 hover:bg-primary/20 text-primary transition-colors data-[pressed=true]:scale-95 text-scaled min-w-0",
+                                "h-button px-panel shrink-0 font-semibold text-xs tracking-wider uppercase bg-primary/10 hover:bg-primary/20 text-primary transition-colors active:scale-95 text-scaled min-w-0",
                                 isSelected ? "font-bold" : "text-foreground/60"
                             )}
                             style={{ letterSpacing: "var(--tt-tracking-wide)" }}
@@ -363,7 +366,7 @@ export function LanguageRenderer({
 }) {
     const { t } = useTranslation();
     return (
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center justify-between gap-panel">
             <div>
                 <span className="text-sm font-semibold text-foreground/80">
                     {t(block.labelKey)}
@@ -389,7 +392,7 @@ export function RawConfigRenderer({
 
     return (
         <div className="space-y-3">
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center justify-between gap-panel">
                 <div>
                     <span className="text-sm font-semibold text-foreground/80">
                         {t(block.labelKey)}
@@ -413,7 +416,7 @@ export function RawConfigRenderer({
             </div>
             <div className="rounded-2xl border border-content1/20 bg-content1/30">
                 <textarea
-                    className="w-full resize-none border-none bg-transparent px-4 py-3 text-scaled font-mono leading-relaxed text-foreground/80 selection:bg-primary/40 focus:outline-none"
+                    className="w-full resize-none border-none bg-transparent px-panel py-panel text-scaled font-mono leading-relaxed text-foreground/80 selection:bg-primary/40 focus:outline-none"
                     rows={10}
                     value={configJson}
                     readOnly
@@ -425,5 +428,5 @@ export function RawConfigRenderer({
 }
 
 export function DividerRenderer() {
-    return <Divider className="my-3 opacity-50" />;
+    return <Divider className="my-panel opacity-50" />;
 }

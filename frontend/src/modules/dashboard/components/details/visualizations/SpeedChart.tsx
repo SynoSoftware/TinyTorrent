@@ -170,17 +170,17 @@ export const SpeedChart = ({
     }, [points, spacing, tick]);
 
     return (
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-tools">
             <div className="flex items-center justify-between font-mono text-foreground/60">
-                <div className="flex items-center gap-4">
-                    <span className="flex items-center gap-1 text-success">
+                <div className="flex items-center gap-panel">
+                    <span className="flex items-center gap-tight text-success">
                         ↓ {formatSpeed(latestDown)}
                     </span>
-                    <span className="flex items-center gap-1 text-primary">
+                    <span className="flex items-center gap-tight text-primary">
                         ↑ {formatSpeed(latestUp)}
                     </span>
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-tight">
                     {SPEED_WINDOW_OPTIONS.map((option) => (
                         <Button
                             key={option.key}
@@ -195,7 +195,7 @@ export const SpeedChart = ({
                                     ? "primary"
                                     : "default"
                             }
-                            className="rounded-full px-(--p-3) text-(--font-size-sm)"
+                            className="rounded-full px-(--p-panel) text-(--font-size-sm)"
                             onPress={() => setSelectedWindow(option.key)}
                             aria-pressed={selectedWindow === option.key}
                         >
@@ -204,7 +204,7 @@ export const SpeedChart = ({
                     ))}
                 </div>
             </div>
-            <div className="rounded-2xl border border-content1/20 bg-content1/20 p-3">
+            <div className="rounded-2xl border border-content1/20 bg-content1/20 p-panel">
                 <div
                     className="w-full pointer-events-none"
                     style={{ height: `${CHART_HEIGHT}px` }}

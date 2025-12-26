@@ -583,7 +583,7 @@ export function SettingsModal({
             }}
             motionProps={INTERACTION_CONFIG.modalBloom}
         >
-            <ModalContent className="h-full flex flex-col p-0">
+            <ModalContent className="h-full flex flex-col ">
                 <div className="flex flex-row flex-1 min-h-0 overflow-hidden relative">
                     {/* SIDEBAR - Responsive: Collapsible on mobile */}
                     <div
@@ -594,7 +594,7 @@ export function SettingsModal({
                                 : "translate-x-0"
                         )}
                     >
-                        <div className="p-6 border-b border-content1/10 flex justify-between items-center h-modal-header shrink-0">
+                        <div className="p-stage border-b border-content1/10 flex justify-between items-center h-modal-header shrink-0">
                             <h2 className="text-lg font-bold tracking-tight text-foreground">
                                 {t("settings.modal.title")}
                             </h2>
@@ -609,7 +609,7 @@ export function SettingsModal({
                             </Button>
                         </div>
 
-                        <div className="flex-1 px-3 py-4 space-y-1 overflow-y-auto scrollbar-hide">
+                        <div className="flex-1 px-panel py-panel space-y-tight overflow-y-auto scrollbar-hide">
                             {visibleTabs.map((tab) => (
                                 <button
                                     key={tab.id}
@@ -618,7 +618,7 @@ export function SettingsModal({
                                         setIsMobileMenuOpen(false);
                                     }}
                                     className={cn(
-                                        "w-full flex items-center gap-4 px-4 py-3 rounded-xl text-sm transition-all duration-200 group relative",
+                                        "w-full flex items-center gap-panel px-panel py-panel rounded-xl text-sm transition-all duration-200 group relative",
                                         activeTab === tab.id
                                             ? "bg-primary/10 text-primary font-semibold"
                                             : "text-foreground/60 hover:text-foreground hover:bg-content2/50 font-medium"
@@ -644,7 +644,7 @@ export function SettingsModal({
                                 </button>
                             ))}
                         </div>
-                        <div className="p-6 border-t border-content1/10 shrink-0">
+                        <div className="p-panel border-t border-content1/10 shrink-0">
                             <div className="text-scaled text-foreground/30 font-mono tracking-widest">
                                 {t("brand.version", { version: APP_VERSION })}
                             </div>
@@ -654,13 +654,13 @@ export function SettingsModal({
                     {/* CONTENT AREA */}
                     <div className="flex-1 min-h-0 flex flex-col bg-content1/10 backdrop-blur-lg relative w-full">
                         {/* Header */}
-                        <div className="sticky top-0 z-10 shrink-0 h-modal-header border-b border-content1/10 flex items-center justify-between px-6 bg-content1/30 backdrop-blur-xl">
-                            <div className="flex items-center gap-3">
+                        <div className="sticky top-0 z-10 shrink-0 h-modal-header border-b border-content1/10 flex items-center justify-between px-stage bg-content1/30 backdrop-blur-xl">
+                            <div className="flex items-center gap-tools">
                                 <Button
                                     isIconOnly
                                     variant="shadow"
                                     size="md"
-                                    className="sm:hidden -ml-2 text-foreground/50"
+                                    className="sm:hidden -ml-tight text-foreground/50"
                                     onPress={() => setIsMobileMenuOpen(true)}
                                 >
                                     <ChevronLeft size={22} />
@@ -695,7 +695,7 @@ export function SettingsModal({
                         </div>
 
                         {/* Scrollable Content */}
-                        <div className="flex-1 min-h-0 overflow-y-auto w-full p-4 sm:p-8 scrollbar-hide">
+                        <div className="flex-1 min-h-0 overflow-y-auto w-full p-panel sm:p-8 scrollbar-hide">
                             <AnimatePresence mode="wait">
                                 <motion.div
                                     key={activeTabDefinition.id}
@@ -703,10 +703,10 @@ export function SettingsModal({
                                     animate={{ opacity: 1, y: 0 }}
                                     exit={{ opacity: 0, y: -10 }}
                                     transition={{ duration: 0.2 }}
-                                    className="flex flex-col space-y-6 sm:space-y-8 pb-20"
+                                    className="flex flex-col space-y-stage sm:space-y-stage pb-stage"
                                 >
                                     {settingsLoadError && (
-                                        <div className="rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
+                                        <div className="rounded-xl border border-warning/30 bg-warning/10 px-panel py-tight text-xs text-warning">
                                             {t("settings.load_error")}
                                         </div>
                                     )}
@@ -730,7 +730,7 @@ export function SettingsModal({
                         </div>
 
                         {/* Footer Actions */}
-                        <div className="sticky bottom-0 z-10 shrink-0 border-t border-content1/10 bg-content1/40 backdrop-blur-xl px-6 py-4 flex items-center justify-between">
+                        <div className="sticky bottom-0 z-10 shrink-0 border-t border-content1/10 bg-content1/40 backdrop-blur-xl px-stage py-stage flex items-center justify-between">
                             <Button
                                 size="md"
                                 variant="shadow"
@@ -741,7 +741,7 @@ export function SettingsModal({
                             >
                                 {t("settings.modal.footer.reset_defaults")}
                             </Button>
-                            <div className="flex gap-3 ml-auto">
+                            <div className="flex gap-tools ml-auto">
                                 <Button
                                     size="md"
                                     variant="light"

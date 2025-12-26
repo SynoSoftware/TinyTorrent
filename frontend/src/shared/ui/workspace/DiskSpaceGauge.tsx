@@ -44,7 +44,7 @@ export function DiskSpaceGauge({
             : "bg-gradient-to-r from-danger/70 via-warning/70 to-success/70"
     );
     const containerClasses = cn(
-        "space-y-2 rounded-xl border bg-content1/15 p-4",
+        "space-y-tight rounded-xl border bg-content1/15 p-panel",
         {
             "border-danger/40 bg-danger/5": isInsufficient,
             "border-content1/20": !isInsufficient,
@@ -68,7 +68,7 @@ export function DiskSpaceGauge({
                     {path ?? t("modals.disk_gauge.path_unknown")}
                 </span>
             </div>
-            <div className="h-2">
+            <div className="h-sep">
                 <SmoothProgressBar
                     value={Math.min(usedPercent + torrentPercent, 100)}
                     trackClassName="h-full bg-content1/20"
