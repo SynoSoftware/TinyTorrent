@@ -962,6 +962,59 @@ TinyTorrent must behave like a desktop tool and look better than desktop tools e
 
 ---
 
+
+# **17. Design System Authority & Token Pipeline**
+
+This section defines the **Zero-Literal Mandate**. To maintain the "Confident Workbench" feel and ensure 100% harmonic scaling, all agents must strictly follow this pipeline.
+
+## **A. The 4-Layer Token Pipeline**
+
+No dimension or color may skip a layer.
+
+1. **Intent (`constants.json`):** Defines logical units (e.g., `"padding_panel": 6`).
+2. **Arithmetic (`index.css` @theme):** Performs the scaling: `calc(var(--u) * [units] * var(--z))`.
+3. **Role (`logic.ts`):** Exports semantic strings (e.g., `export const PADDING_PANEL = "p-panel"`).
+4. **Application (`.tsx`):** Uses the semantic class. **Literal numbers are forbidden here.**
+
+## **B. The "Banned" vs. "Required" List**
+
+| Category | **BANNED (Drift)** | **REQUIRED (Desired State)** |
+| :--- | :--- | :--- |
+| **Sizing** | `size="sm"`, `size="xs"` | `size="md"` (Default), `size="lg"` |
+| **Spacing** | `p-1...16`, `gap-1...16` | `p-panel`, `p-tight`, `gap-stage`, `gap-tools` |
+| **Geometry** | `h-16`, `h-[56px]`, `w-64` | `h-nav`, `h-status`, `h-row`, `w-sidebar` |
+| **Brackets** | `h-[calc(...)]`, `w-[...]` | Named CSS tokens in `@theme` |
+| **Safety** | `z.any()` in RPC | `zRpcMutationResponse` or specific schemas |
+| **Buttons** | `variant="flat"` (Primary) | `variant="shadow"` (Primary/Action) |
+
+## **C. Forensic Mapping Rules**
+
+When modifying layout, you must categorize every spacing decision into a **Logical Role**:
+
+- **Panel Padding (`p-panel`):** Interior of any GlassPanel, Card, or Modal.
+- **Tight Padding (`p-tight`):** Interior of menus, chips, badges, or list-items.
+- **Stage Gap (`gap-stage`):** The major spacing between split panels/parts.
+- **Tool Gap (`gap-tools`):** Small spacing between buttons, inputs, or tabs.
+- **Structure:** `h-nav`, `h-status`, `h-row` (strictly for the main layout bars).
+
+## **D. The Scale Test (Pre-Commit Requirement)**
+
+Before submitting any UI code, the agent must perform a "Mental Scale Test":
+> *"If I change `--u` from `4px` to `8px` in index.css, will my new code expand proportionally and maintain its internal alignment?"*
+>
+> - If **Yes**: Proceed.
+> - If **No**: You used a magic number or a hardcoded Tailwind utility. **Delete it.**
+
+## **E. Single Place of Control**
+
+If a component requires a specific width (e.g., the Directory Picker), do not calculate it in the TSX.
+
+1. Add the unit to `constants.json`.
+2. Map it to a token in `index.css` (e.g., `--tt-dir-picker-w`).
+3. Use the token in the component (`w-dir-picker`).
+
+---
+
 # **Other Rules**
 
 1. Before reporting a task as completed, perform a review of the code and fix all important issues. Repeat until you are fully satisfied.

@@ -190,7 +190,7 @@ const SpeedColumnCell = ({ torrent, table }: ColumnRendererProps) => {
     );
 
     return (
-        <div className="flex items-center justify-end gap-2 min-w-0">
+        <div className="flex items-center justify-end gap-tools min-w-0">
             <span
                 className={cn(
                     "shrink-0 text-right min-w-0",
@@ -208,7 +208,7 @@ const SpeedColumnCell = ({ torrent, table }: ColumnRendererProps) => {
             <svg
                 viewBox={`0 0 ${SPARKLINE_WIDTH} ${SPARKLINE_HEIGHT}`}
                 className={cn(
-                    "h-3 w-16 flex-none overflow-visible",
+                    "h-sep w-sparkline flex-none overflow-visible",
                     isDownloading
                         ? "text-success"
                         : isSeeding
@@ -343,8 +343,8 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
             return (
                 <div className="min-w-0">
                     <Chip
-                        size="sm"
-                        variant="flat"
+                        size="md"
+                        variant="shadow"
                         color={conf.color}
                         startContent={
                             <Icon

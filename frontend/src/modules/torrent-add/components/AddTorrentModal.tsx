@@ -351,10 +351,7 @@ export function AddTorrentModal({
             backdrop="blur"
             size="2xl"
             classNames={{
-                base: cn(
-                    GLASS_MODAL_SURFACE,
-                    "w-full max-w-[var(--tt-modal-max-width)]"
-                ),
+                base: cn(GLASS_MODAL_SURFACE, "w-full max-w-modal"),
                 closeButton: "hover:bg-content1/10 active:bg-content1/20",
             }}
             motionProps={INTERACTION_CONFIG.modalBloom}
@@ -401,7 +398,7 @@ export function AddTorrentModal({
                                     </div>
                                     {selectedFile && (
                                         <Button
-                                            size="sm"
+                                            size="md"
                                             variant="ghost"
                                             color="danger"
                                             onPress={clearSelectedFile}
@@ -418,8 +415,8 @@ export function AddTorrentModal({
                                     </p>
                                     <div className="flex items-center gap-2">
                                         <Button
-                                            size="sm"
-                                            variant="light"
+                                            size="md"
+                                            variant="bordered"
                                             onPress={() =>
                                                 fileInputRef.current?.click()
                                             }
@@ -480,7 +477,7 @@ export function AddTorrentModal({
                                     >
                                         {t("modals.file_tree_description")}
                                     </p>
-                                    <div className="max-h-[var(--tt-modal-body-max-height)] overflow-y-auto">
+                                    <div className="max-h-modal-body overflow-y-auto">
                                         <FileExplorerTree
                                             files={fileTreeEntries}
                                             emptyMessage={t(
@@ -523,8 +520,8 @@ export function AddTorrentModal({
                                         onChange={(event) =>
                                             setDownloadDir(event.target.value)
                                         }
-                                        variant="flat"
-                                        size="sm"
+                                        variant="bordered"
+                                        size="md"
                                         classNames={{
                                             input: "font-mono text-xs",
                                             inputWrapper:
@@ -533,8 +530,8 @@ export function AddTorrentModal({
                                         endContent={
                                             canUseExtensionHelpers ? (
                                                 <Button
-                                                    size="sm"
-                                                    variant="flat"
+                                                    size="md"
+                                                    variant="shadow"
                                                     color="primary"
                                                     onPress={
                                                         openDirectoryPicker
@@ -567,7 +564,7 @@ export function AddTorrentModal({
                                             </span>
                                         </div>
                                         <Switch
-                                            size="sm"
+                                            size="md"
                                             isSelected={startNow}
                                             color="success"
                                             onValueChange={(value) =>
@@ -595,7 +592,7 @@ export function AddTorrentModal({
                             )}
                             <div className="flex w-full items-center justify-between gap-3">
                                 <Button
-                                    variant="light"
+                                    variant="flat"
                                     onPress={handleClose}
                                     className="text-foreground/50 hover:text-foreground flex-1"
                                 >
@@ -603,7 +600,7 @@ export function AddTorrentModal({
                                 </Button>
                                 <Button
                                     color="primary"
-                                    variant="shadow"
+                                    variant="bordered"
                                     onPress={handleSubmit}
                                     startContent={
                                         <ArrowDown

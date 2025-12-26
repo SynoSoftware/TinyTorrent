@@ -179,7 +179,7 @@ export const PeerMap = ({ peers }: PeerMapProps) => {
     return (
         <motion.div
             layout
-            className="flex flex-col flex-1 min-h-[calc(80*var(--u)*var(--z))] rounded-2xl border border-content1/20 bg-content1/10 p-4 space-y-3 overflow-hidden"
+            className="flex flex-col flex-1 min-h-0 rounded-2xl border border-content1/20 bg-content1/10 p-4 space-y-3 overflow-hidden"
         >
             <div className="flex items-center justify-between">
                 <div className="flex flex-col">
@@ -198,8 +198,8 @@ export const PeerMap = ({ peers }: PeerMapProps) => {
                 <div className="flex items-center gap-1">
                     <Button
                         isIconOnly
-                        size="sm"
-                        variant="flat"
+                        size="md"
+                        variant="shadow"
                         onPress={() => handleZoom("out")}
                     >
                         <ZoomOut
@@ -210,8 +210,8 @@ export const PeerMap = ({ peers }: PeerMapProps) => {
                     </Button>
                     <Button
                         isIconOnly
-                        size="sm"
-                        variant="flat"
+                        size="md"
+                        variant="shadow"
                         onPress={() => handleZoom("in")}
                     >
                         <ZoomIn

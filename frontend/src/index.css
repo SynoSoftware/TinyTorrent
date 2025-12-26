@@ -4,6 +4,65 @@
 @source '../node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}';
 @custom-variant dark (&:is(.dark *));
 
+@@theme {
+    /* --- 1. Primitives --- */
+    --u: 4px;
+    --fz: 14px;
+    --z: var(--tt-zoom-level, 1);
+    --tt-uz: calc(var(--u) * var(--z));
+
+    /* --- 2. Logical Roles (The Consistency Authority) --- */
+    --tt-p-panel: calc(var(--tt-uz) * 6); /* Interior of panels */
+    --tt-p-tight: calc(var(--tt-uz) * 3); /* Spacing for small items */
+    --tt-gap-stage: calc(var(--tt-uz) * 4); /* Gaps between panels */
+    --tt-gap-tools: calc(var(--tt-uz) * 2); /* Gaps between controls */
+
+    /* --- 3. Geometry Roles --- */
+    --tt-h-nav: calc(var(--tt-uz) * 16);
+    --tt-h-status: calc(var(--tt-uz) * 18);
+    --tt-h-row: calc(var(--tt-uz) * 12);
+    --tt-size-btn: calc(var(--tt-uz) * 8);
+    --tt-size-btn-lg: calc(var(--tt-uz) * 10);
+
+    /* --- 4. Mapping to Utilities --- */
+    --spacing-panel: var(--tt-p-panel);
+    --spacing-tight: var(--tt-p-tight);
+    --gap-stage: var(--tt-gap-stage);
+    --gap-tools: var(--tt-gap-tools);
+    /* Backward-compatible alias to map to Tailwind semantic spacing names */
+    --spacing-tools: var(--tt-gap-tools);
+    /* --- Forensic-mapped tokens (flagged items) --- */
+    --tt-col-sparkline: calc(
+        var(--tt-uz) * 16
+    ); /* The w-16 found in ColumnDefinitions */
+    --tt-h-indicator: calc(
+        var(--tt-uz) * 3
+    ); /* The h-3/h-4 for progress/skeletons */
+
+    /* Modal structural elements */
+    --tt-h-modal-header: var(--tt-h-nav); /* unify h-16 with h-nav */
+    --tt-h-control-row: calc(
+        var(--tt-uz) * 10
+    ); /* The h-10 found in Settings */
+
+    /* Visualization typography */
+    --tt-fz-label: calc(
+        var(--fz) * 0.75
+    ); /* ~10px equivalent relative to base */
+
+    /* Utility mapping aliases */
+    --spacing-sparkline: var(--tt-col-sparkline);
+    --spacing-indicator: var(--tt-h-indicator);
+    --height-modal-header: var(--tt-h-modal-header);
+    --height-control-row: var(--tt-h-control-row);
+    --font-size-label: var(--tt-fz-label);
+    --height-nav: var(--tt-h-nav);
+    --height-status: var(--tt-h-status);
+    --height-row: var(--tt-h-row);
+    --size-btn: var(--tt-size-btn);
+    --size-btn-lg: var(--tt-size-btn-lg);
+}
+
 /* Core design-system primitives and derived geometry
    - Minimal, authoritative primitives: --u, --fz, --z, --bw, --sw, --blur
    - All geometry is derived here. Components must use semantic roles or aliases.
@@ -30,15 +89,9 @@
     --blur: 18px; /* glass blur baseline (clamped) */
 
     /* Derived geometry (only from --u, --fz, --z) */
-    --fz-scaled: 11px;
+    --fz-scaled: var(--fz);
 
     /* rows & rhythm */
-    --row: 28px;
-    --row-lg: 36px;
-    --p-1: 4px;
-    --p-2: 8px;
-    --p-3: 12px;
-    --p-4: 16px;
 
     /* radii (optical — do NOT scale with --z) */
     --r-sm: 8px;
@@ -54,24 +107,20 @@
     --glass-blur: clamp(14px, var(--blur), 22px);
 
     /* Semantic roles (derive only; do not introduce new numbers) */
-    --navbar-h: calc(2 * var(--row));
-    --statusbar-h: calc(2.5 * var(--row));
-    --button-h: var(--row-lg);
     --button-min-w: calc(6 * var(--u) * var(--z));
-    --table-row: var(--row);
     --table-font: var(--fz-scaled);
 
     /* Backward-compatible aliases (read-only; keep single source here) */
     --tt-unit: var(--u);
-    --tt-font-size-base: var(--fz-scaled);
-    --tt-row-h: var(--table-row);
-    --tt-navbar-h: var(--navbar-h);
+    --tt-font-size-base: var(--fz);
+    --tt-row-h: var(--tt-h-row);
+    --tt-navbar-h: var(--tt-h-nav);
+    --tt-statusbar-h: var(--tt-h-status);
     --tt-navbar-padding: var(--p-3);
     --tt-navbar-gap: var(--p-2);
     --tt-brand-icon-size: calc(var(--icon) * 3);
     --tt-search-width: calc(40 * var(--u) * var(--z));
 
-    --tt-statusbar-h: var(--statusbar-h);
     --tt-status-icon-sm: calc(3 * var(--u) * var(--z));
     --tt-status-icon-md: calc(3.5 * var(--u) * var(--z));
     --tt-status-icon-lg: calc(4 * var(--u) * var(--z));
@@ -105,6 +154,24 @@
     --tt-statusbar-short-max-w: calc(12 * var(--u) * var(--z));
     --tt-track-h: calc(2 * var(--bw));
     --tt-command-palette-max-h: calc(80 * var(--u) * var(--z));
+    /* Additional semantic tokens for previously static utilities */
+    /* Consolidated height tokens (single source of truth) */
+    --tt-h-lg: calc(64 * var(--u) * var(--z));
+    --tt-h-md: calc(12 * var(--u) * var(--z));
+    --tt-h-sm: calc(8 * var(--u) * var(--z));
+    --tt-dot-size: calc(1.5 * var(--u) * var(--z));
+    --tt-tracker-name-max-w: calc(45 * var(--u) * var(--z));
+
+    /* Backward-compatible aliases (components will be migrated gradually) */
+    --tt-dir-list-h: var(--tt-h-lg);
+    --tt-list-item-h: var(--tt-h-md);
+    --tt-skeleton-h: var(--tt-h-md);
+    --tt-sep-h: var(--tt-h-sm);
+    --tt-sep-sm: calc(6 * var(--u) * var(--z));
+    /* expose friendly aliases */
+    --tt-size-icon-btn: var(--tt-size-icon-btn);
+    --size-icon-btn: var(--tt-size-icon-btn);
+    --size-icon-btn-lg: var(--tt-size-icon-btn-lg);
 }
 
 /* index.css - AGGRESSIVE TUNING FOR VISIBILITY */
@@ -359,6 +426,22 @@
         transform: translateY(-0.75px);
     }
 
+    /* Semantic square size utilities (use these to ensure perfect squares driven by CSS tokens) */
+    .size-icon-btn {
+        height: var(--size-icon-btn);
+        width: var(--size-icon-btn);
+    }
+
+    .size-icon-btn-lg {
+        height: var(--size-icon-btn-lg);
+        width: var(--size-icon-btn-lg);
+    }
+
+    .size-dot {
+        height: var(--tt-dot-size);
+        width: var(--tt-dot-size);
+    }
+
     /* Semantic text sizing utility mapping to scaled font variable */
     .text-scaled {
         font-size: var(--tt-font-size-base);
@@ -450,4 +533,126 @@ main .torrent-table-watermark {
 
     /* SIZE: Slightly smaller looks better in the corner than centered */
     background-size: 250px;
+}
+
+/* Semantic utility aliases to satisfy Design System: expose role-named classes
+   These keep markup concise (gap-tools, p-panel, p-tight, h-row, h-sep, etc.)
+   and hide var() math in CSS only (Zero-Bracket Policy).
+*/
+@layer utilities {
+    .gap-tools {
+        gap: var(--spacing-tools);
+    }
+
+    .gap-stage {
+        gap: var(--gap-stage);
+    }
+
+    .p-panel {
+        padding: var(--spacing-panel);
+    }
+
+    .p-tight {
+        padding: var(--spacing-tight);
+    }
+
+    .px-panel {
+        padding-left: var(--spacing-panel);
+        padding-right: var(--spacing-panel);
+    }
+
+    .py-panel {
+        padding-top: var(--spacing-panel);
+        padding-bottom: var(--spacing-panel);
+    }
+
+    .px-tight {
+        padding-left: var(--spacing-tight);
+        padding-right: var(--spacing-tight);
+    }
+
+    .py-tight {
+        padding-top: var(--spacing-tight);
+        padding-bottom: var(--spacing-tight);
+    }
+
+    .h-sep {
+        height: var(--tt-h-sm);
+    }
+
+    .h-row {
+        height: var(--tt-h-row);
+    }
+
+    .h-lg {
+        height: var(--tt-h-lg);
+    }
+
+    .h-md {
+        height: var(--tt-h-md);
+    }
+    .h-track {
+        height: var(--tt-track-h);
+    }
+
+    .h-track {
+        height: var(--tt-track-h);
+    }
+
+    .h-peers-hud {
+        height: var(--tt-peers-hud-height);
+    }
+
+    /* Additional semantic utilities for remaining token mappings */
+    .h-sep {
+        height: var(--tt-h-sm);
+    }
+
+    .h-button {
+        height: var(--button-h);
+    }
+
+    .h-settings {
+        height: var(--tt-settings-h);
+    }
+
+    .max-w-dir-picker {
+        max-width: var(--tt-directory-picker-max-w);
+    }
+
+    .max-w-modal {
+        max-width: var(--tt-modal-max-width);
+    }
+
+    .max-h-modal-body {
+        max-height: var(--tt-modal-body-max-height);
+    }
+
+    .max-h-command-palette {
+        max-height: var(--tt-command-palette-max-h);
+    }
+
+    .h-shell-accent-large {
+        height: var(--tt-shell-accent-large);
+    }
+
+    .h-shell-accent-medium {
+        height: var(--tt-shell-accent-medium);
+    }
+
+    /* Small legacy text utilities (map numeric Tailwind bracket usages to semantic names) */
+    .text-9px {
+        font-size: 9px;
+    }
+
+    .text-10px {
+        font-size: 10px;
+    }
+
+    .text-11px {
+        font-size: 11px;
+    }
+    .h-peers-hud {
+        height: var(--tt-peers-hud-height);
+    }
 }

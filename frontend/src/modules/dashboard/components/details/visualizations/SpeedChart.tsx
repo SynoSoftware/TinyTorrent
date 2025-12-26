@@ -184,7 +184,7 @@ export const SpeedChart = ({
                     {SPEED_WINDOW_OPTIONS.map((option) => (
                         <Button
                             key={option.key}
-                            size="sm"
+                            size="md"
                             variant={
                                 selectedWindow === option.key
                                     ? "shadow"

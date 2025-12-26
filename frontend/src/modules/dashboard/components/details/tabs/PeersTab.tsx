@@ -155,7 +155,7 @@ export const PeersTab = ({
     return (
         <div className="flex flex-col h-full min-h-0 overflow-hidden gap-3">
             {/* COORDINATED RADAR HUD */}
-            <GlassPanel className="flex-none h-(--tt-peers-hud-height)">
+            <GlassPanel className="flex-none h-peers-hud">
                 <PeerMap
                     peers={peers}
                     hoveredPeerId={hoveredPeer}
@@ -166,7 +166,7 @@ export const PeersTab = ({
 
             {/* HIGH-DENSITY DATA GRID */}
             <div className="flex-1 min-h-0 relative overflow-hidden rounded-2xl border border-content1/30 bg-content1/10 flex flex-col">
-                <div className="flex items-center gap-4 px-4 py-2 text-[10px] font-black uppercase text-foreground/30 tracking-[0.2em] border-b border-content1/10">
+                <div className="flex items-center gap-4 px-4 py-2 text-label font-black uppercase text-foreground/30 tracking-[0.2em] border-b border-content1/10">
                     <span className="w-12">Flags</span>
                     <span className="flex-1">Endpoint</span>
                     <span className="w-28">Client Identification</span>
@@ -283,7 +283,7 @@ export const PeersTab = ({
                                     size={14}
                                     className="text-foreground/30"
                                 />
-                                <span className="text-[10px] font-bold text-foreground/40 uppercase truncate">
+                                <span className="text-label font-bold text-foreground/40 uppercase truncate">
                                     {peerContextMenu.peer.address}
                                 </span>
                             </div>

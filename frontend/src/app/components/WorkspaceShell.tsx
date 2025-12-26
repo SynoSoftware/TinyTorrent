@@ -329,7 +329,6 @@ export function WorkspaceShell({
             onOpenChange={(open) => {
                 if (!open) clearPendingDelete();
             }}
-            size="sm"
             backdrop="blur"
             motionProps={INTERACTION_CONFIG.modalBloom}
             classNames={{
@@ -386,8 +385,8 @@ export function WorkspaceShell({
                     <div className="absolute inset-0 mix-blend-screen opacity-50 bg-primary/20" />
                     <div className="absolute inset-0 mix-blend-screen opacity-40 bg-content1/15" />
                     <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20" />
-                    <div className="absolute inset-x-[-20%] bottom-[-30%] h-(--tt-shell-accent-large) rounded-full bg-primary/30 blur-(--glass-blur) opacity-40" />
-                    <div className="absolute inset-x-[-15%] top-[-35%] h-(--tt-shell-accent-medium) rounded-full bg-blue-500/30 blur-(--glass-blur) opacity-35" />
+                    <div className="absolute inset-x-[-20%] bottom-[-30%] h-shell-accent-large rounded-full bg-primary/30 blur-(--glass-blur) opacity-40" />
+                    <div className="absolute inset-x-[-15%] top-[-35%] h-shell-accent-medium rounded-full bg-blue-500/30 blur-(--glass-blur) opacity-35" />
                 </div>
             )}
 
@@ -401,8 +400,8 @@ export function WorkspaceShell({
                         className="fixed bottom-6 right-6 z-40"
                     >
                         <Button
-                            size="sm"
-                            variant="flat"
+                            size="md"
+                            variant="shadow"
                             color="warning"
                             onPress={handleReconnect}
                         >
@@ -418,7 +417,7 @@ export function WorkspaceShell({
                         "mx-auto flex w-full flex-1 flex-col",
                         isImmersiveShell
                             ? "max-w-(--tt-shell-main-max-w) gap-6 px-4 py-6 sm:px-6 lg:px-10"
-                            : "gap-2 px-4 py-4"
+                            : "gap-tools px-4 py-4"
                     )}
                 >
                     {isImmersiveShell ? (
@@ -481,9 +480,7 @@ export function WorkspaceShell({
                                                     transition={{
                                                         duration: 0.2,
                                                     }}
-                                                    whileHover={{
-                                                        y: -4,
-                                                    }}
+                                                    whileHover={{ y: -4 }}
                                                     className={cn(
                                                         "glass-panel relative overflow-hidden border border-content1/10 bg-background/55 p-4 shadow-[0_20px_70px_rgba(0,0,0,0.4)]",
                                                         card.surfaceClass
@@ -516,18 +513,11 @@ export function WorkspaceShell({
                                                             className="text-current"
                                                         />
                                                     </button>
-                                                    <div className="flex items-start justify-between gap-3">
-                                                        <div>
-                                                            <p className="text-scaled font-semibold uppercase tracking-[0.4em] text-foreground/40">
-                                                                {card.label}
-                                                            </p>
-                                                            <p className="mt-1 text-lg font-semibold text-foreground">
-                                                                {card.title}
-                                                            </p>
-                                                        </div>
+
+                                                    <div className="flex items-start gap-workbench">
                                                         <div
                                                             className={cn(
-                                                                "flex h-11 w-11 items-center justify-center rounded-2xl",
+                                                                "flex size-icon-btn-lg items-center justify-center rounded-2xl",
                                                                 card.iconBgClass
                                                             )}
                                                         >
@@ -539,10 +529,21 @@ export function WorkspaceShell({
                                                                 className="text-current"
                                                             />
                                                         </div>
+
+                                                        <div className="flex-1">
+                                                            <p className="text-sm text-foreground/60">
+                                                                {card.title}
+                                                            </p>
+                                                            <p className="mt-1 text-lg font-semibold text-foreground">
+                                                                {card.label}
+                                                            </p>
+                                                            <p className="mt-3 text-sm text-foreground/60">
+                                                                {
+                                                                    card.description
+                                                                }
+                                                            </p>
+                                                        </div>
                                                     </div>
-                                                    <p className="mt-3 text-sm text-foreground/60">
-                                                        {card.description}
-                                                    </p>
                                                 </motion.div>
                                             );
                                         })}
@@ -563,7 +564,7 @@ export function WorkspaceShell({
                             </div>
                         </>
                     ) : (
-                        <div className="flex-1 min-h-0 h-full flex flex-col gap-2">
+                        <div className="flex-1 min-h-0 h-full flex flex-col gap-tools">
                             <div className="flex-1 min-h-0 h-full">
                                 {renderModeLayoutSection()}
                             </div>

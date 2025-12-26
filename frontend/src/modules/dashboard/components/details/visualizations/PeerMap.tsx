@@ -186,7 +186,7 @@ export const PeerMap = ({
         >
             <div className="flex items-center justify-between z-20 pointer-events-none">
                 <div className="flex flex-col">
-                    <span className="text-[10px] font-black uppercase text-foreground/30 tracking-[0.4em]">
+                    <span className="text-label font-black uppercase text-foreground/30 tracking-[0.4em]">
                         {mode === "instrument"
                             ? t("peers.diagnostic_radar")
                             : t("peers.swarm_pulse")}
@@ -213,7 +213,7 @@ export const PeerMap = ({
                             animate={{ opacity: 1, x: 0 }}
                             className="flex gap-2 items-center"
                         >
-                            <span className="text-[9px] font-mono text-foreground/40 uppercase">
+                            <span className="text-label font-mono text-foreground/40 uppercase">
                                 Aperture:{" "}
                                 {formatSpeed(swarmStats.max * radialAperture)}
                             </span>

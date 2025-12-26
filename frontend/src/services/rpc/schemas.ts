@@ -20,6 +20,10 @@ const zRpcResponse = z.object({
     tag: z.number().optional(),
 });
 
+export const zRpcSuccess = z
+    .object({ result: z.literal("success") })
+    .passthrough();
+
 const RPC_TORRENT_STATUS_VALUES = [0, 1, 2, 3, 4, 5, 6, 7] as const;
 
 const isRpcTorrentStatus = (value: number): value is RpcTorrentStatus =>
@@ -537,7 +541,7 @@ export const zSystemInstallResult = z.object({
     success: z.boolean(),
     permissionDenied: z.boolean().optional(),
     message: z.string().optional(),
-    shortcuts: z.record(z.string(), z.any()).optional(),
+    shortcuts: z.record(z.string(), z.unknown()).optional(),
     installSuccess: z.boolean().optional(),
     installMessage: z.string().optional(),
     installedPath: z.string().optional(),

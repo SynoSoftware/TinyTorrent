@@ -33,7 +33,7 @@ export const TrackersTab = ({
 
     if (!trackers.length) {
         return (
-            <GlassPanel className="flex h-48 items-center justify-center border-default/10 text-center">
+            <GlassPanel className="flex h-lg items-center justify-center border-default/10 text-center">
                 <p className="text-xs font-semibold uppercase tracking-widest text-foreground/30">
                     {emptyMessage}
                 </p>
@@ -45,7 +45,7 @@ export const TrackersTab = ({
         <div className="flex h-full flex-col gap-4">
             {/* Workbench Toolbar */}
             <div className="flex items-center justify-between px-1">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-tools">
                     <Activity size={14} className="text-primary" />
                     <span className="text-xs font-bold uppercase tracking-[0.2em] text-foreground/60">
                         {t("torrent_modal.trackers.title", {
@@ -55,8 +55,8 @@ export const TrackersTab = ({
                 </div>
                 <Button
                     isIconOnly
-                    size="sm"
-                    variant="light"
+                    size="md"
+                    variant="shadow"
                     onPress={() => setShowAdd((v) => !v)}
                     className="hover:bg-primary/10 hover:text-primary"
                 >
@@ -69,7 +69,7 @@ export const TrackersTab = ({
                 <div className="h-full overflow-auto">
                     <table className="w-full border-separate border-spacing-0 text-left">
                         <thead className="sticky top-0 z-20 bg-background/80 backdrop-blur-md">
-                            <tr className="text-[10px] font-bold uppercase tracking-widest text-foreground/40">
+                            <tr className="text-label font-bold uppercase tracking-widest text-foreground/40">
                                 <th className="border-b border-default/10 py-3 pl-4 pr-2">
                                     <Activity size={12} />
                                 </th>
@@ -95,7 +95,7 @@ export const TrackersTab = ({
                                 </th>
                             </tr>
                         </thead>
-                        <tbody className="font-mono text-[11px]">
+                        <tbody className="font-mono text-11px">
                             {trackers.map((tracker) => {
                                 const trackerKey =
                                     tracker.id ??
@@ -136,14 +136,14 @@ export const TrackersTab = ({
                                     >
                                         <td className="border-b border-default/5 py-3 pl-4 pr-2">
                                             <div
-                                                className={`h-1.5 w-1.5 rounded-full shadow-[0_0_8px] ${
+                                                className={`size-dot rounded-full shadow-[0_0_8px] ${
                                                     isOnline
                                                         ? "bg-success shadow-success/50"
                                                         : "bg-warning shadow-warning/50"
                                                 }`}
                                             />
                                         </td>
-                                        <td className="max-w-[180px] truncate border-b border-default/5 px-2 py-3 font-sans font-medium text-foreground/80">
+                                        <td className="max-w-[--tt-tracker-name-max-w] truncate border-b border-default/5 px-2 py-3 font-sans font-medium text-foreground/80">
                                             {hostname}
                                         </td>
                                         <td className="border-b border-default/5 px-2 py-3 tabular-nums text-foreground/50">
@@ -155,7 +155,7 @@ export const TrackersTab = ({
                                             </div>
                                         </td>
                                         <td className="border-b border-default/5 px-2 py-3 text-foreground/70">
-                                            <div className="flex items-center gap-2">
+                                            <div className="flex items-center gap-tools">
                                                 <Users
                                                     size={10}
                                                     className="text-foreground/30"
@@ -170,7 +170,7 @@ export const TrackersTab = ({
                                                 )}
                                             </div>
                                         </td>
-                                        <td className="border-b border-default/5 py-3 pl-2 pr-4 text-right font-sans text-[10px] font-bold uppercase tracking-wider">
+                                        <td className="border-b border-default/5 py-3 pl-2 pr-4 text-right font-sans text-label font-bold uppercase tracking-wider">
                                             <span
                                                 className={
                                                     isOnline
@@ -213,8 +213,8 @@ export const TrackersTab = ({
                             </span>
                             <Button
                                 isIconOnly
-                                size="sm"
-                                variant="light"
+                                size="md"
+                                variant="shadow"
                                 onPress={() => setShowAdd(false)}
                             >
                                 <X size={16} />
@@ -240,16 +240,16 @@ export const TrackersTab = ({
                                 minRows={6}
                             />
                         </div>
-                        <div className="flex justify-end gap-2 border-t border-default/10 p-3 bg-background/20">
+                        <div className="flex justify-end gap-tools border-t border-default/10 p-3 bg-background/20">
                             <Button
-                                size="sm"
-                                variant="flat"
+                                size="md"
+                                variant="shadow"
                                 onPress={() => setShowAdd(false)}
                             >
                                 {t("common.cancel", { defaultValue: "Cancel" })}
                             </Button>
                             <Button
-                                size="sm"
+                                size="md"
                                 color="primary"
                                 startContent={<Check size={14} />}
                                 onPress={() => {

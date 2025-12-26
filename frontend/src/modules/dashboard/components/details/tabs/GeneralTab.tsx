@@ -46,7 +46,7 @@ const GeneralInfoCard = ({
 }: GeneralInfoCardProps) => (
     <GlassPanel className="p-4">
         <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-content1/20 bg-content1/30">
+            <div className="flex size-icon-btn-lg items-center justify-center rounded-xl border border-content1/20 bg-content1/30">
                 <Icon
                     size={18}
                     strokeWidth={ICON_STROKE_WIDTH}
@@ -93,7 +93,7 @@ export const GeneralTab = ({
     return (
         <div className="space-y-6">
             {showNoDataError && (
-                <GlassPanel className="p-4 border border-warning/30 bg-warning/10 flex flex-col gap-2">
+                <GlassPanel className="p-4 border border-warning/30 bg-warning/10 flex flex-col gap-tools">
                     <div className="font-semibold text-warning text-sm">
                         {t("torrent_modal.errors.no_data_found_title", {
                             defaultValue: "No data found!",
@@ -105,9 +105,9 @@ export const GeneralTab = ({
                                 "Ensure your drives are connected or use 'Set Location'. To re-download, remove the torrent and re-add it.",
                         })}
                     </div>
-                    <div className="flex gap-2 mt-2">
+                    <div className="flex gap-tools mt-2">
                         <Button
-                            size="sm"
+                            size="md"
                             variant="shadow"
                             color="primary"
                             onPress={() => {
@@ -120,7 +120,7 @@ export const GeneralTab = ({
                             })}
                         </Button>
                         <Button
-                            size="sm"
+                            size="md"
                             variant="shadow"
                             color="danger"
                             onPress={() => {
@@ -132,7 +132,7 @@ export const GeneralTab = ({
                             })}
                         </Button>
                         <Button
-                            size="sm"
+                            size="md"
                             variant="shadow"
                             color="default"
                             onPress={() => {
@@ -194,8 +194,8 @@ export const GeneralTab = ({
                         </p>
                     </div>
                     <Button
-                        size="sm"
-                        variant="flat"
+                        size="md"
+                        variant="shadow"
                         color="primary"
                         className="h-8"
                         onPress={onForceTrackerReannounce}
@@ -206,7 +206,7 @@ export const GeneralTab = ({
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                     <Switch
-                        size="sm"
+                        size="md"
                         color="success"
                         isDisabled={!sequentialSupported}
                         isSelected={Boolean(torrent.sequentialDownload)}
@@ -229,7 +229,7 @@ export const GeneralTab = ({
                         </div>
                     </Switch>
                     <Switch
-                        size="sm"
+                        size="md"
                         color="primary"
                         isDisabled={!superSeedingSupported}
                         isSelected={Boolean(torrent.superSeeding)}
@@ -285,7 +285,7 @@ export const GeneralTab = ({
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <GlassPanel className="p-4 space-y-3">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-tools">
                         <Folder
                             size={16}
                             strokeWidth={ICON_STROKE_WIDTH}
@@ -305,8 +305,8 @@ export const GeneralTab = ({
                     </code>
                 </GlassPanel>
                 <GlassPanel className="p-4 space-y-3">
-                    <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
+                    <div className="flex items-center justify-between gap-tools">
+                        <div className="flex items-center gap-tools">
                             <Hash
                                 size={16}
                                 strokeWidth={ICON_STROKE_WIDTH}
@@ -318,8 +318,8 @@ export const GeneralTab = ({
                         </div>
                         <Button
                             isIconOnly
-                            size="sm"
-                            variant="flat"
+                            size="md"
+                            variant="shadow"
                             onPress={handleCopyHash}
                             aria-label={t("table.actions.copy_hash")}
                             className="text-foreground/50 hover:text-foreground"

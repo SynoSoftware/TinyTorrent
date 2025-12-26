@@ -187,7 +187,7 @@ export function LanguageMenu() {
                 )}
                 itemClasses={{
                     base: cn(
-                        "px-3 py-2",
+                        "px-tight py-tight",
                         "text-sm font-medium",
                         "flex items-center justify-between",
                         "rounded-xl",

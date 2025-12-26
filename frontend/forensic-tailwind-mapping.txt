@@ -1,0 +1,258 @@
+Forensic Tailwind Mapping — collected matches
+
+Note: This file contains the matches collected from segmented regex searches across src/. Searches targeted p-*/m-*/gap-*/h-*/w-*/max-*/min-*/size-* and bracketed Tailwind forms. Some searches were capped at 200 results; further segmented scans are available on request.
+
+--- Matches ---
+
+src/index.css:92:     --tt-navbar-padding: var(--p-3);
+src/index.css:93:     --tt-navbar-gap: var(--p-2);
+src/index.css:104:    --tt-file-row-padding-left: var(--p-2);
+src/index.css:107:    --tt-file-context-menu-margin: var(--p-2);
+src/index.css:109:    --tt-priority-badge-padding-x: var(--p-2);
+src/index.css:110:    --tt-priority-badge-padding-y: var(--p-1);
+src/index.css:112:    --tt-file-checkbox-padding: var(--p-1);
+
+src/app/components/layout/Navbar.tsx:98:                    <div className="flex items-center gap-3 pr-2">
+src/app/components/layout/Navbar.tsx:140:                            base: "p-0",
+src/app/components/layout/Navbar.tsx:142:                                "bg-default-100/50 p-1 border border-default-200/50 shadow-inner gap-1",
+src/app/components/layout/Navbar.tsx:144:                            tab: "px-3 font-semibold text-default-500 data-[selected=true]:text-foreground transition-colors",
+src/app/components/layout/Navbar.tsx:150:                                <div className="flex items-center gap-1.5">
+src/app/components/layout/Navbar.tsx:159:                                <div className="flex items-center gap-1.5">
+src/app/components/layout/Navbar.tsx:168:                                <div className="flex items-center gap-1.5">
+src/app/components/layout/Navbar.tsx:178:                <div className="flex items-center gap-3">
+src/app/components/layout/Navbar.tsx:186:                                "h-full flex items-center gap-2 flex-nowrap font-normal text-default-500 bg-default-100/50 hover:bg-default-200/50 border-transparent focus-within:bg-default-100 focus-within:border-primary/20 shadow-inner rounded-full transition-colors",
+src/app/components/layout/Navbar.tsx:207:                        className="w-px bg-default-200/50 mx-1"
+src/app/components/layout/Navbar.tsx:214:                            "flex items-center gap-1 transition-opacity duration-200",
+src/app/components/layout/Navbar.tsx:255:                        className="w-px bg-default-200/50 mx-1"
+src/app/components/layout/Navbar.tsx:268:                    <div className="h-(--tt-h-sm) w-px bg-default-200/50 mx-1" />
+src/app/components/layout/Navbar.tsx:271:                    <div className="flex items-center gap-1">
+src/app/components/layout/Navbar.tsx:302:                                    trackClassName="h-[var(--tt-track-h)] bg-transparent"
+src/app/components/layout/Navbar.tsx:306:                                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-black/80 text-white text-scaled px-2 py-1 rounded shadow-lg whitespace-nowrap pointer-events-none">
+
+src/app/components/WorkspaceShell.tsx:352:                        <ModalFooter className="flex justify-end gap-3">
+src/app/components/WorkspaceShell.tsx:419:                            ? "max-w-(--tt-shell-main-max-w) gap-6 px-4 py-6 sm:px-6 lg:px-10"
+src/app/components/WorkspaceShell.tsx:420:                            : "gap-2 px-4 py-4"
+src/app/components/WorkspaceShell.tsx:440:                                className="acrylic flex-1 min-h-0 h-full border border-white/10 shadow-[0_35px_140px_rgba(0,0,0,0.45)]"
+src/app/components/WorkspaceShell.tsx:447:                                    className="flex-1 min-h-0 h-full overflow-hidden border border-white/5 bg-background/20 shadow-inner"
+src/app/components/WorkspaceShell.tsx:457:                                <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+src/app/components/WorkspaceShell.tsx:485:                                                        "glass-panel relative overflow-hidden border border-content1/10 bg-background/55 p-4 shadow-[0_20px_70px_rgba(0,0,0,0.4)]",
+src/app/components/WorkspaceShell.tsx:499:                                                        className="absolute right-3 top-3 rounded-full bg-content1/20 p-1 text-foreground/60 transition hover:bg-content1/40 hover:text-foreground"
+src/app/components/WorkspaceShell.tsx:537:                                                            <p className="mt-1 text-lg font-semibold text-foreground">
+src/app/components/WorkspaceShell.tsx:540:                                                            <p className="mt-3 text-sm text-foreground/60">
+src/app/components/WorkspaceShell.tsx:567:                        <div className="flex-1 min-h-0 h-full flex flex-col gap-2">
+src/app/components/WorkspaceShell.tsx:568:                            <div className="flex-1 min-h-0 h-full">
+
+src/app/components/CommandPalette.tsx:100:                    className="fixed inset-0 z-50 flex items-start justify-center px-4 pt-6"
+src/app/components/CommandPalette.tsx:112:                        className="relative z-10 w-full max-w-2xl rounded-[var(--r-md)] border border-content1/20 bg-content1/80 shadow-[0_30px_70px_rgba(0,0,0,0.55)] backdrop-blur-3xl"
+src/app/components/CommandPalette.tsx:126:                                className="rounded-none border-0 bg-transparent px-6 py-4 text-base font-semibold outline-none placeholder:text-foreground/50"
+src/app/components/CommandPalette.tsx:128:                            <Command.List className="max-h-[var(--tt-command-palette-max-h)] overflow-y-auto px-6 pb-4 pt-2">
+src/app/components/CommandPalette.tsx:151:                                                            <div className="flex gap-2 text-scaled font-mono uppercase text-foreground/50">
+src/app/components/CommandPalette.tsx:158:                                                                            className="rounded-full border border-foreground/30 px-2 py-0.5"
+src/app/components/CommandPalette.tsx:179:                                <Command.Empty className="py-6 text-center text-sm text-foreground/60">
+
+src/app/components/layout/StatusBar.tsx:33:        sectionGap: "gap-4",
+src/app/components/layout/StatusBar.tsx:34:        internalGap: "gap-2",
+src/app/components/layout/StatusBar.tsx:35:        hudGap: "gap-6",
+src/app/components/layout/StatusBar.tsx:39:        dot: "w-2 h-2",
+src/app/components/layout/StatusBar.tsx:41:            chip: "w-5 h-5",
+src/app/components/layout/StatusBar.tsx:42:            md: "w-4 h-4",
+src/app/components/layout/StatusBar.tsx:43:            lg: "w-6 h-6",
+src/app/components/layout/StatusBar.tsx:218:                        "flex flex-1 items-center h-full py-2",
+src/app/components/layout/StatusBar.tsx:225:                            "flex flex-1 items-center h-full min-w-0 group",
+src/app/components/layout/StatusBar.tsx:250:                            <div className="flex flex-col justify-center gap-0.5">
+src/app/components/layout/StatusBar.tsx:270:                            className="flex-1 h-full py-2 opacity-30 grayscale transition-all duration-500 group-hover:grayscale-0 group-hover:opacity-100"
+
+src/modules/dashboard/components/ModeLayout.tsx:218:                "relative h-full w-full flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden transition-all duration-200",
+src/modules/dashboard/components/ModeLayout.tsx:230:            "relative flex-1 min-h-0 w-full h-full overflow-hidden",
+src/modules/dashboard/components/ModeLayout.tsx:300:            className="flex-1 min-h-0 h-full w-full relative overflow-hidden"
+src/modules/dashboard/components/ModeLayout.tsx:303:            <Panel className="relative flex-1 min-h-0">
+src/modules/dashboard/components/ModeLayout.tsx:307:                            className="relative z-10 h-full min-h-0 overflow-hidden"
+src/modules/dashboard/components/ModeLayout.tsx:319:                                className="relative z-10 h-full min-h-0"
+src/modules/dashboard/components/ModeLayout.tsx:398:                            className="h-full min-h-0 flex-1 overflow-hidden"
+src/modules/dashboard/components/ModeLayout.tsx:404:                                className="h-full min-h-0 flex-1"
+src/modules/dashboard/components/ModeLayout.tsx:446:        <div className="flex-1 min-h-0 h-full">
+src/modules/dashboard/components/ModeLayout.tsx:453:                        className="fixed inset-0 z-40 flex items-center justify-center p-6"
+
+src/modules/dashboard/components/TorrentDetailView.tsx:130:            className={className ?? "h-full min-h-0 flex flex-col"}
+src/modules/dashboard/components/TorrentDetailView.tsx:134:            <div className="flex items-center justify-between gap-2 px-3 py-2">
+src/modules/dashboard/components/TorrentDetailView.tsx:142:                            className={`px-3 py-1 rounded-full text-scaled ${
+src/modules/dashboard/components/TorrentDetailView.tsx:152:                <div className="flex items-center gap-1">
+src/modules/dashboard/components/TorrentDetailView.tsx:157:                            className="p-1 rounded hover:bg-primary/10"
+src/modules/dashboard/components/TorrentDetailView.tsx:168:                            className="p-1 rounded hover:bg-primary/10"
+src/modules/dashboard/components/TorrentDetailView.tsx:179:                            className="p-1 rounded hover:bg-primary/10"
+src/modules/dashboard/components/TorrentDetailView.tsx:189:            <div className="flex-1 min-h-0 overflow-hidden">
+
+src/modules/dashboard/components/details/tabs/ContentTab.tsx:90:            <div className="flex h-full min-h-0 flex-col gap-4">
+src/modules/dashboard/components/details/tabs/ContentTab.tsx:91:                <GlassPanel className="p-4 space-y-3 border border-warning/30 bg-warning/10">
+src/modules/dashboard/components/details/tabs/ContentTab.tsx:95:                    <div className="text-warning text-xs mb-2">
+src/modules/dashboard/components/details/tabs/ContentTab.tsx:101:                    <div className="flex gap-2 mt-2">
+src/modules/dashboard/components/details/tabs/ContentTab.tsx:169:            <GlassPanel className="flex flex-1 min-h-0 flex-col border border-default/15 p-0">
+src/modules/dashboard/components/details/tabs/ContentTab.tsx:171:                    className="border-b border-default/10 px-4 py-3 text-xs font-semibold uppercase text-foreground/50"
+src/modules/dashboard/components/details/tabs/ContentTab.tsx:176:                <div className="flex-1 min-h-0 overflow-hidden"
+
+src/modules/dashboard/components/details/tabs/TrackersTab.tsx:36:            <GlassPanel className="flex h-48 items-center justify-center border-default/10 text-center">
+src/modules/dashboard/components/details/tabs/TrackersTab.tsx:45:        <div className="flex h-full flex-col gap-4">
+src/modules/dashboard/components/details/tabs/TrackersTab.tsx:68:            <GlassPanel className="relative min-h-0 flex-1 overflow-hidden border-default/10 p-0">
+src/modules/dashboard/components/details/tabs/TrackersTab.tsx:73:                                <th className="border-b border-default/10 py-3 pl-4 pr-2">
+src/modules/dashboard/components/details/tabs/TrackersTab.tsx:76:                                <th className="border-b border-default/10 px-2 py-3">
+src/modules/dashboard/components/details/tabs/TrackersTab.tsx:81:                                <th className="border-b border-default/10 px-2 py-3">
+src/modules/dashboard/components/details/tabs/TrackersTab.tsx:91:                                <th className="border-b border-default/10 py-3 pl-2 pr-4 text-right">
+src/modules/dashboard/components/details/tabs/TrackersTab.tsx:137:                                        <td className="border-b border-default/5 py-3 pl-4 pr-2">
+src/modules/dashboard/components/details/tabs/TrackersTab.tsx:146:                                        <td className="max-w-[--tt-tracker-name-max-w] truncate border-b border-default/5 px-2 py-3 font-sans font-medium text-foreground/80">
+src/modules/dashboard/components/details/tabs/TrackersTab.tsx:149:                                        <td className="border-b border-default/5 px-2 py-3 tabular-nums text-foreground/50">
+src/modules/dashboard/components/details/tabs/TrackersTab.tsx:150:                                            <div className="flex items-center gap-1.5">
+
+src/modules/torrent-add/components/AddTorrentModal.tsx:356:                    "w-full max-w-[var(--tt-modal-max-width)]"
+src/modules/torrent-add/components/AddTorrentModal.tsx:365:                        <ModalHeader className="flex flex-col gap-1">
+src/modules/torrent-add/components/AddTorrentModal.tsx:366:                            <h3 className="text-lg font-bold flex items-center gap-2">
+src/modules/torrent-add/components/AddTorrentModal.tsx:375:                        <ModalBody className="py-6 space-y-6">
+src/modules/torrent-add/components/AddTorrentModal.tsx:393:                            <div className="rounded-xl border border-content1/20 bg-content1/15 px-4 py-3 space-y-2">
+src/modules/torrent-add/components/AddTorrentModal.tsx:413:                                <div className="flex items-center justify-between gap-3">
+src/modules/torrent-add/components/AddTorrentModal.tsx:419:                                    <div className="flex items-center gap-2">
+src/modules/torrent-add/components/AddTorrentModal.tsx:448:                                <div className="rounded-xl border border-content1/20 bg-content1/15 px-4 py-4 space-y-2">
+src/modules/torrent-add/components/AddTorrentModal.tsx:483:                                    <div className="max-h-[var(--tt-modal-body-max-height)] overflow-y-auto">
+src/modules/torrent-add/components/AddTorrentModal.tsx:496:                                    className="rounded-xl border border-content1/20 bg-background/30 px-4 py-3"
+src/modules/torrent-add/components/AddTorrentModal.tsx:509:                            <div className="grid grid-cols-2 gap-4">
+src/modules/torrent-add/components/AddTorrentModal.tsx:542:                                                    className="font-semibold uppercase px-3 py-1"
+src/modules/torrent-add/components/AddTorrentModal.tsx:558:                                <div className="rounded-xl border border-content1/20 bg-content1/15 px-4 py-3 space-y-2 flex flex-col">
+
+src/modules/settings/components/tabs/system/SystemTabContent.tsx:23:            <div className="space-y-6 mt-4">
+src/modules/settings/components/tabs/system/SystemInstallSection.tsx:161:                className="uppercase h-8 px-3"
+src/modules/settings/components/tabs/system/SystemInstallSection.tsx:195:            <div className="grid gap-4 md:grid-cols-2">
+src/modules/settings/components/tabs/system/SystemInstallSection.tsx:227:                <div className="flex flex-wrap gap-2">{locationButtons}</psrc/modules/settings/components/tabs/system/SystemInstallSection.tsx:229:            <div className="flex flex-col gap-3">
+
+src/modules/settings/components/SettingsSection.tsx:20:                "p-5 rounded-2xl border border-content1/20 bg-content1/10",
+src/modules/settings/components/SettingsSection.tsx:26:                    className="text-scaled font-bold uppercase text-foreground/40 mb-3 mt-0 leading-tight"
+src/modules/settings/components/SettingsSection.tsx:34:                    className="mb-4 text-scaled uppercase text-foreground/50"
+
+src/modules/settings/components/SettingsModal.tsx:580:                    "flex flex-row h-[var(--tt-settings-h)] max-h-[var(--tt-settings-max-h)] min-h-[var(--tt-settings-min-h)] overflow-hidden"
+src/modules/settings/components/SettingsModal.tsx:586:            <ModalContent className="h-full flex flex-col p-0">
+src/modules/settings/components/SettingsModal.tsx:591:                <div className="flex flex-row flex-1 min-h-0 overflow-hidden relative">
+src/modules/settings/components/SettingsModal.tsx:597:                            "flex flex-col border-r border-content1/20 bg-content1/50 backdrop-blur-xl transition-transform duration-300 absolute inset-y-0 left-0 z-20 w-full sm:w-64 sm:relative sm:translate-x-0",
+src/modules/settings/components/SettingsModal.tsx:597:                        <div className="p-6 border-b border-content1/10 flex justify-between items-center h-16 shrink-0">
+src/modules/settings/components/SettingsModal.tsx:612:                        <div className="flex-1 px-3 py-4 space-y-1 overflow-y-auto scrollbar-hide">
+src/modules/settings/components/SettingsModal.tsx:621:                                        "w-full flex items-center gap-4 px-4 py-3 rounded-xl text-sm transition-all duration-200 group relative",
+src/modules/settings/components/SettingsModal.tsx:641:                                            className="absolute left-0 top-3 bottom-3 w-1 bg-primary rounded-r-full"
+src/modules/settings/components/SettingsModal.tsx:647:                        <div className="p-6 border-t border-content1/10 shrink-0">
+src/modules/settings/components/SettingsModal.tsx:655:                    <div className="flex-1 min-h-0 flex flex-col bg-content1/10 backdrop-blur-lg relative w-full">
+src/modules/settings/components/SettingsModal.tsx:657:                        <div className="sticky top-0 z-10 shrink-0 h-16 border-b border-content1/10 flex items-center justify-between px-6 bg-content1/30 backdrop-blur-xl"
+src/modules/settings/components/SettingsModal.tsx:698:                        <div className="flex-1 min-h-0 overflow-y-auto w-full p-4 sm:p-8 scrollbar-hide">
+src/modules/settings/components/SettingsModal.tsx:706:                                    className="flex flex-col space-y-6 sm:space-y-8 pb-20"
+src/modules/settings/components/SettingsModal.tsx:709:                                        <div className="rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
+src/modules/settings/components/SettingsModal.tsx:733:                        <div className="sticky bottom-0 z-10 shrink-0 border-t border-content1/10 bg-content1/40 backdrop-blur-xl px-6 py-4 flex items-center justify-between">
+
+src/modules/settings/components/SettingsBlockRenderers.tsx:54:                <div className="text-scaled font-mono font-medium text-foreground/80 bg-content2 px-2 py-1 rounded-md min-w-(--tt-badge-min-width) text-center">
+src/modules/settings/components/SettingsBlockRenderers.tsx:87:        <div className="flex justify-between items-center h-10">
+src/modules/settings/components/SettingsBlockRenderers.tsx:185:                    "h-[var(--button-h)] transition-colors",
+src/modules/settings/components/SettingsBlockRenderers.tsx:194:                label: "text-foreground/60 font-medium text-xs uppercase tracking-wider mb-1",
+src/modules/settings/components/SettingsBlockRenderers.tsx:214:        <div className="flex w-full items-end gap-3 group">
+src/modules/settings/components/SettingsBlockRenderers.tsx:221:                className="h-(--button-h) px-5 shrink-0 font-semibold text-xs tracking-wider uppercase bg-primary/10 hover:bg-primary/20 text-primary transition-colors data-[pressed=true]:scale-95"
+src/modules/settings/components/SettingsBlockRenderers.tsx:237:        <div className={cn("grid gap-4", gridCols)}>
+src/modules/settings/components/SettingsBlockRenderers.tsx:284:                                "h-(--button-h) px-3 shrink-0 font-semibold text-xs tracking-wider uppercase bg-primary/10 hover:bg-primary/20 text-primary transition-colors data-[pressed=true]:scale-95 text-scaled min-w-0",
+src/modules/settings/components/SettingsBlockRenderers.tsx:318:                trigger: "h-[var(--button-h)]",
+src/modules/settings/components/SettingsBlockRenderers.tsx:366:        <div className="flex items-center justify-between gap-4">
+
+src/modules/dashboard/components/TorrentTable.tsx:100:const CELL_PADDING_CLASS = "pl-2 pr-3";
+src/modules/dashboard/components/TorrentTable.tsx:320:                    "relative flex items-center h-10 border-r border-content1/10 transition-colors group select-none overflow-hidden",
+src/modules/dashboard/components/TorrentTable.tsx:336:                        "flex-1 gap-2",
+src/modules/dashboard/components/TorrentTable.tsx:342:                        isSelection && "justify-center px-0"
+src/modules/dashboard/components/TorrentTable.tsx:374:                        className="absolute right-0 top-0 h-full w-4 cursor-col-resize touch-none select-none flex justify-center items-center z-30"
+src/modules/dashboard/components/TorrentTable.tsx:378:                                "w-(--bw) h-4 bg-foreground/10 transition-colors rounded-full",
+src/modules/dashboard/components/TorrentTable.tsx:381:                                    "bg-primary w-(--tt-divider-width) h-6"
+src/modules/dashboard/components/TorrentTable.tsx:404:                "relative flex h-10 items-center border-r border-content1/10 bg-content1/90 px-(--p-2) transition-all",
+src/modules/dashboard/components/TorrentTable.tsx:412:                    "flex-1 gap-2 text-scaled font-bold uppercase text-foreground/70",
+src/modules/dashboard/components/TorrentTable.tsx:416:                    isSelection && "justify-center px-0"
+src/modules/dashboard/components/TorrentTable.tsx:589:                        "relative flex items-center w-full h-full px-0",
+src/modules/dashboard/components/TorrentTable.tsx:1012:                            className="flex items-center gap-1 text-scaled font-semibold uppercase text-foreground/60"
+src/modules/dashboard/components/TorrentTable.tsx:1709:        "flex w-full sticky top-0 z-20 border-b border-content1/20 bg-content1/10 backdrop-blur-sm px-0"
+src/modules/dashboard/components/TorrentTable.tsx:1712:        "relative flex-1 h-full min-h-0 flex flex-col overflow-hidden"
+src/modules/dashboard/components/TorrentTable.tsx:1725:                    "flex-1 min-h-0 flex flex-col h-full overflow-hidden relative select-none outline-none",
+src/modules/dashboard/components/TorrentTable.tsx:1770:                            className="relative flex-1 h-full min-h-0 overflow-y-auto w-full overlay-scrollbar"
+src/modules/dashboard/components/TorrentTable.tsx:1777:                                            className="flex items-center w-full border-b border-content1/5 px-4"
+src/modules/dashboard/components/TorrentTable.tsx:1782:                                            <Skeleton className="h-4 w-full rounded-md bg-content1/10"
+src/modules/dashboard/components/TorrentTable.tsx:1787:                                <div className="h-full flex flex-col items-center justify-center gap-6 px-6 text-foreground/60">
+src/modules/dashboard/components/TorrentTable.tsx:1789:                                        className="flex items-center gap-2 text-xs font-semibold uppercase text-foreground/60"
+src/modules/dashboard/components/TorrentTable.tsx:1815:                                    <div className="w-full max-w-3xl space-y-2">
+src/modules/dashboard/components/TorrentTable.tsx:1817:                                            className="grid grid-cols-[48px_minmax(0,1fr)_120px] gap-3 rounded-2xl border border-content1/20 bg-background/40 px-3 py-2 text-scaled uppercase text-foreground/50"
+src/modules/dashboard/components/TorrentTable.tsx:1823:                                            <span className="h-3 w-full rounded-full bg-content1/20" />
+src/modules/dashboard/components/TorrentTable.tsx:1835:                                                    className="grid grid-cols-[48px_minmax(0,1fr)_120px] gap-3 rounded-2xl bg-content1/10 px-3 py-2"
+src/modules/dashboard/components/TorrentTable.tsx:1837:                                                    <span className="h-3 w-full rounded-full bg-content1/20" />
+src/modules/dashboard/components/TorrentTable.tsx:2034:                                        className="border-t border-content1/20 mt-2 pt-(--p-2) px-4 text-scaled font-bold uppercase text-foreground/50"
+src/modules/dashboard/components/TorrentTable.tsx:2046:                                                className="pl-10 text-sm"
+src/modules/dashboard/components/TorrentTable.tsx:2058:                                        className="border-t border-content1/20 mt-2 pt-(--p-2) px-4 text-scaled font-bold uppercase text-foreground/50"
+src/modules/dashboard/components/TorrentTable.tsx:2146:                                        className="px-4 py-(--p-2) text-scaled font-semibold"
+src/modules/dashboard/components/TorrentTable.tsx:2158:                                        className="p-0 h-0"
+src/modules/dashboard/components/TorrentTable.tsx:2160:                                        <div className="border-t border-content1/20 my-1 mx-4" />
+src/modules/dashboard/components/TorrentTable.tsx:2173:                                                            className="p-0 h-0"
+src/modules/dashboard/components/TorrentTable.tsx:2175:                                                            <div className="border-t border-content1/10 my-1" />
+src/modules/dashboard/components/TorrentTable.tsx:2184:                                                        className="pl-12 text-scaled"
+src/modules/dashboard/components/TorrentTable.tsx:2199:                                                                    base: "mr-2",
+src/modules/dashboard/components/TorrentTable.tsx:2244:                                            className="flex justify-between p-2"
+
+src/shared/ui/workspace/FileExplorerTree.tsx:420:            <div className="rounded-xl border border-content1/20 bg-content1/15 p-4 text-xs text-foreground/50 text-center">
+src/shared/ui/workspace/FileExplorerTree.tsx:448:            <div className="rounded-xl border border-content1/20 bg-content1/15 p-4 text-xs text-foreground/50 text-center">
+src/shared/ui/workspace/FileExplorerTree.tsx:456:            <div className="flex items-center gap-2 p-2 sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-content1/10">
+src/shared/ui/workspace/FileExplorerTree.tsx:464:                    className="flex-1 px-2 py-1 rounded bg-content1/20 text-foreground outline-none"
+src/shared/ui/workspace/FileExplorerTree.tsx:475:                        className="px-2 py-1 rounded bg-content1/20 text-foreground outline-none"
+src/shared/ui/workspace/FileExplorerTree.tsx:529:                                        className="flex items-center gap-2 py-2 cursor-pointer hover:bg-content1/10 rounded pl-1 h-full"
+src/shared/ui/workspace/FileExplorerTree.tsx:547:                                            className="flex items-center justify-center rounded-full p-1 text-foreground/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+src/shared/ui/workspace/FileExplorerTree.tsx:580:                                                classNames={{ wrapper: "m-0" }}
+src/shared/ui/workspace/FileExplorerTree.tsx:589:                                            className="flex items-center justify-center rounded-full p-1 text-foreground/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+src/shared/ui/workspace/FileExplorerTree.tsx:632:                        const rowClasses = `flex items-center gap-2 py-2 rounded cursor-pointer h-full transition-colors ${
+src/shared/ui/workspace/FileExplorerTree.tsx:681:                                    <div className="flex-1 min-w-0 flex flex-col gap-1">
+src/shared/ui/workspace/FileExplorerTree.tsx:735:                        className="pointer-events-auto absolute z-50 rounded-2xl border border-content1/40 bg-content1/80 p-1 backdrop-blur-3xl shadow-[0_20px_45px_rgba(0,0,0,0.35)]"
+src/shared/ui/workspace/FileExplorerTree.tsx:748:                                className="w-full rounded-xl px-3 py-2 text-left text-sm font-medium text-foreground transition-colors data-[hover=true]:bg-content2/70 data-[pressed=true]:bg-content2/80 hover:text-foreground"
+
+src/shared/ui/workspace/DirectoryPicker.tsx:188:                    "flex w-full items-center justify-between gap-3 rounded-2xl border border-content1/20 bg-content1/10 px-4 py-3 text-left transition hover:border-primary/40 hover:bg-content1/20",
+src/shared/ui/workspace/DirectoryPicker.tsx:192:                <div className="flex items-center gap-3">
+src/shared/ui/workspace/DirectoryPicker.tsx:241:                    "max-w-[var(--tt-directory-picker-max-w)] w-full"
+src/shared/ui/workspace/DirectoryPicker.tsx:247:                <ModalHeader className="flex flex-col gap-1 pb-0">
+src/shared/ui/workspace/DirectoryPicker.tsx:258:                <ModalBody className="space-y-4 pt-3 pb-0">
+src/shared/ui/workspace/DirectoryPicker.tsx:289:                            className="flex items-center gap-2"
+src/shared/ui/workspace/DirectoryPicker.tsx:310:                    <div className="relative h-(--tt-h-lg) overflow-y-auto rounded-2xl border border-content1/20 bg-content1/10 p-2">
+src/shared/ui/workspace/DirectoryPicker.tsx:334:                <ModalFooter className="flex flex-col gap-3 pt-0">
+
+src/shared/ui/visualizations/PeerMap.tsx:182:            className="flex flex-col flex-1 min-h-0 rounded-2xl border border-content1/20 bg-content1/10 p-4 space-y-3 overflow-hidden"
+src/shared/ui/visualizations/PeerMap.tsx:198:                <div className="flex items-center gap-1"
+src/shared/ui/visualizations/PeerMap.tsx:226:            <div className="flex-1 min-h-0">
+
+src/shared/ui/controls/LanguageMenu.tsx:181:                    "min-w-48",
+src/shared/ui/controls/LanguageMenu.tsx:186:                    "p-1"
+src/shared/ui/controls/LanguageMenu.tsx:190:                        "px-3 py-2",
+
+src/modules/dashboard/components/details/visualizations/SpeedChart.tsx:173:        <div className="flex flex-col gap-3">
+src/modules/dashboard/components/details/visualizations/SpeedChart.tsx:175:                <div className="flex items-center gap-4">
+src/modules/dashboard/components/details/visualizations/SpeedChart.tsx:176:                    <span className="flex items-center gap-1 text-success">
+src/modules/dashboard/components/details/visualizations/SpeedChart.tsx:179:                    <span className="flex items-center gap-1 text-primary">
+src/modules/dashboard/components/details/visualizations/SpeedChart.tsx:183:                <div className="flex items-center gap-1">
+src/modules/dashboard/components/details/visualizations/SpeedChart.tsx:198:                            className="rounded-full px-(--p-3) text-(--font-size-sm)"
+src/modules/dashboard/components/details/visualizations/SpeedChart.tsx:207:            <div className="rounded-2xl border border-content1/20 bg-content1/20 p-3"
+
+src/modules/dashboard/components/details/visualizations/PiecesMap.tsx:113:        <div className="flex flex-col gap-4 h-full">
+src/modules/dashboard/components/details/visualizations/PiecesMap.tsx:143:            <div className="rounded-2xl border border-content1/20 bg-content1/10 p-4">
+src/modules/dashboard/components/details/visualizations/PiecesMap.tsx:158:                            className="pointer-events-none absolute z-10 max-w-[230px] rounded-2xl border border-content1/30 bg-content1/90 px-3 py-2 text-tiny text-foreground/90 shadow-large backdrop-blur-xl"
+src/modules/dashboard/components/details/visualizations/PiecesMap.tsx:178:                        <div className="absolute top-2 right-2 bg-success/80 text-white text-xs font-bold px-3 py-1 rounded shadow-lg">
+src/modules/dashboard/components/details/visualizations/PiecesMap.tsx:185:                        <div className="absolute left-2 bottom-2 bg-content1/90 text-xs text-foreground/80 px-2 py-1 rounded shadow">
+
+src/modules/dashboard/components/details/visualizations/AvailabilityHeatmap.tsx:252:            <div className="rounded-2xl border border-content1/20 bg-content1/10 p-4 text-scaled text-foreground/50 text-center">
+src/modules/dashboard/components/details/visualizations/AvailabilityHeatmap.tsx:259:        <motion.div layout className="flex flex-col gap-3">
+src/modules/dashboard/components/details/visualizations/AvailabilityHeatmap.tsx:267:                <div className="flex items-center gap-3 text-scaled text-foreground/50">
+src/modules/dashboard/components/details/visualizations/AvailabilityHeatmap.tsx:270:                    <span className="flex items-center gap-1">
+src/modules/dashboard/components/details/visualizations/AvailabilityHeatmap.tsx:270:                            className="w-2 h-2 rounded-full"
+
+(End of collected matches in this pass)
+
+--- Audit Notes (delta) ---
+
+Replacements applied in this session:
+- src/modules/dashboard/components/details/visualizations/AvailabilityHeatmap.tsx: replaced `w-2 h-2` -> `size-dot` (legend markers)
+- src/app/components/layout/StatusBar.tsx: updated `UI_CONFIG.sizing` entries to use `size-dot`, `size-icon-btn`, `size-icon-btn-lg`
+
+Remaining high-confidence candidates (recommend automatic replacement):
+- explicit paired `w-X h-X` occurrences across repo (if discovered) — none detected beyond above.
+- status: many `px-* py-*`, `gap-*`, `p-*`, `h-*`, `w-*` usages remain and need manual review for semantic mapping.
+
+Next recommended steps:
+1) Run the same regex pass that generated this file and save its output again after each replacement to prove convergence.
+2) Flag ambiguous numeric utilities for manual review in a separate file `forensic-tailwind-flagged.txt`.
+3) Triage and replace remaining tokens in small batches, running `npm run build` after each batch.

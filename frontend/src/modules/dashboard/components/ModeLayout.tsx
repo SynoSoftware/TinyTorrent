@@ -217,7 +217,7 @@ export function ModeLayout({
             className: cn(
                 "relative h-full w-full flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden transition-all duration-200",
                 isActive
-                    ? "border-t-2 border-t-primary/60"
+                    ? "border-t-2 border-t-primary/60 ring-2 ring-primary/40"
                     : "border-t border-t-white/5",
                 "bg-transparent"
             ),
@@ -355,8 +355,8 @@ export function ModeLayout({
                     fine: shell.handleHitArea,
                 }}
                 style={{
-                    // This strictly defines the visual gap
-                    flexBasis: shell.gap,
+                    // Use CSS-driven semantic gap (no new numeric literals)
+                    flexBasis: "var(--tt-gap)",
                 }}
             >
                 <div className="absolute inset-0 flex items-center justify-center">

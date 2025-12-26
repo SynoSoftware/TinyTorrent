@@ -267,14 +267,14 @@ export const AvailabilityHeatmap = ({
                 <div className="flex items-center gap-3 text-scaled text-foreground/50">
                     <span className="flex items-center gap-1">
                         <span
-                            className="w-2 h-2 rounded-full"
+                            className="size-dot rounded-full"
                             style={{ backgroundColor: "var(--heroui-danger)" }}
                         />
                         {legendRare}
                     </span>
                     <span className="flex items-center gap-1">
                         <span
-                            className="w-2 h-2 rounded-full"
+                            className="size-dot rounded-full"
                             style={{ backgroundColor: "var(--heroui-primary)" }}
                         />
                         {legendCommon}
@@ -282,10 +282,10 @@ export const AvailabilityHeatmap = ({
                 </div>
                 <div className="flex items-center gap-1">
                     <Button
-                        size="sm"
-                        variant="flat"
+                        size="md"
+                        variant="shadow"
                         color="default"
-                        className="h-7 w-7 rounded-full"
+                        className="size-icon-btn rounded-full"
                         onPress={() => handleZoom("out")}
                         isDisabled={zoomIndex === 0}
                     >
@@ -295,10 +295,10 @@ export const AvailabilityHeatmap = ({
                         x{zoomLevel.toFixed(1)}
                     </span>
                     <Button
-                        size="sm"
-                        variant="flat"
+                        size="md"
+                        variant="shadow"
                         color="default"
-                        className="h-7 w-7 rounded-full"
+                        className="size-icon-btn rounded-full"
                         onPress={() => handleZoom("in")}
                         isDisabled={
                             zoomIndex === HEATMAP_ZOOM_LEVELS.length - 1

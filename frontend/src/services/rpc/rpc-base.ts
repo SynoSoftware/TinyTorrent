@@ -27,6 +27,7 @@ import {
     zSystemHandlerStatus,
     zTransmissionTorrentRenameResult,
     zSystemInstallResult,
+    zRpcSuccess,
     getTorrentList,
     getSessionStats,
 } from "@/services/rpc/schemas";
@@ -333,7 +334,7 @@ export class TransmissionAdapter implements EngineAdapter {
     }
 
     private async mutate(method: string, args: Record<string, unknown> = {}) {
-        await this.send({ method, arguments: args }, z.any());
+        await this.send({ method, arguments: args }, zRpcSuccess);
     }
 
     private resolveEndpointUrl(): URL | null {
@@ -602,7 +603,7 @@ export class TransmissionAdapter implements EngineAdapter {
             // fallback to adapter send which supports retries and header logic
         }
 
-        await this.send(request, z.any(), 0, true);
+        await this.send(request, zRpcSuccess, 0, true);
     }
 
     public async fetchSessionSettings(): Promise<TransmissionSessionSettings> {
@@ -655,7 +656,7 @@ export class TransmissionAdapter implements EngineAdapter {
     ): Promise<void> {
         await this.send(
             { method: "session-set", arguments: settings },
-            z.any()
+            zRpcSuccess
         );
         this.sessionSettingsCache = {
             ...(this.sessionSettingsCache ?? {}),
@@ -896,7 +897,10 @@ export class TransmissionAdapter implements EngineAdapter {
         } else {
             throw new Error("No torrent source provided");
         }
-        await this.send({ method: "torrent-add", arguments: args }, z.any());
+        await this.send(
+            { method: "torrent-add", arguments: args },
+            zRpcSuccess
+        );
     }
 
     public async pause(ids: string[]): Promise<void> {
@@ -968,7 +972,7 @@ export class TransmissionAdapter implements EngineAdapter {
                     ids: [rpcId],
                 },
             },
-            z.any()
+            zRpcSuccess
         );
     }
 
