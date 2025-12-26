@@ -6,34 +6,33 @@ import {
     useCallback,
     useEffect,
     useLayoutEffect,
+    useState,
     useMemo,
     useRef,
-    useState,
 } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
+
 import { useTranslation } from "react-i18next";
-
-import { formatBytes } from "@/shared/utils/format";
-import type { LibtorrentPriority } from "@/services/rpc/entities";
-import { ICON_STROKE_WIDTH } from "@/config/logic";
 import useLayoutMetrics from "@/shared/hooks/useLayoutMetrics";
+import { ICON_STROKE_WIDTH } from "@/config/logic";
+import { formatBytes } from "@/shared/utils/format";
+import { useVirtualizer } from "@tanstack/react-virtual";
 
-export interface FileExplorerEntry {
-    name: string;
-    index: number;
-    length?: number;
-    progress?: number;
-    wanted?: boolean;
-    priority?: LibtorrentPriority;
-}
+import type {
+    LibtorrentPriority,
+    TorrentFileEntity,
+} from "@/services/rpc/entities";
+// FileExplorerEntry is a mapped type for TorrentFileEntity, re-declare here for clarity
+export type FileExplorerEntry = TorrentFileEntity;
 
-interface FileExplorerTreeProps extends FileExplorerTreeContextProps {
+// FileExplorerTreeProps interface (redeclare for local use)
+interface FileExplorerTreeProps {
     files: FileExplorerEntry[];
     emptyMessage?: string;
-    onFilesToggle?: (
-        indexes: number[],
-        wanted: boolean
-    ) => void | Promise<void>;
+    onFilesToggle?: (indexes: number[], wanted: boolean) => void;
+    onFileContextAction?: (
+        action: FileExplorerContextAction,
+        entry: FileExplorerEntry
+    ) => void;
 }
 
 export type FileExplorerContextAction =
@@ -42,13 +41,6 @@ export type FileExplorerContextAction =
     | "priority_low"
     | "open_file"
     | "open_folder";
-
-interface FileExplorerTreeContextProps {
-    onFileContextAction?: (
-        action: FileExplorerContextAction,
-        entry: FileExplorerEntry
-    ) => void;
-}
 
 type FileContextMenuState = {
     file: FileExplorerEntry;
@@ -160,6 +152,8 @@ export function FileExplorerTree({
     onFilesToggle,
     onFileContextAction,
 }: FileExplorerTreeProps) {
+    const [search, setSearch] = useState("");
+    const [extensionFilter, setExtensionFilter] = useState("");
     const { t } = useTranslation();
     const [selectedIndexes, setSelectedIndexes] = useState<Set<number>>(
         () => new Set()
@@ -176,6 +170,21 @@ export function FileExplorerTree({
         });
         return map;
     }, [files]);
+
+    // Filter files by search and extension
+    const filteredFiles = useMemo(() => {
+        let result = files;
+        if (search.trim()) {
+            const s = search.trim().toLowerCase();
+            result = result.filter((f) => f.name.toLowerCase().includes(s));
+        }
+        if (extensionFilter) {
+            result = result.filter((f) =>
+                f.name.toLowerCase().endsWith(extensionFilter)
+            );
+        }
+        return result;
+    }, [files, search, extensionFilter]);
     const [expanded, setExpanded] = useState<Record<string, boolean>>({});
     useEffect(() => {
         setSelectedIndexes(new Set());
@@ -195,9 +204,9 @@ export function FileExplorerTree({
     }, []);
 
     const visibleNodes = useMemo(() => {
-        const tree = buildFileTree(files);
+        const tree = buildFileTree(filteredFiles);
         return flattenVisibleNodes(tree, expanded);
-    }, [files, expanded]);
+    }, [filteredFiles, expanded]);
     const visibleFileIndexes = useMemo(() => {
         return visibleNodes
             .filter(({ node }) => !node.isFolder && node.file)
@@ -397,6 +406,7 @@ export function FileExplorerTree({
         [handleFileToggle, selectionMap]
     );
 
+    // React Compiler warning: do not memoize or pass rowVirtualizer to children
     const rowVirtualizer = useVirtualizer({
         count: visibleNodes.length,
         getScrollElement: () => containerRef.current,
@@ -413,6 +423,26 @@ export function FileExplorerTree({
         );
     }
 
+    // Gather all unique file extensions for the select-by-extension tool
+    const allExtensions = useMemo(() => {
+        const set = new Set<string>();
+        files.forEach((f) => {
+            const match = f.name.match(/\.([a-z0-9]+)$/i);
+            if (match) set.add(match[0].toLowerCase());
+        });
+        return Array.from(set).sort();
+    }, [files]);
+
+    // Bulk select by extension
+    const handleSelectByExtension = (ext: string) => {
+        const indexes = files
+            .filter((f) => f.name.toLowerCase().endsWith(ext))
+            .map((f) => f.index);
+        if (indexes.length) {
+            onFilesToggle?.(indexes, true);
+        }
+    };
+
     if (!visibleNodes.length) {
         return (
             <div className="rounded-xl border border-content1/20 bg-content1/15 p-4 text-xs text-foreground/50 text-center">
@@ -422,33 +452,188 @@ export function FileExplorerTree({
     }
 
     return (
-        <div
-            ref={containerRef}
-            className="relative h-full overflow-y-auto"
-            tabIndex={0}
-            onKeyDown={handleKeyDown}
-        >
+        <div className="flex flex-col h-full">
+            <div className="flex items-center gap-2 p-2 sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-content1/10">
+                <input
+                    type="text"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder={t("torrent_modal.files_search_placeholder", {
+                        defaultValue: "Search files...",
+                    })}
+                    className="flex-1 px-2 py-1 rounded bg-content1/20 text-foreground outline-none"
+                    style={{ minWidth: 0 }}
+                />
+                {allExtensions.length > 0 && (
+                    <select
+                        value={extensionFilter}
+                        onChange={(e) => {
+                            setExtensionFilter(e.target.value);
+                            if (e.target.value)
+                                handleSelectByExtension(e.target.value);
+                        }}
+                        className="px-2 py-1 rounded bg-content1/20 text-foreground outline-none"
+                    >
+                        <option value="">
+                            {t("torrent_modal.files_select_extension", {
+                                defaultValue: "Select by extension...",
+                            })}
+                        </option>
+                        {allExtensions.map((ext) => (
+                            <option key={ext} value={ext}>
+                                {ext}
+                            </option>
+                        ))}
+                    </select>
+                )}
+            </div>
             <div
-                style={{
-                    height: `${rowVirtualizer.getTotalSize()}px`,
-                    position: "relative",
-                }}
+                ref={containerRef}
+                className="relative h-full overflow-y-auto"
+                tabIndex={0}
+                onKeyDown={handleKeyDown}
             >
-                {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                    const { node, depth } = visibleNodes[virtualRow.index];
-                    const paddingLeft = `calc(var(--tt-file-depth-indent) * ${depth} + var(--tt-file-row-padding-left))`;
-                    const isFolder = node.isFolder;
-                    const rowKey = `${node.id}-${virtualRow.index}`;
-                    if (isFolder) {
-                        const indexes = node.indexes ?? [];
-                        const count = indexes.length;
-                        const allSelected =
-                            count > 0 &&
-                            indexes.every((index) => selectionMap.get(index));
-                        const someSelected = indexes.some((index) =>
-                            selectionMap.get(index)
+                <div
+                    style={{
+                        height: `${rowVirtualizer.getTotalSize()}px`,
+                        position: "relative",
+                    }}
+                >
+                    {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                        const { node, depth } = visibleNodes[virtualRow.index];
+                        const paddingLeft = `calc(var(--tt-file-depth-indent) * ${depth} + var(--tt-file-row-padding-left))`;
+                        const isFolder = node.isFolder;
+                        const rowKey = `${node.id}-${virtualRow.index}`;
+                        if (isFolder) {
+                            const indexes = node.indexes ?? [];
+                            const count = indexes.length;
+                            const allSelected =
+                                count > 0 &&
+                                indexes.every((index) =>
+                                    selectionMap.get(index)
+                                );
+                            const someSelected = indexes.some((index) =>
+                                selectionMap.get(index)
+                            );
+                            const isExpanded = Boolean(expanded[node.id]);
+                            return (
+                                <div
+                                    key={rowKey}
+                                    className="absolute left-0 right-0"
+                                    style={{
+                                        top: virtualRow.start,
+                                        height: virtualRow.size,
+                                    }}
+                                >
+                                    <div
+                                        className="flex items-center gap-2 py-2 cursor-pointer hover:bg-content1/10 rounded pl-1 h-full"
+                                        style={{ paddingLeft }}
+                                        onClick={(event) => {
+                                            if (
+                                                (
+                                                    event.target as Element
+                                                ).closest("button")
+                                            )
+                                                return;
+                                            handleFolderToggle(node);
+                                        }}
+                                    >
+                                        <button
+                                            type="button"
+                                            onClick={(event) => {
+                                                event.stopPropagation();
+                                                toggleExpanded(node.id);
+                                            }}
+                                            className="flex items-center justify-center rounded-full p-1 text-foreground/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                                        >
+                                            {isExpanded ? (
+                                                <ChevronDown
+                                                    size={16}
+                                                    strokeWidth={
+                                                        ICON_STROKE_WIDTH
+                                                    }
+                                                    className="text-current"
+                                                />
+                                            ) : (
+                                                <ChevronRight
+                                                    size={16}
+                                                    strokeWidth={
+                                                        ICON_STROKE_WIDTH
+                                                    }
+                                                    className="text-current"
+                                                />
+                                            )}
+                                        </button>
+                                        <div
+                                            onClick={(event) =>
+                                                event.stopPropagation()
+                                            }
+                                        >
+                                            <Checkbox
+                                                isSelected={allSelected}
+                                                isIndeterminate={
+                                                    someSelected && !allSelected
+                                                }
+                                                onValueChange={() =>
+                                                    handleFolderToggle(node)
+                                                }
+                                                classNames={{ wrapper: "m-0" }}
+                                            />
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={(event) => {
+                                                event.stopPropagation();
+                                                toggleExpanded(node.id);
+                                            }}
+                                            className="flex items-center justify-center rounded-full p-1 text-foreground/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                                        >
+                                            <Folder
+                                                size={16}
+                                                strokeWidth={ICON_STROKE_WIDTH}
+                                                className="text-current"
+                                            />
+                                        </button>
+                                        <div className="flex flex-col text-sm font-medium text-foreground leading-tight">
+                                            <span className="text-foreground">
+                                                {node.name}
+                                            </span>
+                                            <span
+                                                style={{
+                                                    fontSize:
+                                                        "var(--tt-font-size-base)",
+                                                }}
+                                                className="text-foreground/50"
+                                            >
+                                                {count} file
+                                                {count === 1 ? "" : "s"}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        }
+                        if (!node.file) return null;
+                        const fileWanted =
+                            selectionMap.get(node.file.index) ?? true;
+                        const priorityLabel =
+                            node.file.priority !== undefined
+                                ? PRIORITY_LABELS[node.file.priority]
+                                : null;
+                        const priorityBadgeClass =
+                            node.file.priority !== undefined
+                                ? `${PRIORITY_BADGE_BASE} ${
+                                      PRIORITY_BADGE_CLASSES[node.file.priority]
+                                  }`
+                                : "";
+                        const isRowSelected = selectedIndexes.has(
+                            node.file.index
                         );
-                        const isExpanded = Boolean(expanded[node.id]);
+                        const rowClasses = `flex items-center gap-2 py-2 rounded cursor-pointer h-full transition-colors ${
+                            isRowSelected
+                                ? "bg-primary/10"
+                                : "hover:bg-content1/10"
+                        }`;
                         return (
                             <div
                                 key={rowKey}
@@ -459,216 +644,118 @@ export function FileExplorerTree({
                                 }}
                             >
                                 <div
-                                    className="flex items-center gap-2 py-2 cursor-pointer hover:bg-content1/10 rounded pl-1 h-full"
+                                    className={rowClasses}
                                     style={{ paddingLeft }}
-                                    onClick={(event) => {
-                                        if (
-                                            (event.target as Element).closest(
-                                                "button"
-                                            )
+                                    onClick={(event) =>
+                                        handleRowSelection(
+                                            event,
+                                            node.file!.index
                                         )
-                                            return;
-                                        handleFolderToggle(node);
-                                    }}
+                                    }
+                                    onContextMenu={(event) =>
+                                        handleFileContextMenu(event, node.file!)
+                                    }
+                                    data-selected={isRowSelected}
                                 >
-                                    <button
-                                        type="button"
-                                        onClick={(event) => {
-                                            event.stopPropagation();
-                                            toggleExpanded(node.id);
-                                        }}
-                                        className="flex items-center justify-center rounded-full p-1 text-foreground/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
-                                    >
-                                        {isExpanded ? (
-                                            <ChevronDown
-                                                size={16}
-                                                strokeWidth={ICON_STROKE_WIDTH}
-                                                className="text-current"
-                                            />
-                                        ) : (
-                                            <ChevronRight
-                                                size={16}
-                                                strokeWidth={ICON_STROKE_WIDTH}
-                                                className="text-current"
-                                            />
-                                        )}
-                                    </button>
                                     <div
                                         onClick={(event) =>
                                             event.stopPropagation()
                                         }
                                     >
                                         <Checkbox
-                                            isSelected={allSelected}
-                                            isIndeterminate={
-                                                someSelected && !allSelected
-                                            }
-                                            onValueChange={() =>
-                                                handleFolderToggle(node)
+                                            isSelected={fileWanted}
+                                            onValueChange={(value) =>
+                                                handleFileToggle(
+                                                    [node.file!.index],
+                                                    Boolean(value)
+                                                )
                                             }
                                             classNames={{ wrapper: "m-0" }}
                                         />
                                     </div>
-                                    <button
-                                        type="button"
-                                        onClick={(event) => {
-                                            event.stopPropagation();
-                                            toggleExpanded(node.id);
-                                        }}
-                                        className="flex items-center justify-center rounded-full p-1 text-foreground/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
-                                    >
-                                        <Folder
-                                            size={16}
-                                            strokeWidth={ICON_STROKE_WIDTH}
-                                            className="text-current"
-                                        />
-                                    </button>
-                                    <div className="flex flex-col text-sm font-medium text-foreground leading-tight">
-                                        <span className="text-foreground">
+                                    <FileText
+                                        size={16}
+                                        strokeWidth={ICON_STROKE_WIDTH}
+                                        className="text-foreground/50"
+                                    />
+                                    <div className="flex-1 min-w-0 flex flex-col gap-1">
+                                        <span className="text-sm font-medium text-foreground truncate">
                                             {node.name}
                                         </span>
+                                        {priorityLabel && (
+                                            <span
+                                                className={priorityBadgeClass}
+                                                style={{
+                                                    fontSize:
+                                                        "var(--tt-priority-badge-font-size)",
+                                                    padding:
+                                                        "var(--tt-priority-badge-padding-y) var(--tt-priority-badge-padding-x)",
+                                                    letterSpacing:
+                                                        "var(--tt-tracking-wide)",
+                                                }}
+                                            >
+                                                {priorityLabel}
+                                            </span>
+                                        )}
+                                    </div>
+                                    {typeof node.file.length === "number" &&
+                                        node.file.length > 0 && (
+                                            <span
+                                                style={{
+                                                    fontSize:
+                                                        "var(--tt-font-size-base)",
+                                                }}
+                                                className="font-mono text-foreground/50"
+                                            >
+                                                {formatBytes(node.file.length)}
+                                            </span>
+                                        )}
+                                    {typeof node.file.progress === "number" && (
                                         <span
                                             style={{
                                                 fontSize:
                                                     "var(--tt-font-size-base)",
                                             }}
-                                            className="text-foreground/50"
+                                            className="font-mono text-foreground/40"
                                         >
-                                            {count} file{count === 1 ? "" : "s"}
+                                            {(node.file.progress * 100).toFixed(
+                                                0
+                                            )}
+                                            %
                                         </span>
-                                    </div>
+                                    )}
                                 </div>
                             </div>
                         );
-                    }
-                    if (!node.file) return null;
-                    const fileWanted =
-                        selectionMap.get(node.file.index) ?? true;
-                    const priorityLabel =
-                        node.file.priority !== undefined
-                            ? PRIORITY_LABELS[node.file.priority]
-                            : null;
-                    const priorityBadgeClass =
-                        node.file.priority !== undefined
-                            ? `${PRIORITY_BADGE_BASE} ${
-                                  PRIORITY_BADGE_CLASSES[node.file.priority]
-                              }`
-                            : "";
-                    const isRowSelected = selectedIndexes.has(node.file.index);
-                    const rowClasses = `flex items-center gap-2 py-2 rounded cursor-pointer h-full transition-colors ${
-                        isRowSelected ? "bg-primary/10" : "hover:bg-content1/10"
-                    }`;
-                    return (
-                        <div
-                            key={rowKey}
-                            className="absolute left-0 right-0"
-                            style={{
-                                top: virtualRow.start,
-                                height: virtualRow.size,
-                            }}
-                        >
-                            <div
-                                className={rowClasses}
-                                style={{ paddingLeft }}
-                                onClick={(event) =>
-                                    handleRowSelection(event, node.file!.index)
-                                }
-                                onContextMenu={(event) =>
-                                    handleFileContextMenu(event, node.file!)
-                                }
-                                data-selected={isRowSelected}
-                            >
-                                <div
-                                    onClick={(event) => event.stopPropagation()}
-                                >
-                                    <Checkbox
-                                        isSelected={fileWanted}
-                                        onValueChange={(value) =>
-                                            handleFileToggle(
-                                                [node.file!.index],
-                                                Boolean(value)
-                                            )
-                                        }
-                                        classNames={{ wrapper: "m-0" }}
-                                    />
-                                </div>
-                                <FileText
-                                    size={16}
-                                    strokeWidth={ICON_STROKE_WIDTH}
-                                    className="text-foreground/50"
-                                />
-                                <div className="flex-1 min-w-0 flex flex-col gap-1">
-                                    <span className="text-sm font-medium text-foreground truncate">
-                                        {node.name}
-                                    </span>
-                                    {priorityLabel && (
-                                        <span
-                                            className={priorityBadgeClass}
-                                            style={{
-                                                fontSize:
-                                                    "var(--tt-priority-badge-font-size)",
-                                                padding:
-                                                    "var(--tt-priority-badge-padding-y) var(--tt-priority-badge-padding-x)",
-                                                letterSpacing:
-                                                    "var(--tt-tracking-wide)",
-                                            }}
-                                        >
-                                            {priorityLabel}
-                                        </span>
-                                    )}
-                                </div>
-                                {typeof node.file.length === "number" &&
-                                    node.file.length > 0 && (
-                                        <span
-                                            style={{
-                                                fontSize:
-                                                    "var(--tt-font-size-base)",
-                                            }}
-                                            className="font-mono text-foreground/50"
-                                        >
-                                            {formatBytes(node.file.length)}
-                                        </span>
-                                    )}
-                                {typeof node.file.progress === "number" && (
-                                    <span
-                                        style={{
-                                            fontSize:
-                                                "var(--tt-font-size-base)",
-                                        }}
-                                        className="font-mono text-foreground/40"
-                                    >
-                                        {(node.file.progress * 100).toFixed(0)}%
-                                    </span>
-                                )}
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
-            {fileContextMenu && (
-                <div
-                    ref={menuRef}
-                    className="pointer-events-auto absolute z-50 rounded-2xl border border-content1/40 bg-content1/80 p-1 backdrop-blur-3xl shadow-[0_20px_45px_rgba(0,0,0,0.35)]"
-                    style={{
-                        top: fileContextMenu.y,
-                        left: fileContextMenu.x,
-                        minWidth: contextMenuWidth,
-                    }}
-                    onPointerDown={(event) => event.stopPropagation()}
-                    onContextMenu={(event) => event.preventDefault()}
-                >
-                    {fileContextMenuItems.map((item) => (
-                        <button
-                            key={item.key}
-                            type="button"
-                            className="w-full rounded-xl px-3 py-2 text-left text-sm font-medium text-foreground transition-colors data-[hover=true]:bg-content2/70 data-[pressed=true]:bg-content2/80 hover:text-foreground"
-                            onClick={() => handleFileContextAction(item.key)}
-                        >
-                            {item.label}
-                        </button>
-                    ))}
+                    })}
                 </div>
-            )}
+                {fileContextMenu && (
+                    <div
+                        ref={menuRef}
+                        className="pointer-events-auto absolute z-50 rounded-2xl border border-content1/40 bg-content1/80 p-1 backdrop-blur-3xl shadow-[0_20px_45px_rgba(0,0,0,0.35)]"
+                        style={{
+                            top: fileContextMenu.y,
+                            left: fileContextMenu.x,
+                            minWidth: contextMenuWidth,
+                        }}
+                        onPointerDown={(event) => event.stopPropagation()}
+                        onContextMenu={(event) => event.preventDefault()}
+                    >
+                        {fileContextMenuItems.map((item) => (
+                            <button
+                                key={item.key}
+                                type="button"
+                                className="w-full rounded-xl px-3 py-2 text-left text-sm font-medium text-foreground transition-colors data-[hover=true]:bg-content2/70 data-[pressed=true]:bg-content2/80 hover:text-foreground"
+                                onClick={() =>
+                                    handleFileContextAction(item.key)
+                                }
+                            >
+                                {item.label}
+                            </button>
+                        ))}
+                    </div>
+                )}
+            </div>
         </div>
     );
 }

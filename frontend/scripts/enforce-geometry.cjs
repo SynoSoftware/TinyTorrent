@@ -68,7 +68,7 @@ if (violations.length) {
   for (const v of violations) {
     console.error(` - ${v.file}: ${v.pattern} => examples: ${v.matches.join(', ')}`);
   }
-  console.error('\nFix by replacing px escapes with token-driven lengths (e.g., text-[length:var(--fz-scaled)]).');
+  console.error('\nFix by replacing px escapes with token-driven lengths (e.g., text-\\[length:var(--fz-scaled)\\]).');
   process.exit(2);
 } else {
   console.log('Geometry enforcement: no violations found.');
