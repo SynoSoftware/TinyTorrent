@@ -35,8 +35,6 @@ import { type CSSProperties, type ReactNode } from "react";
 import {
     TABLE_LAYOUT,
     ICON_STROKE_WIDTH_DENSE,
-    STATUS_CHIP_GAP,
-    STATUS_CHIP_RADIUS,
 } from "@/config/logic";
 import useLayoutMetrics from "@/shared/hooks/useLayoutMetrics";
 import { GLASS_MENU_SURFACE } from "@/shared/ui/layout/glass-surface";
@@ -126,8 +124,8 @@ const DEFAULT_SPARKLINE_HEIGHT = 12;
 // Sparkline dimensions should be based on the layout metric hook to avoid
 // synchronous layout thrashing from calling getComputedStyle in hot paths.
 const STATUS_CHIP_STYLE: CSSProperties = {
-    gap: `${STATUS_CHIP_GAP}px`,
-    borderRadius: `${STATUS_CHIP_RADIUS}px`,
+    gap: "var(--gap-tools)",
+    borderRadius: "var(--r-md)",
     minWidth: "var(--tt-badge-min-width)",
     minHeight: "var(--tt-icon-size)",
     paddingBlock: "var(--spacing-tight)",

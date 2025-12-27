@@ -1017,7 +1017,7 @@ export function TorrentTable({
                             }}
                         >
                             <HeaderIcon
-                                size={iconSize || 12}
+                                size={iconSize}
                                 strokeWidth={ICON_STROKE_WIDTH_DENSE}
                                 className="text-foreground/50 animate-pulse"
                             />

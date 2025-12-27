@@ -191,7 +191,7 @@ export function SystemInstallSection({
             : t("settings.install.install_not_requested"));
 
     return (
-        <div className="space-y-4">
+        <div className="space-y-stage">
             <div className="grid gap-panel md:grid-cols-2">
                 <Input
                     label={t("settings.labels.installName")}
@@ -216,7 +216,7 @@ export function SystemInstallSection({
             </div>
             <div className="space-y-tight">
                 <p
-                    className="font-semibold uppercase tracking-0-3 text-foreground/50"
+                    className="font-semibold uppercase tracking-label text-foreground/50"
                     style={{
                         fontSize: "var(--tt-font-size-base)",
                         letterSpacing: "var(--tt-tracking-wide)",
@@ -235,7 +235,7 @@ export function SystemInstallSection({
                     isDisabled={autorunSwitch.isDisabled}
                     onValueChange={autorunSwitch.onChange}
                 >
-                    <span className="text-sm font-medium text-foreground/80">
+                    <span className="text-scaled font-medium text-foreground/80">
                         {t("settings.connection.autorun_label")}
                     </span>
                 </Switch>
@@ -245,7 +245,7 @@ export function SystemInstallSection({
                     isDisabled={handlerSwitch.isDisabled}
                     onValueChange={handlerSwitch.onChange}
                 >
-                    <span className="text-sm font-medium text-foreground/80">
+                    <span className="text-scaled font-medium text-foreground/80">
                         {t("settings.labels.installRegisterHandlers")}
                     </span>
                 </Switch>
@@ -266,7 +266,7 @@ export function SystemInstallSection({
                     }
                     onValueChange={installToProgramFilesToggle.onChange}
                 >
-                    <span className="text-sm font-medium text-foreground/80">
+                    <span className="text-scaled font-medium text-foreground/80">
                         {t("settings.labels.installProgramFiles")}
                     </span>
                 </Switch>
@@ -294,7 +294,7 @@ export function SystemInstallSection({
                     </p>
                 )}
                 {installResult && (
-                    <div className="space-y-3 rounded-2xl border border-content1/20 bg-content1/30 p-panel">
+                    <div className="space-y-tight rounded-2xl border border-content1/20 bg-content1/30 p-panel">
                         <div className="flex items-center justify-between gap-tools">
                             <span
                                 className={cn(
@@ -328,7 +328,7 @@ export function SystemInstallSection({
                             )}
                         </div>
                         {installResult.message && (
-                            <p className="text-sm text-foreground/70">
+                            <p className="text-scaled text-foreground/70">
                                 {installResult.message}
                             </p>
                         )}
@@ -345,7 +345,7 @@ export function SystemInstallSection({
                                     {t("settings.install.shortcuts_header")}
                                 </p>
                                 {shortcutEntries.length ? (
-                                    <ul className="mt-tight space-y-tight text-sm text-foreground/70">
+                                    <ul className="mt-tight space-y-tight text-scaled text-foreground/70">
                                         {shortcutEntries.map(([key, value]) => {
                                             const labelKey =
                                                 SYSTEM_INSTALL_LOCATIONS.find(
@@ -370,7 +370,7 @@ export function SystemInstallSection({
                                                             {t(labelKey)}
                                                         </span>
                                                     )}
-                                                    <span className="break-all text-sm text-foreground/70">
+                                                    <span className="break-all text-scaled text-foreground/70">
                                                         {value}
                                                     </span>
                                                 </li>
@@ -378,28 +378,28 @@ export function SystemInstallSection({
                                         })}
                                     </ul>
                                 ) : (
-                                    <p className="mt-tight text-sm text-foreground/60">
+                                    <p className="mt-tight text-scaled text-foreground/60">
                                         {t("settings.install.shortcuts_none")}
                                     </p>
                                 )}
                             </div>
                             <div>
                                 <p
-                                    className="font-semibold uppercase tracking-0-3 text-foreground/50"
+                                    className="font-semibold uppercase tracking-label text-foreground/50"
                                     style={{
                                         fontSize: "var(--tt-font-size-base)",
                                     }}
                                 >
                                     {t("settings.install.program_files_label")}
                                 </p>
-                                <p className="text-sm text-foreground/70">
+                                <p className="text-scaled text-foreground/70">
                                     {programFilesMessage}
                                 </p>
                             </div>
                             {showHandlerSection && (
                                 <div>
                                     <p
-                                        className="font-semibold uppercase tracking-0-3 text-foreground/50"
+                                        className="font-semibold uppercase tracking-label text-foreground/50"
                                         style={{
                                             fontSize:
                                                 "var(--tt-font-size-base)",
@@ -407,7 +407,7 @@ export function SystemInstallSection({
                                     >
                                         {t("settings.install.handlers_header")}
                                     </p>
-                                    <p className="text-sm text-foreground/70">
+                                    <p className="text-scaled text-foreground/70">
                                         {installResult.handlersRegistered
                                             ? t(
                                                   "settings.install.handlers_registered"
@@ -417,7 +417,7 @@ export function SystemInstallSection({
                                               )}
                                     </p>
                                     {installResult.handlerMessage && (
-                                        <p className="text-sm text-foreground/60">
+                                        <p className="text-scaled text-foreground/60">
                                             {installResult.handlerMessage}
                                         </p>
                                     )}

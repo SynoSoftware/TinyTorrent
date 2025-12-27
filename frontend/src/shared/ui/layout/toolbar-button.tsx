@@ -32,9 +32,12 @@ export const ToolbarIconButton = forwardRef<
         icon ??
         (Icon ? (
             <Icon
-                size={22}
                 strokeWidth={ICON_STROKE_WIDTH}
                 className="text-current"
+                style={{
+                    width: "var(--tt-status-icon-lg)",
+                    height: "var(--tt-status-icon-lg)",
+                }}
             />
         ) : null);
 

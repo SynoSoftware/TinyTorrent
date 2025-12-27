@@ -1,6 +1,6 @@
 {
     "brand": {
-        "name": "TINY TORRENT",
+        "name": "Tiny Torrent",
         "version": "v{{version}}"
     },
     "command_palette": {

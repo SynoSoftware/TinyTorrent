@@ -69,6 +69,10 @@ export function Navbar({
     const { t } = useTranslation();
     const { setActivePart } = useFocusState();
     const shell = getShellTokens(workspaceStyle);
+    const statusIconStyle: React.CSSProperties = {
+        width: "var(--tt-status-icon-md)",
+        height: "var(--tt-status-icon-md)",
+    };
 
     return (
         <header
@@ -84,8 +88,8 @@ export function Navbar({
                 style={{
                     ...shell.contentStyle,
                     height: "var(--tt-navbar-h)",
-                    paddingLeft: "var(--tt-navbar-padding)",
-                    paddingRight: "var(--tt-navbar-padding)",
+                    paddingLeft: "var(--spacing-panel)",
+                    paddingRight: "var(--spacing-panel)",
                     gap: "var(--tt-navbar-gap)",
                 }}
             >
@@ -105,8 +109,8 @@ export function Navbar({
                         >
                             <TinyTorrentIcon title={t("brand.name")} />
                         </div>
-                        {/* Hidden on small screens if needed, keeping accessible */}
-                        <div className="hidden flex-col sm:flex">
+                        {/* Hidden on smaller screens when space is constrained */}
+                        <div className="hidden flex-col md:flex">
                             <span
                                 className="font-bold tracking-tight text-foreground"
                                 style={{
@@ -126,85 +130,98 @@ export function Navbar({
                         </div>
                     </div>
 
-                    <div className="h-sep w-px bg-default-200/50" />
+                    <div className="h-sep w-px bg-default-200/50 mx-tight" />
 
                     {/* Filters */}
-                    <Tabs
-                        aria-label="Filter"
-                        variant="light"
-                        size="md"
-                        radius="full"
-                        selectedKey={filter}
-                        onSelectionChange={(k) => setFilter(k as string)}
-                        classNames={{
-                            base: "",
-                            tabList:
-                                "bg-default-100/50 p-tight border border-default-200/50 shadow-inner gap-tight",
-                            cursor: "bg-background shadow-sm border border-default-100",
-                            tab: "px-panel font-semibold text-default-500 transition-colors",
-                        }}
-                    >
-                        <Tab
-                            key="all"
-                            title={
-                                <div className="flex items-center gap-tight">
-                                    <ListChecks size={13} strokeWidth={2} />
-                                    {t("nav.filter_all")}
-                                </div>
-                            }
-                        />
-                        <Tab
-                            key="downloading"
-                            title={
-                                <div className="flex items-center gap-tight">
-                                    <DownloadCloud size={13} strokeWidth={2} />
-                                    {t("nav.filter_downloading")}
-                                </div>
-                            }
-                        />
-                        <Tab
-                            key="seeding"
-                            title={
-                                <div className="flex items-center gap-tight">
-                                    <UploadCloud size={13} strokeWidth={2} />
-                                    {t("nav.filter_seeding")}
-                                </div>
-                            }
-                        />
-                    </Tabs>
+                    <div className="hidden lg:flex">
+                        <Tabs
+                            aria-label="Filter"
+                            variant="light"
+                            size="lg"
+                            radius="full"
+                            selectedKey={filter}
+                            onSelectionChange={(k) => setFilter(k as string)}
+                            classNames={{
+                                base: "",
+                                tabList:
+                                    "bg-default-100/50 p-tight border border-default-200/50 shadow-inner gap-tight",
+                                cursor: "bg-background shadow-sm border border-default-100",
+                                tab: "px-panel font-semibold text-default-500 transition-colors",
+                            }}
+                        >
+                            <Tab
+                                key="all"
+                                title={
+                                    <div className="flex items-center gap-tight">
+                                        <ListChecks
+                                            strokeWidth={ICON_STROKE_WIDTH}
+                                            style={statusIconStyle}
+                                        />
+                                        {t("nav.filter_all")}
+                                    </div>
+                                }
+                            />
+                            <Tab
+                                key="downloading"
+                                title={
+                                    <div className="flex items-center gap-tight">
+                                        <DownloadCloud
+                                            strokeWidth={ICON_STROKE_WIDTH}
+                                            style={statusIconStyle}
+                                        />
+                                        {t("nav.filter_downloading")}
+                                    </div>
+                                }
+                            />
+                            <Tab
+                                key="seeding"
+                                title={
+                                    <div className="flex items-center gap-tight">
+                                        <UploadCloud
+                                            strokeWidth={ICON_STROKE_WIDTH}
+                                            style={statusIconStyle}
+                                        />
+                                        {t("nav.filter_seeding")}
+                                    </div>
+                                }
+                            />
+                        </Tabs>
+                    </div>
                 </div>
 
                 {/* RIGHT ZONE: Action Center */}
                 <div className="flex items-center gap-tools">
                     {/* Search - Pushed to start of right zone */}
-                    <Input
-                        classNames={{
-                            base: "transition-all",
-                            mainWrapper: "h-full",
-                            input: "text-small text-foreground/90 whitespace-nowrap overflow-hidden text-ellipsis placeholder:opacity-70",
-                            inputWrapper:
-                                "h-full flex items-center gap-tools flex-nowrap font-normal text-default-500 bg-default-100/50 hover:bg-default-200/50 border-transparent focus-within:bg-default-100 focus-within:border-primary/20 shadow-inner rounded-full transition-colors",
-                        }}
-                        style={{ width: "var(--tt-search-width)" }}
-                        placeholder={t("nav.search_placeholder")}
-                        size="md"
-                        value={searchQuery}
-                        data-command-search="true"
-                        onFocus={() => setActivePart("search")}
-                        onChange={(event) =>
-                            setSearchQuery(event.currentTarget.value)
-                        }
-                        startContent={
-                            <Search
-                                size={15}
-                                strokeWidth={ICON_STROKE_WIDTH}
-                                className="text-default-400"
-                            />
-                        }
-                    />
+                    <div className="hidden sm:flex">
+                        <Input
+                            classNames={{
+                                base: "transition-all",
+                                mainWrapper: "h-full",
+                                input: "text-small text-foreground/90 whitespace-nowrap overflow-hidden text-ellipsis placeholder:opacity-70",
+                                inputWrapper:
+                                    "h-full flex items-center gap-tools flex-nowrap font-normal text-default-500 bg-default-100/50 hover:bg-default-200/50 border-transparent focus-within:bg-default-100 focus-within:border-primary/20 shadow-inner rounded-full transition-colors",
+                            }}
+                            style={{ width: "var(--tt-search-width)" }}
+                            placeholder={t("nav.search_placeholder")}
+                            size="md"
+                            value={searchQuery}
+                            data-command-search="true"
+                            onFocus={() => setActivePart("search")}
+                            onChange={(event) =>
+                                setSearchQuery(event.currentTarget.value)
+                            }
+                            startContent={
+                                <Search
+                                    strokeWidth={ICON_STROKE_WIDTH}
+                                    className="text-default-400"
+                                    style={statusIconStyle}
+                                />
+                            }
+                        />
+                    </div>
 
                     <div
-                        className="w-px bg-default-200/50 mx-tight"
+                        className="hidden sm:flex w-px bg-default-200/50 mx-tight"
                         style={{ height: "calc(var(--tt-navbar-h) / 2)" }}
                     />
 
@@ -252,7 +269,7 @@ export function Navbar({
                     </div>
 
                     <div
-                        className="w-px bg-default-200/50 mx-tight"
+                        className="hidden sm:flex w-px bg-default-200/50 mx-tight"
                         style={{ height: "calc(var(--tt-navbar-h) / 2)" }}
                     />
 
@@ -279,6 +296,7 @@ export function Navbar({
                             title={workspaceToggleLabel}
                             onPress={onWorkspaceToggle}
                             className="text-default-400 hover:text-foreground"
+                            style={{ overflow: "visible" }}
                         />
                         <ToolbarIconButton
                             Icon={Settings}
@@ -286,6 +304,7 @@ export function Navbar({
                             title={t("toolbar.settings")}
                             onPress={onSettings}
                             className="text-default-400 hover:text-foreground"
+                            style={{ overflow: "visible" }}
                         />
                         <ThemeToggle />
                     </div>

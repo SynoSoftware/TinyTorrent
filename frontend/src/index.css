@@ -112,7 +112,7 @@
     --blur: 18px; /* glass blur baseline (clamped) */
 
     /* Derived geometry (only from --u, --fz, --z) */
-    --fz-scaled: var(--fz);
+    --fz-scaled: calc(var(--fz) * var(--z));
 
     /* rows & rhythm */
 
@@ -136,7 +136,7 @@
 
     /* Backward-compatible aliases (read-only; keep single source here) */
     --tt-unit: var(--u);
-    --tt-font-size-base: var(--fz);
+    --tt-font-size-base: var(--fz-scaled);
     --tt-row-h: var(--tt-h-row);
     --tt-navbar-h: var(--tt-h-nav);
     --tt-statusbar-h: var(--tt-h-status);
@@ -146,10 +146,10 @@
     --tt-search-width: calc(40 * var(--u) * var(--z));
 
     --tt-status-icon-sm: calc(3 * var(--u) * var(--z));
-    --tt-status-icon-md: calc(3.5 * var(--u) * var(--z));
-    --tt-status-icon-lg: calc(4 * var(--u) * var(--z));
+    --tt-status-icon-md: calc(5 * var(--u) * var(--z));
+    --tt-status-icon-lg: calc(8 * var(--u) * var(--z));
     --tt-status-icon-xl: calc(12 * var(--u) * var(--z));
-    --tt-button-h: var(--button-h);
+    --tt-button-h: var(--tt-h-md);
     --tt-button-min-w: var(--button-min-w);
 
     --tt-file-row-padding-left: var(--p-2);
@@ -165,9 +165,9 @@
     /* Added semantic tokens for previously inline arbitrary Tailwind calcs */
     --tt-modal-max-width: calc(180 * var(--u) * var(--z));
     --tt-modal-body-max-height: calc(70 * var(--u) * var(--z));
-    --tt-settings-h: calc(200 * var(--u) * var(--z));
-    --tt-settings-max-h: calc(200 * var(--u) * var(--z));
-    --tt-settings-min-h: calc(125 * var(--u) * var(--z));
+    --tt-settings-h: calc(200 * var(--u));
+    --tt-settings-max-h: calc(200 * var(--u));
+    --tt-settings-min-h: calc(125 * var(--u));
     --tt-badge-min-width: calc(15 * var(--u) * var(--z));
     --tt-divider-width: calc(2 * var(--bw));
     --tt-peers-hud-height: calc(45 * var(--u) * var(--z));
@@ -257,6 +257,10 @@
         letter-spacing: var(--tt-tracking-wide);
     }
     .tracking-0-3 {
+        letter-spacing: var(--tt-tracking-ultra);
+    }
+    /* Semantic role for label tracking (use in components via logic export) */
+    .tracking-label {
         letter-spacing: var(--tt-tracking-ultra);
     }
     .tracking-0-4 {
@@ -429,6 +433,12 @@
 :root {
     --app-scrollbar-thumb: rgba(255, 255, 255, 0.18);
     --app-scrollbar-thumb-hover: rgba(255, 255, 255, 0.35);
+}
+
+@layer base {
+    html {
+        font-size: var(--tt-font-size-base);
+    }
 }
 
 @layer components {
@@ -727,6 +737,14 @@ main .torrent-table-watermark {
 
     .h-settings {
         height: var(--tt-settings-h);
+    }
+
+    .max-h-settings {
+        max-height: var(--tt-settings-max-h);
+    }
+
+    .min-h-settings {
+        min-height: var(--tt-settings-min-h);
     }
 
     .max-w-dir-picker {

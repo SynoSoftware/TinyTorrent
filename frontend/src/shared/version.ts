@@ -1,8 +1,11 @@
-import manifest from "@/version.json";
+import pkg from "@/../package.json";
+
+type PackageJson = { version?: string };
+const pkgTyped = pkg as PackageJson;
 
 const normalizedVersion =
-    typeof manifest.version === "string" && manifest.version.trim().length > 0
-        ? manifest.version.trim()
+    typeof pkgTyped.version === "string" && pkgTyped.version.trim().length > 0
+        ? pkgTyped.version.trim()
         : "0.0.0-unknown";
 
 const parts = normalizedVersion.split(".");

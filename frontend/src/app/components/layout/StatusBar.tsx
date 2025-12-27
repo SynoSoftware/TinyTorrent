@@ -105,6 +105,8 @@ export function StatusBar({
     const downSpeed = sessionStats?.downloadSpeed ?? 0;
     const upSpeed = sessionStats?.uploadSpeed ?? 0;
     const dhtNodeCount = sessionStats?.dhtNodes ?? 0;
+    const connectIconSize = UI_BASES.statusbar.iconLg;
+    const statusArrowIconSize = UI_BASES.statusbar.iconLg;
 
     const selCount = selectedCount ?? 0;
     const isSelection = selCount > 0;
@@ -144,18 +146,22 @@ export function StatusBar({
         if (engineType === "tinytorrent") {
             return (
                 <TinyTorrentIcon
-                    className={"size-icon-btn"}
+                    className="text-current"
                     title={t("status_bar.engine_name_tinytorrent")}
+                    style={{
+                        width: connectIconSize,
+                        height: connectIconSize,
+                    }}
                 />
             );
         }
         return (
             <TransmissionIcon
-                className={"size-icon-btn"}
+                className="text-current"
                 strokeWidth={ICON_STROKE_WIDTH}
                 style={{
-                    width: UI_BASES.statusbar.iconMd,
-                    height: UI_BASES.statusbar.iconMd,
+                    width: connectIconSize,
+                    height: connectIconSize,
                 }}
             />
         );
@@ -171,14 +177,11 @@ export function StatusBar({
             style={shell.frameStyle}
         >
             <div
-                className={cn(
-                    "flex items-center justify-between",
-                    "gap-stage"
-                )}
+                className={cn("flex items-center justify-between", "gap-stage")}
                 style={{
                     ...shell.contentStyle,
                     height: "var(--tt-statusbar-h)",
-                    paddingLeft: "var(--tt-navbar-padding)",
+                    paddingLeft: "var(--spacing-panel)",
                     paddingRight: "var(--tt-navbar-padding)",
                 }}
             >
@@ -202,26 +205,36 @@ export function StatusBar({
                                 "gap-tools"
                             )}
                         >
-                            <div
-                                className="flex items-center justify-center rounded-2xl bg-content1/10 text-foreground/50 transition-colors group-hover:bg-success/10 group-hover:text-success"
-                                style={{
-                                    width: "var(--tt-status-icon-xl)",
-                                    height: "var(--tt-status-icon-xl)",
-                                }}
-                            >
+                        <div
+                            className="flex items-center justify-center rounded-2xl bg-content1/10 text-foreground/50 transition-colors group-hover:bg-success/10 group-hover:text-success box-border p-tight"
+                            style={{
+                                width: "var(--tt-status-icon-xl)",
+                                height: "var(--tt-status-icon-xl)",
+                            }}
+                        >
                                 <ArrowDown
                                     style={{
-                                        width: "var(--tt-status-icon-lg)",
-                                        height: "var(--tt-status-icon-lg)",
+                                        width: statusArrowIconSize,
+                                        height: statusArrowIconSize,
                                     }}
                                     strokeWidth={ICON_STROKE_WIDTH}
                                 />
                             </div>
                             <div className="flex flex-col justify-center gap-tight">
-                                <span className={cn("font-bold uppercase tracking-0-2", "text-foreground/40")}>
+                                <span
+                                    className={cn(
+                                        "font-bold uppercase tracking-0-2",
+                                        "text-foreground/40"
+                                    )}
+                                >
                                     {t("status_bar.down")}
                                 </span>
-                                <span className={cn("font-bold tracking-tight leading-none", "text-foreground")}>
+                                <span
+                                    className={cn(
+                                        "font-bold tracking-tight leading-none",
+                                        "text-foreground"
+                                    )}
+                                >
                                     {formatSpeed(downSpeed)}
                                 </span>
                             </div>
@@ -252,28 +265,41 @@ export function StatusBar({
                         )}
                     >
                         <div
-                            className={cn("flex items-center shrink-0", "gap-tools")}
+                            className={cn(
+                                "flex items-center shrink-0",
+                                "gap-tools"
+                            )}
                         >
-                            <div
-                                className="flex items-center justify-center rounded-2xl bg-content1/10 text-foreground/50 transition-colors group-hover:bg-primary/10 group-hover:text-primary"
-                                style={{
-                                    width: "var(--tt-status-icon-xl)",
-                                    height: "var(--tt-status-icon-xl)",
-                                }}
-                            >
+                        <div
+                            className="flex items-center justify-center rounded-2xl bg-content1/10 text-foreground/50 transition-colors group-hover:bg-primary/10 group-hover:text-primary box-border p-tight"
+                            style={{
+                                width: "var(--tt-status-icon-xl)",
+                                height: "var(--tt-status-icon-xl)",
+                            }}
+                        >
                                 <ArrowUp
                                     style={{
-                                        width: "var(--tt-status-icon-lg)",
-                                        height: "var(--tt-status-icon-lg)",
+                                        width: statusArrowIconSize,
+                                        height: statusArrowIconSize,
                                     }}
                                     strokeWidth={ICON_STROKE_WIDTH}
                                 />
                             </div>
                             <div className="flex flex-col justify-center gap-tight">
-                                <span className={cn("font-bold uppercase tracking-0-2", "text-foreground/40")}>
+                                <span
+                                    className={cn(
+                                        "font-bold uppercase tracking-0-2",
+                                        "text-foreground/40"
+                                    )}
+                                >
                                     {t("status_bar.up")}
                                 </span>
-                                <span className={cn("font-bold tracking-tight leading-none", "text-foreground")}>
+                                <span
+                                    className={cn(
+                                        "font-bold tracking-tight leading-none",
+                                        "text-foreground"
+                                    )}
+                                >
                                     {formatSpeed(upSpeed)}
                                 </span>
                             </div>
@@ -299,6 +325,7 @@ export function StatusBar({
                     )}
                     style={{
                         paddingLeft: "var(--tt-navbar-gap)",
+                        paddingRight: "var(--spacing-panel)",
                         height: "var(--tt-statusbar-h)",
                     }}
                 >
@@ -358,17 +385,29 @@ export function StatusBar({
                         className="flex flex-col items-end gap-tight whitespace-nowrap"
                         style={{ minWidth: UI_BASES.statusbar.min80 }}
                     >
-                        <span className={cn("font-bold uppercase tracking-0-2", "text-foreground/30")}>
+                        <span
+                            className={cn(
+                                "font-bold uppercase tracking-0-2",
+                                "text-foreground/30"
+                            )}
+                        >
                             {t("status_bar.network")}
                         </span>
                         <div className="flex items-center gap-tools">
-                            <span className={cn("font-semibold tabular-nums", "text-foreground/70")}>
+                            <span
+                                className={cn(
+                                    "font-semibold tabular-nums",
+                                    "text-foreground/70"
+                                )}
+                            >
                                 {t("status_bar.dht_nodes", {
                                     count: dhtNodeCount,
                                 })}
                             </span>
                             <Network
-                                className={cn("size-icon-btn text-foreground/30")}
+                                className={cn(
+                                    "size-icon-btn text-foreground/30"
+                                )}
                                 strokeWidth={ICON_STROKE_WIDTH}
                             />
                         </div>
@@ -399,13 +438,17 @@ export function StatusBar({
                             {/* 1. Transport Icon (Left - The 'Power' Source) */}
                             <TransportIcon
                                 className={cn(
-                                    "size-icon-btn",
+                                    "text-current",
                                     rpcStatus === "connected" &&
                                         transportStatus === "websocket"
                                         ? "text-current"
                                         : "opacity-70"
                                 )}
-                                strokeWidth={ICON_STROKE_WIDTH + 1}
+                                strokeWidth={ICON_STROKE_WIDTH}
+                                style={{
+                                    width: connectIconSize,
+                                    height: connectIconSize,
+                                }}
                             />
 
                             {/* 2. Divider (Subtle separator) */}
