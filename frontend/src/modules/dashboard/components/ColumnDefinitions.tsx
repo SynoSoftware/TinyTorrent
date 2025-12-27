@@ -11,31 +11,26 @@ import {
 } from "@heroui/react";
 import type { LucideIcon } from "lucide-react";
 import {
-    ArrowDown,
-    ArrowDownCircle,
-    ArrowUp,
-    ArrowUpCircle,
-    Box,
-    CalendarClock,
-    CheckCircle2,
-    Clock3,
-    Gauge,
-    ListChecks,
-    MoreVertical,
-    Pause,
-    PauseCircle,
-    PlayCircle,
-    Scale,
-    Trash2,
+    FileText, // name
+    Percent, // progress
+    Activity, // status
+    ListOrdered, // queue
+    Timer, // eta
+    Gauge, // speed
+    Network, // peers
+    HardDrive, // size
+    TrendingUp, // ratio
+    Clock, // added
     Users,
+    Pause,
+    ArrowDown,
+    ArrowUp,
 } from "lucide-react";
+
 import { type TFunction } from "i18next";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import { type CSSProperties, type ReactNode } from "react";
-import {
-    TABLE_LAYOUT,
-    ICON_STROKE_WIDTH_DENSE,
-} from "@/config/logic";
+import { TABLE_LAYOUT, ICON_STROKE_WIDTH_DENSE } from "@/config/logic";
 import useLayoutMetrics from "@/shared/hooks/useLayoutMetrics";
 import { GLASS_MENU_SURFACE } from "@/shared/ui/layout/glass-surface";
 import { SmoothProgressBar } from "@/shared/ui/components/SmoothProgressBar";
@@ -266,7 +261,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
         rpcField: "name",
         defaultVisible: true,
         sortAccessor: (torrent) => torrent.name,
-        headerIcon: ListChecks,
+        headerIcon: FileText,
         render: ({ torrent }) => (
             <div className="flex min-w-0 items-center h-full">
                 <span
@@ -290,7 +285,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
         rpcField: "progress",
         defaultVisible: true,
         sortAccessor: getEffectiveProgress,
-        headerIcon: Gauge,
+        headerIcon: Percent,
         render: ({ torrent }) => {
             const displayProgress = getEffectiveProgress(torrent);
             return (
@@ -331,7 +326,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
         rpcField: "state",
         defaultVisible: true,
         sortAccessor: (torrent) => torrent.state,
-        headerIcon: PauseCircle,
+        headerIcon: Activity,
         render: ({ torrent, t }) => {
             const conf = statusMap[torrent.state] ?? {
                 color: "default",
@@ -380,7 +375,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
         descriptionKey: "table.column_desc_queue",
         sortAccessor: (torrent) =>
             torrent.queuePosition ?? Number.MAX_SAFE_INTEGER,
-        headerIcon: ArrowDownCircle,
+        headerIcon: ListOrdered,
         render: ({ torrent }) => (
             <span className={cn("text-foreground/60 min-w-0", DENSE_NUMERIC)}>
                 {formatQueueOrdinal(torrent.queuePosition)}
@@ -396,7 +391,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
         descriptionKey: "table.column_desc_eta",
         sortAccessor: (torrent) =>
             torrent.eta < 0 ? Number.MAX_SAFE_INTEGER : torrent.eta,
-        headerIcon: Clock3,
+        headerIcon: Timer,
         render: ({ torrent, t }) => {
             const relativeLabel =
                 torrent.eta < 0
@@ -429,7 +424,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
         descriptionKey: "table.column_desc_speed",
         sortAccessor: (torrent) =>
             torrent.state === "seeding" ? torrent.speed.up : torrent.speed.down,
-        headerIcon: ArrowUpCircle,
+        headerIcon: Gauge,
         render: (ctx) => <SpeedColumnCell {...ctx} />,
     },
     peers: {
@@ -440,7 +435,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
         sortable: true,
         defaultVisible: true,
         sortAccessor: (torrent) => torrent.peerSummary.connected,
-        headerIcon: Users,
+        headerIcon: Network,
         render: ({ torrent }) => (
             <div
                 className={cn(
@@ -473,7 +468,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
         rpcField: "totalSize",
         defaultVisible: true,
         sortAccessor: (torrent) => torrent.totalSize,
-        headerIcon: Box,
+        headerIcon: HardDrive,
         render: ({ torrent }) => (
             <span className={cn("text-foreground/50 min-w-0", DENSE_NUMERIC)}>
                 {formatBytes(torrent.totalSize)}
@@ -489,7 +484,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
         rpcField: "ratio",
         descriptionKey: "table.column_desc_ratio",
         sortAccessor: (torrent) => ratioValue(torrent),
-        headerIcon: Scale,
+        headerIcon: TrendingUp,
         render: ({ torrent }) => (
             <span className={cn("text-foreground/60 min-w-0", DENSE_NUMERIC)}>
                 {ratioValue(torrent).toFixed(2)}
@@ -506,7 +501,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
         rpcField: "added",
         descriptionKey: "table.column_desc_added",
         sortAccessor: (torrent) => torrent.added,
-        headerIcon: CalendarClock,
+        headerIcon: Clock,
         render: ({ torrent }) => (
             <span
                 className={cn("text-foreground/50 min-w-0", DENSE_NUMERIC)}

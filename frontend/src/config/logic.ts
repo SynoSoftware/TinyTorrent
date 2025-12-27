@@ -315,7 +315,7 @@ export const UI_BASES = {
     },
 };
 
-export const TABLE_ICON_SIZE = {
+export const ICON_SIZE = {
     primary: UI_BASES.statusbar.iconMd,
     secondary: UI_BASES.statusbar.iconSm,
 } as const;

@@ -201,7 +201,7 @@ export const PeerMap = ({
                                     : "opacity-0"
                             )}
                         />
-                        <span className="text-tiny font-mono text-foreground/40">
+                        <span className="text-scaled font-mono text-foreground/40">
                             {peers.length} NODES
                         </span>
                     </div>

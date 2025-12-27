@@ -1,10 +1,11 @@
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Plus, Globe, Activity, Timer, Users, X, Check } from "lucide-react";
-import { Button, Textarea, Tooltip } from "@heroui/react";
+import { Plus, Activity, Timer, Users, X, Check } from "lucide-react";
+import { Button, Textarea } from "@heroui/react";
 
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import type { TorrentTrackerEntity } from "@/services/rpc/entities";
+import { TEXT_ROLES } from "./textRoles";
 
 interface TrackersTabProps {
     trackers: TorrentTrackerEntity[];
@@ -34,7 +35,7 @@ export const TrackersTab = ({
     if (!trackers.length) {
         return (
             <GlassPanel className="flex h-lg items-center justify-center border-default/10 text-center">
-                <p className="text-xs font-semibold uppercase tracking-widest text-foreground/30">
+                <p className={`${TEXT_ROLES.primary} text-foreground/30`}>
                     {emptyMessage}
                 </p>
             </GlassPanel>
@@ -47,7 +48,7 @@ export const TrackersTab = ({
             <div className="flex items-center justify-between px-tight">
                 <div className="flex items-center gap-tools">
                     <Activity size={14} className="text-primary" />
-                    <span className="text-xs font-bold uppercase tracking-0-2 text-foreground/60">
+                    <span className="text-label uppercase tracking-tight text-foreground/60">
                         {t("torrent_modal.trackers.title", {
                             defaultValue: "Trackers",
                         })}
@@ -69,7 +70,7 @@ export const TrackersTab = ({
                 <div className="h-full overflow-auto">
                     <table className="w-full border-separate border-spacing-0 text-left">
                         <thead className="sticky top-0 z-20 bg-background/80 backdrop-blur-md">
-                            <tr className="text-label font-bold uppercase tracking-widest text-foreground/40">
+                            <tr className="text-label font-bold uppercase tracking-tight text-foreground/40">
                                 <th className="border-b border-default/10 py-panel pl-panel pr-tight">
                                     <Activity size={12} />
                                 </th>
@@ -170,7 +171,7 @@ export const TrackersTab = ({
                                                 )}
                                             </div>
                                         </td>
-                                        <td className="border-b border-default/5 py-panel pl-tight pr-panel text-right font-sans text-label font-bold uppercase tracking-wider">
+                                        <td className="border-b border-default/5 py-panel pl-tight pr-panel text-right font-sans text-label font-bold uppercase tracking-tight">
                                             <span
                                                 className={
                                                     isOnline
@@ -206,7 +207,7 @@ export const TrackersTab = ({
                 {showAdd && (
                     <div className="absolute inset-0 z-30 flex flex-col bg-background/40 backdrop-blur-xl">
                         <div className="flex items-center justify-between border-b border-default/10 px-panel py-panel">
-                            <span className="text-xs font-bold uppercase tracking-widest text-primary">
+                            <span className="text-scaled font-semibold uppercase tracking-tight text-primary">
                                 {t("torrent_modal.trackers.add", {
                                     defaultValue: "Add Trackers",
                                 })}
@@ -221,24 +222,24 @@ export const TrackersTab = ({
                             </Button>
                         </div>
                         <div className="flex-1 p-panel">
-                            <Textarea
-                                variant="bordered"
-                                placeholder={t(
-                                    "torrent_modal.trackers.add_placeholder",
-                                    {
-                                        defaultValue:
-                                            "Paste announce URLs (one per line)...",
-                                    }
-                                )}
-                                value={newTrackers}
-                                onValueChange={setNewTrackers}
-                                classNames={{
-                                    input: "font-mono text-xs",
-                                    inputWrapper:
-                                        "border-default/20 bg-background/40",
-                                }}
-                                minRows={6}
-                            />
+                        <Textarea
+                            variant="bordered"
+                            placeholder={t(
+                                "torrent_modal.trackers.add_placeholder",
+                                {
+                                    defaultValue:
+                                        "Paste announce URLs (one per line)...",
+                                }
+                            )}
+                            value={newTrackers}
+                            onValueChange={setNewTrackers}
+                            classNames={{
+                                input: "font-mono text-scaled",
+                                inputWrapper:
+                                    "border-default/20 bg-background/40",
+                            }}
+                            minRows={6}
+                        />
                         </div>
                         <div className="flex justify-end gap-tools border-t border-default/10 p-panel bg-background/20">
                             <Button

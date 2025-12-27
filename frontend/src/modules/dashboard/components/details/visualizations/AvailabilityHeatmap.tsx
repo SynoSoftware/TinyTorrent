@@ -21,6 +21,7 @@ import {
     HEATMAP_USE_UI_SAMPLING_SHIM,
 } from "@/config/logic";
 import { useEngineHeartbeat } from "@/shared/hooks/useEngineHeartbeat";
+import { TEXT_ROLES } from "@/modules/dashboard/components/details/tabs/textRoles";
 
 interface AvailabilityHeatmapProps {
     pieceAvailability?: number[];
@@ -257,13 +258,13 @@ export const AvailabilityHeatmap = ({
 
     return (
         <motion.div layout className="flex flex-col gap-tools">
-            <div className="flex items-center justify-between">
-                <span
-                    className="text-xs font-semibold uppercase text-foreground/50"
-                    style={{ letterSpacing: "var(--tt-tracking-ultra)" }}
-                >
-                    {label}
-                </span>
+                <div className="flex items-center justify-between">
+                    <span
+                        className={TEXT_ROLES.label}
+                        style={{ letterSpacing: "var(--tt-tracking-ultra)" }}
+                    >
+                        {label}
+                    </span>
                 <div className="flex items-center gap-tools text-scaled text-foreground/50">
                     <span className="flex items-center gap-tight">
                         <span

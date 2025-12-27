@@ -1,35 +1,12 @@
-import { Tab, Tabs } from "@heroui/react";
-import {
-    Activity,
-    Grid,
-    HardDrive,
-    Info,
-    Network,
-    Server,
-    Pin,
-    PinOff,
-    X,
-} from "lucide-react";
 import { useTranslation } from "react-i18next";
-import type { ComponentType } from "react";
-
-import { ICON_STROKE_WIDTH } from "@/config/logic";
+import { Pin, PinOff, X } from "lucide-react";
+import { cn } from "@heroui/react";
+import { Info } from "lucide-react";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
+import { ICON_STROKE_WIDTH } from "@/config/logic";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
 import type { DetailTab } from "@/modules/dashboard/types/torrentDetail";
-
-const TAB_CONFIG: Array<{
-    key: DetailTab;
-    Icon: ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
-    labelKey: string;
-}> = [
-    { key: "general", Icon: Info, labelKey: "torrent_modal.tabs.general" },
-    { key: "content", Icon: HardDrive, labelKey: "torrent_modal.tabs.content" },
-    { key: "pieces", Icon: Grid, labelKey: "torrent_modal.tabs.pieces" },
-    { key: "trackers", Icon: Server, labelKey: "torrent_modal.tabs.trackers" },
-    { key: "peers", Icon: Network, labelKey: "torrent_modal.tabs.peers" },
-    { key: "speed", Icon: Activity, labelKey: "torrent_modal.tabs.speed" },
-];
+import { DETAIL_TABS } from "./useDetailTabs";
 
 const NAME_MAX_LENGTH = 56;
 
@@ -44,22 +21,6 @@ const truncateTorrentName = (value?: string, fallback?: string) => {
     return `${head}~${tail}`;
 };
 
-const buildPropertyText = (
-    t: ReturnType<typeof useTranslation>["t"],
-    torrent?: TorrentDetail | null
-) => {
-    if (!torrent) return null;
-    const pieces: string[] = [];
-    const percent = Math.round((torrent.progress ?? 0) * 100);
-    pieces.push(`${percent}%`);
-    const activePeers = torrent.peerSummary?.connected ?? 0;
-    if (typeof activePeers === "number") {
-        pieces.push(`${activePeers} ${t("torrent_modal.stats.active")}`);
-    }
-    pieces.push(t(`torrent_modal.statuses.${torrent.state}`));
-    return pieces.join(" · ");
-};
-
 interface TorrentDetailHeaderProps {
     torrent?: TorrentDetail | null;
     isDetailFullscreen?: boolean;
@@ -70,69 +31,62 @@ interface TorrentDetailHeaderProps {
     onTabChange: (tab: DetailTab) => void;
 }
 
-export const TorrentDetailHeader = ({
-    torrent,
-    isDetailFullscreen = false,
-    onDock,
-    onPopout,
-    onClose,
-    activeTab,
-    onTabChange,
-}: TorrentDetailHeaderProps) => {
+export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
+    const {
+        torrent,
+        isDetailFullscreen = false,
+        onDock,
+        onPopout,
+        onClose,
+        activeTab,
+        onTabChange,
+    } = props;
     const { t } = useTranslation();
-    const propertyText = buildPropertyText(t, torrent);
     const renderedName = truncateTorrentName(
         torrent?.name,
         t("general.unknown")
     );
 
     return (
-        <div className="flex items-center gap-tight px-tight py-tight relative">
-            <div className="flex-shrink-0">
-                <Tabs
-                    aria-label={t("inspector.panel_label")}
-                    variant="ghost"
-                    size="md"
-                    selectedKey={activeTab}
-                    onSelectionChange={(key) => onTabChange(key as DetailTab)}
-                    classNames={{
-                        tabList:
-                            "flex flex-col gap-tight p-tight rounded-panel bg-content1/20 border border-content1/20 shadow-inner",
-                        tab: "text-xs font-semibold uppercase tracking-widest text-foreground/50 data-[selected=true]:text-foreground data-[selected=true]:bg-content1/10 data-[selected=true]:shadow-sm data-[selected=true]:rounded-xl",
-                        cursor: "hidden",
+        <div className="flex items-center gap-tools px-tight py-tight rounded-panel bg-content1/20 border border-content1/20 shadow-inner h-row">
+            {/* LEFT */}
+
+            <div className="flex items-center gap-tight min-w-0">
+                <Info
+                    strokeWidth={ICON_STROKE_WIDTH}
+                    className="text-foreground/50 shrink-0"
+                    style={{
+                        width: "var(--tt-status-icon-md)",
+                        height: "var(--tt-status-icon-md)",
                     }}
-                >
-                    {TAB_CONFIG.map(({ key, Icon, labelKey }) => (
-                        <Tab
-                            key={key}
-                            title={
-                                <div className="flex items-center gap-tight">
-                                    <Icon
-                                        size={14}
-                                        strokeWidth={ICON_STROKE_WIDTH}
-                                        className="text-current"
-                                    />
-                                    {t(labelKey)}
-                                </div>
-                            }
-                        />
-                    ))}
-                </Tabs>
-            </div>
-            <div className="flex-1 flex flex-col items-center justify-center gap-tight text-center">
-                {propertyText && (
-                    <span className="hidden sm:block text-scaled font-semibold uppercase tracking-tighter text-foreground/50">
-                        {propertyText}
-                    </span>
-                )}
-                <span className="text-scaled font-semibold uppercase truncate text-foreground">
+                />
+                <span className="text-scaled font-semibold uppercase text-foreground leading-tight tracking-tight truncate min-w-0">
                     {renderedName}
                 </span>
             </div>
-            <div className="absolute inset-0 flex items-center justify-center text-label tracking-label uppercase text-foreground/40 pointer-events-none">
-                {t("inspector.panel_label")}
+            {/* CENTER */}
+            <div className="flex-1 flex justify-center">
+                <div className="flex items-center gap-tight">
+                    {DETAIL_TABS.map((tab) => (
+                        <button
+                            key={tab}
+                            type="button"
+                            aria-pressed={activeTab === tab}
+                            onClick={() => onTabChange(tab)}
+                            className={cn(
+                                "px-panel py-tight rounded-full uppercase tracking-tight text-scaled font-semibold transition-colors",
+                                activeTab === tab
+                                    ? "bg-primary/20 text-foreground"
+                                    : "text-foreground/60 hover:text-foreground"
+                            )}
+                        >
+                            {t(`inspector.tab.${tab}`)}
+                        </button>
+                    ))}
+                </div>
             </div>
-            <div className="flex items-center gap-tight">
+            {/* RIGHT */}
+            <div className="flex items-center gap-tight min-w-max">
                 {!isDetailFullscreen && onPopout && (
                     <ToolbarIconButton
                         Icon={PinOff}

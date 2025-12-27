@@ -69,9 +69,7 @@
     ); /* The h-10 found in Settings */
 
     /* Visualization typography */
-    --tt-fz-label: calc(
-        var(--fz) * 0.75
-    ); /* ~10px equivalent relative to base */
+    --tt-fz-label: calc(var(--fz) * 1); /* ~10px equivalent relative to base */
 
     /* Utility mapping aliases */
     --spacing-sparkline: var(--tt-col-sparkline);

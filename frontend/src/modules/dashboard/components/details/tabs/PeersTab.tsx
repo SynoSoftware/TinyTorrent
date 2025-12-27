@@ -20,6 +20,7 @@ import { PeerMap } from "@/modules/dashboard/components/details/visualizations/P
 import { usePeerHover } from "@/shared/hooks/usePeerHover";
 import { ICON_STROKE_WIDTH } from "@/config/logic";
 import { GLASS_TOOLTIP_CLASSNAMES } from "@/modules/dashboard/components/details/visualizations/constants";
+import { TEXT_ROLES } from "./textRoles";
 
 export type PeerContextAction = "add_peer" | "ban_ip" | "copy_ip";
 
@@ -166,7 +167,7 @@ export const PeersTab = ({
 
             {/* HIGH-DENSITY DATA GRID */}
             <div className="flex-1 min-h-0 relative overflow-hidden rounded-2xl border border-content1/30 bg-content1/10 flex flex-col">
-                <div className="flex items-center gap-panel px-panel py-tight text-label font-black uppercase text-foreground/30 tracking-0-2 border-b border-content1/10">
+                <div className="flex items-center gap-panel px-panel py-tight text-label uppercase tracking-tight text-foreground/30 border-b border-content1/10">
                     <span className="w-col-id">Flags</span>
                     <span className="flex-1">Endpoint</span>
                     <span className="w-col-client">Client Identification</span>
@@ -218,7 +219,7 @@ export const PeersTab = ({
                                         handlePeerContextMenu(e, peer)
                                     }
                                 >
-                                    <div className="w-col-id font-mono text-xs text-foreground/60">
+                                    <div className="w-col-id font-mono text-label text-foreground/60">
                                         {renderFlags(peer.flagStr)}
                                     </div>
 
@@ -237,7 +238,7 @@ export const PeersTab = ({
                                         )}
                                         <span
                                             className={cn(
-                                                "text-sm font-mono truncate",
+                                                "text-scaled font-mono truncate",
                                                 isHostile
                                                     ? "text-danger"
                                                     : "text-foreground/90"
@@ -247,20 +248,20 @@ export const PeersTab = ({
                                         </span>
                                     </div>
 
-                                    <div className="w-col-client text-tiny text-foreground/40 truncate">
-                                        {peer.clientName || "—"}
+                                    <div className="w-col-client text-label text-foreground/40 truncate">
+                                        {peer.clientName || "-"}
                                     </div>
 
-                                    <div className="w-col-speed font-mono text-xs text-success text-right tabular-nums">
+                                    <div className="w-col-speed font-mono text-scaled text-success text-right tabular-nums">
                                         {peer.rateToClient > 0
                                             ? formatSpeed(peer.rateToClient)
-                                            : "—"}
+                                            : "-"}
                                     </div>
 
-                                    <div className="w-col-speed font-mono text-xs text-primary text-right tabular-nums">
+                                    <div className="w-col-speed font-mono text-scaled text-primary text-right tabular-nums">
                                         {peer.rateToPeer > 0
                                             ? formatSpeed(peer.rateToPeer)
-                                            : "—"}
+                                            : "-"}
                                     </div>
                                 </div>
                             );
@@ -283,13 +284,13 @@ export const PeersTab = ({
                                     size={14}
                                     className="text-foreground/30"
                                 />
-                                <span className="text-label font-bold text-foreground/40 uppercase truncate">
+                                <span className={`${TEXT_ROLES.label} text-foreground/40 truncate`}>
                                     {peerContextMenu.peer.address}
                                 </span>
                             </div>
                             <button
                                 onClick={() => handleAction("copy_ip")}
-                                className="w-full flex items-center gap-tools px-panel py-tight rounded-xl text-sm font-medium hover:bg-content1/10 transition-colors"
+                                className="w-full flex items-center gap-tools px-panel py-tight rounded-xl text-scaled font-semibold hover:bg-content1/10 transition-colors"
                             >
                                 <Copy
                                     size={16}
@@ -299,7 +300,7 @@ export const PeersTab = ({
                             </button>
                             <button
                                 onClick={() => handleAction("add_peer")}
-                                className="w-full flex items-center gap-tools px-panel py-tight rounded-xl text-sm font-medium hover:bg-content1/10 transition-colors"
+                                className="w-full flex items-center gap-tools px-panel py-tight rounded-xl text-scaled font-semibold hover:bg-content1/10 transition-colors"
                             >
                                 <UserPlus
                                     size={16}
@@ -309,7 +310,7 @@ export const PeersTab = ({
                             </button>
                             <button
                                 onClick={() => handleAction("ban_ip")}
-                                className="w-full flex items-center gap-tools px-panel py-tight rounded-xl text-sm font-medium text-danger hover:bg-danger/10 transition-colors border-t border-content1/10 mt-tight"
+                                className="w-full flex items-center gap-tools px-panel py-tight rounded-xl text-scaled font-semibold text-danger hover:bg-danger/10 transition-colors border-t border-content1/10 mt-tight"
                             >
                                 <Ban
                                     size={16}

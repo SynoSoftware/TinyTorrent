@@ -608,6 +608,7 @@
         "unknown": "Unknown"
     },
     "peers": {
+        "diagnostic_radar": "Diagnostic Radar",
         "action_copy_ip": "Copy IP",
         "action_add_peer": "Add Peer",
         "action_ban_ip": "Ban IP",
