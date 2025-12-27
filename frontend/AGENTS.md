@@ -1,3 +1,4 @@
+
 # **AGENTS.md — TinyTorrent Mission Specification**
 
 **Purpose:**
@@ -36,10 +37,267 @@ TinyTorrent = **modern µTorrent** × **glass UI** × **Windows 11 acrylic polis
 
 ---
 
-# **3. Architecture**
+## **2a. UI Scale System**
+
+- All interactive element sizes (icons, hit areas, paddings) are derived from central config.
+- Do **not** use Tailwind pixel-based sizing classes (`w-5`, `h-6`, `text-[14px]`) directly.
+- All sizing must reference scale tokens or semantic utility classes derived from config.
+
+---
+
+## **2b. No Magic Numbers**
+
+All spacing, sizing, radius, and scale values must come from configuration tokens and not from inline constants or ad-hoc Tailwind values.
+
+**UI must be consistent and controlled by a small set of shared knobs.** If a UI change requires a number and no suitable semantic token exists, the element must be left unchanged and flagged instead.
+
+### **No-New-Numbers Rule**
+
+When fixing zoom-related or css magic number issues:
+
+- You may NOT introduce any new numeric literals (integers or floats), even inside `calc()`.
+- You may NOT introduce Tailwind numeric geometry or spacing utilities in components:
+  - **Forbidden:** `p-*`, `px-*`, `py-*`, `m-*`, `gap-*`, `space-*`, `w-*`, `h-*`, `text-*`, `leading-*`, `rounded-*`, `shadow-*`, `blur-*` when they encode a literal number.
+  - **Forbidden:** bracket classes (arbitrary values) like `w-[...]`, `h-[...]`, `text-[...]`, `shadow-[...]`, `rounded-[...]`, `blur-[...]`, `max-w-[...]`, `min-w-[...]`, `border-[...]`.
+- Replacements must use:
+
+  - existing semantic tokens, or
+  - existing primitives (`--u`, `--z`, `--fz`) *without introducing new coefficients*.
+- If no suitable token exists, the element must be left unchanged and flagged instead.
+
+### **Consistency & Convergence Rule**
+>
+- Do NOT introduce one-off variables.
+- If a numeric value represents a concept that appears more than once (width, padding, icon size, column size, max-width, etc.), it MUST map to a **single semantic variable**.
+- Before introducing or using any variable, check whether an existing variable already represents the same meaning.
+- If no such variable exists, DO NOT invent a new one — flag it instead.
+- Multiple variables for the same semantic role are forbidden.
+
+---
+
+# **3. Design System Authority & Token Pipeline**
+
+This section defines the **Zero-Literal Mandate**. To maintain the "Confident Workbench" feel and ensure 100% harmonic scaling, all agents must strictly follow this pipeline.
+
+## **A. The Knob Registry (Few Knobs, High Leverage)**
+
+UI must be controlled by a small, stable knob set. Agents may not create additional “knobs” casually.
+
+**The only acceptable global knobs are:**
+- **Unit:** `--u` (base unit)
+- **Zoom:** `--z` (global scale multiplier)
+- **Font scale:** `--fz` (typography scaling)
+- **Radius set:** a single semantic radius family (no competing radius systems)
+- **Blur set:** Layer 1 + Layer 2 blur tokens only
+- **Elevation set:** Layer 1 + Layer 2 shadow tokens only
+- **Core structural sizes:** `h-nav`, `h-status`, `h-row` (and other structural sizes only if already part of the shell contract)
+- **Core spacing roles:** `p-panel`, `p-tight`, `gap-stage`, `gap-tools`
+
+If a change requires another knob, do not implement it in component code — flag it and route it through the token pipeline.
+
+## **B. The 4-Layer Token Pipeline**
+
+No dimension or color may skip a layer.
+
+1. **Intent (`constants.json`):** Defines logical units (e.g., `"padding_panel": 6`).
+2. **Arithmetic (`index.css` @theme):** Performs the scaling: `calc(var(--u) * [units] * var(--z))`.
+3. **Role (`logic.ts`):** Exports semantic strings (e.g., `export const PADDING_PANEL = "p-panel"`).
+4. **Application (`.tsx`):** Uses the semantic class. **Literal numbers are forbidden here.**
+
+## **C. The "Banned" vs. "Required" List**
+
+| Category | **BANNED (Drift)** | **REQUIRED (Desired State)** |
+| :--- | :--- | :--- |
+| **Sizing** | `size="sm"`, `size="xs"` | `size="md"` (Default), `size="lg"` |
+| **Spacing** | `p-1...16`, `gap-1...16` | `p-panel`, `p-tight`, `gap-stage`, `gap-tools` |
+| **Geometry** | `h-16`, `h-[56px]`, `w-64` | `h-nav`, `h-status`, `h-row`, `w-sidebar` |
+| **Brackets** | `h-[calc(...)]`, `w-[...]` | Named CSS tokens in `@theme` |
+| **Safety** | `z.any()` in RPC | `zRpcMutationResponse` or specific schemas |
+| **Buttons** | `variant="flat"` (Primary) | `variant="shadow"` (Primary/Action) |
+
+## **D. DRY Classname Rule (Stop Repeating Glass Recipes)**
+
+Repeating long Tailwind strings is a bug. Any visual recipe used in more than one place must be centralized.
+
+**Must be centralized if repeated or longer than a short layout skeleton:**
+- Glass surfaces (Layer 1, Layer 2)
+- Panel frames (border + blur + background)
+- Focus ring / focus border treatment
+- Table row base/hover/selected recipes
+- Toolbar button clusters
+- Badge/chip recipes
+
+**Rule:**
+- If a class string is repeated twice (or is a long “recipe”), it must become a shared constant/token exported from a single place (config logic or shared UI primitive).
+- Components must assemble UI from semantic pieces: `cn(GLASS_PANEL, P_PANEL, FOCUS_RING, className)` not bespoke class soup.
+
+## **E. Forensic Mapping Rules**
+
+When modifying layout, you must categorize every spacing decision into a **Logical Role**:
+
+- **Panel Padding (`p-panel`):** Interior of any GlassPanel, Card, or Modal.
+- **Tight Padding (`p-tight`):** Interior of menus, chips, badges, or list-items.
+- **Stage Gap (`gap-stage`):** The major spacing between split panels/parts.
+- **Tool Gap (`gap-tools`):** Small spacing between buttons, inputs, or tabs.
+- **Structure:** `h-nav`, `h-status`, `h-row` (strictly for the main layout bars).
+
+## **F. The Scale Test (Pre-Commit Requirement)**
+
+Before submitting any UI code, the agent must perform a "Mental Scale Test":
+> *"If I change `--u` from `4px` to `8px` in index.css, will my new code expand proportionally and maintain its internal alignment?"*
+>
+> - If **Yes**: Proceed.
+> - If **No**: You used a magic number or a hardcoded Tailwind utility. **Delete it.**
+
+## **G. Single Place of Control**
+
+If a component requires a specific width (e.g., the Directory Picker), do not calculate it in the TSX.
+
+1. Add the unit to `constants.json`.
+2. Map it to a token in `index.css` (e.g., `--tt-dir-picker-w`).
+3. Use the token in the component (`w-dir-picker`).
+
+## **H. Allowed Tailwind Whitelist (Components)**
+
+Tailwind is allowed only for non-token structural composition:
+
+**Allowed:**
+- `flex`, `grid`, `items-*`, `justify-*`, `grow`, `shrink`, `min-h-0`, `min-w-0`
+- `relative`, `absolute`, `sticky`, `inset-0` (no numeric geometry)
+- `overflow-hidden`, `overflow-auto`, `truncate`, `whitespace-*`
+- `select-none`, `select-text`
+- `pointer-events-*`, `cursor-*`
+- Responsive variants (`sm:`, `md:` etc.) only when they reference semantic utilities (not numeric ones)
+
+**Not allowed in components (must be semantic tokens instead):**
+- spacing, sizing, radius, shadows, blur, typography sizes, arbitrary bracket expressions, or any numeric geometry.
+
+## **I. Missing Token Protocol (Mandatory)**
+
+When a needed semantic token does not exist, the agent must:
+
+1. Not implement the tweak using literals in the component.
+2. Add a **FLAG** comment describing the missing semantic role.
+3. Propose the token addition strictly through the pipeline:
+   - `constants.json` intent
+   - `index.css` @theme arithmetic
+   - `logic.ts` role export
+   - component usage
+
+No workaround is acceptable.
+
+---
+
+# **4. Theming & Semantic Tokens**
+
+This section defines non-negotiable UI constraints and is subject to §5 enforcement.
+
+**Mandatory:**
+Use **HeroUI semantic tokens** everywhere.
+
+### **The Layered Depth System (Semantic Glass)**
+
+We use Tailwind's opacity modifier (`/opacity`) on HeroUI tokens. This preserves semantic color (light/dark aware) while applying glass transparency.
+
+| Layer       | Surface                      | Tokens                                                                        |
+| :---------- | :--------------------------- | :---------------------------------------------------------------------------- |
+| **Layer 0** | App Background (Shell)       | `bg-background` + subtle noise texture (2–4% opacity), defined via config     |
+| **Layer 1** | Panels / Tables              | `backdrop-blur-md` + `bg-background/60` + `border-default/10`                 |
+| **Layer 2** | Modals / Popovers / Floating | `backdrop-blur-xl` + `bg-content1/80` + `shadow-medium` + `border-default/20` |
+
+**Rule:**
+Every "Glass" layer (Layers 1 & 2) must have a subtle border (`border-default/xx`) to define its edge. Using `border-default` ensures the border is dark in Light Mode and light in Dark Mode automatically.
+
+- **Layer 0 (App Shell):**
+
+  - Transparency should allow OS window material to show through if supported (Mica-like effect).
+  - Fallback colors and noise parameters are defined centrally in `config/constants.json`; no inline hex in JSX/TSX.
+  - The app background must visually read as "Chrome Gray", not pure white/black. Content tables sit **on top** using `bg-background`.
+
+### **Semantic Status Mapping**
+
+These mappings must be consistent across the app (Text, Badges, Icons, Graphs):
+
+| Token     | Usage                  |
+| --------- | ---------------------- |
+| `success` | Seeding, Completed     |
+| `warning` | Paused, Checking       |
+| `danger`  | Deletes, Errors        |
+| `primary` | CTAs, Progress Accents |
+| `default` | Borders, Inactive Text |
+
+---
+
+## **Color Rules**
+
+**Mandatory:** Light/dark mode must work flawlessly.
+
+**Use:**
+
+- `var(--heroui-background)`
+- `var(--heroui-content1)`
+- `var(--heroui-foreground)`
+- `var(--heroui-primary)`
+- `var(--heroui-default)` (for borders/dividers)
+- Tailwind utilities only when they wrap these semantic tokens.
+
+**Avoid:**
+
+- Custom hex / rgb colors in JSX/TSX
+- Tailwind named colors (`bg-slate-900`, etc.)
+- Hard-coded `border-white` / `border-black` (breaks theme switching)
+- Manual `rgba()` color calculations
+
+All shell-level constants (fallback grays, noise strength, etc.) live in `config/constants.json`, never inline.
+
+### **Aesthetic**
+
+- Detect system dark/light mode and use it automatically; fallback = Dark.
+- Detect system/browser language and use it; fallback = English.
+- Glass layers (backdrop-blur) for all UI surfaces that float or overlay.
+- Controls (buttons, icons, chips) use enlarged visual size and comfortable hit areas to improve usability without inflating layouts.
+- Strong typography hierarchy (Swiss style).
+- Layered shadows used sparingly for depth — never decoration.
+
+---
+
+# **5. UI Consistency Enforcement (Non-Negotiable) (Applies to §§2, 3 and 5)**
+
+## **A. Consistency Contract**
+
+UI must remain stable under knob changes. Agents must treat the design system like an API.
+
+If a change causes any of these, it is a failure:
+
+- One view scales differently than another when `--u`, `--z`, or `--fz` changes.
+- Two panels that should match use different padding/gap/row height semantics.
+- Similar controls look “nearly the same” but differ due to local class tweaks.
+
+## **B. Pre-Commit Checklist (Mandatory)**
+
+Before claiming UI work is done, verify:
+
+- Token-only geometry: no numeric Tailwind utilities or bracket classes were added.
+- No duplicates: the same concept uses the same token everywhere (row height, panel padding, tool gaps).
+- DRY: no repeated “glass recipe” strings; shared recipes are centralized.
+- Scale test: changing `--u` (4→8) and `--z` (1→1.25) would scale everything harmonically.
+
+Any PR containing forbidden numeric Tailwind/bracket classes is invalid and must be rewritten.
+
+## **C. Agent Output Requirement**
+
+When an agent changes UI, it must include a short “Token Mapping” note in the PR message:
+
+- Which semantic roles were used (e.g., `p-panel`, `gap-stage`, `h-row`, glass layer token)
+- Whether any new token was required
+- If required but missing → must be flagged, not hacked
+
+---
+
+# **6. Architecture**
 
 **Frontend Core Philosophy:**
-The front end is an UI that runs for a single purpose: to control the daemon that runs with it, on the same machine; it is normally packed together with the exe and must not bother the user with UI connecting to some other server. we are allowing connections to another server just for debug/convenience but only as long as it doesn't interfere with the main design. Although the web technology is designed for client-server connection this app is not to be thought like that. it must not implement code that cause restrictions of features that a native UI in windows would have. the choice of this technology is for final exe size not for the client-server connection design of the web. the architecture: tray UI (access to native windows dialog) - daemon transfer server (minimal memory requirements running in background) - and UI in web browser (so we don't have to ship QT or other frameworks) is designed for smallest exe size and properly designed allows any feature that a native windows app can take. we must always have in mind what we try to achieve and not compromise the final purpose.
+The front end is a UI that runs for a single purpose: to control the daemon that runs with it, on the same machine; it is normally packed together with the exe and must not bother the user with UI connecting to some other server. we are allowing connections to another server just for debug/convenience but only as long as it doesn't interfere with the main design. Although the web technology is designed for client-server connection this app is not to be thought like that. it must not implement code that cause restrictions of features that a native UI in windows would have. the choice of this technology is for final exe size not for the client-server connection design of the web. the architecture: tray UI (access to native windows dialog) - daemon transfer server (minimal memory requirements running in background) - and UI in web browser (so we don't have to ship QT or other frameworks) is designed for smallest exe size and properly designed allows any feature that a native windows app can take. we must always have in mind what we try to achieve and not compromise the final purpose.
 
 ### **Stack:**
 
@@ -58,7 +316,7 @@ The front end is an UI that runs for a single purpose: to control the daemon tha
 
 ---
 
-## **§3a. Frontend Runtime Model (Authoritative)**
+## **§6a. Frontend Runtime Model (Authoritative)**
 
 **TinyTorrent’s frontend is not a client in a client–server product.**
 
@@ -128,7 +386,7 @@ This architecture exists to achieve **smallest possible size and overhead**, not
 
 ---
 
-## **§3b. The Native Bridge (WebView2 Rules)**
+## **§6b. The Native Bridge (WebView2 Rules)**
 
 When running as a desktop app, the UI must bypass browser-layer limitations:
 
@@ -188,116 +446,7 @@ To prevent "Slow Table / Fast CPU Burn":
 
 ---
 
-## **UI Scale System**
-
-- All interactive element sizes (icons, hit areas, paddings) are derived from central config.
-- Do **not** use Tailwind pixel-based sizing classes (`w-5`, `h-6`, `text-[14px]`) directly.
-- All sizing must reference scale tokens or semantic utility classes derived from config.
-
----
-
-# **4. Theming & Semantic Tokens**
-
-**Mandatory:**
-Use **HeroUI semantic tokens** everywhere.
-
-### **The Layered Depth System (Semantic Glass)**
-
-We use Tailwind's opacity modifier (`/opacity`) on HeroUI tokens. This preserves semantic color (light/dark aware) while applying glass transparency.
-
-| Layer       | Surface                      | Tokens                                                                        |
-| :---------- | :--------------------------- | :---------------------------------------------------------------------------- |
-| **Layer 0** | App Background (Shell)       | `bg-background` + subtle noise texture (2–4% opacity), defined via config     |
-| **Layer 1** | Panels / Tables              | `backdrop-blur-md` + `bg-background/60` + `border-default/10`                 |
-| **Layer 2** | Modals / Popovers / Floating | `backdrop-blur-xl` + `bg-content1/80` + `shadow-medium` + `border-default/20` |
-
-**Rule:**
-Every "Glass" layer (Layers 1 & 2) must have a subtle border (`border-default/xx`) to define its edge. Using `border-default` ensures the border is dark in Light Mode and light in Dark Mode automatically.
-
-- **Layer 0 (App Shell):**
-
-  - Transparency should allow OS window material to show through if supported (Mica-like effect).
-  - Fallback colors and noise parameters are defined centrally in `config/constants.json`; no inline hex in JSX/TSX.
-  - The app background must visually read as "Chrome Gray", not pure white/black. Content tables sit **on top** using `bg-background`.
-
-### **Semantic Status Mapping**
-
-These mappings must be consistent across the app (Text, Badges, Icons, Graphs):
-
-| Token     | Usage                  |
-| --------- | ---------------------- |
-| `success` | Seeding, Completed     |
-| `warning` | Paused, Checking       |
-| `danger`  | Deletes, Errors        |
-| `primary` | CTAs, Progress Accents |
-| `default` | Borders, Inactive Text |
-
----
-
-## **Color Rules**
-
-**Mandatory:** Light/dark mode must work flawlessly.
-
-**Use:**
-
-- `var(--heroui-background)`
-- `var(--heroui-content1)`
-- `var(--heroui-foreground)`
-- `var(--heroui-primary)`
-- `var(--heroui-default)` (for borders/dividers)
-- Tailwind utilities only when they wrap these semantic tokens.
-
-**Avoid:**
-
-- Custom hex / rgb colors in JSX/TSX
-- Tailwind named colors (`bg-slate-900`, etc.)
-- Hard-coded `border-white` / `border-black` (breaks theme switching)
-- Manual `rgba()` color calculations
-
-All shell-level constants (fallback grays, noise strength, etc.) live in `config/constants.json`, never inline.
-
----
-
-## **No Magic Numbers**
-
-All spacing, sizing, radius, and scale values must come from configuration tokens and not from inline constants or ad-hoc Tailwind values.
-
-**UI must be consistent and controlled by a small set of shared knobs.** If a UI change requires a number and no suitable semantic token exists, the element must be left unchanged and flagged instead.
-
-### **No-New-Numbers Rule**
-
-When fixing zoom-related or css magic number issues issues:
-
-- You may NOT introduce any new numeric literals (integers or floats), even inside `calc()`.
-- You may NOT introduce Tailwind numeric geometry or spacing utilities in components:
-  - **Forbidden:** `p-*`, `px-*`, `py-*`, `m-*`, `gap-*`, `space-*`, `w-*`, `h-*`, `text-*`, `leading-*`, `rounded-*`, `shadow-*`, `blur-*` when they encode a literal number.
-  - **Forbidden:** bracket classes (arbitrary values) like `w-[...]`, `h-[...]`, `text-[...]`, `shadow-[...]`, `rounded-[...]`, `blur-[...]`, `max-w-[...]`, `min-w-[...]`, `border-[...]`.
-- Replacements must use:
-
-  - existing semantic tokens, or
-  - existing primitives (`--u`, `--z`, `--fz`) *without introducing new coefficients*.
-- If no suitable token exists, the element must be left unchanged and flagged instead.
-
-### **Consistency & Convergence Rule**
->
-- Do NOT introduce one-off variables.
-- If a numeric value represents a concept that appears more than once (width, padding, icon size, column size, max-width, etc.), it MUST map to a **single semantic variable**.
-- Before introducing or using any variable, check whether an existing variable already represents the same meaning.
-- If no such variable exists, DO NOT invent a new one — flag it instead.
-- Multiple variables for the same semantic role are forbidden.
-
-### **Aesthetic**
-
-- Detect system dark/light mode and use it automatically; fallback = Dark.
-- Detect system/browser language and use it; fallback = English.
-- Glass layers (backdrop-blur) for all UI surfaces that float or overlay.
-- Controls (buttons, icons, chips) use enlarged visual size and comfortable hit areas to improve usability without inflating layouts.
-- Strong typography hierarchy (Swiss style).
-- Layered shadows used sparingly for depth — never decoration.
-
----
-
-# **5. UI/UX Philosophy**
+# **7. UI/UX Philosophy**
 
 ### **The "Tool" Interaction Model**
 
@@ -392,7 +541,7 @@ Motion clarifies structure; it is not decoration.
 
 ---
 
-# **6. Component System**
+# **8. Component System**
 
 ### **Core**
 
@@ -491,7 +640,7 @@ Any component that presents data visually (e.g., peer map, bandwidth graphs) mus
 
 ---
 
-## **6a. The Workbench Layout (Panel Strategy)**
+## **8a. The Workbench Layout (Panel Strategy)**
 
 Instead of "modals for details", TinyTorrent uses a **Master–Detail Workbench**.
 
@@ -540,7 +689,7 @@ Instead of "modals for details", TinyTorrent uses a **Master–Detail Workbench*
 
 ---
 
-## **6b. Workbench Model (VS Code Architecture)**
+## **8b. Workbench Model (VS Code Architecture)**
 
 TinyTorrent adopts a simplified VS Code workbench structure:
 
@@ -572,7 +721,7 @@ This model guarantees IDE-like continuity: stable scroll state, predictable focu
 
 ---
 
-# **7. RPC Layer (Protocol Strategy)**
+# **9. RPC Layer (Protocol Strategy)**
 
 TinyTorrent is in a **Transition Phase**.
 
@@ -636,7 +785,7 @@ The frontend runs on a **dual transport**:
 
 ---
 
-# **8. Internationalization (Stack Level)**
+# **10. Internationalization (Stack Level)**
 
 - i18next
 - Only `en.json` is required for MVP.
@@ -644,7 +793,7 @@ The frontend runs on a **dual transport**:
 
 ---
 
-# **9. Quality & Performance Standards**
+# **11. Quality & Performance Standards**
 
 ### Requirements
 
@@ -664,7 +813,7 @@ The frontend runs on a **dual transport**:
 
 ---
 
-# **10. MVP Deliverables**
+# **12. MVP Deliverables**
 
 1. Glass App Shell (Layered Depth System).
 2. Dashboard Grid (Virtual, Sortable, Queue-Draggable).
@@ -677,7 +826,7 @@ The frontend runs on a **dual transport**:
 
 ---
 
-# **11. UX Excellence Directive**
+# **13. UX Excellence Directive**
 
 All agents operate as **tool-UI designers**, not marketing site designers.
 
@@ -698,7 +847,7 @@ TinyTorrent must deliver **Adaptive Excellence**:
 
 ---
 
-# **12. Architectural Principles (Mandatory)**
+# **14. Architectural Principles (Mandatory)**
 
 - **HeroUI governs controls (buttons, inputs, menus).**
     The **Workbench Shell** (titlebar, panels, splitters, chrome, glass layers) is 100% custom.
@@ -738,7 +887,7 @@ TinyTorrent must deliver **Adaptive Excellence**:
 
 ---
 
-# **13. Project Structure (Optimized for Single Developer)**
+# **15. Project Structure (Optimized for Single Developer)**
 
 Flat, high-maintenance structure optimized for speed and co-location.
 
@@ -819,7 +968,7 @@ src/
 
 ---
 
-# **14. Coding Standards**
+# **16. Coding Standards**
 
 These guarantee consistency and prevent drift.
 
@@ -937,7 +1086,7 @@ export default defineConfig({
 
 ---
 
-# **15. Internationalization (Enforcement)**
+# **17. Internationalization (Enforcement)**
 
 * No hard-coded English anywhere in the codebase.
 
@@ -956,7 +1105,7 @@ export default defineConfig({
 
 ---
 
-# **16. Final Authority Rule**
+# **18. Final Authority Rule**
 
 When in doubt, the agent must ask:
 
@@ -967,159 +1116,6 @@ When in doubt, the agent must ask:
 
 **One-Line North Star:**
 TinyTorrent must behave like a desktop tool and look better than desktop tools ever have.
-
----
-
-# **17. Design System Authority & Token Pipeline**
-
-This section defines the **Zero-Literal Mandate**. To maintain the "Confident Workbench" feel and ensure 100% harmonic scaling, all agents must strictly follow this pipeline.
-
-## **A0. The Knob Registry (Few Knobs, High Leverage)**
-
-UI must be controlled by a small, stable knob set. Agents may not create additional “knobs” casually.
-
-**The only acceptable global knobs are:**
-
-* **Unit:** `--u` (base unit)
-* **Zoom:** `--z` (global scale multiplier)
-* **Font scale:** `--fz` (typography scaling)
-* **Radius set:** a single semantic radius family (no competing radius systems)
-* **Blur set:** Layer 1 + Layer 2 blur tokens only
-* **Elevation set:** Layer 1 + Layer 2 shadow tokens only
-* **Core structural sizes:** `h-nav`, `h-status`, `h-row` (and other structural sizes only if already part of the shell contract)
-* **Core spacing roles:** `p-panel`, `p-tight`, `gap-stage`, `gap-tools`
-
-If a change requires another knob, do not implement it in component code — flag it and route it through the token pipeline.
-
-## **A. The 4-Layer Token Pipeline**
-
-No dimension or color may skip a layer.
-
-1. **Intent (`constants.json`):** Defines logical units (e.g., `"padding_panel": 6`).
-2. **Arithmetic (`index.css` @theme):** Performs the scaling: `calc(var(--u) * [units] * var(--z))`.
-3. **Role (`logic.ts`):** Exports semantic strings (e.g., `export const PADDING_PANEL = "p-panel"`).
-4. **Application (`.tsx`):** Uses the semantic class. **Literal numbers are forbidden here.**
-
-## **B. The "Banned" vs. "Required" List**
-
-| Category     | **BANNED (Drift)**         | **REQUIRED (Desired State)**                   |
-| :----------- | :------------------------- | :--------------------------------------------- |
-| **Sizing**   | `size="sm"`, `size="xs"`   | `size="md"` (Default), `size="lg"`             |
-| **Spacing**  | `p-1...16`, `gap-1...16`   | `p-panel`, `p-tight`, `gap-stage`, `gap-tools` |
-| **Geometry** | `h-16`, `h-[56px]`, `w-64` | `h-nav`, `h-status`, `h-row`, `w-sidebar`      |
-| **Brackets** | `h-[calc(...)]`, `w-[...]` | Named CSS tokens in `@theme`                   |
-| **Safety**   | `z.any()` in RPC           | `zRpcMutationResponse` or specific schemas     |
-| **Buttons**  | `variant="flat"` (Primary) | `variant="shadow"` (Primary/Action)            |
-
-## **C0. DRY Classname Rule (Stop Repeating Glass Recipes)**
-
-Repeating long Tailwind strings is a bug. Any visual recipe used in more than one place must be centralized.
-
-**Must be centralized if repeated or longer than a short layout skeleton:**
-
-* Glass surfaces (Layer 1, Layer 2)
-* Panel frames (border + blur + background)
-* Focus ring / focus border treatment
-* Table row base/hover/selected recipes
-* Toolbar button clusters
-* Badge/chip recipes
-
-**Rule:**
-
-* If a class string is repeated twice (or is a long “recipe”), it must become a shared constant/token exported from a single place (config logic or shared UI primitive).
-* Components must assemble UI from semantic pieces: `cn(GLASS_PANEL, P_PANEL, FOCUS_RING, className)` not bespoke class soup.
-
-## **C. Forensic Mapping Rules**
-
-When modifying layout, you must categorize every spacing decision into a **Logical Role**:
-
-* **Panel Padding (`p-panel`):** Interior of any GlassPanel, Card, or Modal.
-* **Tight Padding (`p-tight`):** Interior of menus, chips, badges, or list-items.
-* **Stage Gap (`gap-stage`):** The major spacing between split panels/parts.
-* **Tool Gap (`gap-tools`):** Small spacing between buttons, inputs, or tabs.
-* **Structure:** `h-nav`, `h-status`, `h-row` (strictly for the main layout bars).
-
-## **D. The Scale Test (Pre-Commit Requirement)**
-
-Before submitting any UI code, the agent must perform a "Mental Scale Test":
-
-> *"If I change `--u` from `4px` to `8px` in index.css, will my new code expand proportionally and maintain its internal alignment?"*
->
-> * If **Yes**: Proceed.
-> * If **No**: You used a magic number or a hardcoded Tailwind utility. **Delete it.**
-
-## **E. Single Place of Control**
-
-If a component requires a specific width (e.g., the Directory Picker), do not calculate it in the TSX.
-
-1. Add the unit to `constants.json`.
-2. Map it to a token in `index.css` (e.g., `--tt-dir-picker-w`).
-3. Use the token in the component (`w-dir-picker`).
-
-## **F. Allowed Tailwind Whitelist (Components)**
-
-Tailwind is allowed only for non-token structural composition:
-
-**Allowed:**
-
-* `flex`, `grid`, `items-*`, `justify-*`, `grow`, `shrink`, `min-h-0`, `min-w-0`
-* `relative`, `absolute`, `sticky`, `inset-0` (no numeric geometry)
-* `overflow-hidden`, `overflow-auto`, `truncate`, `whitespace-*`
-* `select-none`, `select-text`
-* `pointer-events-*`, `cursor-*`
-* Responsive variants (`sm:`, `md:` etc.) only when they reference semantic utilities (not numeric ones)
-
-**Not allowed in components (must be semantic tokens instead):**
-
-* spacing, sizing, radius, shadows, blur, typography sizes, arbitrary bracket expressions, or any numeric geometry.
-
-## **G. Missing Token Protocol (Mandatory)**
-
-When a needed semantic token does not exist, the agent must:
-
-1. Not implement the tweak using literals in the component.
-2. Add a **FLAG** comment describing the missing semantic role.
-3. Propose the token addition strictly through the pipeline:
-
-   * `constants.json` intent
-   * `index.css` @theme arithmetic
-   * `logic.ts` role export
-   * component usage
-
-No workaround is acceptable.
-
----
-
-# **18. UI Consistency Enforcement (Non-Negotiable)**
-
-## **A. Consistency Contract**
-
-UI must remain stable under knob changes. Agents must treat the design system like an API.
-
-If a change causes any of these, it is a failure:
-
-* One view scales differently than another when `--u`, `--z`, or `--fz` changes.
-* Two panels that should match use different padding/gap/row height semantics.
-* Similar controls look “nearly the same” but differ due to local class tweaks.
-
-## **B. Pre-Commit Checklist (Mandatory)**
-
-Before claiming UI work is done, verify:
-
-* Token-only geometry: no numeric Tailwind utilities or bracket classes were added.
-* No duplicates: the same concept uses the same token everywhere (row height, panel padding, tool gaps).
-* DRY: no repeated “glass recipe” strings; shared recipes are centralized.
-* Scale test: changing `--u` (4→8) and `--z` (1→1.25) would scale everything harmonically.
-
-Any PR containing forbidden numeric Tailwind/bracket classes is invalid and must be rewritten.
-
-## **C. Agent Output Requirement**
-
-When an agent changes UI, it must include a short “Token Mapping” note in the PR message:
-
-* Which semantic roles were used (e.g., `p-panel`, `gap-stage`, `h-row`, glass layer token)
-* Whether any new token was required
-* If required but missing → must be flagged, not hacked
 
 ---
 
