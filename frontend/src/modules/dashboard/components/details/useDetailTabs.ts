@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type KeyboardEvent } from "react";
 import type { DetailTab } from "@/modules/dashboard/types/torrentDetail";
 
-const DETAIL_TABS: DetailTab[] = [
+export const DETAIL_TABS: DetailTab[] = [
     "general",
     "content",
     "pieces",

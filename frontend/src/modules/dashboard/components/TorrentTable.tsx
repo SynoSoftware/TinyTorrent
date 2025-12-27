@@ -92,9 +92,9 @@ import {
     ShortcutIntent,
     ICON_STROKE_WIDTH,
     ICON_STROKE_WIDTH_DENSE,
-    TABLE_ICON_SIZE,
+    UI_BASES,
 } from "@/config/logic";
-import { CONFIG } from "@/config/logic";
+import { CONFIG, ICON_SIZE } from "@/config/logic";
 
 // --- CONSTANTS ---
 const STORAGE_KEY = "tiny-torrent.table-state.v2.8";
@@ -333,8 +333,8 @@ const DraggableHeader = memo(
                             strokeWidth={ICON_STROKE_WIDTH_DENSE}
                             className="text-primary shrink-0"
                             style={{
-                                width: TABLE_ICON_SIZE.secondary,
-                                height: TABLE_ICON_SIZE.secondary,
+                                width: ICON_SIZE.secondary,
+                                height: ICON_SIZE.secondary,
                             }}
                         />
                     )}
@@ -343,8 +343,8 @@ const DraggableHeader = memo(
                             strokeWidth={ICON_STROKE_WIDTH_DENSE}
                             className="text-primary shrink-0"
                             style={{
-                                width: TABLE_ICON_SIZE.secondary,
-                                height: TABLE_ICON_SIZE.secondary,
+                                width: ICON_SIZE.secondary,
+                                height: ICON_SIZE.secondary,
                             }}
                         />
                     )}
@@ -412,9 +412,9 @@ const ColumnHeaderPreview = ({
                         strokeWidth={ICON_STROKE_WIDTH_DENSE}
                         className="text-primary shrink-0"
                         style={{
-                                width: TABLE_ICON_SIZE.secondary,
-                                height: TABLE_ICON_SIZE.secondary,
-                            }}
+                            width: ICON_SIZE.secondary,
+                            height: ICON_SIZE.secondary,
+                        }}
                     />
                 )}
                 {sortState === "desc" && (
@@ -422,9 +422,9 @@ const ColumnHeaderPreview = ({
                         strokeWidth={ICON_STROKE_WIDTH_DENSE}
                         className="text-primary shrink-0"
                         style={{
-                                width: TABLE_ICON_SIZE.secondary,
-                                height: TABLE_ICON_SIZE.secondary,
-                            }}
+                            width: ICON_SIZE.secondary,
+                            height: ICON_SIZE.secondary,
+                        }}
                     />
                 )}
             </div>
@@ -1009,14 +1009,14 @@ export function TorrentTable({
                                 letterSpacing: "var(--tt-tracking-ultra)",
                             }}
                         >
-                    <HeaderIcon
-                        strokeWidth={ICON_STROKE_WIDTH_DENSE}
-                        className="text-foreground/50 animate-pulse"
-                            style={{
-                                width: TABLE_ICON_SIZE.primary,
-                                height: TABLE_ICON_SIZE.primary,
-                            }}
-                    />
+                            <HeaderIcon
+                                strokeWidth={ICON_STROKE_WIDTH_DENSE}
+                                className="text-foreground/50 animate-pulse"
+                                style={{
+                                    width: ICON_SIZE.primary,
+                                    height: ICON_SIZE.primary,
+                                }}
+                            />
                             <span>{label}</span>
                         </div>
                     ) : (

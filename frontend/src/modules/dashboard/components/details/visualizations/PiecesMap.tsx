@@ -10,6 +10,7 @@ import {
 } from "./canvasUtils";
 import type { FrameHandle } from "./canvasUtils";
 import { DETAILS_PIECE_MAP_CONFIG } from "@/config/logic";
+import { TEXT_ROLES } from "@/modules/dashboard/components/details/tabs/textRoles";
 type PieceStatus = "done" | "downloading" | "missing";
 interface PiecesMapProps {
     percent: number;
@@ -112,33 +113,41 @@ export const PiecesMap = ({
     return (
         <div className="flex flex-col gap-panel h-full">
             <div
-                className="flex flex-wrap justify-between text-tiny uppercase text-foreground/50"
+                className="flex flex-wrap justify-between gap-panel text-foreground/50"
                 style={{ letterSpacing: "var(--tt-tracking-wide)" }}
             >
-                <span>
-                    {t("torrent_modal.stats.pieces")}:{" "}
-                    <span className="text-foreground font-mono">
+                <div className="flex flex-col gap-tight">
+                    <span className={TEXT_ROLES.label}>
+                        {t("torrent_modal.stats.pieces")}
+                    </span>
+                    <span className="text-scaled font-mono text-foreground">
                         {pieceCount ?? fallbackPieces}
                     </span>
-                </span>
-                <span>
-                    {t("torrent_modal.stats.piece_size")}:{" "}
-                    <span className="text-foreground font-mono">
+                </div>
+                <div className="flex flex-col gap-tight">
+                    <span className={TEXT_ROLES.label}>
+                        {t("torrent_modal.stats.piece_size")}
+                    </span>
+                    <span className="text-scaled font-mono text-foreground">
                         {pieceSizeLabel}
                     </span>
-                </span>
-                <span>
-                    {t("torrent_modal.stats.verified")}:{" "}
-                    <span className="text-foreground font-mono">
+                </div>
+                <div className="flex flex-col gap-tight">
+                    <span className={TEXT_ROLES.label}>
+                        {t("torrent_modal.stats.verified")}
+                    </span>
+                    <span className="text-scaled font-mono text-foreground">
                         {doneCount}
                     </span>
-                </span>
-                <span>
-                    {t("torrent_modal.stats.downloading")}:{" "}
-                    <span className="text-warning font-mono">
+                </div>
+                <div className="flex flex-col gap-tight">
+                    <span className={TEXT_ROLES.label}>
+                        {t("torrent_modal.stats.downloading")}
+                    </span>
+                    <span className="text-scaled font-mono text-warning">
                         {downloadingCount}
                     </span>
-                </span>
+                </div>
             </div>
             <div className="rounded-2xl border border-content1/20 bg-content1/10 p-panel">
                 <div className="relative">
@@ -155,17 +164,17 @@ export const PiecesMap = ({
                     />
                     {tooltipLines.length > 0 && tooltipStyle && (
                         <div
-                            className="pointer-events-none absolute z-10 max-w-tooltip rounded-2xl border border-content1/30 bg-content1/90 px-panel py-tight text-tiny text-foreground/90 shadow-large backdrop-blur-xl"
+                            className="pointer-events-none absolute z-10 max-w-tooltip rounded-2xl border border-content1/30 bg-content1/90 px-panel py-tight text-scaled text-foreground/90 shadow-large backdrop-blur-xl"
                             style={tooltipStyle}
                         >
                             {tooltipLines.map((line, index) => (
                                 <span
                                     key={`piece-tooltip-${index}`}
                                     className={cn(
-                                        "block whitespace-normal",
+                                        "block whitespace-normal text-scaled",
                                         index === 0
                                             ? "font-semibold"
-                                            : "text-tiny text-foreground/70"
+                                            : "text-foreground/70"
                                     )}
                                 >
                                     {line}
@@ -175,14 +184,14 @@ export const PiecesMap = ({
                     )}
                     {/* Badge for all pieces verified */}
                     {doneCount === totalPieces && totalPieces > 0 && (
-                        <div className="absolute top-2 right-2 bg-success/80 text-white text-xs font-bold px-panel py-tight rounded shadow-lg">
+                        <div className="absolute top-2 right-2 bg-success/80 text-white text-scaled font-semibold px-panel py-tight rounded shadow-lg">
                             {t("torrent_modal.stats.verified")}: {doneCount}
                         </div>
                     )}
                     {/* Tooltip for unknown piece size */}
                     {pieceSizeLabel ===
                         t("torrent_modal.stats.unknown_size") && (
-                        <div className="absolute left-2 bottom-2 bg-content1/90 text-xs text-foreground/80 px-tight py-tight rounded shadow">
+                        <div className="absolute left-2 bottom-2 bg-content1/90 text-scaled text-foreground/80 px-tight py-tight rounded shadow">
                             {t("torrent_modal.stats.unknown_size")}
                         </div>
                     )}
@@ -200,7 +209,7 @@ export const PiecesMap = ({
                             borderRadius: 4,
                         }}
                     />
-                    <span className="text-xs text-foreground/70">
+                    <span className={`${TEXT_ROLES.secondary} text-foreground/70`}>
                         {t("torrent_modal.stats.verified")}
                     </span>
                 </span>
@@ -215,7 +224,7 @@ export const PiecesMap = ({
                             border: "2px dashed " + palette.primary,
                         }}
                     />
-                    <span className="text-xs text-foreground/70">
+                    <span className={`${TEXT_ROLES.secondary} text-foreground/70`}>
                         {t("torrent_modal.stats.downloading")}
                     </span>
                 </span>
@@ -230,7 +239,7 @@ export const PiecesMap = ({
                             border: "1.5px solid " + palette.danger,
                         }}
                     />
-                    <span className="text-xs text-foreground/70">
+                    <span className={`${TEXT_ROLES.secondary} text-foreground/70`}>
                         {t("torrent_modal.stats.missing")}
                     </span>
                 </span>

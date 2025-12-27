@@ -45,8 +45,8 @@ export const ToolbarIconButton = forwardRef<
                 strokeWidth={ICON_STROKE_WIDTH}
                 className="text-current "
                 style={{
-                    width: ICON_SIZE_MAP[iconSize],
-                    height: ICON_SIZE_MAP[iconSize],
+                    width: ICON_SIZE_MAP[iconSize as ToolbarIconSize],
+                    height: ICON_SIZE_MAP[iconSize as ToolbarIconSize],
                 }}
             />
         ) : null);

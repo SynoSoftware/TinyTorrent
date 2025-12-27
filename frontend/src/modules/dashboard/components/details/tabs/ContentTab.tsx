@@ -89,10 +89,10 @@ export const ContentTab = ({
         return (
             <div className="flex h-full min-h-0 flex-col gap-panel">
                 <GlassPanel className="p-panel space-y-3 border border-warning/30 bg-warning/10">
-                    <div className="font-semibold text-warning text-sm">
+                    <div className="text-scaled font-semibold uppercase tracking-tight text-warning">
                         {t("torrent_modal.files_empty")}
                     </div>
-                    <div className="text-warning text-xs mb-tight">
+                    <div className="text-label text-warning/80 mb-tight">
                         {t("torrent_modal.files_recovery_desc", {
                             defaultValue:
                                 "This torrent may be missing file metadata. Try rechecking or re-downloading.",
@@ -146,30 +146,25 @@ export const ContentTab = ({
                 <div className="flex items-center justify-between gap-panel">
                     <div className="flex flex-col gap-tight">
                         <span
-                            className="text-xs font-semibold uppercase text-foreground/60"
-                            style={{
-                                letterSpacing: "var(--tt-tracking-ultra)",
-                            }}
+                            className="text-scaled font-semibold uppercase tracking-tight text-foreground/60"
                         >
                             {t("torrent_modal.files_title")}
                         </span>
-                        <p className="text-xs text-foreground/60">
+                        <p className="text-label text-foreground/60">
                             {t("torrent_modal.files_description")}
                         </p>
                     </div>
                     <span
-                        className="text-xs font-semibold uppercase text-foreground/50"
-                        style={{ letterSpacing: "var(--tt-tracking-ultra)" }}
+                        className="text-label font-semibold uppercase tracking-tight text-foreground/50"
                     >
                         {fileCountLabel}
                     </span>
                 </div>
             </GlassPanel>
 
-            <GlassPanel className="flex flex-1 min-h-0 flex-col border border-default/15 ">
+            <GlassPanel className="flex flex-1 min-h-0 flex-col border border-default/15">
                 <div
-                    className="border-b border-default/10 px-panel py-panel text-xs font-semibold uppercase text-foreground/50"
-                    style={{ letterSpacing: "var(--tt-tracking-ultra)" }}
+                    className="border-b border-default/10 px-panel py-panel text-label font-semibold uppercase tracking-tight text-foreground/50"
                 >
                     {t("torrent_modal.tabs.content")}
                 </div>

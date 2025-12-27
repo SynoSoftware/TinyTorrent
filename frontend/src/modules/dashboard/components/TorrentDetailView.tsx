@@ -9,7 +9,7 @@ import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
 import type { PeerContextAction } from "./details/tabs/PeersTab";
 import type { TorrentPeerEntity } from "@/services/rpc/entities";
 import { TorrentDetailHeader } from "./details/TorrentDetailHeader";
-import { useDetailTabs } from "./details/useDetailTabs";
+import { useDetailTabs, DETAIL_TABS } from "./details/useDetailTabs";
 import type {
     DetailTab,
     PeerSortStrategy,
@@ -56,6 +56,7 @@ export function TorrentDetailView({
     onFilesToggle,
     onFileContextAction,
     onPeerContextAction,
+    peerSortStrategy,
     inspectorTabCommand,
     onInspectorTabCommandHandled,
     onSequentialToggle,
@@ -102,7 +103,7 @@ export function TorrentDetailView({
                 onTabChange={setActive}
             />
 
-            <div className="flex-1 min-h-0 overflow-hidden">
+            <div className="flex-1 min-h-0 overflow-y-auto">
                 {active === "general" && torrent && (
                     <GeneralTab
                         torrent={torrent}
