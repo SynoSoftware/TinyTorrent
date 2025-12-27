@@ -1,6 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
-import type { TorrentTableAction } from "@/modules/dashboard/components/TorrentTable";
+import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
 
 export type RehashStatus = {
     active: boolean;

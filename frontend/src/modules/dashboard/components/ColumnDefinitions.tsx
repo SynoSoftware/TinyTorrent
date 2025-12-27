@@ -49,7 +49,7 @@ import {
 } from "@/shared/utils/format";
 import { buildSplinePath } from "@/shared/utils/spline";
 import type { Table } from "@tanstack/react-table";
-import type { OptimisticStatusMap } from "./TorrentTable";
+import type { OptimisticStatusMap } from "@/modules/dashboard/types/optimistic";
 
 // --- TYPES ---
 

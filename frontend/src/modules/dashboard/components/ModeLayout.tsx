@@ -11,16 +11,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useFocusState } from "@/app/context/FocusContext";
 
-import {
-    TorrentTable,
-    type TorrentTableAction,
-    type OptimisticStatusMap,
-} from "./TorrentTable";
-import {
-    TorrentDetailView,
-    type DetailTab,
-    type PeerSortStrategy,
-} from "./TorrentDetailView";
+import { TorrentTable } from "./TorrentTable";
+import type { OptimisticStatusMap } from "@/modules/dashboard/types/optimistic";
+import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
+import { TorrentDetailView } from "./TorrentDetailView";
+import type {
+    DetailTab,
+    PeerSortStrategy,
+} from "@/modules/dashboard/types/torrentDetail";
 import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
 import {
     ICON_STROKE_WIDTH,

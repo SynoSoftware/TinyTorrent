@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { TinyTorrentIcon } from "@/shared/ui/components/TinyTorrentIcon";
+import StatusIcon from "@/shared/ui/components/StatusIcon";
 import { ThemeToggle } from "@/shared/ui/controls/ThemeToggle";
 import { ICON_STROKE_WIDTH } from "@/config/logic";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
@@ -69,10 +70,6 @@ export function Navbar({
     const { t } = useTranslation();
     const { setActivePart } = useFocusState();
     const shell = getShellTokens(workspaceStyle);
-    const statusIconStyle: React.CSSProperties = {
-        width: "var(--tt-status-icon-md)",
-        height: "var(--tt-status-icon-md)",
-    };
 
     return (
         <header
@@ -153,9 +150,10 @@ export function Navbar({
                                 key="all"
                                 title={
                                     <div className="flex items-center gap-tight">
-                                        <ListChecks
-                                            strokeWidth={ICON_STROKE_WIDTH}
-                                            style={statusIconStyle}
+                                        <StatusIcon
+                                            Icon={ListChecks}
+                                            size="md"
+                                            className="text-default-400"
                                         />
                                         {t("nav.filter_all")}
                                     </div>
@@ -165,9 +163,10 @@ export function Navbar({
                                 key="downloading"
                                 title={
                                     <div className="flex items-center gap-tight">
-                                        <DownloadCloud
-                                            strokeWidth={ICON_STROKE_WIDTH}
-                                            style={statusIconStyle}
+                                        <StatusIcon
+                                            Icon={DownloadCloud}
+                                            size="md"
+                                            className="text-default-400"
                                         />
                                         {t("nav.filter_downloading")}
                                     </div>
@@ -177,9 +176,10 @@ export function Navbar({
                                 key="seeding"
                                 title={
                                     <div className="flex items-center gap-tight">
-                                        <UploadCloud
-                                            strokeWidth={ICON_STROKE_WIDTH}
-                                            style={statusIconStyle}
+                                        <StatusIcon
+                                            Icon={UploadCloud}
+                                            size="md"
+                                            className="text-default-400"
                                         />
                                         {t("nav.filter_seeding")}
                                     </div>
@@ -211,10 +211,10 @@ export function Navbar({
                                 setSearchQuery(event.currentTarget.value)
                             }
                             startContent={
-                                <Search
-                                    strokeWidth={ICON_STROKE_WIDTH}
+                                <StatusIcon
+                                    Icon={Search}
+                                    size="md"
                                     className="text-default-400"
-                                    style={statusIconStyle}
                                 />
                             }
                         />

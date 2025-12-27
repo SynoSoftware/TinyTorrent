@@ -14,17 +14,27 @@ export const TOOLBAR_ICON_CLASSES =
 
 export const TOOLBAR_ICON_BUTTON_CLASSES = `${TOOLBAR_ICON_CLASSES} bg-content1/10 border border-content1/20`;
 
+export type ToolbarIconSize = "sm" | "md" | "lg" | "xl";
+
+const ICON_SIZE_MAP: Record<ToolbarIconSize, string> = {
+    sm: "var(--tt-status-icon-sm)",
+    md: "var(--tt-status-icon-md)",
+    lg: "var(--tt-status-icon-lg)",
+    xl: "var(--tt-status-icon-xl)",
+};
+
 export type ToolbarIconButtonProps = ComponentPropsWithoutRef<typeof Button> & {
     Icon?: LucideIcon;
     icon?: ReactNode;
     ariaLabel: string;
+    iconSize?: ToolbarIconSize;
 };
 
 export const ToolbarIconButton = forwardRef<
     HTMLButtonElement,
     ToolbarIconButtonProps
 >(function ToolbarIconButton(
-    { Icon, icon, ariaLabel, className, ...restProps },
+    { Icon, icon, ariaLabel, className, iconSize = "lg", ...restProps },
     ref
 ) {
     const { disabled, ...buttonProps } = restProps;
@@ -33,10 +43,10 @@ export const ToolbarIconButton = forwardRef<
         (Icon ? (
             <Icon
                 strokeWidth={ICON_STROKE_WIDTH}
-                className="text-current"
+                className="text-current "
                 style={{
-                    width: "var(--tt-status-icon-lg)",
-                    height: "var(--tt-status-icon-lg)",
+                    width: ICON_SIZE_MAP[iconSize],
+                    height: ICON_SIZE_MAP[iconSize],
                 }}
             />
         ) : null);

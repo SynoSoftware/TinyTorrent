@@ -1,6 +1,6 @@
 import { useHotkeys } from "react-hotkeys-hook";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
-import type { TorrentTableAction } from "@/modules/dashboard/components/TorrentTable";
+import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
 import { KEYMAP, ShortcutIntent } from "@/config/logic";
 
 interface UseTorrentShortcutsProps {

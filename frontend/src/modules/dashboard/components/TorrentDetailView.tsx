@@ -1,8 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { Pin, PinOff, X } from "lucide-react";
-import { Chip } from "@heroui/react";
 import { useTranslation } from "react-i18next";
-import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
 import { GeneralTab } from "./details/tabs/GeneralTab";
 import { ContentTab } from "./details/tabs/ContentTab";
 import { PiecesTab } from "./details/tabs/PiecesTab";
@@ -12,20 +8,16 @@ import { TrackersTab } from "./details/tabs/TrackersTab";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
 import type { PeerContextAction } from "./details/tabs/PeersTab";
 import type { TorrentPeerEntity } from "@/services/rpc/entities";
+import { TorrentDetailHeader } from "./details/TorrentDetailHeader";
+import { useDetailTabs } from "./details/useDetailTabs";
+import type {
+    DetailTab,
+    PeerSortStrategy,
+} from "@/modules/dashboard/types/torrentDetail";
 import type {
     FileExplorerContextAction,
     FileExplorerEntry,
 } from "@/shared/ui/workspace/FileExplorerTree";
-
-export type DetailTab =
-    | "general"
-    | "content"
-    | "pieces"
-    | "speed"
-    | "peers"
-    | "trackers";
-
-export type PeerSortStrategy = string;
 
 export interface TorrentDetailViewProps {
     torrent?: TorrentDetail | null;
@@ -81,56 +73,11 @@ export function TorrentDetailView({
     onPopout?: () => void;
 }) {
     const { t } = useTranslation();
-    const [active, setActive] = useState<DetailTab>("general");
-
-    // If an external command targets a specific tab, honour it and notify
-    useEffect(() => {
-        if (inspectorTabCommand && inspectorTabCommand !== active) {
-            setActive(inspectorTabCommand);
-            onInspectorTabCommandHandled?.();
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [inspectorTabCommand, onInspectorTabCommandHandled]);
-
-    // torrent is already strictly typed as TorrentDetail | null | undefined
-
-    // Re-bind inspector state when the selected torrent changes so the
-    // inspector reloads immediately for new selections (fixes "headless" feeling).
-    useEffect(() => {
-        // Reset active tab on torrent change to ensure properties reload
-        setActive("general");
-    }, [torrent?.id]);
-
-    const tabs = useMemo(
-        () =>
-            [
-                "general",
-                "content",
-                "pieces",
-                "trackers",
-                "peers",
-                "speed",
-            ] as DetailTab[],
-        []
-    );
-
-    const handleKey = (e: React.KeyboardEvent) => {
-        if (e.key === "ArrowRight") {
-            const idx = tabs.indexOf(active);
-            setActive(tabs[(idx + 1) % tabs.length]);
-            e.preventDefault();
-        } else if (e.key === "ArrowLeft") {
-            const idx = tabs.indexOf(active);
-            setActive(tabs[(idx - 1 + tabs.length) % tabs.length]);
-            e.preventDefault();
-        } else if (e.key === "Home") {
-            setActive(tabs[0]);
-            e.preventDefault();
-        } else if (e.key === "End") {
-            setActive(tabs[tabs.length - 1]);
-            e.preventDefault();
-        }
-    };
+    const { active, setActive, handleKeyDown } = useDetailTabs({
+        activeTorrentId: torrent?.id,
+        inspectorTabCommand,
+        onInspectorTabCommandHandled,
+    });
 
     return (
         /**
@@ -142,65 +89,18 @@ export function TorrentDetailView({
         <div
             className={className ?? "h-full min-h-0 flex flex-col"}
             tabIndex={0}
-            onKeyDown={handleKey}
+            onKeyDown={handleKeyDown}
         >
             {/* Header Bar: Torrent identity + toolbar */}
-            <div className="flex items-center justify-between gap-tools px-tight py-tight relative">
-                <div className="flex items-center gap-tools min-w-0">
-                    <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-tools">
-                            <h3 className="truncate font-semibold">
-                                {torrent?.name ?? t("general.unknown")}
-                            </h3>
-                            {torrent && (
-                                <Chip
-                                    size="md"
-                                    variant="shadow"
-                                    color={
-                                        torrent.state === "seeding"
-                                            ? "primary"
-                                            : torrent.state === "downloading"
-                                            ? "success"
-                                            : "warning"
-                                    }
-                                >
-                                    {t(
-                                        `torrent_modal.statuses.${torrent.state}`
-                                    )}
-                                </Chip>
-                            )}
-                        </div>
-                    </div>
-                </div>
-                <div className="absolute inset-0 flex items-center justify-center text-label tracking-label uppercase text-foreground/40 pointer-events-none">
-                    {t("inspector.panel_label")}
-                </div>
-                <div className="flex items-center gap-tight">
-                    {!isDetailFullscreen && onPopout && (
-                        <ToolbarIconButton
-                            Icon={PinOff}
-                            ariaLabel={t("torrent_modal.actions.popout")}
-                            onClick={onPopout}
-                        />
-                    )}
-
-                    {isDetailFullscreen && onDock && (
-                        <ToolbarIconButton
-                            Icon={Pin}
-                            ariaLabel={t("torrent_modal.actions.dock")}
-                            onClick={onDock}
-                        />
-                    )}
-
-                    {onClose && (
-                        <ToolbarIconButton
-                            Icon={X}
-                            ariaLabel={t("torrent_modal.actions.close")}
-                            onClick={onClose}
-                        />
-                    )}
-                </div>
-            </div>
+            <TorrentDetailHeader
+                torrent={torrent}
+                isDetailFullscreen={isDetailFullscreen}
+                onDock={onDock}
+                onPopout={onPopout}
+                onClose={onClose}
+                activeTab={active}
+                onTabChange={setActive}
+            />
 
             <div className="flex-1 min-h-0 overflow-hidden">
                 {active === "general" && torrent && (
@@ -247,6 +147,7 @@ export function TorrentDetailView({
                         peers={torrent.peers ?? []}
                         onPeerContextAction={onPeerContextAction}
                         torrentProgress={torrent.progress ?? 0}
+                        sortBySpeed={peerSortStrategy === "speed"}
                     />
                 )}
                 {active === "speed" && torrent && (

@@ -46,15 +46,13 @@ import type {
     FileExplorerEntry,
 } from "@/shared/ui/workspace/FileExplorerTree";
 import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
-import type {
-    OptimisticStatusMap,
-    TorrentTableAction,
-} from "@/modules/dashboard/components/TorrentTable";
+import type { OptimisticStatusMap } from "@/modules/dashboard/types/optimistic";
+import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
 import type { PeerContextAction } from "@/modules/dashboard/components/details/tabs/PeersTab";
 import type {
     DetailTab,
     PeerSortStrategy,
-} from "@/modules/dashboard/components/TorrentDetailView";
+} from "@/modules/dashboard/types/torrentDetail";
 import type { SessionStats, TorrentPeerEntity } from "@/services/rpc/entities";
 import type { HeartbeatSource } from "@/services/rpc/heartbeat";
 import type { RpcStatus } from "@/shared/types/rpc";

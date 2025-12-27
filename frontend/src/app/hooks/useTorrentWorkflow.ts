@@ -9,7 +9,7 @@ import {
 } from "./useActionFeedback";
 import { useOptimisticStatuses } from "./useOptimisticStatuses";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
-import type { TorrentTableAction } from "@/modules/dashboard/components/TorrentTable";
+import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
 import type { TorrentStatus } from "@/services/rpc/entities";
 
 interface UseTorrentWorkflowParams {
