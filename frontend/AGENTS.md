@@ -1,4 +1,3 @@
-
 # **AGENTS.md — TinyTorrent Mission Specification**
 
 **Purpose:**
@@ -263,18 +262,23 @@ All shell-level constants (fallback grays, noise strength, etc.) live in `config
 
 All spacing, sizing, radius, and scale values must come from configuration tokens and not from inline constants or ad-hoc Tailwind values.
 
- **No-New-Numbers Rule**
+**UI must be consistent and controlled by a small set of shared knobs.** If a UI change requires a number and no suitable semantic token exists, the element must be left unchanged and flagged instead.
+
+### **No-New-Numbers Rule**
 
 When fixing zoom-related or css magic number issues issues:
 
 - You may NOT introduce any new numeric literals (integers or floats), even inside `calc()`.
+- You may NOT introduce Tailwind numeric geometry or spacing utilities in components:
+  - **Forbidden:** `p-*`, `px-*`, `py-*`, `m-*`, `gap-*`, `space-*`, `w-*`, `h-*`, `text-*`, `leading-*`, `rounded-*`, `shadow-*`, `blur-*` when they encode a literal number.
+  - **Forbidden:** bracket classes (arbitrary values) like `w-[...]`, `h-[...]`, `text-[...]`, `shadow-[...]`, `rounded-[...]`, `blur-[...]`, `max-w-[...]`, `min-w-[...]`, `border-[...]`.
 - Replacements must use:
 
   - existing semantic tokens, or
   - existing primitives (`--u`, `--z`, `--fz`) *without introducing new coefficients*.
 - If no suitable token exists, the element must be left unchanged and flagged instead.
 
- **Consistency & Convergence Rule**
+### **Consistency & Convergence Rule**
 >
 - Do NOT introduce one-off variables.
 - If a numeric value represents a concept that appears more than once (width, padding, icon size, column size, max-width, etc.), it MUST map to a **single semantic variable**.
@@ -776,7 +780,7 @@ src/
 |
 \-- i18n/
     \-- en.json
-```
+````
 
 ---
 
@@ -784,34 +788,34 @@ src/
 
 ### **1. Features (`modules/`)**
 
-- Flat > nested. No `parts/`, `tabs/`, `components/` folders inside a module.
-- Use underscores to group related siblings: `Dashboard_Grid.tsx`.
-- Local hooks belong in `hooks.ts` inside the module.
+* Flat > nested. No `parts/`, `tabs/`, `components/` folders inside a module.
+* Use underscores to group related siblings: `Dashboard_Grid.tsx`.
+* Local hooks belong in `hooks.ts` inside the module.
 
 ### **2. Configuration (`config/`)**
 
-- Two-file rule:
+* Two-file rule:
 
-    1. `constants.json` — literals only.
-    2. `logic.ts` — types and computed logic.
+  1. `constants.json` — literals only.
+  2. `logic.ts` — types and computed logic.
 
-- No other files in root `config/`.
+* No other files in root `config/`.
 
 ### **3. Services (`services/`)**
 
-- Every service must define Zod schemas for its external data.
-- All RPC/network goes through adapters in `services/rpc`.
+* Every service must define Zod schemas for its external data.
+* All RPC/network goes through adapters in `services/rpc`.
 
 ### **4. Simplicity**
 
-- No folders without real code.
-- Avoid deep nesting.
-- Keep related logic physically close.
+* No folders without real code.
+* Avoid deep nesting.
+* Keep related logic physically close.
 
 ### **5. No Empty Folders**
 
-- Folders exist only if they contain meaningful code.
-- Delete any folder that becomes empty.
+* Folders exist only if they contain meaningful code.
+* Delete any folder that becomes empty.
 
 ---
 
@@ -825,25 +829,25 @@ These guarantee consistency and prevent drift.
 
 **Components → PascalCase (with underscores for siblings)**
 
-- `DashboardView.tsx`
-- `Dashboard_Grid.tsx`
+* `DashboardView.tsx`
+* `Dashboard_Grid.tsx`
 
 **Hooks & Logic → camelCase**
 
-- `hooks.ts`
-- `useVirtualGrid.ts`
+* `hooks.ts`
+* `useVirtualGrid.ts`
 
 **Services → kebab-case**
 
-- `engine-adapter.ts`
+* `engine-adapter.ts`
 
 ---
 
 ## **2. Configuration Access**
 
-- Never hardcode numbers or colors in code.
-- Import literals from `@/config/constants.json`.
-- Import config logic from `@/config/logic.ts`.
+* Never hardcode numbers or colors in code.
+* Import literals from `@/config/constants.json`.
+* Import config logic from `@/config/logic.ts`.
 
 ---
 
@@ -862,20 +866,20 @@ Order inside a component file:
 
 ## **4. Service Isolation**
 
-- UI never calls `fetch` directly.
-- UI → hooks → service adapters → Zod → network.
+* UI never calls `fetch` directly.
+* UI → hooks → service adapters → Zod → network.
 
 ---
 
 ## **5. Indentation & Hygiene**
 
-- 4-space indentation.
-- No empty folders.
-- Delete unused files immediately.
+* 4-space indentation.
+* No empty folders.
+* Delete unused files immediately.
 
 ## **6. Absolute Import Policy (Mandatory)**
 
-All internal imports must use the `@/` alias.  
+All internal imports must use the `@/` alias.
 Relative paths like `../../../../../` are forbidden.
 
 ### **Aliases:**
@@ -935,16 +939,20 @@ export default defineConfig({
 
 # **15. Internationalization (Enforcement)**
 
-- No hard-coded English anywhere in the codebase.
-- All visible UI text must be referenced through `t("…")`.
-- Work with `en.json` only. Ignore other translation files even if they exist.
-- When a new UI string is needed:
+* No hard-coded English anywhere in the codebase.
 
-    1. Add key/value to `en.json`.
-    2. Use `t("key")` in the component.
+* All visible UI text must be referenced through `t("…")`.
 
-- Agents must never output inline English text in JSX/TSX.
-- If a string appears inline, it must be moved to `en.json` automatically.
+* Work with `en.json` only. Ignore other translation files even if they exist.
+
+* When a new UI string is needed:
+
+  1. Add key/value to `en.json`.
+  2. Use `t("key")` in the component.
+
+* Agents must never output inline English text in JSX/TSX.
+
+* If a string appears inline, it must be moved to `en.json` automatically.
 
 ---
 
@@ -954,18 +962,34 @@ When in doubt, the agent must ask:
 
 > **"Does this make the app feel more powerful, more confident, and more jaw-dropping?"**
 
-- If the answer is "It saves space" or "It looks compact," **reject it**.
-- If the answer is "It feels premium, cinematic, and authoritative," **accept it**.
+* If the answer is "It saves space" or "It looks compact," **reject it**.
+* If the answer is "It feels premium, cinematic, and authoritative," **accept it**.
 
 **One-Line North Star:**
 TinyTorrent must behave like a desktop tool and look better than desktop tools ever have.
 
 ---
 
-
 # **17. Design System Authority & Token Pipeline**
 
 This section defines the **Zero-Literal Mandate**. To maintain the "Confident Workbench" feel and ensure 100% harmonic scaling, all agents must strictly follow this pipeline.
+
+## **A0. The Knob Registry (Few Knobs, High Leverage)**
+
+UI must be controlled by a small, stable knob set. Agents may not create additional “knobs” casually.
+
+**The only acceptable global knobs are:**
+
+* **Unit:** `--u` (base unit)
+* **Zoom:** `--z` (global scale multiplier)
+* **Font scale:** `--fz` (typography scaling)
+* **Radius set:** a single semantic radius family (no competing radius systems)
+* **Blur set:** Layer 1 + Layer 2 blur tokens only
+* **Elevation set:** Layer 1 + Layer 2 shadow tokens only
+* **Core structural sizes:** `h-nav`, `h-status`, `h-row` (and other structural sizes only if already part of the shell contract)
+* **Core spacing roles:** `p-panel`, `p-tight`, `gap-stage`, `gap-tools`
+
+If a change requires another knob, do not implement it in component code — flag it and route it through the token pipeline.
 
 ## **A. The 4-Layer Token Pipeline**
 
@@ -978,32 +1002,51 @@ No dimension or color may skip a layer.
 
 ## **B. The "Banned" vs. "Required" List**
 
-| Category | **BANNED (Drift)** | **REQUIRED (Desired State)** |
-| :--- | :--- | :--- |
-| **Sizing** | `size="sm"`, `size="xs"` | `size="md"` (Default), `size="lg"` |
-| **Spacing** | `p-1...16`, `gap-1...16` | `p-panel`, `p-tight`, `gap-stage`, `gap-tools` |
-| **Geometry** | `h-16`, `h-[56px]`, `w-64` | `h-nav`, `h-status`, `h-row`, `w-sidebar` |
-| **Brackets** | `h-[calc(...)]`, `w-[...]` | Named CSS tokens in `@theme` |
-| **Safety** | `z.any()` in RPC | `zRpcMutationResponse` or specific schemas |
-| **Buttons** | `variant="flat"` (Primary) | `variant="shadow"` (Primary/Action) |
+| Category     | **BANNED (Drift)**         | **REQUIRED (Desired State)**                   |
+| :----------- | :------------------------- | :--------------------------------------------- |
+| **Sizing**   | `size="sm"`, `size="xs"`   | `size="md"` (Default), `size="lg"`             |
+| **Spacing**  | `p-1...16`, `gap-1...16`   | `p-panel`, `p-tight`, `gap-stage`, `gap-tools` |
+| **Geometry** | `h-16`, `h-[56px]`, `w-64` | `h-nav`, `h-status`, `h-row`, `w-sidebar`      |
+| **Brackets** | `h-[calc(...)]`, `w-[...]` | Named CSS tokens in `@theme`                   |
+| **Safety**   | `z.any()` in RPC           | `zRpcMutationResponse` or specific schemas     |
+| **Buttons**  | `variant="flat"` (Primary) | `variant="shadow"` (Primary/Action)            |
+
+## **C0. DRY Classname Rule (Stop Repeating Glass Recipes)**
+
+Repeating long Tailwind strings is a bug. Any visual recipe used in more than one place must be centralized.
+
+**Must be centralized if repeated or longer than a short layout skeleton:**
+
+* Glass surfaces (Layer 1, Layer 2)
+* Panel frames (border + blur + background)
+* Focus ring / focus border treatment
+* Table row base/hover/selected recipes
+* Toolbar button clusters
+* Badge/chip recipes
+
+**Rule:**
+
+* If a class string is repeated twice (or is a long “recipe”), it must become a shared constant/token exported from a single place (config logic or shared UI primitive).
+* Components must assemble UI from semantic pieces: `cn(GLASS_PANEL, P_PANEL, FOCUS_RING, className)` not bespoke class soup.
 
 ## **C. Forensic Mapping Rules**
 
 When modifying layout, you must categorize every spacing decision into a **Logical Role**:
 
-- **Panel Padding (`p-panel`):** Interior of any GlassPanel, Card, or Modal.
-- **Tight Padding (`p-tight`):** Interior of menus, chips, badges, or list-items.
-- **Stage Gap (`gap-stage`):** The major spacing between split panels/parts.
-- **Tool Gap (`gap-tools`):** Small spacing between buttons, inputs, or tabs.
-- **Structure:** `h-nav`, `h-status`, `h-row` (strictly for the main layout bars).
+* **Panel Padding (`p-panel`):** Interior of any GlassPanel, Card, or Modal.
+* **Tight Padding (`p-tight`):** Interior of menus, chips, badges, or list-items.
+* **Stage Gap (`gap-stage`):** The major spacing between split panels/parts.
+* **Tool Gap (`gap-tools`):** Small spacing between buttons, inputs, or tabs.
+* **Structure:** `h-nav`, `h-status`, `h-row` (strictly for the main layout bars).
 
 ## **D. The Scale Test (Pre-Commit Requirement)**
 
 Before submitting any UI code, the agent must perform a "Mental Scale Test":
+
 > *"If I change `--u` from `4px` to `8px` in index.css, will my new code expand proportionally and maintain its internal alignment?"*
 >
-> - If **Yes**: Proceed.
-> - If **No**: You used a magic number or a hardcoded Tailwind utility. **Delete it.**
+> * If **Yes**: Proceed.
+> * If **No**: You used a magic number or a hardcoded Tailwind utility. **Delete it.**
 
 ## **E. Single Place of Control**
 
@@ -1013,16 +1056,85 @@ If a component requires a specific width (e.g., the Directory Picker), do not ca
 2. Map it to a token in `index.css` (e.g., `--tt-dir-picker-w`).
 3. Use the token in the component (`w-dir-picker`).
 
+## **F. Allowed Tailwind Whitelist (Components)**
+
+Tailwind is allowed only for non-token structural composition:
+
+**Allowed:**
+
+* `flex`, `grid`, `items-*`, `justify-*`, `grow`, `shrink`, `min-h-0`, `min-w-0`
+* `relative`, `absolute`, `sticky`, `inset-0` (no numeric geometry)
+* `overflow-hidden`, `overflow-auto`, `truncate`, `whitespace-*`
+* `select-none`, `select-text`
+* `pointer-events-*`, `cursor-*`
+* Responsive variants (`sm:`, `md:` etc.) only when they reference semantic utilities (not numeric ones)
+
+**Not allowed in components (must be semantic tokens instead):**
+
+* spacing, sizing, radius, shadows, blur, typography sizes, arbitrary bracket expressions, or any numeric geometry.
+
+## **G. Missing Token Protocol (Mandatory)**
+
+When a needed semantic token does not exist, the agent must:
+
+1. Not implement the tweak using literals in the component.
+2. Add a **FLAG** comment describing the missing semantic role.
+3. Propose the token addition strictly through the pipeline:
+
+   * `constants.json` intent
+   * `index.css` @theme arithmetic
+   * `logic.ts` role export
+   * component usage
+
+No workaround is acceptable.
+
+---
+
+# **18. UI Consistency Enforcement (Non-Negotiable)**
+
+## **A. Consistency Contract**
+
+UI must remain stable under knob changes. Agents must treat the design system like an API.
+
+If a change causes any of these, it is a failure:
+
+* One view scales differently than another when `--u`, `--z`, or `--fz` changes.
+* Two panels that should match use different padding/gap/row height semantics.
+* Similar controls look “nearly the same” but differ due to local class tweaks.
+
+## **B. Pre-Commit Checklist (Mandatory)**
+
+Before claiming UI work is done, verify:
+
+* Token-only geometry: no numeric Tailwind utilities or bracket classes were added.
+* No duplicates: the same concept uses the same token everywhere (row height, panel padding, tool gaps).
+* DRY: no repeated “glass recipe” strings; shared recipes are centralized.
+* Scale test: changing `--u` (4→8) and `--z` (1→1.25) would scale everything harmonically.
+
+Any PR containing forbidden numeric Tailwind/bracket classes is invalid and must be rewritten.
+
+## **C. Agent Output Requirement**
+
+When an agent changes UI, it must include a short “Token Mapping” note in the PR message:
+
+* Which semantic roles were used (e.g., `p-panel`, `gap-stage`, `h-row`, glass layer token)
+* Whether any new token was required
+* If required but missing → must be flagged, not hacked
+
 ---
 
 # **Other Rules**
 
 1. Before reporting a task as completed, perform a review of the code and fix all important issues. Repeat until you are fully satisfied.
+
 2. Run `npm run build` and fix build errors if possible.
+
 3. The build machine is Windows. Linux commands are available via msys
+
 4. Extra Windows executables available: `rg`, `fd`, `bat`.
+
 5. For code search, never use `Select-String`. Always use ripgrep:
 
-    - `rg -n -C 5 "<pattern>" <path>`
+   * `rg -n -C 5 "<pattern>" <path>`
 
 6. Never write complex or nested shell one-liners. If a command requires tricky quoting or multiple pipes, move it into a script file instead. All commands must be simple, cross-platform, and Windows-safe.
