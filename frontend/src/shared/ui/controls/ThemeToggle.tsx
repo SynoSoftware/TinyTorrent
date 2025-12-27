@@ -52,15 +52,21 @@ export function ThemeToggle() {
     const icon =
         mode === "dark" ? (
             <Moon
-                size={22}
                 strokeWidth={ICON_STROKE_WIDTH}
-                className="text-base"
+                className="text-current"
+                style={{
+                    width: "var(--tt-status-icon-lg)",
+                    height: "var(--tt-status-icon-lg)",
+                }}
             />
         ) : (
             <Sun
-                size={22}
                 strokeWidth={ICON_STROKE_WIDTH}
-                className="text-base"
+                className="text-current"
+                style={{
+                    width: "var(--tt-status-icon-lg)",
+                    height: "var(--tt-status-icon-lg)",
+                }}
             />
         );
 

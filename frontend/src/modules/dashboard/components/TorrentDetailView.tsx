@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Pin, PinOff, X } from "lucide-react";
 import { Chip } from "@heroui/react";
 import { useTranslation } from "react-i18next";
+import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
 import { GeneralTab } from "./details/tabs/GeneralTab";
 import { ContentTab } from "./details/tabs/ContentTab";
 import { PiecesTab } from "./details/tabs/PiecesTab";
@@ -57,13 +58,7 @@ export interface TorrentDetailViewProps {
  * props through. This restores the inspector UI while preserving per-tab
  * components implemented under `details/tabs/`.
  */
-export const TorrentDetailView: React.FC<
-    TorrentDetailViewProps & {
-        isDetailFullscreen?: boolean;
-        onDock?: () => void;
-        onPopout?: () => void;
-    }
-> = ({
+export function TorrentDetailView({
     torrent,
     className,
     onFilesToggle,
@@ -80,7 +75,11 @@ export const TorrentDetailView: React.FC<
     onDock,
     onPopout,
     onClose,
-}) => {
+}: TorrentDetailViewProps & {
+    isDetailFullscreen?: boolean;
+    onDock?: () => void;
+    onPopout?: () => void;
+}) {
     const { t } = useTranslation();
     const [active, setActive] = useState<DetailTab>("general");
 
@@ -134,6 +133,12 @@ export const TorrentDetailView: React.FC<
     };
 
     return (
+        /**
+         * FLAG: Missing semantic focus token.
+         * Per AGENTS.md the inspector container must use a shared focus role/class
+         * exported from the token pipeline (constants.json -> index.css -> logic.ts).
+         * Do NOT hardcode visual focus styles here; add the token if missing.
+         */
         <div
             className={className ?? "h-full min-h-0 flex flex-col"}
             tabIndex={0}
@@ -167,42 +172,32 @@ export const TorrentDetailView: React.FC<
                         </div>
                     </div>
                 </div>
-                <div className="absolute inset-0 flex items-center justify-center text-label uppercase tracking-0-3 text-foreground/40 pointer-events-none">
+                <div className="absolute inset-0 flex items-center justify-center text-label tracking-label uppercase text-foreground/40 pointer-events-none">
                     {t("inspector.panel_label")}
                 </div>
                 <div className="flex items-center gap-tight">
-                    {/* Popout: only when not fullscreen/modal and handler exists */}
                     {!isDetailFullscreen && onPopout && (
-                        <button
-                            type="button"
-                            className="p-tight rounded hover:bg-primary/10"
-                            aria-label="Popout"
+                        <ToolbarIconButton
+                            Icon={PinOff}
+                            ariaLabel={t("torrent_modal.actions.popout")}
                             onClick={onPopout}
-                        >
-                            <PinOff size={18} />
-                        </button>
+                        />
                     )}
-                    {/* Dock: only when fullscreen/modal and handler exists */}
+
                     {isDetailFullscreen && onDock && (
-                        <button
-                            type="button"
-                            className="p-tight rounded hover:bg-primary/10"
-                            aria-label="Dock"
+                        <ToolbarIconButton
+                            Icon={Pin}
+                            ariaLabel={t("torrent_modal.actions.dock")}
                             onClick={onDock}
-                        >
-                            <Pin size={18} />
-                        </button>
+                        />
                     )}
-                    {/* Close: unchanged */}
+
                     {onClose && (
-                        <button
-                            type="button"
-                            className="p-tight rounded hover:bg-primary/10"
-                            aria-label="Close"
+                        <ToolbarIconButton
+                            Icon={X}
+                            ariaLabel={t("torrent_modal.actions.close")}
                             onClick={onClose}
-                        >
-                            <X size={18} />
-                        </button>
+                        />
                     )}
                 </div>
             </div>
@@ -263,6 +258,6 @@ export const TorrentDetailView: React.FC<
             </div>
         </div>
     );
-};
+}
 
 export default TorrentDetailView;

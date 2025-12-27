@@ -16,7 +16,7 @@ export function ConnectionTabContent() {
             title={t("settings.sections.active_connection")}
             description={t("settings.descriptions.connection_profiles")}
         >
-            <div className="space-y-3">
+            <div className="space-y-stage">
                 <ConnectionCredentialsCard
                     onReconnect={onReconnect}
                     rpcStatus={rpcStatus}

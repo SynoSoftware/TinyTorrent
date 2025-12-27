@@ -182,13 +182,13 @@ export function ConnectionCredentialsCard({
     // In native/local host mode, collapse remote controls behind an Advanced toggle.
     if (!Runtime.allowEditingProfiles() && !showAdvanced) {
         return (
-            <div className="space-y-3">
+            <div className="space-y-tight">
                 <div className="flex items-center justify-between">
                     <div className="min-w-0 space-y-tight">
-                        <h3 className="text-sm font-semibold text-foreground truncate">
+                        <h3 className="text-scaled font-semibold text-foreground truncate">
                             {profileLabel}
                         </h3>
-                        <p className="text-xs text-foreground/60 font-mono break-all">
+                        <p className="text-label text-foreground/60 font-mono break-all">
                             {serverUrl}
                         </p>
                     </div>
@@ -202,10 +202,10 @@ export function ConnectionCredentialsCard({
                         </Button>
                     </div>
                 </div>
-                <p className="text-xs text-foreground/60">
+                <p className="text-label text-foreground/60">
                     {t(
                         "settings.connection.local_mode_info",
-                        "Using bundled local daemon — remote settings are disabled."
+                        "Using bundled local daemon - remote settings are disabled."
                     )}
                 </p>
             </div>
@@ -213,13 +213,13 @@ export function ConnectionCredentialsCard({
     }
 
     return (
-        <div className="space-y-5">
+        <div className="space-y-stage">
             <div className="flex flex-col gap-tools sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0 space-y-tight">
-                    <h3 className="text-sm font-semibold text-foreground truncate">
+                    <h3 className="text-scaled font-semibold text-foreground truncate">
                         {profileLabel}
                     </h3>
-                    <p className="text-xs text-foreground/60 font-mono break-all">
+                    <p className="text-label text-foreground/60 font-mono break-all">
                         {serverUrl}
                     </p>
                 </div>
@@ -231,9 +231,19 @@ export function ConnectionCredentialsCard({
                             color={statusColor}
                             startContent={
                                 statusColor === "success" ? (
-                                    <CheckCircle size={14} />
+                                    <CheckCircle
+                                        style={{
+                                            width: "var(--tt-icon-size)",
+                                            height: "var(--tt-icon-size)",
+                                        }}
+                                    />
                                 ) : (
-                                    <XCircle size={14} />
+                                    <XCircle
+                                        style={{
+                                            width: "var(--tt-icon-size)",
+                                            height: "var(--tt-icon-size)",
+                                        }}
+                                    />
                                 )
                             }
                         >
@@ -252,7 +262,12 @@ export function ConnectionCredentialsCard({
                                             className="size-dot"
                                         />
                                     ) : serverType === "transmission" ? (
-                                        <Download size={14} />
+                                        <Download
+                                            style={{
+                                                width: "var(--tt-icon-size)",
+                                                height: "var(--tt-icon-size)",
+                                            }}
+                                        />
                                     ) : null
                                 }
                             >
@@ -266,7 +281,14 @@ export function ConnectionCredentialsCard({
                         color="primary"
                         onPress={onReconnect}
                         type="button"
-                        startContent={<RefreshCw size={16} />}
+                        startContent={
+                            <RefreshCw
+                                style={{
+                                    width: "var(--tt-icon-size)",
+                                    height: "var(--tt-icon-size)",
+                                }}
+                            />
+                        }
                     >
                         {t("settings.connection.reconnect")}
                     </Button>
@@ -275,14 +297,14 @@ export function ConnectionCredentialsCard({
             <div className="grid gap-tools">
                 {isOffline && (
                     <p
-                        className="text-xs uppercase text-warning"
+                        className="text-label uppercase text-warning"
                         style={{ letterSpacing: "var(--tt-tracking-wide)" }}
                     >
                         {t("settings.connection.offline_warning")}
                     </p>
                 )}
                 {isInsecureBasicAuth && (
-                    <p className="text-xs text-warning">
+                    <p className="text-label text-warning">
                         {t("settings.connection.insecure_basic_auth_warning")}
                     </p>
                 )}
@@ -316,7 +338,7 @@ export function ConnectionCredentialsCard({
                 {shouldShowAuthControls && (
                     <>
                         {!isAuthModeResolved && (
-                            <p className="text-xs text-foreground/60">
+                            <p className="text-label text-foreground/60">
                                 {t("settings.connection.detecting_signin")}
                             </p>
                         )}
@@ -367,10 +389,10 @@ export function ConnectionCredentialsCard({
                     </>
                 )}
                 {!Runtime.allowEditingProfiles() && (
-                    <p className="text-xs text-foreground/60 mt-tight">
+                    <p className="text-label text-foreground/60 mt-tight">
                         {t(
                             "settings.connection.local_mode_info",
-                            "Using bundled local daemon — remote settings are disabled."
+                            "Using bundled local daemon - remote settings are disabled."
                         )}
                     </p>
                 )}
@@ -416,16 +438,16 @@ export function ConnectionExtensionCard({
                 }}
             >
                 <div className="flex flex-col gap-tight">
-                    <span className="text-sm font-semibold text-foreground">
+                    <span className="text-scaled font-semibold text-foreground">
                         {t("settings.connection.extension_mode_label")}
                     </span>
-                    <span className="text-xs text-foreground/60">
+                    <span className="text-label text-foreground/60">
                         {extensionModeHelper}
                     </span>
                 </div>
             </Switch>
             {mockNoticeVisible && (
-                <p className="text-xs text-warning/80">
+                <p className="text-label text-warning/80">
                     {t("settings.connection.extended_mock_notice")}
                 </p>
             )}

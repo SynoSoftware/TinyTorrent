@@ -605,7 +605,12 @@ export function SettingsModal({
                                 className="sm:hidden text-foreground/50"
                                 onPress={onClose}
                             >
-                                <X size={20} />
+                                <X
+                                    style={{
+                                        width: "var(--tt-icon-size)",
+                                        height: "var(--tt-icon-size)",
+                                    }}
+                                />
                             </Button>
                         </div>
 
@@ -618,14 +623,13 @@ export function SettingsModal({
                                         setIsMobileMenuOpen(false);
                                     }}
                                     className={cn(
-                                        "w-full flex items-center gap-panel px-panel py-panel rounded-xl text-sm transition-all duration-200 group relative",
+                                        "w-full flex items-center gap-panel px-panel py-panel rounded-xl text-scaled transition-all duration-200 group relative",
                                         activeTab === tab.id
                                             ? "bg-primary/10 text-primary font-semibold"
                                             : "text-foreground/60 hover:text-foreground hover:bg-content2/50 font-medium"
                                     )}
                                 >
                                     <tab.icon
-                                        size={20}
                                         strokeWidth={ICON_STROKE_WIDTH}
                                         className={cn(
                                             "shrink-0",
@@ -633,6 +637,10 @@ export function SettingsModal({
                                                 ? "text-primary"
                                                 : "text-foreground/50"
                                         )}
+                                        style={{
+                                            width: "var(--tt-icon-size)",
+                                            height: "var(--tt-icon-size)",
+                                        }}
                                     />
                                     <span>{t(tab.labelKey)}</span>
                                     {activeTab === tab.id && (
@@ -663,7 +671,12 @@ export function SettingsModal({
                                     className="sm:hidden -ml-tight text-foreground/50"
                                     onPress={() => setIsMobileMenuOpen(true)}
                                 >
-                                    <ChevronLeft size={22} />
+                                    <ChevronLeft
+                                        style={{
+                                            width: "var(--tt-icon-size)",
+                                            height: "var(--tt-icon-size)",
+                                        }}
+                                    />
                                 </Button>
                                 <div className="flex flex-col">
                                     <h1 className="text-base font-bold text-foreground">
@@ -690,7 +703,12 @@ export function SettingsModal({
                                 onPress={onClose}
                                 className="text-foreground/40 hover:text-foreground hidden sm:flex"
                             >
-                                <X size={20} />
+                                <X
+                                    style={{
+                                        width: "var(--tt-icon-size)",
+                                        height: "var(--tt-icon-size)",
+                                    }}
+                                />
                             </Button>
                         </div>
 
@@ -706,7 +724,7 @@ export function SettingsModal({
                                     className="flex flex-col space-y-stage sm:space-y-stage pb-stage"
                                 >
                                     {settingsLoadError && (
-                                        <div className="rounded-xl border border-warning/30 bg-warning/10 px-panel py-tight text-xs text-warning">
+                                        <div className="rounded-xl border border-warning/30 bg-warning/10 px-panel py-tight text-label text-warning">
                                             {t("settings.load_error")}
                                         </div>
                                     )}
@@ -737,7 +755,14 @@ export function SettingsModal({
                                 color="danger"
                                 className="opacity-70 hover:opacity-100 hidden sm:flex"
                                 onPress={handleReset}
-                                startContent={<RotateCcw size={16} />}
+                                startContent={
+                                    <RotateCcw
+                                        style={{
+                                            width: "var(--tt-icon-size)",
+                                            height: "var(--tt-icon-size)",
+                                        }}
+                                    />
+                                }
                             >
                                 {t("settings.modal.footer.reset_defaults")}
                             </Button>
@@ -756,7 +781,14 @@ export function SettingsModal({
                                     onPress={handleSave}
                                     isLoading={isSaving}
                                     startContent={
-                                        !isSaving && <Save size={18} />
+                                        !isSaving && (
+                                            <Save
+                                                style={{
+                                                    width: "var(--tt-icon-size)",
+                                                    height: "var(--tt-icon-size)",
+                                                }}
+                                            />
+                                        )
                                     }
                                     className="font-semibold shadow-lg shadow-primary/20"
                                 >

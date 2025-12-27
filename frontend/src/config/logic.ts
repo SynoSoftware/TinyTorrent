@@ -243,7 +243,7 @@ export const TABLE_LAYOUT = {
     // These values are CSS-driven tokens; runtime code that needs
     // numeric pixel heights should read the computed style instead.
     rowHeight: "var(--tt-h-row)",
-    fontSize: "text-base",
+    fontSize: tableLayout.font_size,
     fontMono: tableLayout.font_mono,
     overscan: tableLayout.overscan,
 } as const;
@@ -636,6 +636,9 @@ export const SPEED_CHART_FILL_ALPHA = DETAILS_SPEED_CHART.fill_alpha;
 export const SPEED_CHART_DOWN_STROKE_TOKEN =
     DETAILS_SPEED_CHART.down_stroke_token;
 export const SPEED_CHART_UP_STROKE_TOKEN = DETAILS_SPEED_CHART.up_stroke_token;
+
+// Typography / tracking roles (semantic tokens)
+export const TRACKING_LABEL = "tracking-label";
 
 type ShortcutIntentMap = {
     SelectAll: "action.select_all";

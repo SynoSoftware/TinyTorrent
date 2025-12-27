@@ -312,7 +312,7 @@ export const GeneralTab = ({
                                 strokeWidth={ICON_STROKE_WIDTH}
                                 className="text-foreground/50"
                             />
-                            <span className="text-scaled uppercase tracking-0-3 text-foreground/40">
+                            <span className="text-scaled uppercase tracking-label text-foreground/40">
                                 {t("torrent_modal.labels.info_hash")}
                             </span>
                         </div>

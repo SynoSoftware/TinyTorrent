@@ -39,7 +39,7 @@ export function SwitchSliderRenderer({
     const sliderValue = Number.isFinite(rawValue) ? rawValue : block.slider.min;
 
     return (
-        <div className="space-y-3">
+        <div className="space-y-tight">
             <div className="flex justify-between items-center">
                 <Switch
                     size="md"
@@ -47,7 +47,7 @@ export function SwitchSliderRenderer({
                     color={block.color}
                     onValueChange={(val) => updateConfig(block.switchKey, val)}
                 >
-                    <span className="text-sm font-medium text-foreground/90">
+                    <span className="text-scaled font-medium text-foreground/90">
                         {t(block.labelKey)}
                     </span>
                 </Switch>
@@ -90,7 +90,7 @@ export function SwitchRenderer({
         <div className="flex justify-between items-center h-control-row">
             <span
                 className={cn(
-                    "text-sm font-medium text-foreground/80",
+                    "text-scaled font-medium text-foreground/80",
                     isDisabled && "opacity-40"
                 )}
             >
@@ -192,16 +192,19 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
                     "text-foreground/90",
                     isMono
                         ? "font-mono text-scaled tracking-tight"
-                        : "font-medium text-sm"
+                        : "font-medium text-scaled"
                 ),
-                label: "text-foreground/60 font-medium text-xs uppercase tracking-wider mb-tight",
+                label: "text-foreground/60 font-medium text-label uppercase tracking-wider mb-tight",
             }}
             endContent={
                 block.endIcon ? (
                     <block.endIcon
-                        size={18}
                         strokeWidth={ICON_STROKE_WIDTH}
                         className="text-foreground/40"
+                        style={{
+                            width: "var(--tt-icon-size)",
+                            height: "var(--tt-icon-size)",
+                        }}
                     />
                 ) : undefined
             }
@@ -221,7 +224,7 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
                 variant="shadow"
                 color="primary"
                 onPress={handleSideAction}
-                className="h-button px-stage shrink-0 font-semibold text-xs tracking-wider uppercase bg-primary/10 hover:bg-primary/20 text-primary transition-colors active:scale-95"
+                className="h-button px-stage shrink-0 font-semibold text-scaled tracking-wider uppercase bg-primary/10 hover:bg-primary/20 text-primary transition-colors active:scale-95"
                 isDisabled={sideActionDisabled}
             >
                 {t(sideAction.labelKey)}
@@ -264,10 +267,10 @@ export function DaySelectorRenderer({
     };
 
     return (
-        <div className="space-y-3">
+        <div className="space-y-tight">
             <div className="flex items-center justify-between">
                 <span
-                    className="text-xs font-semibold uppercase text-foreground/70"
+                    className="text-label font-semibold uppercase text-foreground/70"
                     style={{ letterSpacing: "var(--tt-tracking-wide)" }}
                 >
                     {t(block.labelKey)}
@@ -284,7 +287,7 @@ export function DaySelectorRenderer({
                             color={isSelected ? "primary" : undefined}
                             onPress={() => toggleDay(day.mask)}
                             className={cn(
-                                "h-button px-panel shrink-0 font-semibold text-xs tracking-wider uppercase bg-primary/10 hover:bg-primary/20 text-primary transition-colors active:scale-95 text-scaled min-w-0",
+                                "h-button px-panel shrink-0 font-semibold tracking-wider uppercase bg-primary/10 hover:bg-primary/20 text-primary transition-colors active:scale-95 text-scaled min-w-0",
                                 isSelected ? "font-bold" : "text-foreground/60"
                             )}
                             style={{ letterSpacing: "var(--tt-tracking-wide)" }}
@@ -319,7 +322,7 @@ export function SelectRenderer({
             }
             classNames={{
                 trigger: "h-button",
-                value: "text-sm font-medium",
+                value: "text-scaled font-medium",
             }}
             onSelectionChange={(keys) => {
                 const [next] = [...keys];
@@ -368,11 +371,11 @@ export function LanguageRenderer({
     return (
         <div className="flex items-center justify-between gap-panel">
             <div>
-                <span className="text-sm font-semibold text-foreground/80">
+                <span className="text-scaled font-semibold text-foreground/80">
                     {t(block.labelKey)}
                 </span>
                 {block.descriptionKey && (
-                    <p className="text-xs text-foreground/60">
+                    <p className="text-label text-foreground/60">
                         {t(block.descriptionKey)}
                     </p>
                 )}
@@ -391,14 +394,14 @@ export function RawConfigRenderer({
     const { onCopyConfigJson, jsonCopyStatus, configJson } = useSettingsForm();
 
     return (
-        <div className="space-y-3">
+        <div className="space-y-tight">
             <div className="flex items-center justify-between gap-panel">
                 <div>
-                    <span className="text-sm font-semibold text-foreground/80">
+                    <span className="text-scaled font-semibold text-foreground/80">
                         {t(block.labelKey)}
                     </span>
                     {block.descriptionKey && (
-                        <p className="text-xs text-foreground/50">
+                        <p className="text-label text-foreground/50">
                             {t(block.descriptionKey)}
                         </p>
                     )}
