@@ -199,7 +199,7 @@ export function Navbar({
                                 mainWrapper: "h-full",
                                 input: "text-small text-foreground/90 whitespace-nowrap overflow-hidden text-ellipsis placeholder:opacity-70",
                                 inputWrapper:
-                                    "h-full flex items-center gap-tools flex-nowrap font-normal text-default-500 bg-default-100/50 hover:bg-default-200/50 border-transparent focus-within:bg-default-100 focus-within:border-primary/20 shadow-inner rounded-full transition-colors",
+                                    "h-full flex items-center gap-tools flex-nowrap font-normal text-default-500 bg-default-100/50 hover:bg-default-200/50 p-tight border border-default-200/50 focus-within:bg-default-100 focus-within:border-primary/20 shadow-inner rounded-full transition-colors",
                             }}
                             style={{ width: "var(--tt-search-width)" }}
                             placeholder={t("nav.search_placeholder")}
@@ -285,7 +285,7 @@ export function Navbar({
                     <div className="h-sep w-px bg-default-200/50 mx-tight" />
 
                     {/* System / Global */}
-                    <div className="flex items-center gap-tight">
+                    <div className="flex items-center gap-tools">
                         <ToolbarIconButton
                             Icon={
                                 workspaceStyle === "immersive"
