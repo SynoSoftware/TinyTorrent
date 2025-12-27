@@ -129,10 +129,10 @@ export function StatusBar({
     const renderEngineLogo = () => {
         if (rpcStatus === "idle")
             return (
-                <StatusIcon Icon={RefreshCw} size="md" className="opacity-50" />
+                <StatusIcon Icon={RefreshCw} size="lg" className="opacity-50" />
             );
         if (rpcStatus === "error")
-            return <StatusIcon Icon={AlertCircle} size="md" />;
+            return <StatusIcon Icon={AlertCircle} size="lg" />;
 
         const IconComp =
             engineType === "tinytorrent" ? TinyTorrentIcon : TransmissionIcon;

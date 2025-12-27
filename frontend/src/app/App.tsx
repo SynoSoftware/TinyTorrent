@@ -31,7 +31,7 @@ import type { RehashStatus } from "./types/workspace";
 import type {
     DetailTab,
     PeerSortStrategy,
-} from "@/modules/dashboard/components/TorrentDetailView";
+} from "@/modules/dashboard/types/torrentDetail";
 
 interface FocusControllerProps {
     selectedTorrents: Torrent[];

@@ -1,11 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { TorrentStatus } from "@/services/rpc/entities";
-
-export type OptimisticStatusMap = Record<
-    string,
-    { state: TorrentStatus; expiresAt: number }
->;
+import type { OptimisticStatusMap } from "@/modules/dashboard/types/optimistic";
 
 export function useOptimisticStatuses(torrents: Torrent[]) {
     const [optimisticStatuses, setOptimisticStatuses] =

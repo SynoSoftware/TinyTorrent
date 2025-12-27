@@ -65,6 +65,9 @@ import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import type { ItemElement } from "@react-types/shared";
 
+import type { OptimisticStatusMap } from "@/modules/dashboard/types/optimistic";
+import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
+import type { Torrent } from "@/modules/dashboard/types/torrent";
 import {
     BLOCK_SHADOW,
     GLASS_BLOCK_SURFACE,
@@ -74,9 +77,6 @@ import {
 } from "@/shared/ui/layout/glass-surface";
 import useLayoutMetrics from "@/shared/hooks/useLayoutMetrics";
 import { useKeyboardScope } from "@/shared/hooks/useKeyboardScope";
-import type { TorrentStatus } from "@/services/rpc/entities";
-
-import type { Torrent } from "@/modules/dashboard/types/torrent";
 import {
     COLUMN_DEFINITIONS,
     DEFAULT_COLUMN_ORDER,
@@ -92,6 +92,7 @@ import {
     ShortcutIntent,
     ICON_STROKE_WIDTH,
     ICON_STROKE_WIDTH_DENSE,
+    TABLE_ICON_SIZE,
 } from "@/config/logic";
 import { CONFIG } from "@/config/logic";
 
@@ -106,17 +107,6 @@ const SPEED_HISTORY_LIMIT = 30;
 const DND_OVERLAY_CLASSES = "pointer-events-none fixed inset-0 z-40";
 
 // --- TYPES ---
-export type TorrentTableAction =
-    | "pause"
-    | "resume"
-    | "recheck"
-    | "remove"
-    | "remove-with-data"
-    | "queue-move-top"
-    | "queue-move-up"
-    | "queue-move-down"
-    | "queue-move-bottom";
-
 type ContextMenuKey = TorrentTableAction;
 
 type MarqueeRect = {
@@ -193,12 +183,6 @@ const getContextMenuShortcut = (action: ContextMenuKey) =>
     formatShortcutLabel(CONTEXT_MENU_SHORTCUTS[action]);
 
 // Row height and other CSS-derived metrics are provided by `useLayoutMetrics`
-
-export type OptimisticStatusEntry = {
-    state: TorrentStatus;
-    expiresAt: number;
-};
-export type OptimisticStatusMap = Record<string, OptimisticStatusEntry>;
 
 interface TorrentTableProps {
     torrents: Torrent[];
@@ -305,7 +289,6 @@ const DraggableHeader = memo(
         const canSort = column.getCanSort();
         const align = column.columnDef.meta?.align || "start";
         const isSelection = header.id.toString() === "selection";
-        const { iconSize: _iconSize } = useLayoutMetrics();
 
         return (
             <div
@@ -347,16 +330,22 @@ const DraggableHeader = memo(
                     {flexRender(column.columnDef.header, header.getContext())}
                     {sortState === "asc" && (
                         <ArrowUp
-                            size={_iconSize}
                             strokeWidth={ICON_STROKE_WIDTH_DENSE}
                             className="text-primary shrink-0"
+                            style={{
+                                width: TABLE_ICON_SIZE.secondary,
+                                height: TABLE_ICON_SIZE.secondary,
+                            }}
                         />
                     )}
                     {sortState === "desc" && (
                         <ArrowDown
-                            size={_iconSize}
                             strokeWidth={ICON_STROKE_WIDTH_DENSE}
                             className="text-primary shrink-0"
+                            style={{
+                                width: TABLE_ICON_SIZE.secondary,
+                                height: TABLE_ICON_SIZE.secondary,
+                            }}
                         />
                     )}
                 </div>
@@ -398,7 +387,6 @@ const ColumnHeaderPreview = ({
     const align = column.columnDef.meta?.align || "start";
     const isSelection = header.id.toString() === "selection";
     const sortState = column.getIsSorted();
-    const { iconSize: _iconSize } = useLayoutMetrics();
     return (
         <div
             className={cn(
@@ -421,16 +409,22 @@ const ColumnHeaderPreview = ({
                 {flexRender(column.columnDef.header, header.getContext())}
                 {sortState === "asc" && (
                     <ArrowUp
-                        size={_iconSize}
                         strokeWidth={ICON_STROKE_WIDTH_DENSE}
                         className="text-primary shrink-0"
+                        style={{
+                                width: TABLE_ICON_SIZE.secondary,
+                                height: TABLE_ICON_SIZE.secondary,
+                            }}
                     />
                 )}
                 {sortState === "desc" && (
                     <ArrowDown
-                        size={_iconSize}
                         strokeWidth={ICON_STROKE_WIDTH_DENSE}
                         className="text-primary shrink-0"
+                        style={{
+                                width: TABLE_ICON_SIZE.secondary,
+                                height: TABLE_ICON_SIZE.secondary,
+                            }}
                     />
                 )}
             </div>
@@ -625,7 +619,6 @@ export function TorrentTable({
     onOpenFolder,
 }: TorrentTableProps) {
     const { t } = useTranslation();
-    const { iconSize } = useLayoutMetrics();
     const [highlightedRowId, setHighlightedRowId] = useState<string | null>(
         null
     );
@@ -1016,11 +1009,14 @@ export function TorrentTable({
                                 letterSpacing: "var(--tt-tracking-ultra)",
                             }}
                         >
-                            <HeaderIcon
-                                size={iconSize}
-                                strokeWidth={ICON_STROKE_WIDTH_DENSE}
-                                className="text-foreground/50 animate-pulse"
-                            />
+                    <HeaderIcon
+                        strokeWidth={ICON_STROKE_WIDTH_DENSE}
+                        className="text-foreground/50 animate-pulse"
+                            style={{
+                                width: TABLE_ICON_SIZE.primary,
+                                height: TABLE_ICON_SIZE.primary,
+                            }}
+                    />
                             <span>{label}</span>
                         </div>
                     ) : (
