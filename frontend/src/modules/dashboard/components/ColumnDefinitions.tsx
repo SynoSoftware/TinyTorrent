@@ -20,7 +20,6 @@ import {
     CheckCircle2,
     Clock3,
     Gauge,
-    Hash,
     ListChecks,
     MoreVertical,
     Pause,
@@ -66,7 +65,6 @@ export type ColumnId =
     | "peers"
     | "size"
     | "ratio"
-    | "hash"
     | "added";
 
 // We define what we expect in table.options.meta
@@ -130,6 +128,10 @@ const DEFAULT_SPARKLINE_HEIGHT = 12;
 const STATUS_CHIP_STYLE: CSSProperties = {
     gap: `${STATUS_CHIP_GAP}px`,
     borderRadius: `${STATUS_CHIP_RADIUS}px`,
+    minWidth: "var(--tt-badge-min-width)",
+    minHeight: "var(--tt-icon-size)",
+    paddingBlock: "var(--spacing-tight)",
+    boxSizing: "border-box",
 };
 
 const getOrdinalSuffix = (value: number) => {
@@ -294,7 +296,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
         render: ({ torrent }) => {
             const displayProgress = getEffectiveProgress(torrent);
             return (
-                <div className="flex flex-col gap-tight w-full min-w-0">
+                <div className="flex flex-col gap-tight w-full min-w-0 py-tight">
                     <div
                         className={cn(
                             "flex justify-between items-end font-medium opacity-80",
@@ -308,10 +310,9 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
                     </div>
                     <SmoothProgressBar
                         value={displayProgress * 100}
-                        className="h-sep"
-                        trackClassName="h-sep bg-content1/20"
+                        className="h-indicator"
+                        trackClassName="bg-content1/20 h-full"
                         indicatorClassName={cn(
-                            "h-full",
                             torrent.state === "paused"
                                 ? "bg-gradient-to-r from-warning/50 to-warning"
                                 : torrent.state === "seeding"
@@ -497,26 +498,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
             </span>
         ),
     },
-    hash: {
-        id: "hash",
-        labelKey: "table.header_hash",
-        width: 160,
-        sortable: true,
-        rpcField: "hash",
-        descriptionKey: "table.column_desc_hash",
-        headerIcon: Hash,
-        sortAccessor: (torrent) => torrent.hash,
-        render: ({ torrent }) => (
-            <span
-                className={cn(
-                    "text-foreground/50 tracking-tight min-w-0",
-                    DENSE_NUMERIC
-                )}
-            >
-                {torrent.hash.slice(0, 10)}
-            </span>
-        ),
-    },
+
     added: {
         id: "added",
         labelKey: "table.header_added",
@@ -548,7 +530,6 @@ export const DEFAULT_COLUMN_ORDER: ColumnId[] = [
     "peers",
     "size",
     "ratio",
-    "hash",
     "added",
 ];
 

@@ -341,11 +341,19 @@
         "rpc_idle": "Initializing",
         "rpc_status": "Connection",
         "selected_torrent": "Selected torrent",
+        "selected_count": "Selected",
+        "torrents_selected": "Torrents Selected",
         "stats_loading": "Loading stats...",
         "transport_offline": "Offline",
         "transport_polling": "Polling",
         "transport_websocket": "WebSocket",
-        "up": "UP"
+        "up": "UP",
+        "engine_name_tinytorrent": "TinyTorrent",
+        "engine_name_transmission": "Transmission",
+        "transport_websocket_desc": "Real-time",
+        "transport_polling_desc": "HTTP Polling",
+        "transport_offline_desc": "Disconnected",
+        "engine_tooltip": "Engine: {{engineName}}\nConnection: {{transportDesc}}\nStatus: {{status}}"
     },
     "table": {
         "actions": {
@@ -381,7 +389,6 @@
         "eta_unknown": "Unknown",
         "header_added": "ADDED",
         "header_eta": "ETA",
-        "header_hash": "HASH",
         "header_name": "NAME",
         "header_peers": "PEERS",
         "header_progress": "PROGRESS",
@@ -488,7 +495,6 @@
             "download": "Download",
             "eta": "ETA",
             "eta_unknown": "Unknown",
-            "hash": "Hash",
             "peers": "Peers",
             "progress": "Progress",
             "size": "Total Size",
@@ -588,6 +594,7 @@
         }
     },
     "inspector": {
+        "panel_label": "Torrent Properties",
         "tab": {
             "general": "General",
             "content": "Content",

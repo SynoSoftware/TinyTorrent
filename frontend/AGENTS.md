@@ -79,9 +79,16 @@ When fixing zoom-related or css magic number issues:
 
 This section defines the **Zero-Literal Mandate**. To maintain the "Confident Workbench" feel and ensure 100% harmonic scaling, all agents must strictly follow this pipeline.
 
-## **A. The Knob Registry (Few Knobs, High Leverage)**
+## **A. The Knob Registry (Authoritative, Single Source of Truth)**
 
-UI must be controlled by a small, stable knob set. Agents may not create additional “knobs” casually.
+Theme and density configuration knobs are the **single source of truth** for all visual and layout decisions.
+
+Any visual or layout change **MUST**:
+
+- Consume an existing knob, or
+- Introduce a new knob through the token pipeline.
+
+Component-local visual tuning is forbidden.
 
 **The only acceptable global knobs are:**
 - **Unit:** `--u` (base unit)
@@ -261,7 +268,8 @@ All shell-level constants (fallback grays, noise strength, etc.) live in `config
 
 ---
 
-# **5. UI Consistency Enforcement (Non-Negotiable) (Applies to §§2, 3 and 5)**
+# **5. UI Consistency Enforcement (Non-Negotiable) **
+**Applies to all UI, including §§2, 3, 4, and 8**
 
 ## **A. Consistency Contract**
 
@@ -291,6 +299,7 @@ When an agent changes UI, it must include a short “Token Mapping” note in th
 - Which semantic roles were used (e.g., `p-panel`, `gap-stage`, `h-row`, glass layer token)
 - Whether any new token was required
 - If required but missing → must be flagged, not hacked
+
 
 ---
 

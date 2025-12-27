@@ -62,7 +62,6 @@
     --tt-h-indicator: calc(
         var(--tt-uz) * 3
     ); /* The h-3/h-4 for progress/skeletons */
-
     /* Modal structural elements */
     --tt-h-modal-header: var(--tt-h-nav); /* unify h-16 with h-nav */
     --tt-h-control-row: calc(
@@ -125,6 +124,7 @@
     /* icons follow typography (scaled) */
     --icon: calc(1.25 * var(--fz-scaled));
     --icon-lg: calc(1.6 * var(--fz-scaled));
+    --tt-icon-size: var(--icon);
 
     /* perceptual non-linear outputs (clamped) */
     --stroke: clamp(1px, calc(var(--sw) * var(--z) * 1px), 2px);
@@ -681,6 +681,10 @@ main .torrent-table-watermark {
         padding-bottom: var(--spacing-tight);
     }
 
+    .rounded-panel {
+        border-radius: var(--r-md);
+    }
+
     .h-sep {
         height: var(--tt-h-sm);
     }
@@ -691,6 +695,10 @@ main .torrent-table-watermark {
 
     .h-lg {
         height: var(--tt-h-lg);
+    }
+
+    .h-indicator {
+        height: var(--tt-h-indicator);
     }
 
     .h-md {
