@@ -369,8 +369,13 @@ export class HeartbeatManager {
                 try {
                     const stored = this.subscribers.get(subEntry.id);
                     const lastSeen = stored?.lastSeenHash;
+                    // Always notify table-mode subscribers on each tick so
+                    // visualizations (network graphs, sparklines) receive the
+                    // heartbeat even when data values are zero.
                     const shouldNotify =
-                        lastSeen !== currentHash || Boolean(detailEntry?.data);
+                        lastSeen !== currentHash ||
+                        Boolean(detailEntry?.data) ||
+                        params.mode === "table";
                     if (shouldNotify) {
                         params.onUpdate(payload);
                         if (stored) stored.lastSeenHash = currentHash;

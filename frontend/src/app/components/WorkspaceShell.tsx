@@ -121,6 +121,7 @@ interface WorkspaceShellProps {
     superSeedingSupported: boolean;
     optimisticStatuses: OptimisticStatusMap;
     handleSelectionChange: (selection: Torrent[]) => void;
+    handleActiveRowChange: (torrent: Torrent | null) => void;
     handleOpenFolder: (torrent: Torrent) => Promise<void>;
     peerSortStrategy: PeerSortStrategy;
     inspectorTabCommand: DetailTab | null;
@@ -187,6 +188,7 @@ export function WorkspaceShell({
     superSeedingSupported,
     optimisticStatuses,
     handleSelectionChange,
+    handleActiveRowChange,
     handleOpenFolder,
     peerSortStrategy,
     inspectorTabCommand,
@@ -306,6 +308,7 @@ export function WorkspaceShell({
             ghostTorrents={ghostTorrents}
             isDropActive={isDragActive}
             onSelectionChange={handleSelectionChange}
+            onActiveRowChange={handleActiveRowChange}
             onOpenFolder={handleOpenFolder}
             tableWatermarkEnabled={tableWatermarkEnabled}
         />
@@ -317,7 +320,7 @@ export function WorkspaceShell({
             sessionStats={sessionStats}
             rpcStatus={rpcStatus}
             liveTransportStatus={liveTransportStatus}
-            selectedTorrent={detailData ?? undefined}
+            selectedCount={selectedTorrents.length}
             onEngineClick={handleReconnect}
             engineType={engineType}
         />

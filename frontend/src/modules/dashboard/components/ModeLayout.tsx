@@ -55,6 +55,7 @@ interface ModeLayoutProps {
     onAction?: (action: TorrentTableAction, torrent: Torrent) => void;
     onRequestDetails?: (torrent: Torrent) => void;
     onSelectionChange?: (selection: Torrent[]) => void;
+    onActiveRowChange?: (torrent: Torrent | null) => void;
     detailData: TorrentDetail | null;
     onCloseDetail: () => void;
     onFilesToggle?: (
@@ -109,6 +110,7 @@ export function ModeLayout({
     inspectorTabCommand,
     onInspectorTabCommandHandled,
     onSelectionChange,
+    onActiveRowChange,
     isDropActive = false,
     detailSplitDirection = "vertical",
     tableWatermarkEnabled = true,
@@ -214,11 +216,11 @@ export function ModeLayout({
     const getShellStyles = (partName: "table" | "inspector") => {
         const isActive = activePart === partName;
         return {
+            // Always include a subtle top border to prevent jump when focus highlight appears
             className: cn(
                 "relative h-full w-full flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden transition-all duration-200",
-                isActive
-                    ? "border-t-2 border-t-primary/60 ring-2 ring-primary/40"
-                    : "border-t border-t-white/5",
+                "border-t border-default/10",
+                isActive ? "border-t-primary/40" : "",
                 "bg-transparent"
             ),
             style: {},
@@ -331,6 +333,7 @@ export function ModeLayout({
                                         handleDetailFullscreenRequest
                                     }
                                     onSelectionChange={onSelectionChange}
+                                    onActiveRowChange={onActiveRowChange}
                                     optimisticStatuses={optimisticStatuses}
                                     ghostTorrents={ghostTorrents}
                                     onOpenFolder={onOpenFolder}

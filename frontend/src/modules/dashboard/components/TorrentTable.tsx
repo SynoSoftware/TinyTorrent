@@ -210,6 +210,7 @@ interface TorrentTableProps {
     onRequestDetails?: (torrent: Torrent) => void;
     onRequestDetailsFullscreen?: (torrent: Torrent) => void;
     onSelectionChange?: (selection: Torrent[]) => void;
+    onActiveRowChange?: (torrent: Torrent | null) => void;
     optimisticStatuses?: OptimisticStatusMap;
     disableDetailOpen?: boolean;
     onOpenFolder?: (torrent: Torrent) => Promise<void>;
@@ -568,7 +569,7 @@ const VirtualRow = memo(
                 aria-selected={isSelected}
                 tabIndex={-1}
                 className={cn(
-                    "absolute top-0 left-0 border-b border-content1/5",
+                    "absolute top-0 left-0 border-b border-default/5",
                     "box-border",
                     // Dragging overrides
                     isQueueSortActive ? "cursor-grab" : "cursor-default",
@@ -617,6 +618,7 @@ export function TorrentTable({
     onRequestDetails,
     onRequestDetailsFullscreen,
     onSelectionChange,
+    onActiveRowChange,
     optimisticStatuses = {},
     disableDetailOpen = false,
     ghostTorrents,
@@ -1344,6 +1346,17 @@ export function TorrentTable({
         });
         return map;
     }, [rows]);
+    const lastActiveRowIdRef = useRef<string | null>(null);
+
+    useEffect(() => {
+        if (!onActiveRowChange) return;
+        if (lastActiveRowIdRef.current === highlightedRowId) return;
+        lastActiveRowIdRef.current = highlightedRowId ?? null;
+        const activeRow = highlightedRowId
+            ? rowsById.get(highlightedRowId)
+            : null;
+        onActiveRowChange(activeRow?.original ?? null);
+    }, [highlightedRowId, onActiveRowChange, rowsById]);
 
     // Check if we are sorting by queue position
     // If we are, we can enable Drag & Drop reordering
@@ -1709,7 +1722,8 @@ export function TorrentTable({
         "flex w-full sticky top-0 z-20 border-b border-content1/20 bg-content1/10 backdrop-blur-sm "
     );
     const tableShellClass = cn(
-        "relative flex-1 h-full min-h-0 flex flex-col overflow-hidden"
+        "relative flex-1 h-full min-h-0 flex flex-col overflow-hidden",
+        "rounded-panel border border-default/10"
     );
 
     return (

@@ -355,6 +355,40 @@ export const SPEED_WINDOW_OPTIONS = [
 export const ICON_STROKE_WIDTH = constants.iconography.stroke_width;
 export const ICON_STROKE_WIDTH_DENSE = constants.iconography.stroke_width_dense;
 
+// Semantic status visuals used across the app (moved out of components)
+export const STATUS_VISUALS: Record<
+    "idle" | "connected" | "error",
+    {
+        bg: string;
+        border: string;
+        text: string;
+        shadow: string;
+        glow: string;
+    }
+> = {
+    idle: {
+        bg: "bg-content1/5 hover:bg-content1/10",
+        border: "border-default/10",
+        text: "text-foreground/40",
+        shadow: "shadow-none",
+        glow: "bg-content1",
+    },
+    connected: {
+        bg: "bg-success/5 hover:bg-success/10",
+        border: "border-default/20",
+        text: "text-success",
+        shadow: "shadow-success-glow",
+        glow: "bg-success",
+    },
+    error: {
+        bg: "bg-danger/5 hover:bg-danger/10",
+        border: "border-default/20",
+        text: "text-danger",
+        shadow: "shadow-danger-glow",
+        glow: "bg-danger",
+    },
+};
+
 export const TABLE_REFRESH_INTERVAL_MS =
     constants.heartbeats.table_refresh_interval_ms;
 export const DETAIL_REFRESH_INTERVAL_MS =

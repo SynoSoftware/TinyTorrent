@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Dock, PictureInPicture as Popout, X } from "lucide-react";
+import { Pin, PinOff, X } from "lucide-react";
+import { Chip } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 import { GeneralTab } from "./details/tabs/GeneralTab";
 import { ContentTab } from "./details/tabs/ContentTab";
@@ -94,6 +95,13 @@ export const TorrentDetailView: React.FC<
 
     // torrent is already strictly typed as TorrentDetail | null | undefined
 
+    // Re-bind inspector state when the selected torrent changes so the
+    // inspector reloads immediately for new selections (fixes "headless" feeling).
+    useEffect(() => {
+        // Reset active tab on torrent change to ensure properties reload
+        setActive("general");
+    }, [torrent?.id]);
+
     const tabs = useMemo(
         () =>
             [
@@ -131,23 +139,36 @@ export const TorrentDetailView: React.FC<
             tabIndex={0}
             onKeyDown={handleKey}
         >
-            <div className="flex items-center justify-between gap-tools px-tight py-tight">
-                <div className="flex items-center gap-tools">
-                    {tabs.map((tab) => (
-                        <button
-                            key={tab}
-                            type="button"
-                            aria-pressed={active === tab}
-                            onClick={() => setActive(tab)}
-                            className={`px-panel py-tight rounded-full text-scaled ${
-                                active === tab
-                                    ? "bg-primary/20"
-                                    : "bg-transparent"
-                            }`}
-                        >
-                            {t(`inspector.tab.${tab}`) as unknown as string}
-                        </button>
-                    ))}
+            {/* Header Bar: Torrent identity + toolbar */}
+            <div className="flex items-center justify-between gap-tools px-tight py-tight relative">
+                <div className="flex items-center gap-tools min-w-0">
+                    <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-tools">
+                            <h3 className="truncate font-semibold">
+                                {torrent?.name ?? t("general.unknown")}
+                            </h3>
+                            {torrent && (
+                                <Chip
+                                    size="md"
+                                    variant="shadow"
+                                    color={
+                                        torrent.state === "seeding"
+                                            ? "primary"
+                                            : torrent.state === "downloading"
+                                            ? "success"
+                                            : "warning"
+                                    }
+                                >
+                                    {t(
+                                        `torrent_modal.statuses.${torrent.state}`
+                                    )}
+                                </Chip>
+                            )}
+                        </div>
+                    </div>
+                </div>
+                <div className="absolute inset-0 flex items-center justify-center text-label uppercase tracking-0-3 text-foreground/40 pointer-events-none">
+                    {t("inspector.panel_label")}
                 </div>
                 <div className="flex items-center gap-tight">
                     {/* Popout: only when not fullscreen/modal and handler exists */}
@@ -158,7 +179,7 @@ export const TorrentDetailView: React.FC<
                             aria-label="Popout"
                             onClick={onPopout}
                         >
-                            <Popout size={18} />
+                            <PinOff size={18} />
                         </button>
                     )}
                     {/* Dock: only when fullscreen/modal and handler exists */}
@@ -169,7 +190,7 @@ export const TorrentDetailView: React.FC<
                             aria-label="Dock"
                             onClick={onDock}
                         >
-                            <Dock size={18} />
+                            <Pin size={18} />
                         </button>
                     )}
                     {/* Close: unchanged */}

@@ -44,7 +44,7 @@ export function SmoothProgressBar({
         >
             <div
                 className={cn(
-                    "absolute inset-y-0 left-0 transform origin-left",
+                    "absolute inset-y-0 left-0 transform origin-left rounded-full",
                     isMounted && "transition-all duration-300 ease-out",
                     indicatorClassName
                 )}

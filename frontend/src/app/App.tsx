@@ -35,6 +35,7 @@ import type {
 
 interface FocusControllerProps {
     selectedTorrents: Torrent[];
+    activeTorrentId: string | null;
     detailData: TorrentDetail | null;
     requestDetails: (torrent: Torrent) => Promise<void>;
     closeDetail: () => void;
@@ -42,6 +43,7 @@ interface FocusControllerProps {
 
 function FocusController({
     selectedTorrents,
+    activeTorrentId,
     detailData,
     requestDetails,
     closeDetail,
@@ -51,14 +53,25 @@ function FocusController({
     const toggleInspector = useCallback(async () => {
         if (detailData) {
             closeDetail();
+            setActivePart("table");
             return;
         }
 
-        const targetTorrent = selectedTorrents[0];
+        const targetTorrent =
+            selectedTorrents.find((torrent) => torrent.id === activeTorrentId) ??
+            selectedTorrents[0];
         if (!targetTorrent) return;
 
+        setActivePart("inspector");
         await requestDetails(targetTorrent);
-    }, [closeDetail, detailData, requestDetails, selectedTorrents]);
+    }, [
+        activeTorrentId,
+        closeDetail,
+        detailData,
+        requestDetails,
+        selectedTorrents,
+        setActivePart,
+    ]);
 
     useHotkeys(
         "cmd+i,ctrl+i",
@@ -72,12 +85,6 @@ function FocusController({
         },
         [toggleInspector]
     );
-
-    useEffect(() => {
-        if (detailData) {
-            setActivePart("inspector");
-        }
-    }, [detailData, setActivePart]);
 
     return null;
 }
@@ -280,6 +287,7 @@ export default function App() {
     const [filter, setFilter] = useState("all");
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedTorrents, setSelectedTorrents] = useState<Torrent[]>([]);
+    const [activeTorrentId, setActiveTorrentId] = useState<string | null>(null);
     const [isCommandPaletteOpen, setCommandPaletteOpen] = useState(false);
     const [peerSortStrategy, setPeerSortStrategy] =
         useState<PeerSortStrategy>("none");
@@ -414,12 +422,18 @@ export default function App() {
         setSelectedTorrents(selection);
     }, []);
 
+    const handleActiveRowChange = useCallback((torrent: Torrent | null) => {
+        if (!torrent) return;
+        setActiveTorrentId(torrent.id);
+    }, []);
+
     const handleInspectorTabCommandHandled = useCallback(() => {
         setInspectorTabCommand(null);
     }, []);
 
     const handleRequestDetails = useCallback(
         async (torrent: Torrent) => {
+            setActiveTorrentId(torrent.id);
             await loadDetail(torrent.id, {
                 ...torrent,
                 trackers: [],
@@ -429,6 +443,35 @@ export default function App() {
         },
         [loadDetail]
     );
+
+    useEffect(() => {
+        if (!activeTorrentId) {
+            return;
+        }
+        if (!detailData || detailData.id === activeTorrentId) {
+            return;
+        }
+        const activeTorrent =
+            selectedTorrents.find((torrent) => torrent.id === activeTorrentId) ??
+            null;
+        void loadDetail(
+            activeTorrentId,
+            activeTorrent
+                ? ({
+                      ...activeTorrent,
+                      trackers: [],
+                      files: [],
+                      peers: [],
+                  } as TorrentDetail)
+                : undefined
+        );
+    }, [
+        activeTorrentId,
+        clearDetail,
+        detailData,
+        loadDetail,
+        selectedTorrents,
+    ]);
 
     const getContextActions = useCallback(
         ({ activePart }: CommandPaletteContext) => {
@@ -541,6 +584,7 @@ export default function App() {
     );
 
     const handleCloseDetail = useCallback(() => {
+        setActiveTorrentId(null);
         clearDetail();
     }, [clearDetail]);
 
@@ -671,6 +715,7 @@ export default function App() {
             >
                 <FocusController
                     selectedTorrents={selectedTorrents}
+                    activeTorrentId={activeTorrentId}
                     detailData={detailData}
                     requestDetails={handleRequestDetails}
                     closeDetail={handleCloseDetail}
@@ -711,6 +756,7 @@ export default function App() {
                     superSeedingSupported={superSeedingSupported}
                     optimisticStatuses={optimisticStatuses}
                     handleSelectionChange={handleSelectionChange}
+                    handleActiveRowChange={handleActiveRowChange}
                     handleOpenFolder={handleOpenFolder}
                     peerSortStrategy={peerSortStrategy}
                     inspectorTabCommand={inspectorTabCommand}

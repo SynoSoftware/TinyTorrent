@@ -65,7 +65,8 @@ export function useTorrentActions({
             options?: { deleteData?: boolean }
         ) => {
             if (!torrent) return;
-            const ids = [torrent.id];
+            const ids = torrent ? [torrent.id] : [];
+            if (!ids || ids.length === 0) return;
             if (action === "pause") {
                 await runWithRefresh(() => torrentClient.pause(ids));
             } else if (action === "resume") {
