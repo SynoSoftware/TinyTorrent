@@ -4,13 +4,13 @@ Licensed under the Apache License, Version 2.0. See `LICENSES.md` for details.
 
 # **TinyTorrent RPC-Extended Specification**
 
-**Version:** 1.1.0 
+**Version:** 1.1.0
 **Status:** Revised for Webview2
 **Dependencies:** TinyTorrent Security Model v1.0 (Mandatory)
 
 ---
 
-## **1. Capability Discovery**
+## **1. Capability Discovery & Architecture**
 
 Before attempting WebSocket upgrades or extended methods, the client **must** verify the server version to prevent "undefined method" errors on standard Transmission daemons.
 
@@ -67,19 +67,17 @@ If the UI is hosted via a custom scheme (e.g., `tt-app://`), the backend **must*
 
 ### **1.4 Host Shell Authority (Normative)**
 
-All operating system interactions, including but not limited to:
+All **user-interactive** operating system interactions, including but not limited to:
 
 - File and folder selection dialogs
-- Filesystem browsing
+- Filesystem browsing (e.g., listing directory contents)
 - Registry access
 - Protocol handler registration
 - Installation and elevation flows
 
 are **exclusively owned by the Native Host Shell**.
 
-The RPC Daemon MUST NOT expose filesystem or dialog-related RPC methods.
-All filesystem paths provided to the Daemon are treated as opaque,
-pre-validated strings originating from the Host Shell.
+The RPC Daemon **MUST NOT** expose filesystem browsing or dialog-related RPC methods. All filesystem paths provided to the Daemon are treated as opaque, pre-validated strings originating from the Host Shell.
 
 ---
 
@@ -97,7 +95,7 @@ Requests for missing `.js`, `.css`, etc. files now return 404 instead of silentl
 
 ### **2.1 Connection Constraints**
 
-- **Token Validation:** Must be validated via Query Parameter _before_ the 101 Switching Protocols response.
+- **Token Validation:** Must be validated via Query Parameter *before* the 101 Switching Protocols response.
 - **Origin Policy:** If `Origin` header is present, it must match the trusted UI origin.
 - **Discontinuity Handling:** Upon reconnection, the server **must** send a fresh `sync-snapshot` to ensure the client is current before resuming `sync-patch` deltas.
 
