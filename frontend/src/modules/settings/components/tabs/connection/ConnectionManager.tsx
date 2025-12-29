@@ -84,8 +84,7 @@ export function ConnectionCredentialsCard({
     const serverType = useMemo<ServerType>(() => {
         if (rpcStatus !== "connected") return null;
         if (serverClass === "tinytorrent") return "tinytorrent";
-        if (serverClass === "transmission") return "transmission";
-        return null;
+        return "transmission";
     }, [rpcStatus, serverClass]);
 
     const serverTypeLabel = useMemo(() => {
@@ -346,10 +345,62 @@ export function ConnectionCredentialsCard({
     );
 }
 
+interface ConnectionExtensionCardProps {
+    rpcStatus: RpcStatus;
+    serverClass: ServerClass;
+}
+
+export function ConnectionExtensionCard({
+    rpcStatus,
+    serverClass,
+}: ConnectionExtensionCardProps) {
+    const { t } = useTranslation();
+
+    const modeLabelKey = useMemo(() => {
+        if (rpcStatus !== "connected") {
+            return "settings.connection.detecting_mode_label";
+        }
+        if (serverClass === "tinytorrent") {
+            return "settings.connection.native_mode_label";
+        }
+        return "settings.connection.transmission_mode_label";
+    }, [rpcStatus, serverClass]);
+
+    const modeDescriptionKey = useMemo(() => {
+        if (rpcStatus !== "connected") {
+            return "settings.connection.detecting_mode_summary";
+        }
+        if (serverClass === "tinytorrent") {
+            return "settings.connection.native_mode_summary";
+        }
+        return "settings.connection.transmission_mode_summary";
+    }, [rpcStatus, serverClass]);
+
+    return (
+        <div className="space-y-tight">
+            <p className="text-label uppercase text-foreground/60">
+                {t("settings.connection.mode_label")}
+            </p>
+            <p className="text-scaled font-semibold text-foreground">
+                {t(modeLabelKey)}
+            </p>
+            <p className="text-label text-foreground/60">
+                {t(modeDescriptionKey)}
+            </p>
+            {rpcStatus === "error" && (
+                <p className="text-label text-warning">
+                    {t("settings.connection.offline_warning")}
+                </p>
+            )}
+        </div>
+    );
+}
+
 export function ConnectionManager(props: ConnectionManagerProps) {
     return (
         <>
             <ConnectionCredentialsCard {...props} />
+            <ConnectionExtensionCard {...props} />
         </>
     );
 }
