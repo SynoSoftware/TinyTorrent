@@ -6,12 +6,10 @@ import {
     useState,
     type ReactNode,
 } from "react";
-import {
-    useConnectionConfig,
-    buildRpcEndpoint,
-} from "@/app/context/ConnectionConfigContext";
+import { useConnectionConfig, buildRpcEndpoint } from "@/app/context/ConnectionConfigContext";
 import { TransmissionAdapter } from "@/services/rpc/rpc-base";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
+import { NativeShell } from "@/app/runtime";
 
 const ClientContext = createContext<EngineAdapter | null>(null);
 
@@ -69,6 +67,19 @@ export function ClientProvider({ children }: { children: ReactNode }) {
             sessionStorage.removeItem("tt-auth-token");
         }
     }, [activeProfile.token]);
+
+    useEffect(() => {
+        const unsubscribe = NativeShell.onEvent("auth-token", (payload) => {
+            if (typeof sessionStorage === "undefined") return;
+            const token = typeof payload === "string" ? payload : "";
+            if (token) {
+                sessionStorage.setItem("tt-auth-token", token);
+            } else {
+                sessionStorage.removeItem("tt-auth-token");
+            }
+        });
+        return unsubscribe;
+    }, []);
 
     return (
         <ClientContext.Provider value={client}>

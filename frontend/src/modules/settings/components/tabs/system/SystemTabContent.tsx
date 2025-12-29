@@ -1,37 +1,32 @@
 import { useTranslation } from "react-i18next";
-import { SystemInstallSection } from "@/modules/settings/components/tabs/system/SystemInstallSection";
 import { SettingsSection } from "@/modules/settings/components/SettingsSection";
-import { useSettingsForm } from "@/modules/settings/context/SettingsFormContext";
+import { SystemIntegrationSettings } from "@/modules/settings/components/tabs/system/SystemIntegrationSettings";
 
-export function SystemTabContent() {
+interface SystemTabContentProps {
+    isNativeMode: boolean;
+}
+
+export function SystemTabContent({ isNativeMode }: SystemTabContentProps) {
     const { t } = useTranslation();
-    const {
-        autorunSwitch,
-        handlerSwitch,
-        handlerRequiresElevation,
-        extensionModeEnabled,
-        isMocked,
-        onSystemInstall,
-        systemInstallFeatureAvailable,
-    } = useSettingsForm();
 
     return (
         <SettingsSection
-            title={t("settings.sections.install")}
-            description={t("settings.descriptions.install")}
+            title={t("settings.headers.system")}
+            description={t("settings.descriptions.system_integration")}
         >
-            <div className="space-y-stage mt-panel">
-                <SystemInstallSection
-                    autorunSwitch={autorunSwitch}
-                    handlerSwitch={handlerSwitch}
-                    handlerRequiresElevation={handlerRequiresElevation}
-                    extensionModeEnabled={extensionModeEnabled}
-                    isMocked={isMocked}
-                    onSystemInstall={onSystemInstall}
-                    systemInstallFeatureAvailable={
-                        systemInstallFeatureAvailable
-                    }
-                />
+            <div className="mt-panel">
+                {isNativeMode ? (
+                    <SystemIntegrationSettings />
+                ) : (
+                    <div className="flex flex-col gap-tight">
+                        <p className="text-scaled text-foreground/80">
+                            {t("settings.system.notice")}
+                        </p>
+                        <p className="text-label text-foreground/60">
+                            {t("settings.system.instructions")}
+                        </p>
+                    </div>
+                )}
             </div>
         </SettingsSection>
     );

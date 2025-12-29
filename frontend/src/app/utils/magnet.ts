@@ -1,5 +1,4 @@
 const MAGNET_SCHEME = "magnet:";
-const MAGNET_QUERY_KEYS = ["magnet", "magnetLink", "url", "link"];
 
 const safeDecode = (value: string) => {
     try {
@@ -37,66 +36,3 @@ export const findMagnetInString = (value: string) => {
     });
     return candidate;
 };
-
-const tryExtractMagnetFromSearch = () => {
-    if (typeof window === "undefined") return undefined;
-    const params = new URLSearchParams(window.location.search);
-    for (const key of MAGNET_QUERY_KEYS) {
-        const normalized = normalizeMagnetLink(params.get(key));
-        if (normalized) {
-            return normalized;
-        }
-    }
-    const looseMatch = findMagnetInString(window.location.search);
-    return normalizeMagnetLink(looseMatch);
-};
-
-const tryExtractMagnetFromHash = () => {
-    if (typeof window === "undefined") return undefined;
-    const hashBody = window.location.hash.replace(/^#\/?/, "");
-    const match = findMagnetInString(hashBody);
-    return normalizeMagnetLink(match ?? hashBody);
-};
-
-const tryExtractMagnetFromPath = () => {
-    if (typeof window === "undefined") return undefined;
-    const match = findMagnetInString(window.location.pathname);
-    return normalizeMagnetLink(match ?? window.location.pathname);
-};
-
-const tryExtractMagnetFromProtocol = () => {
-    if (typeof window === "undefined") return undefined;
-    if (window.location.protocol === MAGNET_SCHEME) {
-        return window.location.href;
-    }
-    return undefined;
-};
-
-const tryExtractMagnetFromArgs = () => {
-    const nodeProcess = (
-        globalThis as typeof globalThis & {
-            process?: { argv?: string[] };
-        }
-    ).process;
-    const args = nodeProcess?.argv;
-    if (!args?.length) return undefined;
-    for (const arg of args) {
-        const direct = normalizeMagnetLink(arg);
-        if (direct) {
-            return direct;
-        }
-        const loose = findMagnetInString(arg);
-        const normalized = normalizeMagnetLink(loose);
-        if (normalized) {
-            return normalized;
-        }
-    }
-    return undefined;
-};
-
-export const resolveDeepLinkMagnet = () =>
-    tryExtractMagnetFromProtocol() ??
-    tryExtractMagnetFromSearch() ??
-    tryExtractMagnetFromHash() ??
-    tryExtractMagnetFromPath() ??
-    tryExtractMagnetFromArgs();

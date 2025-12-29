@@ -33,6 +33,7 @@ import {
 } from "@/services/rpc/schemas";
 import { CONFIG } from "@/config/logic";
 import type { EngineAdapter } from "./engine-adapter";
+import { NativeShell } from "@/app/runtime";
 import { HeartbeatManager } from "./heartbeat";
 import type {
     HeartbeatSubscriberParams,
@@ -51,6 +52,7 @@ import type {
     TinyTorrentCapabilities,
     AutorunStatus,
     SystemHandlerStatus,
+    ServerClass,
 } from "./entities";
 import { normalizeTorrent, normalizeTorrentDetail } from "./normalizers";
 
@@ -118,36 +120,6 @@ const DETAIL_FIELDS = [
     "pieceAvailability",
 ];
 
-// Suppression logic for notifications
-const SUPPRESSION_KEY = "tiny-torrent.notified-extensions-map";
-const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
-
-export function shouldSuppressNotification(endpoint: string): boolean {
-    try {
-        const raw = localStorage.getItem(SUPPRESSION_KEY);
-        const map = raw ? JSON.parse(raw) : {};
-        const lastNotified = map[endpoint];
-
-        if (lastNotified && Date.now() - lastNotified < TWENTY_FOUR_HOURS) {
-            return true;
-        }
-    } catch (e) {
-        return false; // Fallback to showing if storage is corrupted
-    }
-    return false;
-}
-
-export function recordNotification(endpoint: string) {
-    try {
-        const raw = localStorage.getItem(SUPPRESSION_KEY);
-        const map = raw ? JSON.parse(raw) : {};
-        map[endpoint] = Date.now();
-        localStorage.setItem(SUPPRESSION_KEY, JSON.stringify(map));
-    } catch (e) {
-        // Ignore storage errors
-    }
-}
-
 export class TransmissionAdapter implements EngineAdapter {
     private endpoint: string;
     private sessionId?: string;
@@ -162,16 +134,7 @@ export class TransmissionAdapter implements EngineAdapter {
     private readonly activeControllers = new Set<AbortController>();
     private tinyTorrentCapabilities?: TinyTorrentCapabilities | null;
     private websocketSession?: TinyTorrentWebSocketSession;
-    private tinyTorrentFeaturesEnabled = false;
-    private notifiedExtendedCapabilities = false;
-
-    public get shouldNotifyExtendedFeatures(): boolean {
-        return this.notifiedExtendedCapabilities;
-    }
-
-    public consumeExtendedFeaturesNotification() {
-        this.notifiedExtendedCapabilities = false;
-    }
+    private serverClass: ServerClass = "unknown";
 
     private getTinyTorrentAuthToken(): string | undefined {
         const token = sessionStorage.getItem("tt-auth-token");
@@ -205,15 +168,6 @@ export class TransmissionAdapter implements EngineAdapter {
         this.requestTimeout = timeout;
     }
 
-    public setTinyTorrentFeaturesEnabled(enabled: boolean) {
-        this.tinyTorrentFeaturesEnabled = enabled;
-        if (!enabled) {
-            this.closeWebSocketSession();
-            return;
-        }
-        this.ensureWebsocketConnection();
-    }
-
     private getAuthorizationHeader(): string | undefined {
         if (!this.username && !this.password) {
             return undefined;
@@ -242,7 +196,7 @@ export class TransmissionAdapter implements EngineAdapter {
                 "Content-Type": "application/json",
             };
             const ttAuth = this.getTinyTorrentAuthToken();
-            if (ttAuth && this.isLoopbackEndpoint()) {
+            if (ttAuth) {
                 headers["X-TT-Auth"] = ttAuth;
             }
             if (this.sessionId) {
@@ -348,15 +302,29 @@ export class TransmissionAdapter implements EngineAdapter {
         }
     }
 
-    private isLoopbackEndpoint(): boolean {
-        const resolved = this.resolveEndpointUrl();
-        if (!resolved) {
-            return false;
+    private updateServerClassFromCapabilities(
+        capabilities: TinyTorrentCapabilities | null
+    ) {
+        if (!capabilities || !capabilities.serverClass) {
+            this.serverClass = "unknown";
+            return;
         }
-        const host = resolved.hostname.replace(/^\[|\]$/g, "").toLowerCase();
-        return host === "localhost" || host === "127.0.0.1" || host === "::1";
+        if (capabilities.serverClass === "tinytorrent") {
+            this.serverClass = "tinytorrent";
+            return;
+        }
+        if (capabilities.serverClass === "transmission") {
+            this.serverClass = "transmission";
+            return;
+        }
+        this.serverClass = "unknown";
     }
 
+    private applyCapabilities(capabilities: TinyTorrentCapabilities | null) {
+        this.tinyTorrentCapabilities = capabilities;
+        this.updateServerClassFromCapabilities(capabilities);
+        this.ensureWebsocketConnection();
+    }
     private buildWebSocketBaseUrl(path: string): URL | null {
         if (!path) return null;
         try {
@@ -381,7 +349,7 @@ export class TransmissionAdapter implements EngineAdapter {
     }
 
     private ensureWebsocketConnection() {
-        if (!this.tinyTorrentFeaturesEnabled) {
+        if (!this.hasWebsocketSupport()) {
             this.closeWebSocketSession();
             return;
         }
@@ -416,38 +384,34 @@ export class TransmissionAdapter implements EngineAdapter {
         this.websocketSession.start(wsBaseUrl);
     }
 
-    /**
-     * Refreshes the server capabilities and determines if the UI should be notified
-     * of extended features based on persistent 24h suppression logic.
-     */
     public async refreshExtendedCapabilities(force = false): Promise<void> {
+        if (!force && this.tinyTorrentCapabilities !== undefined) {
+            this.ensureWebsocketConnection();
+            return;
+        }
         try {
             const response = await this.send(
                 { method: "tt-get-capabilities" },
                 zTinyTorrentCapabilitiesNormalized
             );
-
-            const isNewDiscovery = !this.tinyTorrentCapabilities && response;
-            this.tinyTorrentCapabilities = response;
-
-            if (isNewDiscovery) {
-                // Normalize URL to prevent "http://localhost:9091" vs "http://localhost:9091/" issues
-                const normalizedEndpoint = this.endpoint.replace(/\/$/, "");
-                const suppressed =
-                    shouldSuppressNotification(normalizedEndpoint);
-
-                if (force || !suppressed) {
-                    this.notifiedExtendedCapabilities = true;
-                    recordNotification(normalizedEndpoint);
-                    console.info(
-                        "[RPC] Notification triggered for",
-                        normalizedEndpoint
-                    );
-                }
-            }
+            this.applyCapabilities(response);
         } catch {
-            this.tinyTorrentCapabilities = null;
+            this.applyCapabilities(null);
         }
+    }
+
+    private hasWebsocketSupport() {
+        const endpointPath =
+            this.tinyTorrentCapabilities?.websocketEndpoint ??
+            this.tinyTorrentCapabilities?.websocketPath;
+        const supportsDeltaSync = this.tinyTorrentCapabilities?.features?.includes(
+            "websocket-delta-sync"
+        );
+        return (
+            this.serverClass === "tinytorrent" &&
+            Boolean(endpointPath) &&
+            Boolean(supportsDeltaSync)
+        );
     }
 
     public async handshake(): Promise<TransmissionSessionSettings> {
@@ -457,15 +421,10 @@ export class TransmissionAdapter implements EngineAdapter {
         );
         this.sessionSettingsCache = result;
 
-        // Reset the session-level notification flag
-        this.notifiedExtendedCapabilities = false;
-
         this.engineInfoCache = undefined;
-        this.tinyTorrentCapabilities = undefined;
-        this.closeWebSocketSession();
+        this.applyCapabilities(null);
 
         // FIX: Use 'this' instead of 'adapter'.
-        // Pass 'true' because a manual handshake (connect) should always show the warning.
         await this.refreshExtendedCapabilities(true);
 
         return result;
@@ -547,17 +506,27 @@ export class TransmissionAdapter implements EngineAdapter {
     }
 
     public async notifyUiReady(): Promise<void> {
-        // Only call session-ui-attach if backend is TinyTorrent (capabilities detected)
+        if (this.serverClass === "tinytorrent") {
+            return;
+        }
         if (
             this.tinyTorrentCapabilities &&
             this.tinyTorrentCapabilities.features?.includes?.("ui-attach")
         ) {
             await this.mutate("session-ui-attach");
         }
-        // For stock Transmission, do nothing (method not recognized)
     }
 
     public async notifyUiDetached(): Promise<void> {
+        const isTransmissionClass = this.serverClass !== "tinytorrent";
+        if (!isTransmissionClass) {
+            return;
+        }
+        if (
+            !this.tinyTorrentCapabilities?.features?.includes?.("ui-attach")
+        ) {
+            return;
+        }
         const request = { method: "session-ui-detach" };
         // Use fetch with keepalive so we can include required headers
         // (notably X-Transmission-Session-Id). sendBeacon does not allow
@@ -567,7 +536,7 @@ export class TransmissionAdapter implements EngineAdapter {
                 "Content-Type": "application/json",
             };
             const ttAuth = this.getTinyTorrentAuthToken();
-            if (ttAuth && this.isLoopbackEndpoint()) {
+            if (ttAuth) {
                 headers["X-TT-Auth"] = ttAuth;
             }
             if (this.sessionId) {
@@ -643,12 +612,20 @@ export class TransmissionAdapter implements EngineAdapter {
     public async getExtendedCapabilities(
         force = false
     ): Promise<TinyTorrentCapabilities | null> {
-        if (force || this.tinyTorrentCapabilities === undefined) {
+        if (
+            force ||
+            this.tinyTorrentCapabilities === undefined ||
+            this.tinyTorrentCapabilities === null
+        ) {
             await this.refreshExtendedCapabilities();
         } else {
             this.ensureWebsocketConnection();
         }
         return this.tinyTorrentCapabilities ?? null;
+    }
+
+    public getServerClass(): ServerClass {
+        return this.serverClass;
     }
 
     public async updateSessionSettings(
@@ -720,6 +697,12 @@ export class TransmissionAdapter implements EngineAdapter {
     }
 
     public async checkFreeSpace(path: string): Promise<TransmissionFreeSpace> {
+        if (
+            this.serverClass === "tinytorrent" &&
+            NativeShell.isAvailable
+        ) {
+            return NativeShell.checkFreeSpace(path);
+        }
         const fs = await this.send(
             { method: "free-space", arguments: { path } },
             zTransmissionFreeSpace
@@ -757,6 +740,13 @@ export class TransmissionAdapter implements EngineAdapter {
 
     public async openPath(path: string): Promise<void> {
         if (!path) {
+            return;
+        }
+        if (
+            this.serverClass === "tinytorrent" &&
+            NativeShell.isAvailable
+        ) {
+            await NativeShell.openPath(path);
             return;
         }
         await this.mutate("system-open", { path });
@@ -890,7 +880,9 @@ export class TransmissionAdapter implements EngineAdapter {
         if (payload.downloadDir?.trim()) {
             args["download-dir"] = payload.downloadDir;
         }
-        if (payload.metainfo) {
+        if (payload.metainfoPath) {
+            args["metainfo-path"] = payload.metainfoPath;
+        } else if (payload.metainfo) {
             args.metainfo = payload.metainfo;
         } else if (payload.magnetLink) {
             args.filename = payload.magnetLink;

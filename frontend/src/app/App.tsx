@@ -23,7 +23,7 @@ import type {
     CommandPaletteContext,
 } from "./components/CommandPalette";
 import { WorkspaceShell } from "./components/WorkspaceShell";
-import { RpcExtensionProvider } from "./context/RpcExtensionContext";
+import type { EngineDisplayType } from "./components/layout/StatusBar";
 import { useTorrentClient } from "./providers/TorrentClientProvider";
 import { FocusProvider, useFocusState } from "./context/FocusContext";
 import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
@@ -32,6 +32,7 @@ import type {
     DetailTab,
     PeerSortStrategy,
 } from "@/modules/dashboard/types/torrentDetail";
+import type { ServerClass } from "@/services/rpc/entities";
 
 interface FocusControllerProps {
     selectedTorrents: Torrent[];
@@ -102,6 +103,55 @@ export default function App() {
         isDetectingEngine,
         isReady,
     } = useTransmissionSession(torrentClient);
+    const [serverClass, setServerClass] =
+        useState<ServerClass>("unknown");
+
+    const engineType = useMemo<EngineDisplayType>(() => {
+        if (serverClass === "tinytorrent") {
+            return "tinytorrent";
+        }
+        if (serverClass === "transmission") {
+            return "transmission";
+        }
+        if (engineInfo?.type === "libtorrent") {
+            return "tinytorrent";
+        }
+        if (engineInfo?.type === "transmission") {
+            return "transmission";
+        }
+        return "unknown";
+    }, [engineInfo, serverClass]);
+
+    useEffect(() => {
+        let active = true;
+        if (rpcStatus !== "connected") {
+            if (active) {
+                setServerClass("unknown");
+            }
+            return () => {
+                active = false;
+            };
+        }
+
+        const updateServerClass = async () => {
+            try {
+                await torrentClient.getExtendedCapabilities?.();
+            } catch {
+                // Ignore capability refresh errors; fallback to existing value.
+            }
+            if (!active) return;
+            setServerClass(
+                torrentClient.getServerClass?.() ?? "unknown"
+            );
+        };
+
+        void updateServerClass();
+        return () => {
+            active = false;
+        };
+    }, [rpcStatus, torrentClient]);
+
+    const isNativeIntegrationActive = serverClass === "tinytorrent";
 
     const {
         isAddModalOpen,
@@ -115,6 +165,7 @@ export default function App() {
     const addModalState = useAddModalState({
         openAddModal,
         isAddModalOpen,
+        isNativeMode: isNativeIntegrationActive,
     });
 
     const {
@@ -128,7 +179,6 @@ export default function App() {
     } = addModalState;
 
     const isMountedRef = useRef(false);
-    const extensionNoticeShownRef = useRef(false);
     const uiReadyNotifiedRef = useRef(false);
 
     const { sessionStats, refreshSessionStatsData, liveTransportStatus } =
@@ -392,7 +442,6 @@ export default function App() {
         handleTorrentAction,
         confirmDelete,
         clearPendingDelete,
-        showFeedback,
     } = useTorrentWorkflow({
         torrents,
         selectedTorrents,
@@ -700,104 +749,93 @@ export default function App() {
         reconnect();
     };
 
-    const notifyExtensionUnavailable = useCallback(() => {
-        if (extensionNoticeShownRef.current) return;
-        extensionNoticeShownRef.current = true;
-        showFeedback(t("settings.connection.extended_mock_notice"), "warning");
-    }, [showFeedback, t]);
-
     return (
         <FocusProvider>
-            <RpcExtensionProvider
-                client={torrentClient}
-                rpcStatus={rpcStatus}
-                onUnavailable={notifyExtensionUnavailable}
-            >
-                <FocusController
-                    selectedTorrents={selectedTorrents}
-                    activeTorrentId={activeTorrentId}
-                    detailData={detailData}
-                    requestDetails={handleRequestDetails}
-                    closeDetail={handleCloseDetail}
-                />
-                <WorkspaceShell
-                    getRootProps={getRootProps}
-                    getInputProps={getInputProps}
-                    isDragActive={isDragActive}
-                    filter={filter}
-                    searchQuery={searchQuery}
-                    setSearchQuery={setSearchQuery}
-                    setFilter={setFilter}
-                    openAddModal={openAddModal}
-                    openSettings={openSettings}
-                    selectedTorrents={selectedTorrents}
-                    handleBulkAction={handleBulkAction}
-                    rehashStatus={rehashStatus}
-                    workspaceStyle={workspaceStyle}
-                    toggleWorkspaceStyle={toggleWorkspaceStyle}
-                    torrents={torrents}
-                    ghostTorrents={ghostTorrents}
-                    isTableLoading={!isInitialLoadFinished}
-                    handleTorrentAction={handleTorrentAction}
-                    handleRequestDetails={handleRequestDetails}
-                    detailData={detailData}
-                    closeDetail={handleCloseDetail}
-                    handleFileSelectionChange={handleFileSelectionChange}
-                    sequentialToggleHandler={
-                        sequentialSupported ? handleSequentialToggle : undefined
-                    }
-                    superSeedingToggleHandler={
-                        superSeedingSupported
-                            ? handleSuperSeedingToggle
-                            : undefined
-                    }
-                    handleForceTrackerReannounce={handleForceTrackerReannounce}
-                    sequentialSupported={sequentialSupported}
-                    superSeedingSupported={superSeedingSupported}
-                    optimisticStatuses={optimisticStatuses}
-                    handleSelectionChange={handleSelectionChange}
-                    handleActiveRowChange={handleActiveRowChange}
-                    handleOpenFolder={handleOpenFolder}
-                    peerSortStrategy={peerSortStrategy}
-                    inspectorTabCommand={inspectorTabCommand}
-                    onInspectorTabCommandHandled={
-                        handleInspectorTabCommandHandled
-                    }
+            <FocusController
+                selectedTorrents={selectedTorrents}
+                activeTorrentId={activeTorrentId}
+                detailData={detailData}
+                requestDetails={handleRequestDetails}
+                closeDetail={handleCloseDetail}
+            />
+            <WorkspaceShell
+                getRootProps={getRootProps}
+                getInputProps={getInputProps}
+                isDragActive={isDragActive}
+                filter={filter}
+                searchQuery={searchQuery}
+                setSearchQuery={setSearchQuery}
+                setFilter={setFilter}
+                openAddModal={openAddModal}
+                openSettings={openSettings}
+                selectedTorrents={selectedTorrents}
+                handleBulkAction={handleBulkAction}
+                rehashStatus={rehashStatus}
+                workspaceStyle={workspaceStyle}
+                toggleWorkspaceStyle={toggleWorkspaceStyle}
+                torrents={torrents}
+                ghostTorrents={ghostTorrents}
+                isTableLoading={!isInitialLoadFinished}
+                handleTorrentAction={handleTorrentAction}
+                handleRequestDetails={handleRequestDetails}
+                detailData={detailData}
+                closeDetail={handleCloseDetail}
+                handleFileSelectionChange={handleFileSelectionChange}
+                sequentialToggleHandler={
+                    sequentialSupported ? handleSequentialToggle : undefined
+                }
+                superSeedingToggleHandler={
+                    superSeedingSupported
+                        ? handleSuperSeedingToggle
+                        : undefined
+                }
+                handleForceTrackerReannounce={handleForceTrackerReannounce}
+                sequentialSupported={sequentialSupported}
+                superSeedingSupported={superSeedingSupported}
+                optimisticStatuses={optimisticStatuses}
+                handleSelectionChange={handleSelectionChange}
+                handleActiveRowChange={handleActiveRowChange}
+                handleOpenFolder={handleOpenFolder}
+                peerSortStrategy={peerSortStrategy}
+                inspectorTabCommand={inspectorTabCommand}
+                onInspectorTabCommandHandled={handleInspectorTabCommandHandled}
                     sessionStats={sessionStats}
                     liveTransportStatus={liveTransportStatus}
                     rpcStatus={rpcStatus}
-                    handleReconnect={handleReconnect}
-                    pendingDelete={pendingDelete}
-                    clearPendingDelete={clearPendingDelete}
-                    confirmDelete={confirmDelete}
-                    visibleHudCards={visibleHudCards}
-                    dismissHudCard={dismissHudCard}
-                    isAddModalOpen={isAddModalOpen}
-                    handleAddModalClose={handleAddModalClose}
-                    pendingTorrentFile={pendingTorrentFile}
-                    incomingMagnetLink={incomingMagnetLink}
-                    handleAddTorrent={handleAddTorrent}
-                    isAddingTorrent={isAddingTorrent}
-                    isSettingsOpen={isSettingsOpen}
-                    closeSettings={closeSettings}
-                    settingsConfig={settingsFlow.settingsConfig}
-                    isSettingsSaving={settingsFlow.isSettingsSaving}
-                    settingsLoadError={settingsFlow.settingsLoadError}
-                    handleSaveSettings={settingsFlow.handleSaveSettings}
-                    handleTestPort={settingsFlow.handleTestPort}
-                    restoreHudCards={restoreHudCards}
-                    tableWatermarkEnabled={
-                        settingsFlow.settingsConfig.table_watermark_enabled
-                    }
-                    torrentClient={torrentClient}
-                />
-                <CommandPalette
-                    isOpen={isCommandPaletteOpen}
-                    onOpenChange={setCommandPaletteOpen}
-                    actions={commandActions}
-                    getContextActions={getContextActions}
-                />
-            </RpcExtensionProvider>
+                engineType={engineType}
+                serverClass={serverClass}
+                isNativeIntegrationActive={isNativeIntegrationActive}
+                handleReconnect={handleReconnect}
+                pendingDelete={pendingDelete}
+                clearPendingDelete={clearPendingDelete}
+                confirmDelete={confirmDelete}
+                visibleHudCards={visibleHudCards}
+                dismissHudCard={dismissHudCard}
+                isAddModalOpen={isAddModalOpen}
+                handleAddModalClose={handleAddModalClose}
+                pendingTorrentFile={pendingTorrentFile}
+                incomingMagnetLink={incomingMagnetLink}
+                handleAddTorrent={handleAddTorrent}
+                isAddingTorrent={isAddingTorrent}
+                isSettingsOpen={isSettingsOpen}
+                closeSettings={closeSettings}
+                settingsConfig={settingsFlow.settingsConfig}
+                isSettingsSaving={settingsFlow.isSettingsSaving}
+                settingsLoadError={settingsFlow.settingsLoadError}
+                handleSaveSettings={settingsFlow.handleSaveSettings}
+                handleTestPort={settingsFlow.handleTestPort}
+                restoreHudCards={restoreHudCards}
+                tableWatermarkEnabled={
+                    settingsFlow.settingsConfig.table_watermark_enabled
+                }
+                torrentClient={torrentClient}
+            />
+            <CommandPalette
+                isOpen={isCommandPaletteOpen}
+                onOpenChange={setCommandPaletteOpen}
+                actions={commandActions}
+                getContextActions={getContextActions}
+            />
         </FocusProvider>
     );
 }

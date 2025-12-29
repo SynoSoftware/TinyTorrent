@@ -7,6 +7,7 @@ import type {
     TinyTorrentCapabilities,
     AutorunStatus,
     SystemHandlerStatus,
+    ServerClass,
 } from "./entities";
 import type {
     DirectoryBrowseResult,
@@ -22,7 +23,7 @@ import type {
 } from "./heartbeat";
 
 export interface EngineAdapter {
-    setTinyTorrentFeaturesEnabled?(enabled: boolean): void;
+    getServerClass?(): ServerClass;
     handshake?(): Promise<unknown>;
     notifyUiReady?(): Promise<void>;
     notifyUiDetached?(): Promise<void>;

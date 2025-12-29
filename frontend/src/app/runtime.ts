@@ -1,28 +1,209 @@
 import { IS_NATIVE_HOST } from "@/config/logic";
+import type { TransmissionFreeSpace } from "@/services/rpc/types";
 
-// Central runtime/strategy object. Consumers should import this module
-// instead of directly referencing `IS_NATIVE_HOST` so that environment checks
-// and behavior policies are centralized and testable.
+type NativeShellRequestMessage = {
+    type: "request";
+    id: string;
+    name: string;
+    payload?: unknown;
+};
+
+type NativeShellResponseMessage = {
+    type: "response";
+    id: string;
+    success: boolean;
+    payload?: unknown;
+    error?: string;
+};
+
+export type NativeShellEventName = "magnet-link" | "auth-token";
+
+type NativeShellEventMessage = {
+    type: "event";
+    name: NativeShellEventName;
+    payload?: unknown;
+};
+
+type PendingRequest = {
+    resolve: (value: unknown) => void;
+    reject: (error: Error) => void;
+};
+
+type NativeShellListener = (payload?: unknown) => void;
+
+const pendingRequests = new Map<string, PendingRequest>();
+const eventListeners = new Map<NativeShellEventName, Set<NativeShellListener>>();
+let requestCounter = 1;
+let listenerInstalled = false;
+
+function getBridge(): { postMessage: (payload: NativeShellRequestMessage) => void } | null {
+    if (typeof window === "undefined") {
+        return null;
+    }
+    const nav = window as unknown as { chrome?: { webview?: { postMessage: Function; addEventListener: Function } } };
+    return nav.chrome?.webview ?? null;
+}
+
+function ensureBridgeListener() {
+    if (listenerInstalled) {
+        return;
+    }
+    const bridge = getBridge();
+    if (!bridge || typeof bridge.addEventListener !== "function") {
+        return;
+    }
+    bridge.addEventListener("message", handleBridgeMessage);
+    listenerInstalled = true;
+}
+
+function handleBridgeMessage(messageEvent: { data?: unknown }) {
+    const payload = messageEvent.data;
+    if (!payload || typeof payload !== "object") {
+        return;
+    }
+    if ((payload as NativeShellResponseMessage).type === "response") {
+        const response = payload as NativeShellResponseMessage;
+        const pending = pendingRequests.get(response.id);
+        if (!pending) {
+            return;
+        }
+        pendingRequests.delete(response.id);
+        if (response.success) {
+            pending.resolve(response.payload);
+        } else {
+            pending.reject(new Error(response.error ?? "Native shell request failed"));
+        }
+        return;
+    }
+    if ((payload as NativeShellEventMessage).type === "event") {
+        const event = payload as NativeShellEventMessage;
+        const listeners = eventListeners.get(event.name);
+        if (!listeners) {
+            return;
+        }
+        for (const listener of [...listeners]) {
+            try {
+                listener(event.payload);
+            } catch (error) {
+                // Swallow errors from listeners to keep channel stable.
+                // eslint-disable-next-line no-console
+                console.error("Native shell listener error", error);
+            }
+        }
+    }
+}
+
+function sendBridgeRequest(name: string, payload?: unknown): Promise<unknown> {
+    const bridge = getBridge();
+    if (!bridge || typeof bridge.postMessage !== "function") {
+        return Promise.reject(new Error("Native shell bridge unavailable"));
+    }
+    ensureBridgeListener();
+    const id = `tt-${requestCounter++}`;
+    return new Promise((resolve, reject) => {
+        pendingRequests.set(id, { resolve, reject });
+        try {
+            const message: NativeShellRequestMessage = {
+                type: "request",
+                id,
+                name,
+                payload,
+            };
+            bridge.postMessage(message);
+        } catch (error) {
+            pendingRequests.delete(id);
+            reject(error instanceof Error ? error : new Error(String(error)));
+        }
+    });
+}
+
+function extractPathFromResponse(response: unknown): string | undefined {
+    if (
+        response &&
+        typeof response === "object" &&
+        typeof (response as { path?: unknown }).path === "string"
+    ) {
+        return (response as { path?: string }).path;
+    }
+    return undefined;
+}
+
+const runtimeIsNativeHost =
+    Boolean(IS_NATIVE_HOST) ||
+    (typeof window !== "undefined" &&
+        Boolean(
+            (window as unknown as {
+                chrome?: { webview?: { postMessage: Function } };
+            }).chrome?.webview
+        ));
+
+export const NativeShell = {
+    get isAvailable() {
+        return Boolean(runtimeIsNativeHost && getBridge());
+    },
+    request(name: string, payload?: unknown) {
+        return sendBridgeRequest(name, payload);
+    },
+    onEvent(name: NativeShellEventName, handler: NativeShellListener) {
+        if (!eventListeners.has(name)) {
+            eventListeners.set(name, new Set());
+        }
+        const listeners = eventListeners.get(name)!;
+        listeners.add(handler);
+        ensureBridgeListener();
+        return () => {
+            listeners.delete(handler);
+            if (!listeners.size) {
+                eventListeners.delete(name);
+            }
+        };
+    },
+    async openFolderDialog(initialPath?: string) {
+        const response = await sendBridgeRequest("browse-directory", {
+            path: initialPath,
+        });
+        return extractPathFromResponse(response);
+    },
+    async browseDirectory(initialPath?: string) {
+        return NativeShell.openFolderDialog(initialPath);
+    },
+    async openFileDialog() {
+        const response = await sendBridgeRequest("open-file-dialog");
+        return extractPathFromResponse(response);
+    },
+    async checkFreeSpace(path: string): Promise<TransmissionFreeSpace> {
+        const response = await sendBridgeRequest("check-free-space", { path });
+        if (!response || typeof response !== "object") {
+            throw new Error("Invalid free space response");
+        }
+        return response as TransmissionFreeSpace;
+    },
+    async openPath(path: string) {
+        await sendBridgeRequest("open-path", { path });
+    },
+    async sendWindowCommand(command: "minimize" | "maximize" | "close") {
+        await sendBridgeRequest("window-command", { command });
+    },
+    async getSystemIntegrationStatus() {
+        return sendBridgeRequest("get-system-integration-status") as Promise<{
+            autorun: boolean;
+            associations: boolean;
+        }>;
+    },
+    async setSystemIntegration(features: {
+        autorun?: boolean;
+        associations?: boolean;
+    }) {
+        await sendBridgeRequest("set-system-integration", features);
+    },
+};
+
 export const Runtime = {
-    // boolean: are we running inside the native packaged host?
-    isNativeHost: Boolean(IS_NATIVE_HOST),
-
-    // Whether to expose remote connection editing UI. In native-host mode
-    // we often lock editing to avoid exposing remote profiles.
-    allowEditingProfiles(): boolean {
-        return !this.isNativeHost;
-    },
-
-    // Should the app suppress browser defaults for zoom keys? Only in native
-    // host mode.
-    suppressBrowserZoomDefaults(): boolean {
-        return this.isNativeHost;
-    },
-
-    // Whether to enable inputs that are only valid in remote-connection mode.
-    enableRemoteInputs(): boolean {
-        return !this.isNativeHost;
-    },
+    isNativeHost: runtimeIsNativeHost,
+    allowEditingProfiles: () => !runtimeIsNativeHost,
+    suppressBrowserZoomDefaults: () => runtimeIsNativeHost,
+    enableRemoteInputs: () => !runtimeIsNativeHost,
+    nativeShell: NativeShell,
 };
 
 export default Runtime;

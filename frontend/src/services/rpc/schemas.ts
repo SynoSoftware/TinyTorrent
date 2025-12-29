@@ -440,6 +440,8 @@ export const parseDirectoryBrowseResult = (
     }
 };
 
+const zServerClass = z.enum(["tinytorrent", "transmission"]).optional();
+
 const zTinyTorrentCapabilities = z.object({
     "server-version": z.string().optional(),
     version: z.string().optional(),
@@ -448,6 +450,7 @@ const zTinyTorrentCapabilities = z.object({
     "websocket-path": z.string().optional(),
     platform: z.string().optional(),
     features: z.array(z.string()).default([]),
+    "server-class": zServerClass,
 });
 
 export const getTinyTorrentCapabilities = (
@@ -465,6 +468,7 @@ export const getTinyTorrentCapabilities = (
                 parsed["websocket-path"] ?? parsed["websocket-endpoint"],
             platform: parsed.platform,
             features: parsed.features,
+            serverClass: parsed["server-class"],
         };
     } catch (error) {
         logValidationIssue("getTinyTorrentCapabilities", payload, error);
@@ -528,6 +532,7 @@ export const zTinyTorrentCapabilitiesNormalized =
         websocketPath: parsed["websocket-path"] ?? parsed["websocket-endpoint"],
         platform: parsed.platform,
         features: parsed.features,
+        serverClass: parsed["server-class"],
     }));
 
 export const zTransmissionTorrentRenameResult = z.object({

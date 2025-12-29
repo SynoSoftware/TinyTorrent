@@ -2,17 +2,7 @@ import { createContext, useContext } from "react";
 import type { ReactNode } from "react";
 import type { SettingsConfig, ConfigKey } from "@/modules/settings/data/config";
 import type { ButtonActionKey } from "@/modules/settings/data/settings-tabs";
-import type {
-    SystemInstallOptions,
-    SystemInstallResult,
-} from "@/services/rpc/types";
 import type { RpcStatus } from "@/shared/types/rpc";
-
-interface AutorunSwitchProps {
-    isSelected: boolean;
-    isDisabled: boolean;
-    onChange: (next: boolean) => Promise<void>;
-}
 
 interface SettingsFormContextValue {
     config: SettingsConfig;
@@ -23,15 +13,6 @@ interface SettingsFormContextValue {
     buttonActions: Record<ButtonActionKey, () => void>;
     canBrowseDirectories: boolean;
     onBrowse: (key: ConfigKey) => void;
-    autorunSwitch: AutorunSwitchProps;
-    handlerSwitch: AutorunSwitchProps;
-    handlerRequiresElevation: boolean;
-    extensionModeEnabled: boolean;
-    isMocked: boolean;
-    onSystemInstall?: (
-        options: SystemInstallOptions
-    ) => Promise<SystemInstallResult>;
-    systemInstallFeatureAvailable: boolean;
     jsonCopyStatus: "idle" | "copied";
     onCopyConfigJson: () => void;
     configJson: string;

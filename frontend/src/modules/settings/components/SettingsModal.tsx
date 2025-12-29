@@ -15,28 +15,18 @@ import type {
     SliderDefinition,
 } from "@/modules/settings/data/settings-tabs";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
-import type {
-    SystemInstallOptions,
-    SystemInstallResult,
-} from "@/services/rpc/types";
 import type { RpcStatus } from "@/shared/types/rpc";
-import type {
-    AutorunStatus,
-    SystemHandlerStatus,
-} from "@/services/rpc/entities";
 import { ICON_STROKE_WIDTH } from "@/config/logic";
-import Runtime from "@/app/runtime";
 import { INTERACTION_CONFIG } from "@/config/logic";
-import { DirectoryPicker } from "@/shared/ui/workspace/DirectoryPicker";
 import { APP_VERSION } from "@/shared/version";
 import { ChevronLeft, RotateCcw, Save, X } from "lucide-react";
 import { SettingsFormBuilder } from "@/modules/settings/components/SettingsFormBuilder";
 import { ConnectionTabContent } from "@/modules/settings/components/tabs/connection/ConnectionTabContent";
 import { SystemTabContent } from "@/modules/settings/components/tabs/system/SystemTabContent";
-import { useAsyncToggle } from "@/modules/settings/hooks/useAsyncToggle";
 import { SettingsFormProvider } from "@/modules/settings/context/SettingsFormContext";
-import { useRpcExtension } from "@/app/context/RpcExtensionContext";
+import { NativeShell } from "@/app/runtime";
 import { GLASS_MODAL_SURFACE } from "@/shared/ui/layout/glass-surface";
+import type { ServerClass } from "@/services/rpc/entities";
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -47,12 +37,11 @@ interface SettingsModalProps {
     settingsLoadError?: boolean;
     onTestPort?: () => void;
     onRestoreInsights?: () => void;
-    onSystemInstall?: (
-        options: SystemInstallOptions
-    ) => Promise<SystemInstallResult>;
     onReconnect: () => void;
     rpcStatus: RpcStatus;
     torrentClient: EngineAdapter;
+    serverClass: ServerClass;
+    isNativeMode: boolean;
 }
 
 export function SettingsModal({
@@ -64,23 +53,14 @@ export function SettingsModal({
     settingsLoadError,
     onTestPort,
     onRestoreInsights,
-    onSystemInstall,
     onReconnect,
     rpcStatus,
     torrentClient,
+    serverClass,
+    isNativeMode,
 }: SettingsModalProps) {
     const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState<SettingsTab>("speed");
-    const [autorunInfo, setAutorunInfo] = useState<AutorunStatus | null>(null);
-    const [isAutorunLoading, setIsAutorunLoading] = useState(true);
-    const [mockAutorunEnabled, setMockAutorunEnabled] = useState(false);
-    const [autorunDisplayEnabled, setAutorunDisplayEnabled] = useState(false);
-    const [handlerInfo, setHandlerInfo] = useState<SystemHandlerStatus | null>(
-        null
-    );
-    const [isHandlerLoading, setIsHandlerLoading] = useState(true);
-    const [mockHandlerEnabled, setMockHandlerEnabled] = useState(false);
-    const [handlerDisplayEnabled, setHandlerDisplayEnabled] = useState(false);
 
     // Responsive State
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(true);
@@ -93,12 +73,6 @@ export function SettingsModal({
         "idle"
     );
     const jsonCopyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const mockAutorunTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
-        null
-    );
-    const mockHandlerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
-        null
-    );
 
     const configJson = useMemo(() => JSON.stringify(config, null, 2), [config]);
 
@@ -123,65 +97,10 @@ export function SettingsModal({
             if (jsonCopyTimerRef.current) {
                 clearTimeout(jsonCopyTimerRef.current);
             }
-            if (mockAutorunTimerRef.current) {
-                clearTimeout(mockAutorunTimerRef.current);
-            }
-            if (mockHandlerTimerRef.current) {
-                clearTimeout(mockHandlerTimerRef.current);
-            }
         };
     }, []);
 
-    const [activeBrowseKey, setActiveBrowseKey] = useState<ConfigKey | null>(
-        null
-    );
-
-    const {
-        capabilities: extensionCapabilities,
-        shouldUseExtension,
-        isMocked,
-        enabled: extensionModeEnabled,
-    } = useRpcExtension();
-    const canUseExtensionHelpers = shouldUseExtension || isMocked;
-
-    const systemInstallFeatureAvailable =
-        shouldUseExtension &&
-        Boolean(extensionCapabilities?.features?.includes("system-install"));
-    const systemHandlerFeatureAvailable =
-        shouldUseExtension &&
-        Boolean(
-            extensionCapabilities?.features?.includes(
-                "system-handler-status"
-            ) ||
-                (extensionCapabilities?.features?.includes(
-                    "system-handler-enable"
-                ) &&
-                    extensionCapabilities?.features?.includes(
-                        "system-handler-disable"
-                    )) ||
-                extensionCapabilities?.features?.includes(
-                    "system-register-handler"
-                )
-        );
-    const systemIntegrationFeatureAvailable =
-        systemInstallFeatureAvailable ||
-        systemHandlerFeatureAvailable ||
-        Boolean(extensionCapabilities?.features?.includes("system-autorun"));
-    const supportsFsBrowse = canUseExtensionHelpers;
-    const canBrowseDirectories = supportsFsBrowse;
-
-    useEffect(() => {
-        if (!canUseExtensionHelpers && activeBrowseKey) {
-            setActiveBrowseKey(null);
-        }
-    }, [activeBrowseKey, canUseExtensionHelpers]);
-
-    useEffect(() => {
-        if (!extensionModeEnabled) {
-            setMockAutorunEnabled(false);
-            setMockHandlerEnabled(false);
-        }
-    }, [extensionModeEnabled]);
+    const canBrowseDirectories = NativeShell.isAvailable;
 
     useEffect(() => {
         if (isOpen) {
@@ -189,12 +108,6 @@ export function SettingsModal({
             setIsMobileMenuOpen(true);
         }
     }, [initialConfig, isOpen]);
-
-    useEffect(() => {
-        if (!isOpen) {
-            setActiveBrowseKey(null);
-        }
-    }, [isOpen]);
 
     const handleSave = async () => {
         try {
@@ -251,135 +164,26 @@ export function SettingsModal({
         [onRestoreInsights, onTestPort]
     );
 
-    const openDirectoryPicker = useCallback((key: ConfigKey) => {
-        setActiveBrowseKey(key);
-    }, []);
-    const closeDirectoryPicker = useCallback(() => {
-        setActiveBrowseKey(null);
-    }, []);
-    const pickDirectory = useCallback(
-        (path: string) => {
-            if (!activeBrowseKey) return;
-            updateConfig(activeBrowseKey, path as SettingsConfig[ConfigKey]);
-            closeDirectoryPicker();
+    const handleBrowse = useCallback(
+        async (key: ConfigKey) => {
+            if (!canBrowseDirectories) return;
+            try {
+                const targetPath = String(config[key] ?? "");
+                const selected = await NativeShell.browseDirectory(targetPath);
+                if (selected) {
+                    updateConfig(key, selected as SettingsConfig[ConfigKey]);
+                }
+            } catch {
+                // Swallow native errors for now
+            }
         },
-        [activeBrowseKey, closeDirectoryPicker, updateConfig]
+        [canBrowseDirectories, config, updateConfig]
     );
-
-    const pickerInitialPath =
-        activeBrowseKey && (config[activeBrowseKey] as string)
-            ? (config[activeBrowseKey] as string)
-            : "";
 
     const hasUnsavedChanges = useMemo(() => {
         const configKeys = Object.keys(DEFAULT_SETTINGS_CONFIG) as ConfigKey[];
         return configKeys.some((key) => config[key] !== initialConfig[key]);
     }, [config, initialConfig]);
-
-    const fetchAutorunStatus = useCallback(async () => {
-        if (!extensionModeEnabled) {
-            setAutorunInfo(null);
-            setIsAutorunLoading(false);
-            return;
-        }
-        if (rpcStatus !== "connected") {
-            setAutorunInfo(null);
-            setIsAutorunLoading(false);
-            return;
-        }
-        if (!shouldUseExtension || !torrentClient.getSystemAutorunStatus) {
-            setAutorunInfo({
-                enabled: false,
-                supported: false,
-                requiresElevation: false,
-            });
-            setIsAutorunLoading(false);
-            return;
-        }
-        setIsAutorunLoading(true);
-        try {
-            const info = await torrentClient.getSystemAutorunStatus();
-            setAutorunInfo(info);
-        } catch {
-            setAutorunInfo(null);
-        } finally {
-            setIsAutorunLoading(false);
-        }
-    }, [extensionModeEnabled, rpcStatus, shouldUseExtension, torrentClient]);
-
-    const fetchHandlerStatus = useCallback(async () => {
-        if (!extensionModeEnabled) {
-            setHandlerInfo(null);
-            setIsHandlerLoading(false);
-            return;
-        }
-        if (rpcStatus !== "connected") {
-            setHandlerInfo(null);
-            setIsHandlerLoading(false);
-            return;
-        }
-        if (
-            !shouldUseExtension ||
-            !systemHandlerFeatureAvailable ||
-            !torrentClient.getSystemHandlerStatus
-        ) {
-            setHandlerInfo({
-                registered: false,
-                supported: false,
-                requiresElevation: false,
-            });
-            setIsHandlerLoading(false);
-            return;
-        }
-        setIsHandlerLoading(true);
-        try {
-            const info = await torrentClient.getSystemHandlerStatus();
-            setHandlerInfo(info);
-        } catch {
-            setHandlerInfo(null);
-        } finally {
-            setIsHandlerLoading(false);
-        }
-    }, [
-        extensionModeEnabled,
-        rpcStatus,
-        shouldUseExtension,
-        systemHandlerFeatureAvailable,
-        torrentClient,
-    ]);
-
-    useEffect(() => {
-        if (!isOpen) {
-            return;
-        }
-        void fetchAutorunStatus();
-        void fetchHandlerStatus();
-    }, [fetchAutorunStatus, fetchHandlerStatus, isOpen]);
-
-    const remoteAutorunEnabled = Boolean(autorunInfo?.enabled);
-    const autorunSupported = Boolean(
-        autorunInfo?.supported &&
-            torrentClient.systemAutorunEnable &&
-            torrentClient.systemAutorunDisable
-    );
-    const remoteHandlerEnabled = Boolean(handlerInfo?.registered);
-    const handlerSupported = Boolean(
-        handlerInfo?.supported &&
-            torrentClient.systemHandlerEnable &&
-            torrentClient.systemHandlerDisable
-    );
-
-    useEffect(() => {
-        setAutorunDisplayEnabled(
-            autorunSupported ? remoteAutorunEnabled : mockAutorunEnabled
-        );
-    }, [autorunSupported, mockAutorunEnabled, remoteAutorunEnabled]);
-
-    useEffect(() => {
-        setHandlerDisplayEnabled(
-            handlerSupported ? remoteHandlerEnabled : mockHandlerEnabled
-        );
-    }, [handlerSupported, mockHandlerEnabled, remoteHandlerEnabled]);
 
     const hasVisibleBlocks = useCallback(
         (blocks: SectionBlock[]) =>
@@ -387,14 +191,12 @@ export function SettingsModal({
         [config]
     );
 
-    const systemTabVisible =
-        extensionModeEnabled && (isMocked || systemIntegrationFeatureAvailable);
+    const systemTabVisible = isNativeMode;
 
     const visibleTabs = useMemo(
         () =>
             SETTINGS_TABS.filter((tab) => {
-                if (!Runtime.allowEditingProfiles() && tab.id === "connection")
-                    return false;
+                if (isNativeMode && tab.id === "connection") return false;
                 if (tab.isCustom) {
                     if (tab.id === "system") {
                         return systemTabVisible;
@@ -405,7 +207,7 @@ export function SettingsModal({
                     hasVisibleBlocks(section.blocks)
                 );
             }),
-        [hasVisibleBlocks, systemTabVisible]
+        [hasVisibleBlocks, systemTabVisible, isNativeMode]
     );
 
     const activeTabDefinition =
@@ -419,123 +221,13 @@ export function SettingsModal({
         }
     }, [activeTab, visibleTabs]);
 
-    const handleAutorunToggle = useCallback(
-        async (next: boolean) => {
-            if (
-                !extensionModeEnabled ||
-                rpcStatus !== "connected" ||
-                isAutorunLoading
-            ) {
-                throw new Error("Autorun unavailable");
-            }
-            if (autorunSupported) {
-                if (next) {
-                    await torrentClient.systemAutorunEnable?.();
-                } else {
-                    await torrentClient.systemAutorunDisable?.();
-                }
-                await fetchAutorunStatus();
-                return;
-            }
-            if (mockAutorunTimerRef.current) {
-                clearTimeout(mockAutorunTimerRef.current);
-            }
-            await new Promise<void>((resolve) => {
-                mockAutorunTimerRef.current = window.setTimeout(resolve, 280);
-            });
-            setMockAutorunEnabled(next);
-            mockAutorunTimerRef.current = null;
-        },
-        [
-            autorunSupported,
-            extensionModeEnabled,
-            fetchAutorunStatus,
-            isAutorunLoading,
-            rpcStatus,
-            torrentClient,
-        ]
-    );
-
-    const handleHandlerToggle = useCallback(
-        async (next: boolean) => {
-            if (
-                !extensionModeEnabled ||
-                rpcStatus !== "connected" ||
-                isHandlerLoading
-            ) {
-                throw new Error("System handlers unavailable");
-            }
-            if (handlerSupported) {
-                if (next) {
-                    await torrentClient.systemHandlerEnable?.();
-                } else {
-                    await torrentClient.systemHandlerDisable?.();
-                }
-                await fetchHandlerStatus();
-                return;
-            }
-            if (mockHandlerTimerRef.current) {
-                clearTimeout(mockHandlerTimerRef.current);
-            }
-            await new Promise<void>((resolve) => {
-                mockHandlerTimerRef.current = window.setTimeout(resolve, 280);
-            });
-            setMockHandlerEnabled(next);
-            mockHandlerTimerRef.current = null;
-        },
-        [
-            extensionModeEnabled,
-            fetchHandlerStatus,
-            handlerSupported,
-            isHandlerLoading,
-            rpcStatus,
-            torrentClient,
-        ]
-    );
-
-    const autorunToggle = useAsyncToggle(
-        autorunDisplayEnabled,
-        setAutorunDisplayEnabled,
-        handleAutorunToggle
-    );
-    const handlerToggle = useAsyncToggle(
-        handlerDisplayEnabled,
-        setHandlerDisplayEnabled,
-        handleHandlerToggle
-    );
-    const autorunDisabled =
-        !extensionModeEnabled ||
-        rpcStatus !== "connected" ||
-        isAutorunLoading ||
-        autorunToggle.pending;
-    const handlerDisabled =
-        !extensionModeEnabled ||
-        rpcStatus !== "connected" ||
-        isHandlerLoading ||
-        handlerToggle.pending;
-
     const settingsFormContext = useMemo(
         () => ({
             config,
             updateConfig,
             buttonActions,
             canBrowseDirectories,
-            onBrowse: openDirectoryPicker,
-            autorunSwitch: {
-                isSelected: autorunDisplayEnabled,
-                isDisabled: autorunDisabled,
-                onChange: autorunToggle.onChange,
-            },
-            handlerSwitch: {
-                isSelected: handlerDisplayEnabled,
-                isDisabled: handlerDisabled,
-                onChange: handlerToggle.onChange,
-            },
-            handlerRequiresElevation: Boolean(handlerInfo?.requiresElevation),
-            extensionModeEnabled,
-            isMocked,
-            onSystemInstall,
-            systemInstallFeatureAvailable,
+            onBrowse: handleBrowse,
             jsonCopyStatus,
             onCopyConfigJson: handleCopyConfigJson,
             configJson,
@@ -543,26 +235,15 @@ export function SettingsModal({
             onReconnect,
         }),
         [
-            autorunDisabled,
-            autorunDisplayEnabled,
-            autorunToggle.onChange,
-            handlerDisabled,
-            handlerDisplayEnabled,
-            handlerToggle.onChange,
-            handlerInfo?.requiresElevation,
             buttonActions,
             canBrowseDirectories,
             config,
             configJson,
-            extensionModeEnabled,
+            handleBrowse,
             handleCopyConfigJson,
-            isMocked,
             jsonCopyStatus,
             onReconnect,
-            onSystemInstall,
-            openDirectoryPicker,
             rpcStatus,
-            systemInstallFeatureAvailable,
             updateConfig,
         ]
     );
@@ -733,10 +414,15 @@ export function SettingsModal({
                                     >
                                         {activeTabDefinition.id ===
                                         "connection" ? (
-                                            <ConnectionTabContent />
+                                            <ConnectionTabContent
+                                                serverClass={serverClass}
+                                                isNativeMode={isNativeMode}
+                                            />
                                         ) : activeTabDefinition.id ===
                                           "system" ? (
-                                            <SystemTabContent />
+                                            <SystemTabContent
+                                                isNativeMode={isNativeMode}
+                                            />
                                         ) : (
                                             <SettingsFormBuilder
                                                 tab={activeTabDefinition}
@@ -800,14 +486,6 @@ export function SettingsModal({
                 </div>
             </ModalContent>
 
-            {canUseExtensionHelpers && (
-                <DirectoryPicker
-                    isOpen={Boolean(activeBrowseKey)}
-                    initialPath={pickerInitialPath}
-                    onClose={closeDirectoryPicker}
-                    onSelect={pickDirectory}
-                />
-            )}
         </Modal>
     );
 }

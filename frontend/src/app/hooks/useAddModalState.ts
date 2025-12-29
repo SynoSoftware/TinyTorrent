@@ -1,20 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useDropzone } from "react-dropzone";
 
-import {
-    findMagnetInString,
-    normalizeMagnetLink,
-    resolveDeepLinkMagnet,
-} from "@/app/utils/magnet";
+import { NativeShell } from "@/app/runtime";
+import { findMagnetInString, normalizeMagnetLink } from "@/app/utils/magnet";
 
 interface UseAddModalStateParams {
     openAddModal: () => void;
     isAddModalOpen: boolean;
+    isNativeMode: boolean;
 }
 
 export function useAddModalState({
     openAddModal,
     isAddModalOpen,
+    isNativeMode,
 }: UseAddModalStateParams) {
     const [pendingTorrentFile, setPendingTorrentFile] = useState<File | null>(
         null
@@ -41,18 +40,29 @@ export function useAddModalState({
     });
 
     useEffect(() => {
-        if (deepLinkHandledRef.current) return;
-        const magnet = resolveDeepLinkMagnet();
-        if (!magnet) return;
-        deepLinkHandledRef.current = true;
-        setPendingTorrentFile(null);
-        setIncomingMagnetLink(magnet);
-        openAddModal();
+        const handleMagnetEvent = (payload?: unknown) => {
+            if (deepLinkHandledRef.current) return;
+            const link =
+                typeof payload === "string"
+                    ? payload
+                    : typeof payload === "object" && payload !== null
+                    ? (payload as { link?: string }).link
+                    : undefined;
+            const normalized = normalizeMagnetLink(link);
+            if (!normalized) return;
+            deepLinkHandledRef.current = true;
+            setPendingTorrentFile(null);
+            setIncomingMagnetLink(normalized);
+            openAddModal();
+        };
+        const cleanup = NativeShell.onEvent("magnet-link", handleMagnetEvent);
+        return cleanup;
     }, [openAddModal]);
 
     useEffect(() => {
         if (!isAddModalOpen) return;
         if (incomingMagnetLink || pendingTorrentFile) return;
+        if (isNativeMode) return;
         if (typeof navigator === "undefined" || !navigator.clipboard?.readText)
             return;
 

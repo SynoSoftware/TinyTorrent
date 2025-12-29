@@ -21,7 +21,6 @@ import {
     type ChangeEvent,
 } from "react";
 import { useTranslation } from "react-i18next";
-import { DirectoryPicker } from "@/shared/ui/workspace/DirectoryPicker";
 import {
     FileExplorerTree,
     type FileExplorerEntry,
@@ -29,12 +28,11 @@ import {
 import { DiskSpaceGauge } from "@/shared/ui/workspace/DiskSpaceGauge";
 import { parseTorrentFile, type TorrentMetadata } from "@/shared/utils/torrent";
 import type { TransmissionFreeSpace } from "@/services/rpc/types";
-import { getDriveSpace } from "@/services/rpc/rpc-extended";
 import { ICON_STROKE_WIDTH } from "@/config/logic";
 import { INTERACTION_CONFIG } from "@/config/logic";
 import { GLASS_MODAL_SURFACE } from "@/shared/ui/layout/glass-surface";
 import type { AddTorrentContext } from "@/app/hooks/useAddTorrent";
-import { useRpcExtension } from "@/app/context/RpcExtensionContext";
+import { NativeShell } from "@/app/runtime";
 import { useTorrentClient } from "@/app/providers/TorrentClientProvider";
 
 interface AddTorrentModalProps {
@@ -54,6 +52,7 @@ interface AddTorrentModalProps {
     initialFile?: File | null;
     initialMagnetLink?: string | null;
     initialDownloadDir?: string;
+    isNativeMode: boolean;
 }
 
 export function AddTorrentModal({
@@ -64,18 +63,20 @@ export function AddTorrentModal({
     initialFile,
     initialMagnetLink,
     initialDownloadDir,
+    isNativeMode,
 }: AddTorrentModalProps) {
     const { t } = useTranslation();
     const torrentClient = useTorrentClient();
-    const { isMocked, shouldUseExtension } = useRpcExtension();
-    const canUseExtensionHelpers = shouldUseExtension || isMocked;
+    const canBrowseDirectories = NativeShell.isAvailable;
+    const supportsCheckFreeSpace = Boolean(torrentClient.checkFreeSpace);
     const [magnetLink, setMagnetLink] = useState("");
     const [downloadDir, setDownloadDir] = useState(
         initialDownloadDir?.trim() ?? ""
     );
     const [startNow, setStartNow] = useState(true);
-    const [isDirectoryPickerOpen, setDirectoryPickerOpen] = useState(false);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [selectedNativeFilePath, setSelectedNativeFilePath] =
+        useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
     const lastInitialDownloadDir = useRef(initialDownloadDir?.trim() ?? "");
     const [directorySpace, setDirectorySpace] =
@@ -117,29 +118,50 @@ export function AddTorrentModal({
         setSelectedFile(nextFile);
     };
 
+    const handleNativeFileSelection = useCallback(async () => {
+        if (!isNativeMode || !NativeShell.isAvailable) {
+            return;
+        }
+        setSelectedFile(null);
+        try {
+            const path = await NativeShell.openFileDialog();
+            if (typeof path === "string" && path) {
+                setSelectedNativeFilePath(path);
+            }
+        } catch {
+            setParseError(t("modals.file_tree_error"));
+        }
+    }, [isNativeMode, t]);
+
     const clearSelectedFile = () => {
         setSelectedFile(null);
+        setSelectedNativeFilePath(null);
         if (fileInputRef.current) {
             fileInputRef.current.value = "";
         }
     };
 
-    const openDirectoryPicker = () => setDirectoryPickerOpen(true);
-    const closeDirectoryPicker = () => setDirectoryPickerOpen(false);
-    const handleDirectorySelect = (path: string) => {
-        setDownloadDir(path);
-        closeDirectoryPicker();
-    };
+    const handleBrowseDirectory = useCallback(async () => {
+        if (!canBrowseDirectories) return;
+        try {
+            const selected = await NativeShell.browseDirectory(downloadDir);
+            if (selected) {
+                setDownloadDir(selected);
+            }
+        } catch {
+            setSpaceError(t("modals.disk_gauge_error"));
+        }
+    }, [canBrowseDirectories, downloadDir, t]);
 
     useEffect(() => {
         if (!isOpen) {
             setMagnetLink("");
             setStartNow(true);
             setSelectedFile(null);
+            setSelectedNativeFilePath(null);
             if (fileInputRef.current) {
                 fileInputRef.current.value = "";
             }
-            setDirectoryPickerOpen(false);
         }
     }, [isOpen]);
 
@@ -159,16 +181,11 @@ export function AddTorrentModal({
     }, [initialDownloadDir, isOpen]);
 
     useEffect(() => {
-        if (!canUseExtensionHelpers && isDirectoryPickerOpen) {
-            setDirectoryPickerOpen(false);
+        if (isNativeMode || !isOpen || !initialFile) {
+            return;
         }
-    }, [canUseExtensionHelpers, isDirectoryPickerOpen]);
-
-    useEffect(() => {
-        if (isOpen && initialFile) {
-            setSelectedFile(initialFile);
-        }
-    }, [initialFile, isOpen]);
+        setSelectedFile(initialFile);
+    }, [initialFile, isOpen, isNativeMode]);
 
     useEffect(() => {
         if (!isOpen || !initialMagnetLink) return;
@@ -177,7 +194,7 @@ export function AddTorrentModal({
 
     useEffect(() => {
         let active = true;
-        if (!selectedFile) {
+        if (isNativeMode || !selectedFile) {
             setTorrentMetadata(null);
             setFilesUnwanted(new Set());
             setParseError(null);
@@ -206,11 +223,11 @@ export function AddTorrentModal({
         return () => {
             active = false;
         };
-    }, [selectedFile, t]);
+    }, [selectedFile, t, isNativeMode]);
 
     useEffect(() => {
         let active = true;
-        if (!canUseExtensionHelpers) {
+        if (!supportsCheckFreeSpace) {
             setDirectorySpace(null);
             setSpaceError(null);
             setIsSpaceLoading(false);
@@ -228,10 +245,8 @@ export function AddTorrentModal({
         }
         setIsSpaceLoading(true);
         setSpaceError(null);
-        getDriveSpace(torrentClient, downloadDir, {
-            useExtension: shouldUseExtension,
-            allowMock: isMocked,
-        })
+        torrentClient
+            .checkFreeSpace(downloadDir)
             .then((space) => {
                 if (!active) return;
                 setDirectorySpace(space);
@@ -248,14 +263,7 @@ export function AddTorrentModal({
         return () => {
             active = false;
         };
-    }, [
-        downloadDir,
-        canUseExtensionHelpers,
-        shouldUseExtension,
-        isMocked,
-        t,
-        torrentClient,
-    ]);
+    }, [downloadDir, torrentClient, t]);
 
     const fileTreeEntries = useMemo<FileExplorerEntry[]>(() => {
         if (!torrentMetadata) return [];
@@ -278,8 +286,13 @@ export function AddTorrentModal({
     }, [torrentMetadata]);
 
     const canSubmit = useMemo(
-        () => Boolean(magnetLink.trim() || selectedFile),
-        [magnetLink, selectedFile]
+        () =>
+            Boolean(
+                magnetLink.trim() ||
+                    selectedFile ||
+                    selectedNativeFilePath
+            ),
+        [magnetLink, selectedFile, selectedNativeFilePath]
     );
     const hasTorrentSize = typeof torrentSize === "number" && torrentSize > 0;
     const hasFreeSpace = typeof directorySpace?.sizeBytes === "number";
@@ -308,7 +321,9 @@ export function AddTorrentModal({
                 downloadDir,
                 startNow,
             };
-            if (selectedFile) {
+            if (selectedNativeFilePath) {
+                payload.metainfoPath = selectedNativeFilePath;
+            } else if (selectedFile) {
                 payload.metainfo = await readFileAsBase64(selectedFile);
             } else if (trimmedLink) {
                 payload.magnetLink = trimmedLink;
@@ -407,18 +422,24 @@ export function AddTorrentModal({
                                         </Button>
                                     )}
                                 </div>
-                                <div className="flex items-center justify-between gap-tools">
-                                    <p className="text-sm font-mono text-foreground/70 truncate">
-                                        {selectedFile
-                                            ? selectedFile.name
-                                            : t("modals.file_placeholder")}
-                                    </p>
+                                    <div className="flex items-center justify-between gap-tools">
+                                        <p className="text-sm font-mono text-foreground/70 truncate">
+                                            {selectedNativeFilePath
+                                                ? selectedNativeFilePath
+                                                : selectedFile
+                                                ? selectedFile.name
+                                                : t(
+                                                      "modals.file_placeholder"
+                                                  )}
+                                        </p>
                                     <div className="flex items-center gap-tools">
                                         <Button
                                             size="md"
                                             variant="bordered"
                                             onPress={() =>
-                                                fileInputRef.current?.click()
+                                                isNativeMode
+                                                    ? void handleNativeFileSelection()
+                                                    : fileInputRef.current?.click()
                                             }
                                         >
                                             {t("modals.file_browse")}
@@ -441,7 +462,7 @@ export function AddTorrentModal({
                                     {t("modals.file_help")}
                                 </p>
                             </div>
-                            {torrentMetadata && (
+                            {!isNativeMode && torrentMetadata && (
                                 <div className="rounded-xl border border-content1/20 bg-content1/15 px-panel py-panel space-y-tight">
                                     <div className="flex items-center justify-between">
                                         <span
@@ -488,7 +509,7 @@ export function AddTorrentModal({
                                     </div>
                                 </div>
                             )}
-                            {selectedFile && !torrentMetadata && (
+                            {!isNativeMode && selectedFile && !torrentMetadata && (
                                 <div
                                     className="rounded-xl border border-content1/20 bg-background/30 px-panel py-panel"
                                     style={{
@@ -528,14 +549,12 @@ export function AddTorrentModal({
                                                 "bg-content1/10 border-content1/20",
                                         }}
                                         endContent={
-                                            canUseExtensionHelpers ? (
+                                            canBrowseDirectories ? (
                                                 <Button
                                                     size="md"
                                                     variant="shadow"
                                                     color="primary"
-                                                    onPress={
-                                                        openDirectoryPicker
-                                                    }
+                                                    onPress={handleBrowseDirectory}
                                                     className="font-semibold uppercase px-panel py-tight"
                                                     style={{
                                                         fontSize:
@@ -544,9 +563,7 @@ export function AddTorrentModal({
                                                             "var(--tt-tracking-ultra)",
                                                     }}
                                                 >
-                                                    {t(
-                                                        "settings.button.browse"
-                                                    )}
+                                                    {t("settings.button.browse")}
                                                 </Button>
                                             ) : undefined
                                         }
@@ -579,7 +596,7 @@ export function AddTorrentModal({
                             </div>
                         </ModalBody>
                         <ModalFooter className="flex flex-col gap-tools">
-                            {canUseExtensionHelpers && (
+                            {supportsCheckFreeSpace && (
                                 <DiskSpaceGauge
                                     freeBytes={directorySpace?.sizeBytes}
                                     totalBytes={directorySpace?.totalSize}
@@ -628,14 +645,6 @@ export function AddTorrentModal({
                     </>
                 )}
             </ModalContent>
-            {canUseExtensionHelpers && (
-                <DirectoryPicker
-                    isOpen={isDirectoryPickerOpen}
-                    initialPath={downloadDir}
-                    onClose={closeDirectoryPicker}
-                    onSelect={handleDirectorySelect}
-                />
-            )}
         </Modal>
     );
 }
