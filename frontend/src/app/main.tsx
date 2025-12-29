@@ -11,14 +11,6 @@ import { DEFAULT_KEYBOARD_SCOPE } from "@/shared/hooks/useKeyboardScope";
 import { ConnectionConfigProvider } from "./context/ConnectionConfigContext";
 import { CONFIG } from "@/config/logic";
 import { applyCssTokenBases } from "@/config/logic";
-import {
-    captureConnectionOverrideFromSearch,
-    captureTokenFromHash,
-} from "./utils/connection-params";
-
-captureConnectionOverrideFromSearch();
-captureTokenFromHash();
-
 // Apply CSS variable bases from constants.json before rendering
 applyCssTokenBases();
 

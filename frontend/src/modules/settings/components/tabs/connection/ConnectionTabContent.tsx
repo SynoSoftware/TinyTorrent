@@ -6,8 +6,17 @@ import {
 } from "@/modules/settings/components/tabs/connection/ConnectionManager";
 import { SettingsSection } from "@/modules/settings/components/SettingsSection";
 import { useSettingsForm } from "@/modules/settings/context/SettingsFormContext";
+import type { ServerClass } from "@/services/rpc/entities";
 
-export function ConnectionTabContent() {
+interface ConnectionTabContentProps {
+    serverClass: ServerClass;
+    isNativeMode: boolean;
+}
+
+export function ConnectionTabContent({
+    serverClass,
+    isNativeMode,
+}: ConnectionTabContentProps) {
     const { t } = useTranslation();
     const { rpcStatus, onReconnect } = useSettingsForm();
 
@@ -20,6 +29,8 @@ export function ConnectionTabContent() {
                 <ConnectionCredentialsCard
                     onReconnect={onReconnect}
                     rpcStatus={rpcStatus}
+                    serverClass={serverClass}
+                    isNativeMode={isNativeMode}
                 />
                 <Divider className="my-panel opacity-50" />
                 <ConnectionExtensionCard rpcStatus={rpcStatus} />

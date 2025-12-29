@@ -3,7 +3,7 @@ import { RefreshCw, CheckCircle, XCircle, Download } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { RpcStatus } from "@/shared/types/rpc";
-import type { TinyTorrentCapabilities } from "@/services/rpc/entities";
+import type { ServerClass } from "@/services/rpc/entities";
 import {
     useConnectionConfig,
     buildRpcEndpoint,
@@ -11,19 +11,12 @@ import {
     type ConnectionProfile,
     DEFAULT_PROFILE_ID,
 } from "@/app/context/ConnectionConfigContext";
-import Runtime from "@/app/runtime";
-import {
-    useRpcExtension,
-    type RpcExtensionAvailability,
-} from "@/app/context/RpcExtensionContext";
 
 interface ConnectionManagerProps {
     rpcStatus: RpcStatus;
     onReconnect: () => void;
-}
-
-interface ConnectionExtensionCardProps {
-    rpcStatus: RpcStatus;
+    serverClass: ServerClass;
+    isNativeMode: boolean;
 }
 
 interface ConnectionManagerState {
@@ -31,33 +24,12 @@ interface ConnectionManagerState {
     handleUpdate: (patch: Partial<ConnectionProfile>) => void;
     endpointPreview: string;
     isOffline: boolean;
-    availability: RpcExtensionAvailability;
-    capabilities: TinyTorrentCapabilities | null;
-    isRefreshing: boolean;
-    refresh: () => void;
-    enabled: boolean;
-    setEnabled: (value: boolean) => void;
-    featureList: string[];
-    showTokenInput: boolean;
-    websocketEndpoint?: string;
-    isMocked: boolean;
-    mockNoticeVisible: boolean;
 }
 
 function useConnectionManagerState(
     rpcStatus: RpcStatus
 ): ConnectionManagerState {
     const { activeProfile, updateProfile } = useConnectionConfig();
-    const {
-        availability,
-        capabilities,
-        isRefreshing,
-        refresh,
-        enabled,
-        setEnabled,
-        isMocked,
-        mockNoticeVisible,
-    } = useRpcExtension();
     const handleUpdate = useCallback(
         (
             patch: Partial<
@@ -75,43 +47,25 @@ function useConnectionManagerState(
         () => buildRpcEndpoint(activeProfile),
         [activeProfile]
     );
-    const featureList = useMemo(() => {
-        if (availability !== "available") {
-            return [];
-        }
-        return capabilities?.features ?? [];
-    }, [availability, capabilities]);
-    const showTokenInput = availability === "available";
-    const websocketEndpoint =
-        capabilities?.websocketPath ?? capabilities?.websocketEndpoint;
     return {
         activeProfile,
         handleUpdate,
         endpointPreview,
         isOffline: rpcStatus === "error",
-        availability,
-        capabilities,
-        isRefreshing,
-        refresh,
-        enabled,
-        setEnabled,
-        featureList,
-        showTokenInput,
-        websocketEndpoint,
-        isMocked,
-        mockNoticeVisible,
     };
 }
 
-type ServerType = "tinytorrent" | "transmission" | "detecting" | null;
+type ServerType = "tinytorrent" | "transmission" | null;
 
 export function ConnectionCredentialsCard({
     rpcStatus,
     onReconnect,
+    serverClass,
+    isNativeMode,
 }: ConnectionManagerProps) {
     const { t } = useTranslation();
     const [showAdvanced, setShowAdvanced] = useState(false);
-    const { activeProfile, handleUpdate, isOffline, availability } =
+    const { activeProfile, handleUpdate, isOffline } =
         useConnectionManagerState(rpcStatus);
     const connectionStatusLabel = useMemo(() => {
         const map: Record<RpcStatus, string> = {
@@ -129,23 +83,18 @@ export function ConnectionCredentialsCard({
 
     const serverType = useMemo<ServerType>(() => {
         if (rpcStatus !== "connected") return null;
-
-        switch (availability) {
-            case "available":
-                return "tinytorrent";
-            case "unavailable":
-            case "error":
-                return "transmission";
-            default:
-                return "detecting";
-        }
-    }, [availability, rpcStatus]);
+        if (serverClass === "tinytorrent") return "tinytorrent";
+        if (serverClass === "transmission") return "transmission";
+        return null;
+    }, [rpcStatus, serverClass]);
 
     const serverTypeLabel = useMemo(() => {
         if (!serverType) return null;
 
         return t(`settings.connection.server_type_${serverType}`);
     }, [serverType, t]);
+
+    const remoteInputsEnabled = !isNativeMode;
 
     const serverUrl = useMemo(
         () => buildRpcServerUrl(activeProfile),
@@ -162,11 +111,7 @@ export function ConnectionCredentialsCard({
         return t("settings.connection.profile_placeholder");
     }, [activeProfile.id, activeProfile.label, t]);
     const shouldShowAuthControls = true;
-    const isAuthModeResolved =
-        rpcStatus === "error" ||
-        (rpcStatus === "connected" &&
-            availability !== "idle" &&
-            availability !== "loading");
+    const isAuthModeResolved = rpcStatus === "connected";
     const isInsecureBasicAuth = (() => {
         const scheme = activeProfile.scheme;
         if (scheme !== "http") return false;
@@ -180,7 +125,7 @@ export function ConnectionCredentialsCard({
         return Boolean(activeProfile.username || activeProfile.password);
     })();
     // In native/local host mode, collapse remote controls behind an Advanced toggle.
-    if (!Runtime.allowEditingProfiles() && !showAdvanced) {
+    if (isNativeMode && !showAdvanced) {
         return (
             <div className="space-y-tight">
                 <div className="flex items-center justify-between">
@@ -319,7 +264,7 @@ export function ConnectionCredentialsCard({
                             handleUpdate({ host: event.target.value })
                         }
                         className="h-button"
-                        disabled={!Runtime.enableRemoteInputs()}
+                        disabled={!remoteInputsEnabled}
                     />
                     <Input
                         label={t("settings.connection.port")}
@@ -332,7 +277,7 @@ export function ConnectionCredentialsCard({
                             handleUpdate({ port: event.target.value })
                         }
                         className="h-button"
-                        disabled={!Runtime.enableRemoteInputs()}
+                        disabled={!remoteInputsEnabled}
                     />
                 </div>
                 {shouldShowAuthControls && (
@@ -353,7 +298,7 @@ export function ConnectionCredentialsCard({
                                     token: event.target.value,
                                 })
                             }
-                            disabled={!Runtime.enableRemoteInputs()}
+                            disabled={!remoteInputsEnabled}
                         />
                         {!activeProfile.token && (
                             <div className="grid gap-tools sm:grid-cols-2">
@@ -368,7 +313,7 @@ export function ConnectionCredentialsCard({
                                             username: event.target.value,
                                         })
                                     }
-                                    disabled={!Runtime.enableRemoteInputs()}
+                                    disabled={!remoteInputsEnabled}
                                 />
                                 <Input
                                     label={t("settings.connection.password")}
@@ -382,13 +327,13 @@ export function ConnectionCredentialsCard({
                                             password: event.target.value,
                                         })
                                     }
-                                    disabled={!Runtime.enableRemoteInputs()}
+                                    disabled={!remoteInputsEnabled}
                                 />
                             </div>
                         )}
                     </>
                 )}
-                {!Runtime.allowEditingProfiles() && (
+                {isNativeMode && (
                     <p className="text-label text-foreground/60 mt-tight">
                         {t(
                             "settings.connection.local_mode_info",
@@ -401,65 +346,10 @@ export function ConnectionCredentialsCard({
     );
 }
 
-export function ConnectionExtensionCard({
-    rpcStatus,
-}: ConnectionExtensionCardProps) {
-    const { t } = useTranslation();
-    const { enabled, setEnabled, availability, mockNoticeVisible } =
-        useConnectionManagerState(rpcStatus);
-    const extensionModeHelper = useMemo(() => {
-        switch (availability) {
-            case "available":
-                return t(
-                    "settings.connection.extension_mode_helper_tinytorrent"
-                );
-
-            case "unavailable":
-                return t(
-                    "settings.connection.extension_mode_helper_transmission"
-                );
-
-            case "error":
-            default:
-                return t("settings.connection.extension_mode_helper");
-        }
-    }, [availability, t]);
-
-    return (
-        <div className="space-y-tight">
-            <Switch
-                size="md"
-                isSelected={enabled}
-                onValueChange={(value) => setEnabled(value)}
-                aria-label={t("settings.connection.extension_mode_label")}
-                classNames={{
-                    base: "w-full max-w-none items-start",
-                    wrapper: "shrink-0 mt-tight",
-                }}
-            >
-                <div className="flex flex-col gap-tight">
-                    <span className="text-scaled font-semibold text-foreground">
-                        {t("settings.connection.extension_mode_label")}
-                    </span>
-                    <span className="text-label text-foreground/60">
-                        {extensionModeHelper}
-                    </span>
-                </div>
-            </Switch>
-            {mockNoticeVisible && (
-                <p className="text-label text-warning/80">
-                    {t("settings.connection.extended_mock_notice")}
-                </p>
-            )}
-        </div>
-    );
-}
-
 export function ConnectionManager(props: ConnectionManagerProps) {
     return (
         <>
             <ConnectionCredentialsCard {...props} />
-            <ConnectionExtensionCard {...props} />
         </>
     );
 }

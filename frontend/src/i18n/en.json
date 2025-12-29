@@ -220,6 +220,10 @@
             "shortcuts_header": "Shortcuts",
             "shortcuts_none": "No shortcuts were created."
         },
+        "system": {
+            "notice": "System integration (autorun, shortcuts) is handled by the native shell and installer.",
+            "instructions": "Use the native installer or OS settings to configure startup and handler integrations."
+        },
         "labels": {
             "altSpeedDays": "Scheduled Days",
             "altSpeedDaysHelp": "Toggle the days Turtle Mode should obey",

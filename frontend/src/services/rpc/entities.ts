@@ -106,6 +106,7 @@ export interface TorrentDetailEntity extends TorrentEntity {
 export interface AddTorrentPayload {
     magnetLink?: string;
     metainfo?: string;
+    metainfoPath?: string;
     downloadDir?: string;
     paused?: boolean;
     filesUnwanted?: number[];
@@ -149,6 +150,8 @@ export interface SystemHandlerStatus {
     torrentRegistered?: boolean;
 }
 
+export type ServerClass = "tinytorrent" | "transmission" | "unknown";
+
 export interface TinyTorrentCapabilities {
     version?: string;
     serverVersion?: string;
@@ -157,4 +160,5 @@ export interface TinyTorrentCapabilities {
     websocketPath?: string;
     platform?: string;
     features: string[];
+    serverClass?: ServerClass;
 }

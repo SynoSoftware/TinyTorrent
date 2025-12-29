@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback } from "react";
 import type { HTMLAttributes, InputHTMLAttributes } from "react";
 import { AnimatePresence, motion, type Transition } from "framer-motion";
 import { useTranslation } from "react-i18next";
@@ -14,10 +14,6 @@ import {
 import { AlertTriangle, Link2, MousePointer, PlugZap, X } from "lucide-react";
 
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
-import type {
-    SystemInstallOptions,
-    SystemInstallResult,
-} from "@/services/rpc/types";
 import { ModeLayout } from "@/modules/dashboard/components/ModeLayout";
 import { AddTorrentModal } from "@/modules/torrent-add/components/AddTorrentModal";
 import { SettingsModal } from "@/modules/settings/components/SettingsModal";
@@ -53,12 +49,15 @@ import type {
     DetailTab,
     PeerSortStrategy,
 } from "@/modules/dashboard/types/torrentDetail";
-import type { SessionStats, TorrentPeerEntity } from "@/services/rpc/entities";
+import type {
+    SessionStats,
+    TorrentPeerEntity,
+    ServerClass,
+} from "@/services/rpc/entities";
 import type { HeartbeatSource } from "@/services/rpc/heartbeat";
 import type { RpcStatus } from "@/shared/types/rpc";
 import type { AddTorrentContext } from "@/app/hooks/useAddTorrent";
 import type { WorkspaceStyle } from "@/app/hooks/useWorkspaceShell";
-import { useRpcExtension } from "@/app/context/RpcExtensionContext";
 
 type AddTorrentPayload = {
     magnetLink?: string;
@@ -127,6 +126,9 @@ interface WorkspaceShellProps {
     sessionStats: SessionStats | null;
     liveTransportStatus: HeartbeatSource;
     rpcStatus: RpcStatus;
+    engineType: EngineDisplayType;
+    serverClass: ServerClass;
+    isNativeIntegrationActive: boolean;
     handleReconnect: () => void;
     pendingDelete: DeleteIntent | null;
     clearPendingDelete: () => void;
@@ -194,6 +196,9 @@ export function WorkspaceShell({
     sessionStats,
     liveTransportStatus,
     rpcStatus,
+    engineType,
+    serverClass,
+    isNativeIntegrationActive,
     handleReconnect,
     pendingDelete,
     clearPendingDelete,
@@ -218,17 +223,6 @@ export function WorkspaceShell({
     torrentClient,
 }: WorkspaceShellProps) {
     const { t } = useTranslation();
-    const { availability } = useRpcExtension();
-
-    const engineType = useMemo<EngineDisplayType>(() => {
-        if (rpcStatus === "connected" && availability === "available") {
-            return "tinytorrent";
-        }
-        if (availability === "unavailable" || availability === "error") {
-            return "transmission";
-        }
-        return "unknown";
-    }, [availability, rpcStatus]);
     const isImmersiveShell = workspaceStyle === "immersive";
 
     const workspaceStyleToggleLabel =
@@ -239,18 +233,6 @@ export function WorkspaceShell({
             : t("workspace.shell.toggle_immersive", {
                   defaultValue: "Switch to immersive shell",
               });
-
-    const handleSystemInstall = useCallback(
-        (options: SystemInstallOptions): Promise<SystemInstallResult> => {
-            if (!torrentClient.systemInstall) {
-                return Promise.reject(
-                    new Error("System install not supported")
-                );
-            }
-            return torrentClient.systemInstall(options);
-        },
-        [torrentClient]
-    );
 
     const renderNavbar = () => (
         <Navbar
@@ -598,6 +580,7 @@ export function WorkspaceShell({
                 initialDownloadDir={settingsConfig.download_dir}
                 onAdd={handleAddTorrent}
                 isSubmitting={isAddingTorrent}
+                isNativeMode={isNativeIntegrationActive}
             />
             <SettingsModal
                 isOpen={isSettingsOpen}
@@ -608,14 +591,11 @@ export function WorkspaceShell({
                 onSave={handleSaveSettings}
                 onTestPort={handleTestPort}
                 onRestoreInsights={restoreHudCards}
-                onSystemInstall={
-                    torrentClient.systemInstall
-                        ? handleSystemInstall
-                        : undefined
-                }
                 onReconnect={handleReconnect}
                 rpcStatus={rpcStatus}
                 torrentClient={torrentClient}
+                serverClass={serverClass}
+                isNativeMode={isNativeIntegrationActive}
             />
         </div>
     );
