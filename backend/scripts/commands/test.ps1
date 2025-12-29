@@ -17,3 +17,21 @@ $ModulesRoot = Join-Path $CommandsRoot 'modules'
 Log-Section -Title 'Command: test' -Subtitle ("Configuration: {0}" -f $Configuration)
 
 Invoke-MesonTests -Configuration $Configuration
+
+$CommandsRoot = Split-Path -Parent $PSScriptRoot
+$RepoRoot = Split-Path -Parent $CommandsRoot
+$VerifierScript = Join-Path $RepoRoot 'verify_upgrade.py'
+if (Test-Path -LiteralPath $VerifierScript) {
+    Log-Section -Title 'Acceptance Test' -Subtitle 'Host-shell simulator'
+    $pythonExe = (Get-Command python -ErrorAction SilentlyContinue)?.Source
+    if (-not $pythonExe) {
+        $pythonExe = (Get-Command py -ErrorAction SilentlyContinue)?.Source
+    }
+    if (-not $pythonExe) {
+        Log-Warn 'Python interpreter not found; skipping verify_upgrade.py'
+    }
+    else {
+        Log-Info "Running $VerifierScript"
+        & $pythonExe $VerifierScript
+    }
+}

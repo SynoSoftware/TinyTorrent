@@ -43,6 +43,7 @@
 #include <filesystem>
 #include <format>
 #include <fstream>
+#include <iterator>
 #include <functional>
 #include <future>
 #include <limits>
@@ -1562,39 +1563,79 @@ std::optional<std::filesystem::path> parse_download_dir(yyjson_val *arguments)
     }
 }
 
-std::optional<std::string>
+struct DirectoryError
+{
+    int code;
+    std::string message;
+    std::optional<std::string> detail;
+};
+
+bool is_network_error(std::error_code const &ec)
+{
+    if (!ec)
+    {
+        return false;
+    }
+    static constexpr std::array<std::errc, 5> network_codes = {
+        std::errc::network_unreachable,
+        std::errc::host_unreachable,
+        std::errc::timed_out,
+        std::errc::connection_aborted,
+        std::errc::connection_refused,
+    };
+    for (auto candidate : network_codes)
+    {
+        if (ec == std::make_error_code(candidate))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+int classify_filesystem_error(std::error_code const &ec)
+{
+    if (is_network_error(ec))
+    {
+        return 4001;
+    }
+    return 4003;
+}
+
+std::optional<std::string_view>
+make_string_view(std::optional<std::string> const &value)
+{
+    if (!value)
+    {
+        return std::nullopt;
+    }
+    return std::string_view(value->data(), value->size());
+}
+
+std::optional<DirectoryError>
 ensure_directory_exists(std::filesystem::path const &path)
 {
     if (path.empty())
     {
-        return std::string("path cannot be empty");
+        return DirectoryError{4003, "permission denied", std::nullopt};
+    }
+    try
+    {
+        std::filesystem::create_directories(path);
+    }
+    catch (std::filesystem::filesystem_error const &ex)
+    {
+        auto code = classify_filesystem_error(ex.code());
+        std::string message = (code == 4001) ? "path-unreachable" : "permission denied";
+        return DirectoryError{code, message, std::string(ex.what())};
     }
     std::error_code ec;
-    bool exists = std::filesystem::exists(path, ec);
-    if (ec)
+    if (!std::filesystem::is_directory(path, ec))
     {
-        return std::format("unable to examine {}: {}", path.string(),
-                           ec.message());
-    }
-    if (exists)
-    {
-        if (!std::filesystem::is_directory(path, ec))
-        {
-            if (ec)
-            {
-                return std::format("unable to validate {}: {}", path.string(),
-                                   ec.message());
-            }
-            return std::format("path {} exists and is not a directory",
-                               path.string());
-        }
-        return std::nullopt;
-    }
-    std::filesystem::create_directories(path, ec);
-    if (ec)
-    {
-        return std::format("unable to create {}: {}", path.string(),
-                           ec.message());
+        auto code = classify_filesystem_error(ec);
+        std::string message = (code == 4001) ? "path-unreachable" : "permission denied";
+        std::string detail = ec ? ec.message() : "destination exists and is not a directory";
+        return DirectoryError{code, message, std::move(detail)};
     }
     return std::nullopt;
 }
@@ -2562,40 +2603,94 @@ std::string handle_torrent_add(engine::Core *engine, yyjson_val *arguments)
                 {
                     candidate = std::filesystem::absolute(candidate);
                 }
+                candidate = candidate.lexically_normal();
                 request.download_path = std::move(candidate);
             }
         }
         catch (std::filesystem::filesystem_error const &ex)
         {
-            return serialize_error(ex.what());
+            return serialize_error("permission denied",
+                                   std::string_view(ex.what()), 4003);
         }
+    }
+
+    if (auto error = ensure_directory_exists(request.download_path))
+    {
+        return serialize_error(error->message,
+                               make_string_view(error->detail),
+                               error->code);
     }
 
     request.paused = bool_value(yyjson_obj_get(arguments, "paused"));
 
-    yyjson_val *metainfo_value = yyjson_obj_get(arguments, "metainfo");
-    if (metainfo_value && yyjson_is_str(metainfo_value))
+    bool metainfo_loaded = false;
+    yyjson_val *metainfo_path_value = yyjson_obj_get(arguments, "metainfo-path");
+    if (metainfo_path_value && yyjson_is_str(metainfo_path_value))
     {
-        auto raw = std::string_view(yyjson_get_str(metainfo_value));
-        auto decoded = tt::utils::decode_base64(raw);
-        if (!decoded || decoded->empty())
+        std::filesystem::path candidate(yyjson_get_str(metainfo_path_value));
+        if (!candidate.empty())
         {
-            return serialize_error("invalid metainfo content");
+            try
+            {
+                if (!candidate.is_absolute())
+                {
+                    candidate = std::filesystem::absolute(candidate);
+                }
+                candidate = candidate.lexically_normal();
+                std::ifstream input(candidate, std::ios::binary);
+                if (!input)
+                {
+                    return serialize_error("metainfo-read-failure", std::nullopt,
+                                           4002);
+                }
+                std::vector<std::uint8_t> buffer(
+                    (std::istreambuf_iterator<char>(input)),
+                    std::istreambuf_iterator<char>());
+                if (buffer.empty())
+                {
+                    std::string detail =
+                        std::string("metainfo file ") + candidate.string() +
+                        " is empty";
+                    return serialize_error("metainfo-read-failure", detail,
+                                           4002);
+                }
+                request.metainfo = std::move(buffer);
+                metainfo_loaded = true;
+            }
+            catch (std::filesystem::filesystem_error const &ex)
+            {
+                return serialize_error("metainfo-read-failure",
+                                       std::string_view(ex.what()), 4002);
+            }
         }
-        request.metainfo = std::move(*decoded);
     }
-    else
+
+    if (!metainfo_loaded)
     {
-        yyjson_val *uri_value = yyjson_obj_get(arguments, "uri");
-        if (uri_value == nullptr || !yyjson_is_str(uri_value))
+        yyjson_val *metainfo_value = yyjson_obj_get(arguments, "metainfo");
+        if (metainfo_value && yyjson_is_str(metainfo_value))
         {
-            uri_value = yyjson_obj_get(arguments, "filename");
+            auto raw = std::string_view(yyjson_get_str(metainfo_value));
+            auto decoded = tt::utils::decode_base64(raw);
+            if (!decoded || decoded->empty())
+            {
+                return serialize_error("invalid metainfo content");
+            }
+            request.metainfo = std::move(*decoded);
         }
-        if (uri_value == nullptr || !yyjson_is_str(uri_value))
+        else
         {
-            return serialize_error("uri or filename required");
+            yyjson_val *uri_value = yyjson_obj_get(arguments, "uri");
+            if (uri_value == nullptr || !yyjson_is_str(uri_value))
+            {
+                uri_value = yyjson_obj_get(arguments, "filename");
+            }
+            if (uri_value == nullptr || !yyjson_is_str(uri_value))
+            {
+                return serialize_error("uri or filename required");
+            }
+            request.uri = std::string(yyjson_get_str(uri_value));
         }
-        request.uri = std::string(yyjson_get_str(uri_value));
     }
 
     TT_LOG_DEBUG("torrent-add download-dir={} paused={}",
@@ -2631,7 +2726,8 @@ std::string handle_session_set(engine::Core *engine, yyjson_val *arguments)
     {
         if (auto error = ensure_directory_exists(*candidate))
         {
-            return serialize_error(*error);
+            return serialize_error(error->message,
+                                   make_string_view(error->detail), error->code);
         }
         download = std::move(*candidate);
     }
@@ -2799,7 +2895,9 @@ std::string handle_session_set(engine::Core *engine, yyjson_val *arguments)
             {
                 if (auto error = ensure_directory_exists(candidate))
                 {
-                    return serialize_error(*error);
+                    return serialize_error(error->message,
+                                           make_string_view(error->detail),
+                                           error->code);
                 }
             }
             session_update.incomplete_dir = std::move(candidate);
@@ -2821,7 +2919,9 @@ std::string handle_session_set(engine::Core *engine, yyjson_val *arguments)
             {
                 if (auto error = ensure_directory_exists(candidate))
                 {
-                    return serialize_error(*error);
+                    return serialize_error(error->message,
+                                           make_string_view(error->detail),
+                                           error->code);
                 }
             }
             session_update.watch_dir = std::move(candidate);
@@ -3250,7 +3350,9 @@ void handle_fs_create_dir_async(engine::Core *engine, yyjson_val *arguments,
         {
             if (auto error = ensure_directory_exists(normalized))
             {
-                cb(serialize_error(*error));
+                cb(serialize_error(error->message,
+                                   make_string_view(error->detail),
+                                   error->code));
                 return;
             }
             cb(serialize_success());
@@ -4744,7 +4846,9 @@ std::string handle_torrent_set_location(engine::Core *engine,
     }
     if (auto error = ensure_directory_exists(destination_path))
     {
-        return serialize_error(*error);
+        return serialize_error(error->message,
+                               make_string_view(error->detail),
+                               error->code);
     }
     std::string destination = destination_path.string();
     bool move_data = bool_value(yyjson_obj_get(arguments, "move"), true);
@@ -5096,53 +5200,6 @@ void Dispatcher::register_handlers()
              [this](yyjson_val *) { return handle_session_close(engine_); });
     add_sync("blocklist-update",
              [this](yyjson_val *) { return handle_blocklist_update(engine_); });
-    add_async("fs-browse", [this](yyjson_val *arguments, ResponseCallback cb)
-              { handle_fs_browse_async(engine_, arguments, std::move(cb)); });
-    add_async("fs-space", [this](yyjson_val *arguments, ResponseCallback cb)
-              { handle_fs_space_async(engine_, arguments, std::move(cb)); });
-    add_async(
-        "fs-create-dir", [this](yyjson_val *arguments, ResponseCallback cb)
-        { handle_fs_create_dir_async(engine_, arguments, std::move(cb)); });
-    add_async(
-        "fs-write-file", [this](yyjson_val *arguments, ResponseCallback cb)
-        { handle_fs_write_file_async(engine_, arguments, std::move(cb)); });
-    add_async(
-        "system-reveal", [this](yyjson_val *arguments, ResponseCallback cb)
-        { handle_system_reveal_async(engine_, arguments, std::move(cb)); });
-    add_async("system-open", [this](yyjson_val *arguments, ResponseCallback cb)
-              { handle_system_open_async(engine_, arguments, std::move(cb)); });
-    add_async(
-        "dialog-open-file", [this](yyjson_val *arguments, ResponseCallback cb)
-        { handle_dialog_open_file(arguments, post_response_, std::move(cb)); });
-    add_async("dialog-select-folder",
-              [this](yyjson_val *arguments, ResponseCallback cb)
-              {
-                  handle_dialog_select_folder(arguments, post_response_,
-                                              std::move(cb));
-              });
-    add_async(
-        "dialog-save-file", [this](yyjson_val *arguments, ResponseCallback cb)
-        { handle_dialog_save_file(arguments, post_response_, std::move(cb)); });
-    add_async(
-        "system-install", [this](yyjson_val *arguments, ResponseCallback cb)
-        { handle_system_install_async(engine_, arguments, std::move(cb)); });
-    add_sync("system-register-handler",
-             [](yyjson_val *) { return handle_system_register_handler(); });
-    add_sync("system-handler-status", [this](yyjson_val *)
-             { return handle_system_handler_status(engine_); });
-    add_sync("system-handler-enable", [this](yyjson_val *)
-             { return handle_system_handler_enable(engine_); });
-    add_sync("system-handler-disable", [this](yyjson_val *)
-             { return handle_system_handler_disable(engine_); });
-    add_sync("system-autorun-status", [this](yyjson_val *)
-             { return handle_system_autorun_status(engine_, ui_preferences()); });
-    add_sync("system-autorun-enable", [this](yyjson_val *arguments)
-             {
-                 return handle_system_autorun_enable(engine_, arguments,
-                                                     ui_preferences());
-             });
-    add_sync("system-autorun-disable", [this](yyjson_val *)
-             { return handle_system_autorun_disable(engine_); });
     add_sync("app-shutdown",
              [this](yyjson_val *) { return handle_app_shutdown(engine_); });
     add_async("free-space", [this](yyjson_val *arguments, ResponseCallback cb)

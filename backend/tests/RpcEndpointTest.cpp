@@ -6,6 +6,7 @@
 #include <chrono>
 #include <cstdlib>
 #include <cstdint>
+#include <cstring>
 #include <exception>
 #include <future>
 #include <optional>
@@ -16,6 +17,12 @@
 
 #include <doctest/doctest.h>
 #include <yyjson.h>
+
+namespace tt::rpc
+{
+bool origin_allowed(struct mg_http_message *hm,
+                    ServerOptions const &options);
+}
 
 namespace
 {
@@ -78,6 +85,16 @@ std::uint16_t resolve_server_port(tt::rpc::Server const &server)
         return info->port;
     }
     throw std::runtime_error("RPC server port unavailable");
+}
+
+inline void parse_http_message(std::string const &request, struct mg_http_message &hm)
+{
+    std::memset(&hm, 0, sizeof(hm));
+    auto consumed = mg_http_parse(request.c_str(), request.size(), &hm);
+    if (consumed <= 0)
+    {
+        throw std::runtime_error("failed to parse HTTP message");
+    }
 }
 
 struct HttpTestContext
@@ -517,4 +534,42 @@ TEST_CASE("websocket snapshot is delivered on connect")
     std::string type_value = yyjson_get_str(type);
     CHECK(type_value == "sync-snapshot");
     yyjson_doc_free(doc);
+}
+
+TEST_CASE("origin_allowed helper enforces tt-app/trusted origins")
+{
+    tt::rpc::ServerOptions options;
+
+    {
+        std::string request =
+            "GET / HTTP/1.1\r\nHost: 127.0.0.1\r\nOrigin: http://evil-site.com\r\n\r\n";
+        struct mg_http_message hm{};
+        parse_http_message(request, hm);
+        CHECK_FALSE(tt::rpc::origin_allowed(&hm, options));
+    }
+
+    {
+        std::string request =
+            "GET / HTTP/1.1\r\nHost: 127.0.0.1\r\nOrigin: tt-app://local.ui\r\n\r\n";
+        struct mg_http_message hm{};
+        parse_http_message(request, hm);
+        CHECK(tt::rpc::origin_allowed(&hm, options));
+    }
+
+    {
+        std::string request =
+            "GET / HTTP/1.1\r\nHost: 127.0.0.1\r\nOrigin: file:///C:/foo\r\n\r\n";
+        struct mg_http_message hm{};
+        parse_http_message(request, hm);
+        CHECK(tt::rpc::origin_allowed(&hm, options));
+    }
+
+    options.trusted_origins.push_back("https://trusted.tiny");
+    {
+        std::string request =
+            "GET / HTTP/1.1\r\nHost: 127.0.0.1\r\nOrigin: https://trusted.tiny\r\n\r\n";
+        struct mg_http_message hm{};
+        parse_http_message(request, hm);
+        CHECK(tt::rpc::origin_allowed(&hm, options));
+    }
 }

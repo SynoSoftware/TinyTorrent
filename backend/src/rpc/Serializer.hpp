@@ -81,7 +81,8 @@ std::string serialize_session_tray_status(std::uint64_t download_kbps,
 std::string serialize_add_result(engine::Core::AddTorrentStatus status);
 std::string
 serialize_error(std::string_view message,
-                std::optional<std::string_view> details = std::nullopt);
+                std::optional<std::string_view> details = std::nullopt,
+                std::optional<int> code = std::nullopt);
 std::string
 serialize_torrent_list(std::vector<engine::TorrentSnapshot> const &torrents);
 std::string
@@ -105,7 +106,8 @@ std::string serialize_ws_patch(
     std::vector<engine::TorrentSnapshot> const &added,
     std::vector<std::pair<engine::TorrentSnapshot,
                           engine::TorrentSnapshot>> const &updated,
-    std::vector<int> const &removed);
+    std::vector<int> const &removed,
+    std::uint64_t sequence);
 std::string serialize_ws_event_torrent_added(int id);
 std::string serialize_ws_event_torrent_finished(int id);
 std::string serialize_ws_event_blocklist_updated(std::size_t count);

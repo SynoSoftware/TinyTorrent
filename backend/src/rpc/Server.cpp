@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cctype>
 #include <chrono>
 #include <cmath>
@@ -38,6 +39,7 @@ namespace
 {
 using tt::engine::Core;
 using tt::rpc::UiPreferencesStore;
+std::atomic<std::uint64_t> g_patch_sequence{0};
 
 std::shared_ptr<UiPreferencesStore> make_ui_preferences_store(Core *engine)
 {
@@ -315,6 +317,7 @@ void reply_bytes(struct mg_connection *conn, int code,
     headers += "Content-Type: ";
     headers.append(content_type.data(), content_type.size());
     headers += "\r\nCache-Control: no-store\r\n";
+    headers += "X-Content-Type-Options: nosniff\r\n";
 
     if (head_only || body.empty())
     {
@@ -615,46 +618,6 @@ bool host_allowed(std::string const &host,
     return is_loopback_host(host);
 }
 
-bool origin_allowed(struct mg_http_message *hm,
-                    tt::rpc::ServerOptions const &options)
-{
-    if (options.trusted_origins.empty())
-    {
-        return true;
-    }
-    auto origin = header_value(hm, "Origin");
-    if (!origin)
-    {
-        return true;
-    }
-    // Allow `Origin: null` for local file UIs when the request is coming
-    // from a loopback host. This permits loading local files (file://)
-    // into the UI while preserving restrictions for remote requests.
-    if (*origin == "null")
-    {
-        if (auto nh = normalized_host(hm))
-        {
-            if (is_loopback_host(*nh))
-            {
-                return true;
-            }
-        }
-    }
-    for (auto const &candidate : options.trusted_origins)
-    {
-        if (origin->compare(candidate) == 0)
-        {
-            return true;
-        }
-    }
-    auto [host, port] = tt::net::parse_rpc_bind(*origin);
-    if (tt::net::is_loopback_host(host))
-    {
-        return true;
-    }
-    return false;
-}
-
 std::optional<std::string> websocket_token(struct mg_http_message *hm)
 {
     if (hm == nullptr)
@@ -865,6 +828,39 @@ namespace tt::rpc
 {
 
 void send_ws_ping(struct mg_connection *conn);
+
+bool origin_allowed(struct mg_http_message *hm,
+                    ServerOptions const &options)
+{
+    auto origin = header_value(hm, "Origin");
+    if (!origin)
+    {
+        return true;
+    }
+    if (origin->rfind("tt-app://", 0) == 0)
+    {
+        return true;
+    }
+    if (origin->rfind("file://", 0) == 0)
+    {
+        if (auto nh = normalized_host(hm))
+        {
+            if (is_loopback_host(*nh))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+    for (auto const &candidate : options.trusted_origins)
+    {
+        if (origin->compare(candidate) == 0)
+        {
+            return true;
+        }
+    }
+    return false;
+}
 
 Server::Server(engine::Core *engine, std::string bind_url,
                ServerOptions options)
@@ -1154,7 +1150,8 @@ void Server::broadcast_websocket_updates()
         {
             auto payload =
                 serialize_ws_patch(*pending_snapshot_, patch_diff.added,
-                                   patch_diff.updated, patch_diff.removed);
+                                   patch_diff.updated, patch_diff.removed,
+                                   ++g_patch_sequence);
             std::vector<struct mg_connection *> clients_to_update;
             {
                 std::lock_guard<std::mutex> lock(ws_clients_mtx_);
