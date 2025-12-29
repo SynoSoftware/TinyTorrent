@@ -33,7 +33,10 @@ export function ConnectionTabContent({
                     isNativeMode={isNativeMode}
                 />
                 <Divider className="my-panel opacity-50" />
-                <ConnectionExtensionCard rpcStatus={rpcStatus} />
+                <ConnectionExtensionCard
+                    rpcStatus={rpcStatus}
+                    serverClass={serverClass}
+                />
             </div>
         </SettingsSection>
     );

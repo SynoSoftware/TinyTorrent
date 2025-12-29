@@ -170,7 +170,14 @@
             "server_type_transmission": "Transmission server",
             "token": "Authorization token",
             "username": "Username",
-            "insecure_basic_auth_warning": "Insecure connection: Basic Auth over HTTP is active."
+            "insecure_basic_auth_warning": "Insecure connection: Basic Auth over HTTP is active.",
+            "mode_label": "Connection Mode",
+            "native_mode_label": "TinyTorrent Host Shell",
+            "transmission_mode_label": "Transmission Compatibility",
+            "detecting_mode_label": "Detecting server class…",
+            "native_mode_summary": "Native shell owns dialogs, installer, and clipboard hooks; the UI delegates paths and autorun settings to the host.",
+            "transmission_mode_summary": "Standard Transmission server over HTTP RPC; the browser UI handles torrents without native OS privileges.",
+            "detecting_mode_summary": "Determining whether the connected engine provides the TinyTorrent host shell."
         },
         "descriptions": {
             "config_details": "Includes both engine telemetry and UI preferences in a single snapshot.",
