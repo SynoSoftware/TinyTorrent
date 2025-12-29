@@ -308,9 +308,25 @@ int daemon_main(int argc, char *argv[],
 #endif
         };
 
+        std::optional<std::string> session_secret;
+        constexpr char kSessionSecretPrefix[] = "--session-secret=";
+        for (int index = 1; index < argc; ++index)
+        {
+            if (argv[index] == nullptr)
+            {
+                continue;
+            }
+            std::string arg = argv[index];
+            if (arg.rfind(kSessionSecretPrefix, 0) == 0)
+            {
+                session_secret = arg.substr(sizeof(kSessionSecretPrefix) - 1);
+                break;
+            }
+        }
+
         auto write_connection_file = [&](std::filesystem::path const &path,
                                          tt::rpc::ConnectionInfo const &info,
-                                         std::uint64_t pid)
+                                         std::uint64_t pid, bool include_token)
         {
 #if defined(TT_BUILD_DEBUG)
             if (info.port == 0)
@@ -318,13 +334,16 @@ int daemon_main(int argc, char *argv[],
                 return false;
             }
 #else
-            if (info.port == 0 || info.token.empty())
+            if (info.port == 0 || (include_token && info.token.empty()))
             {
                 return false;
             }
 #endif
-            auto payload = std::format(R"({{"port":{},"token":"{}","pid":{}}})",
-                                       info.port, info.token, pid);
+            auto payload =
+                include_token
+                    ? std::format(R"({{"port":{},"token":"{}","pid":{}}})",
+                                  info.port, info.token, pid)
+                    : std::format(R"({{"port":{},"pid":{}}})", info.port, pid);
             auto tmp_path = path;
             tmp_path.replace_extension(".json.tmp");
             std::filesystem::create_directories(tmp_path.parent_path());
@@ -897,9 +916,15 @@ int daemon_main(int argc, char *argv[],
                 rpc_options.basic_auth = std::make_pair(*user, *pass);
             }
         }
-#if defined(TT_BUILD_DEBUG)
         std::string rpc_token;
-        if (auto token = read_env("TT_RPC_TOKEN"); token)
+        std::optional<std::string> enforced_token;
+#if defined(TT_BUILD_DEBUG)
+        if (session_secret)
+        {
+            rpc_token = *session_secret;
+            enforced_token = rpc_token;
+        }
+        else if (auto token = read_env("TT_RPC_TOKEN"); token)
         {
             rpc_token = *token;
         }
@@ -908,16 +933,25 @@ int daemon_main(int argc, char *argv[],
             rpc_token = generate_rpc_token();
         }
 #else
-        std::string rpc_token = generate_rpc_token();
-        if (auto token = read_env("TT_RPC_TOKEN"); token)
+        if (session_secret)
         {
-            TT_LOG_INFO(
-                "Ignoring TT_RPC_TOKEN override in release mode for security");
+            rpc_token = *session_secret;
         }
+        else
+        {
+            rpc_token = generate_rpc_token();
+            if (auto token = read_env("TT_RPC_TOKEN"); token)
+            {
+                TT_LOG_INFO(
+                    "Ignoring TT_RPC_TOKEN override in release mode for security");
+            }
+        }
+        enforced_token = rpc_token;
 #endif
-#if !defined(TT_BUILD_DEBUG)
-        rpc_options.token = rpc_token;
-#endif
+        if (enforced_token)
+        {
+            rpc_options.token = *enforced_token;
+        }
         if (auto origins = read_env("TT_RPC_TRUSTED_ORIGINS"); origins)
         {
             auto parsed = parse_trusted_origins(*origins);
@@ -933,13 +967,25 @@ int daemon_main(int argc, char *argv[],
         // connect locally without extra credentials. Production builds still
         // enforce token-based auth and will place credentials in
         // connection.json.
+        if (!session_secret)
+        {
 #if defined(TT_BUILD_DEBUG)
-        TT_LOG_INFO(
-            "RPC authentication disabled in debug build; no token required.");
+            TT_LOG_INFO(
+                "RPC authentication disabled in debug build; no token required.");
 #else
-        TT_LOG_INFO("RPC authentication enforced; connection.json contains "
-                    "credentials.");
+            TT_LOG_INFO("RPC authentication enforced; connection.json contains "
+                        "credentials.");
 #endif
+        }
+        else
+        {
+#if defined(TT_BUILD_DEBUG)
+            TT_LOG_INFO(
+                "RPC authentication enforced via session secret from host.");
+#else
+            TT_LOG_INFO("RPC authentication enforced via host-provided session secret.");
+#endif
+        }
         tt::rpc::Server rpc(engine.get(), rpc_bind, rpc_options);
         rpc.start();
 
@@ -959,8 +1005,9 @@ int daemon_main(int argc, char *argv[],
             {
                 ready_promise->set_value(*connection_info);
             }
+            bool include_token = !session_secret.has_value();
             if (write_connection_file(connection_file, *connection_info,
-                                      current_pid()))
+                                      current_pid(), include_token))
             {
                 TT_LOG_INFO(
                     "RPC listening on port {}; connection info saved to {}",

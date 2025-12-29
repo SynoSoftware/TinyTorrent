@@ -31,7 +31,7 @@ struct ServerOptions
     std::optional<std::string> token;
     std::string token_header = "X-TT-Auth";
     std::string basic_realm = "TinyTorrent RPC";
-    std::vector<std::string> trusted_origins = {"tt://app",
+    std::vector<std::string> trusted_origins = {"tt-app://local.ui",
                                                 "http://localhost:3000"};
     std::string rpc_path = "/transmission/rpc";
     std::string ws_path = "/ws";
@@ -144,5 +144,8 @@ class Server
     std::vector<std::string> allowed_hosts_;
     std::chrono::steady_clock::time_point last_ping_time_;
 };
+
+bool origin_allowed(struct mg_http_message *hm,
+                    ServerOptions const &options);
 
 } // namespace tt::rpc

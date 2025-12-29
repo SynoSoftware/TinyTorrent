@@ -7,6 +7,7 @@
 #include <filesystem>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include <doctest/doctest.h>
 #include <yyjson.h>
@@ -34,6 +35,33 @@ struct EngineRunner
 
     tt::engine::Core &core_;
     std::thread thread_;
+};
+
+struct JsonDocGuard
+{
+    explicit JsonDocGuard(std::string const &payload)
+    {
+        doc = yyjson_read(payload.data(), payload.size(), 0);
+    }
+
+    ~JsonDocGuard()
+    {
+        if (doc)
+        {
+            yyjson_doc_free(doc);
+        }
+    }
+
+    yyjson_val *root() const
+    {
+        if (!doc)
+        {
+            return nullptr;
+        }
+        return yyjson_doc_get_root(doc);
+    }
+
+    yyjson_doc *doc = nullptr;
 };
 
 } // namespace
@@ -99,4 +127,63 @@ TEST_CASE("serialize_session_settings includes listen error when present")
     auto *value = view.argument("listen-error");
     REQUIRE(value != nullptr);
     CHECK(to_view(value) == listen_error);
+}
+
+TEST_CASE("serialize_ws_snapshot reports aggregated labels registry")
+{
+    tt::engine::SessionSnapshot snapshot;
+    tt::engine::TorrentSnapshot torrent1;
+    torrent1.labels = {"Movies", "Action"};
+    tt::engine::TorrentSnapshot torrent2;
+    torrent2.labels = {"Movies", "Drama"};
+    snapshot.torrents = {torrent1, torrent2};
+
+    auto payload = tt::rpc::serialize_ws_snapshot(snapshot);
+    JsonDocGuard guard(payload);
+    auto *root = guard.root();
+    REQUIRE(root != nullptr);
+    auto *data = yyjson_obj_get(root, "data");
+    REQUIRE(data != nullptr);
+    auto *session = yyjson_obj_get(data, "session");
+    REQUIRE(session != nullptr);
+    auto *registry = yyjson_obj_get(session, "labels-registry");
+    REQUIRE(registry != nullptr);
+    REQUIRE(yyjson_is_obj(registry));
+    auto *movies = yyjson_obj_get(registry, "Movies");
+    REQUIRE(movies != nullptr);
+    CHECK(yyjson_get_uint(movies) == 2);
+    auto *action = yyjson_obj_get(registry, "Action");
+    REQUIRE(action != nullptr);
+    CHECK(yyjson_get_uint(action) == 1);
+    auto *drama = yyjson_obj_get(registry, "Drama");
+    REQUIRE(drama != nullptr);
+    CHECK(yyjson_get_uint(drama) == 1);
+}
+
+TEST_CASE("serialize_ws_patch embeds sequence and labels registry")
+{
+    tt::engine::SessionSnapshot snapshot;
+    tt::engine::TorrentSnapshot torrent;
+    torrent.labels = {"Music"};
+    snapshot.torrents = {torrent};
+    std::vector<tt::engine::TorrentSnapshot> added = {torrent};
+
+    auto payload = tt::rpc::serialize_ws_patch(snapshot, added, {}, {}, 37);
+    JsonDocGuard guard(payload);
+    auto *root = guard.root();
+    REQUIRE(root != nullptr);
+    auto *sequence = yyjson_obj_get(root, "sequence");
+    REQUIRE(sequence != nullptr);
+    CHECK(yyjson_get_uint(sequence) == 37);
+
+    auto *data = yyjson_obj_get(root, "data");
+    REQUIRE(data != nullptr);
+    auto *session = yyjson_obj_get(data, "session");
+    REQUIRE(session != nullptr);
+    auto *registry = yyjson_obj_get(session, "labels-registry");
+    REQUIRE(registry != nullptr);
+    REQUIRE(yyjson_is_obj(registry));
+    auto *music = yyjson_obj_get(registry, "Music");
+    REQUIRE(music != nullptr);
+    CHECK(yyjson_get_uint(music) == 1);
 }

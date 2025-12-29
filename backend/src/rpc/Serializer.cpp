@@ -10,6 +10,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 #include <yyjson.h>
@@ -81,6 +82,39 @@ void add_ui_preferences(yyjson_mut_doc *doc, yyjson_mut_val *parent,
                            preferences.splash_message.c_str());
 }
 
+void add_labels_registry(yyjson_mut_doc *doc, yyjson_mut_val *session,
+                         engine::SessionSnapshot const &snapshot)
+{
+    std::unordered_map<std::string, std::uint64_t> registry;
+    for (auto const &torrent : snapshot.torrents)
+    {
+        for (auto const &label : torrent.labels)
+        {
+            if (label.empty())
+            {
+                continue;
+            }
+            registry[label]++;
+        }
+    }
+    auto *registry_node = yyjson_mut_obj(doc);
+    for (auto const &entry : registry)
+    {
+        auto *key = yyjson_mut_strcpy(doc, entry.first.c_str());
+        if (key == nullptr)
+        {
+            continue;
+        }
+        auto *value = yyjson_mut_uint(doc, entry.second);
+        if (value == nullptr)
+        {
+            continue;
+        }
+        yyjson_mut_obj_add(registry_node, key, value);
+    }
+    yyjson_mut_obj_add_val(doc, session, "labels-registry", registry_node);
+}
+
 void add_session_stats(yyjson_mut_doc *doc, yyjson_mut_val *session,
                        engine::SessionSnapshot const &snapshot)
 {
@@ -120,6 +154,7 @@ void add_session_stats(yyjson_mut_doc *doc, yyjson_mut_val *session,
     yyjson_mut_obj_add_uint(doc, current, "sessionCount",
                             snapshot.current_stats.session_count);
     yyjson_mut_obj_add_val(doc, session, "currentStats", current);
+    add_labels_registry(doc, session, snapshot);
 }
 
 bool session_stats_equal(engine::SessionSnapshot const &a,
@@ -417,7 +452,7 @@ std::string serialize_capabilities()
     auto *arguments = yyjson_mut_obj(native);
     yyjson_mut_obj_add_val(native, root, "arguments", arguments);
     yyjson_mut_obj_add_str(native, arguments, "server-version",
-                           tt::version::kDisplayVersion);
+                           "TinyTorrent 1.1.0");
     yyjson_mut_obj_add_str(native, arguments, "version",
                            tt::version::kDisplayVersion);
     yyjson_mut_obj_add_uint(native, arguments, "rpc-version", 17);
@@ -425,30 +460,24 @@ std::string serialize_capabilities()
     yyjson_mut_obj_add_str(native, arguments, "websocket-endpoint", "/ws");
     yyjson_mut_obj_add_str(native, arguments, "websocket-path", "/ws");
     yyjson_mut_obj_add_str(native, arguments, "platform", "win32");
+    yyjson_mut_obj_add_str(native, arguments, "server-class", "tinytorrent");
 
-    std::vector<std::string> features = {"fs-browse",
-                                         "fs-create-dir",
-                                         "fs-space",
-                                         "fs-write-file",
-                                         "system-integration",
-                                         "system-install",
-                                         "system-autorun",
-                                         "system-reveal",
-                                         "system-open",
-                                         "system-register-handler",
-                                         "system-handler-status",
-                                         "system-handler-enable",
-                                         "system-handler-disable",
-                                         "session-tray-status",
-                                         "session-pause-all",
-                                         "session-resume-all",
-                                         "traffic-history",
-                                         "sequential-download",
-                                         "proxy-configuration",
-                                         "labels"};
-#if defined(_WIN32)
-    features.push_back("native-dialogs");
-#endif
+    std::vector<std::string> features = {
+        "session-tray-status",
+        "session-pause-all",
+        "session-resume-all",
+        "traffic-history",
+        "traffic-history-adaptive",
+        "sequential-download",
+        "super-seeding",
+        "proxy-configuration",
+        "labels",
+        "labels-registry",
+        "path-auto-creation",
+        "metainfo-path-injection",
+        "websocket-delta-sync",
+        "sequence-sync",
+    };
     auto *features_arr = yyjson_mut_arr(native);
     yyjson_mut_obj_add_val(native, arguments, "features", features_arr);
     for (auto const &feature : features)
@@ -1127,7 +1156,8 @@ std::string serialize_ws_patch(
     std::vector<engine::TorrentSnapshot> const &added,
     std::vector<std::pair<engine::TorrentSnapshot,
                           engine::TorrentSnapshot>> const &updated,
-    std::vector<int> const &removed)
+    std::vector<int> const &removed,
+    std::uint64_t sequence)
 {
     tt::json::MutableDocument doc;
     if (!doc.is_valid())
@@ -1139,6 +1169,7 @@ std::string serialize_ws_patch(
     auto *root = yyjson_mut_obj(native);
     doc.set_root(root);
     yyjson_mut_obj_add_str(native, root, "type", "sync-patch");
+    yyjson_mut_obj_add_uint(native, root, "sequence", sequence);
 
     auto *data = yyjson_mut_obj(native);
     yyjson_mut_obj_add_val(native, root, "data", data);
@@ -1606,7 +1637,8 @@ std::string serialize_add_result(engine::Core::AddTorrentStatus status)
 }
 
 std::string serialize_error(std::string_view message,
-                            std::optional<std::string_view> details)
+                            std::optional<std::string_view> details,
+                            std::optional<int> code)
 {
     tt::json::MutableDocument doc;
     if (!doc.is_valid())
@@ -1630,7 +1662,10 @@ std::string serialize_error(std::string_view message,
                                 details->size());
     }
 #endif
-
+    if (code)
+    {
+        yyjson_mut_obj_add_sint(native, arguments, "code", *code);
+    }
     return doc.write(R"({"result":"error"})");
 }
 
