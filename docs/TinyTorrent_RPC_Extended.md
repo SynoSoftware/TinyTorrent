@@ -4,8 +4,8 @@ Licensed under the Apache License, Version 2.0. See `LICENSES.md` for details.
 
 # **TinyTorrent RPC-Extended Specification**
 
-**Version:** 1.0.0 (Gold)
-**Status:** Approved for Implementation
+**Version:** 1.1.0 
+**Status:** Revised for Webview2
 **Dependencies:** TinyTorrent Security Model v1.0 (Mandatory)
 
 ---
@@ -30,28 +30,56 @@ The backend enforces a strict `Host` header policy but treats every loopback ali
 {
   "result": "success",
   "arguments": {
-    "server-version": "TinyTorrent 1.0.0",
+    "server-version": "TinyTorrent 1.1.0",
     "rpc-version": 17,
     "websocket-endpoint": "/ws",
     "platform": "win32",
     "features": [
-      "fs-browse",
-      "fs-create-dir",
-      "system-integration",
-      "system-install",
-      "system-autorun",
-      "session-tray-status",
-      "session-pause-all",
-      "session-resume-all",
-      "traffic-history",
-      "sequential-download",
-      "proxy-configuration",
-      "labels",
-      "native-dialogs"
-    ]
+        "websocket-delta-sync",
+        "sequence-sync",
+        "traffic-history",
+        "traffic-history-adaptive",
+        "sequential-download",
+        "super-seeding",
+        "proxy-configuration",
+        "session-tray-status",
+        "session-pause-all",
+        "session-resume-all",
+        "labels",
+        "labels-registry",
+        "path-auto-creation",
+        "metainfo-path-injection"
+        ]
   }
 }
 ```
+
+### **1.3 Trust Boundary (WebView2)**
+
+ To prevent CSRF attacks from external browsers, the server **must**:
+
+ 1. **Mandatory Token:** Reject any request (even loopback) that lacks a valid `X-TT-Auth` header or `token` query parameter.
+ 2. **Origin Lock:** If an `Origin` header is present, it must match the internal app scheme (e.g., `tt-app://local.ui`).
+ 3. **Native Only:** If `platform` is `win32`, the server should provide a configuration flag to ignore any requests not originating from the local machine's PID of the Host Shell or bind strictly to the loopback interface (`127.0.0.1` / `::1`).
+ 4. **Session Secret:** The Host Shell MUST generate a unique, cryptographically secure token at startup and inject it into the WebView2 context. The Daemon MUST accept this token for the duration of the session.
+
+If the UI is hosted via a custom scheme (e.g., `tt-app://`), the backend **must** include that scheme in its CORS `Allow-Origin` whitelist. The backend should strictly reject the default `null` origin often sent by local file contexts to prevent local hijacking.
+
+### **1.4 Host Shell Authority (Normative)**
+
+All operating system interactions, including but not limited to:
+
+- File and folder selection dialogs
+- Filesystem browsing
+- Registry access
+- Protocol handler registration
+- Installation and elevation flows
+
+are **exclusively owned by the Native Host Shell**.
+
+The RPC Daemon MUST NOT expose filesystem or dialog-related RPC methods.
+All filesystem paths provided to the Daemon are treated as opaque,
+pre-validated strings originating from the Host Shell.
 
 ---
 
@@ -62,16 +90,20 @@ The backend enforces a strict `Host` header policy but treats every loopback ali
 
 ### **2.0 UI Asset Routing**
 
-HTTP requests for the web UI strip any `?query` component before looking up the packed resource, so hashed assets like `/main.js?v=1234` resolve to their actual bundle regardless of cache-busting parameters. Only when the query-stripped path is missing and does not look like an explicit asset (no file extension) does the server fall back to serving the packed `index.html`; requests for missing `.js`, `.css`, etc. files now return 404 instead of silently returning HTML.
+HTTP requests for the web UI strip any `?query` component before looking up the packed resource, so hashed assets like `/main.js?v=1234` resolve to their actual bundle regardless of cache-busting parameters. Only when the query-stripped path is missing and does not look like an explicit asset (no file extension) does the server fall back to serving the packed `index.html`.
+
+Requests for missing `.js`, `.css`, etc. files now return 404 instead of silently returning HTML.
+**Security Constraint:** All HTTP responses for UI assets MUST include the header `X-Content-Type-Options: nosniff` to prevent MIME-sniffing attacks in the local context.
 
 ### **2.1 Connection Constraints**
 
 - **Token Validation:** Must be validated via Query Parameter _before_ the 101 Switching Protocols response.
 - **Origin Policy:** If `Origin` header is present, it must match the trusted UI origin.
+- **Discontinuity Handling:** Upon reconnection, the server **must** send a fresh `sync-snapshot` to ensure the client is current before resuming `sync-patch` deltas.
 
 ### **2.2 Synchronization Logic**
 
-The server pushes state updates. To prevent race conditions in the frontend (e.g., updating a torrent that was just removed), the **Processing Order** defined below is mandatory.
+The server pushes state updates. To prevent race conditions in the frontend (e.g., updating a torrent that was just removed), the **Processing Order** defined below is mandatory. This synchronization logic is advertised via the **`websocket-delta-sync`** feature flag. When present, the client should prefer WebSocket patches over HTTP polling for all read-only state updates.
 
 #### **Message: `sync-snapshot`**
 
@@ -82,17 +114,24 @@ Sent once immediately upon connection. Contains the full state tree.
 Sent when state changes (debounced).
 **Processing Order (Mandatory):**
 
-1.  **Removed:** Process `torrents.removed` first.
-2.  **Added:** Process `torrents.added` second.
-3.  **Updated:** Process `torrents.updated` and `session` last.
+1. **Removed:** Process `torrents.removed` first.
+2. **Added:** Process `torrents.added` second.
+3. **Updated:** Process `torrents.updated` and `session` last.
+
+**Sequence Integrity:**
+Every `sync-patch` MUST include a monotonically increasing `sequence` integer. If the client receives a patch where `incoming_sequence != last_sequence + 1`, the client MUST discard the patch and request a full state refresh (`sync-snapshot`).
 
 **Payload Structure:**
 
 ```json
 {
   "type": "sync-patch",
+  "sequence": 1042,
   "data": {
-    "session": { "downloadSpeed": 512000 },
+    "session": { 
+        "downloadSpeed": 512000,
+        "labels-registry": { "Movies": 5, "Music": 12 }
+    },
     "torrents": {
       "removed": [ 104 ],
       "added": [ { "id": 201, "name": "New...", ... } ],
@@ -116,585 +155,12 @@ To ensure type safety in the frontend, the `event` message type uses strict nami
 
 ---
 
-## **3. Filesystem API (`fs-*`)**
-
-**Security Note:** These methods are protected by the Security Model. Access requires a valid token.
-**Performance Note:** Backend **must** execute these in a worker thread. Blocking the main event loop while waiting for disk I/O is forbidden.
-
-### **3.1 Browse Directory**
-
-**Method:** `fs-browse`
-**Arguments:** `path` (string, optional).
-**Behavior:**
-
-- Returns directory contents.
-- On Windows, `size` for files must be exact.
-- If `path` is invalid/inaccessible, return standard RPC Error.
-
-### **3.2 Disk Space**
-
-**Method:** `fs-space`
-**Arguments:** `path` (string).
-**Behavior:** Returns available bytes at the specific mount point.
-
-### **3.3 Create Directory**
-
-**Method:** `fs-create-dir`
-**Arguments:** `path` (string).
-**Behavior:**
-
-- Creates the directory and any necessary parent directories (recursive `mkdir -p`).
-- **Returns:** `success` if created or if it already exists.
-- **Error:** Returns standard filesystem error (permission denied, read-only fs) if it fails.
-
-### **3.4 Write File**
-
-**Method:** `fs-write-file`
-**Transport:** HTTP RPC
-**Auth:** Required (`X-TT-Auth`)
-
-This RPC writes data to a file path
-
-- On Windows, the backend must reject writes to system locations, including but not limited to:
-  `C:\Windows\`, `C:\Program Files\`, `C:\Program Files (x86)\`, and `C:\ProgramData\`, as well as any path requiring elevated privileges to write.
-- `fs-write-file` is intended for user-space data only; it must not be used to modify operating system or application installation files.
-
----
-
-#### **Arguments**
-
-```json
-{
-  "path": "C:/Users/.../export.json",
-  "data": "<base64>",
-  "mode": "overwrite"
-}
-```
-
-- `path` (string, required)
-
-  - Must be an absolute path
-
-- `data` (string, required)
-
-  - Base64-encoded payload
-
-- `mode` (string, optional)
-
-  - `"overwrite"` (default)
-  - `"fail-if-exists"`
-
-No append. No streaming. Keep it simple.
-
----
-
-#### **Behavior (Normative)**
-
-- Backend must:
-
-  - Decode Base64
-  - Write atomically (temp file + replace)
-  - Create parent directories **only if they already exist** (no mkdir here)
-  - This RPC is not restricted to paths selected via `dialog-save-file`; dialogs are a convenience mechanism, not a security boundary.
-
-- Backend must **reject** the call if:
-
-  - write permissions are missing
-
----
-
-#### **Response (Success)**
-
-```json
-{
-  "result": "success",
-  "arguments": {
-    "bytesWritten": 2048
-  }
-}
-```
-
----
-
-#### **Response (Error)**
-
-Standard error format:
-
-```json
-{
-  "result": "error",
-  "arguments": {
-    "message": "permission denied"
-  }
-}
-```
-
----
-
-## **4. System API (`system-*` & `app-*`)**
-
-### **4.1 OS Shell Interaction**
-
-- **Method:** `system-reveal`
-  - **Arg:** `path` (string).
-  - **Behavior (Windows):** Must use `/select` logic to highlight the specific file in Explorer, not just open the folder.
-  - **Behavior (Mac/Linux):** Open parent folder.
-- **Method:** `system-open`
-  - **Arg:** `path` (string).
-  - **Behavior:** Execute default OS verb (Double-click).
-
-### **4.2 Association**
-
-- **Method:** `system-register-handler`
-  - **Behavior:** Associations `magnet:` and `.torrent`.
-  - **Return Values:**
-    - `success`: Registered successfully.
-    - `permission-denied`: Requires Admin/Sudo. Frontend should prompt user.
-    - `error`: Generic failure.
-
-### **4.3 Lifecycle**
-
-- **Method:** `app-shutdown`
-  - **Behavior:**
-    1.  Stop RPC Listener.
-    2.  Call `save_resume_data` on all torrents.
-    3.  Wait for completion (or 3s timeout).
-    4.  Exit process.
-
-### **4.4 System integration (Windows installer helpers)**
-
-- **Method:** `system-install`
-- **Transport:** HTTP RPC
-- **Auth:** Required (`X-TT-Auth`).
-- **Purpose:** Creates shortcuts, optionally registers protocol handlers, and can copy the running daemon into `Program Files` when elevation is available.
-
-**Arguments:**
-
-- `name` (string, optional): Shortcut display name. Defaults to `TinyTorrent` and is capped at 64 characters.
-- `args` (string, optional): Command-line arguments appended to each shortcut.
-- `locations` (`Array<String>`, optional): Any subset of `desktop`, `start-menu`, `startup`. When omitted or empty, all three locations are used.
-- `registerHandlers` (`Bool`, optional): When `true`, reuses `system-register-handler` to bind `magnet:` and `.torrent`.
-- `installToProgramFiles` (`Bool`, optional): When `true`, copies the current executable to `C:/Program Files/TinyTorrent/TinyTorrent.exe` (may require elevation).
-
-**Response:**
-
-```json
-{
-  "result": "success",
-  "arguments": {
-    "action": "system-install",
-    "success": true,
-    "shortcuts": {
-      "desktop": "C:/Users/<USER>/Desktop/TinyTorrent.lnk",
-      "start-menu": "C:/Users/<USER>/AppData/Roaming/Microsoft/Windows/Start Menu/Programs/TinyTorrent.lnk",
-      "startup": "C:/Users/<USER>/AppData/Roaming/Microsoft/Windows/Start Menu/Programs/Startup/TinyTorrent.lnk"
-    },
-    "installSuccess": true,
-    "installMessage": "installed to C:/Program Files/TinyTorrent/TinyTorrent.exe",
-    "installedPath": "C:/Program Files/TinyTorrent/TinyTorrent.exe",
-    "handlersRegistered": true
-  }
-}
-```
-
-For additional details (including optional messages, handler registration feedback, and permission-denied indicators) see §6.5.3.
-
----
-
-### **4.5 Autorun / Startup Integration**
-
-These RPCs control whether TinyTorrent automatically starts when the user logs in.
-The frontend expresses intent only; the backend is solely responsible for selecting
-the executable path, startup mechanism, and required permissions.
-
-The frontend must never provide file paths or executable names.
-
-#### **4.5.1 system-autorun-status**
-
-- **Method:** `system-autorun-status`
-- **Auth:** Required (`X-TT-Auth`)
-- **Arguments:** None
-
-**Response:**
-
-```json
-{
-  "result": "success",
-  "arguments": {
-    "enabled": true,
-    "supported": true,
-    "requiresElevation": false
-  }
-}
-```
-
-- `enabled`: Autorun is currently active.
-- `supported`: Platform supports autorun integration.
-- `requiresElevation`: Enabling or disabling autorun requires elevated privileges.
-
----
-
-#### **4.5.2 system-autorun-enable**
-
-- **Method:** `system-autorun-enable`
-- **Auth:** Required (`X-TT-Auth`)
-- **Arguments (optional):**
-
-```json
-{
-  "scope": "user"
-}
-```
-
-- `scope`: Defaults to `user`. Platforms may ignore unsupported scopes.
-
-**Behavior:**
-
-- Backend determines the correct executable (installed copy preferred).
-- Backend selects the appropriate OS autorun mechanism.
-- Operation is idempotent.
-
----
-
-#### **4.5.3 system-autorun-disable**
-
-- **Method:** `system-autorun-disable`
-- **Auth:** Required (`X-TT-Auth`)
-- **Arguments:** None
-
-**Behavior:**
-
-- Removes autorun entries created by TinyTorrent.
-- Operation is idempotent.
-
----
-
-### **4.6 System Handler Integration**
-
-These RPCs manage the association of `magnet:` URIs and `.torrent` files with TinyTorrent.
-Operations touch both the current user hive and the machine hive on Windows, so elevated
-privileges may be necessary. These RPCs must never block on a Windows UAC prompt; if elevated
-rights are required, the backend returns `requiresElevation=true` immediately and the frontend
-is responsible for initiating any elevation flow (e.g., launching an elevated helper).
-
-#### **4.6.1 system-handler-status**
-
-- **Method:** `system-handler-status`
-- **Auth:** Required (`X-TT-Auth`)
-- **Arguments:** None
-
-**Response:**
-
-```json
-{
-  "result": "success",
-  "arguments": {
-    "registered": true,
-    "supported": true,
-    "requiresElevation": false,
-    "magnetRegistered": true,
-    "torrentRegistered": true
-  }
-}
-```
-
-- `registered` is `true` when both the magnet handler and `.torrent` handler are present and
-  designated as the user’s default.
-- `supported` reflects platform capability (Windows-only for TinyTorrent v1.x).
-- `requiresElevation` is `true` when machine-level entries are still present and further
-  modifications will necessitate admin rights.
-- `magnetRegistered` / `torrentRegistered` indicate whether each handler key exists in either
-  HKCU or HKLM.
-
-#### **4.6.2 system-handler-enable**
-
-- **Method:** `system-handler-enable`
-- **Auth:** Required (`X-TT-Auth`)
-- **Arguments:** None
-
-**Behavior:**
-
-- Writes handler registrations under the current user hive.
-- If an existing HKLM entry blocks the change, the backend responds with
-  `requiresElevation=true` so the frontend can prompt the user and/or run an elevated helper.
-
-#### **4.6.3 system-handler-disable**
-
-- **Method:** `system-handler-disable`
-- **Auth:** Required (`X-TT-Auth`)
-- **Arguments:** None
-
-**Behavior:**
-
-- Removes handler keys from both HKCU and HKLM.
-- The backend does not trigger UAC prompts from RPC; it returns `requiresElevation=true` when
-  machine-level keys still exist and require admin rights to modify.
-
----
-
-## **5 Native Dialog API (`dialog-*`) — Windows Only**
-
-These RPCs request the backend to invoke **native Windows file and folder dialogs** and return the user’s selection to the frontend.
-
-Dialogs are **OS-owned, modal, and user-interactive**. The frontend expresses intent only; the backend owns execution, security, and OS integration.
-
----
-
-### **5.0 Platform Scope & Capability Gating**
-
-- This API is **Windows-only** in TinyTorrent v1.0.
-- Servers on other platforms **must not** advertise support.
-- Capability discovery:
-
-  - The backend advertises support via the `native-dialogs` feature in `tt-get-capabilities`.
-  - Frontends **must not** call any `dialog-*` method unless this capability is present.
-
-If invoked when unsupported, the backend must return:
-
-```json
-{
-  "result": "error",
-  "arguments": {
-    "message": "native dialogs not supported"
-  }
-}
-```
-
----
-
-### **5.1 Security & Execution Rules**
-
-- **Auth:** Required (`X-TT-Auth`)
-
-- **Origin:** Request must originate from a trusted UI origin.
-
-- **Session:** Requires an active interactive desktop session.
-
-  - If running headless (service, SSH, no desktop), return:
-
-    ```json
-    {
-      "result": "error",
-      "arguments": {
-        "message": "interactive session required"
-      }
-    }
-    ```
-
-- **Threading:** Dialogs must be invoked on a UI-capable **STA thread**.
-
-- **Concurrency:** Only **one dialog may be active at a time**.
-
-  - If another dialog is already open, return:
-
-    ```json
-    {
-      "result": "error",
-      "arguments": {
-        "message": "dialog already active"
-      }
-    }
-    ```
-
-- **Cancellation:** User cancellation is **not an error** and must be represented by empty or `null` results.
-
----
-
-### **5.2 Windows Implementation (Normative)**
-
-- File and folder dialogs **must** use `IFileOpenDialog`.
-- Folder selection **must** use `IFileOpenDialog` with `FOS_PICKFOLDERS`.
-- Legacy APIs (`GetOpenFileName`, `SHBrowseForFolder`) are **forbidden**.
-- Dialogs must be modal and should be parented to the active UI window when possible.
-
----
-
-### **5.3 Open File Dialog**
-
-**Method:** `dialog-open-file`
-**Purpose:** Let the user select one or more existing files.
-
-**Arguments:**
-
-```json
-{
-  "title": "Select torrent file",
-  "filters": [{ "name": "Torrent Files", "extensions": ["torrent"] }],
-  "allowMultiple": false
-}
-```
-
-- `filters` map directly to Windows file type filters.
-- `allowMultiple` defaults to `false`.
-
-**Response (Success):**
-
-```json
-{
-  "result": "success",
-  "arguments": {
-    "paths": ["C:/Users/.../Downloads/example.torrent"]
-  }
-}
-```
-
-**Response (User Cancelled):**
-
-```json
-{
-  "result": "success",
-  "arguments": {
-    "paths": []
-  }
-}
-```
-
-An empty array **always** indicates user cancellation.
-
----
-
-### **5.4 Select Folder Dialog**
-
-**Method:** `dialog-select-folder`
-**Purpose:** Let the user select a single directory.
-
-**Arguments:**
-
-```json
-{
-  "title": "Select download folder"
-}
-```
-
-**Response (Success):**
-
-```json
-{
-  "result": "success",
-  "arguments": {
-    "path": "C:/Users/.../Downloads/Torrents"
-  }
-}
-```
-
-**Response (User Cancelled):**
-
-```json
-{
-  "result": "success",
-  "arguments": {
-    "path": null
-  }
-}
-```
-
----
-
-### **5.5 Save File Dialog**
-
-**Method:** `dialog-save-file`
-**Platform:** Windows only
-**Auth:** Required (`X-TT-Auth`)
-**Capability:** `native-dialogs`
-
-This RPC invokes the native **Windows Save File dialog** and returns the path selected by the user.
-It does **not** create or write the file; it only returns the chosen destination path.
-
----
-
-#### **Arguments**
-
-```json
-{
-  "title": "Save file as",
-  "defaultName": "export.json",
-  "filters": [
-    { "name": "JSON Files", "extensions": ["json"] },
-    { "name": "All Files", "extensions": ["*"] }
-  ]
-}
-```
-
-- `title` (string, optional): Dialog title.
-- `defaultName` (string, optional): Suggested filename.
-- `filters` (array, optional): File type filters mapped directly to Windows dialog filters.
-- The backend may ignore unsupported or malformed filters.
-
----
-
-#### **Behavior**
-
-- Backend must use **`IFileSaveDialog`**.
-- The dialog is modal and blocks until user action.
-- Overwrite confirmation is handled **by the OS dialog**, not by the backend.
-- Backend must **not** create, truncate, or touch the file.
-- Returned paths must be absolute and normalized.
-- Operation is idempotent and side-effect free.
-
----
-
-#### **Response (Success)**
-
-```json
-{
-  "result": "success",
-  "arguments": {
-    "path": "C:/Users/.../Documents/export.json"
-  }
-}
-```
-
----
-
-#### **Response (User Cancelled)**
-
-```json
-{
-  "result": "success",
-  "arguments": {
-    "path": null
-  }
-}
-```
-
-`null` **always** indicates user cancellation and is **not an error**.
-
----
-
-#### **Errors**
-
-Standard error format applies:
-
-- `"native dialogs not supported"`
-- `"interactive session required"`
-- `"dialog already active"`
-
----
-
-### **Implementation Notes (Normative)**
-
-- Must be executed on an STA thread.
-- Must not be callable concurrently with another dialog.
-- Legacy APIs (`GetSaveFileName`) are forbidden.
-
----
-
-#### **Intended Uses**
-
-- Exporting statistics
-- Saving configuration snapshots
-- Writing debug or diagnostic output
-
-Actual file writing must be performed by a **separate RPC** using the returned path.
-
----
-
-## **6. Historical Traffic API (`history-*`)**
+## **3. Historical Traffic API (`history-*`)**
 
 **Concept:** Time-series data with server-side aggregation.
 **Transport:** HTTP RPC Only (Excluded from WebSocket snapshots to prevent head-of-line blocking).
 
-### **6.1 Retrieve History**
+### **3.1 Retrieve History**
 
 **Method:** `history-get`
 **Arguments:**
@@ -704,6 +170,8 @@ Actual file writing must be performed by a **separate RPC** using the returned p
 - `step` (int, optional): Aggregation window in seconds.
   - **Behavior:** Server snaps this to the nearest multiple of the recording interval.
   - **Logic:** If `step` > `recording_interval`, the server sums bytes (Volume) and finds the max bytes (Peak Speed) for the bucket.
+- `limit` (int, optional): Target number of data points.
+  - **Behavior:** If provided, the server MUST calculate the effective `step` required to return no more than `limit` data points (Adaptive Downsampling).
 
 **Response:**
 Returns a dense array of tuples for bandwidth efficiency.
@@ -727,7 +195,7 @@ Returns a dense array of tuples for bandwidth efficiency.
 - **Average Speed (Line):** `SumDown / step`.
 - **Peak Speed (Shadow):** `PeakDown / recording-interval`.
 
-### **6.2 Clear History**
+### **3.2 Clear History**
 
 **Method:** `history-clear`
 **Arguments:**
@@ -736,14 +204,13 @@ Returns a dense array of tuples for bandwidth efficiency.
 
 ---
 
-## **7. Engine Configuration (`session-set` / `session-get`)**
+## **4. Engine Configuration (`session-set` / `session-get`)**
 
-### **7.1 Proxy Configuration (Secure)**
+### **4.1 Proxy Configuration (Secure)**
 
 To achieve qBittorrent parity while maintaining security:
 
 - **Write Fields (`session-set`):**
-
   - `proxy-type`: Int (0-5).
   - `proxy-url`: String.
   - `proxy-auth-enabled`: Bool.
@@ -754,13 +221,16 @@ To achieve qBittorrent parity while maintaining security:
 - **Read Fields (`session-get`):**
   - **Redaction Rule:** The `proxy-password` field **must** return `<REDACTED>` or `null` in the response. It must **never** be sent in cleartext, even to an authenticated client.
 
-### **7.2 Path Handling**
+### **4.2 Path Policy & Auto-Provisioning**
 
-- **Fields:** `download-dir`, `incomplete-dir`, `watch-dir`.
-- **Normalization:** The Backend **must** normalize path separators (converting `/` to `\` on Windows) upon receipt, before storing in `settings.json`.
-- **Auto-Creation (Fail-safe):** If a user sets a path (via `session-set` or `torrent-add`) that does not exist, the backend **must** attempt to create it automatically. This ensures downloads do not fail simply because the user skipped the explicit "Create Folder" step.
+- **Opaque Strings:** The Daemon accepts filesystem paths as opaque strings provided by the UI (acquired via Native Shell Dialogs).
+- **Encoding:** All opaque strings provided for filesystem paths **MUST** be **UTF-8 encoded** to support international characters.
+- **Normalization:** The Backend **must** normalize path separators (converting `/` to `\` on Windows) upon receipt.
+- **Recursive Creation (Mandatory):** If a path provided in `torrent-add` or `session-set` does not exist, the backend **must** perform a recursive `mkdir -p` equivalent. The UI will not check for directory existence; it assumes the Daemon is the authority for path provisioning.
+This behavior is advertised via the **`path-auto-creation`** feature flag. When present, the UI should skip any "Directory Exists" pre-checks and assume the backend will provision necessary paths.
+- **Timeouts:** If the path points to a disconnected network drive (UNC) or unresponsive mount, the backend **must** enforce a strict timeout (e.g., 5 seconds) and return a specific error code (`path-unreachable`) rather than blocking the RPC thread indefinitely.
 
-### **7.3 Queueing & Automation**
+### **4.3 Queueing & Automation**
 
 - `queue-download-enabled` / `queue-download-size`
 - `queue-seed-enabled` / `queue-seed-size`
@@ -768,7 +238,7 @@ To achieve qBittorrent parity while maintaining security:
 - `incomplete-dir-enabled` / `incomplete-dir`
 - `watch-dir-enabled` / `watch-dir`
 
-### **7.4 Traffic History Configuration**
+### **4.4 Traffic History Configuration**
 
 These keys are available in `session-set` and `session-get`.
 
@@ -777,11 +247,11 @@ These keys are available in `session-set` and `session-get`.
   - **Constraint:** Minimum `60`. Default `300` (5 minutes).
 - `history-retention-days` (Int): Auto-deletion threshold. Default `30` (0 = Infinite).
 
-### **7.5 Tray Helpers**
+### **4.5 Tray Helpers**
 
 The Windows tray is intentionally thin. These RPC helpers expose only the data the tray needs without letting it enumerate every torrent.
 
-#### **7.5.1 session-tray-status**
+#### **4.5.1 session-tray-status**
 
 - **Method:** `session-tray-status` (no arguments)
 - **Auth:** Required (`X-TT-Auth`)
@@ -804,7 +274,7 @@ The Windows tray is intentionally thin. These RPC helpers expose only the data t
 
   `downloadSpeed` / `uploadSpeed` are in bytes per second, ideal for tooltip badges. The tray should show `activeTorrentCount` plus `seedingCount` and switch to the error icon when `anyError` is true. `downloadDir` is optional but, when populated, is guaranteed to be an absolute, normalized path so the tray can issue `system-open` without additional parsing. Use `allPaused` to pick which of the two RPCs below to invoke.
 
-#### **7.5.2 session-pause-all / session-resume-all**
+#### **4.5.2 session-pause-all / session-resume-all**
 
 - **Method:** `session-pause-all` / `session-resume-all`
 - **Auth:** Required
@@ -813,50 +283,11 @@ The Windows tray is intentionally thin. These RPC helpers expose only the data t
 
   Each method returns `serialize_success()` on completion. The tray should call `session-resume-all` when `allPaused` is `true` (showing “Resume All”) and `session-pause-all` when `allPaused` is `false`. If the backend is still initializing and returns an error, retry on the next tooltip poll.
 
-#### **7.5.3 system-install**
-
-- **Method:** `system-install`
-- **Auth:** Required (`X-TT-Auth`)
-- **Arguments:**
-  - `name` (`String`, optional): Label that prefixes each shortcut. Defaults to `TinyTorrent` and is capped at 64 characters.
-  - `args` (`String`, optional): Extra command-line arguments appended to every shortcut.
-  - `locations` (`Array<String>`, optional): Any subset of `desktop`, `start-menu`, `startup`. Defaults to all three when omitted or empty.
-  - `registerHandlers` (`Bool`, optional): When `true`, reuses `system-register-handler` to bind `magnet:` and `.torrent` types.
-  - `installToProgramFiles` (`Bool`, optional): When `true`, copies the running EXE into `C:/Program Files/TinyTorrent/TinyTorrent.exe` (requires elevation and may set `permissionDenied`).
-- **Response:**
-
-  ```json
-  {
-    "result": "success",
-    "arguments": {
-      "action": "system-install",
-      "success": true,
-      "shortcuts": {
-        "desktop": "C:/Users/.../Desktop/TinyTorrent.lnk",
-        "start-menu": "C:/Users/.../AppData/Roaming/Microsoft/Windows/Start Menu/Programs/TinyTorrent.lnk",
-        "startup": "C:/Users/.../AppData/Roaming/Microsoft/Windows/Start Menu/Programs/Startup/TinyTorrent.lnk"
-      },
-      "installSuccess": true,
-      "installMessage": "installed to C:/Program Files/TinyTorrent/TinyTorrent.exe",
-      "installedPath": "C:/Program Files/TinyTorrent/TinyTorrent.exe",
-      "handlersRegistered": true
-    }
-  }
-  ```
-
-  `shortcuts` maps each requested location to the `.lnk` that was actually created. When `installToProgramFiles` was requested, the backend includes `installSuccess`, `installMessage`, and `installedPath` even if the overall RPC reports `error`. `handlersRegistered` and `handlerMessage` mirror the `system-register-handler` result. The boolean `permissionDenied` notifies callers that elevated rights are required (e.g., capturing the Program Files copy failure).
-
-- **Behavior:**
-  - Runs on the IO queue and reuses the same shortcut/COM helpers the tray already depends on.
-  - Creates `.lnk` shortcuts pointing to either the current executable or the freshly installed copy when `installToProgramFiles` succeeds. Shortcuts are safe to call even on failure because they always point to a valid path.
-  - Optionally registers `magnet:`/`.torrent` handlers via `registerHandlers`.
-  - Designed for the Windows launcher flow; non-Windows platforms will report `system-install unsupported` and propagate `permissionDenied` when the OS prevents Program Files writes.
-
 ---
 
-## **8. Torrent Management (`torrent-set` / `torrent-get`)**
+## **5. Torrent Management (`torrent-set` / `torrent-get`)**
 
-### **8.1 Extended Properties**
+### **5.1 Extended Properties**
 
 - `sequential-download` (Bool): Stream priority.
 - `super-seeding` (Bool): Initial seeder mode.
@@ -865,8 +296,15 @@ The Windows tray is intentionally thin. These RPC helpers expose only the data t
 - `labels` (Array<String>):
   - **Implementation:** Backend must store these in a sidecar map (Hash -> Labels).
   - **Behavior:** Labels persist across restarts via `state.json`.
+  - **Global Registry:** To support UI consistency, the backend MUST maintain and return a `labels-registry` (Label Name -> Count) in the `session` object during `session-get` and `sync-patch`.
 
-### **8.2 Extended Status Fields**
+| Capability Key | RPC Argument (for `torrent-set`) | Type | Description |
+| :--- | :--- | :--- | :--- |
+| `sequential-download` | `sequential-download` | Bool | Prioritize pieces in linear order. |
+| `super-seeding` | `super-seeding` | Bool | Enable initial seeding optimization. |
+| `labels` | `labels` | String Array | Assign metadata tags to the torrent. |
+
+### **5.2 Extended Status Fields**
 
 - `metadata-percent-complete` (Double):
   - Range: 0.0 to 1.0.
@@ -874,9 +312,17 @@ The Windows tray is intentionally thin. These RPC helpers expose only the data t
 - `time-until-pause` (Int):
   - Usage: Seconds remaining until the "Seeding Idle Limit" kicks in.
 
+### **5.3 Local Path Injection (`torrent-add`)**
+
+To support the Native Shell's "Direct Add" feature. This method is advertised via the **`metainfo-path-injection`** feature flag.
+
+- **Method:** `torrent-add`
+- **Argument:** `metainfo-path` (string, optional).
+- **Behavior:** When `metainfo-path` is provided, the Daemon reads the `.torrent` file directly from the local disk using the path string. The UI is **forbidden** from sending Base64 chunks of the file if a local path is available. This prevents IPC memory pressure and ensures the Daemon handles file-locking correctly.
+
 ---
 
-## **9. Error Handling Standards**
+## **6. Error Handling Standards**
 
 To ensure the Frontend can localize errors correctly, extended methods must return standard Transmission-style errors.
 
@@ -886,7 +332,8 @@ To ensure the Frontend can localize errors correctly, extended methods must retu
 {
   "result": "error",
   "arguments": {
-    "message": "Permission denied writing to registry keys."
+    "message": "Permission denied writing to registry keys.",
+    "code": 4001
   }
 }
 ```
@@ -894,3 +341,12 @@ To ensure the Frontend can localize errors correctly, extended methods must retu
 - **Generic Errors:** "engine unavailable", "invalid argument".
 - **Filesystem Errors:** "path not found", "access denied".
 - **System Errors:** "permission denied" (for Registry/Association).
+
+**Standardized Extended Error Codes:**
+
+| Error String | Code | Trigger Condition |
+| :--- | :--- | :--- |
+| `path-unreachable` | 4001 | Network drive timeout or invalid UNC path. |
+| `metainfo-read-failure` | 4002 | Provided `metainfo-path` is corrupt, locked, or missing. |
+| `invalid-sequence` | 4004 | WebSocket synchronization gap detected. |
+| `permission-denied` | 4003 | OS-level access restriction (ACLs). |
