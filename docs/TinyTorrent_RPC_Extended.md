@@ -79,6 +79,37 @@ are **exclusively owned by the Native Host Shell**.
 
 The RPC Daemon **MUST NOT** expose filesystem browsing or dialog-related RPC methods. All filesystem paths provided to the Daemon are treated as opaque, pre-validated strings originating from the Host Shell.
 
+### 1.5 Server Class Routing (Normative)
+
+TinyTorrent frontends MUST adapt behavior based on the reported server class.
+
+The capability probe (`tt-get-capabilities`) MUST include:
+
+- `server-class`: `"tinytorrent"` or `"transmission"`
+
+#### tinytorrent
+
+When `server-class` is `tinytorrent`:
+
+- A Native Host Shell is authoritative.
+- Native OS interactions (dialogs, clipboard, window state) are handled exclusively by the Host Shell (§1.4).
+- Base64 torrent upload MUST NOT be used when `metainfo-path-injection` is available.
+- Local `.torrent` files MUST be provided via `metainfo-path` injection.
+- WebSocket delta synchronization MUST be preferred when `websocket-delta-sync` is advertised.
+- Legacy Transmission attach/detach semantics do not apply.
+
+#### transmission
+
+When `server-class` is `transmission`:
+
+- The frontend MUST operate in Transmission compatibility mode.
+- Native Host Shell integration MUST be disabled.
+- Standard Transmission HTTP RPC flows apply.
+- Base64 torrent upload MAY be used.
+- `session-ui-attach` / `session-ui-detach` semantics apply.
+- WebSocket extensions and TinyTorrent-specific capabilities are unavailable.
+
+
 ---
 
 ## **2. WebSocket Protocol (State Synchronization)**
