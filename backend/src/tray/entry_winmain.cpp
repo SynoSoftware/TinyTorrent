@@ -13,8 +13,8 @@
 #include <dxgi1_2.h>
 #include <psapi.h>
 #include <shellapi.h>
-#include <shobjidl.h>
 #include <shlobj_core.h>
+#include <shobjidl.h>
 #include <windowsx.h>
 #include <winhttp.h>
 #pragma comment(lib, "ole32.lib")
@@ -78,6 +78,9 @@
 #endif
 #ifndef DWMWA_COLOR_NONE
 #define DWMWA_COLOR_NONE 0xFFFFFFFE
+#endif
+#ifndef WS_EX_NOREDIRECTIONBITMAP
+#define WS_EX_NOREDIRECTIONBITMAP 0x00200000L
 #endif
 
 namespace
@@ -168,7 +171,8 @@ struct TrayState
     bool webview_in_size_move = false;
 
     Microsoft::WRL::ComPtr<ICoreWebView2Controller> webview_controller;
-    Microsoft::WRL::ComPtr<ICoreWebView2CompositionController> webview_comp_controller;
+    Microsoft::WRL::ComPtr<ICoreWebView2CompositionController>
+        webview_comp_controller;
     Microsoft::WRL::ComPtr<ICoreWebView2CompositionController4>
         webview_comp_controller4;
     Microsoft::WRL::ComPtr<ICoreWebView2> webview;
@@ -255,10 +259,10 @@ std::string build_free_space_payload(std::wstring const &path,
                                      ULARGE_INTEGER const &free_bytes,
                                      ULARGE_INTEGER const &total_bytes);
 std::optional<std::wstring> open_file_dialog(HWND owner);
-std::optional<std::wstring> open_folder_dialog(HWND owner,
-                                               std::wstring const &initial_path);
-std::optional<std::wstring> resolve_existing_directory(
-    std::wstring const &candidate);
+std::optional<std::wstring>
+open_folder_dialog(HWND owner, std::wstring const &initial_path);
+std::optional<std::wstring>
+resolve_existing_directory(std::wstring const &candidate);
 
 // --- Utilities ---
 
@@ -341,12 +345,12 @@ void native_diag_log(std::wstring const &text)
     {
         file_init = true;
         wchar_t temp_path[MAX_PATH] = {};
-        DWORD n = GetTempPathW(static_cast<DWORD>(std::size(temp_path)),
-                               temp_path);
+        DWORD n =
+            GetTempPathW(static_cast<DWORD>(std::size(temp_path)), temp_path);
         if (n > 0 && n < std::size(temp_path))
         {
-            std::wstring path = std::wstring(temp_path) +
-                                L"TinyTorrentNativeDiag.log";
+            std::wstring path =
+                std::wstring(temp_path) + L"TinyTorrentNativeDiag.log";
             file = CreateFileW(path.c_str(), FILE_APPEND_DATA,
                                FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
                                OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
@@ -359,9 +363,8 @@ void native_diag_log(std::wstring const &text)
     }
 
     std::wstring line = text + L"\r\n";
-    int bytes_needed =
-        WideCharToMultiByte(CP_UTF8, 0, line.c_str(), -1, nullptr, 0, nullptr,
-                            nullptr);
+    int bytes_needed = WideCharToMultiByte(CP_UTF8, 0, line.c_str(), -1,
+                                           nullptr, 0, nullptr, nullptr);
     if (bytes_needed <= 1)
     {
         return;
@@ -382,8 +385,8 @@ void native_diag_logf(wchar_t const *prefix, HWND hwnd,
         return;
     }
     std::wstringstream ss;
-    ss << L"[TT_NATIVE_DIAG] " << prefix << L" hwnd=0x"
-       << std::hex << reinterpret_cast<uintptr_t>(hwnd) << std::dec << L" cls="
+    ss << L"[TT_NATIVE_DIAG] " << prefix << L" hwnd=0x" << std::hex
+       << reinterpret_cast<uintptr_t>(hwnd) << std::dec << L" cls="
        << hwnd_class_name(hwnd) << L" " << message;
     native_diag_log(ss.str());
 }
@@ -484,22 +487,24 @@ bool ensure_dcomp_visual_tree(TrayState &state, DCompInitFailure *failure)
         }
         return false;
     }
-    if (state.dcomp_device && state.dcomp_root_visual && state.dcomp_webview_visual)
+    if (state.dcomp_device && state.dcomp_root_visual &&
+        state.dcomp_webview_visual)
     {
         return true;
     }
 
     UINT flags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
-    D3D_FEATURE_LEVEL levels[] = {D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0,
-                                  D3D_FEATURE_LEVEL_10_1, D3D_FEATURE_LEVEL_10_0};
+    D3D_FEATURE_LEVEL levels[] = {
+        D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_10_1,
+        D3D_FEATURE_LEVEL_10_0};
     D3D_FEATURE_LEVEL level = D3D_FEATURE_LEVEL_11_0;
     Microsoft::WRL::ComPtr<ID3D11Device> device;
     Microsoft::WRL::ComPtr<ID3D11DeviceContext> context;
 
-    HRESULT hr = D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr,
-                                   flags, levels,
-                                   static_cast<UINT>(std::size(levels)),
-                                   D3D11_SDK_VERSION, &device, &level, &context);
+    HRESULT hr =
+        D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, flags,
+                          levels, static_cast<UINT>(std::size(levels)),
+                          D3D11_SDK_VERSION, &device, &level, &context);
     if (FAILED(hr))
     {
         hr = D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_WARP, nullptr, flags,
@@ -622,7 +627,8 @@ bool ensure_dcomp_visual_tree(TrayState &state, DCompInitFailure *failure)
 
 bool attach_dcomp_target(TrayState &state, DCompInitFailure *failure)
 {
-    if (!state.webview_window || !state.dcomp_device || !state.dcomp_root_visual)
+    if (!state.webview_window || !state.dcomp_device ||
+        !state.dcomp_root_visual)
     {
         if (failure)
         {
@@ -637,8 +643,8 @@ bool attach_dcomp_target(TrayState &state, DCompInitFailure *failure)
     }
 
     Microsoft::WRL::ComPtr<IDCompositionTarget> target;
-    HRESULT hr =
-        state.dcomp_device->CreateTargetForHwnd(state.webview_window, TRUE, &target);
+    HRESULT hr = state.dcomp_device->CreateTargetForHwnd(state.webview_window,
+                                                         TRUE, &target);
     if (FAILED(hr) || !target)
     {
         if (failure)
@@ -722,8 +728,8 @@ void commit_dcomp(TrayState *state)
     }
 }
 
-void update_webview_controller_bounds_from_client_rect(TrayState *state, HWND hwnd,
-                                                       RECT client)
+void update_webview_controller_bounds_from_client_rect(TrayState *state,
+                                                       HWND hwnd, RECT client)
 {
     if (!state || !state->webview_controller)
     {
@@ -744,20 +750,19 @@ void update_webview_controller_bounds_from_client_rect(TrayState *state, HWND hw
         RECT current{};
         HRESULT hr = state->webview_controller->get_Bounds(&current);
         std::wstringstream ss;
-        ss << L"dpi=" << GetDpiForWindow(hwnd)
-           << L" rw=[" << rw.left << L"," << rw.top << L"," << rw.right << L","
-           << rw.bottom << L"]"
+        ss << L"dpi=" << GetDpiForWindow(hwnd) << L" rw=[" << rw.left << L","
+           << rw.top << L"," << rw.right << L"," << rw.bottom << L"]"
            << L" efb_hr=0x" << std::hex << static_cast<uint32_t>(efb_hr)
            << std::dec << L" efb=[" << efb.left << L"," << efb.top << L","
-           << efb.right << L"," << efb.bottom << L"]"
-           << L" client=[" << client.left << L"," << client.top << L","
-           << client.right << L"," << client.bottom << L"]"
-           << L" put_hr=0x" << std::hex << static_cast<uint32_t>(put_hr)
-           << std::dec << L" set=[" << bounds.left << L"," << bounds.top << L","
-           << bounds.right << L"," << bounds.bottom << L"]"
-           << L" get_hr=0x" << std::hex << static_cast<uint32_t>(hr) << std::dec
-           << L" get=[" << current.left << L"," << current.top << L","
-           << current.right << L"," << current.bottom << L"]";
+           << efb.right << L"," << efb.bottom << L"]" << L" client=["
+           << client.left << L"," << client.top << L"," << client.right << L","
+           << client.bottom << L"]" << L" put_hr=0x" << std::hex
+           << static_cast<uint32_t>(put_hr) << std::dec << L" set=["
+           << bounds.left << L"," << bounds.top << L"," << bounds.right << L","
+           << bounds.bottom << L"]" << L" get_hr=0x" << std::hex
+           << static_cast<uint32_t>(hr) << std::dec << L" get=[" << current.left
+           << L"," << current.top << L"," << current.right << L","
+           << current.bottom << L"]";
         native_diag_logf(L"put_Bounds", hwnd, ss.str());
     }
 }
@@ -824,9 +829,9 @@ HRESULT finish_webview_controller_setup(TrayState &state)
                 COREWEBVIEW2_COLOR current{};
                 HRESULT hr = controller2->get_DefaultBackgroundColor(&current);
                 std::wstringstream ss;
-                ss << L"set={0,0,0,0}"
-                   << L" get_hr=0x" << std::hex << static_cast<uint32_t>(hr)
-                   << std::dec << L" get={" << static_cast<int>(current.R) << L","
+                ss << L"set={0,0,0,0}" << L" get_hr=0x" << std::hex
+                   << static_cast<uint32_t>(hr) << std::dec << L" get={"
+                   << static_cast<int>(current.R) << L","
                    << static_cast<int>(current.G) << L","
                    << static_cast<int>(current.B) << L","
                    << static_cast<int>(current.A) << L"}";
@@ -876,7 +881,8 @@ HRESULT finish_webview_controller_setup(TrayState &state)
                 if (native_diag_enabled() && state.webview_window)
                 {
                     log_webview_dom_transparency(state);
-                    SetTimer(state.webview_window, kDiagSweepTimerId, 750, nullptr);
+                    SetTimer(state.webview_window, kDiagSweepTimerId, 750,
+                             nullptr);
                 }
                 if (state.webview_window)
                 {
@@ -892,7 +898,8 @@ HRESULT finish_webview_controller_setup(TrayState &state)
     return S_OK;
 }
 
-COREWEBVIEW2_MOUSE_EVENT_VIRTUAL_KEYS webview_mouse_keys_from_wparam(WPARAM wparam)
+COREWEBVIEW2_MOUSE_EVENT_VIRTUAL_KEYS
+webview_mouse_keys_from_wparam(WPARAM wparam)
 {
     COREWEBVIEW2_MOUSE_EVENT_VIRTUAL_KEYS keys =
         COREWEBVIEW2_MOUSE_EVENT_VIRTUAL_KEYS_NONE;
@@ -928,7 +935,7 @@ COREWEBVIEW2_MOUSE_EVENT_VIRTUAL_KEYS webview_mouse_keys_from_wparam(WPARAM wpar
 }
 
 bool try_forward_webview_mouse_input(TrayState *state, HWND hwnd, UINT msg,
-                                    WPARAM wparam, LPARAM lparam)
+                                     WPARAM wparam, LPARAM lparam)
 {
     if (!state || !state->webview_comp_controller || !state->webview_controller)
     {
@@ -999,15 +1006,15 @@ bool try_forward_webview_mouse_input(TrayState *state, HWND hwnd, UINT msg,
         break;
     case WM_MOUSEWHEEL:
         kind = COREWEBVIEW2_MOUSE_EVENT_KIND_WHEEL;
-        mouse_data = static_cast<UINT32>(static_cast<SHORT>(
-            HIWORD(static_cast<DWORD>(wparam))));
+        mouse_data = static_cast<UINT32>(
+            static_cast<SHORT>(HIWORD(static_cast<DWORD>(wparam))));
         pt = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
         screen_point = true;
         break;
     case WM_MOUSEHWHEEL:
         kind = COREWEBVIEW2_MOUSE_EVENT_KIND_HORIZONTAL_WHEEL;
-        mouse_data = static_cast<UINT32>(static_cast<SHORT>(
-            HIWORD(static_cast<DWORD>(wparam))));
+        mouse_data = static_cast<UINT32>(
+            static_cast<SHORT>(HIWORD(static_cast<DWORD>(wparam))));
         pt = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
         screen_point = true;
         break;
@@ -1024,8 +1031,8 @@ bool try_forward_webview_mouse_input(TrayState *state, HWND hwnd, UINT msg,
     }
 
     auto keys = webview_mouse_keys_from_wparam(wparam);
-    HRESULT hr =
-        state->webview_comp_controller->SendMouseInput(kind, keys, mouse_data, pt);
+    HRESULT hr = state->webview_comp_controller->SendMouseInput(kind, keys,
+                                                                mouse_data, pt);
     if (native_diag_enabled() && FAILED(hr))
     {
         std::wstringstream ss;
@@ -1055,8 +1062,8 @@ void apply_dark_titlebar(HWND hwnd)
     HRESULT hr1 = DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE,
                                         &dark, sizeof(dark));
     COLORREF caption_color = DWMWA_COLOR_NONE;
-    HRESULT hr2 = DwmSetWindowAttribute(hwnd, DWMWA_CAPTION_COLOR, &caption_color,
-                                        sizeof(caption_color));
+    HRESULT hr2 = DwmSetWindowAttribute(hwnd, DWMWA_CAPTION_COLOR,
+                                        &caption_color, sizeof(caption_color));
     COLORREF text_color = DWMWA_COLOR_NONE;
     HRESULT hr3 = DwmSetWindowAttribute(hwnd, DWMWA_TEXT_COLOR, &text_color,
                                         sizeof(text_color));
@@ -1077,11 +1084,12 @@ void apply_frameless_window_style(HWND hwnd)
         return;
     }
     DWORD border = DWMWA_COLOR_NONE;
-    HRESULT hr1 =
-        DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, &border, sizeof(border));
+    HRESULT hr1 = DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, &border,
+                                        sizeof(border));
     UINT frame_thickness = 0;
-    HRESULT hr2 = DwmSetWindowAttribute(hwnd, DWMWA_VISIBLE_FRAME_BORDER_THICKNESS,
-                                        &frame_thickness, sizeof(frame_thickness));
+    HRESULT hr2 =
+        DwmSetWindowAttribute(hwnd, DWMWA_VISIBLE_FRAME_BORDER_THICKNESS,
+                              &frame_thickness, sizeof(frame_thickness));
     if (native_diag_enabled())
     {
         std::wstringstream ss;
@@ -1089,6 +1097,49 @@ void apply_frameless_window_style(HWND hwnd)
            << L" frame_thickness=0x" << static_cast<uint32_t>(hr2) << std::dec;
         native_diag_logf(L"dwm", hwnd, ss.str());
     }
+}
+
+bool set_no_redirection_bitmap(HWND hwnd, bool enable)
+{
+    if (!hwnd)
+    {
+        return false;
+    }
+    LONG_PTR ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+    LONG_PTR desired =
+        enable ? (ex | WS_EX_NOREDIRECTIONBITMAP)
+               : (ex & ~static_cast<LONG_PTR>(WS_EX_NOREDIRECTIONBITMAP));
+    if (desired == ex)
+    {
+        if (native_diag_enabled())
+        {
+            std::wstringstream ss;
+            ss << L"enable=" << (enable ? L"true" : L"false")
+               << L" ex=0x" << std::hex << static_cast<uint32_t>(ex) << std::dec
+               << L" (already)";
+            native_diag_logf(L"noredirect", hwnd, ss.str());
+        }
+        return ((ex & WS_EX_NOREDIRECTIONBITMAP) != 0) == enable;
+    }
+    SetLastError(ERROR_SUCCESS);
+    SetWindowLongPtrW(hwnd, GWL_EXSTYLE, desired);
+    DWORD gle = GetLastError();
+    SetWindowPos(hwnd, nullptr, 0, 0, 0, 0,
+                 SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
+                     SWP_NOACTIVATE);
+    LONG_PTR applied = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+    bool ok = ((applied & WS_EX_NOREDIRECTIONBITMAP) != 0) == enable;
+    if (native_diag_enabled() || !ok)
+    {
+        std::wstringstream ss;
+        ss << L"enable=" << (enable ? L"true" : L"false")
+           << L" gle=" << gle
+           << L" desired_ex=0x" << std::hex << static_cast<uint32_t>(desired)
+           << L" applied_ex=0x" << static_cast<uint32_t>(applied) << std::dec
+           << L" ok=" << (ok ? L"true" : L"false");
+        native_diag_logf(L"noredirect", hwnd, ss.str());
+    }
+    return ok;
 }
 
 void configure_webview_window_chrome(HWND hwnd)
@@ -1140,10 +1191,12 @@ void run_diag_hittest_sweep(TrayState &state)
     RECT wr{};
     if (!GetWindowRect(state.webview_window, &wr))
     {
-        native_diag_logf(L"sweep", state.webview_window, L"GetWindowRect failed");
+        native_diag_logf(L"sweep", state.webview_window,
+                         L"GetWindowRect failed");
         return;
     }
-    ResizeBorderThickness border = get_resize_border_thickness(state.webview_window);
+    ResizeBorderThickness border =
+        get_resize_border_thickness(state.webview_window);
     long width = std::max(0L, wr.right - wr.left);
     long height = std::max(0L, wr.bottom - wr.top);
     if (width == 0 || height == 0)
@@ -1400,17 +1453,17 @@ void handle_webview_json_message(TrayState &state, std::string const &payload)
                     {
                         ULARGE_INTEGER free_bytes{};
                         ULARGE_INTEGER total_bytes{};
-                        if (!GetDiskFreeSpaceExW(directory->c_str(), &free_bytes,
-                                                 &total_bytes, nullptr))
+                        if (!GetDiskFreeSpaceExW(directory->c_str(),
+                                                 &free_bytes, &total_bytes,
+                                                 nullptr))
                         {
                             error = "native host free-space query failed";
                         }
                         else
                         {
                             success = true;
-                            response_payload =
-                                build_free_space_payload(*directory, free_bytes,
-                                                         total_bytes);
+                            response_payload = build_free_space_payload(
+                                *directory, free_bytes, total_bytes);
                         }
                     }
                 }
@@ -1439,10 +1492,9 @@ void handle_webview_json_message(TrayState &state, std::string const &payload)
                 }
                 else
                 {
-                    auto result =
-                        ShellExecuteW(state.webview_window, L"open",
-                                      path.c_str(), nullptr, nullptr,
-                                      SW_SHOWNORMAL);
+                    auto result = ShellExecuteW(state.webview_window, L"open",
+                                                path.c_str(), nullptr, nullptr,
+                                                SW_SHOWNORMAL);
                     if (reinterpret_cast<INT_PTR>(result) <= 32)
                     {
                         error = "native host open-path failed";
@@ -1489,9 +1541,8 @@ void handle_webview_json_message(TrayState &state, std::string const &payload)
     {
         error = "native host request unhandled";
     }
-    post_webview_message(state,
-                         build_host_response(id_value, success, error,
-                                             response_payload));
+    post_webview_message(
+        state, build_host_response(id_value, success, error, response_payload));
     yyjson_doc_free(doc);
 }
 
@@ -1509,7 +1560,7 @@ void apply_webview_window_icons(TrayState &state)
     if (state.icon)
     {
         SendMessageW(state.webview_window, WM_SETICON, ICON_SMALL,
-        reinterpret_cast<LPARAM>(state.icon));
+                     reinterpret_cast<LPARAM>(state.icon));
     }
 }
 
@@ -1622,17 +1673,16 @@ std::string build_free_space_payload(std::wstring const &path,
                                      ULARGE_INTEGER const &total_bytes)
 {
     std::string escaped = escape_json_string(narrow(path));
-    return "{\"path\":\"" + escaped + "\",\"sizeBytes\":" +
-           std::to_string(free_bytes.QuadPart) + ",\"totalSize\":" +
-           std::to_string(total_bytes.QuadPart) + "}";
+    return "{\"path\":\"" + escaped +
+           "\",\"sizeBytes\":" + std::to_string(free_bytes.QuadPart) +
+           ",\"totalSize\":" + std::to_string(total_bytes.QuadPart) + "}";
 }
 
 std::optional<std::wstring> open_file_dialog(HWND owner)
 {
     Microsoft::WRL::ComPtr<IFileOpenDialog> dialog;
     HRESULT hr = CoCreateInstance(CLSID_FileOpenDialog, nullptr,
-                                  CLSCTX_INPROC_SERVER,
-                                  IID_PPV_ARGS(&dialog));
+                                  CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dialog));
     if (FAILED(hr) || !dialog)
     {
         return std::nullopt;
@@ -1677,13 +1727,12 @@ std::optional<std::wstring> open_file_dialog(HWND owner)
     return result;
 }
 
-std::optional<std::wstring>
-open_folder_dialog(HWND owner, std::wstring const &initial_path)
+std::optional<std::wstring> open_folder_dialog(HWND owner,
+                                               std::wstring const &initial_path)
 {
     Microsoft::WRL::ComPtr<IFileOpenDialog> dialog;
     HRESULT hr = CoCreateInstance(CLSID_FileOpenDialog, nullptr,
-                                  CLSCTX_INPROC_SERVER,
-                                  IID_PPV_ARGS(&dialog));
+                                  CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dialog));
     if (FAILED(hr) || !dialog)
     {
         return std::nullopt;
@@ -1732,8 +1781,8 @@ open_folder_dialog(HWND owner, std::wstring const &initial_path)
     return result;
 }
 
-std::optional<std::wstring> resolve_existing_directory(
-    std::wstring const &candidate)
+std::optional<std::wstring>
+resolve_existing_directory(std::wstring const &candidate)
 {
     if (candidate.empty())
     {
@@ -1901,6 +1950,21 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
             native_diag_logf(L"erasebkgnd", hwnd, L"return=1");
         }
         return 1;
+    case WM_PAINT:
+    {
+        // Never paint a solid background. The only content is DComp/WebView.
+        PAINTSTRUCT ps{};
+        BeginPaint(hwnd, &ps);
+        EndPaint(hwnd, &ps);
+        if (native_diag_enabled())
+        {
+            std::wstringstream ss;
+            ss << L"rcPaint=[" << ps.rcPaint.left << L"," << ps.rcPaint.top
+               << L"," << ps.rcPaint.right << L"," << ps.rcPaint.bottom << L"]";
+            native_diag_logf(L"paint", hwnd, ss.str());
+        }
+        return 0;
+    }
     case WM_NCHITTEST:
     {
         // Frameless resize hit-testing (edges only). Drag is handled by
@@ -1910,9 +1974,9 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
         {
             HWND under = WindowFromPoint(pt);
             std::wstringstream ss;
-            ss << L"pt=(" << pt.x << L"," << pt.y << L")"
-               << L" under=0x" << std::hex << reinterpret_cast<uintptr_t>(under)
-               << std::dec << L" under_cls=" << hwnd_class_name(under);
+            ss << L"pt=(" << pt.x << L"," << pt.y << L")" << L" under=0x"
+               << std::hex << reinterpret_cast<uintptr_t>(under) << std::dec
+               << L" under_cls=" << hwnd_class_name(under);
             native_diag_logf(L"nchittest_enter", hwnd, ss.str());
         }
 
@@ -1979,10 +2043,9 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
         if (native_diag_enabled())
         {
             std::wstringstream ss;
-            ss << L"rw=[" << rw.left << L"," << rw.top << L"," << rw.right << L","
-               << rw.bottom << L"]"
-               << L" border=[" << border_x << L"," << border_y << L"]"
-               << L" result=" << result;
+            ss << L"rw=[" << rw.left << L"," << rw.top << L"," << rw.right
+               << L"," << rw.bottom << L"]" << L" border=[" << border_x << L","
+               << border_y << L"]" << L" result=" << result;
             native_diag_logf(L"nchittest_exit", hwnd, ss.str());
         }
 
@@ -1996,8 +2059,8 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
                 HRESULT hr = E_NOINTERFACE;
                 if (state->webview_comp_controller4)
                 {
-                    hr = state->webview_comp_controller4->GetNonClientRegionAtPoint(
-                        client_pt, &kind);
+                    hr = state->webview_comp_controller4
+                             ->GetNonClientRegionAtPoint(client_pt, &kind);
                 }
                 if (SUCCEEDED(hr) &&
                     kind == COREWEBVIEW2_NON_CLIENT_REGION_KIND_CAPTION)
@@ -2132,8 +2195,20 @@ bool ensure_native_webview(TrayState &state)
         }
         SetWindowLongPtrW(state.webview_window, GWLP_USERDATA,
                           reinterpret_cast<LONG_PTR>(&state));
+        if (native_diag_enabled())
+        {
+            DWORD style = static_cast<DWORD>(
+                GetWindowLongPtrW(state.webview_window, GWL_STYLE));
+            DWORD ex_style = static_cast<DWORD>(
+                GetWindowLongPtrW(state.webview_window, GWL_EXSTYLE));
+            std::wstringstream ss;
+            ss << L"style=0x" << std::hex << style << L" ex=0x" << ex_style
+               << std::dec;
+            native_diag_logf(L"create", state.webview_window, ss.str());
+        }
         apply_webview_window_icons(state);
         configure_webview_window_chrome(state.webview_window);
+        set_no_redirection_bitmap(state.webview_window, true);
         ShowWindow(state.webview_window, SW_HIDE);
     }
     if (state.webview_controller)
@@ -2162,15 +2237,17 @@ bool ensure_native_webview(TrayState &state)
                 {
                     if (FAILED(res))
                     {
-                        TT_LOG_INFO("WebView2 environment initialization failed "
-                                    "({:#X}); UI will remain hidden",
-                                    static_cast<uint32_t>(res));
+                        TT_LOG_INFO(
+                            "WebView2 environment initialization failed "
+                            "({:#X}); UI will remain hidden",
+                            static_cast<uint32_t>(res));
                     }
                     return res;
                 }
 
-                auto start_hwnd_host = [env, &state](std::string const &reason,
-                                                    HRESULT reason_hr) -> HRESULT
+                auto start_hwnd_host = [env,
+                                        &state](std::string const &reason,
+                                                HRESULT reason_hr) -> HRESULT
                 {
                     TT_LOG_INFO("WebView2 hosting mode: HWND (reason: {}, "
                                 "hr={:#X})",
@@ -2178,13 +2255,15 @@ bool ensure_native_webview(TrayState &state)
 
                     reset_webview_objects_keep_window(state);
                     reset_dcomp_host(state);
+                    set_no_redirection_bitmap(state.webview_window, false);
 
                     return env->CreateCoreWebView2Controller(
                         state.webview_window,
                         Microsoft::WRL::Callback<
                             ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>(
-                            [&state](HRESULT ctrl_res,
-                                     ICoreWebView2Controller *controller) -> HRESULT
+                            [&state](
+                                HRESULT ctrl_res,
+                                ICoreWebView2Controller *controller) -> HRESULT
                             {
                                 if (state.shutting_down.load())
                                 {
@@ -2193,7 +2272,8 @@ bool ensure_native_webview(TrayState &state)
                                 if (FAILED(ctrl_res) || !controller)
                                 {
                                     TT_LOG_INFO(
-                                        "WebView2 HWND controller initialization "
+                                        "WebView2 HWND controller "
+                                        "initialization "
                                         "failed ({:#X}); UI will remain hidden",
                                         static_cast<uint32_t>(ctrl_res));
                                     return ctrl_res;
@@ -2213,18 +2293,21 @@ bool ensure_native_webview(TrayState &state)
                         std::wstringstream ss;
                         ss << L"env3_qi_hr=0x" << std::hex
                            << static_cast<uint32_t>(qi_hr) << std::dec;
-                        native_diag_logf(L"webview2", state.webview_window, ss.str());
+                        native_diag_logf(L"webview2", state.webview_window,
+                                         ss.str());
                     }
-                    return start_hwnd_host("ICoreWebView2Environment3 missing", qi_hr);
+                    return start_hwnd_host("ICoreWebView2Environment3 missing",
+                                           qi_hr);
                 }
 
                 return env3->CreateCoreWebView2CompositionController(
                     state.webview_window,
                     Microsoft::WRL::Callback<
                         ICoreWebView2CreateCoreWebView2CompositionControllerCompletedHandler>(
-                        [&state, start_hwnd_host](HRESULT ctrl_res,
-                                 ICoreWebView2CompositionController
-                                      *controller) -> HRESULT
+                        [&state, start_hwnd_host](
+                            HRESULT ctrl_res,
+                            ICoreWebView2CompositionController *controller)
+                            -> HRESULT
                         {
                             if (state.shutting_down.load())
                             {
@@ -2233,7 +2316,8 @@ bool ensure_native_webview(TrayState &state)
                             if (FAILED(ctrl_res) || !controller)
                             {
                                 return start_hwnd_host(
-                                    "CreateCoreWebView2CompositionController failed",
+                                    "CreateCoreWebView2CompositionController "
+                                    "failed",
                                     ctrl_res);
                             }
 
@@ -2243,42 +2327,57 @@ bool ensure_native_webview(TrayState &state)
 
                             Microsoft::WRL::ComPtr<ICoreWebView2Controller>
                                 controller_base;
-                            HRESULT base_hr =
-                                controller->QueryInterface(IID_PPV_ARGS(
-                                    &controller_base));
+                            HRESULT base_hr = controller->QueryInterface(
+                                IID_PPV_ARGS(&controller_base));
                             if (FAILED(base_hr) || !controller_base)
                             {
                                 return start_hwnd_host(
-                                    "composition controller QI to ICoreWebView2Controller failed",
+                                    "composition controller QI to "
+                                    "ICoreWebView2Controller failed",
                                     base_hr);
                             }
                             state.webview_controller = controller_base;
 
                             DCompInitFailure dcomp_failure{};
-                            if (!ensure_dcomp_visual_tree(state, &dcomp_failure))
+                            if (!ensure_dcomp_visual_tree(state,
+                                                          &dcomp_failure))
                             {
-                                std::string reason = "composition host unavailable at ";
-                                reason += narrow(std::wstring(dcomp_failure.step));
-                                return start_hwnd_host(reason, dcomp_failure.hr);
+                                std::string reason =
+                                    "composition host unavailable at ";
+                                reason +=
+                                    narrow(std::wstring(dcomp_failure.step));
+                                return start_hwnd_host(reason,
+                                                       dcomp_failure.hr);
                             }
 
+                            set_no_redirection_bitmap(state.webview_window,
+                                                      true);
+
                             HRESULT visual_hr =
-                                state.webview_comp_controller->put_RootVisualTarget(
-                                    state.dcomp_webview_visual.Get());
+                                state.webview_comp_controller
+                                    ->put_RootVisualTarget(
+                                        state.dcomp_webview_visual.Get());
                             if (FAILED(visual_hr))
                             {
-                                return start_hwnd_host("put_RootVisualTarget failed",
-                                                       visual_hr);
+                                return start_hwnd_host(
+                                    "put_RootVisualTarget failed", visual_hr);
                             }
 
                             if (!attach_dcomp_target(state, &dcomp_failure))
                             {
-                                std::string reason = "composition host unavailable at ";
-                                reason += narrow(std::wstring(dcomp_failure.step));
-                                return start_hwnd_host(reason, dcomp_failure.hr);
+                                std::string reason =
+                                    "composition host unavailable at ";
+                                reason +=
+                                    narrow(std::wstring(dcomp_failure.step));
+                                return start_hwnd_host(reason,
+                                                       dcomp_failure.hr);
                             }
 
-                            TT_LOG_INFO("WebView2 hosting mode: composition");
+                            DWORD ex = static_cast<DWORD>(
+                                GetWindowLongPtrW(state.webview_window, GWL_EXSTYLE));
+                            TT_LOG_INFO(
+                                "WebView2 hosting mode: composition ex=0x{:#X}",
+                                static_cast<uint32_t>(ex));
                             return finish_webview_controller_setup(state);
                         })
                         .Get());
@@ -2307,6 +2406,7 @@ void show_native_window(TrayState &state)
     apply_webview_window_icons(state);
     apply_saved_window_state(state);
     ShowWindow(state.webview_window, SW_SHOW);
+    set_no_redirection_bitmap(state.webview_window, true);
     SetForegroundWindow(state.webview_window);
     close_splash_window();
 }
@@ -2420,7 +2520,8 @@ void enable_acrylic(HWND hwnd)
         hUser32, "SetWindowCompositionAttribute");
     if (!fn)
     {
-        native_diag_logf(L"acrylic", hwnd, L"SetWindowCompositionAttribute=null");
+        native_diag_logf(L"acrylic", hwnd,
+                         L"SetWindowCompositionAttribute=null");
         return;
     }
     ACCENT_POLICY policy{ACCENT_ENABLE_BLURBEHIND, 0, 0xCCFFFFFF, 0};
@@ -2432,8 +2533,8 @@ void enable_acrylic(HWND hwnd)
         DWORD err = GetLastError();
         std::wstringstream ss;
         ss << L"ok=" << (ok ? L"true" : L"false") << L" gle=" << err
-           << L" accent=BLURBEHIND gradient=0x" << std::hex << policy.GradientColor
-           << std::dec;
+           << L" accent=BLURBEHIND gradient=0x" << std::hex
+           << policy.GradientColor << std::dec;
         native_diag_logf(L"acrylic", hwnd, ss.str());
     }
 }
