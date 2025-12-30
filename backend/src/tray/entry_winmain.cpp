@@ -195,6 +195,12 @@ struct TrayState
     std::optional<WINDOWPLACEMENT> saved_window_placement;
 };
 
+struct DCompInitFailure
+{
+    HRESULT hr = S_OK;
+    wchar_t const *step = L"";
+};
+
 bool is_webview2_runtime_available()
 {
     PWSTR version = nullptr;
@@ -233,6 +239,7 @@ bool ensure_native_webview(TrayState &state);
 void show_native_window(TrayState &state);
 void reload_native_auth_token(TrayState &state);
 void handle_webview_json_message(TrayState &state, std::string const &payload);
+std::wstring build_native_bridge_script(TrayState &state);
 std::wstring compute_webview_user_data_dir();
 void cancel_native_webview(TrayState &state);
 std::string http_post_rpc(TrayState &state, std::string const &payload);
@@ -448,13 +455,41 @@ RECT compute_webview_controller_bounds(HWND hwnd)
     return compute_webview_controller_bounds_from_client(hwnd, client);
 }
 
-bool ensure_dcomp_host(TrayState &state)
+void reset_dcomp_host(TrayState &state)
+{
+    state.dcomp_root_clip.Reset();
+    state.dcomp_webview_visual.Reset();
+    state.dcomp_root_visual.Reset();
+    state.dcomp_target.Reset();
+    state.dcomp_device.Reset();
+    state.d3d_context.Reset();
+    state.d3d_device.Reset();
+}
+
+void reset_webview_objects_keep_window(TrayState &state)
+{
+    if (state.webview_controller)
+    {
+        state.webview_controller->Close();
+        state.webview_controller.Reset();
+    }
+    state.webview_comp_controller4.Reset();
+    state.webview_comp_controller.Reset();
+    state.webview.Reset();
+}
+
+bool ensure_dcomp_visual_tree(TrayState &state, DCompInitFailure *failure)
 {
     if (!state.webview_window)
     {
+        if (failure)
+        {
+            failure->hr = E_INVALIDARG;
+            failure->step = L"webview_window";
+        }
         return false;
     }
-    if (state.dcomp_device && state.dcomp_target && state.dcomp_root_visual)
+    if (state.dcomp_device && state.dcomp_root_visual && state.dcomp_webview_visual)
     {
         return true;
     }
@@ -478,6 +513,11 @@ bool ensure_dcomp_host(TrayState &state)
     }
     if (FAILED(hr) || !device)
     {
+        if (failure)
+        {
+            failure->hr = hr;
+            failure->step = L"D3D11CreateDevice";
+        }
         if (native_diag_enabled())
         {
             std::wstringstream ss;
@@ -492,6 +532,11 @@ bool ensure_dcomp_host(TrayState &state)
     hr = DCompositionCreateDevice2(device.Get(), IID_PPV_ARGS(&dcomp));
     if (FAILED(hr) || !dcomp)
     {
+        if (failure)
+        {
+            failure->hr = hr;
+            failure->step = L"DCompositionCreateDevice2";
+        }
         if (native_diag_enabled())
         {
             std::wstringstream ss;
@@ -502,24 +547,15 @@ bool ensure_dcomp_host(TrayState &state)
         return false;
     }
 
-    Microsoft::WRL::ComPtr<IDCompositionTarget> target;
-    hr = dcomp->CreateTargetForHwnd(state.webview_window, TRUE, &target);
-    if (FAILED(hr) || !target)
-    {
-        if (native_diag_enabled())
-        {
-            std::wstringstream ss;
-            ss << L"CreateTargetForHwnd hr=0x" << std::hex
-               << static_cast<uint32_t>(hr) << std::dec;
-            native_diag_logf(L"dcomp", state.webview_window, ss.str());
-        }
-        return false;
-    }
-
     Microsoft::WRL::ComPtr<IDCompositionVisual> root;
     hr = dcomp->CreateVisual(&root);
     if (FAILED(hr) || !root)
     {
+        if (failure)
+        {
+            failure->hr = hr;
+            failure->step = L"CreateVisual(root)";
+        }
         if (native_diag_enabled())
         {
             std::wstringstream ss;
@@ -534,6 +570,11 @@ bool ensure_dcomp_host(TrayState &state)
     hr = dcomp->CreateVisual(&webview_visual);
     if (FAILED(hr) || !webview_visual)
     {
+        if (failure)
+        {
+            failure->hr = hr;
+            failure->step = L"CreateVisual(webview)";
+        }
         if (native_diag_enabled())
         {
             std::wstringstream ss;
@@ -547,24 +588,16 @@ bool ensure_dcomp_host(TrayState &state)
     hr = root->AddVisual(webview_visual.Get(), FALSE, nullptr);
     if (FAILED(hr))
     {
+        if (failure)
+        {
+            failure->hr = hr;
+            failure->step = L"AddVisual(webview)";
+        }
         if (native_diag_enabled())
         {
             std::wstringstream ss;
             ss << L"AddVisual(webview) hr=0x" << std::hex
                << static_cast<uint32_t>(hr) << std::dec;
-            native_diag_logf(L"dcomp", state.webview_window, ss.str());
-        }
-        return false;
-    }
-
-    hr = target->SetRoot(root.Get());
-    if (FAILED(hr))
-    {
-        if (native_diag_enabled())
-        {
-            std::wstringstream ss;
-            ss << L"SetRoot hr=0x" << std::hex << static_cast<uint32_t>(hr)
-               << std::dec;
             native_diag_logf(L"dcomp", state.webview_window, ss.str());
         }
         return false;
@@ -583,15 +616,71 @@ bool ensure_dcomp_host(TrayState &state)
         root->SetClip(root_clip.Get());
     }
 
-    dcomp->Commit();
-
     state.d3d_device = device;
     state.d3d_context = context;
     state.dcomp_device = dcomp;
-    state.dcomp_target = target;
     state.dcomp_root_visual = root;
     state.dcomp_webview_visual = webview_visual;
     state.dcomp_root_clip = root_clip;
+    return true;
+}
+
+bool attach_dcomp_target(TrayState &state, DCompInitFailure *failure)
+{
+    if (!state.webview_window || !state.dcomp_device || !state.dcomp_root_visual)
+    {
+        if (failure)
+        {
+            failure->hr = E_INVALIDARG;
+            failure->step = L"attach_prereq";
+        }
+        return false;
+    }
+    if (state.dcomp_target)
+    {
+        return true;
+    }
+
+    Microsoft::WRL::ComPtr<IDCompositionTarget> target;
+    HRESULT hr =
+        state.dcomp_device->CreateTargetForHwnd(state.webview_window, TRUE, &target);
+    if (FAILED(hr) || !target)
+    {
+        if (failure)
+        {
+            failure->hr = hr;
+            failure->step = L"CreateTargetForHwnd";
+        }
+        if (native_diag_enabled())
+        {
+            std::wstringstream ss;
+            ss << L"CreateTargetForHwnd hr=0x" << std::hex
+               << static_cast<uint32_t>(hr) << std::dec;
+            native_diag_logf(L"dcomp", state.webview_window, ss.str());
+        }
+        return false;
+    }
+
+    hr = target->SetRoot(state.dcomp_root_visual.Get());
+    if (FAILED(hr))
+    {
+        if (failure)
+        {
+            failure->hr = hr;
+            failure->step = L"SetRoot";
+        }
+        if (native_diag_enabled())
+        {
+            std::wstringstream ss;
+            ss << L"SetRoot hr=0x" << std::hex << static_cast<uint32_t>(hr)
+               << std::dec;
+            native_diag_logf(L"dcomp", state.webview_window, ss.str());
+        }
+        return false;
+    }
+
+    state.dcomp_device->Commit();
+    state.dcomp_target = target;
     return true;
 }
 
@@ -690,6 +779,112 @@ void configure_webview_controller_pixel_mode(TrayState &state, HWND hwnd)
         controller3->put_RasterizationScale(
             static_cast<double>(GetDpiForWindow(hwnd)) / 96.0);
     }
+}
+
+HRESULT finish_webview_controller_setup(TrayState &state)
+{
+    if (!state.webview_controller || !state.webview_window)
+    {
+        return E_INVALIDARG;
+    }
+
+    configure_webview_controller_pixel_mode(state, state.webview_window);
+
+    state.webview_controller->get_CoreWebView2(&state.webview);
+    update_webview_controller_bounds(&state, state.webview_window);
+    state.webview_controller->put_IsVisible(TRUE);
+
+    if (state.webview)
+    {
+        Microsoft::WRL::ComPtr<ICoreWebView2Settings> settings;
+        if (SUCCEEDED(state.webview->get_Settings(&settings)) && settings)
+        {
+            Microsoft::WRL::ComPtr<ICoreWebView2Settings9> settings9;
+            if (SUCCEEDED(settings.As(&settings9)) && settings9)
+            {
+                settings9->put_IsNonClientRegionSupportEnabled(TRUE);
+            }
+        }
+    }
+
+    if (state.webview_controller)
+    {
+        Microsoft::WRL::ComPtr<ICoreWebView2Controller2> controller2;
+        if (SUCCEEDED(state.webview_controller.As(&controller2)) && controller2)
+        {
+            COREWEBVIEW2_COLOR transparent{0, 0, 0, 0};
+            controller2->put_DefaultBackgroundColor(transparent);
+            if (native_diag_enabled())
+            {
+                COREWEBVIEW2_COLOR current{};
+                HRESULT hr = controller2->get_DefaultBackgroundColor(&current);
+                std::wstringstream ss;
+                ss << L"set={0,0,0,0}"
+                   << L" get_hr=0x" << std::hex << static_cast<uint32_t>(hr)
+                   << std::dec << L" get={" << static_cast<int>(current.R) << L","
+                   << static_cast<int>(current.G) << L","
+                   << static_cast<int>(current.B) << L","
+                   << static_cast<int>(current.A) << L"}";
+                native_diag_logf(L"webview_bg", state.webview_window, ss.str());
+            }
+        }
+    }
+
+    if (!state.webview)
+    {
+        return E_FAIL;
+    }
+
+    auto script = build_native_bridge_script(state);
+    state.webview->AddScriptToExecuteOnDocumentCreated(script.c_str(), nullptr);
+    state.webview->add_WebMessageReceived(
+        Microsoft::WRL::Callback<ICoreWebView2WebMessageReceivedEventHandler>(
+            [&state](ICoreWebView2 *,
+                     ICoreWebView2WebMessageReceivedEventArgs *args) -> HRESULT
+            {
+                if (state.shutting_down.load())
+                {
+                    return S_OK;
+                }
+                PWSTR text = nullptr;
+                args->get_WebMessageAsJson(&text);
+                if (text)
+                {
+                    std::wstring wide(text);
+                    CoTaskMemFree(text);
+                    handle_webview_json_message(state, narrow(wide));
+                }
+                return S_OK;
+            })
+            .Get(),
+        &state.web_message_token);
+    state.webview->add_NavigationCompleted(
+        Microsoft::WRL::Callback<ICoreWebView2NavigationCompletedEventHandler>(
+            [&state](ICoreWebView2 *,
+                     ICoreWebView2NavigationCompletedEventArgs *) -> HRESULT
+            {
+                if (state.shutting_down.load())
+                {
+                    return S_OK;
+                }
+                reload_native_auth_token(state);
+                if (native_diag_enabled() && state.webview_window)
+                {
+                    log_webview_dom_transparency(state);
+                    SetTimer(state.webview_window, kDiagSweepTimerId, 750, nullptr);
+                }
+                if (state.webview_window)
+                {
+                    ShowWindow(state.webview_window, SW_SHOW);
+                    SetForegroundWindow(state.webview_window);
+                }
+                return S_OK;
+            })
+            .Get(),
+        &state.navigation_token);
+
+    state.webview->Navigate(state.open_url.c_str());
+    return S_OK;
 }
 
 COREWEBVIEW2_MOUSE_EVENT_VIRTUAL_KEYS webview_mouse_keys_from_wparam(WPARAM wparam)
@@ -1804,16 +1999,19 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
             native_diag_logf(L"nchittest_exit", hwnd, ss.str());
         }
 
-        if (result == HTCLIENT && state && state->webview_comp_controller4)
+        if (result == HTCLIENT && state)
         {
             POINT client_pt{pt.x, pt.y};
             if (ScreenToClient(hwnd, &client_pt))
             {
                 COREWEBVIEW2_NON_CLIENT_REGION_KIND kind =
                     COREWEBVIEW2_NON_CLIENT_REGION_KIND_CLIENT;
-                HRESULT hr =
-                    state->webview_comp_controller4->GetNonClientRegionAtPoint(
+                HRESULT hr = E_NOINTERFACE;
+                if (state->webview_comp_controller4)
+                {
+                    hr = state->webview_comp_controller4->GetNonClientRegionAtPoint(
                         client_pt, &kind);
+                }
                 if (SUCCEEDED(hr) &&
                     kind == COREWEBVIEW2_NON_CLIENT_REGION_KIND_CAPTION)
                 {
@@ -1955,10 +2153,6 @@ bool ensure_native_webview(TrayState &state)
     {
         return true;
     }
-    if (!ensure_dcomp_host(state))
-    {
-        return false;
-    }
     if (state.webview_user_data_dir.empty())
     {
         state.webview_user_data_dir = compute_webview_user_data_dir();
@@ -1979,8 +2173,50 @@ bool ensure_native_webview(TrayState &state)
                 }
                 if (FAILED(res) || !env || !state.webview_window)
                 {
+                    if (FAILED(res))
+                    {
+                        TT_LOG_INFO("WebView2 environment initialization failed "
+                                    "({:#X}); UI will remain hidden",
+                                    static_cast<uint32_t>(res));
+                    }
                     return res;
                 }
+
+                auto start_hwnd_host = [env, &state](std::string const &reason,
+                                                    HRESULT reason_hr) -> HRESULT
+                {
+                    TT_LOG_INFO("WebView2 hosting mode: HWND (reason: {}, "
+                                "hr={:#X})",
+                                reason, static_cast<uint32_t>(reason_hr));
+
+                    reset_webview_objects_keep_window(state);
+                    reset_dcomp_host(state);
+
+                    return env->CreateCoreWebView2Controller(
+                        state.webview_window,
+                        Microsoft::WRL::Callback<
+                            ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>(
+                            [&state](HRESULT ctrl_res,
+                                     ICoreWebView2Controller *controller) -> HRESULT
+                            {
+                                if (state.shutting_down.load())
+                                {
+                                    return E_ABORT;
+                                }
+                                if (FAILED(ctrl_res) || !controller)
+                                {
+                                    TT_LOG_INFO(
+                                        "WebView2 HWND controller initialization "
+                                        "failed ({:#X}); UI will remain hidden",
+                                        static_cast<uint32_t>(ctrl_res));
+                                    return ctrl_res;
+                                }
+                                state.webview_controller = controller;
+                                return finish_webview_controller_setup(state);
+                            })
+                            .Get());
+                };
+
                 Microsoft::WRL::ComPtr<ICoreWebView2Environment3> env3;
                 HRESULT qi_hr = env->QueryInterface(IID_PPV_ARGS(&env3));
                 if (FAILED(qi_hr) || !env3)
@@ -1992,16 +2228,16 @@ bool ensure_native_webview(TrayState &state)
                            << static_cast<uint32_t>(qi_hr) << std::dec;
                         native_diag_logf(L"webview2", state.webview_window, ss.str());
                     }
-                    return qi_hr;
+                    return start_hwnd_host("ICoreWebView2Environment3 missing", qi_hr);
                 }
 
                 return env3->CreateCoreWebView2CompositionController(
                     state.webview_window,
                     Microsoft::WRL::Callback<
                         ICoreWebView2CreateCoreWebView2CompositionControllerCompletedHandler>(
-                        [&state](HRESULT ctrl_res,
+                        [&state, start_hwnd_host](HRESULT ctrl_res,
                                  ICoreWebView2CompositionController
-                                     *controller) -> HRESULT
+                                      *controller) -> HRESULT
                         {
                             if (state.shutting_down.load())
                             {
@@ -2009,7 +2245,9 @@ bool ensure_native_webview(TrayState &state)
                             }
                             if (FAILED(ctrl_res) || !controller)
                             {
-                                return ctrl_res;
+                                return start_hwnd_host(
+                                    "CreateCoreWebView2CompositionController failed",
+                                    ctrl_res);
                             }
 
                             state.webview_comp_controller = controller;
@@ -2023,140 +2261,38 @@ bool ensure_native_webview(TrayState &state)
                                     &controller_base));
                             if (FAILED(base_hr) || !controller_base)
                             {
-                                return base_hr;
+                                return start_hwnd_host(
+                                    "composition controller QI to ICoreWebView2Controller failed",
+                                    base_hr);
                             }
                             state.webview_controller = controller_base;
 
-                            configure_webview_controller_pixel_mode(
-                                state, state.webview_window);
-
-                            if (state.dcomp_webview_visual)
+                            DCompInitFailure dcomp_failure{};
+                            if (!ensure_dcomp_visual_tree(state, &dcomp_failure))
                             {
+                                std::string reason = "composition host unavailable at ";
+                                reason += narrow(std::wstring(dcomp_failure.step));
+                                return start_hwnd_host(reason, dcomp_failure.hr);
+                            }
+
+                            HRESULT visual_hr =
                                 state.webview_comp_controller->put_RootVisualTarget(
                                     state.dcomp_webview_visual.Get());
-                                if (state.dcomp_device)
-                                {
-                                    state.dcomp_device->Commit();
-                                }
-                            }
-
-                            state.webview_controller->get_CoreWebView2(&state.webview);
-                            update_webview_controller_bounds(&state,
-                                                             state.webview_window);
-                            state.webview_controller->put_IsVisible(TRUE);
-                            if (state.webview)
+                            if (FAILED(visual_hr))
                             {
-                                Microsoft::WRL::ComPtr<ICoreWebView2Settings>
-                                    settings;
-                                if (SUCCEEDED(state.webview->get_Settings(&settings)) &&
-                                    settings)
-                                {
-                                    Microsoft::WRL::ComPtr<ICoreWebView2Settings9>
-                                        settings9;
-                                    if (SUCCEEDED(settings.As(&settings9)) &&
-                                        settings9)
-                                    {
-                                        settings9->put_IsNonClientRegionSupportEnabled(
-                                            TRUE);
-                                    }
-                                }
+                                return start_hwnd_host("put_RootVisualTarget failed",
+                                                       visual_hr);
                             }
 
-                            if (state.webview_controller)
+                            if (!attach_dcomp_target(state, &dcomp_failure))
                             {
-                                Microsoft::WRL::ComPtr<ICoreWebView2Controller2>
-                                    controller2;
-                                if (SUCCEEDED(state.webview_controller.As(&controller2)) &&
-                                    controller2)
-                                {
-                                    COREWEBVIEW2_COLOR transparent{0, 0, 0, 0};
-                                    controller2->put_DefaultBackgroundColor(
-                                        transparent);
-                                    if (native_diag_enabled())
-                                    {
-                                        COREWEBVIEW2_COLOR current{};
-                                        HRESULT hr =
-                                            controller2->get_DefaultBackgroundColor(
-                                                &current);
-                                        std::wstringstream ss;
-                                        ss << L"set={0,0,0,0}"
-                                           << L" get_hr=0x" << std::hex
-                                           << static_cast<uint32_t>(hr)
-                                           << std::dec << L" get={"
-                                           << static_cast<int>(current.R)
-                                           << L"," << static_cast<int>(current.G)
-                                           << L"," << static_cast<int>(current.B)
-                                           << L"," << static_cast<int>(current.A)
-                                           << L"}";
-                                        native_diag_logf(L"webview_bg",
-                                                         state.webview_window,
-                                                         ss.str());
-                                    }
-                                }
+                                std::string reason = "composition host unavailable at ";
+                                reason += narrow(std::wstring(dcomp_failure.step));
+                                return start_hwnd_host(reason, dcomp_failure.hr);
                             }
 
-                            auto script = build_native_bridge_script(state);
-                            state.webview->AddScriptToExecuteOnDocumentCreated(
-                                script.c_str(), nullptr);
-                            state.webview->add_WebMessageReceived(
-                                Microsoft::WRL::Callback<
-                                    ICoreWebView2WebMessageReceivedEventHandler>(
-                                    [&state](
-                                        ICoreWebView2 *,
-                                        ICoreWebView2WebMessageReceivedEventArgs
-                                            *args) -> HRESULT
-                                    {
-                                        if (state.shutting_down.load())
-                                        {
-                                            return S_OK;
-                                        }
-                                        PWSTR text = nullptr;
-                                        args->get_WebMessageAsJson(&text);
-                                        if (text)
-                                        {
-                                            std::wstring wide(text);
-                                            CoTaskMemFree(text);
-                                            handle_webview_json_message(
-                                                state, narrow(wide));
-                                        }
-                                        return S_OK;
-                                    })
-                                    .Get(),
-                                &state.web_message_token);
-                            state.webview->add_NavigationCompleted(
-                                Microsoft::WRL::Callback<
-                                    ICoreWebView2NavigationCompletedEventHandler>(
-                                    [&state](
-                                        ICoreWebView2 *,
-                                        ICoreWebView2NavigationCompletedEventArgs
-                                            *) -> HRESULT
-                                    {
-                                        if (state.shutting_down.load())
-                                        {
-                                            return S_OK;
-                                        }
-                                        reload_native_auth_token(state);
-                                        if (native_diag_enabled() &&
-                                            state.webview_window)
-                                        {
-                                            log_webview_dom_transparency(state);
-                                            SetTimer(state.webview_window,
-                                                     kDiagSweepTimerId, 750,
-                                                     nullptr);
-                                        }
-                                        if (state.webview_window)
-                                        {
-                                            ShowWindow(state.webview_window,
-                                                       SW_SHOW);
-                                            SetForegroundWindow(
-                                                state.webview_window);
-                                        }
-                                        return S_OK;
-                                    })
-                                    .Get(),
-                                &state.navigation_token);
-                            state.webview->Navigate(state.open_url.c_str());
-                            return S_OK;
+                            TT_LOG_INFO("WebView2 hosting mode: composition");
+                            return finish_webview_controller_setup(state);
                         })
                         .Get());
             })
