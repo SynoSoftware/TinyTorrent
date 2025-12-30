@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useDropzone } from "react-dropzone";
 
-import { NativeShell } from "@/app/runtime";
+import Runtime, { NativeShell } from "@/app/runtime";
 import { findMagnetInString, normalizeMagnetLink } from "@/app/utils/magnet";
 
 interface UseAddModalStateParams {
@@ -62,7 +62,7 @@ export function useAddModalState({
     useEffect(() => {
         if (!isAddModalOpen) return;
         if (incomingMagnetLink || pendingTorrentFile) return;
-        if (isNativeMode) return;
+        if (isNativeMode || Runtime.isNativeHost) return;
         if (typeof navigator === "undefined" || !navigator.clipboard?.readText)
             return;
 

@@ -10,6 +10,7 @@
 #include <dwmapi.h>
 #include <psapi.h>
 #include <shellapi.h>
+#include <shobjidl.h>
 #include <shlobj_core.h>
 #include <windowsx.h>
 #include <winhttp.h>
@@ -23,6 +24,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstddef>
+#include <cstdio>
 #include <cwchar>
 #include <filesystem>
 #include <future>
@@ -171,6 +173,7 @@ struct TrayState
     std::wstring splash_message;
     tt::rpc::UiPreferences ui_preferences;
     std::atomic_bool ui_attached{false};
+    std::optional<WINDOWPLACEMENT> saved_window_placement;
 };
 
 bool is_webview2_runtime_available()
@@ -215,6 +218,18 @@ std::wstring compute_webview_user_data_dir();
 void cancel_native_webview(TrayState &state);
 std::string http_post_rpc(TrayState &state, std::string const &payload);
 void enable_acrylic(HWND hwnd);
+bool capture_window_placement(HWND hwnd, WINDOWPLACEMENT &placement);
+void apply_saved_window_state(TrayState &state);
+std::string escape_json_string(std::string_view value);
+std::string build_path_payload(std::wstring const &path);
+std::string build_free_space_payload(std::wstring const &path,
+                                     ULARGE_INTEGER const &free_bytes,
+                                     ULARGE_INTEGER const &total_bytes);
+std::optional<std::wstring> open_file_dialog(HWND owner);
+std::optional<std::wstring> open_folder_dialog(HWND owner,
+                                               std::wstring const &initial_path);
+std::optional<std::wstring> resolve_existing_directory(
+    std::wstring const &candidate);
 
 // --- Utilities ---
 
@@ -266,10 +281,10 @@ void apply_dark_titlebar(HWND hwnd)
     BOOL dark = TRUE;
     DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &dark,
                           sizeof(dark));
-    COLORREF caption_color = 0x101010;
+    COLORREF caption_color = DWMWA_COLOR_NONE;
     DwmSetWindowAttribute(hwnd, DWMWA_CAPTION_COLOR, &caption_color,
                           sizeof(caption_color));
-    COLORREF text_color = 0xFFFFFF;
+    COLORREF text_color = DWMWA_COLOR_NONE;
     DwmSetWindowAttribute(hwnd, DWMWA_TEXT_COLOR, &text_color,
                           sizeof(text_color));
 }
@@ -310,13 +325,19 @@ void configure_webview_window_chrome(HWND hwnd)
 }
 
 std::wstring build_host_response(std::string const &id, bool success,
-                                 std::string const &error = {})
+                                 std::string const &error = {},
+                                 std::string const &payload_json = {})
 {
-    std::string response = "{\"type\":\"response\",\"id\":\"" + id +
+    std::string response = "{\"type\":\"response\",\"id\":\"" +
+                           escape_json_string(id) +
                            "\",\"success\":" + (success ? "true" : "false");
+    if (success && !payload_json.empty())
+    {
+        response += ",\"payload\":" + payload_json;
+    }
     if (!success && !error.empty())
     {
-        response += ",\"error\":\"" + error + "\"";
+        response += ",\"error\":\"" + escape_json_string(error) + "\"";
     }
     response += "}";
     return widen(response);
@@ -407,6 +428,7 @@ void handle_webview_json_message(TrayState &state, std::string const &payload)
     auto *type = yyjson_obj_get(root, "type");
     auto *id = yyjson_obj_get(root, "id");
     auto *name = yyjson_obj_get(root, "name");
+    auto *payload_val = yyjson_obj_get(root, "payload");
     if (!type || !yyjson_is_str(type) ||
         std::string_view(yyjson_get_str(type)) != "request" || !id ||
         !yyjson_is_str(id) || !name || !yyjson_is_str(name))
@@ -416,24 +438,174 @@ void handle_webview_json_message(TrayState &state, std::string const &payload)
     }
     std::string id_value{yyjson_get_str(id)};
     std::string name_value{yyjson_get_str(name)};
-    bool handled = false;
+    bool success = false;
+    std::string error;
+    std::string response_payload;
     if (name_value == "window-command")
     {
-        yyjson_val *payload_val = yyjson_obj_get(root, "payload");
         if (payload_val && yyjson_is_obj(payload_val))
         {
             yyjson_val *command_val = yyjson_obj_get(payload_val, "command");
             if (command_val && yyjson_is_str(command_val))
             {
-                handled =
+                success =
                     perform_window_command(state, yyjson_get_str(command_val));
             }
         }
+        if (!success)
+        {
+            error = "native host window command failed";
+        }
     }
-    post_webview_message(
-        state, build_host_response(id_value, handled,
-                                   handled ? std::string()
-                                           : "native host request unhandled"));
+    else if (name_value == "open-file-dialog")
+    {
+        success = true;
+        if (auto selected = open_file_dialog(state.webview_window))
+        {
+            response_payload = build_path_payload(*selected);
+        }
+    }
+    else if (name_value == "browse-directory")
+    {
+        success = true;
+        std::wstring initial_path;
+        if (payload_val && yyjson_is_obj(payload_val))
+        {
+            yyjson_val *path_val = yyjson_obj_get(payload_val, "path");
+            if (path_val && yyjson_is_str(path_val))
+            {
+                initial_path = widen(yyjson_get_str(path_val));
+            }
+        }
+        if (auto selected =
+                open_folder_dialog(state.webview_window, initial_path))
+        {
+            response_payload = build_path_payload(*selected);
+        }
+    }
+    else if (name_value == "check-free-space")
+    {
+        if (!payload_val || !yyjson_is_obj(payload_val))
+        {
+            error = "native host free-space request missing payload";
+        }
+        else
+        {
+            yyjson_val *path_val = yyjson_obj_get(payload_val, "path");
+            if (!path_val || !yyjson_is_str(path_val))
+            {
+                error = "native host free-space request missing path";
+            }
+            else
+            {
+                std::wstring path = widen(yyjson_get_str(path_val));
+                if (path.empty())
+                {
+                    error = "native host free-space request empty path";
+                }
+                else
+                {
+                    auto directory = resolve_existing_directory(path);
+                    if (!directory)
+                    {
+                        error = "native host free-space path unavailable";
+                    }
+                    else
+                    {
+                        ULARGE_INTEGER free_bytes{};
+                        ULARGE_INTEGER total_bytes{};
+                        if (!GetDiskFreeSpaceExW(directory->c_str(), &free_bytes,
+                                                 &total_bytes, nullptr))
+                        {
+                            error = "native host free-space query failed";
+                        }
+                        else
+                        {
+                            success = true;
+                            response_payload =
+                                build_free_space_payload(*directory, free_bytes,
+                                                         total_bytes);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    else if (name_value == "open-path")
+    {
+        if (!payload_val || !yyjson_is_obj(payload_val))
+        {
+            error = "native host open-path request missing payload";
+        }
+        else
+        {
+            yyjson_val *path_val = yyjson_obj_get(payload_val, "path");
+            if (!path_val || !yyjson_is_str(path_val))
+            {
+                error = "native host open-path request missing path";
+            }
+            else
+            {
+                std::wstring path = widen(yyjson_get_str(path_val));
+                if (path.empty())
+                {
+                    error = "native host open-path request empty path";
+                }
+                else
+                {
+                    auto result =
+                        ShellExecuteW(state.webview_window, L"open",
+                                      path.c_str(), nullptr, nullptr,
+                                      SW_SHOWNORMAL);
+                    if (reinterpret_cast<INT_PTR>(result) <= 32)
+                    {
+                        error = "native host open-path failed";
+                    }
+                    else
+                    {
+                        success = true;
+                    }
+                }
+            }
+        }
+    }
+    else if (name_value == "get-system-integration-status")
+    {
+        success = true;
+        response_payload = "{\"autorun\":false,\"associations\":false}";
+    }
+    else if (name_value == "set-system-integration")
+    {
+        success = true;
+        response_payload = "{\"autorun\":false,\"associations\":false}";
+    }
+    else if (name_value == "persist-window-state")
+    {
+        if (!state.webview_window)
+        {
+            error = "native window unavailable";
+        }
+        else
+        {
+            WINDOWPLACEMENT placement{};
+            if (capture_window_placement(state.webview_window, placement))
+            {
+                state.saved_window_placement = placement;
+                success = true;
+            }
+            else
+            {
+                error = "native host window state capture failed";
+            }
+        }
+    }
+    else
+    {
+        error = "native host request unhandled";
+    }
+    post_webview_message(state,
+                         build_host_response(id_value, success, error,
+                                             response_payload));
     yyjson_doc_free(doc);
 }
 
@@ -451,8 +623,29 @@ void apply_webview_window_icons(TrayState &state)
     if (state.icon)
     {
         SendMessageW(state.webview_window, WM_SETICON, ICON_SMALL,
-                     reinterpret_cast<LPARAM>(state.icon));
+        reinterpret_cast<LPARAM>(state.icon));
     }
+}
+
+bool capture_window_placement(HWND hwnd, WINDOWPLACEMENT &placement)
+{
+    if (!hwnd)
+    {
+        return false;
+    }
+    placement.length = sizeof(WINDOWPLACEMENT);
+    return GetWindowPlacement(hwnd, &placement) == TRUE;
+}
+
+void apply_saved_window_state(TrayState &state)
+{
+    if (!state.webview_window || !state.saved_window_placement)
+    {
+        return;
+    }
+    WINDOWPLACEMENT placement = *state.saved_window_placement;
+    placement.length = sizeof(WINDOWPLACEMENT);
+    SetWindowPlacement(state.webview_window, &placement);
 }
 
 void close_splash_window()
@@ -490,6 +683,209 @@ std::wstring escape_js_string(std::wstring const &value)
         }
     }
     return result;
+}
+
+std::string escape_json_string(std::string_view value)
+{
+    std::string result;
+    result.reserve(value.size());
+    for (unsigned char ch : value)
+    {
+        switch (ch)
+        {
+        case '\\':
+            result += "\\\\";
+            break;
+        case '"':
+            result += "\\\"";
+            break;
+        case '\n':
+            result += "\\n";
+            break;
+        case '\r':
+            result += "\\r";
+            break;
+        case '\t':
+            result += "\\t";
+            break;
+        default:
+            if (ch < 0x20)
+            {
+                char buf[7];
+                snprintf(buf, sizeof(buf), "\\u%04x", ch);
+                result += buf;
+            }
+            else
+            {
+                result += static_cast<char>(ch);
+            }
+            break;
+        }
+    }
+    return result;
+}
+
+std::string build_path_payload(std::wstring const &path)
+{
+    std::string escaped = escape_json_string(narrow(path));
+    return "{\"path\":\"" + escaped + "\"}";
+}
+
+std::string build_free_space_payload(std::wstring const &path,
+                                     ULARGE_INTEGER const &free_bytes,
+                                     ULARGE_INTEGER const &total_bytes)
+{
+    std::string escaped = escape_json_string(narrow(path));
+    return "{\"path\":\"" + escaped + "\",\"sizeBytes\":" +
+           std::to_string(free_bytes.QuadPart) + ",\"totalSize\":" +
+           std::to_string(total_bytes.QuadPart) + "}";
+}
+
+std::optional<std::wstring> open_file_dialog(HWND owner)
+{
+    Microsoft::WRL::ComPtr<IFileOpenDialog> dialog;
+    HRESULT hr = CoCreateInstance(CLSID_FileOpenDialog, nullptr,
+                                  CLSCTX_INPROC_SERVER,
+                                  IID_PPV_ARGS(&dialog));
+    if (FAILED(hr) || !dialog)
+    {
+        return std::nullopt;
+    }
+    DWORD options = 0;
+    dialog->GetOptions(&options);
+    dialog->SetOptions(options | FOS_FORCEFILESYSTEM | FOS_FILEMUSTEXIST |
+                       FOS_PATHMUSTEXIST | FOS_NOCHANGEDIR);
+    constexpr COMDLG_FILTERSPEC filters[] = {
+        {L"Torrent Files (*.torrent)", L"*.torrent"},
+        {L"All Files (*.*)", L"*.*"},
+    };
+    dialog->SetFileTypes(static_cast<UINT>(std::size(filters)), filters);
+    dialog->SetDefaultExtension(L"torrent");
+    hr = dialog->Show(owner);
+    if (hr == HRESULT_FROM_WIN32(ERROR_CANCELLED))
+    {
+        return std::nullopt;
+    }
+    if (FAILED(hr))
+    {
+        return std::nullopt;
+    }
+    Microsoft::WRL::ComPtr<IShellItem> item;
+    hr = dialog->GetResult(&item);
+    if (FAILED(hr) || !item)
+    {
+        return std::nullopt;
+    }
+    PWSTR path = nullptr;
+    hr = item->GetDisplayName(SIGDN_FILESYSPATH, &path);
+    if (FAILED(hr) || !path)
+    {
+        return std::nullopt;
+    }
+    std::wstring result(path);
+    CoTaskMemFree(path);
+    if (result.empty())
+    {
+        return std::nullopt;
+    }
+    return result;
+}
+
+std::optional<std::wstring>
+open_folder_dialog(HWND owner, std::wstring const &initial_path)
+{
+    Microsoft::WRL::ComPtr<IFileOpenDialog> dialog;
+    HRESULT hr = CoCreateInstance(CLSID_FileOpenDialog, nullptr,
+                                  CLSCTX_INPROC_SERVER,
+                                  IID_PPV_ARGS(&dialog));
+    if (FAILED(hr) || !dialog)
+    {
+        return std::nullopt;
+    }
+    DWORD options = 0;
+    dialog->GetOptions(&options);
+    dialog->SetOptions(options | FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM |
+                       FOS_PATHMUSTEXIST | FOS_NOCHANGEDIR);
+    if (!initial_path.empty())
+    {
+        Microsoft::WRL::ComPtr<IShellItem> folder;
+        if (SUCCEEDED(SHCreateItemFromParsingName(initial_path.c_str(), nullptr,
+                                                  IID_PPV_ARGS(&folder))) &&
+            folder)
+        {
+            dialog->SetFolder(folder.Get());
+        }
+    }
+    hr = dialog->Show(owner);
+    if (hr == HRESULT_FROM_WIN32(ERROR_CANCELLED))
+    {
+        return std::nullopt;
+    }
+    if (FAILED(hr))
+    {
+        return std::nullopt;
+    }
+    Microsoft::WRL::ComPtr<IShellItem> item;
+    hr = dialog->GetResult(&item);
+    if (FAILED(hr) || !item)
+    {
+        return std::nullopt;
+    }
+    PWSTR path = nullptr;
+    hr = item->GetDisplayName(SIGDN_FILESYSPATH, &path);
+    if (FAILED(hr) || !path)
+    {
+        return std::nullopt;
+    }
+    std::wstring result(path);
+    CoTaskMemFree(path);
+    if (result.empty())
+    {
+        return std::nullopt;
+    }
+    return result;
+}
+
+std::optional<std::wstring> resolve_existing_directory(
+    std::wstring const &candidate)
+{
+    if (candidate.empty())
+    {
+        return std::nullopt;
+    }
+    std::error_code ec;
+    std::filesystem::path dir(candidate);
+    if (dir.empty())
+    {
+        return std::nullopt;
+    }
+    while (!dir.empty() && !std::filesystem::exists(dir, ec))
+    {
+        auto parent = dir.parent_path();
+        if (parent == dir)
+        {
+            break;
+        }
+        dir = parent;
+    }
+    if (dir.empty() || !std::filesystem::exists(dir, ec))
+    {
+        return std::nullopt;
+    }
+    if (!std::filesystem::is_directory(dir, ec))
+    {
+        auto parent = dir.parent_path();
+        if (parent.empty())
+        {
+            return std::nullopt;
+        }
+        dir = parent;
+    }
+    if (dir.empty())
+    {
+        return std::nullopt;
+    }
+    return dir.wstring();
 }
 
 std::wstring build_native_bridge_script(TrayState &state)
@@ -540,27 +936,46 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
         return 1;
     case WM_NCHITTEST:
     {
-        // [FIX] Robust Screen-Coordinate Hit Testing
-        // The previous logic relied on ScreenToClient which can fail with
-        // certain DWM/WS_POPUP configurations. This version is absolute.
-
-        // 1. If maximized, the client area handles everything (no resize
-        // borders)
+        // Frameless resize hit-testing (edges only). Drag is handled by
+        // WebView CSS regions.
         if (IsZoomed(hwnd))
         {
             return HTCLIENT;
         }
 
-        // 2. Get Mouse & Window in Screen Coordinates
-        POINT pt{GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
-        RECT rw;
-        GetWindowRect(hwnd, &rw);
+        LRESULT dwm_hit = 0;
+        if (DwmDefWindowProc(hwnd, msg, wparam, lparam, &dwm_hit))
+        {
+            if (dwm_hit != HTCLIENT && dwm_hit != HTCAPTION)
+            {
+                return dwm_hit;
+            }
+        }
 
-        // 3. Determine Border Thickness (DPI Aware)
+        POINT pt{GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
+        RECT rw{};
+        if (FAILED(DwmGetWindowAttribute(hwnd, DWMWA_EXTENDED_FRAME_BOUNDS, &rw,
+                                         sizeof(rw))))
+        {
+            GetWindowRect(hwnd, &rw);
+        }
+
         UINT dpi = GetDpiForWindow(hwnd);
-        int frame_x = GetSystemMetricsForDpi(SM_CXFRAME, dpi);
-        int frame_y = GetSystemMetricsForDpi(SM_CYFRAME, dpi);
+        int frame_x = GetSystemMetricsForDpi(SM_CXSIZEFRAME, dpi);
+        int frame_y = GetSystemMetricsForDpi(SM_CYSIZEFRAME, dpi);
         int padding = GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpi);
+        if (frame_x == 0)
+        {
+            frame_x = GetSystemMetrics(SM_CXSIZEFRAME);
+        }
+        if (frame_y == 0)
+        {
+            frame_y = GetSystemMetrics(SM_CYSIZEFRAME);
+        }
+        if (padding == 0)
+        {
+            padding = GetSystemMetrics(SM_CXPADDEDBORDER);
+        }
         int border_x = frame_x + padding;
         int border_y = frame_y + padding;
         int fallback_border = MulDiv(8, dpi, 96);
@@ -596,26 +1011,7 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
             return HTLEFT;
         if (isRight)
             return HTRIGHT;
-
-        // 6. Fall back to default hit test for resize borders, but never
-        // allow HTCAPTION (drag handled by WebView CSS).
-        LRESULT def_hit = DefWindowProcW(hwnd, msg, wparam, lparam);
-        switch (def_hit)
-        {
-        case HTLEFT:
-        case HTRIGHT:
-        case HTTOP:
-        case HTBOTTOM:
-        case HTTOPLEFT:
-        case HTTOPRIGHT:
-        case HTBOTTOMLEFT:
-        case HTBOTTOMRIGHT:
-            return def_hit;
-        case HTCAPTION:
-            return HTCLIENT;
-        default:
-            return HTCLIENT;
-        }
+        return HTCLIENT;
     }
     case WM_GETMINMAXINFO:
     {
@@ -893,6 +1289,7 @@ void show_native_window(TrayState &state)
         return;
     }
     apply_webview_window_icons(state);
+    apply_saved_window_state(state);
     ShowWindow(state.webview_window, SW_SHOW);
     SetForegroundWindow(state.webview_window);
     close_splash_window();

@@ -152,6 +152,8 @@ export default function App() {
     }, [rpcStatus, torrentClient]);
 
     const isNativeIntegrationActive = serverClass === "tinytorrent";
+    const isNativeHost = Runtime.isNativeHost;
+    const isRunningNative = isNativeHost || isNativeIntegrationActive;
 
     const {
         isAddModalOpen,
@@ -165,7 +167,7 @@ export default function App() {
     const addModalState = useAddModalState({
         openAddModal,
         isAddModalOpen,
-        isNativeMode: isNativeIntegrationActive,
+        isNativeMode: isRunningNative,
     });
 
     const {

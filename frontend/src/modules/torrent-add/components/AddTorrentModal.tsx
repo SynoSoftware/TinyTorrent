@@ -602,15 +602,15 @@ export function AddTorrentModal({
                         </ModalBody>
                         <ModalFooter className="flex flex-col gap-tools">
                             {supportsCheckFreeSpace && (
-                                <DiskSpaceGauge
-                                    freeBytes={directorySpace?.sizeBytes}
-                                    totalBytes={directorySpace?.totalSize}
-                                    torrentSize={torrentSize}
-                                    path={downloadDir}
-                                    isLoading={isSpaceLoading}
-                                    error={spaceError}
-                                    isInsufficient={isSpaceInsufficient}
-                                />
+                            <DiskSpaceGauge
+                                freeBytes={directorySpace?.sizeBytes}
+                                totalBytes={directorySpace?.totalSize}
+                                torrentSize={torrentSize}
+                                path={directorySpace?.path ?? downloadDir}
+                                isLoading={isSpaceLoading}
+                                error={spaceError}
+                                isInsufficient={isSpaceInsufficient}
+                            />
                             )}
                             <div className="flex w-full items-center justify-between gap-tools">
                                 <Button

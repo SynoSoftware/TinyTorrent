@@ -224,9 +224,9 @@ export const Runtime = {
     get isNativeHost() {
         return runtimeIsNativeHost();
     },
-    allowEditingProfiles: () => !runtimeIsNativeHost(),
+    allowEditingProfiles: () => true,
     suppressBrowserZoomDefaults: () => runtimeIsNativeHost(),
-    enableRemoteInputs: () => !runtimeIsNativeHost(),
+    enableRemoteInputs: () => true,
     nativeShell: NativeShell,
 };
 

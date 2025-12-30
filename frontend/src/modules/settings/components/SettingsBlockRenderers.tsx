@@ -414,8 +414,22 @@ export function RawConfigRenderer({
                 >
                     {jsonCopyStatus === "copied"
                         ? t("settings.buttons.copy_config_copied")
+                        : jsonCopyStatus === "failed"
+                        ? t("settings.buttons.copy_config_failed")
                         : t("settings.buttons.copy_config")}
                 </Button>
+            </div>
+            <div className="mt-tight">
+                {jsonCopyStatus === "copied" && (
+                    <p className="text-success text-label">
+                        {t("settings.modal.clipboard_success")}
+                    </p>
+                )}
+                {jsonCopyStatus === "failed" && (
+                    <p className="text-danger text-label">
+                        {t("settings.modal.clipboard_failed")}
+                    </p>
+                )}
             </div>
             <div className="rounded-2xl border border-content1/20 bg-content1/30">
                 <textarea

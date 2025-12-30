@@ -2,7 +2,8 @@ param(
     [ValidateSet('fast', 'ultra')][string]$UWx = 'fast',
     [switch]$ForceFrontend,
     [switch]$SkipFrontend,
-    [switch]$SkipLaunch
+    [switch]$SkipLaunch,
+    [switch]$Upx
 )
 
 $ErrorActionPreference = 'Stop'
@@ -417,7 +418,7 @@ catch {
     Copy-Item -LiteralPath $buildExe -Destination $finalExe -Force -ErrorAction Stop
 }
 
-if (-not $SkipFrontend) {
+if ($Upx) {
     $upxPath = Find-Executable -Name "upx" -Id "UPX" -PackageId "upx.upx"
     if (-not $upxPath) {
         Write-Host "UPX not found (add upx.exe to PATH); skipping compression." -ForegroundColor Yellow
@@ -437,7 +438,7 @@ if (-not $SkipFrontend) {
     }
 }
 else {
-    Write-Host "Skipping UPX compression because -SkipFrontend was specified." -ForegroundColor Cyan
+    Write-Host "Skipping UPX compression (no --upx specified)." -ForegroundColor Cyan
 }
 
 Write-Host "Done: $finalExe" -ForegroundColor Green

@@ -13,7 +13,7 @@ interface SettingsFormContextValue {
     buttonActions: Record<ButtonActionKey, () => void>;
     canBrowseDirectories: boolean;
     onBrowse: (key: ConfigKey) => void;
-    jsonCopyStatus: "idle" | "copied";
+    jsonCopyStatus: "idle" | "copied" | "failed";
     onCopyConfigJson: () => void;
     configJson: string;
     rpcStatus: RpcStatus;
