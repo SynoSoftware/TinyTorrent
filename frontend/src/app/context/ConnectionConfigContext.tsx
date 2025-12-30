@@ -278,20 +278,22 @@ export function ConnectionConfigProvider({
 }: {
     children: ReactNode;
 }) {
-    const initialProfiles = useMemo(
-        () =>
-            Runtime.allowEditingProfiles()
-                ? loadProfiles()
-                : [createDefaultProfile()],
-        []
-    );
+    const isNativeHost = Runtime.isNativeHost;
+    const initialProfiles = useMemo(() => loadProfiles(), []);
     const [profiles, setProfiles] =
         useState<ConnectionProfile[]>(initialProfiles);
-    const [activeProfileId, setActiveProfileId] = useState<string>(() =>
-        !Runtime.allowEditingProfiles()
-            ? initialProfiles[0].id
-            : loadActiveProfileId(initialProfiles)
-    );
+    const [activeProfileId, setActiveProfileId] = useState<string>(() => {
+        if (isNativeHost) {
+            const fallback =
+                initialProfiles.find(
+                    (profile) => profile.id === DEFAULT_PROFILE_ID
+                ) ??
+                initialProfiles[0] ??
+                createDefaultProfile();
+            return fallback.id;
+        }
+        return loadActiveProfileId(initialProfiles);
+    });
     const initialNativeOverride = useMemo(() => detectNativeInfo(), []);
     const [nativeOverride, setNativeOverride] =
         useState<NativeOverride>(initialNativeOverride);
@@ -355,7 +357,6 @@ export function ConnectionConfigProvider({
     }, []);
 
     const addProfile = useCallback(() => {
-        if (!Runtime.allowEditingProfiles()) return; // disabled in native host
         const newProfile: ConnectionProfile = {
             id: generateId(),
             label: `Connection ${profiles.length + 1}`,
@@ -372,7 +373,6 @@ export function ConnectionConfigProvider({
 
     const removeProfile = useCallback(
         (id: string) => {
-            if (!Runtime.allowEditingProfiles()) return; // disabled in native host
             if (profiles.length === 1) return;
             const next = profiles.filter((profile) => profile.id !== id);
             const fallback =
@@ -387,7 +387,6 @@ export function ConnectionConfigProvider({
 
     const updateProfile = useCallback(
         (id: string, patch: Partial<Omit<ConnectionProfile, "id">>) => {
-            if (!Runtime.allowEditingProfiles()) return; // Prevent editing profiles in native/local mode
             setProfiles((prev) =>
                 prev.map((profile) =>
                     profile.id === id ? { ...profile, ...patch } : profile
@@ -405,8 +404,25 @@ export function ConnectionConfigProvider({
         );
     }, [profiles, activeProfileId]);
 
+    const shouldApplyNativeOverride = useMemo(() => {
+        if (!isNativeHost || activeProfileId !== DEFAULT_PROFILE_ID) {
+            return false;
+        }
+        const hostOverride =
+            baseActiveProfile.host.trim().toLowerCase() !== DEFAULT_RPC_HOST;
+        const portOverride = baseActiveProfile.port.trim() !== DEFAULT_RPC_PORT;
+        const tokenOverride = Boolean(baseActiveProfile.token.trim());
+        const userOverride =
+            hostOverride ||
+            portOverride ||
+            tokenOverride ||
+            Boolean(baseActiveProfile.username.trim()) ||
+            Boolean(baseActiveProfile.password.trim());
+        return !userOverride;
+    }, [activeProfileId, baseActiveProfile, isNativeHost]);
+
     const activeProfile = useMemo(() => {
-        if (!Runtime.allowEditingProfiles()) {
+        if (shouldApplyNativeOverride) {
             return {
                 ...baseActiveProfile,
                 host: nativeOverride.host ?? DEFAULT_RPC_HOST,
@@ -416,7 +432,7 @@ export function ConnectionConfigProvider({
             };
         }
         return baseActiveProfile;
-    }, [baseActiveProfile, nativeOverride]);
+    }, [baseActiveProfile, nativeOverride, shouldApplyNativeOverride]);
 
     const value = useMemo(
         () => ({

@@ -452,11 +452,16 @@
     :root[data-native-host="true"] .tt-shell-body {
         padding: 0;
         margin: 0;
-        -webkit-app-region: drag;
     }
 
     :root[data-native-host="true"] .tt-shell-no-drag {
         -webkit-app-region: no-drag;
+    }
+
+    :root[data-native-host="true"] .tt-shell-body > .acrylic,
+    :root[data-native-host="true"] .tt-shell-body > .tt-shell-no-drag.acrylic {
+        border-color: transparent;
+        box-shadow: none;
     }
 }
 
@@ -473,6 +478,22 @@
         overflow: hidden;
         border-radius: inherit;
         background-clip: padding-box;
+    }
+
+    .native-shell-body {
+        @apply bg-background/60 backdrop-blur-3xl border border-transparent;
+    }
+
+    .native-shell-inner {
+        background-color: transparent;
+        border-color: transparent;
+        box-shadow: none;
+    }
+
+    .native-shell-main {
+        background-color: transparent;
+        border-color: transparent;
+        box-shadow: none;
     }
 
     .surface-layer-0 {

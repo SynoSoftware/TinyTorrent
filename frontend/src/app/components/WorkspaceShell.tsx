@@ -373,7 +373,7 @@ export function WorkspaceShell({
         >
             <input {...getInputProps()} />
 
-            {isImmersiveShell && (
+            {isImmersiveShell && !isNativeHost && (
                 <div className="pointer-events-none absolute inset-0 z-0">
                     <div className="absolute inset-0 bg-background/95" />
                     <div className="absolute inset-0 mix-blend-screen opacity-50 bg-primary/20" />
@@ -410,23 +410,24 @@ export function WorkspaceShell({
             </AnimatePresence>
 
             <div className="relative z-10 flex w-full flex-1">
-                <div
-                    className={cn(
-                        "tt-shell-body mx-auto flex w-full flex-1 flex-col",
-                        isImmersiveShell
-                            ? isNativeHost
-                                ? "gap-stage"
-                                : "gap-stage px-panel py-stage sm:px-stage lg:px-stage"
-                            : isNativeHost
-                              ? "gap-tools"
-                              : "gap-tools px-panel py-panel"
-                    )}
-                    style={
-                        isImmersiveShell && !isNativeHost
-                            ? { maxWidth: "var(--tt-shell-main-max-w)" }
-                            : undefined
-                    }
-                >
+            <div
+                className={cn(
+                    "tt-shell-body mx-auto flex w-full flex-1 flex-col",
+                    isNativeHost && "native-shell-body",
+                    isImmersiveShell
+                        ? isNativeHost
+                            ? "gap-stage"
+                            : "gap-stage px-panel py-stage sm:px-stage lg:px-stage"
+                        : isNativeHost
+                          ? "gap-tools"
+                          : "gap-tools px-panel py-panel"
+                )}
+                style={
+                    isImmersiveShell && !isNativeHost
+                        ? { maxWidth: "var(--tt-shell-main-max-w)" }
+                        : undefined
+                }
+            >
                     {isImmersiveShell ? (
                         <div
                             className="acrylic border border-white/10 shadow-hud"
@@ -444,14 +445,20 @@ export function WorkspaceShell({
                     {isImmersiveShell ? (
                         <>
                             <div
-                                className="tt-shell-no-drag acrylic flex-1 min-h-0 h-full border border-white/10 shadow-hud"
+                                className={cn(
+                                    "tt-shell-no-drag acrylic flex-1 min-h-0 h-full border border-white/10 shadow-hud",
+                                    isNativeHost && "native-shell-inner"
+                                )}
                                 style={{
                                     borderRadius: `${IMMERSIVE_MAIN_OUTER_RADIUS}px`,
                                     padding: `${IMMERSIVE_MAIN_PADDING}px`,
                                 }}
                             >
                                 <main
-                                    className="flex-1 min-h-0 h-full overflow-hidden border border-white/5 bg-background/20 shadow-inner"
+                                    className={cn(
+                                        "flex-1 min-h-0 h-full overflow-hidden border border-white/5 bg-background/20 shadow-inner",
+                                        isNativeHost && "native-shell-main"
+                                    )}
                                     style={{
                                         borderRadius: `${IMMERSIVE_MAIN_INNER_RADIUS}px`,
                                         padding: `${IMMERSIVE_MAIN_CONTENT_PADDING}px`,

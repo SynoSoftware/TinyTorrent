@@ -114,6 +114,7 @@
         "buttons": {
             "copy_config": "Copy JSON",
             "copy_config_copied": "Copied!",
+            "copy_config_failed": "Copy failed",
             "restore_hud": "Restore insights",
             "testPort": "Test"
         },
@@ -290,7 +291,16 @@
                 "reset_defaults": "Reset to Defaults",
                 "save": "Save Changes"
             },
-            "title": "Settings"
+            "title": "Settings",
+            "clipboard_success": "Configuration JSON copied to clipboard.",
+            "clipboard_failed": "Clipboard copy failed. Please try again.",
+            "error_save": "Unable to save settings. Please try again.",
+            "error_browse": "Unable to open the native folder picker.",
+            "error_test_port": "Port test failed. Check your connection.",
+            "error_restore": "Unable to restore insights at this time.",
+            "error_reconnect": "Unable to reconnect to the backend.",
+            "error_window_state": "Unable to preserve the window state.",
+            "error_no_tabs": "No configuration tabs are currently available."
         },
         "options": {
             "encryption": {

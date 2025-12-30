@@ -27,6 +27,9 @@ import { NativeShell } from "@/app/runtime";
 import { GLASS_MODAL_SURFACE } from "@/shared/ui/layout/glass-surface";
 import type { ServerClass } from "@/services/rpc/entities";
 
+const configsAreEqual = (a: SettingsConfig, b: SettingsConfig) =>
+    JSON.stringify(a) === JSON.stringify(b);
+
 interface SettingsModalProps {
     isOpen: boolean;
     onClose: () => void;
@@ -41,6 +44,11 @@ interface SettingsModalProps {
     serverClass: ServerClass;
     isNativeMode: boolean;
 }
+
+type ModalFeedback = {
+    type: "error" | "success";
+    text: string;
+};
 
 export function SettingsModal({
     isOpen,
@@ -62,31 +70,41 @@ export function SettingsModal({
     // Responsive State
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(true);
 
+    const safeInitialConfig = useMemo(
+        () => initialConfig ?? DEFAULT_SETTINGS_CONFIG,
+        [initialConfig]
+    );
+
     const [config, setConfig] = useState<SettingsConfig>(() => ({
-        ...initialConfig,
+        ...safeInitialConfig,
     }));
 
-    const [jsonCopyStatus, setJsonCopyStatus] = useState<"idle" | "copied">(
-        "idle"
+    const [modalFeedback, setModalFeedback] = useState<ModalFeedback | null>(
+        null
     );
+
+    const [jsonCopyStatus, setJsonCopyStatus] = useState<
+        "idle" | "copied" | "failed"
+    >("idle");
     const jsonCopyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const configJson = useMemo(() => JSON.stringify(config, null, 2), [config]);
 
     const handleCopyConfigJson = useCallback(async () => {
         if (typeof navigator === "undefined" || !navigator.clipboard) return;
+        let nextStatus: "copied" | "failed" = "copied";
         try {
             await navigator.clipboard.writeText(configJson);
-            setJsonCopyStatus("copied");
-            if (jsonCopyTimerRef.current) {
-                clearTimeout(jsonCopyTimerRef.current);
-            }
-            jsonCopyTimerRef.current = window.setTimeout(() => {
-                setJsonCopyStatus("idle");
-            }, 1500);
         } catch {
-            // Swallow clipboard errors silently
+            nextStatus = "failed";
         }
+        setJsonCopyStatus(nextStatus);
+        if (jsonCopyTimerRef.current) {
+            clearTimeout(jsonCopyTimerRef.current);
+        }
+        jsonCopyTimerRef.current = window.setTimeout(() => {
+            setJsonCopyStatus("idle");
+        }, 1500);
     }, [configJson]);
 
     useEffect(() => {
@@ -101,22 +119,97 @@ export function SettingsModal({
 
     useEffect(() => {
         if (isOpen) {
-            setConfig(initialConfig);
+            setConfig({ ...safeInitialConfig });
+            setModalFeedback(null);
+            setJsonCopyStatus("idle");
             setIsMobileMenuOpen(true);
         }
-    }, [initialConfig, isOpen]);
+    }, [safeInitialConfig, isOpen]);
 
-    const handleSave = async () => {
+    useEffect(() => {
+        if (!isOpen) {
+            setModalFeedback(null);
+            setJsonCopyStatus("idle");
+        }
+    }, [isOpen]);
+
+    const persistWindowState = useCallback(async () => {
+        if (!NativeShell.isAvailable) return;
+        try {
+            await NativeShell.request("persist-window-state");
+        } catch {
+            setModalFeedback({
+                type: "error",
+                text: t("settings.modal.error_window_state"),
+            });
+        }
+    }, [t]);
+
+    const handleSave = useCallback(async () => {
+        await persistWindowState();
         try {
             await onSave(config);
+            setModalFeedback(null);
             onClose();
-        } finally {
+        } catch (error) {
+            const message =
+                typeof error === "object" &&
+                error !== null &&
+                "message" in error &&
+                typeof (error as { message?: unknown }).message === "string"
+                    ? (error as { message: string }).message
+                    : t("settings.modal.error_save");
+            setModalFeedback({ type: "error", text: message });
         }
-    };
+    }, [config, onSave, onClose, persistWindowState, t]);
 
     const handleReset = () => {
-        setConfig({ ...DEFAULT_SETTINGS_CONFIG });
+        setConfig({ ...safeInitialConfig });
+        setModalFeedback(null);
     };
+
+    const runAction = useCallback(
+        (
+            action: (() => void | Promise<void>) | undefined,
+            messageKey: string
+        ) => {
+            return () => {
+                if (!action) return;
+                void (async () => {
+                    try {
+                        await action();
+                        setModalFeedback(null);
+                    } catch {
+                        setModalFeedback({
+                            type: "error",
+                            text: t(messageKey),
+                        });
+                    }
+                })();
+            };
+        },
+        [t]
+    );
+
+    const buttonActions: Record<ButtonActionKey, () => void> = useMemo(
+        () => ({
+            testPort: runAction(
+                () => onTestPort?.(),
+                "settings.modal.error_test_port"
+            ),
+            restoreHud: runAction(
+                () => onRestoreInsights?.(),
+                "settings.modal.error_restore"
+            ),
+        }),
+        [onRestoreInsights, onTestPort, runAction]
+    );
+
+    const safeReconnect = useMemo(
+        () =>
+            runAction(() => onReconnect(), "settings.modal.error_reconnect"),
+        [onReconnect, runAction]
+    );
 
     const sliderConstraints = useMemo<
         Partial<Record<ConfigKey, SliderDefinition>>
@@ -153,14 +246,6 @@ export function SettingsModal({
         [sliderConstraints]
     );
 
-    const buttonActions: Record<ButtonActionKey, () => void> = useMemo(
-        () => ({
-            testPort: () => void onTestPort?.(),
-            restoreHud: () => onRestoreInsights?.(),
-        }),
-        [onRestoreInsights, onTestPort]
-    );
-
     const handleBrowse = useCallback(
         async (key: ConfigKey) => {
             if (!canBrowseDirectories) return;
@@ -171,16 +256,19 @@ export function SettingsModal({
                     updateConfig(key, selected as SettingsConfig[ConfigKey]);
                 }
             } catch {
-                // Swallow native errors for now
+                setModalFeedback({
+                    type: "error",
+                    text: t("settings.modal.error_browse"),
+                });
             }
         },
-        [canBrowseDirectories, config, updateConfig]
+        [canBrowseDirectories, config, updateConfig, t]
     );
 
-    const hasUnsavedChanges = useMemo(() => {
-        const configKeys = Object.keys(DEFAULT_SETTINGS_CONFIG) as ConfigKey[];
-        return configKeys.some((key) => config[key] !== initialConfig[key]);
-    }, [config, initialConfig]);
+    const hasUnsavedChanges = useMemo(
+        () => !configsAreEqual(config, safeInitialConfig),
+        [config, safeInitialConfig]
+    );
 
     const hasVisibleBlocks = useCallback(
         (blocks: SectionBlock[]) =>
@@ -207,16 +295,20 @@ export function SettingsModal({
         [hasVisibleBlocks, systemTabVisible, isNativeMode]
     );
 
+    const safeVisibleTabs = visibleTabs.length
+        ? visibleTabs
+        : [SETTINGS_TABS[0]];
+    const tabsFallbackActive = visibleTabs.length === 0;
+
     const activeTabDefinition =
-        visibleTabs.find((tab) => tab.id === activeTab) ??
-        visibleTabs[0] ??
-        SETTINGS_TABS[0];
+        safeVisibleTabs.find((tab) => tab.id === activeTab) ??
+        safeVisibleTabs[0];
 
     useEffect(() => {
-        if (!visibleTabs.find((tab) => tab.id === activeTab)) {
-            setActiveTab(visibleTabs[0]?.id ?? "speed");
+        if (!safeVisibleTabs.find((tab) => tab.id === activeTab)) {
+            setActiveTab(safeVisibleTabs[0]?.id ?? "speed");
         }
-    }, [activeTab, visibleTabs]);
+    }, [activeTab, safeVisibleTabs]);
 
     const settingsFormContext = useMemo(
         () => ({
@@ -229,7 +321,7 @@ export function SettingsModal({
             onCopyConfigJson: handleCopyConfigJson,
             configJson,
             rpcStatus,
-            onReconnect,
+            onReconnect: safeReconnect,
         }),
         [
             buttonActions,
@@ -239,15 +331,15 @@ export function SettingsModal({
             handleBrowse,
             handleCopyConfigJson,
             jsonCopyStatus,
-            onReconnect,
             rpcStatus,
+            safeReconnect,
             updateConfig,
         ]
     );
     return (
         <Modal
             isOpen={isOpen}
-            onOpenChange={(open) => !open && onClose()}
+            onOpenChange={(open) => !open && !isSaving && onClose()}
             backdrop="blur"
             placement="center"
             size="5xl"
@@ -295,7 +387,7 @@ export function SettingsModal({
                         </div>
 
                         <div className="flex-1 px-panel py-panel space-y-tight overflow-y-auto scrollbar-hide">
-                            {visibleTabs.map((tab) => (
+                            {safeVisibleTabs.map((tab) => (
                                 <button
                                     key={tab.id}
                                     onClick={() => {
@@ -394,6 +486,23 @@ export function SettingsModal({
 
                         {/* Scrollable Content */}
                         <div className="flex-1 min-h-0 overflow-y-auto w-full p-panel sm:p-8 scrollbar-hide">
+                            {tabsFallbackActive && (
+                                <div className="rounded-xl border border-warning/30 bg-warning/10 px-panel py-tight text-label text-warning mb-panel">
+                                    {t("settings.modal.error_no_tabs")}
+                                </div>
+                            )}
+                            {modalFeedback && (
+                                <div
+                                    className={cn(
+                                        "rounded-xl border px-panel py-tight text-label mb-panel",
+                                        modalFeedback.type === "error"
+                                            ? "border-danger/40 bg-danger/5 text-danger"
+                                            : "border-success/40 bg-success/10 text-success"
+                                    )}
+                                >
+                                    {modalFeedback.text}
+                                </div>
+                            )}
                             <AnimatePresence mode="wait">
                                 <motion.div
                                     key={activeTabDefinition.id}
@@ -438,7 +547,7 @@ export function SettingsModal({
                                 size="md"
                                 variant="shadow"
                                 color="danger"
-                                className="opacity-70 hover:opacity-100 hidden sm:flex"
+                                className="opacity-70 hover:opacity-100"
                                 onPress={handleReset}
                                 startContent={
                                     <RotateCcw
@@ -455,7 +564,8 @@ export function SettingsModal({
                                 <Button
                                     size="md"
                                     variant="light"
-                                    onPress={onClose}
+                                    onPress={() => !isSaving && onClose()}
+                                    isDisabled={isSaving}
                                 >
                                     {t("settings.modal.footer.cancel")}
                                 </Button>
@@ -465,6 +575,7 @@ export function SettingsModal({
                                     variant="shadow"
                                     onPress={handleSave}
                                     isLoading={isSaving}
+                                    isDisabled={!hasUnsavedChanges || isSaving}
                                     startContent={
                                         !isSaving && (
                                             <Save

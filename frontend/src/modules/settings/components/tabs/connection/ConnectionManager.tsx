@@ -93,7 +93,7 @@ export function ConnectionCredentialsCard({
         return t(`settings.connection.server_type_${serverType}`);
     }, [serverType, t]);
 
-    const remoteInputsEnabled = !isNativeMode;
+    const remoteInputsEnabled = !isNativeMode || showAdvanced;
 
     const serverUrl = useMemo(
         () => buildRpcServerUrl(activeProfile),
@@ -332,7 +332,7 @@ export function ConnectionCredentialsCard({
                         )}
                     </>
                 )}
-                {isNativeMode && (
+                {isNativeMode && !showAdvanced && (
                     <p className="text-label text-foreground/60 mt-tight">
                         {t(
                             "settings.connection.local_mode_info",

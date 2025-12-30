@@ -207,13 +207,13 @@ if tt_has_packed_fs_bin
   tt_cpp_args += '-DTT_PACKED_FS_HAS_INC=1'
 endif
 
-tt_packed_fs_res = []
+tinytorrent_windows_resources = []
 if host_machine.system() == 'windows' and tt_has_packed_fs_bin
   rc_prog = find_program('rc', required: true)
   rc_include_dirs = ['/I' + join_paths(meson.project_source_root(), 'src', 'vendor')]
-  tt_packed_fs_res = [
+  tinytorrent_windows_resources = [
       custom_target(
-        'tt_packed_fs_res',
+        'tinytorrent_windows_resources',
         input: tt_packed_fs_rc,
         output: 'tt_packed_fs.res',
         command: [rc_prog, '/nologo'] + rc_include_dirs + ['/fo', '@OUTPUT@', '@INPUT@'],
@@ -274,10 +274,10 @@ if fs.exists('src/vendor/tt_packed_fs.c')
   tt_base_sources += 'src/vendor/tt_packed_fs.c'
 endif
 
-tt_sources = tt_base_sources + tt_packed_fs_res
+tt_sources = tt_base_sources + tinytorrent_windows_resources
 
 
-tt_engine_exe = executable('tt-engine', tt_sources,
+tt_engine_exe = executable('tinytorrent-daemon', tt_sources,
   dependencies: [tt_common_dep],
   link_args: tt_engine_link_args,
   cpp_args: tt_cpp_args,
@@ -295,7 +295,7 @@ if host_machine.system() == 'windows'
     endif
   endforeach
   tt_gui_sources += ['src/tray/entry_winmain.cpp']
-  tt_gui_sources += tt_packed_fs_res
+  tt_gui_sources += tinytorrent_windows_resources
 
   tt_webview_dep = dependency(
     'unofficial-webview2',
