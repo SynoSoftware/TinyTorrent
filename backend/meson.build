@@ -297,8 +297,15 @@ if host_machine.system() == 'windows'
   tt_gui_sources += ['src/tray/entry_winmain.cpp']
   tt_gui_sources += tt_packed_fs_res
 
+  tt_webview_dep = dependency(
+    'unofficial-webview2',
+    method: 'cmake',
+    modules: ['unofficial::webview2::webview2'],
+    static: true
+  )
+
   executable('TinyTorrent', tt_gui_sources,
-    dependencies: [tt_common_dep],
+    dependencies: [tt_common_dep, tt_webview_dep],
     link_args: tt_tray_link_args,
     cpp_args: tt_cpp_args,
     c_args: tt_c_args,

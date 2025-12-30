@@ -12,6 +12,9 @@ import {
     UploadCloud,
     Monitor,
     PanelsTopLeft,
+    Minimize2,
+    Maximize2,
+    X,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { TinyTorrentIcon } from "@/shared/ui/components/TinyTorrentIcon";
@@ -48,6 +51,7 @@ interface NavbarProps {
     workspaceStyle: "classic" | "immersive";
     onWorkspaceToggle: () => void;
     workspaceToggleLabel: string;
+    onWindowCommand: (command: "minimize" | "maximize" | "close") => void;
 }
 
 export function Navbar({
@@ -66,6 +70,7 @@ export function Navbar({
     workspaceStyle,
     onWorkspaceToggle,
     workspaceToggleLabel,
+    onWindowCommand,
 }: NavbarProps) {
     const { t } = useTranslation();
     const { setActivePart } = useFocusState();
@@ -307,6 +312,30 @@ export function Navbar({
                             style={{ overflow: "visible" }}
                         />
                         <ThemeToggle />
+                    </div>
+
+                    <div className="flex items-center gap-tight">
+                        <ToolbarIconButton
+                            Icon={Minimize2}
+                            ariaLabel={t("toolbar.minimize")}
+                            title={t("toolbar.minimize")}
+                            onPress={() => onWindowCommand("minimize")}
+                            className="text-default-400 hover:text-foreground"
+                        />
+                        <ToolbarIconButton
+                            Icon={Maximize2}
+                            ariaLabel={t("toolbar.maximize")}
+                            title={t("toolbar.maximize")}
+                            onPress={() => onWindowCommand("maximize")}
+                            className="text-default-400 hover:text-foreground"
+                        />
+                        <ToolbarIconButton
+                            Icon={X}
+                            ariaLabel={t("toolbar.close")}
+                            title={t("toolbar.close")}
+                            onPress={() => onWindowCommand("close")}
+                            className="text-danger hover:text-danger-600 hover:bg-danger/10"
+                        />
                     </div>
 
                     {/* Progress Bar (Attached to bottom) */}

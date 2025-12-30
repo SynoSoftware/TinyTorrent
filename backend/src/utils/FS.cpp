@@ -2,6 +2,7 @@
 
 #include <filesystem>
 #include <optional>
+#include <system_error>
 #include <vector>
 
 #if defined(_WIN32)
@@ -9,6 +10,7 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <Windows.h>
+#include <shlobj_core.h>
 #elif defined(__APPLE__)
 #include <mach-o/dyld.h>
 #else
@@ -17,6 +19,30 @@
 
 namespace tt::utils
 {
+
+namespace
+{
+std::optional<std::filesystem::path> ensure_directory(
+    std::filesystem::path const &candidate)
+{
+    std::error_code ec;
+    std::filesystem::create_directories(candidate, ec);
+    if (!ec || std::filesystem::exists(candidate))
+    {
+        return candidate;
+    }
+    return std::nullopt;
+}
+
+std::filesystem::path fallback_root()
+{
+    if (auto exe = executable_path(); exe && !exe->filename().empty())
+    {
+        return exe->parent_path();
+    }
+    return std::filesystem::current_path();
+}
+} // namespace
 
 std::optional<std::filesystem::path> executable_path()
 {
@@ -72,20 +98,47 @@ std::optional<std::filesystem::path> executable_path()
 #endif
 }
 
+std::optional<std::filesystem::path> tiny_torrent_appdata_root()
+{
+#if defined(_WIN32)
+    PWSTR local_app = nullptr;
+    if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_LocalAppData, KF_FLAG_CREATE,
+                                       nullptr, &local_app)) &&
+        local_app)
+    {
+        std::filesystem::path path(local_app);
+        CoTaskMemFree(local_app);
+        path /= "TinyTorrent";
+        if (auto ensured = ensure_directory(path))
+        {
+            return *ensured;
+        }
+    }
+#endif
+    return std::nullopt;
+}
+
 std::filesystem::path data_root()
 {
-    std::filesystem::path root;
-    if (auto exe = executable_path(); exe && !exe->filename().empty())
+#if defined(_WIN32)
+    if (auto appdata = tiny_torrent_appdata_root())
     {
-        root = exe->parent_path();
+        auto root = *appdata;
+        root /= "data";
+        if (auto ensured = ensure_directory(root))
+        {
+            return *ensured;
+        }
+        return {};
     }
-    if (root.empty())
+#endif
+    auto fallback = fallback_root();
+    fallback /= "data";
+    if (auto ensured = ensure_directory(fallback))
     {
-        root = std::filesystem::current_path();
+        return *ensured;
     }
-    root /= "data";
-    std::filesystem::create_directories(root);
-    return root;
+    return fallback;
 }
 
 } // namespace tt::utils

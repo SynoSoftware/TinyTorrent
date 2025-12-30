@@ -35,17 +35,20 @@ import type { AddTorrentContext } from "@/app/hooks/useAddTorrent";
 import { NativeShell } from "@/app/runtime";
 import { useTorrentClient } from "@/app/providers/TorrentClientProvider";
 
+type AddTorrentModalPayload = {
+    magnetLink?: string;
+    metainfo?: string;
+    metainfoPath?: string;
+    downloadDir: string;
+    startNow: boolean;
+    filesUnwanted?: number[];
+};
+
 interface AddTorrentModalProps {
     isOpen: boolean;
     onClose: () => void;
     onAdd: (
-        payload: {
-            magnetLink?: string;
-            metainfo?: string;
-            downloadDir: string;
-            startNow: boolean;
-            filesUnwanted?: number[];
-        },
+        payload: AddTorrentModalPayload,
         context?: AddTorrentContext
     ) => Promise<void>;
     isSubmitting: boolean;
@@ -68,7 +71,8 @@ export function AddTorrentModal({
     const { t } = useTranslation();
     const torrentClient = useTorrentClient();
     const canBrowseDirectories = NativeShell.isAvailable;
-    const supportsCheckFreeSpace = Boolean(torrentClient.checkFreeSpace);
+    const checkFreeSpace = torrentClient.checkFreeSpace;
+    const supportsCheckFreeSpace = Boolean(checkFreeSpace);
     const [magnetLink, setMagnetLink] = useState("");
     const [downloadDir, setDownloadDir] = useState(
         initialDownloadDir?.trim() ?? ""
@@ -245,8 +249,15 @@ export function AddTorrentModal({
         }
         setIsSpaceLoading(true);
         setSpaceError(null);
-        torrentClient
-            .checkFreeSpace(downloadDir)
+        if (!checkFreeSpace) {
+            setDirectorySpace(null);
+            setSpaceError(null);
+            setIsSpaceLoading(false);
+            return () => {
+                active = false;
+            };
+        }
+        checkFreeSpace(downloadDir)
             .then((space) => {
                 if (!active) return;
                 setDirectorySpace(space);
@@ -263,7 +274,7 @@ export function AddTorrentModal({
         return () => {
             active = false;
         };
-    }, [downloadDir, torrentClient, t]);
+    }, [downloadDir, checkFreeSpace, t]);
 
     const fileTreeEntries = useMemo<FileExplorerEntry[]>(() => {
         if (!torrentMetadata) return [];
@@ -311,13 +322,7 @@ export function AddTorrentModal({
             strategy: trimmedLink ? "magnet_lookup" : "loading",
         };
         try {
-            const payload: {
-                magnetLink?: string;
-                metainfo?: string;
-                downloadDir: string;
-                startNow: boolean;
-                filesUnwanted?: number[];
-            } = {
+            const payload: AddTorrentModalPayload = {
                 downloadDir,
                 startNow,
             };

@@ -805,3 +805,24 @@ main .torrent-table-watermark {
         height: var(--tt-peers-hud-height);
     }
 }
+
+@layer utilities {
+    .app-titlebar {
+        -webkit-app-region: drag;
+    }
+
+    .app-titlebar :is(
+        button,
+        input,
+        textarea,
+        select,
+        [role="button"],
+        [role="textbox"],
+        [role="combobox"],
+        [role="listbox"],
+        [role="menu"],
+        [role="menuitem"]
+    ) {
+        -webkit-app-region: no-drag;
+    }
+}

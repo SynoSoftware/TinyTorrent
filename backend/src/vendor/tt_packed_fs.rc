@@ -39,7 +39,7 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "SynoSoftware"
             VALUE "ProductName", "TinyTorrent"
-            VALUE "FileDescription", "TinyTorrent Client"
+            VALUE "FileDescription", "TinyTorrent - a BitTorrent Client"
             VALUE "InternalName", "TinyTorrent"
             VALUE "OriginalFilename", "TinyTorrent.exe"
             VALUE "FileVersion", TT_VERSION_FILEVERSION_STRING
