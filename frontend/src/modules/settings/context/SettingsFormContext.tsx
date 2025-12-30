@@ -18,6 +18,7 @@ interface SettingsFormContextValue {
     configJson: string;
     rpcStatus: RpcStatus;
     onReconnect: () => void;
+    isImmersive?: boolean;
 }
 
 const SettingsFormContext = createContext<SettingsFormContextValue | undefined>(

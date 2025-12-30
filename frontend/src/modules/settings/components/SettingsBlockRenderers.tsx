@@ -82,9 +82,12 @@ export function SwitchRenderer({
     block: Extract<SectionBlock, { type: "switch" }>;
 }) {
     const { t } = useTranslation();
-    const { config, updateConfig } = useSettingsForm();
+    const { config, updateConfig, isImmersive } = useSettingsForm() as any;
     const dependsOn = block.dependsOn;
-    const isDisabled = dependsOn ? !(config[dependsOn] as boolean) : false;
+    const baseDisabled = dependsOn ? !(config[dependsOn] as boolean) : false;
+    const isDisabled =
+        baseDisabled ||
+        (block.disabledWhenNotImmersive && !Boolean(isImmersive));
 
     return (
         <div className="flex justify-between items-center h-control-row">
@@ -177,7 +180,7 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
             label={t(block.labelKey)}
             labelPlacement="outside"
             placeholder=" "
-            size={block.size ?? "sm"}
+            size={block.size ?? "md"}
             variant={block.variant ?? "bordered"}
             value={displayValue}
             type={block.inputType}
@@ -349,7 +352,7 @@ export function ButtonRowRenderer({
             {block.buttons.map((btn) => (
                 <Button
                     key={btn.labelKey}
-                    size={btn.size ?? "sm"}
+                    size={btn.size ?? "md"}
                     variant={btn.variant ?? "light"}
                     color={btn.color}
                     onPress={buttonActions[btn.action]}

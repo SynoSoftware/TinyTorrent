@@ -16,7 +16,7 @@ export const TOOLBAR_ICON_BUTTON_CLASSES = `${TOOLBAR_ICON_CLASSES} bg-content1/
 
 export type ToolbarIconSize = "sm" | "md" | "lg" | "xl";
 
-const ICON_SIZE_MAP: Record<ToolbarIconSize, string> = {
+export const ICON_SIZE_MAP: Record<ToolbarIconSize, string> = {
     sm: "var(--tt-status-icon-sm)",
     md: "var(--tt-status-icon-md)",
     lg: "var(--tt-status-icon-lg)",
