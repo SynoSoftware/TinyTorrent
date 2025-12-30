@@ -588,6 +588,61 @@ bool is_loopback_host(std::string_view host)
                        { return host == candidate; });
 }
 
+std::optional<std::string> origin_host(std::string_view origin)
+{
+    if (origin.empty())
+    {
+        return std::nullopt;
+    }
+    std::string_view rest = origin;
+    if (starts_with(rest, "http://"))
+    {
+        rest.remove_prefix(7);
+    }
+    else if (starts_with(rest, "https://"))
+    {
+        rest.remove_prefix(8);
+    }
+    else
+    {
+        return std::nullopt;
+    }
+    auto slash = rest.find('/');
+    if (slash != std::string_view::npos)
+    {
+        rest = rest.substr(0, slash);
+    }
+    if (rest.empty())
+    {
+        return std::nullopt;
+    }
+    if (rest.front() == '[')
+    {
+        auto closing = rest.find(']');
+        if (closing == std::string_view::npos)
+        {
+            return std::nullopt;
+        }
+        return canonicalize_host(std::string(rest.substr(0, closing + 1)));
+    }
+    auto colon = rest.rfind(':');
+    if (colon != std::string_view::npos)
+    {
+        rest = rest.substr(0, colon);
+    }
+    if (rest.empty())
+    {
+        return std::nullopt;
+    }
+    return canonicalize_host(std::string(rest));
+}
+
+bool origin_is_loopback(std::string_view origin)
+{
+    auto host = origin_host(origin);
+    return host && is_loopback_host(*host);
+}
+
 bool host_allowed(std::string const &host,
                   std::vector<std::string> const &allowed_hosts)
 {
@@ -834,6 +889,10 @@ bool origin_allowed(struct mg_http_message *hm,
 {
     auto origin = header_value(hm, "Origin");
     if (!origin)
+    {
+        return true;
+    }
+    if (origin_is_loopback(*origin))
     {
         return true;
     }

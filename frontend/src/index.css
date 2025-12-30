@@ -437,6 +437,17 @@
     html {
         font-size: var(--tt-font-size-base);
     }
+
+    :root[data-native-host="true"],
+    :root[data-native-host="true"] body {
+        background-color: transparent;
+        background-image: none;
+    }
+
+    :root[data-native-host="true"] .tt-app-shell {
+        background-color: transparent;
+        background-image: none;
+    }
 }
 
 @layer components {
@@ -807,22 +818,18 @@ main .torrent-table-watermark {
 }
 
 @layer utilities {
+    /* CRITICAL: Defines the draggable area for the frameless window */
     .app-titlebar {
         -webkit-app-region: drag;
+        user-select: none;
+        position: relative;
+        z-index: 50;
     }
 
-    .app-titlebar :is(
-        button,
-        input,
-        textarea,
-        select,
-        [role="button"],
-        [role="textbox"],
-        [role="combobox"],
-        [role="listbox"],
-        [role="menu"],
-        [role="menuitem"]
-    ) {
+    /* CRITICAL: Interactive elements inside the titlebar must NOT drag */
+    .app-titlebar button,
+    .app-titlebar input,
+    .app-titlebar .no-drag {
         -webkit-app-region: no-drag;
     }
 }

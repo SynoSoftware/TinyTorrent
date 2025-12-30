@@ -193,6 +193,12 @@ export default function App() {
     const { increase, decrease, reset } = useWorkbenchScale();
 
     useEffect(() => {
+        if (Runtime.isNativeHost && typeof document !== "undefined") {
+            document.documentElement.dataset.nativeHost = "true";
+        }
+    }, []);
+
+    useEffect(() => {
         const onKeyDown = (e: KeyboardEvent) => {
             // Zoom IN
             if (

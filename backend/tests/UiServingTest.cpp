@@ -28,6 +28,22 @@ struct ConnectionInfo
     std::uint64_t pid = 0;
 };
 
+struct CurrentPathGuard
+{
+    explicit CurrentPathGuard(std::filesystem::path next)
+        : original(std::filesystem::current_path())
+    {
+        std::filesystem::current_path(std::move(next));
+    }
+
+    ~CurrentPathGuard()
+    {
+        std::filesystem::current_path(original);
+    }
+
+    std::filesystem::path original;
+};
+
 struct HttpResponse
 {
     int status_code = 0;
@@ -315,19 +331,19 @@ TEST_CASE("tt-engine serves packed UI assets")
     auto engine_path = resolve_engine_path();
     REQUIRE(std::filesystem::exists(engine_path));
 
-    auto data_dir = engine_path.parent_path() / "data";
-    std::filesystem::create_directories(data_dir);
+    auto data_dir = tt::utils::data_root();
     auto connection_file = data_dir / "connection.json";
     std::error_code remove_ec;
     std::filesystem::remove(connection_file, remove_ec);
 
+    CurrentPathGuard cwd_guard(engine_path.parent_path());
     std::string command =
         std::string("\"") + engine_path.string() + "\" --run-seconds=4";
     [[maybe_unused]] ThreadJoiner engine_thread(std::thread(
         [cmd = std::move(command)]() { std::system(cmd.c_str()); }));
 
     auto info =
-        wait_for_connection(connection_file, std::chrono::milliseconds(1500));
+        wait_for_connection(connection_file, std::chrono::seconds(5));
     REQUIRE(info.has_value());
     REQUIRE(info->port != 0);
 

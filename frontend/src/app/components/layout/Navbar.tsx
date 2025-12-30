@@ -79,14 +79,14 @@ export function Navbar({
     return (
         <header
             className={cn(
-                "app-titlebar sticky top-0 z-30 flex w-full shrink-0 select-none overflow-visible transition-all",
+                "sticky top-0 z-30 flex w-full shrink-0 select-none overflow-visible transition-all",
                 GLASS_BLOCK_SURFACE,
                 BLOCK_SHADOW
             )}
             style={shell.frameStyle}
         >
             <div
-                className="flex w-full items-center justify-between"
+                className="app-titlebar flex w-full items-center justify-between"
                 style={{
                     ...shell.contentStyle,
                     height: "var(--tt-navbar-h)",

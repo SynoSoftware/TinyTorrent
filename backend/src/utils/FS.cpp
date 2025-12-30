@@ -10,7 +10,7 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <Windows.h>
-#include <shlobj_core.h>
+#include <ShlObj.h>
 #elif defined(__APPLE__)
 #include <mach-o/dyld.h>
 #else
@@ -108,6 +108,18 @@ std::optional<std::filesystem::path> tiny_torrent_appdata_root()
     {
         std::filesystem::path path(local_app);
         CoTaskMemFree(local_app);
+        path /= "TinyTorrent";
+        if (auto ensured = ensure_directory(path))
+        {
+            return *ensured;
+        }
+    }
+    wchar_t fallback_path[MAX_PATH] = {};
+    if (SUCCEEDED(SHGetFolderPathW(nullptr,
+                                   CSIDL_LOCAL_APPDATA | CSIDL_FLAG_CREATE,
+                                   nullptr, SHGFP_TYPE_CURRENT, fallback_path)))
+    {
+        std::filesystem::path path(fallback_path);
         path /= "TinyTorrent";
         if (auto ensured = ensure_directory(path))
         {

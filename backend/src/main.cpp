@@ -961,7 +961,12 @@ int daemon_main(int argc, char *argv[],
             }
         }
 #if defined(TT_BUILD_DEBUG)
-        rpc_options.force_debug_port = true;
+        rpc_options.force_debug_port = false;
+        if (auto force = read_env("TT_RPC_FORCE_DEBUG_PORT");
+            force && *force == "1")
+        {
+            rpc_options.force_debug_port = true;
+        }
 #endif
         // In debug builds we avoid requiring an RPC token so developers can
         // connect locally without extra credentials. Production builds still
@@ -994,7 +999,7 @@ int daemon_main(int argc, char *argv[],
         // synchronization primitive to avoid races that produce port:0 in
         // connection.json.
         std::optional<tt::rpc::ConnectionInfo> connection_info;
-        if (rpc.wait_until_ready(std::chrono::milliseconds(1000)))
+        if (rpc.wait_until_ready(std::chrono::seconds(5)))
         {
             connection_info = rpc.connection_info();
         }
