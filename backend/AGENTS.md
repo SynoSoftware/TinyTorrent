@@ -257,7 +257,25 @@ root/
 
 # **5. Implementation Rules**
 
-### **5.1 JSON Handling**
+### **5.1 Window Backdrop Policy (Non-Negotiable)**
+
+- **TinyTorrent MUST use custom acrylic via `WCA_ACCENT_POLICY`.**
+- **System backdrops (`DWMWA_SYSTEMBACKDROP_TYPE`, Mica, transient, tabbed, etc.) are FORBIDDEN.**
+- **Do NOT replace acrylic with any Windows-managed backdrop under any circumstance.**
+
+Rationale (non-actionable):
+
+- Acrylic is a core part of the TinyTorrent visual identity.
+- System backdrops alter tint, contrast, noise, and activation behavior in ways that break the design.
+
+Enforcement:
+
+- Any change that removes, weakens, or substitutes `WCA_ACCENT_POLICY` is a **spec violation**.
+- Fix visual artifacts (borders, activation outlines, resize issues) **without switching backdrop technology**.
+- If acrylic causes issues, the issue must be fixed. Acrylic must not be removed.
+
+
+### **5.2 JSON Handling**
 
 * Library: `yyjson`.
 * Write small RAII wrappers (`utils/Json.hpp`) for doc/value lifetime.
@@ -265,14 +283,14 @@ root/
 * Canonical error envelope must be emitted via a single helper (`result`/`error`/`arguments`).
 * RPC thread must not do heavy JSON building; it may only send already-prepared responses or build bounded responses from the latest snapshot.
 
-### **5.2 String Formatting**
+### **5.3 String Formatting**
 
 * Use `std::format` for formatted messages.
 * Avoid `<iostream>` in Release builds.
 * Logging must be lightweight: `std::format` + `printf` / `OutputDebugString` under the hood.
 * No formatting in hot loops (snapshot build, per-torrent encoding); cache or format once per event.
 
-### **5.3 Error Handling**
+### **5.4 Error Handling**
 
 * Exceptions allowed from libtorrent and Win32 wrappers.
 * Catch exceptions before entering C callbacks (Mongoose) and before crossing threads.
@@ -283,26 +301,26 @@ root/
   * cannot start RPC listener after bounded retries
   * state corruption requiring shutdown
 
-### **5.4 RPC Input Normalization**
+### **5.5 RPC Input Normalization**
 
 * RPC parsing must be centralized: handlers must use shared helpers for extracting/validating args.
 * Shared shapes (torrent id sets, path args, optional fields) must have one parser.
 * Path normalization must be a single function (Windows: normalize separators, reject relative, enforce security rules).
 
-### **5.5 RAII Enforcement**
+### **5.6 RAII Enforcement**
 
 * Any resource beyond a function call must be RAII-managed:
 
   * DB transactions, locks, file/OS handles, threads, COM init.
 * No manual open/close, lock/unlock outside RAII guards.
 
-### **5.6 Persistence Boundary Rule**
+### **5.7 Persistence Boundary Rule**
 
 * Engine code must not issue raw SQL or depend on schema details.
 * All persistence goes through repository/DAO interfaces (ports).
 * Persistence lookups in hot paths (snapshots, tray status) are forbidden; load once into in-memory state.
 
-### **5.7 Cohesion & Split Rule**
+### **5.8 Cohesion & Split Rule**
 
 * Keep each file within a single architectural role (Domain vs Application vs Adapter vs Infrastructure).
 * If a file starts to mix roles, the fix is **ports + split**, not internal reorganization.

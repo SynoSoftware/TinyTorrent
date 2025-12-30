@@ -82,6 +82,24 @@
 #ifndef WS_EX_NOREDIRECTIONBITMAP
 #define WS_EX_NOREDIRECTIONBITMAP 0x00200000L
 #endif
+#ifndef DWMWA_SYSTEMBACKDROP_TYPE
+#define DWMWA_SYSTEMBACKDROP_TYPE 38
+#endif
+#ifndef DWMSBT_AUTO
+#define DWMSBT_AUTO 0
+#endif
+#ifndef DWMSBT_NONE
+#define DWMSBT_NONE 1
+#endif
+#ifndef DWMSBT_MAINWINDOW
+#define DWMSBT_MAINWINDOW 2
+#endif
+#ifndef DWMSBT_TRANSIENTWINDOW
+#define DWMSBT_TRANSIENTWINDOW 3
+#endif
+#ifndef DWMSBT_TABBEDWINDOW
+#define DWMSBT_TABBEDWINDOW 4
+#endif
 
 namespace
 {
@@ -249,6 +267,7 @@ void cancel_native_webview(TrayState &state);
 std::string http_post_rpc(TrayState &state, std::string const &payload);
 void enable_acrylic(HWND hwnd);
 void apply_rounded_corners(HWND hwnd);
+void apply_system_backdrop_type(HWND hwnd, DWORD type);
 void log_webview_dom_transparency(TrayState &state);
 void run_diag_hittest_sweep(TrayState &state);
 bool capture_window_placement(HWND hwnd, WINDOWPLACEMENT &placement);
@@ -1152,6 +1171,7 @@ void configure_webview_window_chrome(HWND hwnd)
     apply_frameless_window_style(hwnd);
     enable_acrylic(hwnd);
     apply_rounded_corners(hwnd);
+    apply_system_backdrop_type(hwnd, DWMSBT_NONE);
 }
 
 void log_webview_dom_transparency(TrayState &state)
@@ -1965,6 +1985,18 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
         }
         return 0;
     }
+    case WM_NCACTIVATE:
+    {
+        LRESULT result = DefWindowProcW(hwnd, msg, wparam, lparam);
+        apply_frameless_window_style(hwnd);
+        return result;
+    }
+    case WM_ACTIVATE:
+    {
+        LRESULT result = DefWindowProcW(hwnd, msg, wparam, lparam);
+        apply_frameless_window_style(hwnd);
+        return result;
+    }
     case WM_NCHITTEST:
     {
         // Frameless resize hit-testing (edges only). Drag is handled by
@@ -2513,6 +2545,23 @@ void apply_rounded_corners(HWND hwnd)
                           sizeof(pref));
 }
 
+void apply_system_backdrop_type(HWND hwnd, DWORD type)
+{
+    if (!hwnd)
+    {
+        return;
+    }
+    HRESULT hr = DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, &type,
+                                       sizeof(type));
+    if (native_diag_enabled())
+    {
+        std::wstringstream ss;
+        ss << L"system_backdrop_type=" << type << L" hr=0x"
+           << std::hex << static_cast<uint32_t>(hr) << std::dec;
+        native_diag_logf(L"dwm", hwnd, ss.str());
+    }
+}
+
 void enable_acrylic(HWND hwnd)
 {
     HMODULE hUser32 = GetModuleHandleW(L"user32.dll");
@@ -2628,6 +2677,7 @@ void create_splash_window(HINSTANCE instance, HICON icon,
         SetWindowLongPtrW(hwnd, GWLP_USERDATA,
                           reinterpret_cast<LONG_PTR>(icon));
         apply_rounded_corners(hwnd);
+        apply_system_backdrop_type(hwnd, DWMSBT_NONE);
         enable_acrylic(hwnd);
         SetTimer(hwnd, kSplashAutoCloseTimerId, 10000, nullptr);
         g_splash_hwnd.store(hwnd);
