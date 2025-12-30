@@ -505,6 +505,13 @@ std::wstring build_native_bridge_script(TrayState &state)
     script += L"port: \"" + port + L"\", ";
     script += L"scheme: \"" + std::wstring(scheme) + L"\"";
     script += L"};";
+    script += L"try{";
+    script += L"if(\"" + token + L"\".length){";
+    script += L"sessionStorage.setItem(\"tt-auth-token\",\"" + token + L"\");";
+    script += L"}else{";
+    script += L"sessionStorage.removeItem(\"tt-auth-token\");";
+    script += L"}";
+    script += L"}catch(e){}";
     return script;
 }
 
@@ -550,16 +557,27 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
         GetWindowRect(hwnd, &rw);
 
         // 3. Determine Border Thickness (DPI Aware)
-        // A fixed 8px logical border is usually best for usability, scaled by
-        // DPI.
         UINT dpi = GetDpiForWindow(hwnd);
-        int border = MulDiv(8, dpi, 96);
+        int frame_x = GetSystemMetricsForDpi(SM_CXFRAME, dpi);
+        int frame_y = GetSystemMetricsForDpi(SM_CYFRAME, dpi);
+        int padding = GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpi);
+        int border_x = frame_x + padding;
+        int border_y = frame_y + padding;
+        int fallback_border = MulDiv(8, dpi, 96);
+        if (border_x < fallback_border)
+        {
+            border_x = fallback_border;
+        }
+        if (border_y < fallback_border)
+        {
+            border_y = fallback_border;
+        }
 
         // 4. Hit Test Logic
-        bool isTop = (pt.y >= rw.top && pt.y < rw.top + border);
-        bool isBottom = (pt.y < rw.bottom && pt.y >= rw.bottom - border);
-        bool isLeft = (pt.x >= rw.left && pt.x < rw.left + border);
-        bool isRight = (pt.x < rw.right && pt.x >= rw.right - border);
+        bool isTop = (pt.y >= rw.top && pt.y < rw.top + border_y);
+        bool isBottom = (pt.y < rw.bottom && pt.y >= rw.bottom - border_y);
+        bool isLeft = (pt.x >= rw.left && pt.x < rw.left + border_x);
+        bool isRight = (pt.x < rw.right && pt.x >= rw.right - border_x);
 
         // 5. Return Native Hit Codes (Priority: Corners -> Edges)
         if (isTop && isLeft)
@@ -579,8 +597,25 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
         if (isRight)
             return HTRIGHT;
 
-        // 6. Content Area: Delegate to WebView (for CSS Drag)
-        return HTCLIENT;
+        // 6. Fall back to default hit test for resize borders, but never
+        // allow HTCAPTION (drag handled by WebView CSS).
+        LRESULT def_hit = DefWindowProcW(hwnd, msg, wparam, lparam);
+        switch (def_hit)
+        {
+        case HTLEFT:
+        case HTRIGHT:
+        case HTTOP:
+        case HTBOTTOM:
+        case HTTOPLEFT:
+        case HTTOPRIGHT:
+        case HTBOTTOMLEFT:
+        case HTBOTTOMRIGHT:
+            return def_hit;
+        case HTCAPTION:
+            return HTCLIENT;
+        default:
+            return HTCLIENT;
+        }
     }
     case WM_GETMINMAXINFO:
     {

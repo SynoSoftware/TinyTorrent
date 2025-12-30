@@ -255,7 +255,9 @@ export function SettingsModal({
             classNames={{
                 base: cn(
                     GLASS_MODAL_SURFACE,
-                    "flex flex-row h-settings max-h-settings min-h-settings overflow-hidden"
+                    isNativeMode
+                        ? "flex flex-row max-h-full max-w-full overflow-hidden"
+                        : "flex flex-row h-settings max-h-settings min-h-settings overflow-hidden"
                 ),
                 wrapper: "overflow-hidden",
             }}
