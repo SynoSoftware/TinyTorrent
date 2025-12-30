@@ -12,8 +12,8 @@ import {
     UploadCloud,
     Monitor,
     PanelsTopLeft,
-    Minimize2,
-    Maximize2,
+    Minimize,
+    Maximize,
     X,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -316,14 +316,14 @@ export function Navbar({
 
                     <div className="flex items-center gap-tight">
                         <ToolbarIconButton
-                            Icon={Minimize2}
+                            Icon={Minimize}
                             ariaLabel={t("toolbar.minimize")}
                             title={t("toolbar.minimize")}
                             onPress={() => onWindowCommand("minimize")}
                             className="text-default-400 hover:text-foreground"
                         />
                         <ToolbarIconButton
-                            Icon={Maximize2}
+                            Icon={Maximize}
                             ariaLabel={t("toolbar.maximize")}
                             title={t("toolbar.maximize")}
                             onPress={() => onWindowCommand("maximize")}
