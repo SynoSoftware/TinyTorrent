@@ -275,9 +275,14 @@ function Invoke-MesonTests {
 
     $oldPath = $env:PATH
     $oldTtEnginePath = $env:TT_ENGINE_PATH
-    $ttEngineExe = Join-Path $buildDir 'tt-engine.exe'
-    if (-not (Test-Path -LiteralPath $ttEngineExe)) {
-        throw "tt-engine executable not found: $ttEngineExe"
+    $engineCandidates = @(
+        (Join-Path $buildDir 'tinytorrent-daemon.exe'),
+        (Join-Path $buildDir 'tt-engine.exe'),
+        (Join-Path $buildDir 'TinyTorrent.exe')
+    )
+    $ttEngineExe = $engineCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+    if (-not $ttEngineExe) {
+        throw "Engine executable not found. Tried: $($engineCandidates -join ', ')"
     }
     $env:TT_ENGINE_PATH = $ttEngineExe
     try {

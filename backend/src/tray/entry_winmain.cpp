@@ -428,15 +428,10 @@ ResizeBorderThickness get_resize_border_thickness(HWND hwnd)
 
 RECT compute_webview_controller_bounds_from_client(HWND hwnd, RECT client)
 {
-    if (IsZoomed(hwnd))
-    {
-        return client;
-    }
-    ResizeBorderThickness border = get_resize_border_thickness(hwnd);
-    client.left += border.x;
-    client.right -= border.x;
-    client.top += border.y;
-    client.bottom -= border.y;
+    // Do not inset: resizing is handled via WM_NCHITTEST edge hit-testing.
+    // Insetting the WebView bounds tends to expose DWM/backdrop artifacts
+    // around the edges (appearing as a persistent frame/border).
+    (void)hwnd;
     if (client.right < client.left)
     {
         client.right = client.left;
@@ -734,21 +729,31 @@ void update_webview_controller_bounds_from_client_rect(TrayState *state, HWND hw
     {
         return;
     }
-    ResizeBorderThickness border = get_resize_border_thickness(hwnd);
     RECT bounds = compute_webview_controller_bounds_from_client(hwnd, client);
-    state->webview_controller->put_Bounds(bounds);
+    HRESULT put_hr = state->webview_controller->put_Bounds(bounds);
     update_dcomp_root_clip(state, client);
     commit_dcomp(state);
 
     if (native_diag_enabled())
     {
+        RECT rw{};
+        GetWindowRect(hwnd, &rw);
+        RECT efb{};
+        HRESULT efb_hr = DwmGetWindowAttribute(
+            hwnd, DWMWA_EXTENDED_FRAME_BOUNDS, &efb, sizeof(efb));
         RECT current{};
         HRESULT hr = state->webview_controller->get_Bounds(&current);
         std::wstringstream ss;
-        ss << L"client=[" << client.left << L"," << client.top << L","
+        ss << L"dpi=" << GetDpiForWindow(hwnd)
+           << L" rw=[" << rw.left << L"," << rw.top << L"," << rw.right << L","
+           << rw.bottom << L"]"
+           << L" efb_hr=0x" << std::hex << static_cast<uint32_t>(efb_hr)
+           << std::dec << L" efb=[" << efb.left << L"," << efb.top << L","
+           << efb.right << L"," << efb.bottom << L"]"
+           << L" client=[" << client.left << L"," << client.top << L","
            << client.right << L"," << client.bottom << L"]"
-           << L" border=[" << border.x << L"," << border.y << L"]"
-           << L" set=[" << bounds.left << L"," << bounds.top << L","
+           << L" put_hr=0x" << std::hex << static_cast<uint32_t>(put_hr)
+           << std::dec << L" set=[" << bounds.left << L"," << bounds.top << L","
            << bounds.right << L"," << bounds.bottom << L"]"
            << L" get_hr=0x" << std::hex << static_cast<uint32_t>(hr) << std::dec
            << L" get=[" << current.left << L"," << current.top << L","
@@ -1808,8 +1813,11 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
     case WM_EXITSIZEMOVE:
         if (state)
         {
-            state->webview_in_size_move = false;
+            // Ensure the final size commit is synchronous as well, otherwise
+            // WebView/DComp can remain in a partially-updated state after the
+            // interactive resize ends.
             update_webview_controller_bounds(state, hwnd);
+            state->webview_in_size_move = false;
         }
         return 0;
     case WM_SIZING:
@@ -1824,32 +1832,11 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
             return 0;
         }
 
-        int window_w = window_rect->right - window_rect->left;
-        int window_h = window_rect->bottom - window_rect->top;
-        int client_w = window_w;
-        int client_h = window_h;
-
-        WINDOWINFO wi{};
-        wi.cbSize = sizeof(wi);
-        if (GetWindowInfo(hwnd, &wi))
-        {
-            int current_window_w = wi.rcWindow.right - wi.rcWindow.left;
-            int current_window_h = wi.rcWindow.bottom - wi.rcWindow.top;
-            int current_client_w = wi.rcClient.right - wi.rcClient.left;
-            int current_client_h = wi.rcClient.bottom - wi.rcClient.top;
-            int nc_w = current_window_w - current_client_w;
-            int nc_h = current_window_h - current_client_h;
-            if (nc_w > 0)
-            {
-                client_w = std::max(0, window_w - nc_w);
-            }
-            if (nc_h > 0)
-            {
-                client_h = std::max(0, window_h - nc_h);
-            }
-        }
-
-        RECT client{0, 0, client_w, client_h};
+        // WM_NCCALCSIZE returns 0 (frameless client), so for our purposes
+        // the interactive resize rect is a good approximation of the client.
+        int window_w = std::max(0L, window_rect->right - window_rect->left);
+        int window_h = std::max(0L, window_rect->bottom - window_rect->top);
+        RECT client{0, 0, window_w, window_h};
         update_webview_controller_bounds_from_client_rect(state, hwnd, client);
         return 0;
     }
