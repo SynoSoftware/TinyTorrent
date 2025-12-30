@@ -117,6 +117,23 @@ function Save-FrontendSignature {
     Set-Content -LiteralPath $Marker -Value $Signature -Encoding UTF8
 }
 
+function Invoke-FrontendNpm {
+    param(
+        [Parameter(Mandatory)][string[]]$ArgumentList,
+        [string]$FailureHint = $null
+    )
+
+    & npm @ArgumentList
+    $exitCode = $LASTEXITCODE
+    if ($exitCode -ne 0) {
+        if ($FailureHint) {
+            Write-Host $FailureHint -ForegroundColor Yellow
+        }
+        $commandText = "npm $($ArgumentList -join ' ')"
+        throw "Frontend command '$commandText' failed (exit $exitCode)."
+    }
+}
+
 if (-not $SkipFrontend) {
     $currentSignature = Get-FrontendSourceSignature
     $lastSignature = Get-LastFrontendSignature -Marker $frontendBuildMarker
@@ -125,8 +142,9 @@ if (-not $SkipFrontend) {
         Write-Host "Building frontend..." -ForegroundColor Cyan
         Push-Location $frontendDir
         try {
-            npm ci
-            npm run build
+            Invoke-FrontendNpm -ArgumentList @('ci') `
+                -FailureHint "npm ci failed; lockable files (e.g. lightningcss.win32-...) may be in use. Stop any running npm run dev instances before rerunning."
+            Invoke-FrontendNpm -ArgumentList @('run', 'build')
         }
         finally { Pop-Location }
         Save-FrontendSignature -Marker $frontendBuildMarker -Signature $currentSignature

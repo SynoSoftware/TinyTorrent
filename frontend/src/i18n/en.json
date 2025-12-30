@@ -453,7 +453,10 @@
         },
         "remove": "Remove",
         "resume": "Resume",
-        "settings": "Settings"
+        "settings": "Settings",
+        "minimize": "Minimize",
+        "maximize": "Maximize",
+        "close": "Close"
     },
     "torrent_modal": {
         "actions": {

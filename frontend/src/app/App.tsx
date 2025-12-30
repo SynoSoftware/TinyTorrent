@@ -828,7 +828,6 @@ export default function App() {
                 tableWatermarkEnabled={
                     settingsFlow.settingsConfig.table_watermark_enabled
                 }
-                torrentClient={torrentClient}
             />
             <CommandPalette
                 isOpen={isCommandPaletteOpen}

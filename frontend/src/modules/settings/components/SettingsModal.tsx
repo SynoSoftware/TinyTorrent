@@ -14,7 +14,6 @@ import type {
     SettingsTab,
     SliderDefinition,
 } from "@/modules/settings/data/settings-tabs";
-import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import type { RpcStatus } from "@/shared/types/rpc";
 import { ICON_STROKE_WIDTH } from "@/config/logic";
 import { INTERACTION_CONFIG } from "@/config/logic";
@@ -39,7 +38,6 @@ interface SettingsModalProps {
     onRestoreInsights?: () => void;
     onReconnect: () => void;
     rpcStatus: RpcStatus;
-    torrentClient: EngineAdapter;
     serverClass: ServerClass;
     isNativeMode: boolean;
 }
@@ -55,7 +53,6 @@ export function SettingsModal({
     onRestoreInsights,
     onReconnect,
     rpcStatus,
-    torrentClient,
     serverClass,
     isNativeMode,
 }: SettingsModalProps) {

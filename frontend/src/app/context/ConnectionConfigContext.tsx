@@ -8,9 +8,16 @@ import {
 } from "react";
 import type { ReactNode } from "react";
 import { CONFIG } from "@/config/logic";
-import Runtime from "@/app/runtime";
+import Runtime, { NativeShell } from "@/app/runtime";
 
 type ConnectionScheme = "http" | "https";
+
+type NativeOverride = {
+    host?: string;
+    port?: string;
+    scheme?: ConnectionScheme;
+    token?: string;
+};
 
 export interface ConnectionProfile {
     id: string;
@@ -55,6 +62,39 @@ const DEFAULT_RPC_SCHEME: ConnectionProfile["scheme"] = "http";
 const DEFAULT_USERNAME = import.meta.env.VITE_RPC_USERNAME ?? "";
 const DEFAULT_PASSWORD = import.meta.env.VITE_RPC_PASSWORD ?? "";
 const DEFAULT_RPC_TOKEN = import.meta.env.VITE_RPC_TOKEN ?? "";
+
+const detectNativeInfo = (): NativeOverride => {
+    if (typeof window === "undefined") {
+        return {};
+    }
+    const info =
+        (window as
+            typeof globalThis & {
+                __TINY_TORRENT_NATIVE_INFO__?: Record<string, unknown>;
+            }).__TINY_TORRENT_NATIVE_INFO__;
+    if (!info || typeof info !== "object") {
+        return {};
+    }
+    const host =
+        typeof info.host === "string" && info.host.trim()
+            ? info.host.trim()
+            : undefined;
+    const port =
+        typeof info.port === "string" && info.port.trim()
+            ? info.port.trim()
+            : undefined;
+    const scheme =
+        info.scheme === "https"
+            ? "https"
+            : info.scheme === "http"
+            ? "http"
+            : undefined;
+    const token =
+        typeof info.token === "string" && info.token
+            ? info.token
+            : undefined;
+    return { host, port, scheme, token };
+};
 
 const parseRpcEndpoint = (
     raw?: string
@@ -252,6 +292,9 @@ export function ConnectionConfigProvider({
             ? initialProfiles[0].id
             : loadActiveProfileId(initialProfiles)
     );
+    const initialNativeOverride = useMemo(() => detectNativeInfo(), []);
+    const [nativeOverride, setNativeOverride] =
+        useState<NativeOverride>(initialNativeOverride);
 
     useEffect(() => {
         if (!profiles.find((profile) => profile.id === activeProfileId)) {
@@ -268,6 +311,48 @@ export function ConnectionConfigProvider({
         if (typeof window === "undefined") return;
         window.localStorage.setItem(ACTIVE_KEY, activeProfileId);
     }, [activeProfileId]);
+
+    useEffect(() => {
+        const unsubscribe = NativeShell.onEvent("auth-token", (payload) => {
+            setNativeOverride((prev) => {
+                if (typeof payload === "string") {
+                    return {
+                        ...prev,
+                        token: payload || undefined,
+                    };
+                }
+                if (payload && typeof payload === "object" && !Array.isArray(payload)) {
+                    const data = payload as Record<string, unknown>;
+                    const host =
+                        typeof data.host === "string" && data.host.trim()
+                            ? data.host.trim()
+                            : prev.host;
+                    const port =
+                        typeof data.port === "string" && data.port.trim()
+                            ? data.port.trim()
+                            : prev.port;
+                    const scheme =
+                        data.scheme === "https"
+                            ? "https"
+                            : data.scheme === "http"
+                            ? "http"
+                            : prev.scheme;
+                    const token =
+                        typeof data.token === "string" && data.token
+                            ? data.token
+                            : prev.token;
+                    return {
+                        host,
+                        port,
+                        scheme,
+                        token,
+                    };
+                }
+                return prev;
+            });
+        });
+        return unsubscribe;
+    }, []);
 
     const addProfile = useCallback(() => {
         if (!Runtime.allowEditingProfiles()) return; // disabled in native host
@@ -324,12 +409,14 @@ export function ConnectionConfigProvider({
         if (!Runtime.allowEditingProfiles()) {
             return {
                 ...baseActiveProfile,
-                host: DEFAULT_RPC_HOST,
-                port: DEFAULT_RPC_PORT,
+                host: nativeOverride.host ?? DEFAULT_RPC_HOST,
+                port: nativeOverride.port ?? DEFAULT_RPC_PORT,
+                scheme: nativeOverride.scheme ?? DEFAULT_RPC_SCHEME,
+                token: nativeOverride.token ?? baseActiveProfile.token,
             };
         }
         return baseActiveProfile;
-    }, [baseActiveProfile]);
+    }, [baseActiveProfile, nativeOverride]);
 
     const value = useMemo(
         () => ({

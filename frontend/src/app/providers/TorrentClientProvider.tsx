@@ -71,7 +71,16 @@ export function ClientProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         const unsubscribe = NativeShell.onEvent("auth-token", (payload) => {
             if (typeof sessionStorage === "undefined") return;
-            const token = typeof payload === "string" ? payload : "";
+            let token = "";
+            if (typeof payload === "string") {
+                token = payload;
+            } else if (
+                payload &&
+                typeof payload === "object" &&
+                typeof (payload as { token?: unknown }).token === "string"
+            ) {
+                token = (payload as { token: string }).token;
+            }
             if (token) {
                 sessionStorage.setItem("tt-auth-token", token);
             } else {

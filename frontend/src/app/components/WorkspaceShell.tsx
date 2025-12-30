@@ -13,7 +13,8 @@ import {
 } from "@heroui/react";
 import { AlertTriangle, Link2, MousePointer, PlugZap, X } from "lucide-react";
 
-import type { EngineAdapter } from "@/services/rpc/engine-adapter";
+import Runtime, { NativeShell } from "@/app/runtime";
+
 import { ModeLayout } from "@/modules/dashboard/components/ModeLayout";
 import { AddTorrentModal } from "@/modules/torrent-add/components/AddTorrentModal";
 import { SettingsModal } from "@/modules/settings/components/SettingsModal";
@@ -62,6 +63,7 @@ import type { WorkspaceStyle } from "@/app/hooks/useWorkspaceShell";
 type AddTorrentPayload = {
     magnetLink?: string;
     metainfo?: string;
+    metainfoPath?: string;
     downloadDir: string;
     startNow: boolean;
     filesUnwanted?: number[];
@@ -153,7 +155,6 @@ interface WorkspaceShellProps {
     handleTestPort: () => Promise<void>;
     restoreHudCards: () => void;
     tableWatermarkEnabled: boolean;
-    torrentClient: EngineAdapter;
 }
 
 export function WorkspaceShell({
@@ -220,9 +221,17 @@ export function WorkspaceShell({
     handleTestPort,
     restoreHudCards,
     tableWatermarkEnabled,
-    torrentClient,
 }: WorkspaceShellProps) {
     const { t } = useTranslation();
+    const handleWindowCommand = useCallback(
+        (command: "minimize" | "maximize" | "close") => {
+            if (!Runtime.isNativeHost) {
+                return;
+            }
+            void NativeShell.sendWindowCommand(command);
+        },
+        []
+    );
     const isImmersiveShell = workspaceStyle === "immersive";
 
     const workspaceStyleToggleLabel =
@@ -235,7 +244,7 @@ export function WorkspaceShell({
               });
 
     const renderNavbar = () => (
-        <Navbar
+            <Navbar
             filter={filter}
             setFilter={setFilter}
             searchQuery={searchQuery}
@@ -259,6 +268,7 @@ export function WorkspaceShell({
             workspaceStyle={workspaceStyle}
             onWorkspaceToggle={toggleWorkspaceStyle}
             workspaceToggleLabel={workspaceStyleToggleLabel}
+            onWindowCommand={handleWindowCommand}
         />
     );
 
@@ -593,7 +603,6 @@ export function WorkspaceShell({
                 onRestoreInsights={restoreHudCards}
                 onReconnect={handleReconnect}
                 rpcStatus={rpcStatus}
-                torrentClient={torrentClient}
                 serverClass={serverClass}
                 isNativeMode={isNativeIntegrationActive}
             />

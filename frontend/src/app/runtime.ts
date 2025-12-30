@@ -1,6 +1,13 @@
 import { IS_NATIVE_HOST } from "@/config/logic";
 import type { TransmissionFreeSpace } from "@/services/rpc/types";
 
+type NativeShellAuthPayload = string | {
+    token?: string;
+    host?: string;
+    port?: string;
+    scheme?: "http" | "https";
+};
+
 type NativeShellRequestMessage = {
     type: "request";
     id: string;
@@ -21,7 +28,7 @@ export type NativeShellEventName = "magnet-link" | "auth-token";
 type NativeShellEventMessage = {
     type: "event";
     name: NativeShellEventName;
-    payload?: unknown;
+    payload?: NativeShellAuthPayload;
 };
 
 type PendingRequest = {
@@ -31,16 +38,28 @@ type PendingRequest = {
 
 type NativeShellListener = (payload?: unknown) => void;
 
+type NativeShellBridge = {
+    postMessage: (message: NativeShellRequestMessage) => void;
+    addEventListener: (
+        type: "message",
+        listener: (event: { data?: unknown }) => void
+    ) => void;
+    removeEventListener?: (
+        type: "message",
+        listener: (event: { data?: unknown }) => void
+    ) => void;
+};
+
 const pendingRequests = new Map<string, PendingRequest>();
 const eventListeners = new Map<NativeShellEventName, Set<NativeShellListener>>();
 let requestCounter = 1;
 let listenerInstalled = false;
 
-function getBridge(): { postMessage: (payload: NativeShellRequestMessage) => void } | null {
+function getBridge(): NativeShellBridge | null {
     if (typeof window === "undefined") {
         return null;
     }
-    const nav = window as unknown as { chrome?: { webview?: { postMessage: Function; addEventListener: Function } } };
+    const nav = window as unknown as { chrome?: { webview?: NativeShellBridge } };
     return nav.chrome?.webview ?? null;
 }
 
@@ -129,13 +148,7 @@ function extractPathFromResponse(response: unknown): string | undefined {
 }
 
 const runtimeIsNativeHost =
-    Boolean(IS_NATIVE_HOST) ||
-    (typeof window !== "undefined" &&
-        Boolean(
-            (window as unknown as {
-                chrome?: { webview?: { postMessage: Function } };
-            }).chrome?.webview
-        ));
+    Boolean(IS_NATIVE_HOST) || Boolean(getBridge());
 
 export const NativeShell = {
     get isAvailable() {
