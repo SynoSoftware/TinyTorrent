@@ -71,6 +71,10 @@
     /* Visualization typography */
     --tt-fz-label: calc(var(--fz) * 1); /* ~10px equivalent relative to base */
 
+    /* Navbar typography tokens (tab label and meta text) */
+    --tt-navbar-tab-font-size: calc(var(--fz-scaled) * 1.5);
+    --tt-navbar-meta-font-size: calc(var(--fz-scaled) * 1);
+
     /* Utility mapping aliases */
     --spacing-sparkline: var(--tt-col-sparkline);
     --spacing-indicator: var(--tt-h-indicator);
