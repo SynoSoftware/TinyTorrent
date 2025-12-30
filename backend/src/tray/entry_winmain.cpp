@@ -7,34 +7,34 @@
 #endif
 
 #include <Windows.h>
-#include <windowsx.h>
 #include <dwmapi.h>
 #include <psapi.h>
 #include <shellapi.h>
 #include <shlobj_core.h>
+#include <windowsx.h>
 #include <winhttp.h>
 #pragma comment(lib, "ole32.lib")
+#include <webview2.h>
 #include <wrl/client.h>
 #include <wrl/event.h>
-#include <webview2.h>
 
 #include <algorithm>
 #include <array>
 #include <atomic>
-#include <cstddef>
 #include <chrono>
+#include <cstddef>
 #include <cwchar>
+#include <filesystem>
 #include <future>
 #include <iomanip>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <string_view>
-#include <optional>
-#include <thread>
-#include <filesystem>
 #include <system_error>
+#include <thread>
 
 #include <yyjson.h>
 
@@ -62,6 +62,15 @@
 #ifndef DWMWA_TEXT_COLOR
 #define DWMWA_TEXT_COLOR 36
 #endif
+#ifndef DWMWA_BORDER_COLOR
+#define DWMWA_BORDER_COLOR 34
+#endif
+#ifndef DWMWA_VISIBLE_FRAME_BORDER_THICKNESS
+#define DWMWA_VISIBLE_FRAME_BORDER_THICKNESS 37
+#endif
+#ifndef DWMWA_COLOR_NONE
+#define DWMWA_COLOR_NONE 0xFFFFFFFE
+#endif
 
 namespace
 {
@@ -87,7 +96,8 @@ static std::atomic<HWND> g_splash_hwnd{nullptr};
 static std::wstring g_splash_message;
 static auto g_app_start_time = std::chrono::steady_clock::now();
 constexpr wchar_t kWebView2InstallUrl[] =
-    L"https://developer.microsoft.com/en-us/microsoft-edge/webview2/#download-section";
+    L"https://developer.microsoft.com/en-us/microsoft-edge/webview2/"
+    L"#download-section";
 
 // ===== Undocumented compositor API for Acrylic =====
 enum ACCENT_STATE
@@ -204,6 +214,7 @@ void handle_webview_json_message(TrayState &state, std::string const &payload);
 std::wstring compute_webview_user_data_dir();
 void cancel_native_webview(TrayState &state);
 std::string http_post_rpc(TrayState &state, std::string const &payload);
+void enable_acrylic(HWND hwnd);
 
 // --- Utilities ---
 
@@ -230,8 +241,8 @@ std::string narrow(std::wstring const &value)
     if (len <= 0)
         return {};
     std::string out(len, '\0');
-    WideCharToMultiByte(CP_UTF8, 0, value.c_str(), -1, out.data(), len,
-                        nullptr, nullptr);
+    WideCharToMultiByte(CP_UTF8, 0, value.c_str(), -1, out.data(), len, nullptr,
+                        nullptr);
     if (!out.empty() && out.back() == '\0')
         out.pop_back();
     return out;
@@ -263,13 +274,26 @@ void apply_dark_titlebar(HWND hwnd)
                           sizeof(text_color));
 }
 
+void apply_frameless_window_style(HWND hwnd)
+{
+    if (!hwnd)
+    {
+        return;
+    }
+    DWORD border = DWMWA_COLOR_NONE;
+    DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, &border, sizeof(border));
+    UINT frame_thickness = 0;
+    DwmSetWindowAttribute(hwnd, DWMWA_VISIBLE_FRAME_BORDER_THICKNESS,
+                          &frame_thickness, sizeof(frame_thickness));
+}
+
 void extend_client_frame(HWND hwnd)
 {
     if (!hwnd)
     {
         return;
     }
-    MARGINS margins{1, 0, 0, 0};
+    MARGINS margins{-1};
     DwmExtendFrameIntoClientArea(hwnd, &margins);
 }
 
@@ -281,10 +305,12 @@ void configure_webview_window_chrome(HWND hwnd)
     }
     apply_dark_titlebar(hwnd);
     extend_client_frame(hwnd);
+    apply_frameless_window_style(hwnd);
+    enable_acrylic(hwnd);
 }
 
 std::wstring build_host_response(std::string const &id, bool success,
-                                std::string const &error = {})
+                                 std::string const &error = {})
 {
     std::string response = "{\"type\":\"response\",\"id\":\"" + id +
                            "\",\"success\":" + (success ? "true" : "false");
@@ -405,10 +431,9 @@ void handle_webview_json_message(TrayState &state, std::string const &payload)
         }
     }
     post_webview_message(
-        state,
-        build_host_response(
-            id_value, handled,
-            handled ? std::string() : "native host request unhandled"));
+        state, build_host_response(id_value, handled,
+                                   handled ? std::string()
+                                           : "native host request unhandled"));
     yyjson_doc_free(doc);
 }
 
@@ -504,59 +529,57 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
             return 0;
         }
         break;
+    case WM_ERASEBKGND:
+        return 1;
     case WM_NCHITTEST:
     {
+        // [FIX] Robust Screen-Coordinate Hit Testing
+        // The previous logic relied on ScreenToClient which can fail with
+        // certain DWM/WS_POPUP configurations. This version is absolute.
+
+        // 1. If maximized, the client area handles everything (no resize
+        // borders)
         if (IsZoomed(hwnd))
         {
             return HTCLIENT;
         }
+
+        // 2. Get Mouse & Window in Screen Coordinates
         POINT pt{GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
-        ScreenToClient(hwnd, &pt);
-        RECT rc;
-        GetClientRect(hwnd, &rc);
+        RECT rw;
+        GetWindowRect(hwnd, &rw);
+
+        // 3. Determine Border Thickness (DPI Aware)
+        // A fixed 8px logical border is usually best for usability, scaled by
+        // DPI.
         UINT dpi = GetDpiForWindow(hwnd);
-        int border_x =
-            GetSystemMetricsForDpi(SM_CXSIZEFRAME, dpi) +
-            GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpi);
-        int border_y =
-            GetSystemMetricsForDpi(SM_CYSIZEFRAME, dpi) +
-            GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpi);
-        const bool left = pt.x >= rc.left && pt.x < rc.left + border_x;
-        const bool right = pt.x < rc.right && pt.x >= rc.right - border_x;
-        const bool top = pt.y >= rc.top && pt.y < rc.top + border_y;
-        const bool bottom = pt.y < rc.bottom && pt.y >= rc.bottom - border_y;
-        if (top && left)
-        {
+        int border = MulDiv(8, dpi, 96);
+
+        // 4. Hit Test Logic
+        bool isTop = (pt.y >= rw.top && pt.y < rw.top + border);
+        bool isBottom = (pt.y < rw.bottom && pt.y >= rw.bottom - border);
+        bool isLeft = (pt.x >= rw.left && pt.x < rw.left + border);
+        bool isRight = (pt.x < rw.right && pt.x >= rw.right - border);
+
+        // 5. Return Native Hit Codes (Priority: Corners -> Edges)
+        if (isTop && isLeft)
             return HTTOPLEFT;
-        }
-        if (top && right)
-        {
+        if (isTop && isRight)
             return HTTOPRIGHT;
-        }
-        if (bottom && left)
-        {
+        if (isBottom && isLeft)
             return HTBOTTOMLEFT;
-        }
-        if (bottom && right)
-        {
+        if (isBottom && isRight)
             return HTBOTTOMRIGHT;
-        }
-        if (left)
-        {
-            return HTLEFT;
-        }
-        if (right)
-        {
-            return HTRIGHT;
-        }
-        if (top)
-        {
+        if (isTop)
             return HTTOP;
-        }
-        if (bottom)
-        {
+        if (isBottom)
             return HTBOTTOM;
-        }
+        if (isLeft)
+            return HTLEFT;
+        if (isRight)
+            return HTRIGHT;
+
+        // 6. Content Area: Delegate to WebView (for CSS Drag)
         return HTCLIENT;
     }
     case WM_GETMINMAXINFO:
@@ -566,8 +589,7 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
         {
             return 0;
         }
-        HMONITOR monitor =
-            MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+        HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
         MONITORINFO mi{};
         mi.cbSize = sizeof(mi);
         if (GetMonitorInfoW(monitor, &mi))
@@ -624,7 +646,7 @@ bool register_webview_window_class(HINSTANCE instance)
     wc.lpfnWndProc = WebViewWindowProc;
     wc.hInstance = instance;
     wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
-    wc.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
+    wc.hbrBackground = nullptr;
     wc.lpszClassName = kWebViewWindowClassName;
     wc.style = CS_HREDRAW | CS_VREDRAW;
     if (!RegisterClassExW(&wc))
@@ -644,10 +666,11 @@ void reload_native_auth_token(TrayState &state)
     std::wstring host = kRpcHost;
     std::wstring port = state.port ? std::to_wstring(state.port) : L"0";
     std::wstring scheme = L"http";
-    std::wstring message =
-        L"{\"type\":\"event\",\"name\":\"auth-token\",\"payload\":{\"token\":\"" +
-        widen(state.token) + L"\",\"host\":\"" + host + L"\",\"port\":\"" + port +
-        L"\",\"scheme\":\"" + scheme + L"\"}}";
+    std::wstring message = L"{\"type\":\"event\",\"name\":\"auth-token\","
+                           L"\"payload\":{\"token\":\"" +
+                           widen(state.token) + L"\",\"host\":\"" + host +
+                           L"\",\"port\":\"" + port + L"\",\"scheme\":\"" +
+                           scheme + L"\"}}";
     post_webview_message(state, message);
 }
 
@@ -663,9 +686,9 @@ bool ensure_native_webview(TrayState &state)
         {
             return false;
         }
-        constexpr DWORD kWebViewWindowStyle =
-            WS_POPUP | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX |
-            WS_SYSMENU;
+        constexpr DWORD kWebViewWindowStyle = WS_POPUP | WS_THICKFRAME |
+                                              WS_MINIMIZEBOX | WS_MAXIMIZEBOX |
+                                              WS_SYSMENU;
         state.webview_window = CreateWindowExW(
             0, kWebViewWindowClassName, L"TinyTorrent", kWebViewWindowStyle,
             CW_USEDEFAULT, CW_USEDEFAULT, 1280, 768, nullptr, nullptr,
@@ -696,7 +719,8 @@ bool ensure_native_webview(TrayState &state)
         nullptr, state.webview_user_data_dir.c_str(), nullptr,
         Microsoft::WRL::Callback<
             ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>(
-            [&state](HRESULT res, ICoreWebView2Environment *env) -> HRESULT {
+            [&state](HRESULT res, ICoreWebView2Environment *env) -> HRESULT
+            {
                 if (state.shutting_down.load())
                 {
                     return E_ABORT;
@@ -709,8 +733,9 @@ bool ensure_native_webview(TrayState &state)
                     state.webview_window,
                     Microsoft::WRL::Callback<
                         ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>(
-                        [&state](HRESULT ctrl_res, ICoreWebView2Controller *controller)
-                            -> HRESULT {
+                        [&state](HRESULT ctrl_res,
+                                 ICoreWebView2Controller *controller) -> HRESULT
+                        {
                             if (state.shutting_down.load())
                             {
                                 return E_ABORT;
@@ -725,15 +750,46 @@ bool ensure_native_webview(TrayState &state)
                             GetClientRect(state.webview_window, &bounds);
                             state.webview_controller->put_Bounds(bounds);
                             state.webview_controller->put_IsVisible(TRUE);
+                            if (state.webview)
+                            {
+                                Microsoft::WRL::ComPtr<ICoreWebView2Settings>
+                                    settings;
+                                if (SUCCEEDED(state.webview->get_Settings(&settings)) &&
+                                    settings)
+                                {
+                                    Microsoft::WRL::ComPtr<ICoreWebView2Settings9>
+                                        settings9;
+                                    if (SUCCEEDED(settings.As(&settings9)) &&
+                                        settings9)
+                                    {
+                                        settings9->put_IsNonClientRegionSupportEnabled(
+                                            TRUE);
+                                    }
+                                }
+                            }
+                            if (state.webview_controller)
+                            {
+                                Microsoft::WRL::ComPtr<ICoreWebView2Controller2>
+                                    controller2;
+                                if (SUCCEEDED(state.webview_controller.As(&controller2)) &&
+                                    controller2)
+                                {
+                                    COREWEBVIEW2_COLOR transparent{0, 0, 0, 0};
+                                    controller2->put_DefaultBackgroundColor(
+                                        transparent);
+                                }
+                            }
                             auto script = build_native_bridge_script(state);
                             state.webview->AddScriptToExecuteOnDocumentCreated(
                                 script.c_str(), nullptr);
                             state.webview->add_WebMessageReceived(
                                 Microsoft::WRL::Callback<
                                     ICoreWebView2WebMessageReceivedEventHandler>(
-                                    [&state](ICoreWebView2 *,
-                                             ICoreWebView2WebMessageReceivedEventArgs
-                                                 *args) -> HRESULT {
+                                    [&state](
+                                        ICoreWebView2 *,
+                                        ICoreWebView2WebMessageReceivedEventArgs
+                                            *args) -> HRESULT
+                                    {
                                         if (state.shutting_down.load())
                                         {
                                             return S_OK;
@@ -744,18 +800,21 @@ bool ensure_native_webview(TrayState &state)
                                         {
                                             std::wstring wide(text);
                                             CoTaskMemFree(text);
-                                            handle_webview_json_message(state,
-                                                                        narrow(wide));
+                                            handle_webview_json_message(
+                                                state, narrow(wide));
                                         }
                                         return S_OK;
-                                    }).Get(),
+                                    })
+                                    .Get(),
                                 &state.web_message_token);
                             state.webview->add_NavigationCompleted(
                                 Microsoft::WRL::Callback<
                                     ICoreWebView2NavigationCompletedEventHandler>(
-                                    [&state](ICoreWebView2 *,
-                                             ICoreWebView2NavigationCompletedEventArgs
-                                                 *) -> HRESULT {
+                                    [&state](
+                                        ICoreWebView2 *,
+                                        ICoreWebView2NavigationCompletedEventArgs
+                                            *) -> HRESULT
+                                    {
                                         if (state.shutting_down.load())
                                         {
                                             return S_OK;
@@ -763,20 +822,26 @@ bool ensure_native_webview(TrayState &state)
                                         reload_native_auth_token(state);
                                         if (state.webview_window)
                                         {
-                                            ShowWindow(state.webview_window, SW_SHOW);
-                                            SetForegroundWindow(state.webview_window);
+                                            ShowWindow(state.webview_window,
+                                                       SW_SHOW);
+                                            SetForegroundWindow(
+                                                state.webview_window);
                                         }
                                         return S_OK;
-                                    }).Get(),
+                                    })
+                                    .Get(),
                                 &state.navigation_token);
                             state.webview->Navigate(state.open_url.c_str());
                             return S_OK;
-                        }).Get());
-            }).Get());
+                        })
+                        .Get());
+            })
+            .Get());
     if (FAILED(hr))
     {
-        TT_LOG_INFO("WebView2 initialization failed ({:#X}); UI will remain hidden",
-                    static_cast<uint32_t>(hr));
+        TT_LOG_INFO(
+            "WebView2 initialization failed ({:#X}); UI will remain hidden",
+            static_cast<uint32_t>(hr));
     }
     return SUCCEEDED(hr);
 }
@@ -804,11 +869,11 @@ std::wstring format_rate(uint64_t bytes)
     constexpr uint64_t MiB = 1024 * 1024;
     std::wstringstream ss;
     if (bytes >= MiB)
-        ss << std::fixed << std::setprecision(1) << (bytes / static_cast<double>(MiB))
-           << L" MiB/s";
+        ss << std::fixed << std::setprecision(1)
+           << (bytes / static_cast<double>(MiB)) << L" MiB/s";
     else if (bytes >= KiB)
-        ss << std::fixed << std::setprecision(0) << (bytes / static_cast<double>(KiB))
-           << L" KiB/s";
+        ss << std::fixed << std::setprecision(0)
+           << (bytes / static_cast<double>(KiB)) << L" KiB/s";
     else
         ss << bytes << L" B/s";
     return ss.str();
@@ -850,22 +915,24 @@ void focus_or_launch_ui(TrayState &state)
                     std::wstring key;
                     HWND found = nullptr;
                 };
-                SearchContext ctx{ focus_key, nullptr };
+                SearchContext ctx{focus_key, nullptr};
 
-                EnumWindows([](HWND hwnd, LPARAM lp) -> BOOL {
-                    auto* pCtx = reinterpret_cast<SearchContext*>(lp);
-                    wchar_t title[512];
-                    if (GetWindowTextW(hwnd, title, 512) > 0)
+                EnumWindows(
+                    [](HWND hwnd, LPARAM lp) -> BOOL
                     {
-                        if (wcsstr(title, pCtx->key.c_str()) != nullptr)
+                        auto *pCtx = reinterpret_cast<SearchContext *>(lp);
+                        wchar_t title[512];
+                        if (GetWindowTextW(hwnd, title, 512) > 0)
                         {
-                            pCtx->found = hwnd;
-                            return FALSE;
+                            if (wcsstr(title, pCtx->key.c_str()) != nullptr)
+                            {
+                                pCtx->found = hwnd;
+                                return FALSE;
+                            }
                         }
-                    }
-                    return TRUE;
-                },
-                reinterpret_cast<LPARAM>(&ctx));
+                        return TRUE;
+                    },
+                    reinterpret_cast<LPARAM>(&ctx));
 
                 if (ctx.found)
                 {
@@ -1076,8 +1143,8 @@ bool rpc_response_success(std::string const &body)
     bool success = false;
     if (auto *root = yyjson_doc_get_root(doc); root && yyjson_is_obj(root))
     {
-        if (auto *result = yyjson_obj_get(root, "result"); result &&
-            yyjson_is_str(result))
+        if (auto *result = yyjson_obj_get(root, "result");
+            result && yyjson_is_str(result))
         {
             success = std::string_view(yyjson_get_str(result)) ==
                       std::string_view("success");
@@ -1111,18 +1178,18 @@ tt::rpc::UiPreferences parse_tray_ui_preferences(yyjson_val *arguments)
     {
         return result;
     }
-    if (auto *value = yyjson_obj_get(ui_root, "autoOpen"); value &&
-        yyjson_is_bool(value))
+    if (auto *value = yyjson_obj_get(ui_root, "autoOpen");
+        value && yyjson_is_bool(value))
     {
         result.auto_open_ui = yyjson_get_bool(value);
     }
-    if (auto *value = yyjson_obj_get(ui_root, "autorunHidden"); value &&
-        yyjson_is_bool(value))
+    if (auto *value = yyjson_obj_get(ui_root, "autorunHidden");
+        value && yyjson_is_bool(value))
     {
         result.hide_ui_when_autorun = yyjson_get_bool(value);
     }
-    if (auto *value = yyjson_obj_get(ui_root, "showSplash"); value &&
-        yyjson_is_bool(value))
+    if (auto *value = yyjson_obj_get(ui_root, "showSplash");
+        value && yyjson_is_bool(value))
     {
         result.show_splash = yyjson_get_bool(value);
     }
@@ -1244,8 +1311,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 
             // If the watchdog expired, we still try to open browser to avoid a
             // dead-end
-            if (state->auto_open_requested &&
-                !state->user_closed_ui.load())
+            if (state->auto_open_requested && !state->user_closed_ui.load())
             {
                 focus_or_launch_ui(*state);
             }
@@ -1337,8 +1403,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int)
 {
     g_app_instance = hInstance;
-    bool com_initialized = SUCCEEDED(
-        CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED));
+    bool com_initialized =
+        SUCCEEDED(CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED));
     if (!com_initialized || !is_webview2_runtime_available())
     {
         prompt_webview2_install();

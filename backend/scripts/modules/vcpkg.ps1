@@ -15,9 +15,14 @@ function Test-VcpkgTriplet {
         'include/libtorrent/session.hpp',
         'include/yyjson.h',
         'include/sqlite3.h',
+        'include/WebView2.h',
         'lib/torrent-rasterbar.lib',
         'lib/yyjson.lib',
         'lib/sqlite3.lib'
+    )
+    $webview2Libs = @(
+        'lib/WebView2LoaderStatic.lib',
+        'lib/WebView2Loader.dll.lib'
     )
 
     $rootsToTry = @(
@@ -33,6 +38,17 @@ function Test-VcpkgTriplet {
                 $missing += $rel
             }
         }
+        $webview2LibFound = $false
+        foreach ($libRel in $webview2Libs) {
+            $libPath = Join-Path $candidateRoot $libRel
+            if (Test-Path -LiteralPath $libPath) {
+                $webview2LibFound = $true
+                break
+            }
+        }
+        if (-not $webview2LibFound) {
+            $missing += $webview2Libs[0]
+        }
 
         if ($missing.Count -eq 0) {
             return
@@ -41,4 +57,3 @@ function Test-VcpkgTriplet {
 
     throw "Triplet validation failed for ${Triplet}: missing include/libtorrent/session.hpp (and/or other required files). Found no usable layout under: $TripletRoot. Manual repair required; no automatic fixes performed."
 }
-

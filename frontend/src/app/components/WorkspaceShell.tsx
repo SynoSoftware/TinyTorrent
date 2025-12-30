@@ -368,7 +368,7 @@ export function WorkspaceShell({
     return (
         <div
             {...getRootProps()}
-            className="relative flex min-h-screen w-full flex-col overflow-hidden bg-background text-foreground font-sans selection:bg-primary/20"
+            className="tt-app-shell relative flex min-h-screen w-full flex-col overflow-hidden bg-background text-foreground font-sans selection:bg-primary/20"
         >
             <input {...getInputProps()} />
 

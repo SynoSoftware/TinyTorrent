@@ -55,6 +55,15 @@ const eventListeners = new Map<NativeShellEventName, Set<NativeShellListener>>()
 let requestCounter = 1;
 let listenerInstalled = false;
 
+function hasNativeHostFlag(): boolean {
+    if (typeof window === "undefined") {
+        return false;
+    }
+    const nativeFlag = (window as unknown as { __TINY_TORRENT_NATIVE__?: unknown })
+        .__TINY_TORRENT_NATIVE__;
+    return nativeFlag === true;
+}
+
 function getBridge(): NativeShellBridge | null {
     if (typeof window === "undefined") {
         return null;
@@ -147,12 +156,12 @@ function extractPathFromResponse(response: unknown): string | undefined {
     return undefined;
 }
 
-const runtimeIsNativeHost =
-    Boolean(IS_NATIVE_HOST) || Boolean(getBridge());
+const runtimeIsNativeHost = () =>
+    Boolean(IS_NATIVE_HOST) || hasNativeHostFlag() || Boolean(getBridge());
 
 export const NativeShell = {
     get isAvailable() {
-        return Boolean(runtimeIsNativeHost && getBridge());
+        return Boolean(runtimeIsNativeHost() && getBridge());
     },
     request(name: string, payload?: unknown) {
         return sendBridgeRequest(name, payload);
@@ -212,10 +221,12 @@ export const NativeShell = {
 };
 
 export const Runtime = {
-    isNativeHost: runtimeIsNativeHost,
-    allowEditingProfiles: () => !runtimeIsNativeHost,
-    suppressBrowserZoomDefaults: () => runtimeIsNativeHost,
-    enableRemoteInputs: () => !runtimeIsNativeHost,
+    get isNativeHost() {
+        return runtimeIsNativeHost();
+    },
+    allowEditingProfiles: () => !runtimeIsNativeHost(),
+    suppressBrowserZoomDefaults: () => runtimeIsNativeHost(),
+    enableRemoteInputs: () => !runtimeIsNativeHost(),
     nativeShell: NativeShell,
 };
 
