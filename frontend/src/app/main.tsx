@@ -9,10 +9,24 @@ import { WorkspaceModalProvider } from "./WorkspaceModalContext";
 import { HotkeysProvider } from "react-hotkeys-hook";
 import { DEFAULT_KEYBOARD_SCOPE } from "@/shared/hooks/useKeyboardScope";
 import { ConnectionConfigProvider } from "./context/ConnectionConfigContext";
-import { CONFIG } from "@/config/logic";
+import { CONFIG, IS_NATIVE_HOST } from "@/config/logic";
 import { applyCssTokenBases } from "@/config/logic";
 // Apply CSS variable bases from constants.json before rendering
 applyCssTokenBases();
+
+function applyNativeHostDataset() {
+    const root = document.documentElement;
+    const hasWebViewBridge = Boolean(
+        (window as unknown as { chrome?: { webview?: unknown } }).chrome?.webview
+    );
+    if (IS_NATIVE_HOST || hasWebViewBridge) {
+        root.dataset.nativeHost = "true";
+    } else {
+        delete root.dataset.nativeHost;
+    }
+}
+
+applyNativeHostDataset();
 
 createRoot(document.getElementById("root")!).render(
     <StrictMode>
