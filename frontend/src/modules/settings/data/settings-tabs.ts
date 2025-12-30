@@ -34,6 +34,7 @@ export interface BlockBase {
     visible?: VisibilityCheck;
     className?: string;
     dependsOn?: ConfigKey;
+    disabledWhenNotImmersive?: boolean;
 }
 
 export type ButtonActionKey = "testPort" | "restoreHud";
@@ -499,85 +500,10 @@ export const SETTINGS_TABS: TabDefinition[] = [
         labelKey: "settings.tabs.gui",
         icon: Monitor,
         headerKey: "settings.headers.gui",
+        isCustom: true,
         sections: [
-            {
-                titleKey: "settings.sections.dashboard",
-                descriptionKey: "settings.descriptions.restore_hud",
-                blocks: [
-                    {
-                        type: "button-row",
-                        buttons: [
-                            {
-                                labelKey: "settings.buttons.restore_hud",
-                                action: "restoreHud",
-                                variant: "flat",
-                                color: "primary",
-                                size: "md",
-                            },
-                        ],
-                    },
-                ],
-            },
-            {
-                titleKey: "settings.sections.visuals",
-                descriptionKey: "settings.descriptions.table_watermark",
-                blocks: [
-                    {
-                        type: "switch",
-                        labelKey: "settings.labels.tableWatermark",
-                        stateKey: "table_watermark_enabled",
-                    },
-                ],
-            },
-            {
-                titleKey: "settings.sections.startup",
-                descriptionKey: "settings.descriptions.startup",
-                blocks: [
-                    {
-                        type: "switch",
-                        labelKey: "settings.labels.openOnTrayStart",
-                        stateKey: "auto_open_ui",
-                    },
-                    {
-                        type: "switch",
-                        labelKey: "settings.labels.autorunHidden",
-                        stateKey: "autorun_hidden",
-                    },
-                    {
-                        type: "switch",
-                        labelKey: "settings.labels.showSplash",
-                        stateKey: "show_splash",
-                    },
-                    {
-                        type: "input",
-                        labelKey: "settings.labels.splashMessage",
-                        stateKey: "splash_message",
-                        variant: "bordered",
-                    },
-                ],
-            },
-            {
-                titleKey: "settings.sections.localization",
-                descriptionKey: "settings.descriptions.language",
-                blocks: [
-                    {
-                        type: "language",
-                        labelKey: "settings.labels.language",
-                        descriptionKey: "settings.descriptions.language_helper",
-                    },
-                ],
-            },
-            {
-                titleKey: "settings.sections.advanced",
-                descriptionKey: "settings.descriptions.config_export",
-                blocks: [
-                    {
-                        type: "raw-config",
-                        labelKey: "settings.labels.raw_config",
-                        descriptionKey: "settings.descriptions.config_details",
-                    },
-                ],
-            },
+            // NOTE: This tab is custom-rendered. Sections are unused but kept
+            // for type consistency and future configuration-driven expansion.
         ],
     },
     {

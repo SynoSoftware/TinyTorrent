@@ -137,6 +137,7 @@ interface WorkspaceShellProps {
     confirmDelete: () => Promise<void>;
     visibleHudCards: AmbientHudCard[];
     dismissHudCard: (cardId: string) => void;
+    hasDismissedInsights: boolean;
     isAddModalOpen: boolean;
     handleAddModalClose: () => void;
     pendingTorrentFile: File | null;
@@ -154,6 +155,16 @@ interface WorkspaceShellProps {
     handleSaveSettings: (config: SettingsConfig) => Promise<void>;
     handleTestPort: () => Promise<void>;
     restoreHudCards: () => void;
+    applyUserPreferencesPatch: (
+        patch: Partial<
+            Pick<
+                SettingsConfig,
+                | "refresh_interval_ms"
+                | "request_timeout_ms"
+                | "table_watermark_enabled"
+            >
+        >
+    ) => void;
     tableWatermarkEnabled: boolean;
 }
 
@@ -206,6 +217,7 @@ export function WorkspaceShell({
     confirmDelete,
     visibleHudCards,
     dismissHudCard,
+    hasDismissedInsights,
     isAddModalOpen,
     handleAddModalClose,
     pendingTorrentFile,
@@ -220,6 +232,7 @@ export function WorkspaceShell({
     handleSaveSettings,
     handleTestPort,
     restoreHudCards,
+    applyUserPreferencesPatch,
     tableWatermarkEnabled,
 }: WorkspaceShellProps) {
     const { t } = useTranslation();
@@ -235,42 +248,31 @@ export function WorkspaceShell({
     const isNativeHost = Runtime.isNativeHost;
     const isImmersiveShell = workspaceStyle === "immersive";
 
-    const workspaceStyleToggleLabel =
-        workspaceStyle === "immersive"
-            ? t("workspace.shell.toggle_classic", {
-                  defaultValue: "Switch to classic shell",
-              })
-            : t("workspace.shell.toggle_immersive", {
-                  defaultValue: "Switch to immersive shell",
-              });
-
     const renderNavbar = () => (
             <Navbar
-            filter={filter}
-            setFilter={setFilter}
-            searchQuery={searchQuery}
-            setSearchQuery={setSearchQuery}
-            onAdd={() => openAddModal()}
-            onSettings={() => openSettings()}
-            hasSelection={selectedTorrents.length > 0}
-            onResumeSelection={() => {
-                void handleBulkAction("resume");
-            }}
-            onPauseSelection={() => {
-                void handleBulkAction("pause");
-            }}
-            onRecheckSelection={() => {
-                void handleBulkAction("recheck");
-            }}
-            onRemoveSelection={() => {
-                void handleBulkAction("remove");
-            }}
-            rehashStatus={rehashStatus}
-            workspaceStyle={workspaceStyle}
-            onWorkspaceToggle={toggleWorkspaceStyle}
-            workspaceToggleLabel={workspaceStyleToggleLabel}
-            onWindowCommand={handleWindowCommand}
-        />
+                filter={filter}
+                setFilter={setFilter}
+                searchQuery={searchQuery}
+                setSearchQuery={setSearchQuery}
+                onAdd={() => openAddModal()}
+                onSettings={() => openSettings()}
+                hasSelection={selectedTorrents.length > 0}
+                onResumeSelection={() => {
+                    void handleBulkAction("resume");
+                }}
+                onPauseSelection={() => {
+                    void handleBulkAction("pause");
+                }}
+                onRecheckSelection={() => {
+                    void handleBulkAction("recheck");
+                }}
+                onRemoveSelection={() => {
+                    void handleBulkAction("remove");
+                }}
+                rehashStatus={rehashStatus}
+                workspaceStyle={workspaceStyle}
+                onWindowCommand={handleWindowCommand}
+            />
     );
 
     const renderModeLayoutSection = () => (
@@ -410,24 +412,24 @@ export function WorkspaceShell({
             </AnimatePresence>
 
             <div className="relative z-10 flex w-full flex-1">
-            <div
-                className={cn(
-                    "tt-shell-body mx-auto flex w-full flex-1 flex-col",
-                    isNativeHost && "native-shell-body",
-                    isImmersiveShell
-                        ? isNativeHost
-                            ? "gap-stage"
-                            : "gap-stage px-panel py-stage sm:px-stage lg:px-stage"
-                        : isNativeHost
-                          ? "gap-tools"
-                          : "gap-tools px-panel py-panel"
-                )}
-                style={
-                    isImmersiveShell && !isNativeHost
-                        ? { maxWidth: "var(--tt-shell-main-max-w)" }
-                        : undefined
-                }
-            >
+                <div
+                    className={cn(
+                        "tt-shell-body mx-auto flex w-full flex-1 flex-col",
+                        isNativeHost && "native-shell-body",
+                        isImmersiveShell
+                            ? isNativeHost
+                                ? "gap-stage"
+                                : "gap-stage px-panel py-stage sm:px-stage lg:px-stage"
+                            : isNativeHost
+                            ? "gap-tools"
+                            : "gap-tools px-panel py-panel"
+                    )}
+                    style={
+                        isImmersiveShell && !isNativeHost
+                            ? { maxWidth: "var(--tt-shell-main-max-w)" }
+                            : undefined
+                    }
+                >
                     {isImmersiveShell ? (
                         <div
                             className="acrylic border border-white/10 shadow-hud"
@@ -615,10 +617,14 @@ export function WorkspaceShell({
                 onSave={handleSaveSettings}
                 onTestPort={handleTestPort}
                 onRestoreInsights={restoreHudCards}
+                onToggleWorkspaceStyle={toggleWorkspaceStyle}
                 onReconnect={handleReconnect}
                 rpcStatus={rpcStatus}
                 serverClass={serverClass}
                 isNativeMode={isNativeIntegrationActive}
+                isImmersive={workspaceStyle === "immersive"}
+                hasDismissedInsights={hasDismissedInsights}
+                onApplyUserPreferencesPatch={applyUserPreferencesPatch}
             />
         </div>
     );

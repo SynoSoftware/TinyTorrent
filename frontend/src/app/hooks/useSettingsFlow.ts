@@ -12,7 +12,9 @@ import {
 const USER_PREFERENCES_KEY = "tiny-torrent.user-preferences";
 type PreferencePayload = Pick<
     SettingsConfig,
-    "refresh_interval_ms" | "request_timeout_ms" | "table_watermark_enabled"
+    | "refresh_interval_ms"
+    | "request_timeout_ms"
+    | "table_watermark_enabled"
 >;
 
 const padTime = (value: number) => String(value).padStart(2, "0");
@@ -307,12 +309,25 @@ export function useSettingsFlow({
         }
     }, [reportRpcStatus, torrentClient, isMountedRef]);
 
+    const applyUserPreferencesPatch = useCallback(
+        (patch: Partial<PreferencePayload>) => {
+            if (typeof window === "undefined") return;
+            setSettingsConfig((prev) => {
+                const next: SettingsConfig = { ...prev, ...patch };
+                persistUserPreferences(next);
+                return next;
+            });
+        },
+        []
+    );
+
     return {
         settingsConfig,
         isSettingsSaving,
         handleSaveSettings,
         handleTestPort,
         setSettingsConfig,
+        applyUserPreferencesPatch,
         settingsLoadError,
     };
 }

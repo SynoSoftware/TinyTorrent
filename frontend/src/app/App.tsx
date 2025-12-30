@@ -59,8 +59,9 @@ function FocusController({
         }
 
         const targetTorrent =
-            selectedTorrents.find((torrent) => torrent.id === activeTorrentId) ??
-            selectedTorrents[0];
+            selectedTorrents.find(
+                (torrent) => torrent.id === activeTorrentId
+            ) ?? selectedTorrents[0];
         if (!targetTorrent) return;
 
         setActivePart("inspector");
@@ -103,8 +104,7 @@ export default function App() {
         isDetectingEngine,
         isReady,
     } = useTransmissionSession(torrentClient);
-    const [serverClass, setServerClass] =
-        useState<ServerClass>("unknown");
+    const [serverClass, setServerClass] = useState<ServerClass>("unknown");
 
     const engineType = useMemo<EngineDisplayType>(() => {
         if (serverClass === "tinytorrent") {
@@ -140,9 +140,7 @@ export default function App() {
                 // Ignore capability refresh errors; fallback to existing value.
             }
             if (!active) return;
-            setServerClass(
-                torrentClient.getServerClass?.() ?? "unknown"
-            );
+            setServerClass(torrentClient.getServerClass?.() ?? "unknown");
         };
 
         void updateServerClass();
@@ -463,6 +461,11 @@ export default function App() {
         dismissHudCard,
         restoreHudCards,
     } = useWorkspaceShell();
+    const hasDismissedInsights = Boolean(dismissedHudCardSet.size);
+
+    const wrappedToggleWorkspaceStyle = useCallback(() => {
+        toggleWorkspaceStyle();
+    }, [toggleWorkspaceStyle]);
 
     const hudCards = useHudCards({
         rpcStatus,
@@ -509,8 +512,9 @@ export default function App() {
             return;
         }
         const activeTorrent =
-            selectedTorrents.find((torrent) => torrent.id === activeTorrentId) ??
-            null;
+            selectedTorrents.find(
+                (torrent) => torrent.id === activeTorrentId
+            ) ?? null;
         void loadDetail(
             activeTorrentId,
             activeTorrent
@@ -780,7 +784,7 @@ export default function App() {
                 handleBulkAction={handleBulkAction}
                 rehashStatus={rehashStatus}
                 workspaceStyle={workspaceStyle}
-                toggleWorkspaceStyle={toggleWorkspaceStyle}
+                toggleWorkspaceStyle={wrappedToggleWorkspaceStyle}
                 torrents={torrents}
                 ghostTorrents={ghostTorrents}
                 isTableLoading={!isInitialLoadFinished}
@@ -793,9 +797,7 @@ export default function App() {
                     sequentialSupported ? handleSequentialToggle : undefined
                 }
                 superSeedingToggleHandler={
-                    superSeedingSupported
-                        ? handleSuperSeedingToggle
-                        : undefined
+                    superSeedingSupported ? handleSuperSeedingToggle : undefined
                 }
                 handleForceTrackerReannounce={handleForceTrackerReannounce}
                 sequentialSupported={sequentialSupported}
@@ -807,9 +809,9 @@ export default function App() {
                 peerSortStrategy={peerSortStrategy}
                 inspectorTabCommand={inspectorTabCommand}
                 onInspectorTabCommandHandled={handleInspectorTabCommandHandled}
-                    sessionStats={sessionStats}
-                    liveTransportStatus={liveTransportStatus}
-                    rpcStatus={rpcStatus}
+                sessionStats={sessionStats}
+                liveTransportStatus={liveTransportStatus}
+                rpcStatus={rpcStatus}
                 engineType={engineType}
                 serverClass={serverClass}
                 isNativeIntegrationActive={isNativeIntegrationActive}
@@ -819,6 +821,7 @@ export default function App() {
                 confirmDelete={confirmDelete}
                 visibleHudCards={visibleHudCards}
                 dismissHudCard={dismissHudCard}
+                hasDismissedInsights={hasDismissedInsights}
                 isAddModalOpen={isAddModalOpen}
                 handleAddModalClose={handleAddModalClose}
                 pendingTorrentFile={pendingTorrentFile}
@@ -833,6 +836,7 @@ export default function App() {
                 handleSaveSettings={settingsFlow.handleSaveSettings}
                 handleTestPort={settingsFlow.handleTestPort}
                 restoreHudCards={restoreHudCards}
+                applyUserPreferencesPatch={settingsFlow.applyUserPreferencesPatch}
                 tableWatermarkEnabled={
                     settingsFlow.settingsConfig.table_watermark_enabled
                 }

@@ -15,8 +15,11 @@ import type {
     SliderDefinition,
 } from "@/modules/settings/data/settings-tabs";
 import type { RpcStatus } from "@/shared/types/rpc";
-import { ICON_STROKE_WIDTH } from "@/config/logic";
-import { INTERACTION_CONFIG } from "@/config/logic";
+import {
+    ICON_STROKE_WIDTH,
+    INTERACTION_CONFIG,
+    UI_BASES,
+} from "@/config/logic";
 import { APP_VERSION } from "@/shared/version";
 import { ChevronLeft, RotateCcw, Save, X } from "lucide-react";
 import { SettingsFormBuilder } from "@/modules/settings/components/SettingsFormBuilder";
@@ -26,9 +29,33 @@ import { SettingsFormProvider } from "@/modules/settings/context/SettingsFormCon
 import { NativeShell } from "@/app/runtime";
 import { GLASS_MODAL_SURFACE } from "@/shared/ui/layout/glass-surface";
 import type { ServerClass } from "@/services/rpc/entities";
+import { InterfaceTabContent } from "@/modules/settings/components/InterfaceTabContent";
+
+type LiveUserPreferencePatch = Partial<
+    Pick<
+        SettingsConfig,
+        "refresh_interval_ms" | "request_timeout_ms" | "table_watermark_enabled"
+    >
+>;
+
+type SaveableSettingsConfig = Omit<
+    SettingsConfig,
+    keyof LiveUserPreferencePatch
+>;
+
+const stripLivePreferences = (config: SettingsConfig): SaveableSettingsConfig => {
+    const {
+        refresh_interval_ms: _refreshIntervalMs,
+        request_timeout_ms: _requestTimeoutMs,
+        table_watermark_enabled: _tableWatermarkEnabled,
+        ...rest
+    } = config;
+    return rest;
+};
 
 const configsAreEqual = (a: SettingsConfig, b: SettingsConfig) =>
-    JSON.stringify(a) === JSON.stringify(b);
+    JSON.stringify(stripLivePreferences(a)) ===
+    JSON.stringify(stripLivePreferences(b));
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -39,10 +66,14 @@ interface SettingsModalProps {
     settingsLoadError?: boolean;
     onTestPort?: () => void;
     onRestoreInsights?: () => void;
+    onToggleWorkspaceStyle?: () => void;
     onReconnect: () => void;
     rpcStatus: RpcStatus;
     serverClass: ServerClass;
     isNativeMode: boolean;
+    isImmersive?: boolean;
+    hasDismissedInsights: boolean;
+    onApplyUserPreferencesPatch?: (patch: LiveUserPreferencePatch) => void;
 }
 
 type ModalFeedback = {
@@ -59,10 +90,14 @@ export function SettingsModal({
     settingsLoadError,
     onTestPort,
     onRestoreInsights,
+    onToggleWorkspaceStyle,
     onReconnect,
     rpcStatus,
     serverClass,
     isNativeMode,
+    isImmersive,
+    hasDismissedInsights,
+    onApplyUserPreferencesPatch,
 }: SettingsModalProps) {
     const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState<SettingsTab>("speed");
@@ -78,6 +113,9 @@ export function SettingsModal({
     const [config, setConfig] = useState<SettingsConfig>(() => ({
         ...safeInitialConfig,
     }));
+
+    const openedConfigRef = useRef<SettingsConfig>({ ...safeInitialConfig });
+    const wasOpenRef = useRef(false);
 
     const [modalFeedback, setModalFeedback] = useState<ModalFeedback | null>(
         null
@@ -117,14 +155,38 @@ export function SettingsModal({
 
     const canBrowseDirectories = NativeShell.isAvailable;
 
+    const hasSaveableEdits = useMemo(
+        () => !configsAreEqual(config, openedConfigRef.current),
+        [config]
+    );
+
     useEffect(() => {
-        if (isOpen) {
+        if (!isOpen) {
+            wasOpenRef.current = false;
+            return;
+        }
+
+        if (!wasOpenRef.current) {
+            wasOpenRef.current = true;
+            openedConfigRef.current = { ...safeInitialConfig };
             setConfig({ ...safeInitialConfig });
             setModalFeedback(null);
             setJsonCopyStatus("idle");
             setIsMobileMenuOpen(true);
         }
-    }, [safeInitialConfig, isOpen]);
+    }, [isOpen, safeInitialConfig]);
+
+    useEffect(() => {
+        if (!isOpen) {
+            return;
+        }
+        // If the backing config updates while the modal is open (e.g. initial load),
+        // sync only when the user hasn't started editing saveable settings.
+        if (!hasSaveableEdits) {
+            openedConfigRef.current = { ...safeInitialConfig };
+            setConfig({ ...safeInitialConfig });
+        }
+    }, [hasSaveableEdits, isOpen, safeInitialConfig]);
 
     useEffect(() => {
         if (!isOpen) {
@@ -164,7 +226,13 @@ export function SettingsModal({
     }, [config, onSave, onClose, persistWindowState, t]);
 
     const handleReset = () => {
-        setConfig({ ...safeInitialConfig });
+        const next: SettingsConfig = { ...DEFAULT_SETTINGS_CONFIG };
+        setConfig(next);
+        onApplyUserPreferencesPatch?.({
+            refresh_interval_ms: next.refresh_interval_ms,
+            request_timeout_ms: next.request_timeout_ms,
+            table_watermark_enabled: next.table_watermark_enabled,
+        });
         setModalFeedback(null);
     };
 
@@ -206,8 +274,7 @@ export function SettingsModal({
     );
 
     const safeReconnect = useMemo(
-        () =>
-            runAction(() => onReconnect(), "settings.modal.error_reconnect"),
+        () => runAction(() => onReconnect(), "settings.modal.error_reconnect"),
         [onReconnect, runAction]
     );
 
@@ -242,8 +309,20 @@ export function SettingsModal({
                 ) as SettingsConfig[K];
             }
             setConfig((prev) => ({ ...prev, [key]: nextValue }));
+
+            if (key === "table_watermark_enabled" && typeof nextValue === "boolean") {
+                onApplyUserPreferencesPatch?.({
+                    table_watermark_enabled: nextValue,
+                });
+            }
+            if (key === "refresh_interval_ms" && typeof nextValue === "number") {
+                onApplyUserPreferencesPatch?.({ refresh_interval_ms: nextValue });
+            }
+            if (key === "request_timeout_ms" && typeof nextValue === "number") {
+                onApplyUserPreferencesPatch?.({ request_timeout_ms: nextValue });
+            }
         },
-        [sliderConstraints]
+        [onApplyUserPreferencesPatch, sliderConstraints]
     );
 
     const handleBrowse = useCallback(
@@ -265,10 +344,7 @@ export function SettingsModal({
         [canBrowseDirectories, config, updateConfig, t]
     );
 
-    const hasUnsavedChanges = useMemo(
-        () => !configsAreEqual(config, safeInitialConfig),
-        [config, safeInitialConfig]
-    );
+    const hasUnsavedChanges = hasSaveableEdits;
 
     const hasVisibleBlocks = useCallback(
         (blocks: SectionBlock[]) =>
@@ -276,7 +352,7 @@ export function SettingsModal({
         [config]
     );
 
-    const systemTabVisible = isNativeMode;
+    const systemTabVisible = NativeShell.isAvailable;
 
     const visibleTabs = useMemo(
         () =>
@@ -322,6 +398,7 @@ export function SettingsModal({
             configJson,
             rpcStatus,
             onReconnect: safeReconnect,
+            isImmersive: Boolean(isImmersive),
         }),
         [
             buttonActions,
@@ -334,6 +411,7 @@ export function SettingsModal({
             rpcStatus,
             safeReconnect,
             updateConfig,
+            isImmersive,
         ]
     );
     return (
@@ -367,7 +445,10 @@ export function SettingsModal({
                         )}
                     >
                         <div className="p-stage border-b border-content1/10 flex justify-between items-center h-modal-header shrink-0">
-                            <h2 className="text-lg font-bold tracking-tight text-foreground">
+                            <h2
+                                className="font-bold tracking-tight text-foreground"
+                                style={{ fontSize: UI_BASES.navbar.tabFont }}
+                            >
                                 {t("settings.modal.title")}
                             </h2>
                             <Button
@@ -395,11 +476,14 @@ export function SettingsModal({
                                         setIsMobileMenuOpen(false);
                                     }}
                                     className={cn(
-                                        "w-full flex items-center gap-panel px-panel py-panel rounded-xl text-scaled transition-all duration-200 group relative",
+                                        "w-full flex items-center gap-panel px-panel py-panel rounded-xl transition-all duration-200 group relative",
                                         activeTab === tab.id
                                             ? "bg-primary/10 text-primary font-semibold"
                                             : "text-foreground/60 hover:text-foreground hover:bg-content2/50 font-medium"
                                     )}
+                                    style={{
+                                        fontSize: "var(--icon)",
+                                    }}
                                 >
                                     <tab.icon
                                         strokeWidth={ICON_STROKE_WIDTH}
@@ -410,8 +494,8 @@ export function SettingsModal({
                                                 : "text-foreground/50"
                                         )}
                                         style={{
-                                            width: "var(--tt-icon-size)",
-                                            height: "var(--tt-icon-size)",
+                                            width: "var(--icon-lg)",
+                                            height: "var(--icon-lg)",
                                         }}
                                     />
                                     <span>{t(tab.labelKey)}</span>
@@ -451,7 +535,12 @@ export function SettingsModal({
                                     />
                                 </Button>
                                 <div className="flex flex-col">
-                                    <h1 className="text-base font-bold text-foreground">
+                                    <h1
+                                        className="font-bold text-foreground"
+                                        style={{
+                                            fontSize: UI_BASES.navbar.tabFont,
+                                        }}
+                                    >
                                         {t(activeTabDefinition.headerKey)}
                                     </h1>
                                     {hasUnsavedChanges && (
@@ -485,7 +574,7 @@ export function SettingsModal({
                         </div>
 
                         {/* Scrollable Content */}
-                        <div className="flex-1 min-h-0 overflow-y-auto w-full p-panel sm:p-8 scrollbar-hide">
+                        <div className="flex-1 min-h-0 overflow-y-auto w-full p-panel sm:p-stage scrollbar-hide">
                             {tabsFallbackActive && (
                                 <div className="rounded-xl border border-warning/30 bg-warning/10 px-panel py-tight text-label text-warning mb-panel">
                                     {t("settings.modal.error_no_tabs")}
@@ -529,7 +618,21 @@ export function SettingsModal({
                                         ) : activeTabDefinition.id ===
                                           "system" ? (
                                             <SystemTabContent
-                                                isNativeMode={isNativeMode}
+                                                isNativeMode={
+                                                    NativeShell.isAvailable
+                                                }
+                                            />
+                                        ) : activeTabDefinition.id === "gui" ? (
+                                            <InterfaceTabContent
+                                                isImmersive={Boolean(
+                                                    isImmersive
+                                                )}
+                                                onToggleWorkspaceStyle={
+                                                    onToggleWorkspaceStyle
+                                                }
+                                                hasDismissedInsights={
+                                                    hasDismissedInsights
+                                                }
                                             />
                                         ) : (
                                             <SettingsFormBuilder
@@ -595,7 +698,6 @@ export function SettingsModal({
                     </div>
                 </div>
             </ModalContent>
-
         </Modal>
     );
 }
