@@ -448,6 +448,23 @@
         background-color: transparent;
         background-image: none;
     }
+
+    :root[data-native-host="true"] .tt-shell-body {
+        padding: 0;
+        margin: 0;
+        -webkit-app-region: drag;
+    }
+
+    :root[data-native-host="true"] .tt-shell-no-drag {
+        -webkit-app-region: no-drag;
+    }
+}
+
+@layer utilities {
+    :root[data-native-host="true"] .tt-app-shell {
+        background-color: transparent !important;
+        background-image: none !important;
+    }
 }
 
 @layer components {

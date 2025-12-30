@@ -232,6 +232,7 @@ export function WorkspaceShell({
         },
         []
     );
+    const isNativeHost = Runtime.isNativeHost;
     const isImmersiveShell = workspaceStyle === "immersive";
 
     const workspaceStyleToggleLabel =
@@ -411,13 +412,17 @@ export function WorkspaceShell({
             <div className="relative z-10 flex w-full flex-1">
                 <div
                     className={cn(
-                        "mx-auto flex w-full flex-1 flex-col",
+                        "tt-shell-body mx-auto flex w-full flex-1 flex-col",
                         isImmersiveShell
-                            ? "gap-stage px-panel py-stage sm:px-stage lg:px-stage"
-                            : "gap-tools px-panel py-panel"
+                            ? isNativeHost
+                                ? "gap-stage"
+                                : "gap-stage px-panel py-stage sm:px-stage lg:px-stage"
+                            : isNativeHost
+                              ? "gap-tools"
+                              : "gap-tools px-panel py-panel"
                     )}
                     style={
-                        isImmersiveShell
+                        isImmersiveShell && !isNativeHost
                             ? { maxWidth: "var(--tt-shell-main-max-w)" }
                             : undefined
                     }
@@ -439,7 +444,7 @@ export function WorkspaceShell({
                     {isImmersiveShell ? (
                         <>
                             <div
-                                className="acrylic flex-1 min-h-0 h-full border border-white/10 shadow-hud"
+                                className="tt-shell-no-drag acrylic flex-1 min-h-0 h-full border border-white/10 shadow-hud"
                                 style={{
                                     borderRadius: `${IMMERSIVE_MAIN_OUTER_RADIUS}px`,
                                     padding: `${IMMERSIVE_MAIN_PADDING}px`,
@@ -456,7 +461,7 @@ export function WorkspaceShell({
                                 </main>
                             </div>
                             {visibleHudCards.length > 0 ? (
-                                <section className="grid gap-panel md:grid-cols-2 xl:grid-cols-3">
+                                <section className="tt-shell-no-drag grid gap-panel md:grid-cols-2 xl:grid-cols-3">
                                     <AnimatePresence>
                                         {visibleHudCards.map((card) => {
                                             const Icon = card.icon;
@@ -560,7 +565,7 @@ export function WorkspaceShell({
                             )}
 
                             <div
-                                className="glass-panel border border-content1/10 bg-background/75 shadow-hud backdrop-blur-3xl"
+                                className="tt-shell-no-drag glass-panel border border-content1/10 bg-background/75 shadow-hud backdrop-blur-3xl"
                                 style={{
                                     borderRadius: `${IMMERSIVE_CHROME_RADIUS}px`,
                                     padding: `${IMMERSIVE_CHROME_PADDING}px`,
@@ -571,10 +576,12 @@ export function WorkspaceShell({
                         </>
                     ) : (
                         <div className="flex-1 min-h-0 h-full flex flex-col gap-tools">
-                            <div className="flex-1 min-h-0 h-full">
+                            <div className="tt-shell-no-drag flex-1 min-h-0 h-full">
                                 {renderModeLayoutSection()}
                             </div>
-                            {renderStatusBarSection()}
+                            <div className="tt-shell-no-drag">
+                                {renderStatusBarSection()}
+                            </div>
                         </div>
                     )}
                 </div>
