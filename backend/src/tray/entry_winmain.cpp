@@ -7,7 +7,10 @@
 #endif
 
 #include <Windows.h>
+#include <d3d11.h>
+#include <dcomp.h>
 #include <dwmapi.h>
+#include <dxgi1_2.h>
 #include <psapi.h>
 #include <shellapi.h>
 #include <shobjidl.h>
@@ -51,6 +54,9 @@
 #pragma comment(lib, "Dwmapi.lib")
 #pragma comment(lib, "Winhttp.lib")
 #pragma comment(lib, "Psapi.lib")
+#pragma comment(lib, "Dcomp.lib")
+#pragma comment(lib, "D3d11.lib")
+#pragma comment(lib, "Dxgi.lib")
 
 #ifndef DWMWA_WINDOW_CORNER_PREFERENCE
 #define DWMWA_WINDOW_CORNER_PREFERENCE 33
@@ -152,9 +158,19 @@ struct TrayState
     std::wstring webview_user_data_dir;
 
     HWND webview_window = nullptr;
-    HWND webview_child_hwnd = nullptr;
-    WNDPROC webview_child_wndproc = nullptr;
+    Microsoft::WRL::ComPtr<ID3D11Device> d3d_device;
+    Microsoft::WRL::ComPtr<ID3D11DeviceContext> d3d_context;
+    Microsoft::WRL::ComPtr<IDCompositionDevice> dcomp_device;
+    Microsoft::WRL::ComPtr<IDCompositionTarget> dcomp_target;
+    Microsoft::WRL::ComPtr<IDCompositionVisual> dcomp_root_visual;
+    Microsoft::WRL::ComPtr<IDCompositionVisual> dcomp_webview_visual;
+    Microsoft::WRL::ComPtr<IDCompositionRectangleClip> dcomp_root_clip;
+    bool webview_in_size_move = false;
+
     Microsoft::WRL::ComPtr<ICoreWebView2Controller> webview_controller;
+    Microsoft::WRL::ComPtr<ICoreWebView2CompositionController> webview_comp_controller;
+    Microsoft::WRL::ComPtr<ICoreWebView2CompositionController4>
+        webview_comp_controller4;
     Microsoft::WRL::ComPtr<ICoreWebView2> webview;
     EventRegistrationToken web_message_token{};
     EventRegistrationToken navigation_token{};
@@ -222,8 +238,6 @@ void cancel_native_webview(TrayState &state);
 std::string http_post_rpc(TrayState &state, std::string const &payload);
 void enable_acrylic(HWND hwnd);
 void apply_rounded_corners(HWND hwnd);
-void ensure_webview_child_subclass(TrayState &state);
-void log_child_windows(HWND hwnd, wchar_t const *tag);
 void log_webview_dom_transparency(TrayState &state);
 void run_diag_hittest_sweep(TrayState &state);
 bool capture_window_placement(HWND hwnd, WINDOWPLACEMENT &placement);
@@ -405,45 +419,237 @@ ResizeBorderThickness get_resize_border_thickness(HWND hwnd)
     return {border_x, border_y};
 }
 
-RECT compute_webview_controller_bounds(HWND hwnd)
+RECT compute_webview_controller_bounds_from_client(HWND hwnd, RECT client)
 {
-    RECT bounds{};
-    GetClientRect(hwnd, &bounds);
     if (IsZoomed(hwnd))
     {
-        return bounds;
+        return client;
     }
     ResizeBorderThickness border = get_resize_border_thickness(hwnd);
-    bounds.left += border.x;
-    bounds.right -= border.x;
-    bounds.top += border.y;
-    bounds.bottom -= border.y;
-    if (bounds.right < bounds.left)
+    client.left += border.x;
+    client.right -= border.x;
+    client.top += border.y;
+    client.bottom -= border.y;
+    if (client.right < client.left)
     {
-        bounds.right = bounds.left;
+        client.right = client.left;
     }
-    if (bounds.bottom < bounds.top)
+    if (client.bottom < client.top)
     {
-        bounds.bottom = bounds.top;
+        client.bottom = client.top;
     }
-    return bounds;
+    return client;
 }
 
-void update_webview_controller_bounds(TrayState *state, HWND hwnd)
+RECT compute_webview_controller_bounds(HWND hwnd)
+{
+    RECT client{};
+    GetClientRect(hwnd, &client);
+    return compute_webview_controller_bounds_from_client(hwnd, client);
+}
+
+bool ensure_dcomp_host(TrayState &state)
+{
+    if (!state.webview_window)
+    {
+        return false;
+    }
+    if (state.dcomp_device && state.dcomp_target && state.dcomp_root_visual)
+    {
+        return true;
+    }
+
+    UINT flags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
+    D3D_FEATURE_LEVEL levels[] = {D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0,
+                                  D3D_FEATURE_LEVEL_10_1, D3D_FEATURE_LEVEL_10_0};
+    D3D_FEATURE_LEVEL level = D3D_FEATURE_LEVEL_11_0;
+    Microsoft::WRL::ComPtr<ID3D11Device> device;
+    Microsoft::WRL::ComPtr<ID3D11DeviceContext> context;
+
+    HRESULT hr = D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr,
+                                   flags, levels,
+                                   static_cast<UINT>(std::size(levels)),
+                                   D3D11_SDK_VERSION, &device, &level, &context);
+    if (FAILED(hr))
+    {
+        hr = D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_WARP, nullptr, flags,
+                               levels, static_cast<UINT>(std::size(levels)),
+                               D3D11_SDK_VERSION, &device, &level, &context);
+    }
+    if (FAILED(hr) || !device)
+    {
+        if (native_diag_enabled())
+        {
+            std::wstringstream ss;
+            ss << L"D3D11CreateDevice hr=0x" << std::hex
+               << static_cast<uint32_t>(hr) << std::dec;
+            native_diag_logf(L"dcomp", state.webview_window, ss.str());
+        }
+        return false;
+    }
+
+    Microsoft::WRL::ComPtr<IDCompositionDevice> dcomp;
+    hr = DCompositionCreateDevice2(device.Get(), IID_PPV_ARGS(&dcomp));
+    if (FAILED(hr) || !dcomp)
+    {
+        if (native_diag_enabled())
+        {
+            std::wstringstream ss;
+            ss << L"DCompositionCreateDevice2 hr=0x" << std::hex
+               << static_cast<uint32_t>(hr) << std::dec;
+            native_diag_logf(L"dcomp", state.webview_window, ss.str());
+        }
+        return false;
+    }
+
+    Microsoft::WRL::ComPtr<IDCompositionTarget> target;
+    hr = dcomp->CreateTargetForHwnd(state.webview_window, TRUE, &target);
+    if (FAILED(hr) || !target)
+    {
+        if (native_diag_enabled())
+        {
+            std::wstringstream ss;
+            ss << L"CreateTargetForHwnd hr=0x" << std::hex
+               << static_cast<uint32_t>(hr) << std::dec;
+            native_diag_logf(L"dcomp", state.webview_window, ss.str());
+        }
+        return false;
+    }
+
+    Microsoft::WRL::ComPtr<IDCompositionVisual> root;
+    hr = dcomp->CreateVisual(&root);
+    if (FAILED(hr) || !root)
+    {
+        if (native_diag_enabled())
+        {
+            std::wstringstream ss;
+            ss << L"CreateVisual hr=0x" << std::hex << static_cast<uint32_t>(hr)
+               << std::dec;
+            native_diag_logf(L"dcomp", state.webview_window, ss.str());
+        }
+        return false;
+    }
+
+    Microsoft::WRL::ComPtr<IDCompositionVisual> webview_visual;
+    hr = dcomp->CreateVisual(&webview_visual);
+    if (FAILED(hr) || !webview_visual)
+    {
+        if (native_diag_enabled())
+        {
+            std::wstringstream ss;
+            ss << L"CreateVisual(webview) hr=0x" << std::hex
+               << static_cast<uint32_t>(hr) << std::dec;
+            native_diag_logf(L"dcomp", state.webview_window, ss.str());
+        }
+        return false;
+    }
+
+    hr = root->AddVisual(webview_visual.Get(), FALSE, nullptr);
+    if (FAILED(hr))
+    {
+        if (native_diag_enabled())
+        {
+            std::wstringstream ss;
+            ss << L"AddVisual(webview) hr=0x" << std::hex
+               << static_cast<uint32_t>(hr) << std::dec;
+            native_diag_logf(L"dcomp", state.webview_window, ss.str());
+        }
+        return false;
+    }
+
+    hr = target->SetRoot(root.Get());
+    if (FAILED(hr))
+    {
+        if (native_diag_enabled())
+        {
+            std::wstringstream ss;
+            ss << L"SetRoot hr=0x" << std::hex << static_cast<uint32_t>(hr)
+               << std::dec;
+            native_diag_logf(L"dcomp", state.webview_window, ss.str());
+        }
+        return false;
+    }
+
+    RECT client{};
+    GetClientRect(state.webview_window, &client);
+    Microsoft::WRL::ComPtr<IDCompositionRectangleClip> root_clip;
+    hr = dcomp->CreateRectangleClip(&root_clip);
+    if (SUCCEEDED(hr) && root_clip)
+    {
+        root_clip->SetLeft(0.0f);
+        root_clip->SetTop(0.0f);
+        root_clip->SetRight(static_cast<float>(client.right - client.left));
+        root_clip->SetBottom(static_cast<float>(client.bottom - client.top));
+        root->SetClip(root_clip.Get());
+    }
+
+    dcomp->Commit();
+
+    state.d3d_device = device;
+    state.d3d_context = context;
+    state.dcomp_device = dcomp;
+    state.dcomp_target = target;
+    state.dcomp_root_visual = root;
+    state.dcomp_webview_visual = webview_visual;
+    state.dcomp_root_clip = root_clip;
+    return true;
+}
+
+void update_dcomp_root_clip(TrayState *state, RECT client)
+{
+    if (!state || !state->dcomp_device || !state->dcomp_root_visual)
+    {
+        return;
+    }
+
+    if (!state->dcomp_root_clip)
+    {
+        state->dcomp_device->CreateRectangleClip(&state->dcomp_root_clip);
+        if (state->dcomp_root_clip)
+        {
+            state->dcomp_root_visual->SetClip(state->dcomp_root_clip.Get());
+        }
+    }
+
+    if (!state->dcomp_root_clip)
+    {
+        return;
+    }
+
+    float w = static_cast<float>(std::max(0L, client.right - client.left));
+    float h = static_cast<float>(std::max(0L, client.bottom - client.top));
+    state->dcomp_root_clip->SetLeft(0.0f);
+    state->dcomp_root_clip->SetTop(0.0f);
+    state->dcomp_root_clip->SetRight(w);
+    state->dcomp_root_clip->SetBottom(h);
+}
+
+void commit_dcomp(TrayState *state)
+{
+    if (!state || !state->dcomp_device)
+    {
+        return;
+    }
+    state->dcomp_device->Commit();
+    if (state->webview_in_size_move)
+    {
+        state->dcomp_device->WaitForCommitCompletion();
+        DwmFlush();
+    }
+}
+
+void update_webview_controller_bounds_from_client_rect(TrayState *state, HWND hwnd,
+                                                       RECT client)
 {
     if (!state || !state->webview_controller)
     {
         return;
     }
-    if (native_diag_enabled())
-    {
-        ensure_webview_child_subclass(*state);
-    }
-    RECT client{};
-    GetClientRect(hwnd, &client);
     ResizeBorderThickness border = get_resize_border_thickness(hwnd);
-    RECT bounds = compute_webview_controller_bounds(hwnd);
+    RECT bounds = compute_webview_controller_bounds_from_client(hwnd, client);
     state->webview_controller->put_Bounds(bounds);
+    update_dcomp_root_clip(state, client);
+    commit_dcomp(state);
 
     if (native_diag_enabled())
     {
@@ -460,6 +666,174 @@ void update_webview_controller_bounds(TrayState *state, HWND hwnd)
            << current.right << L"," << current.bottom << L"]";
         native_diag_logf(L"put_Bounds", hwnd, ss.str());
     }
+}
+
+void update_webview_controller_bounds(TrayState *state, HWND hwnd)
+{
+    RECT client{};
+    GetClientRect(hwnd, &client);
+    update_webview_controller_bounds_from_client_rect(state, hwnd, client);
+}
+
+void configure_webview_controller_pixel_mode(TrayState &state, HWND hwnd)
+{
+    if (!state.webview_controller || !hwnd)
+    {
+        return;
+    }
+
+    Microsoft::WRL::ComPtr<ICoreWebView2Controller3> controller3;
+    if (SUCCEEDED(state.webview_controller.As(&controller3)) && controller3)
+    {
+        controller3->put_BoundsMode(COREWEBVIEW2_BOUNDS_MODE_USE_RAW_PIXELS);
+        controller3->put_ShouldDetectMonitorScaleChanges(TRUE);
+        controller3->put_RasterizationScale(
+            static_cast<double>(GetDpiForWindow(hwnd)) / 96.0);
+    }
+}
+
+COREWEBVIEW2_MOUSE_EVENT_VIRTUAL_KEYS webview_mouse_keys_from_wparam(WPARAM wparam)
+{
+    COREWEBVIEW2_MOUSE_EVENT_VIRTUAL_KEYS keys =
+        COREWEBVIEW2_MOUSE_EVENT_VIRTUAL_KEYS_NONE;
+    if (wparam & MK_LBUTTON)
+    {
+        keys |= COREWEBVIEW2_MOUSE_EVENT_VIRTUAL_KEYS_LEFT_BUTTON;
+    }
+    if (wparam & MK_RBUTTON)
+    {
+        keys |= COREWEBVIEW2_MOUSE_EVENT_VIRTUAL_KEYS_RIGHT_BUTTON;
+    }
+    if (wparam & MK_MBUTTON)
+    {
+        keys |= COREWEBVIEW2_MOUSE_EVENT_VIRTUAL_KEYS_MIDDLE_BUTTON;
+    }
+    if (wparam & MK_XBUTTON1)
+    {
+        keys |= COREWEBVIEW2_MOUSE_EVENT_VIRTUAL_KEYS_X_BUTTON1;
+    }
+    if (wparam & MK_XBUTTON2)
+    {
+        keys |= COREWEBVIEW2_MOUSE_EVENT_VIRTUAL_KEYS_X_BUTTON2;
+    }
+    if (wparam & MK_SHIFT)
+    {
+        keys |= COREWEBVIEW2_MOUSE_EVENT_VIRTUAL_KEYS_SHIFT;
+    }
+    if (wparam & MK_CONTROL)
+    {
+        keys |= COREWEBVIEW2_MOUSE_EVENT_VIRTUAL_KEYS_CONTROL;
+    }
+    return keys;
+}
+
+bool try_forward_webview_mouse_input(TrayState *state, HWND hwnd, UINT msg,
+                                    WPARAM wparam, LPARAM lparam)
+{
+    if (!state || !state->webview_comp_controller || !state->webview_controller)
+    {
+        return false;
+    }
+
+    COREWEBVIEW2_MOUSE_EVENT_KIND kind{};
+    UINT32 mouse_data = 0;
+    POINT pt{};
+    bool screen_point = false;
+
+    switch (msg)
+    {
+    case WM_MOUSEMOVE:
+        kind = COREWEBVIEW2_MOUSE_EVENT_KIND_MOVE;
+        pt = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
+        break;
+    case WM_LBUTTONDOWN:
+        kind = COREWEBVIEW2_MOUSE_EVENT_KIND_LEFT_BUTTON_DOWN;
+        pt = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
+        break;
+    case WM_LBUTTONUP:
+        kind = COREWEBVIEW2_MOUSE_EVENT_KIND_LEFT_BUTTON_UP;
+        pt = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
+        break;
+    case WM_LBUTTONDBLCLK:
+        kind = COREWEBVIEW2_MOUSE_EVENT_KIND_LEFT_BUTTON_DOUBLE_CLICK;
+        pt = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
+        break;
+    case WM_RBUTTONDOWN:
+        kind = COREWEBVIEW2_MOUSE_EVENT_KIND_RIGHT_BUTTON_DOWN;
+        pt = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
+        break;
+    case WM_RBUTTONUP:
+        kind = COREWEBVIEW2_MOUSE_EVENT_KIND_RIGHT_BUTTON_UP;
+        pt = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
+        break;
+    case WM_RBUTTONDBLCLK:
+        kind = COREWEBVIEW2_MOUSE_EVENT_KIND_RIGHT_BUTTON_DOUBLE_CLICK;
+        pt = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
+        break;
+    case WM_MBUTTONDOWN:
+        kind = COREWEBVIEW2_MOUSE_EVENT_KIND_MIDDLE_BUTTON_DOWN;
+        pt = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
+        break;
+    case WM_MBUTTONUP:
+        kind = COREWEBVIEW2_MOUSE_EVENT_KIND_MIDDLE_BUTTON_UP;
+        pt = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
+        break;
+    case WM_MBUTTONDBLCLK:
+        kind = COREWEBVIEW2_MOUSE_EVENT_KIND_MIDDLE_BUTTON_DOUBLE_CLICK;
+        pt = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
+        break;
+    case WM_XBUTTONDOWN:
+        kind = COREWEBVIEW2_MOUSE_EVENT_KIND_X_BUTTON_DOWN;
+        mouse_data = static_cast<UINT32>(GET_XBUTTON_WPARAM(wparam));
+        pt = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
+        break;
+    case WM_XBUTTONUP:
+        kind = COREWEBVIEW2_MOUSE_EVENT_KIND_X_BUTTON_UP;
+        mouse_data = static_cast<UINT32>(GET_XBUTTON_WPARAM(wparam));
+        pt = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
+        break;
+    case WM_XBUTTONDBLCLK:
+        kind = COREWEBVIEW2_MOUSE_EVENT_KIND_X_BUTTON_DOUBLE_CLICK;
+        mouse_data = static_cast<UINT32>(GET_XBUTTON_WPARAM(wparam));
+        pt = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
+        break;
+    case WM_MOUSEWHEEL:
+        kind = COREWEBVIEW2_MOUSE_EVENT_KIND_WHEEL;
+        mouse_data = static_cast<UINT32>(static_cast<SHORT>(
+            HIWORD(static_cast<DWORD>(wparam))));
+        pt = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
+        screen_point = true;
+        break;
+    case WM_MOUSEHWHEEL:
+        kind = COREWEBVIEW2_MOUSE_EVENT_KIND_HORIZONTAL_WHEEL;
+        mouse_data = static_cast<UINT32>(static_cast<SHORT>(
+            HIWORD(static_cast<DWORD>(wparam))));
+        pt = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
+        screen_point = true;
+        break;
+    default:
+        return false;
+    }
+
+    if (screen_point)
+    {
+        if (!ScreenToClient(hwnd, &pt))
+        {
+            return false;
+        }
+    }
+
+    auto keys = webview_mouse_keys_from_wparam(wparam);
+    HRESULT hr =
+        state->webview_comp_controller->SendMouseInput(kind, keys, mouse_data, pt);
+    if (native_diag_enabled() && FAILED(hr))
+    {
+        std::wstringstream ss;
+        ss << L"msg=0x" << std::hex << static_cast<uint32_t>(msg) << std::dec
+           << L" hr=0x" << std::hex << static_cast<uint32_t>(hr) << std::dec;
+        native_diag_logf(L"SendMouseInput", hwnd, ss.str());
+    }
+    return SUCCEEDED(hr);
 }
 
 void post_webview_message(TrayState &state, std::wstring const &message)
@@ -527,127 +901,6 @@ void configure_webview_window_chrome(HWND hwnd)
     apply_frameless_window_style(hwnd);
     enable_acrylic(hwnd);
     apply_rounded_corners(hwnd);
-}
-
-void log_child_windows(HWND hwnd, wchar_t const *tag)
-{
-    if (!native_diag_enabled())
-    {
-        return;
-    }
-    std::wstringstream header;
-    header << L"children tag=" << tag;
-    native_diag_logf(L"enum", hwnd, header.str());
-
-    EnumChildWindows(
-        hwnd,
-        [](HWND child, LPARAM parent_param) -> BOOL
-        {
-            HWND parent = reinterpret_cast<HWND>(parent_param);
-            wchar_t cls[256] = {};
-            GetClassNameW(child, cls, static_cast<int>(std::size(cls)));
-            RECT rc{};
-            GetWindowRect(child, &rc);
-            POINT tl{rc.left, rc.top};
-            POINT br{rc.right, rc.bottom};
-            MapWindowPoints(nullptr, parent, &tl, 1);
-            MapWindowPoints(nullptr, parent, &br, 1);
-            std::wstringstream ss;
-            ss << L"child=0x" << std::hex << reinterpret_cast<uintptr_t>(child)
-               << std::dec << L" cls=" << cls << L" winrc=[" << rc.left << L","
-               << rc.top << L"," << rc.right << L"," << rc.bottom
-               << L"] clientrc=[" << tl.x << L"," << tl.y << L"," << br.x
-               << L"," << br.y << L"]";
-            native_diag_logf(L"enum", parent, ss.str());
-            return TRUE;
-        },
-        reinterpret_cast<LPARAM>(hwnd));
-}
-
-HWND find_largest_child_window(HWND hwnd)
-{
-    struct Ctx
-    {
-        HWND best = nullptr;
-        long best_area = -1;
-    } ctx;
-
-    EnumChildWindows(
-        hwnd,
-        [](HWND child, LPARAM param) -> BOOL
-        {
-            auto *ctx_ptr = reinterpret_cast<Ctx *>(param);
-            RECT rc{};
-            if (!GetWindowRect(child, &rc))
-            {
-                return TRUE;
-            }
-            long w = std::max(0L, rc.right - rc.left);
-            long h = std::max(0L, rc.bottom - rc.top);
-            long area = w * h;
-            if (area > ctx_ptr->best_area)
-            {
-                ctx_ptr->best_area = area;
-                ctx_ptr->best = child;
-            }
-            return TRUE;
-        },
-        reinterpret_cast<LPARAM>(&ctx));
-
-    return ctx.best;
-}
-
-LRESULT CALLBACK WebViewChildWndProc(HWND hwnd, UINT msg, WPARAM wparam,
-                                     LPARAM lparam)
-{
-    auto *state =
-        reinterpret_cast<TrayState *>(GetPropW(hwnd, L"TT_NATIVE_DIAG_STATE"));
-    auto *original = reinterpret_cast<WNDPROC>(
-        GetPropW(hwnd, L"TT_NATIVE_DIAG_ORIG_WNDPROC"));
-    if (native_diag_enabled() && msg == WM_NCHITTEST)
-    {
-        POINT pt{GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
-        std::wstringstream ss;
-        ss << L"pt=(" << pt.x << L"," << pt.y << L")";
-        native_diag_logf(L"child_nchittest", hwnd, ss.str());
-    }
-    if (original)
-    {
-        return CallWindowProcW(original, hwnd, msg, wparam, lparam);
-    }
-    return DefWindowProcW(hwnd, msg, wparam, lparam);
-}
-
-void ensure_webview_child_subclass(TrayState &state)
-{
-    if (!native_diag_enabled() || !state.webview_window)
-    {
-        return;
-    }
-    log_child_windows(state.webview_window, L"ensure_webview_child_subclass");
-    HWND child = find_largest_child_window(state.webview_window);
-    if (!child)
-    {
-        native_diag_logf(L"child", state.webview_window, L"no child found");
-        return;
-    }
-    if (state.webview_child_hwnd == child && state.webview_child_wndproc)
-    {
-        return;
-    }
-    state.webview_child_hwnd = child;
-    state.webview_child_wndproc =
-        reinterpret_cast<WNDPROC>(GetWindowLongPtrW(child, GWLP_WNDPROC));
-    SetPropW(child, L"TT_NATIVE_DIAG_STATE", &state);
-    SetPropW(child, L"TT_NATIVE_DIAG_ORIG_WNDPROC",
-             reinterpret_cast<HANDLE>(state.webview_child_wndproc));
-    SetWindowLongPtrW(child, GWLP_WNDPROC,
-                      reinterpret_cast<LONG_PTR>(WebViewChildWndProc));
-    std::wstringstream ss;
-    ss << L"installed child=0x" << std::hex
-       << reinterpret_cast<uintptr_t>(child) << std::dec << L" cls="
-       << hwnd_class_name(child);
-    native_diag_logf(L"child", state.webview_window, ss.str());
 }
 
 void log_webview_dom_transparency(TrayState &state)
@@ -806,10 +1059,18 @@ void cancel_native_webview(TrayState &state)
         state.webview_controller->Close();
         state.webview_controller.Reset();
     }
+    state.webview_comp_controller4.Reset();
+    state.webview_comp_controller.Reset();
     if (state.webview)
     {
         state.webview.Reset();
     }
+    state.dcomp_webview_visual.Reset();
+    state.dcomp_root_visual.Reset();
+    state.dcomp_target.Reset();
+    state.dcomp_device.Reset();
+    state.d3d_context.Reset();
+    state.d3d_device.Reset();
     if (state.webview_window)
     {
         DestroyWindow(state.webview_window);
@@ -1343,9 +1604,109 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
         reinterpret_cast<TrayState *>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
     switch (msg)
     {
+    case WM_ENTERSIZEMOVE:
+        if (state)
+        {
+            state->webview_in_size_move = true;
+        }
+        return 0;
+    case WM_EXITSIZEMOVE:
+        if (state)
+        {
+            state->webview_in_size_move = false;
+            update_webview_controller_bounds(state, hwnd);
+        }
+        return 0;
+    case WM_SIZING:
+    {
+        if (!state || !state->webview_controller)
+        {
+            return 0;
+        }
+        auto *window_rect = reinterpret_cast<RECT *>(lparam);
+        if (!window_rect)
+        {
+            return 0;
+        }
+
+        int window_w = window_rect->right - window_rect->left;
+        int window_h = window_rect->bottom - window_rect->top;
+        int client_w = window_w;
+        int client_h = window_h;
+
+        WINDOWINFO wi{};
+        wi.cbSize = sizeof(wi);
+        if (GetWindowInfo(hwnd, &wi))
+        {
+            int current_window_w = wi.rcWindow.right - wi.rcWindow.left;
+            int current_window_h = wi.rcWindow.bottom - wi.rcWindow.top;
+            int current_client_w = wi.rcClient.right - wi.rcClient.left;
+            int current_client_h = wi.rcClient.bottom - wi.rcClient.top;
+            int nc_w = current_window_w - current_client_w;
+            int nc_h = current_window_h - current_client_h;
+            if (nc_w > 0)
+            {
+                client_w = std::max(0, window_w - nc_w);
+            }
+            if (nc_h > 0)
+            {
+                client_h = std::max(0, window_h - nc_h);
+            }
+        }
+
+        RECT client{0, 0, client_w, client_h};
+        update_webview_controller_bounds_from_client_rect(state, hwnd, client);
+        return 0;
+    }
     case WM_SIZE:
+        if (state && state->webview_in_size_move)
+        {
+            return 0;
+        }
         update_webview_controller_bounds(state, hwnd);
         return 0;
+    case WM_SETFOCUS:
+        if (state && state->webview_controller)
+        {
+            state->webview_controller->MoveFocus(
+                COREWEBVIEW2_MOVE_FOCUS_REASON_PROGRAMMATIC);
+        }
+        break;
+    case WM_MOUSEMOVE:
+    case WM_LBUTTONDOWN:
+    case WM_LBUTTONUP:
+    case WM_LBUTTONDBLCLK:
+    case WM_RBUTTONDOWN:
+    case WM_RBUTTONUP:
+    case WM_RBUTTONDBLCLK:
+    case WM_MBUTTONDOWN:
+    case WM_MBUTTONUP:
+    case WM_MBUTTONDBLCLK:
+    case WM_XBUTTONDOWN:
+    case WM_XBUTTONUP:
+    case WM_XBUTTONDBLCLK:
+    case WM_MOUSEWHEEL:
+    case WM_MOUSEHWHEEL:
+        if (msg == WM_LBUTTONDOWN || msg == WM_RBUTTONDOWN ||
+            msg == WM_MBUTTONDOWN || msg == WM_XBUTTONDOWN)
+        {
+            SetFocus(hwnd);
+            SetCapture(hwnd);
+        }
+        else if (msg == WM_LBUTTONUP || msg == WM_RBUTTONUP ||
+                 msg == WM_MBUTTONUP || msg == WM_XBUTTONUP)
+        {
+            if (GetCapture() == hwnd)
+            {
+                ReleaseCapture();
+            }
+        }
+
+        if (try_forward_webview_mouse_input(state, hwnd, msg, wparam, lparam))
+        {
+            return 0;
+        }
+        break;
     case WM_NCCALCSIZE:
         if (wparam)
         {
@@ -1361,7 +1722,7 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
     case WM_NCHITTEST:
     {
         // Frameless resize hit-testing (edges only). Drag is handled by
-        // WebView CSS regions.
+        // WebView CSS regions via WebView2 non-client queries.
         POINT pt{GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
         if (native_diag_enabled())
         {
@@ -1442,6 +1803,24 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
                << L" result=" << result;
             native_diag_logf(L"nchittest_exit", hwnd, ss.str());
         }
+
+        if (result == HTCLIENT && state && state->webview_comp_controller4)
+        {
+            POINT client_pt{pt.x, pt.y};
+            if (ScreenToClient(hwnd, &client_pt))
+            {
+                COREWEBVIEW2_NON_CLIENT_REGION_KIND kind =
+                    COREWEBVIEW2_NON_CLIENT_REGION_KIND_CLIENT;
+                HRESULT hr =
+                    state->webview_comp_controller4->GetNonClientRegionAtPoint(
+                        client_pt, &kind);
+                if (SUCCEEDED(hr) &&
+                    kind == COREWEBVIEW2_NON_CLIENT_REGION_KIND_CAPTION)
+                {
+                    return HTCAPTION;
+                }
+            }
+        }
         return result;
     }
     case WM_GETMINMAXINFO:
@@ -1475,6 +1854,7 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
                              newRect->right - newRect->left,
                              newRect->bottom - newRect->top,
                              SWP_NOZORDER | SWP_NOACTIVATE);
+                configure_webview_controller_pixel_mode(*state, hwnd);
                 update_webview_controller_bounds(state, hwnd);
             }
         }
@@ -1575,6 +1955,10 @@ bool ensure_native_webview(TrayState &state)
     {
         return true;
     }
+    if (!ensure_dcomp_host(state))
+    {
+        return false;
+    }
     if (state.webview_user_data_dir.empty())
     {
         state.webview_user_data_dir = compute_webview_user_data_dir();
@@ -1597,12 +1981,27 @@ bool ensure_native_webview(TrayState &state)
                 {
                     return res;
                 }
-                return env->CreateCoreWebView2Controller(
+                Microsoft::WRL::ComPtr<ICoreWebView2Environment3> env3;
+                HRESULT qi_hr = env->QueryInterface(IID_PPV_ARGS(&env3));
+                if (FAILED(qi_hr) || !env3)
+                {
+                    if (native_diag_enabled())
+                    {
+                        std::wstringstream ss;
+                        ss << L"env3_qi_hr=0x" << std::hex
+                           << static_cast<uint32_t>(qi_hr) << std::dec;
+                        native_diag_logf(L"webview2", state.webview_window, ss.str());
+                    }
+                    return qi_hr;
+                }
+
+                return env3->CreateCoreWebView2CompositionController(
                     state.webview_window,
                     Microsoft::WRL::Callback<
-                        ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>(
+                        ICoreWebView2CreateCoreWebView2CompositionControllerCompletedHandler>(
                         [&state](HRESULT ctrl_res,
-                                 ICoreWebView2Controller *controller) -> HRESULT
+                                 ICoreWebView2CompositionController
+                                     *controller) -> HRESULT
                         {
                             if (state.shutting_down.load())
                             {
@@ -1612,8 +2011,36 @@ bool ensure_native_webview(TrayState &state)
                             {
                                 return ctrl_res;
                             }
-                            state.webview_controller = controller;
-                            controller->get_CoreWebView2(&state.webview);
+
+                            state.webview_comp_controller = controller;
+                            state.webview_comp_controller.As(
+                                &state.webview_comp_controller4);
+
+                            Microsoft::WRL::ComPtr<ICoreWebView2Controller>
+                                controller_base;
+                            HRESULT base_hr =
+                                controller->QueryInterface(IID_PPV_ARGS(
+                                    &controller_base));
+                            if (FAILED(base_hr) || !controller_base)
+                            {
+                                return base_hr;
+                            }
+                            state.webview_controller = controller_base;
+
+                            configure_webview_controller_pixel_mode(
+                                state, state.webview_window);
+
+                            if (state.dcomp_webview_visual)
+                            {
+                                state.webview_comp_controller->put_RootVisualTarget(
+                                    state.dcomp_webview_visual.Get());
+                                if (state.dcomp_device)
+                                {
+                                    state.dcomp_device->Commit();
+                                }
+                            }
+
+                            state.webview_controller->get_CoreWebView2(&state.webview);
                             update_webview_controller_bounds(&state,
                                                              state.webview_window);
                             state.webview_controller->put_IsVisible(TRUE);
@@ -1634,6 +2061,7 @@ bool ensure_native_webview(TrayState &state)
                                     }
                                 }
                             }
+
                             if (state.webview_controller)
                             {
                                 Microsoft::WRL::ComPtr<ICoreWebView2Controller2>
@@ -1666,6 +2094,7 @@ bool ensure_native_webview(TrayState &state)
                                     }
                                 }
                             }
+
                             auto script = build_native_bridge_script(state);
                             state.webview->AddScriptToExecuteOnDocumentCreated(
                                 script.c_str(), nullptr);
@@ -1707,11 +2136,9 @@ bool ensure_native_webview(TrayState &state)
                                             return S_OK;
                                         }
                                         reload_native_auth_token(state);
-                                        if (native_diag_enabled() && state.webview_window)
+                                        if (native_diag_enabled() &&
+                                            state.webview_window)
                                         {
-                                            ensure_webview_child_subclass(state);
-                                            log_child_windows(state.webview_window,
-                                                              L"NavigationCompleted");
                                             log_webview_dom_transparency(state);
                                             SetTimer(state.webview_window,
                                                      kDiagSweepTimerId, 750,
