@@ -1,5 +1,13 @@
 # WinAcrylicAPI (Win32 Acrylic + Frameless + WebView2 Composition + DirectComposition)
 
+
+version: 1.1.
+
+History
+version 1.0 - written by GPT 5.2
+version 1.1 - updated 1.0 with Gemini 3 Pro 
+
+
 This document is a practical reference for building a **frameless Win32 window** that uses:
 
 - **Custom acrylic / blur** via the **undocumented** `SetWindowCompositionAttribute` API (`WCA_ACCENT_POLICY`), and
@@ -48,6 +56,13 @@ When a window hosts a composition surface (WebView2 composition) and also uses D
 
 Interactive resizing is where these systems most easily drift out of phase.
 
+### 2.4 Accessibility: High Contrast Mode
+
+If the user has High Contrast Mode enabled, transparency effects can make text illegible.
+
+- **Check:** `SystemParametersInfo(SPI_GETHIGHCONTRAST, ...)`
+- **Action:** If `HCF_HIGHCONTRASTON` is set, **disable** Acrylic/Blur. Fall back to a solid, opaque background color matching `GetSysColor(COLOR_WINDOW)`.
+
 ---
 
 ## 3) Custom Acrylic / Blur via `SetWindowCompositionAttribute`
@@ -57,6 +72,7 @@ Interactive resizing is where these systems most easily drift out of phase.
 **DLL:** `user32.dll`  
 **Export name:** `"SetWindowCompositionAttribute"`  
 **Signature:**
+
 ```cpp
 BOOL WINAPI SetWindowCompositionAttribute(
   HWND hwnd,
@@ -65,6 +81,7 @@ BOOL WINAPI SetWindowCompositionAttribute(
 ```
 
 You typically obtain it via:
+
 - `GetModuleHandleW(L"user32.dll")`
 - `GetProcAddress(hUser32, "SetWindowCompositionAttribute")`
 
@@ -73,6 +90,7 @@ If it is not available, skip acrylic.
 ### 3.2 Structures and enums (commonly used definitions)
 
 #### 3.2.1 `WINDOWCOMPOSITIONATTRIBDATA`
+
 ```cpp
 typedef struct WINDOWCOMPOSITIONATTRIBDATA {
   int    Attrib;
@@ -88,6 +106,7 @@ The attribute used to configure blur/acrylic is:
 - `WCA_ACCENT_POLICY = 19`
 
 #### 3.2.3 `ACCENT_POLICY`
+
 ```cpp
 typedef struct ACCENT_POLICY {
   int   AccentState;   // ACCENT_STATE
@@ -146,6 +165,7 @@ SetWindowCompositionAttribute(hwnd, &data);
 **Header:** `dwmapi.h`  
 **Library:** `Dwmapi.lib`  
 **Signature:**
+
 ```cpp
 HRESULT DwmSetWindowAttribute(
   HWND    hwnd,
@@ -160,6 +180,7 @@ HRESULT DwmSetWindowAttribute(
 **Header:** `dwmapi.h`  
 **Library:** `Dwmapi.lib`  
 **Signature:**
+
 ```cpp
 HRESULT DwmGetWindowAttribute(
   HWND hwnd,
@@ -170,6 +191,7 @@ HRESULT DwmGetWindowAttribute(
 ```
 
 **Common use**
+
 - Query `DWMWA_EXTENDED_FRAME_BOUNDS (9)` into a `RECT` to obtain the compositor’s notion of the window bounds (useful when dealing with frameless windows and hit-testing).
 
 ### 4.1.1 `DwmDefWindowProc`
@@ -177,6 +199,7 @@ HRESULT DwmGetWindowAttribute(
 **Header:** `dwmapi.h`  
 **Library:** `Dwmapi.lib`  
 **Signature:**
+
 ```cpp
 BOOL DwmDefWindowProc(
   HWND hwnd,
@@ -188,9 +211,11 @@ BOOL DwmDefWindowProc(
 ```
 
 **What it does**
+
 - Lets DWM handle certain non-client and hit-test behaviors in a way that stays consistent with the OS compositor.
 
 **Typical usage**
+
 - In your `WM_NCHITTEST (0x0084)` handler:
   - call `DwmDefWindowProc(...)`
   - if it returns `TRUE`, return `*plResult` (unless you intentionally override specific cases).
@@ -200,18 +225,22 @@ BOOL DwmDefWindowProc(
 **Header:** `dwmapi.h`  
 **Library:** `Dwmapi.lib`  
 **Signature:**
+
 ```cpp
 HRESULT DwmFlush(void);
 ```
 
 **What it does**
+
 - Blocks until DWM has processed pending composition work.
 
 **Use cases**
+
 - Ensuring DWM attribute changes (border/caption colors) are applied before a non-client paint boundary.
 - Forcing certain activation-time visuals to settle deterministically.
 
 **Caution**
+
 - `DwmFlush` can add latency. Overusing it inside tight loops (like per-frame sizing) can introduce jank.
 
 ### 4.4 Boolean values
@@ -243,6 +272,7 @@ Special color payload constants:
 - `DWMWA_COLOR_DEFAULT = 0xFFFFFFFF`
 
 `COLORREF` encoding reminder (Win32):
+
 - `COLORREF` is `0x00BBGGRR` (low byte is red, then green, then blue).
 - Many DWM color attributes also accept the special values `DWMWA_COLOR_NONE (0xFFFFFFFE)` and `DWMWA_COLOR_DEFAULT (0xFFFFFFFF)` where applicable.
 
@@ -250,8 +280,8 @@ System backdrop values (`DWMWA_SYSTEMBACKDROP_TYPE` payload):
 
 - `DWMSBT_AUTO = 0`
 - `DWMSBT_NONE = 1`
-- `DWMSBT_MAINWINDOW = 2`
-- `DWMSBT_TRANSIENTWINDOW = 3`
+- `DWMSBT_MAINWINDOW = 2` (Mica)
+- `DWMSBT_TRANSIENTWINDOW = 3` (Acrylic)
 - `DWMSBT_TABBEDWINDOW = 4`
 
 Corner preference values (`DWMWA_WINDOW_CORNER_PREFERENCE` payload):
@@ -282,20 +312,49 @@ to avoid the system-managed backdrops conflicting with your own.
 ### 5.1 `WM_NCCALCSIZE` (0x0083)
 
 **Purpose**
+
 - Defines how much of the window is non-client vs client.
 
 **Frameless behavior**
-- When `wParam != 0`, returning `0` yields an “all client area” window (no standard frame).
+
+- When `wParam != 0`, returning `0` generally yields an “all client area” window.
+
+**CRITICAL: Maximized Window Fix**
+
+- If you simply return `0` when maximized, the content will be clipped by the monitor bezel (OS expands the window to hide frame).
+- You must manually inset the rectangle when `IsZoomed(hwnd)` is true.
+
+```cpp
+// Inside WM_NCCALCSIZE handler (wParam == TRUE):
+// Check if window is maximized
+WINDOWPLACEMENT placement = { sizeof(WINDOWPLACEMENT) };
+if (GetWindowPlacement(hwnd, &placement) && placement.showCmd == SW_SHOWMAXIMIZED) {
+    NCCALCSIZE_PARAMS* params = (NCCALCSIZE_PARAMS*)lParam;
+
+    // Get border thickness
+    int borderX = GetSystemMetrics(SM_CXFRAME) + GetSystemMetrics(SM_CXPADDEDBORDER);
+    int borderY = GetSystemMetrics(SM_CYFRAME) + GetSystemMetrics(SM_CXPADDEDBORDER);
+
+    // Inset client rect
+    params->rgrc[0].left   += borderX;
+    params->rgrc[0].top    += borderY;
+    params->rgrc[0].right  -= borderX;
+    params->rgrc[0].bottom -= borderY;
+}
+return 0;
+```
 
 ### 5.2 `WM_NCHITTEST` (0x0084)
 
 **Purpose**
+
 - Asks your window what UI region is under the mouse.
 
 Common `HT*` results (numeric values):
 
 - `HTCLIENT = 1`
 - `HTCAPTION = 2`
+- `HTMAXBUTTON = 9` (Required for Windows 11 Snap Layouts)
 - `HTLEFT = 10`
 - `HTRIGHT = 11`
 - `HTTOP = 12`
@@ -306,15 +365,19 @@ Common `HT*` results (numeric values):
 - `HTBOTTOMRIGHT = 17`
 
 **Recommended order**
+
 1) Call `DwmDefWindowProc` (if it handles the message, honor its answer for special cases).
-2) Otherwise, compute your own region and return an `HT*` value.
+2) If mouse is over your custom "Maximize" button, return `HTMAXBUTTON (9)`. **This enables the Windows 11 Snap Layout flyout.**
+3) Otherwise, compute your own region and return an `HT*` value.
 
 ### 5.3 `WM_SETCURSOR` (0x0020)
 
 **Purpose**
+
 - Lets your window set the cursor shape.
 
 **Why it matters**
+
 - If resizing is implemented within `HTCLIENT`, you must still provide correct resize cursors.
 
 ### 5.4 Initiating OS-managed resizing: `WM_SYSCOMMAND` / `SC_SIZE`
@@ -405,11 +468,11 @@ These are the most common ways a “cleanup” breaks interactive resize with co
 This is a high-level outline of how the APIs are typically composed; it is intentionally message-driven because interactive resize correctness depends on message boundaries.
 
 1) Create a frameless window:
-   - handle `WM_NCCALCSIZE (0x0083)` to remove the standard frame
+   - handle `WM_NCCALCSIZE (0x0083)` to remove the standard frame (with maximised inset fix).
 2) Implement edge hit-testing:
-   - handle `WM_NCHITTEST (0x0084)` and return `HTLEFT (10)`, `HTTOP (12)`, etc. for edges
+   - handle `WM_NCHITTEST (0x0084)` and return `HTLEFT (10)`, `HTTOP (12)`, etc. for edges.
 3) Initiate sizing via the system loop:
-   - on mouse down in an edge zone, send `WM_SYSCOMMAND (0x0112)` with `SC_SIZE (0xF000) + WMSZ_*`
+   - on mouse down in an edge zone, send `WM_SYSCOMMAND (0x0112)` with `SC_SIZE (0xF000) + WMSZ_*`.
 4) Gate your sizing state:
    - set a boolean on `WM_ENTERSIZEMOVE (0x0231)`
    - clear it after final layout on `WM_EXITSIZEMOVE (0x0232)`
@@ -428,7 +491,19 @@ This is a high-level outline of how the APIs are typically composed; it is inten
 
 **Message:** `WM_DPICHANGED = 0x02E0`
 
-### 7.2 Parameters
+### 7.2 Manifest Requirement (Crucial)
+
+You MUST declare **PerMonitorV2** DPI awareness in your application manifest. Without this, the OS may virtualize coordinates, making high-precision frameless resizing blurry or inaccurate.
+
+```xml
+<application xmlns="urn:schemas-microsoft-com:asm.v3">
+  <windowsSettings>
+    <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">PerMonitorV2</dpiAwareness>
+  </windowsSettings>
+</application>
+```
+
+### 7.3 Parameters
 
 - `wParam`: new DPI packed as:
   - `LOWORD(wParam)` = X DPI
@@ -436,13 +511,13 @@ This is a high-level outline of how the APIs are typically composed; it is inten
   - Example: `144` DPI corresponds to 150% scaling (`144 / 96 = 1.5`)
 - `lParam`: pointer to a suggested `RECT` (screen coords) for the new window size/position.
 
-### 7.3 Required actions (recommended)
+### 7.4 Required actions (recommended)
 
 1) Apply the suggested window rectangle via `SetWindowPos`.
 2) Update your content’s DPI scaling policy.
 3) Recompute and apply layout for the new client size.
 
-### 7.4 Win32 constants commonly used with DPI sizing
+### 7.5 Win32 constants commonly used with DPI sizing
 
 System metric indices (for `GetSystemMetricsForDpi`):
 
@@ -496,12 +571,15 @@ Use `WaitForCommitCompletion` as a correctness tool when interactive sizing must
 ### 8.6 `WS_EX_NOREDIRECTIONBITMAP` (0x00200000)
 
 **What it is**
+
 - An extended window style that disables the legacy “redirection bitmap” surface for the window.
 
 **Why it is commonly used with composition**
+
 - It can reduce intermediate buffering paths and is frequently used for windows that are primarily composed via DComp and other GPU surfaces.
 
 **Caution**
+
 - It can change how certain fallback rendering paths behave. Test carefully if you rely on GDI painting or legacy child HWND content.
 
 ---
@@ -521,7 +599,35 @@ This binds the WebView2 rendered output into your DComp visual tree.
 
 - `ICoreWebView2Controller::put_Bounds(RECT bounds)`
 
-### 9.3 DPI / pixel model control
+### 9.3 Enable Transparency (Crucial for Acrylic)
+
+By default, WebView2 renders an opaque background (usually white), which blocks your custom acrylic. You must explicitly set the background color to transparent.
+
+**Interface:** `ICoreWebView2Controller2` (or higher)
+
+```cpp
+// 0x00000000 = Fully transparent
+COREWEBVIEW2_COLOR transparentColor = { 0, 0, 0, 0 };
+webviewController2->put_DefaultBackgroundColor(transparentColor);
+```
+
+### 9.4 Popups and Window Movement
+
+WebView2 is out-of-process and does not automatically know when the parent window moves. This causes HTML dropdowns/popups to detach and float in the wrong position during drags.
+
+**Fix:** Call `NotifyParentWindowPositionChanged` on move messages.
+
+```cpp
+// In WndProc:
+case WM_MOVE:
+case WM_MOVING:
+    if (g_webviewController) {
+        g_webviewController->NotifyParentWindowPositionChanged();
+    }
+    break;
+```
+
+### 9.5 DPI / pixel model control
 
 If available, the controller supports:
 
@@ -533,7 +639,7 @@ If available, the controller supports:
 - `ICoreWebView2Controller3::put_RasterizationScale(double)`
   - Commonly `dpi / 96.0`
 
-### 9.4 Optional: Non-client region mapping
+### 9.6 Optional: Non-client region mapping
 
 If available:
 
@@ -569,7 +675,10 @@ SetWindowPos flags (subset):
 Messages (subset):
 
 - `WM_SIZE = 0x0005`
+- `WM_PAINT = 0x000F`
+- `WM_ERASEBKGND = 0x0014`
 - `WM_SETCURSOR = 0x0020`
+- `WM_WINDOWPOSCHANGED = 0x0047`
 - `WM_NCCALCSIZE = 0x0083`
 - `WM_NCHITTEST = 0x0084`
 - `WM_SYSCOMMAND = 0x0112`
