@@ -12,6 +12,12 @@ Today, the only backend that is working reliably end-to-end for the UI is a stan
 - `make.ps1` is the main entry point. It calls `scripts/buildctl.ps1`, which orchestrates `setup/configure/build/test`.
 - `build.legacy.ps1` exists for compatibility/reproducibility, but the supported path is `make.ps1`.
 
+## Technology stack
+
+- **Backend**: Modern C++20 with `libtorrent`, `sqlite3`, `yyjson`, vcpkg-managed dependencies, embedded `mongoose.c`, Meson/Ninja-driven builds, and Windows-specific helpers (Warp, DWM, DComp) orchestrated through `make.ps1`.
+- **Frontend**: The UI lives under `frontend/` and uses Vite, TypeScript/React, and its own isolated Node toolchain; none of that tooling touches the native backend directory.
+- **Runtime**: The daemon binds to loopback, serves the WebView2-hosted UI, and exposes RPC/WebSocket endpoints secured by a generated token stored in `connection.json`.
+
 ## Getting started
 
 ### Prerequisites (Windows)

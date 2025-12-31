@@ -2,18 +2,32 @@
 
 **A modern BitTorrent client. No frameworks needed. Binary target: <3 MB.**
 
+
 [![License: MPL-2.0](https://img.shields.io/badge/License-MPL--2.0-orange.svg)](https://www.mozilla.org/MPL/2.0/)
 [![Protocol: Apache-2.0](https://img.shields.io/badge/Protocol-Apache--2.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
-[![C++](https://img.shields.io/badge/C++-20-blue)](https://en.cppreference.com/w/cpp/20)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.9.x-blue)](https://www.typescriptlang.org/)
+
+[![Language](https://img.shields.io/badge/Backend-C%20%2F%20C%2B%2B20-blue)](https://en.cppreference.com/w/cpp/20)
+[![Language](https://img.shields.io/badge/Frontend-TypeScript%205.9-blue)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-19.2.x-cyan)](https://react.dev/)
+
 [![UI](https://img.shields.io/badge/UI-HeroUI%20%2B%20TailwindCSS-8b5cf6)](https://www.heroui.com/)
 [![Motion](https://img.shields.io/badge/Motion-Framer%20Motion-pink)](https://www.framer.com/motion/)
-[![Build](https://img.shields.io/badge/Build-Vite-646cff)](https://vitejs.dev/)
-[![UI Runtime](https://img.shields.io/badge/UI-Browser%20On--Demand-success)]()
-[![Engine](https://img.shields.io/badge/Engine-Transmission%20%2F%20libtorrent-darkgreen)]()
+
+[![Build](https://img.shields.io/badge/Build-Meson%20%2B%20Ninja-2f855a)](https://mesonbuild.com/)
+[![Frontend Build](https://img.shields.io/badge/Frontend%20Build-Vite-646cff)](https://vitejs.dev/)
+[![Dependencies](https://img.shields.io/badge/Deps-vcpkg-informational)](https://github.com/microsoft/vcpkg)
+
+[![Runtime](https://img.shields.io/badge/UI%20Runtime-WebView2%20\(On--Demand\)-success)]()
+[![Platform](https://img.shields.io/badge/Platform-Win32%20%2F%20DWM%20%2F%20DComp-darkblue)]()
+[![Tray](https://img.shields.io/badge/Native-Tray%20%2B%20Shell%20Integration-darkgreen)]()
+
+[![Engine](https://img.shields.io/badge/Engine-libtorrent%20%2F%20Transmission-darkgreen)]()
+[![Persistence](https://img.shields.io/badge/Persistence-sqlite3%20%2B%20yyjson-yellowgreen)]()
+[![RPC](https://img.shields.io/badge/RPC-Mongoose%20Embedded-orange)]()
+
 [![Architecture](https://img.shields.io/badge/Architecture-Hexagonal%20%2F%20Adapter-purple)]()
 [![Binary Size](https://img.shields.io/badge/Binary_Target-<3MB-success)]()
+
 
 **Status:** Work in progress.  
 Frontend runs against a standard `transmission-daemon`. Bugs exist; some features are unfinished and regressions may occur.  
@@ -111,10 +125,10 @@ TinyTorrent/
 
 ### Backend Tech
 
-- C / C++20 (no exceptions, no RTTI)
-- libtransmission
-- Mongoose (embedded web server)
-- Static asset bundling for optional embedded UI in the future
+- Modern C / C++20 daemon (Meson + Ninja, vcpkg-managed dependencies)
+- Native tray + WebView2 hosting + Win32 integration (DWM/DComp, WebView composition)
+- libtorrent / Transmission adapters plus sqlite3 + yyjson persistence & RPC helpers
+- Embedded Mongoose + helper scripts (`make.ps1`, `buildctl.ps1`, helpers under `scripts/`)
 
 ---
 

@@ -7,6 +7,7 @@
 #endif
 
 #include <Windows.h>
+#include <VersionHelpers.h>
 #include <d3d11.h>
 #include <dcomp.h>
 #include <dwmapi.h>
@@ -140,7 +141,7 @@ constexpr wchar_t kWebView2InstallUrl[] =
     L"https://developer.microsoft.com/en-us/microsoft-edge/webview2/"
     L"#download-section";
 constexpr UINT_PTR kDiagSweepTimerId = 0xD1A6;
-constexpr COLORREF kStableDwmRimColor = RGB(0x20, 0x20, 0x20);
+constexpr COLORREF kStableDwmRimColor = RGB(0, 0, 0);
 
 // ===== Undocumented compositor API for Acrylic =====
 enum ACCENT_STATE
@@ -546,7 +547,7 @@ struct ResizeBorderThickness
 
 ResizeBorderThickness get_resize_border_thickness(HWND hwnd);
 
-std::optional<int> resize_edge_from_client_point(HWND hwnd, POINT client_pt)
+std::optional<LRESULT> resize_hit_from_client_point(HWND hwnd, POINT client_pt)
 {
     if (!hwnd)
     {
@@ -574,48 +575,72 @@ std::optional<int> resize_edge_from_client_point(HWND hwnd, POINT client_pt)
     bool is_right = client_pt.x >= w - bx && client_pt.x < w;
 
     if (is_top && is_left)
-        return WMSZ_TOPLEFT;
+        return HTTOPLEFT;
     if (is_top && is_right)
-        return WMSZ_TOPRIGHT;
+        return HTTOPRIGHT;
     if (is_bottom && is_left)
-        return WMSZ_BOTTOMLEFT;
+        return HTBOTTOMLEFT;
     if (is_bottom && is_right)
-        return WMSZ_BOTTOMRIGHT;
+        return HTBOTTOMRIGHT;
     if (is_left)
-        return WMSZ_LEFT;
+        return HTLEFT;
     if (is_right)
-        return WMSZ_RIGHT;
+        return HTRIGHT;
     if (is_top)
-        return WMSZ_TOP;
+        return HTTOP;
     if (is_bottom)
-        return WMSZ_BOTTOM;
+        return HTBOTTOM;
     return std::nullopt;
 }
 
-HCURSOR cursor_for_resize_edge(int wmsz_edge)
+HCURSOR cursor_for_resize_hit(LRESULT hit)
 {
-    switch (wmsz_edge)
+    switch (hit)
     {
-    case WMSZ_LEFT:
-    case WMSZ_RIGHT:
+    case HTLEFT:
+    case HTRIGHT:
         return LoadCursor(nullptr, IDC_SIZEWE);
-    case WMSZ_TOP:
-    case WMSZ_BOTTOM:
+    case HTTOP:
+    case HTBOTTOM:
         return LoadCursor(nullptr, IDC_SIZENS);
-    case WMSZ_TOPLEFT:
-    case WMSZ_BOTTOMRIGHT:
+    case HTTOPLEFT:
+    case HTBOTTOMRIGHT:
         return LoadCursor(nullptr, IDC_SIZENWSE);
-    case WMSZ_TOPRIGHT:
-    case WMSZ_BOTTOMLEFT:
+    case HTTOPRIGHT:
+    case HTBOTTOMLEFT:
         return LoadCursor(nullptr, IDC_SIZENESW);
     default:
         return LoadCursor(nullptr, IDC_ARROW);
     }
 }
 
-WPARAM syscommand_for_resize_edge(int wmsz_edge)
+std::optional<int> wmsz_from_resize_hit(LRESULT hit)
 {
-    // `SC_SIZE + WMSZ_*` is the conventional way to start a system sizing loop.
+    switch (hit)
+    {
+    case HTLEFT:
+        return WMSZ_LEFT;
+    case HTRIGHT:
+        return WMSZ_RIGHT;
+    case HTTOP:
+        return WMSZ_TOP;
+    case HTBOTTOM:
+        return WMSZ_BOTTOM;
+    case HTTOPLEFT:
+        return WMSZ_TOPLEFT;
+    case HTTOPRIGHT:
+        return WMSZ_TOPRIGHT;
+    case HTBOTTOMLEFT:
+        return WMSZ_BOTTOMLEFT;
+    case HTBOTTOMRIGHT:
+        return WMSZ_BOTTOMRIGHT;
+    default:
+        return std::nullopt;
+    }
+}
+
+WPARAM syscommand_for_resize_wmsz(int wmsz_edge)
+{
     return static_cast<WPARAM>(SC_SIZE + wmsz_edge);
 }
 
@@ -1293,21 +1318,54 @@ void post_webview_message(TrayState &state, std::wstring const &message)
     state.webview->PostWebMessageAsJson(message.c_str());
 }
 
+HRESULT safe_dwm_set_window_attribute(HWND hwnd, DWORD attr, void const *value,
+                                      DWORD size)
+{
+    HRESULT hr = DwmSetWindowAttribute(hwnd, attr, value, size);
+    if (native_diag_enabled())
+    {
+        std::wstringstream ss;
+        ss << L"attr=" << attr << L" hr=0x" << std::hex
+           << static_cast<uint32_t>(hr) << L" size=" << std::dec << size;
+        native_diag_logf(L"dwm.attr", hwnd, ss.str());
+    }
+    return hr;
+}
+
+bool supports_dark_mode()
+{
+    return IsWindowsVersionOrGreater(10, 0, 17763); // 1809+
+}
+
+bool supports_corner_preferences()
+{
+    return IsWindowsVersionOrGreater(10, 0, 18362); // 1903+
+}
+
+bool supports_system_backdrop()
+{
+    return IsWindowsVersionOrGreater(10, 0, 22000); // Windows 11
+}
+
 void apply_dark_titlebar(HWND hwnd)
 {
     if (!hwnd)
     {
         return;
     }
+    if (!supports_dark_mode())
+    {
+        return;
+    }
     BOOL dark = TRUE;
-    HRESULT hr1 = DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE,
-                                        &dark, sizeof(dark));
+    HRESULT hr1 = safe_dwm_set_window_attribute(
+        hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &dark, sizeof(dark));
     COLORREF caption_color = DWMWA_COLOR_NONE;
-    HRESULT hr2 = DwmSetWindowAttribute(hwnd, DWMWA_CAPTION_COLOR,
-                                        &caption_color, sizeof(caption_color));
+    HRESULT hr2 = safe_dwm_set_window_attribute(
+        hwnd, DWMWA_CAPTION_COLOR, &caption_color, sizeof(caption_color));
     COLORREF text_color = DWMWA_COLOR_NONE;
-    HRESULT hr3 = DwmSetWindowAttribute(hwnd, DWMWA_TEXT_COLOR, &text_color,
-                                        sizeof(text_color));
+    HRESULT hr3 = safe_dwm_set_window_attribute(hwnd, DWMWA_TEXT_COLOR,
+                                                &text_color, sizeof(text_color));
     if (native_diag_enabled())
     {
         std::wstringstream ss;
@@ -1324,13 +1382,17 @@ void apply_frameless_window_style(HWND hwnd)
     {
         return;
     }
+    if (!supports_dark_mode())
+    {
+        return;
+    }
     COLORREF border = kStableDwmRimColor;
-    HRESULT hr1 = DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, &border,
-                                        sizeof(border));
+    HRESULT hr1 = safe_dwm_set_window_attribute(hwnd, DWMWA_BORDER_COLOR, &border,
+                                                sizeof(border));
     UINT frame_thickness = 0;
-    HRESULT hr2 =
-        DwmSetWindowAttribute(hwnd, DWMWA_VISIBLE_FRAME_BORDER_THICKNESS,
-                              &frame_thickness, sizeof(frame_thickness));
+    HRESULT hr2 = safe_dwm_set_window_attribute(
+        hwnd, DWMWA_VISIBLE_FRAME_BORDER_THICKNESS, &frame_thickness,
+        sizeof(frame_thickness));
     if (native_diag_enabled())
     {
         std::wstringstream ss;
@@ -1340,7 +1402,7 @@ void apply_frameless_window_style(HWND hwnd)
     }
 }
 
-void apply_stable_activation_rim(HWND hwnd)
+void apply_stable_activation_rim(HWND hwnd, bool flush)
 {
     if (!hwnd)
     {
@@ -1350,7 +1412,10 @@ void apply_stable_activation_rim(HWND hwnd)
     // might occur during activation/focus transitions.
     apply_dark_titlebar(hwnd);
     apply_frameless_window_style(hwnd);
-    DwmFlush();
+    if (flush)
+    {
+        DwmFlush();
+    }
 }
 
 bool set_no_redirection_bitmap(HWND hwnd, bool enable)
@@ -2112,14 +2177,14 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
         // before the first activation paint.
         native_diag_dump_window_rim_state(hwnd, L"WM_NCCREATE.pre", wparam,
                                           lparam);
-        apply_stable_activation_rim(hwnd);
+        apply_stable_activation_rim(hwnd, true);
         native_diag_dump_window_rim_state(hwnd, L"WM_NCCREATE.post", wparam,
                                           lparam);
         break;
     case WM_CREATE:
         native_diag_dump_window_rim_state(hwnd, L"WM_CREATE.pre", wparam,
                                           lparam);
-        apply_stable_activation_rim(hwnd);
+        apply_stable_activation_rim(hwnd, true);
         native_diag_dump_window_rim_state(hwnd, L"WM_CREATE.post", wparam,
                                           lparam);
         break;
@@ -2194,24 +2259,34 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
         if (msg == WM_LBUTTONDOWN)
         {
             POINT client_pt{GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
-            if (auto edge = resize_edge_from_client_point(hwnd, client_pt); edge)
+            if (auto hit = resize_hit_from_client_point(hwnd, client_pt); hit)
             {
                 SetFocus(hwnd);
                 POINT screen_pt = client_pt;
                 ClientToScreen(hwnd, &screen_pt);
                 LPARAM sc_lp = MAKELPARAM(screen_pt.x, screen_pt.y);
+                auto wmsz = wmsz_from_resize_hit(*hit);
+                if (!wmsz)
+                {
+                    break;
+                }
                 if (native_diag_enabled())
                 {
                     std::wstringstream ss;
-                    ss << L"edge=" << *edge << L" sys=0x" << std::hex
-                       << syscommand_for_resize_edge(*edge) << std::dec
+                    ss << L"hit=" << *hit << L" wmsz=" << *wmsz << L" sys=0x"
+                       << std::hex << syscommand_for_resize_wmsz(*wmsz) << std::dec
                        << L" client=(" << client_pt.x << L"," << client_pt.y
                        << L") screen=(" << screen_pt.x << L"," << screen_pt.y
                        << L")";
                     native_diag_logf(L"resize.begin", hwnd, ss.str());
                 }
+                ReleaseCapture();
+                if (state)
+                {
+                    state->webview_in_size_move = true;
+                }
                 SendMessageW(hwnd, WM_SYSCOMMAND,
-                             syscommand_for_resize_edge(*edge), sc_lp);
+                             syscommand_for_resize_wmsz(*wmsz), sc_lp);
                 return 0;
             }
         }
@@ -2266,13 +2341,13 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
     {
         native_diag_dump_window_rim_state(hwnd, L"WM_NCACTIVATE.pre", wparam,
                                           lparam);
-        apply_stable_activation_rim(hwnd);
+        apply_stable_activation_rim(hwnd, true);
         native_diag_dump_window_rim_state(hwnd, L"WM_NCACTIVATE.preApplied",
                                           wparam, lparam);
         LRESULT result = DefWindowProcW(hwnd, msg, wparam, lparam);
         native_diag_dump_window_rim_state(hwnd, L"WM_NCACTIVATE.postDef",
                                           wparam, lparam);
-        apply_stable_activation_rim(hwnd);
+        apply_stable_activation_rim(hwnd, true);
         native_diag_dump_window_rim_state(hwnd, L"WM_NCACTIVATE.postApplied",
                                           wparam, lparam);
         return result;
@@ -2281,13 +2356,13 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
     {
         native_diag_dump_window_rim_state(hwnd, L"WM_ACTIVATE.pre", wparam,
                                           lparam);
-        apply_stable_activation_rim(hwnd);
+        apply_stable_activation_rim(hwnd, true);
         native_diag_dump_window_rim_state(hwnd, L"WM_ACTIVATE.preApplied",
                                           wparam, lparam);
         LRESULT result = DefWindowProcW(hwnd, msg, wparam, lparam);
         native_diag_dump_window_rim_state(hwnd, L"WM_ACTIVATE.postDef", wparam,
                                           lparam);
-        apply_stable_activation_rim(hwnd);
+        apply_stable_activation_rim(hwnd, true);
         native_diag_dump_window_rim_state(hwnd, L"WM_ACTIVATE.postApplied",
                                           wparam, lparam);
         return result;
@@ -2298,13 +2373,19 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
         // applied before default non-client paint runs.
         native_diag_dump_window_rim_state(hwnd, L"WM_NCPAINT.pre", wparam,
                                           lparam);
-        apply_stable_activation_rim(hwnd);
+        bool flush = true;
+        if (state && state->webview_in_size_move)
+        {
+            // Avoid adding extra DwmFlush sync points during interactive sizing.
+            flush = false;
+        }
+        apply_stable_activation_rim(hwnd, flush);
         native_diag_dump_window_rim_state(hwnd, L"WM_NCPAINT.preDef", wparam,
                                           lparam);
         LRESULT result = DefWindowProcW(hwnd, msg, wparam, lparam);
         native_diag_dump_window_rim_state(hwnd, L"WM_NCPAINT.postDef", wparam,
                                           lparam);
-        apply_stable_activation_rim(hwnd);
+        apply_stable_activation_rim(hwnd, flush);
         native_diag_dump_window_rim_state(hwnd, L"WM_NCPAINT.postApplied",
                                           wparam, lparam);
         return result;
@@ -2312,7 +2393,7 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
     case WM_DWMCOMPOSITIONCHANGED:
         native_diag_dump_window_rim_state(hwnd, L"WM_DWMCOMPOSITIONCHANGED.pre",
                                           wparam, lparam);
-        apply_stable_activation_rim(hwnd);
+        apply_stable_activation_rim(hwnd, true);
         native_diag_dump_window_rim_state(
             hwnd, L"WM_DWMCOMPOSITIONCHANGED.post", wparam, lparam);
         break;
@@ -2325,10 +2406,10 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
                 POINT client_pt = screen_pt;
                 if (ScreenToClient(hwnd, &client_pt))
                 {
-                    if (auto edge = resize_edge_from_client_point(hwnd, client_pt);
-                        edge)
+                    if (auto hit = resize_hit_from_client_point(hwnd, client_pt);
+                        hit)
                     {
-                        SetCursor(cursor_for_resize_edge(*edge));
+                        SetCursor(cursor_for_resize_hit(*hit));
                         return TRUE;
                     }
                 }
@@ -2338,21 +2419,21 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
     case WM_THEMECHANGED:
         native_diag_dump_window_rim_state(hwnd, L"WM_THEMECHANGED.pre", wparam,
                                           lparam);
-        apply_stable_activation_rim(hwnd);
+        apply_stable_activation_rim(hwnd, true);
         native_diag_dump_window_rim_state(hwnd, L"WM_THEMECHANGED.post", wparam,
                                           lparam);
         break;
     case WM_SETTINGCHANGE:
         native_diag_dump_window_rim_state(hwnd, L"WM_SETTINGCHANGE.pre", wparam,
                                           lparam);
-        apply_stable_activation_rim(hwnd);
+        apply_stable_activation_rim(hwnd, true);
         native_diag_dump_window_rim_state(hwnd, L"WM_SETTINGCHANGE.post",
                                           wparam, lparam);
         break;
     case WM_ACTIVATEAPP:
         native_diag_dump_window_rim_state(hwnd, L"WM_ACTIVATEAPP.pre", wparam,
                                           lparam);
-        apply_stable_activation_rim(hwnd);
+        apply_stable_activation_rim(hwnd, true);
         native_diag_dump_window_rim_state(hwnd, L"WM_ACTIVATEAPP.post", wparam,
                                           lparam);
         break;
@@ -2887,9 +2968,13 @@ void focus_or_launch_ui(TrayState &state)
 
 void apply_rounded_corners(HWND hwnd)
 {
+    if (!hwnd || !supports_corner_preferences())
+    {
+        return;
+    }
     const DWM_WINDOW_CORNER_PREFERENCE pref = DWMWCP_ROUND;
-    DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, &pref,
-                          sizeof(pref));
+    safe_dwm_set_window_attribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, &pref,
+                                  sizeof(pref));
 }
 
 void apply_system_backdrop_type(HWND hwnd, DWORD type)
@@ -2898,8 +2983,12 @@ void apply_system_backdrop_type(HWND hwnd, DWORD type)
     {
         return;
     }
-    HRESULT hr = DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, &type,
-                                       sizeof(type));
+    if (!supports_system_backdrop())
+    {
+        return;
+    }
+    HRESULT hr = safe_dwm_set_window_attribute(
+        hwnd, DWMWA_SYSTEMBACKDROP_TYPE, &type, sizeof(type));
     if (native_diag_enabled())
     {
         std::wstringstream ss;
