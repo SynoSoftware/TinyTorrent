@@ -1,12 +1,11 @@
 # WinAcrylicAPI (Win32 Acrylic + Frameless + WebView2 Composition + DirectComposition)
 
-
-version: 1.1.
+version: 1.2
 
 History
 version 1.0 - written by GPT 5.2
-version 1.1 - updated 1.0 with Gemini 3 Pro 
-
+version 1.1 - updated 1.0 with Gemini 3 Pro
+version 1.2 - updated 1.1 with Grok info
 
 This document is a practical reference for building a **frameless Win32 window** that uses:
 
@@ -56,9 +55,9 @@ When a window hosts a composition surface (WebView2 composition) and also uses D
 
 Interactive resizing is where these systems most easily drift out of phase.
 
-### 2.4 Accessibility: High Contrast Mode
+### 2.4 Accessibility and High Contrast Mode
 
-If the user has High Contrast Mode enabled, transparency effects can make text illegible.
+Transparency effects can render text illegible for users with visual impairments. You must respect the user's High Contrast settings.
 
 - **Check:** `SystemParametersInfo(SPI_GETHIGHCONTRAST, ...)`
 - **Action:** If `HCF_HIGHCONTRASTON` is set, **disable** Acrylic/Blur. Fall back to a solid, opaque background color matching `GetSysColor(COLOR_WINDOW)`.
@@ -110,11 +109,13 @@ The attribute used to configure blur/acrylic is:
 ```cpp
 typedef struct ACCENT_POLICY {
   int   AccentState;   // ACCENT_STATE
-  DWORD AccentFlags;   // commonly 0
+  DWORD AccentFlags;   // See notes below
   DWORD GradientColor; // 0xAARRGGBB (A=alpha, then RGB)
   DWORD AnimationId;   // commonly 0
 } ACCENT_POLICY;
 ```
+
+**Note on AccentFlags:** Setting `AccentFlags = 2` is frequently required on modern Windows 10/11 builds to ensure the window borders and shadows draw correctly when transparency is active.
 
 `GradientColor` is a packed color:
 
@@ -131,9 +132,9 @@ These values are widely observed but not officially documented:
 - `ACCENT_DISABLED = 0`
 - `ACCENT_ENABLE_GRADIENT = 1`
 - `ACCENT_ENABLE_TRANSPARENTGRADIENT = 2`
-- `ACCENT_ENABLE_BLURBEHIND = 3`
-- `ACCENT_ENABLE_ACRYLICBLURBEHIND = 4`
-- `ACCENT_ENABLE_HOSTBACKDROP = 5` (availability varies)
+- `ACCENT_ENABLE_BLURBEHIND = 3` (Aero blur)
+- `ACCENT_ENABLE_ACRYLICBLURBEHIND = 4` (Fluent acrylic)
+- `ACCENT_ENABLE_HOSTBACKDROP = 5` (Availability varies; early Mica)
 
 ### 3.3 Minimal usage pattern (illustrative)
 
@@ -141,10 +142,11 @@ These values are widely observed but not officially documented:
 // Values:
 // - WCA_ACCENT_POLICY = 19
 // - ACCENT_ENABLE_ACRYLICBLURBEHIND = 4
+// - AccentFlags = 2 (Draw borders/shadows)
 // - GradientColor = 0xCCFFFFFF (AA=0xCC, RGB=white)
 ACCENT_POLICY policy{};
 policy.AccentState = 4;
-policy.AccentFlags = 0;
+policy.AccentFlags = 2;
 policy.GradientColor = 0xCCFFFFFF;
 policy.AnimationId = 0;
 
@@ -219,6 +221,7 @@ BOOL DwmDefWindowProc(
 - In your `WM_NCHITTEST (0x0084)` handler:
   - call `DwmDefWindowProc(...)`
   - if it returns `TRUE`, return `*plResult` (unless you intentionally override specific cases).
+  - **Critical:** This step is required for Windows 11 Snap Layouts to function correctly.
 
 ### 4.2 `DwmFlush`
 
@@ -279,10 +282,10 @@ Special color payload constants:
 System backdrop values (`DWMWA_SYSTEMBACKDROP_TYPE` payload):
 
 - `DWMSBT_AUTO = 0`
-- `DWMSBT_NONE = 1`
+- `DWMSBT_NONE = 1` (Use this when using custom acrylic)
 - `DWMSBT_MAINWINDOW = 2` (Mica)
 - `DWMSBT_TRANSIENTWINDOW = 3` (Acrylic)
-- `DWMSBT_TABBEDWINDOW = 4`
+- `DWMSBT_TABBEDWINDOW = 4` (Mica Alt)
 
 Corner preference values (`DWMWA_WINDOW_CORNER_PREFERENCE` payload):
 
@@ -317,31 +320,32 @@ to avoid the system-managed backdrops conflicting with your own.
 
 **Frameless behavior**
 
-- When `wParam != 0`, returning `0` generally yields an “all client area” window.
+- When `wParam != 0`, the default advice is to return `0` to remove the standard frame.
+- **Correction:** However, simply returning `0` causes the window content to be **cropped** by the monitor bezel when the window is maximized. You must inset the client rectangle when maximized.
 
-**CRITICAL: Maximized Window Fix**
-
-- If you simply return `0` when maximized, the content will be clipped by the monitor bezel (OS expands the window to hide frame).
-- You must manually inset the rectangle when `IsZoomed(hwnd)` is true.
+**Implementation Pattern:**
 
 ```cpp
-// Inside WM_NCCALCSIZE handler (wParam == TRUE):
-// Check if window is maximized
-WINDOWPLACEMENT placement = { sizeof(WINDOWPLACEMENT) };
-if (GetWindowPlacement(hwnd, &placement) && placement.showCmd == SW_SHOWMAXIMIZED) {
-    NCCALCSIZE_PARAMS* params = (NCCALCSIZE_PARAMS*)lParam;
+case WM_NCCALCSIZE:
+    if (wParam) {
+        // Check if window is maximized
+        WINDOWPLACEMENT placement = { sizeof(WINDOWPLACEMENT) };
+        if (GetWindowPlacement(hwnd, &placement) && placement.showCmd == SW_SHOWMAXIMIZED) {
+             NCCALCSIZE_PARAMS* params = (NCCALCSIZE_PARAMS*)lParam;
+             
+             // Calculate border thickness + padded border
+             int borderX = GetSystemMetrics(SM_CXFRAME) + GetSystemMetrics(SM_CXPADDEDBORDER);
+             int borderY = GetSystemMetrics(SM_CYFRAME) + GetSystemMetrics(SM_CXPADDEDBORDER);
 
-    // Get border thickness
-    int borderX = GetSystemMetrics(SM_CXFRAME) + GetSystemMetrics(SM_CXPADDEDBORDER);
-    int borderY = GetSystemMetrics(SM_CYFRAME) + GetSystemMetrics(SM_CXPADDEDBORDER);
-
-    // Inset client rect
-    params->rgrc[0].left   += borderX;
-    params->rgrc[0].top    += borderY;
-    params->rgrc[0].right  -= borderX;
-    params->rgrc[0].bottom -= borderY;
-}
-return 0;
+             // Inset the client rect to keep it on-screen
+             params->rgrc[0].left   += borderX;
+             params->rgrc[0].top    += borderY;
+             params->rgrc[0].right  -= borderX;
+             params->rgrc[0].bottom -= borderY;
+        }
+        return 0; // Return 0 to apply the new client area
+    }
+    break;
 ```
 
 ### 5.2 `WM_NCHITTEST` (0x0084)
@@ -367,7 +371,7 @@ Common `HT*` results (numeric values):
 **Recommended order**
 
 1) Call `DwmDefWindowProc` (if it handles the message, honor its answer for special cases).
-2) If mouse is over your custom "Maximize" button, return `HTMAXBUTTON (9)`. **This enables the Windows 11 Snap Layout flyout.**
+2) **Check Custom Maximize Button:** If the mouse is over your custom maximize button, return `HTMAXBUTTON (9)`. This tells the OS to show the Snap Layout flyout menu.
 3) Otherwise, compute your own region and return an `HT*` value.
 
 ### 5.3 `WM_SETCURSOR` (0x0020)
@@ -409,7 +413,7 @@ Messages:
 
 If your window’s visible content is entirely provided by a composition surface (WebView2 composition) and/or DirectComposition:
 
-- Returning nonzero from `WM_ERASEBKGND` commonly avoids flicker (it tells Windows you handled background erase).
+- Returning nonzero (`TRUE`) from `WM_ERASEBKGND` commonly avoids flicker (it tells Windows you handled background erase).
 - In `WM_PAINT`, avoid painting an opaque background unless you intend to cover the entire client area; unnecessary painting can create transient flashes during resize/activation.
 
 ---
@@ -468,11 +472,12 @@ These are the most common ways a “cleanup” breaks interactive resize with co
 This is a high-level outline of how the APIs are typically composed; it is intentionally message-driven because interactive resize correctness depends on message boundaries.
 
 1) Create a frameless window:
-   - handle `WM_NCCALCSIZE (0x0083)` to remove the standard frame (with maximised inset fix).
+   - handle `WM_NCCALCSIZE (0x0083)` to remove the standard frame (incorporating the maximization fix).
 2) Implement edge hit-testing:
    - handle `WM_NCHITTEST (0x0084)` and return `HTLEFT (10)`, `HTTOP (12)`, etc. for edges.
+   - return `HTMAXBUTTON (9)` for custom maximize buttons.
 3) Initiate sizing via the system loop:
-   - on mouse down in an edge zone, send `WM_SYSCOMMAND (0x0112)` with `SC_SIZE (0xF000) + WMSZ_*`.
+   - on mouse down in an edge zone, send `WM_SYSCOMMAND (0x0112)` with `SC_SIZE (0xF000) + WMSZ_*`
 4) Gate your sizing state:
    - set a boolean on `WM_ENTERSIZEMOVE (0x0231)`
    - clear it after final layout on `WM_EXITSIZEMOVE (0x0232)`
@@ -493,7 +498,7 @@ This is a high-level outline of how the APIs are typically composed; it is inten
 
 ### 7.2 Manifest Requirement (Crucial)
 
-You MUST declare **PerMonitorV2** DPI awareness in your application manifest. Without this, the OS may virtualize coordinates, making high-precision frameless resizing blurry or inaccurate.
+To ensure phase-locked resizing works correctly, you **must** declare `PerMonitorV2` awareness in your application manifest. Without this, the OS may virtualize your window coordinates, causing blurry text and laggy resize behavior.
 
 ```xml
 <application xmlns="urn:schemas-microsoft-com:asm.v3">
@@ -601,9 +606,10 @@ This binds the WebView2 rendered output into your DComp visual tree.
 
 ### 9.3 Enable Transparency (Crucial for Acrylic)
 
-By default, WebView2 renders an opaque background (usually white), which blocks your custom acrylic. You must explicitly set the background color to transparent.
+By default, the WebView2 control renders an opaque background (usually white), which occludes the underlying Acrylic/DComp visual. To see the acrylic effect *through* the web content (e.g., in CSS `html, body { background: transparent; }`):
 
-**Interface:** `ICoreWebView2Controller2` (or higher)
+**Interface:** `ICoreWebView2Controller2` (or higher)  
+**Method:** `put_DefaultBackgroundColor`
 
 ```cpp
 // 0x00000000 = Fully transparent
@@ -613,12 +619,12 @@ webviewController2->put_DefaultBackgroundColor(transparentColor);
 
 ### 9.4 Popups and Window Movement
 
-WebView2 is out-of-process and does not automatically know when the parent window moves. This causes HTML dropdowns/popups to detach and float in the wrong position during drags.
+WebView2 is out-of-process and does not automatically know when the parent window moves. This causes HTML dropdowns and popups to detach and float in place while the window drags.
 
-**Fix:** Call `NotifyParentWindowPositionChanged` on move messages.
+**Fix:** You must manually forward position changes to the controller.
 
 ```cpp
-// In WndProc:
+// In your Window Procedure:
 case WM_MOVE:
 case WM_MOVING:
     if (g_webviewController) {
@@ -632,7 +638,7 @@ case WM_MOVING:
 If available, the controller supports:
 
 - `ICoreWebView2Controller3::put_BoundsMode(COREWEBVIEW2_BOUNDS_MODE_USE_RAW_PIXELS)`
-  - Value: `COREWEBVIEW2_BOUNDS_MODE_USE_RAW_PIXELS = 0`
+  - Value: `COREWEBVIEW2_BOUNDS_MODE_USE_RAW_PIXELS = 0` (Recommended)
 - Alternate value (scales bounds by rasterization scale):
   - `COREWEBVIEW2_BOUNDS_MODE_USE_RASTERIZATION_SCALE = 1`
 - `ICoreWebView2Controller3::put_ShouldDetectMonitorScaleChanges(BOOL)`
