@@ -2173,20 +2173,12 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
     switch (msg)
     {
     case WM_NCCREATE:
-        // Earliest message where we can influence DWM non-client behavior
-        // before the first activation paint.
-        native_diag_dump_window_rim_state(hwnd, L"WM_NCCREATE.pre", wparam,
-                                          lparam);
         apply_stable_activation_rim(hwnd, true);
-        native_diag_dump_window_rim_state(hwnd, L"WM_NCCREATE.post", wparam,
-                                          lparam);
         break;
     case WM_CREATE:
         native_diag_dump_window_rim_state(hwnd, L"WM_CREATE.pre", wparam,
                                           lparam);
         apply_stable_activation_rim(hwnd, true);
-        native_diag_dump_window_rim_state(hwnd, L"WM_CREATE.post", wparam,
-                                          lparam);
         break;
     case WM_ENTERSIZEMOVE:
         if (state)
@@ -2203,8 +2195,6 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
             update_webview_controller_bounds(state, hwnd);
             state->webview_in_size_move = false;
         }
-        native_diag_dump_window_rim_state(hwnd, L"WM_EXITSIZEMOVE", wparam,
-                                          lparam);
         return 0;
     case WM_SIZING:
     {
@@ -2232,7 +2222,6 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
             return 0;
         }
         update_webview_controller_bounds(state, hwnd);
-        native_diag_dump_window_rim_state(hwnd, L"WM_SIZE", wparam, lparam);
         return 0;
     case WM_SETFOCUS:
         if (state && state->webview_controller)
@@ -2317,10 +2306,6 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
         }
         break;
     case WM_ERASEBKGND:
-        if (native_diag_enabled())
-        {
-            native_diag_logf(L"erasebkgnd", hwnd, L"return=1");
-        }
         return 1;
     case WM_PAINT:
     {
@@ -2328,13 +2313,6 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
         PAINTSTRUCT ps{};
         BeginPaint(hwnd, &ps);
         EndPaint(hwnd, &ps);
-        if (native_diag_enabled())
-        {
-            std::wstringstream ss;
-            ss << L"rcPaint=[" << ps.rcPaint.left << L"," << ps.rcPaint.top
-               << L"," << ps.rcPaint.right << L"," << ps.rcPaint.bottom << L"]";
-            native_diag_logf(L"paint", hwnd, ss.str());
-        }
         return 0;
     }
     case WM_NCACTIVATE:
@@ -2342,14 +2320,8 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
         native_diag_dump_window_rim_state(hwnd, L"WM_NCACTIVATE.pre", wparam,
                                           lparam);
         apply_stable_activation_rim(hwnd, true);
-        native_diag_dump_window_rim_state(hwnd, L"WM_NCACTIVATE.preApplied",
-                                          wparam, lparam);
         LRESULT result = DefWindowProcW(hwnd, msg, wparam, lparam);
-        native_diag_dump_window_rim_state(hwnd, L"WM_NCACTIVATE.postDef",
-                                          wparam, lparam);
         apply_stable_activation_rim(hwnd, true);
-        native_diag_dump_window_rim_state(hwnd, L"WM_NCACTIVATE.postApplied",
-                                          wparam, lparam);
         return result;
     }
     case WM_ACTIVATE:
@@ -2357,20 +2329,12 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
         native_diag_dump_window_rim_state(hwnd, L"WM_ACTIVATE.pre", wparam,
                                           lparam);
         apply_stable_activation_rim(hwnd, true);
-        native_diag_dump_window_rim_state(hwnd, L"WM_ACTIVATE.preApplied",
-                                          wparam, lparam);
         LRESULT result = DefWindowProcW(hwnd, msg, wparam, lparam);
-        native_diag_dump_window_rim_state(hwnd, L"WM_ACTIVATE.postDef", wparam,
-                                          lparam);
         apply_stable_activation_rim(hwnd, true);
-        native_diag_dump_window_rim_state(hwnd, L"WM_ACTIVATE.postApplied",
-                                          wparam, lparam);
         return result;
     }
     case WM_NCPAINT:
     {
-        // Focus changes and snap can land on an NCPAINT; ensure attributes are
-        // applied before default non-client paint runs.
         native_diag_dump_window_rim_state(hwnd, L"WM_NCPAINT.pre", wparam,
                                           lparam);
         bool flush = true;
@@ -2380,22 +2344,12 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
             flush = false;
         }
         apply_stable_activation_rim(hwnd, flush);
-        native_diag_dump_window_rim_state(hwnd, L"WM_NCPAINT.preDef", wparam,
-                                          lparam);
         LRESULT result = DefWindowProcW(hwnd, msg, wparam, lparam);
-        native_diag_dump_window_rim_state(hwnd, L"WM_NCPAINT.postDef", wparam,
-                                          lparam);
         apply_stable_activation_rim(hwnd, flush);
-        native_diag_dump_window_rim_state(hwnd, L"WM_NCPAINT.postApplied",
-                                          wparam, lparam);
         return result;
     }
     case WM_DWMCOMPOSITIONCHANGED:
-        native_diag_dump_window_rim_state(hwnd, L"WM_DWMCOMPOSITIONCHANGED.pre",
-                                          wparam, lparam);
         apply_stable_activation_rim(hwnd, true);
-        native_diag_dump_window_rim_state(
-            hwnd, L"WM_DWMCOMPOSITIONCHANGED.post", wparam, lparam);
         break;
     case WM_SETCURSOR:
         if (LOWORD(lparam) == HTCLIENT)
@@ -2417,30 +2371,16 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
         }
         break;
     case WM_THEMECHANGED:
-        native_diag_dump_window_rim_state(hwnd, L"WM_THEMECHANGED.pre", wparam,
-                                          lparam);
         apply_stable_activation_rim(hwnd, true);
-        native_diag_dump_window_rim_state(hwnd, L"WM_THEMECHANGED.post", wparam,
-                                          lparam);
         break;
     case WM_SETTINGCHANGE:
-        native_diag_dump_window_rim_state(hwnd, L"WM_SETTINGCHANGE.pre", wparam,
-                                          lparam);
         apply_stable_activation_rim(hwnd, true);
-        native_diag_dump_window_rim_state(hwnd, L"WM_SETTINGCHANGE.post",
-                                          wparam, lparam);
         break;
     case WM_ACTIVATEAPP:
-        native_diag_dump_window_rim_state(hwnd, L"WM_ACTIVATEAPP.pre", wparam,
-                                          lparam);
         apply_stable_activation_rim(hwnd, true);
-        native_diag_dump_window_rim_state(hwnd, L"WM_ACTIVATEAPP.post", wparam,
-                                          lparam);
         break;
     case WM_NCHITTEST:
     {
-        // Frameless resize hit-testing (edges only). Drag is handled by
-        // WebView CSS regions via WebView2 non-client queries.
         POINT pt{GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
         if (native_diag_enabled())
         {
@@ -2547,8 +2487,6 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
     case WM_DPICHANGED:
         if (state && state->webview_controller)
         {
-            native_diag_dump_window_rim_state(hwnd, L"WM_DPICHANGED.enter",
-                                              wparam, lparam);
             auto *newRect = reinterpret_cast<RECT *>(lparam);
             if (newRect)
             {
@@ -2559,8 +2497,6 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
                 configure_webview_controller_pixel_mode(*state, hwnd);
                 update_webview_controller_bounds(state, hwnd);
             }
-            native_diag_dump_window_rim_state(hwnd, L"WM_DPICHANGED.exit",
-                                              wparam, lparam);
         }
         return 0;
     case WM_TIMER:
