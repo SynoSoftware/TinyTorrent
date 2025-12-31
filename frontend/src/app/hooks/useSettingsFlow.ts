@@ -146,7 +146,8 @@ const mapSessionToConfig = (
 });
 
 const mapConfigToSession = (
-    config: SettingsConfig
+    config: SettingsConfig,
+    sessionSettings?: TransmissionSessionSettings | null
 ): Partial<TransmissionSessionSettings> => {
     const settings: Partial<TransmissionSessionSettings> = {
         "peer-port": config.peer_port,
@@ -177,6 +178,16 @@ const mapConfigToSession = (
         "idle-seeding-limit": config.idleSeedingLimit,
         "idle-seeding-limit-enabled": config.idleSeedingLimited,
     };
+
+    const blocklistSupported =
+        Boolean(sessionSettings) &&
+        ("blocklist-enabled" in (sessionSettings ?? {}) ||
+            "blocklist-url" in (sessionSettings ?? {}));
+
+    if (!blocklistSupported) {
+        delete settings["blocklist-enabled"];
+        delete settings["blocklist-url"];
+    }
 
     if (config.download_dir.trim()) {
         settings["download-dir"] = config.download_dir;
@@ -225,6 +236,9 @@ export function useSettingsFlow({
     const [settingsConfig, setSettingsConfig] = useState<SettingsConfig>(() =>
         mergeWithUserPreferences({ ...DEFAULT_SETTINGS_CONFIG })
     );
+    const [sessionSettings, setSessionSettings] = useState<
+        TransmissionSessionSettings | null
+    >(null);
     const [isSettingsSaving, setIsSettingsSaving] = useState(false);
     const [settingsLoadError, setSettingsLoadError] = useState(false);
 
@@ -241,6 +255,7 @@ export function useSettingsFlow({
             }
             try {
                 const session = await refreshSessionSettings();
+                setSessionSettings(session);
                 if (active) {
                     setSettingsConfig(
                         mergeWithUserPreferences(mapSessionToConfig(session))
@@ -261,24 +276,37 @@ export function useSettingsFlow({
     const handleSaveSettings = useCallback(
         async (config: SettingsConfig) => {
             setIsSettingsSaving(true);
+            let sessionPayload: Partial<TransmissionSessionSettings> | null = null;
             try {
                 if (!torrentClient.updateSessionSettings) {
                     throw new Error(
                         "Session settings not supported by this client"
                     );
                 }
-                await torrentClient.updateSessionSettings(
-                    mapConfigToSession(config)
-                );
+                sessionPayload = mapConfigToSession(config, sessionSettings);
+                await torrentClient.updateSessionSettings(sessionPayload);
                 if (isMountedRef.current) {
                     setSettingsConfig(config);
                     persistUserPreferences(config);
+                    if (sessionPayload) {
+                        setSessionSettings((prev) => ({
+                            ...(prev ?? {}),
+                            ...sessionPayload,
+                        }));
+                    }
                     await refreshTorrentsRef.current();
                     await refreshSessionStatsDataRef.current();
                 }
-            } catch {
+            } catch (error) {
+                console.error("Failed to save settings", {
+                    error,
+                    payload: sessionPayload,
+                });
                 if (isMountedRef.current) {
                     reportRpcStatus("error");
+                }
+                if (error instanceof Error) {
+                    throw error;
                 }
                 throw new Error("Unable to save settings");
             } finally {
@@ -293,6 +321,7 @@ export function useSettingsFlow({
             reportRpcStatus,
             torrentClient,
             isMountedRef,
+            sessionSettings,
         ]
     );
 

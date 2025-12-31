@@ -261,6 +261,31 @@
     .tracking-0-3 {
         letter-spacing: var(--tt-tracking-ultra);
     }
+    .tt-navbar-tab-font {
+        font-size: var(--tt-navbar-tab-font-size);
+    }
+    .tt-navbar-meta-font {
+        font-size: var(--tt-navbar-meta-font-size);
+    }
+    .toolbar-icon-size-sm {
+        width: var(--tt-status-icon-sm);
+        height: var(--tt-status-icon-sm);
+    }
+    .toolbar-icon-size-md {
+        width: var(--tt-status-icon-md);
+        height: var(--tt-status-icon-md);
+    }
+    .toolbar-icon-size-lg {
+        width: var(--tt-status-icon-lg);
+        height: var(--tt-status-icon-lg);
+    }
+    .toolbar-icon-size-xl {
+        width: var(--tt-status-icon-xl);
+        height: var(--tt-status-icon-xl);
+    }
+    .window-control-button-width {
+        width: var(--tt-navbar-h);
+    }
     /* Semantic role for label tracking (use in components via logic export) */
     .tracking-label {
         letter-spacing: var(--tt-tracking-ultra);

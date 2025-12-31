@@ -20,9 +20,7 @@ const zRpcResponse = z.object({
     tag: z.number().optional(),
 });
 
-export const zRpcSuccess = z
-    .object({ result: z.literal("success") })
-    .passthrough();
+export const zRpcSuccess = z.object({}).passthrough();
 
 const RPC_TORRENT_STATUS_VALUES = [0, 1, 2, 3, 4, 5, 6, 7] as const;
 

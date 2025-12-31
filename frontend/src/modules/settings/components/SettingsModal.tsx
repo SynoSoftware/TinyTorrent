@@ -15,11 +15,7 @@ import type {
     SliderDefinition,
 } from "@/modules/settings/data/settings-tabs";
 import type { RpcStatus } from "@/shared/types/rpc";
-import {
-    ICON_STROKE_WIDTH,
-    INTERACTION_CONFIG,
-    UI_BASES,
-} from "@/config/logic";
+import { ICON_STROKE_WIDTH, INTERACTION_CONFIG } from "@/config/logic";
 import { APP_VERSION } from "@/shared/version";
 import { ChevronLeft, RotateCcw, Save, X } from "lucide-react";
 import { SettingsFormBuilder } from "@/modules/settings/components/SettingsFormBuilder";
@@ -445,10 +441,7 @@ export function SettingsModal({
                         )}
                     >
                         <div className="p-stage border-b border-content1/10 flex justify-between items-center h-modal-header shrink-0">
-                            <h2
-                                className="font-bold tracking-tight text-foreground"
-                                style={{ fontSize: UI_BASES.navbar.tabFont }}
-                            >
+                            <h2 className="font-bold tracking-tight text-foreground tt-navbar-tab-font">
                                 {t("settings.modal.title")}
                             </h2>
                             <Button
@@ -535,22 +528,11 @@ export function SettingsModal({
                                     />
                                 </Button>
                                 <div className="flex flex-col">
-                                    <h1
-                                        className="font-bold text-foreground"
-                                        style={{
-                                            fontSize: UI_BASES.navbar.tabFont,
-                                        }}
-                                    >
+                                    <h1 className="font-bold text-foreground tt-navbar-tab-font">
                                         {t(activeTabDefinition.headerKey)}
                                     </h1>
                                     {hasUnsavedChanges && (
-                                        <span
-                                            className="text-scaled uppercase font-bold text-warning animate-pulse"
-                                            style={{
-                                                letterSpacing:
-                                                    "var(--tt-tracking-wide)",
-                                            }}
-                                        >
+                                        <span className="text-scaled uppercase font-bold text-warning animate-pulse tracking-0-2">
                                             {t("settings.unsaved_changes")}
                                         </span>
                                     )}

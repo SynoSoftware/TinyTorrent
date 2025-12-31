@@ -4,7 +4,7 @@ import type { LucideIcon } from "lucide-react";
 
 import { ICON_STROKE_WIDTH } from "@/config/logic";
 import {
-    ICON_SIZE_MAP,
+    ICON_SIZE_CLASSES,
     type ToolbarIconSize,
 } from "@/shared/ui/layout/toolbar-button";
 
@@ -40,6 +40,8 @@ export const WindowControlButton = forwardRef<
     ref
 ) {
     const { disabled, ...buttonProps } = restProps;
+    const iconSizeClass =
+        ICON_SIZE_CLASSES[iconSize as ToolbarIconSize];
 
     return (
         <Button
@@ -50,10 +52,10 @@ export const WindowControlButton = forwardRef<
             className={cn(
                 "flex h-full items-center justify-center rounded-none border-0 px-0 transition-none",
                 VARIANT_CLASSES[tone],
+                "window-control-button-width",
                 className,
                 disabled && "pointer-events-none opacity-40"
             )}
-            style={{ width: "var(--tt-navbar-h)" }}
             aria-label={ariaLabel}
             disabled={disabled}
             {...buttonProps}
@@ -61,11 +63,7 @@ export const WindowControlButton = forwardRef<
             {Icon && (
                 <Icon
                     strokeWidth={ICON_STROKE_WIDTH}
-                    className="text-current"
-                    style={{
-                        width: ICON_SIZE_MAP[iconSize],
-                        height: ICON_SIZE_MAP[iconSize],
-                    }}
+                    className={cn("text-current", iconSizeClass)}
                 />
             )}
         </Button>
