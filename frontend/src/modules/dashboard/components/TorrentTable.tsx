@@ -107,6 +107,18 @@ const CELL_BASE_CLASSES =
 
 const SPEED_HISTORY_LIMIT = 30;
 const DND_OVERLAY_CLASSES = "pointer-events-none fixed inset-0 z-40";
+const TABLE_TOTAL_WIDTH_VAR = "--tt-table-total-w";
+
+const toCssVarSafeId = (value: string) => value.replace(/[^a-zA-Z0-9_-]/g, "-");
+
+const getColumnWidthVarName = (columnId: string) =>
+    `--tt-colw-${toCssVarSafeId(columnId)}`;
+
+const getColumnWidthCss = (columnId: string, fallbackPx: number) =>
+    `var(${getColumnWidthVarName(columnId)}, ${fallbackPx}px)`;
+
+const getTableTotalWidthCss = (fallbackPx: number) =>
+    `var(${TABLE_TOTAL_WIDTH_VAR}, ${fallbackPx}px)`;
 
 // --- TYPES ---
 type ContextMenuKey = TorrentTableAction;
@@ -274,6 +286,7 @@ const DraggableHeader = memo(
         onContextMenu,
         onAutoFitColumn,
         onResizeStart,
+        isAnyColumnResizing = false,
         isResizing = false,
     }: {
         header: Header<Torrent, unknown>;
@@ -281,6 +294,7 @@ const DraggableHeader = memo(
         onContextMenu?: (e: React.MouseEvent) => void;
         onAutoFitColumn?: (column: Column<Torrent>) => void;
         onResizeStart?: (column: Column<Torrent>, clientX: number) => void;
+        isAnyColumnResizing?: boolean;
         isResizing?: boolean;
     }) => {
         const { column } = header;
@@ -297,7 +311,14 @@ const DraggableHeader = memo(
             transform,
             transition,
             isDragging,
-        } = useSortable({ id: header.column.id });
+        } = useSortable({
+            id: header.column.id,
+            disabled: isAnyColumnResizing,
+            animateLayoutChanges: (args) => {
+                if (isAnyColumnResizing) return false;
+                return defaultAnimateLayoutChanges(args);
+            },
+        });
         const handleAutoFit = (event: React.MouseEvent) => {
             event.stopPropagation();
             if (column.getCanResize()) {
@@ -340,9 +361,12 @@ const DraggableHeader = memo(
                 : false);
 
         const style: CSSProperties = {
-            transform: CSS.Translate.toString(transform),
-            transition,
-            width: column.getSize(),
+            transform:
+                transform && !isAnyColumnResizing
+                    ? CSS.Translate.toString(transform)
+                    : undefined,
+            transition: !isAnyColumnResizing ? transition : undefined,
+            width: getColumnWidthCss(column.id, column.getSize()),
             zIndex: isDragging || isOverlay ? 50 : 0,
             boxSizing: "border-box",
         };
@@ -426,7 +450,7 @@ const DraggableHeader = memo(
                     >
                         <div
                             className={cn(
-                                "w-(--bw) h-indicator bg-foreground/10 transition-colors rounded-full",
+                                "w-(--tt-divider-width) h-indicator bg-foreground/10 transition-colors rounded-full",
                                 "group-hover:bg-primary/50",
                                 isColumnResizing &&
                                     "bg-primary w-(--tt-divider-width) h-indicator"
@@ -454,7 +478,10 @@ const ColumnHeaderPreview = ({
                 "relative flex h-row items-center border-r border-content1/10 bg-content1/90 px-(--p-tight) transition-all",
                 PANEL_SHADOW
             )}
-            style={{ width: column.getSize(), boxSizing: "border-box" }}
+            style={{
+                width: getColumnWidthCss(column.id, column.getSize()),
+                boxSizing: "border-box",
+            }}
         >
             <div
                 className={cn(
@@ -500,7 +527,10 @@ const renderVisibleCells = (row: Row<Torrent>) =>
             <div
                 key={cell.id}
                 style={{
-                    width: cell.column.getSize(),
+                    width: getColumnWidthCss(
+                        cell.column.id,
+                        cell.column.getSize()
+                    ),
                     boxSizing: "border-box",
                 }}
                 className={cn(
@@ -530,6 +560,7 @@ const VirtualRow = memo(
         activeRowId,
         isHighlighted,
         onDropTargetChange,
+        isAnyColumnResizing = false,
     }: {
         row: Row<Torrent>;
         virtualRow: VirtualItem;
@@ -543,6 +574,7 @@ const VirtualRow = memo(
         activeRowId: string | null;
         isHighlighted: boolean;
         onDropTargetChange?: (id: string | null) => void;
+        isAnyColumnResizing?: boolean;
     }) => {
         // Inside VirtualRow component
         const {
@@ -559,6 +591,9 @@ const VirtualRow = memo(
             // FIX: Disable animation when the drag ends (wasDragging) to prevent
             // the row from animating "back" while the virtualizer moves it "to".
             animateLayoutChanges: (args) => {
+                if (isAnyColumnResizing) {
+                    return false;
+                }
                 const { wasDragging } = args;
                 if (wasDragging) {
                     return false;
@@ -580,7 +615,7 @@ const VirtualRow = memo(
                 style.transform = CSS.Translate.toString(transform);
             }
             // Retain drag transition, BUT we will remove highlight transition
-            if (transition) {
+            if (transition && !isAnyColumnResizing) {
                 style.transition = transition;
             }
             style.opacity = isDragging ? 0 : 1;
@@ -638,8 +673,12 @@ const VirtualRow = memo(
             >
                 {/* INNER DIV: Handles all visuals. Separating layout from paint prevents glitching. */}
                 <motion.div
-                    layout
-                    layoutId={`torrent-row-${row.id}`}
+                    layout={!isAnyColumnResizing}
+                    layoutId={
+                        isAnyColumnResizing
+                            ? undefined
+                            : `torrent-row-${row.id}`
+                    }
                     initial={false}
                     className={cn(
                         "relative flex items-center w-full h-full ",
@@ -743,6 +782,23 @@ export function TorrentTable({
             return createPortal(overlay, overlayPortalHost);
         },
         [overlayPortalHost]
+    );
+    const setTableCssVar = useCallback((name: string, value: string) => {
+        const container = tableContainerRef.current;
+        if (!container) return;
+        container.style.setProperty(name, value);
+    }, []);
+    const setColumnWidthVar = useCallback(
+        (columnId: string, widthPx: number) => {
+            setTableCssVar(getColumnWidthVarName(columnId), `${widthPx}px`);
+        },
+        [setTableCssVar]
+    );
+    const setTableTotalWidthVar = useCallback(
+        (widthPx: number) => {
+            setTableCssVar(TABLE_TOTAL_WIDTH_VAR, `${widthPx}px`);
+        },
+        [setTableCssVar]
     );
 
     const queueMenuActions = useMemo<QueueMenuAction[]>(
@@ -920,7 +976,14 @@ export function TorrentTable({
         columnId: string;
         startX: number;
         startSize: number;
+        startTotal: number;
     } | null>(null);
+    const pendingColumnResizeRef = useRef<{
+        columnId: string;
+        nextSize: number;
+        nextTotal: number;
+    } | null>(null);
+    const columnResizeRafRef = useRef<number | null>(null);
     const [activeRowId, setActiveRowId] = useState<string | null>(null);
     const [dropTargetRowId, setDropTargetRowId] = useState<string | null>(null);
     const [isColumnModalOpen, setIsColumnModalOpen] = useState(false);
@@ -1028,6 +1091,17 @@ export function TorrentTable({
             sorting,
         };
 
+        const isAnyColumnResizing =
+            Boolean(activeResizeColumnId) ||
+            Boolean(columnSizingInfo.isResizingColumn);
+        if (isAnyColumnResizing) {
+            if (saveTimeoutRef.current) {
+                window.clearTimeout(saveTimeoutRef.current);
+                saveTimeoutRef.current = null;
+            }
+            return;
+        }
+
         if (saveTimeoutRef.current) {
             window.clearTimeout(saveTimeoutRef.current);
         }
@@ -1039,7 +1113,14 @@ export function TorrentTable({
             );
             saveTimeoutRef.current = null;
         }, 250);
-    }, [columnOrder, columnVisibility, columnSizing, sorting]);
+    }, [
+        activeResizeColumnId,
+        columnOrder,
+        columnSizing,
+        columnSizingInfo.isResizingColumn,
+        columnVisibility,
+        sorting,
+    ]);
 
     useEffect(() => {
         return () => {
@@ -1158,6 +1239,23 @@ export function TorrentTable({
     });
 
     const { rows } = table.getRowModel();
+
+    useEffect(() => {
+        const container = tableContainerRef.current;
+        if (!container) return;
+        setTableTotalWidthVar(table.getTotalSize());
+        table.getAllLeafColumns().forEach((column) => {
+            setColumnWidthVar(column.id, column.getSize());
+        });
+    }, [
+        columnOrder,
+        columnSizing,
+        columnVisibility,
+        setColumnWidthVar,
+        setTableTotalWidthVar,
+        table,
+        tableContainerRef,
+    ]);
     const getColumnLabel = useCallback(
         (column: Column<Torrent>) => {
             const definition = COLUMN_DEFINITIONS[column.id as ColumnId];
@@ -1217,6 +1315,21 @@ export function TorrentTable({
         if (typeof window === "undefined") return;
         if (!activeResizeColumnId) return;
 
+        const applyPendingResizeCss = () => {
+            const pending = pendingColumnResizeRef.current;
+            if (!pending) return;
+            setColumnWidthVar(pending.columnId, pending.nextSize);
+            setTableTotalWidthVar(pending.nextTotal);
+        };
+
+        const scheduleResizeCssUpdate = () => {
+            if (columnResizeRafRef.current !== null) return;
+            columnResizeRafRef.current = window.requestAnimationFrame(() => {
+                columnResizeRafRef.current = null;
+                applyPendingResizeCss();
+            });
+        };
+
         const handlePointerMove = (event: PointerEvent) => {
             const resizeState = resizeStartRef.current;
             if (!resizeState) return;
@@ -1232,22 +1345,34 @@ export function TorrentTable({
                 maxSize,
                 Math.max(minSize, Math.round(resizeState.startSize + delta))
             );
+            const nextTotal =
+                resizeState.startTotal - resizeState.startSize + nextSize;
             event.preventDefault();
-            setColumnSizing((prev) => {
-                if (prev[resizeState.columnId] === nextSize) return prev;
-                return { ...prev, [resizeState.columnId]: nextSize };
-            });
-            setColumnSizingInfo((info) => ({
-                ...info,
-                deltaOffset: delta,
-                deltaPercentage:
-                    resizeState.startSize > 0
-                        ? delta / resizeState.startSize
-                        : 0,
-            }));
+            pendingColumnResizeRef.current = {
+                columnId: resizeState.columnId,
+                nextSize,
+                nextTotal,
+            };
+            scheduleResizeCssUpdate();
         };
 
         const handlePointerUp = () => {
+            if (columnResizeRafRef.current !== null) {
+                window.cancelAnimationFrame(columnResizeRafRef.current);
+                columnResizeRafRef.current = null;
+            }
+            applyPendingResizeCss();
+
+            const pending = pendingColumnResizeRef.current;
+            pendingColumnResizeRef.current = null;
+            if (pending) {
+                setColumnSizing((prev: Record<string, number>) =>
+                    normalizeColumnSizingState({
+                        ...prev,
+                        [pending.columnId]: pending.nextSize,
+                    })
+                );
+            }
             resetColumnResizeState();
         };
 
@@ -1257,22 +1382,30 @@ export function TorrentTable({
         return () => {
             window.removeEventListener("pointermove", handlePointerMove);
             window.removeEventListener("pointerup", handlePointerUp);
+            if (columnResizeRafRef.current !== null) {
+                window.cancelAnimationFrame(columnResizeRafRef.current);
+                columnResizeRafRef.current = null;
+            }
+            pendingColumnResizeRef.current = null;
         };
     }, [
         activeResizeColumnId,
         resetColumnResizeState,
         setColumnSizing,
-        setColumnSizingInfo,
+        setColumnWidthVar,
+        setTableTotalWidthVar,
         table,
     ]);
     const handleColumnResizeStart = useCallback(
         (column: Column<Torrent>, clientX: number) => {
             if (!column.getCanResize()) return;
             const startSize = column.getSize();
+            const startTotal = table.getTotalSize();
             resizeStartRef.current = {
                 columnId: column.id,
                 startX: clientX,
                 startSize,
+                startTotal,
             };
             setActiveResizeColumnId(column.id);
             setColumnSizingInfo(() => ({
@@ -1284,7 +1417,7 @@ export function TorrentTable({
                 startSize,
             }));
         },
-        [setActiveResizeColumnId, setColumnSizingInfo]
+        [setActiveResizeColumnId, setColumnSizingInfo, table]
     );
 
     const rowVirtualizer = useVirtualizer({
@@ -1751,9 +1884,14 @@ export function TorrentTable({
             setColumnOrder((order) => {
                 const oldIndex = order.indexOf(active.id as string);
                 const newIndex = order.indexOf(over.id as string);
+                if (oldIndex < 0 || newIndex < 0) return order;
                 return arrayMove(order, oldIndex, newIndex);
             });
         }
+    };
+
+    const handleDragCancel = () => {
+        setActiveDragHeaderId(null);
     };
 
     // --- EVENTS ---
@@ -1931,6 +2069,16 @@ export function TorrentTable({
         "relative flex-1 h-full min-h-0 flex flex-col overflow-hidden",
         "rounded-panel border border-default/10"
     );
+    const isAnyColumnResizing =
+        Boolean(activeResizeColumnId) || Boolean(columnSizingInfo.isResizingColumn);
+    const headerSortableIds = useMemo(
+        () =>
+            table
+                .getAllLeafColumns()
+                .filter((column) => column.getIsVisible())
+                .map((column) => column.id),
+        [columnOrder, columnVisibility, table]
+    );
 
     return (
         <>
@@ -1950,9 +2098,10 @@ export function TorrentTable({
             >
                 <DndContext
                     collisionDetection={closestCenter}
-                    sensors={sensors}
+                    sensors={isAnyColumnResizing ? [] : sensors}
                     onDragStart={handleDragStart}
                     onDragEnd={handleDragEnd}
+                    onDragCancel={handleDragCancel}
                 >
                     <div className={tableShellClass}>
                         <div
@@ -1960,18 +2109,24 @@ export function TorrentTable({
                             onContextMenu={handleHeaderContainerContextMenu}
                         >
                             <SortableContext
-                                items={columnOrder}
+                                items={headerSortableIds}
                                 strategy={horizontalListSortingStrategy}
                             >
                                 {table.getHeaderGroups().map((headerGroup) => (
                                     <div
                                         key={headerGroup.id}
                                         className="flex w-full min-w-max"
+                                        style={{
+                                            width: getTableTotalWidthCss(
+                                                table.getTotalSize()
+                                            ),
+                                        }}
                                     >
                                         {headerGroup.headers.map((header) => (
                                             <DraggableHeader
                                                 key={header.id}
                                                 header={header}
+                                                isAnyColumnResizing={isAnyColumnResizing}
                                                 onContextMenu={(e) =>
                                                     handleHeaderContextMenu(
                                                         e,
@@ -2092,7 +2247,9 @@ export function TorrentTable({
                                             className="relative w-full min-w-max"
                                             style={{
                                                 height: `${rowVirtualizer.getTotalSize()}px`,
-                                                width: table.getTotalSize(),
+                                                width: getTableTotalWidthCss(
+                                                    table.getTotalSize()
+                                                ),
                                             }}
                                         >
                                             {rowVirtualizer
@@ -2140,6 +2297,7 @@ export function TorrentTable({
                                                             onDropTargetChange={
                                                                 handleDropTargetChange
                                                             }
+                                                            isAnyColumnResizing={isAnyColumnResizing}
                                                         />
                                                     );
                                                 })}
@@ -2154,7 +2312,9 @@ export function TorrentTable({
                                             {activeDragRow ? (
                                                 <div
                                                     style={{
-                                                        width: table.getTotalSize(),
+                                                        width: getTableTotalWidthCss(
+                                                            table.getTotalSize()
+                                                        ),
                                                         height: TABLE_LAYOUT.rowHeight,
                                                     }}
                                                     className={cn(
@@ -2396,7 +2556,7 @@ export function TorrentTable({
                                         key="columns-section"
                                         title={t("table.column_picker_title")}
                                     >
-                                        {headerMenuItems.map((item, index) => {
+                                        {headerMenuItems.map((item) => {
                                             const isVisible =
                                                 item.column.getIsVisible();
                                             const showDivider =
