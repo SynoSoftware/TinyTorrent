@@ -249,30 +249,30 @@ export function WorkspaceShell({
     const isImmersiveShell = workspaceStyle === "immersive";
 
     const renderNavbar = () => (
-            <Navbar
-                filter={filter}
-                setFilter={setFilter}
-                searchQuery={searchQuery}
-                setSearchQuery={setSearchQuery}
-                onAdd={() => openAddModal()}
-                onSettings={() => openSettings()}
-                hasSelection={selectedTorrents.length > 0}
-                onResumeSelection={() => {
-                    void handleBulkAction("resume");
-                }}
-                onPauseSelection={() => {
-                    void handleBulkAction("pause");
-                }}
-                onRecheckSelection={() => {
-                    void handleBulkAction("recheck");
-                }}
-                onRemoveSelection={() => {
-                    void handleBulkAction("remove");
-                }}
-                rehashStatus={rehashStatus}
-                workspaceStyle={workspaceStyle}
-                onWindowCommand={handleWindowCommand}
-            />
+        <Navbar
+            filter={filter}
+            setFilter={setFilter}
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+            onAdd={() => openAddModal()}
+            onSettings={() => openSettings()}
+            hasSelection={selectedTorrents.length > 0}
+            onResumeSelection={() => {
+                void handleBulkAction("resume");
+            }}
+            onPauseSelection={() => {
+                void handleBulkAction("pause");
+            }}
+            onRecheckSelection={() => {
+                void handleBulkAction("recheck");
+            }}
+            onRemoveSelection={() => {
+                void handleBulkAction("remove");
+            }}
+            rehashStatus={rehashStatus}
+            workspaceStyle={workspaceStyle}
+            onWindowCommand={handleWindowCommand}
+        />
     );
 
     const renderModeLayoutSection = () => (
@@ -432,7 +432,7 @@ export function WorkspaceShell({
                 >
                     {isImmersiveShell ? (
                         <div
-                            className="acrylic border border-white/10 shadow-hud"
+                            className="acrylic border shadow-hud"
                             style={{
                                 borderRadius: `${IMMERSIVE_CHROME_RADIUS}px`,
                                 padding: `${IMMERSIVE_CHROME_PADDING}px`,
@@ -448,7 +448,7 @@ export function WorkspaceShell({
                         <>
                             <div
                                 className={cn(
-                                    "tt-shell-no-drag acrylic flex-1 min-h-0 h-full border border-white/10 shadow-hud",
+                                    "tt-shell-no-drag acrylic flex-1 min-h-0 h-full border shadow-hud",
                                     isNativeHost && "native-shell-inner"
                                 )}
                                 style={{
@@ -458,7 +458,7 @@ export function WorkspaceShell({
                             >
                                 <main
                                     className={cn(
-                                        "flex-1 min-h-0 h-full overflow-hidden border border-white/5 bg-background/20 shadow-inner",
+                                        "flex-1 min-h-0 h-full overflow-hidden border bg-background/20 shadow-inner",
                                         isNativeHost && "native-shell-main"
                                     )}
                                     style={{
