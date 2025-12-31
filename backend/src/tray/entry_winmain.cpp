@@ -544,6 +544,81 @@ struct ResizeBorderThickness
     int y = 0;
 };
 
+ResizeBorderThickness get_resize_border_thickness(HWND hwnd);
+
+std::optional<int> resize_edge_from_client_point(HWND hwnd, POINT client_pt)
+{
+    if (!hwnd)
+    {
+        return std::nullopt;
+    }
+    if (IsZoomed(hwnd))
+    {
+        return std::nullopt;
+    }
+    RECT client{};
+    GetClientRect(hwnd, &client);
+    int w = std::max(0L, client.right - client.left);
+    int h = std::max(0L, client.bottom - client.top);
+    if (w <= 0 || h <= 0)
+    {
+        return std::nullopt;
+    }
+    ResizeBorderThickness const border = get_resize_border_thickness(hwnd);
+    int bx = std::max(1, border.x);
+    int by = std::max(1, border.y);
+
+    bool is_top = client_pt.y >= 0 && client_pt.y < by;
+    bool is_bottom = client_pt.y >= h - by && client_pt.y < h;
+    bool is_left = client_pt.x >= 0 && client_pt.x < bx;
+    bool is_right = client_pt.x >= w - bx && client_pt.x < w;
+
+    if (is_top && is_left)
+        return WMSZ_TOPLEFT;
+    if (is_top && is_right)
+        return WMSZ_TOPRIGHT;
+    if (is_bottom && is_left)
+        return WMSZ_BOTTOMLEFT;
+    if (is_bottom && is_right)
+        return WMSZ_BOTTOMRIGHT;
+    if (is_left)
+        return WMSZ_LEFT;
+    if (is_right)
+        return WMSZ_RIGHT;
+    if (is_top)
+        return WMSZ_TOP;
+    if (is_bottom)
+        return WMSZ_BOTTOM;
+    return std::nullopt;
+}
+
+HCURSOR cursor_for_resize_edge(int wmsz_edge)
+{
+    switch (wmsz_edge)
+    {
+    case WMSZ_LEFT:
+    case WMSZ_RIGHT:
+        return LoadCursor(nullptr, IDC_SIZEWE);
+    case WMSZ_TOP:
+    case WMSZ_BOTTOM:
+        return LoadCursor(nullptr, IDC_SIZENS);
+    case WMSZ_TOPLEFT:
+    case WMSZ_BOTTOMRIGHT:
+        return LoadCursor(nullptr, IDC_SIZENWSE);
+    case WMSZ_TOPRIGHT:
+    case WMSZ_BOTTOMLEFT:
+        return LoadCursor(nullptr, IDC_SIZENESW);
+    default:
+        return LoadCursor(nullptr, IDC_ARROW);
+    }
+}
+
+WPARAM syscommand_for_resize_edge(int wmsz_edge)
+{
+    // `SC_SIZE + WMSZ_*` is the conventional way to start a system sizing loop.
+    return static_cast<WPARAM>(SC_SIZE + wmsz_edge);
+}
+
 int compute_inner_glass_mask_thickness_px(HWND hwnd)
 {
     (void)hwnd;
@@ -2042,9 +2117,11 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
                                           lparam);
         break;
     case WM_CREATE:
-        native_diag_dump_window_rim_state(hwnd, L"WM_CREATE.pre", wparam, lparam);
+        native_diag_dump_window_rim_state(hwnd, L"WM_CREATE.pre", wparam,
+                                          lparam);
         apply_stable_activation_rim(hwnd);
-        native_diag_dump_window_rim_state(hwnd, L"WM_CREATE.post", wparam, lparam);
+        native_diag_dump_window_rim_state(hwnd, L"WM_CREATE.post", wparam,
+                                          lparam);
         break;
     case WM_ENTERSIZEMOVE:
         if (state)
@@ -2114,6 +2191,30 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
     case WM_XBUTTONDBLCLK:
     case WM_MOUSEWHEEL:
     case WM_MOUSEHWHEEL:
+        if (msg == WM_LBUTTONDOWN)
+        {
+            POINT client_pt{GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
+            if (auto edge = resize_edge_from_client_point(hwnd, client_pt); edge)
+            {
+                SetFocus(hwnd);
+                POINT screen_pt = client_pt;
+                ClientToScreen(hwnd, &screen_pt);
+                LPARAM sc_lp = MAKELPARAM(screen_pt.x, screen_pt.y);
+                if (native_diag_enabled())
+                {
+                    std::wstringstream ss;
+                    ss << L"edge=" << *edge << L" sys=0x" << std::hex
+                       << syscommand_for_resize_edge(*edge) << std::dec
+                       << L" client=(" << client_pt.x << L"," << client_pt.y
+                       << L") screen=(" << screen_pt.x << L"," << screen_pt.y
+                       << L")";
+                    native_diag_logf(L"resize.begin", hwnd, ss.str());
+                }
+                SendMessageW(hwnd, WM_SYSCOMMAND,
+                             syscommand_for_resize_edge(*edge), sc_lp);
+                return 0;
+            }
+        }
         if (msg == WM_LBUTTONDOWN || msg == WM_RBUTTONDOWN ||
             msg == WM_MBUTTONDOWN || msg == WM_XBUTTONDOWN)
         {
@@ -2169,8 +2270,8 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
         native_diag_dump_window_rim_state(hwnd, L"WM_NCACTIVATE.preApplied",
                                           wparam, lparam);
         LRESULT result = DefWindowProcW(hwnd, msg, wparam, lparam);
-        native_diag_dump_window_rim_state(hwnd, L"WM_NCACTIVATE.postDef", wparam,
-                                          lparam);
+        native_diag_dump_window_rim_state(hwnd, L"WM_NCACTIVATE.postDef",
+                                          wparam, lparam);
         apply_stable_activation_rim(hwnd);
         native_diag_dump_window_rim_state(hwnd, L"WM_NCACTIVATE.postApplied",
                                           wparam, lparam);
@@ -2181,21 +2282,22 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
         native_diag_dump_window_rim_state(hwnd, L"WM_ACTIVATE.pre", wparam,
                                           lparam);
         apply_stable_activation_rim(hwnd);
-        native_diag_dump_window_rim_state(hwnd, L"WM_ACTIVATE.preApplied", wparam,
-                                          lparam);
+        native_diag_dump_window_rim_state(hwnd, L"WM_ACTIVATE.preApplied",
+                                          wparam, lparam);
         LRESULT result = DefWindowProcW(hwnd, msg, wparam, lparam);
         native_diag_dump_window_rim_state(hwnd, L"WM_ACTIVATE.postDef", wparam,
                                           lparam);
         apply_stable_activation_rim(hwnd);
-        native_diag_dump_window_rim_state(hwnd, L"WM_ACTIVATE.postApplied", wparam,
-                                          lparam);
+        native_diag_dump_window_rim_state(hwnd, L"WM_ACTIVATE.postApplied",
+                                          wparam, lparam);
         return result;
     }
     case WM_NCPAINT:
     {
         // Focus changes and snap can land on an NCPAINT; ensure attributes are
         // applied before default non-client paint runs.
-        native_diag_dump_window_rim_state(hwnd, L"WM_NCPAINT.pre", wparam, lparam);
+        native_diag_dump_window_rim_state(hwnd, L"WM_NCPAINT.pre", wparam,
+                                          lparam);
         apply_stable_activation_rim(hwnd);
         native_diag_dump_window_rim_state(hwnd, L"WM_NCPAINT.preDef", wparam,
                                           lparam);
@@ -2203,16 +2305,35 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
         native_diag_dump_window_rim_state(hwnd, L"WM_NCPAINT.postDef", wparam,
                                           lparam);
         apply_stable_activation_rim(hwnd);
-        native_diag_dump_window_rim_state(hwnd, L"WM_NCPAINT.postApplied", wparam,
-                                          lparam);
+        native_diag_dump_window_rim_state(hwnd, L"WM_NCPAINT.postApplied",
+                                          wparam, lparam);
         return result;
     }
     case WM_DWMCOMPOSITIONCHANGED:
-        native_diag_dump_window_rim_state(
-            hwnd, L"WM_DWMCOMPOSITIONCHANGED.pre", wparam, lparam);
+        native_diag_dump_window_rim_state(hwnd, L"WM_DWMCOMPOSITIONCHANGED.pre",
+                                          wparam, lparam);
         apply_stable_activation_rim(hwnd);
         native_diag_dump_window_rim_state(
             hwnd, L"WM_DWMCOMPOSITIONCHANGED.post", wparam, lparam);
+        break;
+    case WM_SETCURSOR:
+        if (LOWORD(lparam) == HTCLIENT)
+        {
+            POINT screen_pt{};
+            if (GetCursorPos(&screen_pt))
+            {
+                POINT client_pt = screen_pt;
+                if (ScreenToClient(hwnd, &client_pt))
+                {
+                    if (auto edge = resize_edge_from_client_point(hwnd, client_pt);
+                        edge)
+                    {
+                        SetCursor(cursor_for_resize_edge(*edge));
+                        return TRUE;
+                    }
+                }
+            }
+        }
         break;
     case WM_THEMECHANGED:
         native_diag_dump_window_rim_state(hwnd, L"WM_THEMECHANGED.pre", wparam,
@@ -2225,8 +2346,8 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
         native_diag_dump_window_rim_state(hwnd, L"WM_SETTINGCHANGE.pre", wparam,
                                           lparam);
         apply_stable_activation_rim(hwnd);
-        native_diag_dump_window_rim_state(hwnd, L"WM_SETTINGCHANGE.post", wparam,
-                                          lparam);
+        native_diag_dump_window_rim_state(hwnd, L"WM_SETTINGCHANGE.post",
+                                          wparam, lparam);
         break;
     case WM_ACTIVATEAPP:
         native_diag_dump_window_rim_state(hwnd, L"WM_ACTIVATEAPP.pre", wparam,
@@ -2281,41 +2402,14 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
             GetWindowRect(hwnd, &rw);
         }
 
-        ResizeBorderThickness const border = get_resize_border_thickness(hwnd);
-        int border_x = border.x;
-        int border_y = border.y;
-
-        // 4. Hit Test Logic
-        bool isTop = (pt.y >= rw.top && pt.y < rw.top + border_y);
-        bool isBottom = (pt.y < rw.bottom && pt.y >= rw.bottom - border_y);
-        bool isLeft = (pt.x >= rw.left && pt.x < rw.left + border_x);
-        bool isRight = (pt.x < rw.right && pt.x >= rw.right - border_x);
-
-        // 5. Return Native Hit Codes (Priority: Corners -> Edges)
         LRESULT result = HTCLIENT;
-        if (isTop && isLeft)
-            result = HTTOPLEFT;
-        else if (isTop && isRight)
-            result = HTTOPRIGHT;
-        else if (isBottom && isLeft)
-            result = HTBOTTOMLEFT;
-        else if (isBottom && isRight)
-            result = HTBOTTOMRIGHT;
-        else if (isTop)
-            result = HTTOP;
-        else if (isBottom)
-            result = HTBOTTOM;
-        else if (isLeft)
-            result = HTLEFT;
-        else if (isRight)
-            result = HTRIGHT;
 
         if (native_diag_enabled())
         {
             std::wstringstream ss;
             ss << L"rw=[" << rw.left << L"," << rw.top << L"," << rw.right
-               << L"," << rw.bottom << L"]" << L" border=[" << border_x << L","
-               << border_y << L"]" << L" result=" << result;
+               << L"," << rw.bottom << L"]"
+               << L" result=" << result;
             native_diag_logf(L"nchittest_exit", hwnd, ss.str());
         }
 
@@ -2463,9 +2557,11 @@ bool ensure_native_webview(TrayState &state)
         {
             return false;
         }
-        constexpr DWORD kWebViewWindowStyle = WS_POPUP | WS_THICKFRAME |
-                                              WS_MINIMIZEBOX | WS_MAXIMIZEBOX |
-                                              WS_SYSMENU;
+        DWORD kWebViewWindowStyle = WS_POPUP | WS_THICKFRAME | WS_MINIMIZEBOX |
+                                    WS_MAXIMIZEBOX | WS_SYSMENU;
+        // No WS_THICKFRAME: we initiate sizing via SC_SIZE so DWM never paints
+        // a standard resize frame (which also avoids the intermittent rim).
+        kWebViewWindowStyle &= ~(WS_THICKFRAME | WS_SIZEBOX);
         state.webview_window = CreateWindowExW(
             0, kWebViewWindowClassName, L"TinyTorrent", kWebViewWindowStyle,
             CW_USEDEFAULT, CW_USEDEFAULT, 1280, 768, nullptr, nullptr,
