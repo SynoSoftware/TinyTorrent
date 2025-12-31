@@ -1,9 +1,11 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { Command } from "cmdk";
+import { cn } from "@heroui/react";
 import { useMemo, useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useFocusState } from "@/app/context/FocusContext";
 import type { FocusPart } from "@/app/context/FocusContext";
+import { GLASS_MODAL_SURFACE } from "@/shared/ui/layout/glass-surface";
 
 export interface CommandAction {
     id: string;
@@ -109,7 +111,10 @@ export function CommandPalette({
                     <motion.div
                         {...PANEL_ANIMATION}
                         transition={{ duration: 0.2 }}
-                        className="relative z-10 w-full max-w-2xl rounded-md border border-content1/20 bg-content1/80 shadow-hud backdrop-blur-3xl"
+                    className={cn(
+                        GLASS_MODAL_SURFACE,
+                        "relative z-10 w-full max-w-2xl"
+                    )}
                     >
                         <Command
                             value={query}

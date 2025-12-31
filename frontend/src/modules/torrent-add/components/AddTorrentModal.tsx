@@ -371,7 +371,10 @@ export function AddTorrentModal({
             backdrop="blur"
             size="2xl"
             classNames={{
-                base: cn(GLASS_MODAL_SURFACE, "w-full max-w-modal"),
+                base: cn(
+                    GLASS_MODAL_SURFACE,
+                    "w-full max-w-[var(--tt-modal-add-w)]"
+                ),
                 closeButton: "hover:bg-content1/10 active:bg-content1/20",
             }}
             motionProps={INTERACTION_CONFIG.modalBloom}
@@ -503,7 +506,9 @@ export function AddTorrentModal({
                                     >
                                         {t("modals.file_tree_description")}
                                     </p>
-                                    <div className="max-h-modal-body overflow-y-auto">
+                                    <div
+                                        className="max-h-[var(--tt-modal-body-max-h)] overflow-y-auto"
+                                    >
                                         <FileExplorerTree
                                             files={fileTreeEntries}
                                             emptyMessage={t(

@@ -110,14 +110,12 @@ export function Navbar({
                             >
                                 <TinyTorrentIcon title={t("brand.name")} />
                             </div>
-                            <div className="hidden flex-col md:flex">
-                                <span className="font-bold tracking-tight text-foreground tt-navbar-tab-font">
+                            <div className="hidden flex-col md:flex justify-center ml-tight">
+                                <span className="font-bold tracking-tight text-foreground text-base leading-none">
                                     {t("brand.name")}
                                 </span>
-                                <span className="text-default-400 font-mono font-medium tt-navbar-meta-font">
-                                    {t("brand.version", {
-                                        version: APP_VERSION,
-                                    })}
+                                <span className="text-default-400 font-mono text-xs font-medium leading-none mt-0.5">
+                                    {t("brand.version", { version: APP_VERSION })}
                                 </span>
                             </div>
                         </div>

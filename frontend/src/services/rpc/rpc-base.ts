@@ -404,9 +404,10 @@ export class TransmissionAdapter implements EngineAdapter {
         const endpointPath =
             this.tinyTorrentCapabilities?.websocketEndpoint ??
             this.tinyTorrentCapabilities?.websocketPath;
-        const supportsDeltaSync = this.tinyTorrentCapabilities?.features?.includes(
-            "websocket-delta-sync"
-        );
+        const supportsDeltaSync =
+            this.tinyTorrentCapabilities?.features?.includes(
+                "websocket-delta-sync"
+            );
         return (
             this.serverClass === "tinytorrent" &&
             Boolean(endpointPath) &&
@@ -522,9 +523,7 @@ export class TransmissionAdapter implements EngineAdapter {
         if (!isTransmissionClass) {
             return;
         }
-        if (
-            !this.tinyTorrentCapabilities?.features?.includes?.("ui-attach")
-        ) {
+        if (!this.tinyTorrentCapabilities?.features?.includes?.("ui-attach")) {
             return;
         }
         const request = { method: "session-ui-detach" };
@@ -650,11 +649,37 @@ export class TransmissionAdapter implements EngineAdapter {
     }
 
     public async fetchSessionStats(): Promise<TransmissionSessionStats> {
-        const stats = await this.send(
-            { method: "session-stats" },
-            zSessionStats
-        );
-        return stats;
+        try {
+            const stats = await this.send(
+                { method: "session-stats" },
+                zSessionStats
+            );
+            return stats;
+        } catch (error) {
+            // Best-effort fallback: log and return zeroed stats to avoid
+            // disconnecting the UI on malformed or partial RPC responses.
+            console.warn(
+                "[tiny-torrent][rpc] failed to parse session-stats, returning zeroed stats",
+                error
+            );
+            const zeroTotals = {
+                uploadedBytes: 0,
+                downloadedBytes: 0,
+                filesAdded: 0,
+                secondsActive: 0,
+                sessionCount: 0,
+            };
+            return {
+                activeTorrentCount: 0,
+                downloadSpeed: 0,
+                pausedTorrentCount: 0,
+                torrentCount: 0,
+                uploadSpeed: 0,
+                dhtNodes: 0,
+                cumulativeStats: zeroTotals,
+                currentStats: zeroTotals,
+            };
+        }
     }
 
     public async getSessionStats(): Promise<SessionStats> {
@@ -697,10 +722,7 @@ export class TransmissionAdapter implements EngineAdapter {
     }
 
     public async checkFreeSpace(path: string): Promise<TransmissionFreeSpace> {
-        if (
-            this.serverClass === "tinytorrent" &&
-            NativeShell.isAvailable
-        ) {
+        if (this.serverClass === "tinytorrent" && NativeShell.isAvailable) {
             return NativeShell.checkFreeSpace(path);
         }
         const fs = await this.send(
@@ -742,10 +764,7 @@ export class TransmissionAdapter implements EngineAdapter {
         if (!path) {
             return;
         }
-        if (
-            this.serverClass === "tinytorrent" &&
-            NativeShell.isAvailable
-        ) {
+        if (this.serverClass === "tinytorrent" && NativeShell.isAvailable) {
             await NativeShell.openPath(path);
             return;
         }

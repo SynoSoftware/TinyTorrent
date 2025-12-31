@@ -55,12 +55,19 @@
             },
             "scale": {
                 "unit": 4,
-                "font_base": 11
+                "font_base": 13,
+                "zoom": 1.05
             }
         },
         "shell": {
             "classic": { "density": "normal" },
             "immersive": { "density": "relaxed" }
+        },
+        "modals": {
+            "add_width": 180,
+            "body_max_height": 70,
+            "settings_height": 200,
+            "settings_min_height": 125
         },
         "details": {
             "tab_content_max_height": 360

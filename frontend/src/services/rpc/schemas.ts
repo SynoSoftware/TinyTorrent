@@ -27,9 +27,8 @@ const RPC_TORRENT_STATUS_VALUES = [0, 1, 2, 3, 4, 5, 6, 7] as const;
 const isRpcTorrentStatus = (value: number): value is RpcTorrentStatus =>
     (RPC_TORRENT_STATUS_VALUES as readonly number[]).includes(value);
 
-const zRpcTorrentStatus = z.number().int().refine(isRpcTorrentStatus, {
-    message: "Invalid transmission torrent status",
-});
+// Relaxed: allow any integer but fallback to 0 (Paused) on invalid/unexpected values.
+const zRpcTorrentStatus = z.number().int().catch(0);
 
 const logValidationIssue = (
     context: string,
@@ -214,18 +213,29 @@ const zSessionStatsTotals = z.object({
     sessionCount: z.number(),
 });
 
-const zSessionStatsRaw = z.object({
-    activeTorrentCount: z.number(),
-    downloadSpeed: z.number(),
-    pausedTorrentCount: z.number(),
-    torrentCount: z.number(),
-    uploadSpeed: z.number(),
-    dhtNodes: z.number().optional(),
-    cumulativeStats: zSessionStatsTotals.optional(),
-    "cumulative-stats": zSessionStatsTotals.optional(),
-    currentStats: zSessionStatsTotals.optional(),
-    "current-stats": zSessionStatsTotals.optional(),
-});
+// Best-effort session stats parser: numeric fields fallback to 0, and the
+// entire object falls back to a zeroed shape on parse failures.
+const zSessionStatsRaw = z
+    .object({
+        activeTorrentCount: z.number().catch(0),
+        downloadSpeed: z.number().catch(0),
+        pausedTorrentCount: z.number().catch(0),
+        torrentCount: z.number().catch(0),
+        uploadSpeed: z.number().catch(0),
+        dhtNodes: z.number().optional(),
+        cumulativeStats: zSessionStatsTotals.optional(),
+        "cumulative-stats": zSessionStatsTotals.optional(),
+        currentStats: zSessionStatsTotals.optional(),
+        "current-stats": zSessionStatsTotals.optional(),
+    })
+    .catch({
+        activeTorrentCount: 0,
+        downloadSpeed: 0,
+        pausedTorrentCount: 0,
+        torrentCount: 0,
+        uploadSpeed: 0,
+        dhtNodes: 0,
+    });
 
 const EMPTY_SESSION_TOTALS = {
     uploadedBytes: 0,

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Button } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 
@@ -11,6 +11,7 @@ import {
     type FileExplorerEntry,
 } from "@/shared/ui/workspace/FileExplorerTree";
 import { useFileTree } from "@/shared/hooks/useFileTree";
+import { useOptimisticToggle } from "@/shared/hooks/useOptimisticToggle";
 import type { TorrentFileEntity } from "@/services/rpc/entities";
 import { DETAILS_TAB_CONTENT_MAX_HEIGHT } from "@/config/logic";
 
@@ -27,6 +28,10 @@ interface ContentTabProps {
     ) => void;
 }
 
+const NOOP_FILE_TOGGLE: NonNullable<ContentTabProps["onFilesToggle"]> = () => {
+    /* intentionally empty */
+};
+
 export const ContentTab = ({
     files,
     emptyMessage,
@@ -36,47 +41,19 @@ export const ContentTab = ({
     const { t } = useTranslation();
     const fileEntries = useFileTree(files);
     const filesCount = files?.length ?? 0;
-    const [optimistic, setOptimistic] = useState<Record<number, boolean>>({});
+    const { optimisticState, toggle } = useOptimisticToggle(
+        onFilesToggle ?? NOOP_FILE_TOGGLE
+    );
 
     const displayFiles = useMemo(() => {
-        if (!Object.keys(optimistic).length) return fileEntries;
+        if (!Object.keys(optimisticState).length) return fileEntries;
         return fileEntries.map((entry) => {
-            if (optimistic.hasOwnProperty(entry.index)) {
-                return { ...entry, wanted: optimistic[entry.index] };
+            if (Object.prototype.hasOwnProperty.call(optimisticState, entry.index)) {
+                return { ...entry, wanted: optimisticState[entry.index] };
             }
             return entry;
         });
-    }, [fileEntries, optimistic]);
-
-    const handleToggle = useCallback(
-        (indexes: number[], wanted: boolean) => {
-            if (!indexes.length) return;
-            setOptimistic((prev) => {
-                const next = { ...prev };
-                indexes.forEach((index) => {
-                    next[index] = wanted;
-                });
-                return next;
-            });
-            const result = onFilesToggle?.(indexes, wanted);
-            if (!result) {
-                setOptimistic((prev) => {
-                    const next = { ...prev };
-                    indexes.forEach((index) => delete next[index]);
-                    return next;
-                });
-                return;
-            }
-            result.finally(() => {
-                setOptimistic((prev) => {
-                    const next = { ...prev };
-                    indexes.forEach((index) => delete next[index]);
-                    return next;
-                });
-            });
-        },
-        [onFilesToggle]
-    );
+    }, [fileEntries, optimisticState]);
 
     const fileCountLabel =
         filesCount === 1
@@ -176,7 +153,7 @@ export const ContentTab = ({
                         <FileExplorerTree
                             files={displayFiles}
                             emptyMessage={emptyMessage}
-                            onFilesToggle={handleToggle}
+                            onFilesToggle={toggle}
                             onFileContextAction={onFileContextAction}
                         />
                     </div>

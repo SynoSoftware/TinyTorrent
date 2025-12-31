@@ -1,9 +1,10 @@
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Plus, Activity, Timer, Users, X, Check } from "lucide-react";
-import { Button, Textarea } from "@heroui/react";
+import { Button, Textarea, cn } from "@heroui/react";
 
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
+import { GLASS_PANEL_SURFACE } from "@/shared/ui/layout/glass-surface";
 import type { TorrentTrackerEntity } from "@/services/rpc/entities";
 import { TEXT_ROLES } from "./textRoles";
 
@@ -205,7 +206,12 @@ export const TrackersTab = ({
 
                 {/* Layer 2 Add Trackers Panel (IDE-style Drawer) */}
                 {showAdd && (
-                    <div className="absolute inset-0 z-30 flex flex-col bg-background/40 backdrop-blur-xl">
+                <div
+                    className={cn(
+                        GLASS_PANEL_SURFACE,
+                        "absolute inset-0 z-30 flex flex-col rounded-none bg-background/40 backdrop-blur-xl"
+                    )}
+                >
                         <div className="flex items-center justify-between border-b border-default/10 px-panel py-panel">
                             <span className="text-scaled font-semibold uppercase tracking-tight text-primary">
                                 {t("torrent_modal.trackers.add", {

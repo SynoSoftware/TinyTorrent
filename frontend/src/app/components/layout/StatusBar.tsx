@@ -258,7 +258,7 @@ export function StatusBar({
                                 : "--"
                         }
                         Icon={isSelection ? HardDrive : Activity}
-                        className="min-w-[var(--tt-statusbar-min120)]"
+                        className="min-w-status-chip"
                     />
 
                     <StatGroup
@@ -267,7 +267,7 @@ export function StatusBar({
                             count: sessionStats?.dhtNodes ?? 0,
                         })}
                         Icon={Network}
-                        className="min-w-[var(--tt-statusbar-min80)]"
+                        className="min-w-status-chip"
                     />
 
                     {/* ENGINE CHIP */}

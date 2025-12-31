@@ -423,7 +423,7 @@ export function SettingsModal({
                     GLASS_MODAL_SURFACE,
                     isNativeMode
                         ? "flex flex-row max-h-full max-w-full overflow-hidden"
-                        : "flex flex-row h-settings max-h-settings min-h-settings overflow-hidden"
+                        : "flex flex-row h-[var(--tt-modal-settings-h)] max-h-[var(--tt-modal-settings-h)] min-h-[var(--tt-modal-settings-min-h)] overflow-hidden"
                 ),
                 wrapper: "overflow-hidden",
             }}
