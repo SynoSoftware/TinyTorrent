@@ -32,7 +32,6 @@ import type {
     FileExplorerEntry,
 } from "@/shared/ui/workspace/FileExplorerTree";
 import type { PeerContextAction } from "./details/tabs/PeersTab";
-import { GLASS_BLOCK_SURFACE } from "@/shared/ui/layout/glass-surface";
 
 const ANIMATION = {
     spring: {
@@ -297,7 +296,9 @@ export function ModeLayout({
         <PanelGroup
             direction={splitDirection}
             autoSaveId="tiny-torrent.workbench.layout"
-            className="flex-1 min-h-0 h-full w-full relative overflow-hidden"
+            className={cn(
+                "flex-1 min-h-0 h-full w-full relative overflow-hidden shadow-medium rounded-2xl"
+            )}
         >
             {/* --- MAIN PANEL --- */}
             <Panel className="relative flex-1 min-h-0">
