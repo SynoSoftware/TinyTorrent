@@ -27,7 +27,6 @@
 #include <array>
 #include <atomic>
 #include <chrono>
-#include <cmath>
 #include <cstddef>
 #include <cstdio>
 #include <cwchar>
@@ -93,15 +92,6 @@
 #ifndef DWMWA_ALLOW_NCPAINT
 #define DWMWA_ALLOW_NCPAINT 4
 #endif
-#ifndef DWMNCRP_USEWINDOWSTYLE
-#define DWMNCRP_USEWINDOWSTYLE 0
-#endif
-#ifndef DWMNCRP_DISABLED
-#define DWMNCRP_DISABLED 1
-#endif
-#ifndef DWMNCRP_ENABLED
-#define DWMNCRP_ENABLED 2
-#endif
 #ifndef WS_EX_NOREDIRECTIONBITMAP
 #define WS_EX_NOREDIRECTIONBITMAP 0x00200000L
 #endif
@@ -151,6 +141,7 @@ constexpr wchar_t kWebView2InstallUrl[] =
     L"https://developer.microsoft.com/en-us/microsoft-edge/webview2/"
     L"#download-section";
 constexpr UINT_PTR kDiagSweepTimerId = 0xD1A6;
+constexpr COLORREF kStableDwmRimColor = RGB(0, 0, 0);
 
 // ===== Undocumented compositor API for Acrylic =====
 enum ACCENT_STATE
@@ -207,22 +198,8 @@ struct TrayState
     Microsoft::WRL::ComPtr<IDCompositionDevice> dcomp_device;
     Microsoft::WRL::ComPtr<IDCompositionTarget> dcomp_target;
     Microsoft::WRL::ComPtr<IDCompositionVisual> dcomp_root_visual;
-    Microsoft::WRL::ComPtr<IDCompositionVisual> dcomp_edge_visual;
-    Microsoft::WRL::ComPtr<IDCompositionVisual> dcomp_content_visual;
     Microsoft::WRL::ComPtr<IDCompositionVisual> dcomp_webview_visual;
-    Microsoft::WRL::ComPtr<IDCompositionRectangleClip> dcomp_content_clip;
     Microsoft::WRL::ComPtr<IDCompositionRectangleClip> dcomp_root_clip;
-    Microsoft::WRL::ComPtr<IDCompositionVisual> dcomp_clip_visual;
-    const wchar_t *dcomp_clip_diag_tag = nullptr;
-    const wchar_t *dcomp_clip_diag_active_tag = nullptr;
-    bool dcomp_clip_diag_active = false;
-    uint64_t dcomp_clip_diag_seq = 0;
-    uintptr_t dcomp_diag_last_root_visual = 0;
-    uintptr_t dcomp_diag_last_webview_visual = 0;
-    uintptr_t dcomp_diag_last_clip_visual = 0;
-    uintptr_t dcomp_diag_last_root_clip = 0;
-    uintptr_t dcomp_diag_last_target = 0;
-    uintptr_t dcomp_diag_last_webview_target = 0;
     bool webview_in_size_move = false;
 
     Microsoft::WRL::ComPtr<ICoreWebView2Controller> webview_controller;
@@ -299,8 +276,6 @@ void show_native_window(TrayState &state);
 void reload_native_auth_token(TrayState &state);
 void handle_webview_json_message(TrayState &state, std::string const &payload);
 std::wstring build_native_bridge_script(TrayState &state);
-float compute_scaled_corner_radius(HWND hwnd);
-void ApplyLayout(TrayState &state, HWND hwnd, RECT const *client_override = nullptr);
 std::wstring compute_webview_user_data_dir();
 void cancel_native_webview(TrayState &state);
 std::string http_post_rpc(TrayState &state, std::string const &payload);
@@ -311,7 +286,6 @@ void log_webview_dom_transparency(TrayState &state);
 void run_diag_hittest_sweep(TrayState &state);
 bool capture_window_placement(HWND hwnd, WINDOWPLACEMENT &placement);
 void apply_saved_window_state(TrayState &state);
-void close_splash_window();
 std::string escape_json_string(std::string_view value);
 std::string build_path_payload(std::wstring const &path);
 std::string build_free_space_payload(std::wstring const &path,
@@ -672,37 +646,10 @@ WPARAM syscommand_for_resize_wmsz(int wmsz_edge)
 
 int compute_inner_glass_mask_thickness_px(HWND hwnd)
 {
-    if (!hwnd)
-    {
-        return 0;
-    }
-
-    // DWM may apply an activation/snap edge treatment in a post-composition
-    // pass that is not clip-aware of the app's DComp tree. Composition-hosted
-    // WebView2 can also transiently leave undefined pixels at the extreme edge
-    // during occlusion/activation, which DWM then reveals as a thin square rim.
-    //
-    // The stable fix is to avoid drawing into the DWM "edge zone" by insetting
-    // the WebView2 controller bounds (and the DComp clip) by a small number of
-    // *physical* pixels.
-    DWORD ex_style = static_cast<DWORD>(GetWindowLongPtrW(hwnd, GWL_EXSTYLE));
-    if ((ex_style & WS_EX_NOREDIRECTIONBITMAP) == 0)
-    {
-        // Only apply the inset to the composition-hosted window. The HWND-host
-        // fallback doesn't exhibit the rim and should keep full-bleed layout.
-        return 0;
-    }
-
-    UINT dpi = GetDpiForWindow(hwnd);
-    if (dpi == 0)
-    {
-        dpi = 96;
-    }
-
-    // 1px at 100% scaling; ceil() so fractional DPI steps still exclude enough
-    // pixels to avoid edge sampling.
-    int edge = static_cast<int>((dpi + 95u) / 96u);
-    return std::clamp(edge, 1, 4);
+    (void)hwnd;
+    // No geometry hacks: WebView occupies the full client area. Any DWM rim is
+    // handled via window attributes, not by insetting/masking WebView bounds.
+    return 0;
 }
 
 ResizeBorderThickness get_resize_border_thickness(HWND hwnd)
@@ -739,6 +686,7 @@ ResizeBorderThickness get_resize_border_thickness(HWND hwnd)
 
 RECT compute_webview_controller_bounds_from_client(HWND hwnd, RECT client)
 {
+    (void)hwnd;
     if (client.right < client.left)
     {
         client.right = client.left;
@@ -746,22 +694,6 @@ RECT compute_webview_controller_bounds_from_client(HWND hwnd, RECT client)
     if (client.bottom < client.top)
     {
         client.bottom = client.top;
-    }
-    int const edge = compute_inner_glass_mask_thickness_px(hwnd);
-    if (edge > 0)
-    {
-        client.left += edge;
-        client.top += edge;
-        client.right -= edge;
-        client.bottom -= edge;
-        if (client.right < client.left)
-        {
-            client.right = client.left;
-        }
-        if (client.bottom < client.top)
-        {
-            client.bottom = client.top;
-        }
     }
     return client;
 }
@@ -773,118 +705,15 @@ RECT compute_webview_controller_bounds(HWND hwnd)
     return compute_webview_controller_bounds_from_client(hwnd, client);
 }
 
-void ApplyLayout(TrayState &state, HWND hwnd, RECT const *client_override)
-{
-    if (!hwnd)
-    {
-        return;
-    }
-
-    RECT client{};
-    if (client_override)
-    {
-        client = *client_override;
-    }
-    else if (!GetClientRect(hwnd, &client))
-    {
-        return;
-    }
-
-    UINT dpi = GetDpiForWindow(hwnd);
-    if (dpi == 0)
-    {
-        dpi = 96;
-    }
-
-    int edge_px = compute_inner_glass_mask_thickness_px(hwnd);
-    RECT content_rect = client;
-    if (edge_px > 0)
-    {
-        content_rect.left = std::min(content_rect.right,
-                                     content_rect.left + edge_px);
-        content_rect.top =
-            std::min(content_rect.bottom, content_rect.top + edge_px);
-        content_rect.right =
-            std::max(content_rect.left, content_rect.right - edge_px);
-        content_rect.bottom =
-            std::max(content_rect.top, content_rect.bottom - edge_px);
-    }
-
-    if (state.webview_controller)
-    {
-        state.webview_controller->put_Bounds(content_rect);
-    }
-
-    if (!state.dcomp_device || !state.dcomp_root_visual ||
-        !state.dcomp_edge_visual || !state.dcomp_content_visual ||
-        !state.dcomp_webview_visual)
-    {
-        return;
-    }
-
-    if (!state.dcomp_content_clip)
-    {
-        Microsoft::WRL::ComPtr<IDCompositionRectangleClip> clip;
-        if (SUCCEEDED(state.dcomp_device->CreateRectangleClip(&clip)) && clip)
-        {
-            state.dcomp_content_clip = clip;
-        }
-    }
-
-    float content_width =
-        static_cast<float>(std::max(0L, content_rect.right - content_rect.left));
-    float content_height = static_cast<float>(
-        std::max(0L, content_rect.bottom - content_rect.top));
-    float radius =
-        std::max(0.0f, compute_scaled_corner_radius(hwnd) -
-                           static_cast<float>(edge_px));
-
-    if (state.dcomp_content_clip)
-    {
-        state.dcomp_content_clip->SetLeft(0.0f);
-        state.dcomp_content_clip->SetTop(0.0f);
-        state.dcomp_content_clip->SetRight(content_width);
-        state.dcomp_content_clip->SetBottom(content_height);
-        state.dcomp_content_clip->SetTopLeftRadiusX(radius);
-        state.dcomp_content_clip->SetTopLeftRadiusY(radius);
-        state.dcomp_content_clip->SetTopRightRadiusX(radius);
-        state.dcomp_content_clip->SetTopRightRadiusY(radius);
-        state.dcomp_content_clip->SetBottomRightRadiusX(radius);
-        state.dcomp_content_clip->SetBottomRightRadiusY(radius);
-        state.dcomp_content_clip->SetBottomLeftRadiusX(radius);
-        state.dcomp_content_clip->SetBottomLeftRadiusY(radius);
-        state.dcomp_content_visual->SetClip(state.dcomp_content_clip.Get());
-    }
-
-    state.dcomp_edge_visual->SetOffsetX(0.0f);
-    state.dcomp_edge_visual->SetOffsetY(0.0f);
-    state.dcomp_content_visual->SetOffsetX(static_cast<float>(edge_px));
-    state.dcomp_content_visual->SetOffsetY(static_cast<float>(edge_px));
-    state.dcomp_webview_visual->SetOffsetX(0.0f);
-    state.dcomp_webview_visual->SetOffsetY(0.0f);
-
-    state.dcomp_device->Commit();
-}
-
 void reset_dcomp_host(TrayState &state)
 {
     state.dcomp_root_clip.Reset();
-    state.dcomp_clip_visual.Reset();
-    state.dcomp_content_clip.Reset();
     state.dcomp_webview_visual.Reset();
-    state.dcomp_content_visual.Reset();
-    state.dcomp_edge_visual.Reset();
     state.dcomp_root_visual.Reset();
     state.dcomp_target.Reset();
     state.dcomp_device.Reset();
     state.d3d_context.Reset();
     state.d3d_device.Reset();
-    state.dcomp_diag_last_root_visual = 0;
-    state.dcomp_diag_last_webview_visual = 0;
-    state.dcomp_diag_last_clip_visual = 0;
-    state.dcomp_diag_last_root_clip = 0;
-    state.dcomp_diag_last_target = 0;
-    state.dcomp_diag_last_webview_target = 0;
 }
 
 void reset_webview_objects_keep_window(TrayState &state)
@@ -897,238 +726,6 @@ void reset_webview_objects_keep_window(TrayState &state)
     state.webview_comp_controller4.Reset();
     state.webview_comp_controller.Reset();
     state.webview.Reset();
-}
-
-void update_dcomp_root_clip(TrayState *state, HWND hwnd, RECT client);
-void request_clip_diag(TrayState *state, wchar_t const *tag);
-void begin_clip_diag(TrayState *state, HWND hwnd);
-void end_clip_diag(TrayState *state, HWND hwnd);
-void log_dcomp_visual_state(TrayState *state, HWND hwnd,
-                            wchar_t const *tag);
-
-void log_dcomp_clip_hr(TrayState *state, HWND hwnd, wchar_t const *step,
-                       HRESULT hr)
-{
-    if (!native_diag_enabled())
-    {
-        return;
-    }
-    if (!state && SUCCEEDED(hr))
-    {
-        return;
-    }
-    if (state && !state->dcomp_clip_diag_active && SUCCEEDED(hr))
-    {
-        return;
-    }
-    std::wstringstream ss;
-    ss << L"step=" << step << L" hr=0x" << std::hex
-       << static_cast<uint32_t>(hr) << std::dec;
-    if (state && state->dcomp_clip_diag_active)
-    {
-        ss << L" seq=" << state->dcomp_clip_diag_seq << L" event="
-           << (state->dcomp_clip_diag_active_tag
-                   ? state->dcomp_clip_diag_active_tag
-                   : L"(null)");
-    }
-    native_diag_logf(L"dcomp.clip", hwnd, ss.str());
-}
-
-Microsoft::WRL::ComPtr<IDCompositionVisual>
-resolve_dcomp_clip_visual(TrayState *state, HWND hwnd, HRESULT *target_hr)
-{
-    Microsoft::WRL::ComPtr<IDCompositionVisual> result;
-    if (target_hr)
-    {
-        *target_hr = E_NOINTERFACE;
-    }
-    if (!state)
-    {
-        return result;
-    }
-    if (state->webview_comp_controller)
-    {
-        Microsoft::WRL::ComPtr<IDCompositionVisual> webview_target;
-        HRESULT hr = state->webview_comp_controller->get_RootVisualTarget(
-            &webview_target);
-        if (target_hr)
-        {
-            *target_hr = hr;
-        }
-        if (SUCCEEDED(hr) && webview_target)
-        {
-            return webview_target;
-        }
-        if (FAILED(hr))
-        {
-            log_dcomp_clip_hr(state, hwnd, L"get_RootVisualTarget", hr);
-        }
-    }
-    return state->dcomp_root_visual;
-}
-
-bool ensure_dcomp_root_clip_attached(TrayState *state, HWND hwnd)
-{
-    if (!state || !state->dcomp_device || !state->dcomp_root_visual)
-    {
-        return false;
-    }
-    if (!state->dcomp_root_clip)
-    {
-        HRESULT hr =
-            state->dcomp_device->CreateRectangleClip(&state->dcomp_root_clip);
-        if (FAILED(hr) || !state->dcomp_root_clip)
-        {
-            log_dcomp_clip_hr(state, hwnd, L"CreateRectangleClip", hr);
-            return false;
-        }
-    }
-
-    Microsoft::WRL::ComPtr<IDCompositionVisual> clip_visual =
-        resolve_dcomp_clip_visual(state, hwnd, nullptr);
-    if (!clip_visual)
-    {
-        return false;
-    }
-
-    if (state->dcomp_clip_visual.Get() != clip_visual.Get())
-    {
-        state->dcomp_clip_visual = clip_visual;
-        HRESULT hr = clip_visual->SetClip(state->dcomp_root_clip.Get());
-        log_dcomp_clip_hr(state, hwnd, L"SetClip", hr);
-        if (FAILED(hr))
-        {
-            state->dcomp_clip_visual.Reset();
-            return false;
-        }
-        if (native_diag_enabled())
-        {
-            log_dcomp_visual_state(state, hwnd, L"clip_visual_changed");
-        }
-    }
-    return true;
-}
-
-void request_clip_diag(TrayState *state, wchar_t const *tag)
-{
-    if (!native_diag_enabled() || !state || !tag ||
-        state->dcomp_clip_diag_active || state->dcomp_clip_diag_tag)
-    {
-        return;
-    }
-    state->dcomp_clip_diag_tag = tag;
-}
-
-void log_dcomp_visual_state(TrayState *state, HWND hwnd, wchar_t const *tag)
-{
-    if (!native_diag_enabled() || !state)
-    {
-        return;
-    }
-
-    auto as_ptr = [](auto *value) -> uintptr_t
-    { return reinterpret_cast<uintptr_t>(value); };
-
-    uintptr_t root_visual = as_ptr(state->dcomp_root_visual.Get());
-    uintptr_t webview_visual = as_ptr(state->dcomp_webview_visual.Get());
-    uintptr_t clip_visual = as_ptr(state->dcomp_clip_visual.Get());
-    uintptr_t root_clip = as_ptr(state->dcomp_root_clip.Get());
-    uintptr_t target = as_ptr(state->dcomp_target.Get());
-
-    Microsoft::WRL::ComPtr<IDCompositionVisual> wv_target;
-    HRESULT wv_hr = E_NOINTERFACE;
-    if (state->webview_comp_controller)
-    {
-        wv_hr =
-            state->webview_comp_controller->get_RootVisualTarget(&wv_target);
-    }
-    uintptr_t webview_target = as_ptr(wv_target.Get());
-
-    bool root_changed = root_visual != state->dcomp_diag_last_root_visual;
-    bool webview_changed =
-        webview_visual != state->dcomp_diag_last_webview_visual;
-    bool clip_changed = clip_visual != state->dcomp_diag_last_clip_visual;
-    bool root_clip_changed = root_clip != state->dcomp_diag_last_root_clip;
-    bool target_changed = target != state->dcomp_diag_last_target;
-    bool webview_target_changed =
-        webview_target != state->dcomp_diag_last_webview_target;
-
-    if (!state->dcomp_clip_diag_active && !root_changed && !webview_changed &&
-        !clip_changed && !root_clip_changed && !target_changed &&
-        !webview_target_changed)
-    {
-        return;
-    }
-
-    state->dcomp_diag_last_root_visual = root_visual;
-    state->dcomp_diag_last_webview_visual = webview_visual;
-    state->dcomp_diag_last_clip_visual = clip_visual;
-    state->dcomp_diag_last_root_clip = root_clip;
-    state->dcomp_diag_last_target = target;
-    state->dcomp_diag_last_webview_target = webview_target;
-
-    bool webview_target_matches =
-        webview_target != 0 && webview_target == webview_visual;
-    bool clip_matches_webview_target =
-        webview_target != 0 && clip_visual == webview_target;
-    bool clip_matches_root = clip_visual != 0 && clip_visual == root_visual;
-
-    std::wstringstream ss;
-    ss << L"tag=" << (tag ? tag : L"(null)");
-    ss << L" root=0x" << std::hex << root_visual;
-    ss << L" webview=0x" << webview_visual;
-    ss << L" clip=0x" << clip_visual;
-    ss << L" root_clip=0x" << root_clip;
-    ss << L" target=0x" << target << std::dec;
-    ss << L" wv_target_hr=0x" << std::hex
-       << static_cast<uint32_t>(wv_hr);
-    ss << L" wv_target=0x" << webview_target << std::dec;
-    ss << L" wv_target_matches=" << (webview_target_matches ? 1 : 0);
-    ss << L" clip_on_wv_target=" << (clip_matches_webview_target ? 1 : 0);
-    ss << L" clip_on_root=" << (clip_matches_root ? 1 : 0);
-    ss << L" root_changed=" << (root_changed ? 1 : 0);
-    ss << L" webview_changed=" << (webview_changed ? 1 : 0);
-    ss << L" wv_target_changed=" << (webview_target_changed ? 1 : 0);
-    native_diag_logf(L"dcomp.visual", hwnd, ss.str());
-}
-
-void begin_clip_diag(TrayState *state, HWND hwnd)
-{
-    if (!native_diag_enabled() || !state || state->dcomp_clip_diag_active ||
-        !state->dcomp_clip_diag_tag)
-    {
-        return;
-    }
-    state->dcomp_clip_diag_active = true;
-    state->dcomp_clip_diag_active_tag = state->dcomp_clip_diag_tag;
-    state->dcomp_clip_diag_tag = nullptr;
-    state->dcomp_clip_diag_seq += 1;
-
-    std::wstringstream ss;
-    ss << L"seq=" << state->dcomp_clip_diag_seq << L" event="
-       << (state->dcomp_clip_diag_active_tag
-               ? state->dcomp_clip_diag_active_tag
-               : L"(null)");
-    native_diag_logf(L"dcomp.clip.begin", hwnd, ss.str());
-    log_dcomp_visual_state(state, hwnd, state->dcomp_clip_diag_active_tag);
-    native_diag_dump_window_rim_state(hwnd, L"dcomp.clip.begin", 0, 0);
-}
-
-void end_clip_diag(TrayState *state, HWND hwnd)
-{
-    if (!native_diag_enabled() || !state || !state->dcomp_clip_diag_active)
-    {
-        return;
-    }
-    std::wstringstream ss;
-    ss << L"seq=" << state->dcomp_clip_diag_seq << L" event="
-       << (state->dcomp_clip_diag_active_tag
-               ? state->dcomp_clip_diag_active_tag
-               : L"(null)");
-    native_diag_logf(L"dcomp.clip.end", hwnd, ss.str());
-    log_dcomp_visual_state(state, hwnd, state->dcomp_clip_diag_active_tag);
-    state->dcomp_clip_diag_active = false;
-    state->dcomp_clip_diag_active_tag = nullptr;
 }
 
 bool ensure_dcomp_visual_tree(TrayState &state, DCompInitFailure *failure)
@@ -1221,44 +818,6 @@ bool ensure_dcomp_visual_tree(TrayState &state, DCompInitFailure *failure)
         return false;
     }
 
-    Microsoft::WRL::ComPtr<IDCompositionVisual> edge_visual;
-    hr = dcomp->CreateVisual(&edge_visual);
-    if (FAILED(hr) || !edge_visual)
-    {
-        if (failure)
-        {
-            failure->hr = hr;
-            failure->step = L"CreateVisual(edge)";
-        }
-        if (native_diag_enabled())
-        {
-            std::wstringstream ss;
-            ss << L"CreateVisual(edge) hr=0x" << std::hex
-               << static_cast<uint32_t>(hr) << std::dec;
-            native_diag_logf(L"dcomp", state.webview_window, ss.str());
-        }
-        return false;
-    }
-
-    Microsoft::WRL::ComPtr<IDCompositionVisual> content_visual;
-    hr = dcomp->CreateVisual(&content_visual);
-    if (FAILED(hr) || !content_visual)
-    {
-        if (failure)
-        {
-            failure->hr = hr;
-            failure->step = L"CreateVisual(content)";
-        }
-        if (native_diag_enabled())
-        {
-            std::wstringstream ss;
-            ss << L"CreateVisual(content) hr=0x" << std::hex
-               << static_cast<uint32_t>(hr) << std::dec;
-            native_diag_logf(L"dcomp", state.webview_window, ss.str());
-        }
-        return false;
-    }
-
     Microsoft::WRL::ComPtr<IDCompositionVisual> webview_visual;
     hr = dcomp->CreateVisual(&webview_visual);
     if (FAILED(hr) || !webview_visual)
@@ -1278,60 +837,24 @@ bool ensure_dcomp_visual_tree(TrayState &state, DCompInitFailure *failure)
         return false;
     }
 
-    // Clamp sampling for every visual to avoid fringes at the edges.
+    // Clamp bitmap sampling at the edge of the DComp visuals. This helps
+    // prevent 1px fringes (often white) that can show up when the content is
+    // sampled during activation / composition transitions.
     root->SetBorderMode(DCOMPOSITION_BORDER_MODE_HARD);
-    edge_visual->SetBorderMode(DCOMPOSITION_BORDER_MODE_HARD);
-    content_visual->SetBorderMode(DCOMPOSITION_BORDER_MODE_HARD);
     webview_visual->SetBorderMode(DCOMPOSITION_BORDER_MODE_HARD);
 
-    hr = content_visual->AddVisual(webview_visual.Get(), FALSE, nullptr);
+    hr = root->AddVisual(webview_visual.Get(), FALSE, nullptr);
     if (FAILED(hr))
     {
         if (failure)
         {
             failure->hr = hr;
-            failure->step = L"AddVisual(webview->content)";
+            failure->step = L"AddVisual(webview)";
         }
         if (native_diag_enabled())
         {
             std::wstringstream ss;
-            ss << L"AddVisual(webview->content) hr=0x" << std::hex
-               << static_cast<uint32_t>(hr) << std::dec;
-            native_diag_logf(L"dcomp", state.webview_window, ss.str());
-        }
-        return false;
-    }
-
-    hr = root->AddVisual(content_visual.Get(), FALSE, nullptr);
-    if (FAILED(hr))
-    {
-        if (failure)
-        {
-            failure->hr = hr;
-            failure->step = L"AddVisual(content->root)";
-        }
-        if (native_diag_enabled())
-        {
-            std::wstringstream ss;
-            ss << L"AddVisual(content->root) hr=0x" << std::hex
-               << static_cast<uint32_t>(hr) << std::dec;
-            native_diag_logf(L"dcomp", state.webview_window, ss.str());
-        }
-        return false;
-    }
-
-    hr = root->AddVisual(edge_visual.Get(), TRUE, content_visual.Get());
-    if (FAILED(hr))
-    {
-        if (failure)
-        {
-            failure->hr = hr;
-            failure->step = L"AddVisual(edge->root)";
-        }
-        if (native_diag_enabled())
-        {
-            std::wstringstream ss;
-            ss << L"AddVisual(edge->root) hr=0x" << std::hex
+            ss << L"AddVisual(webview) hr=0x" << std::hex
                << static_cast<uint32_t>(hr) << std::dec;
             native_diag_logf(L"dcomp", state.webview_window, ss.str());
         }
@@ -1344,29 +867,19 @@ bool ensure_dcomp_visual_tree(TrayState &state, DCompInitFailure *failure)
     hr = dcomp->CreateRectangleClip(&root_clip);
     if (SUCCEEDED(hr) && root_clip)
     {
-        // Clip attachment is deferred to update_dcomp_root_clip so we can
-        // target the visual WebView2 is actually presenting.
-    }
-    else if (FAILED(hr))
-    {
-        log_dcomp_clip_hr(&state, state.webview_window, L"CreateRectangleClip",
-                          hr);
+        root_clip->SetLeft(0.0f);
+        root_clip->SetTop(0.0f);
+        root_clip->SetRight(static_cast<float>(client.right - client.left));
+        root_clip->SetBottom(static_cast<float>(client.bottom - client.top));
+        root->SetClip(root_clip.Get());
     }
 
     state.d3d_device = device;
     state.d3d_context = context;
     state.dcomp_device = dcomp;
     state.dcomp_root_visual = root;
-    state.dcomp_edge_visual = edge_visual;
-    state.dcomp_content_visual = content_visual;
     state.dcomp_webview_visual = webview_visual;
     state.dcomp_root_clip = root_clip;
-    if (native_diag_enabled())
-    {
-        log_dcomp_visual_state(&state, state.webview_window,
-                               L"ensure_dcomp_visual_tree");
-    }
-    update_dcomp_root_clip(&state, state.webview_window, client);
     return true;
 }
 
@@ -1425,128 +938,52 @@ bool attach_dcomp_target(TrayState &state, DCompInitFailure *failure)
         return false;
     }
 
-    if (native_diag_enabled())
-    {
-        log_dcomp_visual_state(&state, state.webview_window, L"SetRoot");
-    }
-
     state.dcomp_device->Commit();
     state.dcomp_target = target;
     return true;
 }
 
-float compute_scaled_corner_radius(HWND hwnd)
-{
-    if (!hwnd)
-    {
-        return 0.0f;
-    }
-    constexpr float kWindows11CornerRadius = 16.0f;
-    UINT dpi = GetDpiForWindow(hwnd);
-    if (dpi == 0)
-    {
-        dpi = 96;
-    }
-    return kWindows11CornerRadius * (static_cast<float>(dpi) / 96.0f);
-}
-
-void update_dcomp_root_clip(TrayState *state, HWND hwnd, RECT client)
+void update_dcomp_root_clip(TrayState *state, RECT client)
 {
     if (!state || !state->dcomp_device || !state->dcomp_root_visual)
     {
         return;
     }
 
-    if (!ensure_dcomp_root_clip_attached(state, hwnd))
+    if (!state->dcomp_root_clip)
+    {
+        state->dcomp_device->CreateRectangleClip(&state->dcomp_root_clip);
+        if (state->dcomp_root_clip)
+        {
+            state->dcomp_root_visual->SetClip(state->dcomp_root_clip.Get());
+        }
+    }
+
+    if (!state->dcomp_root_clip)
     {
         return;
     }
-
-    auto check = [&](HRESULT hr, wchar_t const *step) -> bool
-    {
-        log_dcomp_clip_hr(state, hwnd, step, hr);
-        return SUCCEEDED(hr);
-    };
 
     float w = static_cast<float>(std::max(0L, client.right - client.left));
     float h = static_cast<float>(std::max(0L, client.bottom - client.top));
-    float radius = compute_scaled_corner_radius(hwnd);
-    float edge = static_cast<float>(compute_inner_glass_mask_thickness_px(hwnd));
-    float left = std::max(0.0f, edge);
-    float top = std::max(0.0f, edge);
-    float right = std::max(left, w - edge);
-    float bottom = std::max(top, h - edge);
-    if (state->dcomp_clip_diag_active)
-    {
-        std::wstringstream ss;
-        ss << L"w=" << w << L" h=" << h << L" edge=" << edge
-           << L" clip=[" << left << L"," << top << L"," << right << L","
-           << bottom << L"] radius=" << radius;
-        native_diag_logf(L"dcomp.clip.bounds", hwnd, ss.str());
-    }
-    if (!check(state->dcomp_root_clip->SetLeft(left), L"SetLeft") ||
-        !check(state->dcomp_root_clip->SetTop(top), L"SetTop") ||
-        !check(state->dcomp_root_clip->SetRight(right), L"SetRight") ||
-        !check(state->dcomp_root_clip->SetBottom(bottom), L"SetBottom"))
-    {
-        return;
-    }
-    if (radius > 0.0f)
-    {
-        if (!check(state->dcomp_root_clip->SetTopLeftRadiusX(radius),
-                   L"SetTopLeftRadiusX") ||
-            !check(state->dcomp_root_clip->SetTopLeftRadiusY(radius),
-                   L"SetTopLeftRadiusY") ||
-            !check(state->dcomp_root_clip->SetTopRightRadiusX(radius),
-                   L"SetTopRightRadiusX") ||
-            !check(state->dcomp_root_clip->SetTopRightRadiusY(radius),
-                   L"SetTopRightRadiusY") ||
-            !check(state->dcomp_root_clip->SetBottomRightRadiusX(radius),
-                   L"SetBottomRightRadiusX") ||
-            !check(state->dcomp_root_clip->SetBottomRightRadiusY(radius),
-                   L"SetBottomRightRadiusY") ||
-            !check(state->dcomp_root_clip->SetBottomLeftRadiusX(radius),
-                   L"SetBottomLeftRadiusX") ||
-            !check(state->dcomp_root_clip->SetBottomLeftRadiusY(radius),
-                   L"SetBottomLeftRadiusY"))
-        {
-            return;
-        }
-    }
+    state->dcomp_root_clip->SetLeft(0.0f);
+    state->dcomp_root_clip->SetTop(0.0f);
+    state->dcomp_root_clip->SetRight(w);
+    state->dcomp_root_clip->SetBottom(h);
 }
 
-void commit_dcomp(TrayState *state, HWND hwnd)
+void commit_dcomp(TrayState *state)
 {
     if (!state || !state->dcomp_device)
     {
         return;
     }
-    HRESULT commit_hr = state->dcomp_device->Commit();
-    log_dcomp_clip_hr(state, hwnd, L"Commit", commit_hr);
-    bool force_wait = state->dcomp_clip_diag_active;
-    if (state->webview_in_size_move || force_wait)
+    state->dcomp_device->Commit();
+    if (state->webview_in_size_move)
     {
-        HRESULT wait_hr = state->dcomp_device->WaitForCommitCompletion();
-        log_dcomp_clip_hr(state, hwnd, L"WaitForCommitCompletion", wait_hr);
+        state->dcomp_device->WaitForCommitCompletion();
         DwmFlush();
     }
-}
-
-void refresh_dcomp_root_clip(TrayState *state, HWND hwnd)
-{
-    if (!state || !hwnd)
-    {
-        return;
-    }
-    RECT client{};
-    if (!GetClientRect(hwnd, &client))
-    {
-        return;
-    }
-    begin_clip_diag(state, hwnd);
-    update_dcomp_root_clip(state, hwnd, client);
-    commit_dcomp(state, hwnd);
-    end_clip_diag(state, hwnd);
 }
 
 void update_webview_controller_bounds_from_client_rect(TrayState *state,
@@ -1558,35 +995,11 @@ void update_webview_controller_bounds_from_client_rect(TrayState *state,
     }
     RECT bounds = compute_webview_controller_bounds_from_client(hwnd, client);
     HRESULT put_hr = state->webview_controller->put_Bounds(bounds);
-    begin_clip_diag(state, hwnd);
-    update_dcomp_root_clip(state, hwnd, client);
-    commit_dcomp(state, hwnd);
-    end_clip_diag(state, hwnd);
+    update_dcomp_root_clip(state, client);
+    commit_dcomp(state);
 
     if (native_diag_enabled())
     {
-        UINT dpi = GetDpiForWindow(hwnd);
-        if (dpi == 0)
-        {
-            dpi = 96;
-        }
-        int client_w = std::max(0L, client.right - client.left);
-        int client_h = std::max(0L, client.bottom - client.top);
-        int edge_px = compute_inner_glass_mask_thickness_px(hwnd);
-        float radius_px = compute_scaled_corner_radius(hwnd);
-        int clip_l = std::max(0, edge_px);
-        int clip_t = std::max(0, edge_px);
-        int clip_r = std::max(clip_l, client_w - edge_px);
-        int clip_b = std::max(clip_t, client_h - edge_px);
-        std::wstringstream inset_ss;
-        inset_ss << L"dpi=" << dpi << L" client_sz=[" << client_w << L","
-                 << client_h << L"] edge_px=" << edge_px << L" bounds_set=["
-                 << bounds.left << L"," << bounds.top << L"," << bounds.right
-                 << L"," << bounds.bottom << L"] clip_rect=[" << clip_l << L","
-                 << clip_t << L"," << clip_r << L"," << clip_b
-                 << L"] radius_px=" << radius_px;
-        native_diag_logf(L"inset", hwnd, inset_ss.str());
-
         RECT rw{};
         GetWindowRect(hwnd, &rw);
         RECT efb{};
@@ -1646,7 +1059,7 @@ HRESULT finish_webview_controller_setup(TrayState &state)
     configure_webview_controller_pixel_mode(state, state.webview_window);
 
     state.webview_controller->get_CoreWebView2(&state.webview);
-    ApplyLayout(state, state.webview_window);
+    update_webview_controller_bounds(&state, state.webview_window);
     state.webview_controller->put_IsVisible(TRUE);
 
     if (state.webview)
@@ -1731,11 +1144,8 @@ HRESULT finish_webview_controller_setup(TrayState &state)
                 }
                 if (state.webview_window)
                 {
-                    request_clip_diag(&state, L"NavigationCompleted");
-                    refresh_dcomp_root_clip(&state, state.webview_window);
                     ShowWindow(state.webview_window, SW_SHOW);
                     SetForegroundWindow(state.webview_window);
-                    close_splash_window();
                 }
                 return S_OK;
             })
@@ -1976,14 +1386,7 @@ void apply_frameless_window_style(HWND hwnd)
     {
         return;
     }
-    DWMNCRENDERINGPOLICY ncrp =
-        static_cast<DWMNCRENDERINGPOLICY>(DWMNCRP_DISABLED);
-    HRESULT hr0 = safe_dwm_set_window_attribute(
-        hwnd, DWMWA_NCRENDERING_POLICY, &ncrp, sizeof(ncrp));
-    BOOL allow_ncpaint = FALSE;
-    HRESULT hr_allow = safe_dwm_set_window_attribute(
-        hwnd, DWMWA_ALLOW_NCPAINT, &allow_ncpaint, sizeof(allow_ncpaint));
-    COLORREF border = DWMWA_COLOR_NONE;
+    COLORREF border = kStableDwmRimColor;
     HRESULT hr1 = safe_dwm_set_window_attribute(hwnd, DWMWA_BORDER_COLOR,
                                                 &border, sizeof(border));
     UINT frame_thickness = 0;
@@ -1993,9 +1396,7 @@ void apply_frameless_window_style(HWND hwnd)
     if (native_diag_enabled())
     {
         std::wstringstream ss;
-        ss << L"ncrp=0x" << std::hex << static_cast<uint32_t>(hr0)
-           << L" allow_ncpaint=0x" << static_cast<uint32_t>(hr_allow)
-           << L" border_color=0x" << static_cast<uint32_t>(hr1)
+        ss << L"border_color=0x" << std::hex << static_cast<uint32_t>(hr1)
            << L" frame_thickness=0x" << static_cast<uint32_t>(hr2) << std::dec;
         native_diag_logf(L"dwm", hwnd, ss.str());
     }
@@ -2772,12 +2173,20 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
     switch (msg)
     {
     case WM_NCCREATE:
+        // Earliest message where we can influence DWM non-client behavior
+        // before the first activation paint.
+        native_diag_dump_window_rim_state(hwnd, L"WM_NCCREATE.pre", wparam,
+                                          lparam);
         apply_stable_activation_rim(hwnd, true);
+        native_diag_dump_window_rim_state(hwnd, L"WM_NCCREATE.post", wparam,
+                                          lparam);
         break;
     case WM_CREATE:
         native_diag_dump_window_rim_state(hwnd, L"WM_CREATE.pre", wparam,
                                           lparam);
         apply_stable_activation_rim(hwnd, true);
+        native_diag_dump_window_rim_state(hwnd, L"WM_CREATE.post", wparam,
+                                          lparam);
         break;
     case WM_ENTERSIZEMOVE:
         if (state)
@@ -2788,18 +2197,21 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
     case WM_EXITSIZEMOVE:
         if (state)
         {
-            request_clip_diag(state, L"WM_EXITSIZEMOVE");
-            ApplyLayout(*state, hwnd);
+            // Ensure the final size commit is synchronous as well, otherwise
+            // WebView/DComp can remain in a partially-updated state after the
+            // interactive resize ends.
+            update_webview_controller_bounds(state, hwnd);
             state->webview_in_size_move = false;
         }
+        native_diag_dump_window_rim_state(hwnd, L"WM_EXITSIZEMOVE", wparam,
+                                          lparam);
         return 0;
     case WM_SIZING:
     {
-        if (!state)
+        if (!state || !state->webview_controller)
         {
             return 0;
         }
-        request_clip_diag(state, L"WM_SIZING");
         auto *window_rect = reinterpret_cast<RECT *>(lparam);
         if (!window_rect)
         {
@@ -2811,22 +2223,16 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
         int window_w = std::max(0L, window_rect->right - window_rect->left);
         int window_h = std::max(0L, window_rect->bottom - window_rect->top);
         RECT client{0, 0, window_w, window_h};
-        ApplyLayout(*state, hwnd, &client);
+        update_webview_controller_bounds_from_client_rect(state, hwnd, client);
         return 0;
     }
     case WM_SIZE:
-        if (state)
-        {
-            request_clip_diag(state, L"WM_SIZE");
-        }
         if (state && state->webview_in_size_move)
         {
             return 0;
         }
-        if (state)
-        {
-            ApplyLayout(*state, hwnd);
-        }
+        update_webview_controller_bounds(state, hwnd);
+        native_diag_dump_window_rim_state(hwnd, L"WM_SIZE", wparam, lparam);
         return 0;
     case WM_SETFOCUS:
         if (state && state->webview_controller)
@@ -2911,6 +2317,10 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
         }
         break;
     case WM_ERASEBKGND:
+        if (native_diag_enabled())
+        {
+            native_diag_logf(L"erasebkgnd", hwnd, L"return=1");
+        }
         return 1;
     case WM_PAINT:
     {
@@ -2918,6 +2328,13 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
         PAINTSTRUCT ps{};
         BeginPaint(hwnd, &ps);
         EndPaint(hwnd, &ps);
+        if (native_diag_enabled())
+        {
+            std::wstringstream ss;
+            ss << L"rcPaint=[" << ps.rcPaint.left << L"," << ps.rcPaint.top
+               << L"," << ps.rcPaint.right << L"," << ps.rcPaint.bottom << L"]";
+            native_diag_logf(L"paint", hwnd, ss.str());
+        }
         return 0;
     }
     case WM_NCACTIVATE:
@@ -2925,20 +2342,14 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
         native_diag_dump_window_rim_state(hwnd, L"WM_NCACTIVATE.pre", wparam,
                                           lparam);
         apply_stable_activation_rim(hwnd, true);
+        native_diag_dump_window_rim_state(hwnd, L"WM_NCACTIVATE.preApplied",
+                                          wparam, lparam);
         LRESULT result = DefWindowProcW(hwnd, msg, wparam, lparam);
+        native_diag_dump_window_rim_state(hwnd, L"WM_NCACTIVATE.postDef",
+                                          wparam, lparam);
         apply_stable_activation_rim(hwnd, true);
-        if (state)
-        {
-            request_clip_diag(state, L"WM_NCACTIVATE");
-        }
-        if (state && state->webview_controller)
-        {
-            update_webview_controller_bounds(state, hwnd);
-        }
-        else
-        {
-            refresh_dcomp_root_clip(state, hwnd);
-        }
+        native_diag_dump_window_rim_state(hwnd, L"WM_NCACTIVATE.postApplied",
+                                          wparam, lparam);
         return result;
     }
     case WM_ACTIVATE:
@@ -2946,24 +2357,20 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
         native_diag_dump_window_rim_state(hwnd, L"WM_ACTIVATE.pre", wparam,
                                           lparam);
         apply_stable_activation_rim(hwnd, true);
+        native_diag_dump_window_rim_state(hwnd, L"WM_ACTIVATE.preApplied",
+                                          wparam, lparam);
         LRESULT result = DefWindowProcW(hwnd, msg, wparam, lparam);
+        native_diag_dump_window_rim_state(hwnd, L"WM_ACTIVATE.postDef", wparam,
+                                          lparam);
         apply_stable_activation_rim(hwnd, true);
-        if (state)
-        {
-            request_clip_diag(state, L"WM_ACTIVATE");
-        }
-        if (state && state->webview_controller)
-        {
-            update_webview_controller_bounds(state, hwnd);
-        }
-        else
-        {
-            refresh_dcomp_root_clip(state, hwnd);
-        }
+        native_diag_dump_window_rim_state(hwnd, L"WM_ACTIVATE.postApplied",
+                                          wparam, lparam);
         return result;
     }
     case WM_NCPAINT:
     {
+        // Focus changes and snap can land on an NCPAINT; ensure attributes are
+        // applied before default non-client paint runs.
         native_diag_dump_window_rim_state(hwnd, L"WM_NCPAINT.pre", wparam,
                                           lparam);
         bool flush = true;
@@ -2974,17 +2381,22 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
             flush = false;
         }
         apply_stable_activation_rim(hwnd, flush);
+        native_diag_dump_window_rim_state(hwnd, L"WM_NCPAINT.preDef", wparam,
+                                          lparam);
         LRESULT result = DefWindowProcW(hwnd, msg, wparam, lparam);
+        native_diag_dump_window_rim_state(hwnd, L"WM_NCPAINT.postDef", wparam,
+                                          lparam);
         apply_stable_activation_rim(hwnd, flush);
+        native_diag_dump_window_rim_state(hwnd, L"WM_NCPAINT.postApplied",
+                                          wparam, lparam);
         return result;
     }
     case WM_DWMCOMPOSITIONCHANGED:
+        native_diag_dump_window_rim_state(hwnd, L"WM_DWMCOMPOSITIONCHANGED.pre",
+                                          wparam, lparam);
         apply_stable_activation_rim(hwnd, true);
-        if (state)
-        {
-            request_clip_diag(state, L"WM_DWMCOMPOSITIONCHANGED");
-        }
-        refresh_dcomp_root_clip(state, hwnd);
+        native_diag_dump_window_rim_state(
+            hwnd, L"WM_DWMCOMPOSITIONCHANGED.post", wparam, lparam);
         break;
     case WM_SETCURSOR:
         if (LOWORD(lparam) == HTCLIENT)
@@ -3007,31 +2419,30 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
         }
         break;
     case WM_THEMECHANGED:
+        native_diag_dump_window_rim_state(hwnd, L"WM_THEMECHANGED.pre", wparam,
+                                          lparam);
         apply_stable_activation_rim(hwnd, true);
-        if (state)
-        {
-            request_clip_diag(state, L"WM_THEMECHANGED");
-        }
-        refresh_dcomp_root_clip(state, hwnd);
+        native_diag_dump_window_rim_state(hwnd, L"WM_THEMECHANGED.post", wparam,
+                                          lparam);
         break;
     case WM_SETTINGCHANGE:
+        native_diag_dump_window_rim_state(hwnd, L"WM_SETTINGCHANGE.pre", wparam,
+                                          lparam);
         apply_stable_activation_rim(hwnd, true);
-        if (state)
-        {
-            request_clip_diag(state, L"WM_SETTINGCHANGE");
-        }
-        refresh_dcomp_root_clip(state, hwnd);
+        native_diag_dump_window_rim_state(hwnd, L"WM_SETTINGCHANGE.post",
+                                          wparam, lparam);
         break;
     case WM_ACTIVATEAPP:
+        native_diag_dump_window_rim_state(hwnd, L"WM_ACTIVATEAPP.pre", wparam,
+                                          lparam);
         apply_stable_activation_rim(hwnd, true);
-        if (state)
-        {
-            request_clip_diag(state, L"WM_ACTIVATEAPP");
-        }
-        refresh_dcomp_root_clip(state, hwnd);
+        native_diag_dump_window_rim_state(hwnd, L"WM_ACTIVATEAPP.post", wparam,
+                                          lparam);
         break;
     case WM_NCHITTEST:
     {
+        // Frameless resize hit-testing (edges only). Drag is handled by
+        // WebView CSS regions via WebView2 non-client queries.
         POINT pt{GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
         if (native_diag_enabled())
         {
@@ -3135,12 +2546,10 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
         return 0;
     }
     case WM_DPICHANGED:
-        if (state)
+        if (state && state->webview_controller)
         {
-            request_clip_diag(state, L"WM_DPICHANGED");
-        }
-        if (state)
-        {
+            native_diag_dump_window_rim_state(hwnd, L"WM_DPICHANGED.enter",
+                                              wparam, lparam);
             auto *newRect = reinterpret_cast<RECT *>(lparam);
             if (newRect)
             {
@@ -3149,16 +2558,10 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
                              newRect->bottom - newRect->top,
                              SWP_NOZORDER | SWP_NOACTIVATE);
                 configure_webview_controller_pixel_mode(*state, hwnd);
-                RECT suggested_client{0,
-                                      0,
-                                      std::max<LONG>(0,
-                                                     newRect->right -
-                                                         newRect->left),
-                                      std::max<LONG>(0,
-                                                     newRect->bottom -
-                                                         newRect->top)};
-                ApplyLayout(*state, hwnd, &suggested_client);
+                update_webview_controller_bounds(state, hwnd);
             }
+            native_diag_dump_window_rim_state(hwnd, L"WM_DPICHANGED.exit",
+                                              wparam, lparam);
         }
         return 0;
     case WM_TIMER:
@@ -3420,12 +2823,6 @@ bool ensure_native_webview(TrayState &state)
                                 return start_hwnd_host(
                                     "put_RootVisualTarget failed", visual_hr);
                             }
-                            if (native_diag_enabled())
-                            {
-                                log_dcomp_visual_state(
-                                    &state, state.webview_window,
-                                    L"put_RootVisualTarget");
-                            }
 
                             if (!attach_dcomp_target(state, &dcomp_failure))
                             {
@@ -3469,12 +2866,6 @@ void show_native_window(TrayState &state)
     }
     apply_webview_window_icons(state);
     apply_saved_window_state(state);
-    if (!state.webview_controller)
-    {
-        return;
-    }
-    request_clip_diag(&state, L"show_native_window");
-    ApplyLayout(state, state.webview_window);
     ShowWindow(state.webview_window, SW_SHOW);
     set_no_redirection_bitmap(state.webview_window, true);
     SetForegroundWindow(state.webview_window);
