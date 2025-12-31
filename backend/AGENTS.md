@@ -257,7 +257,7 @@ root/
 
 # **5. Implementation Rules**
 
-### **5.1 Window Backdrop Policy (Non-Negotiable)**
+### 5.1 Window Backdrop Policy (Non-Negotiable, Windows Host / Tray UI)
 
 - **TinyTorrent MUST use custom acrylic via `WCA_ACCENT_POLICY`.**
 - **System backdrops (`DWMWA_SYSTEMBACKDROP_TYPE`, Mica, transient, tabbed, etc.) are FORBIDDEN.**
@@ -275,7 +275,33 @@ Enforcement:
 - If acrylic causes issues, the issue must be fixed. Acrylic must not be removed.
 
 
-### **5.2 JSON Handling**
+### 5.2 DWM Activation / Border Policy (Non-Negotiable)
+
+TinyTorrent uses frameless Win32 windows with custom acrylic via WCA_ACCENT_POLICY (for splash, main WebView host, and any tray-owned UI windows).
+
+The window MUST NOT display any system-drawn activation outline, focus rim,
+border tint, or fallback background at any time (startup, activation changes,
+snap preview, DPI change, resize, or focus loss).
+
+Enforcement rules:
+
+- WS_THICKFRAME and all system-managed non-client chrome remain disabled.
+- Acrylic via WCA_ACCENT_POLICY is mandatory and must not be replaced.
+- All DWM attributes that affect borders or activation visuals
+  (e.g. DWMWA_BORDER_COLOR, DWMWA_CAPTION_COLOR, related policies)
+  must be explicitly set to “none/transparent” and re-applied after
+  activation-related events (WM_ACTIVATE, WM_NCACTIVATE, etc.).
+- Transparent UI regions must never reveal a system-painted rim or background.
+- Relying on default DWM behavior or undocumented fallback visuals is forbidden;
+  required attributes must be set explicitly and verified via read-back.
+
+
+If a visual artifact appears, it must be fixed by correcting DWM policy
+handling — never by adding padding, client painting, or switching backdrop
+technology.
+
+
+### **5.3 JSON Handling**
 
 * Library: `yyjson`.
 * Write small RAII wrappers (`utils/Json.hpp`) for doc/value lifetime.
@@ -283,14 +309,14 @@ Enforcement:
 * Canonical error envelope must be emitted via a single helper (`result`/`error`/`arguments`).
 * RPC thread must not do heavy JSON building; it may only send already-prepared responses or build bounded responses from the latest snapshot.
 
-### **5.3 String Formatting**
+### **5.4 String Formatting**
 
 * Use `std::format` for formatted messages.
 * Avoid `<iostream>` in Release builds.
 * Logging must be lightweight: `std::format` + `printf` / `OutputDebugString` under the hood.
 * No formatting in hot loops (snapshot build, per-torrent encoding); cache or format once per event.
 
-### **5.4 Error Handling**
+### **5.5 Error Handling**
 
 * Exceptions allowed from libtorrent and Win32 wrappers.
 * Catch exceptions before entering C callbacks (Mongoose) and before crossing threads.
@@ -301,26 +327,26 @@ Enforcement:
   * cannot start RPC listener after bounded retries
   * state corruption requiring shutdown
 
-### **5.5 RPC Input Normalization**
+### **5.6 RPC Input Normalization**
 
 * RPC parsing must be centralized: handlers must use shared helpers for extracting/validating args.
 * Shared shapes (torrent id sets, path args, optional fields) must have one parser.
 * Path normalization must be a single function (Windows: normalize separators, reject relative, enforce security rules).
 
-### **5.6 RAII Enforcement**
+### **5.7 RAII Enforcement**
 
 * Any resource beyond a function call must be RAII-managed:
 
   * DB transactions, locks, file/OS handles, threads, COM init.
 * No manual open/close, lock/unlock outside RAII guards.
 
-### **5.7 Persistence Boundary Rule**
+### **5.8 Persistence Boundary Rule**
 
 * Engine code must not issue raw SQL or depend on schema details.
 * All persistence goes through repository/DAO interfaces (ports).
 * Persistence lookups in hot paths (snapshots, tray status) are forbidden; load once into in-memory state.
 
-### **5.8 Cohesion & Split Rule**
+### **5.9 Cohesion & Split Rule**
 
 * Keep each file within a single architectural role (Domain vs Application vs Adapter vs Infrastructure).
 * If a file starts to mix roles, the fix is **ports + split**, not internal reorganization.
