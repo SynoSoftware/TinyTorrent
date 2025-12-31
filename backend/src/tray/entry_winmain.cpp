@@ -5,8 +5,8 @@
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
-
 #include <Windows.h>
+
 #include <VersionHelpers.h>
 #include <d3d11.h>
 #include <dcomp.h>
@@ -282,8 +282,6 @@ std::string http_post_rpc(TrayState &state, std::string const &payload);
 void enable_acrylic(HWND hwnd);
 void apply_rounded_corners(HWND hwnd);
 void apply_system_backdrop_type(HWND hwnd, DWORD type);
-void log_webview_dom_transparency(TrayState &state);
-void run_diag_hittest_sweep(TrayState &state);
 bool capture_window_placement(HWND hwnd, WINDOWPLACEMENT &placement);
 void apply_saved_window_state(TrayState &state);
 std::string escape_json_string(std::string_view value);
@@ -329,20 +327,6 @@ std::string narrow(std::wstring const &value)
     return out;
 }
 
-bool native_diag_enabled()
-{
-    static int cached = -1;
-    if (cached != -1)
-    {
-        return cached != 0;
-    }
-    wchar_t buf[2] = {};
-    DWORD len = GetEnvironmentVariableW(L"TT_NATIVE_DIAG", buf,
-                                        static_cast<DWORD>(std::size(buf)));
-    cached = (len > 0) ? 1 : 0;
-    return cached != 0;
-}
-
 std::wstring hwnd_class_name(HWND hwnd)
 {
     if (!hwnd)
@@ -356,187 +340,6 @@ std::wstring hwnd_class_name(HWND hwnd)
         return L"(unknown)";
     }
     return std::wstring(cls, static_cast<size_t>(len));
-}
-
-void native_diag_log(std::wstring const &text)
-{
-    if (!native_diag_enabled())
-    {
-        return;
-    }
-
-    static std::mutex log_mutex;
-    static HANDLE file = INVALID_HANDLE_VALUE;
-    static bool file_init = false;
-
-    std::lock_guard<std::mutex> guard(log_mutex);
-
-    OutputDebugStringW(text.c_str());
-    OutputDebugStringW(L"\r\n");
-
-    if (!file_init)
-    {
-        file_init = true;
-        wchar_t temp_path[MAX_PATH] = {};
-        DWORD n =
-            GetTempPathW(static_cast<DWORD>(std::size(temp_path)), temp_path);
-        if (n > 0 && n < std::size(temp_path))
-        {
-            std::wstring path =
-                std::wstring(temp_path) + L"TinyTorrentNativeDiag.log";
-            file = CreateFileW(path.c_str(), FILE_APPEND_DATA,
-                               FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
-                               OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-        }
-    }
-
-    if (file == INVALID_HANDLE_VALUE)
-    {
-        return;
-    }
-
-    std::wstring line = text + L"\r\n";
-    int bytes_needed = WideCharToMultiByte(CP_UTF8, 0, line.c_str(), -1,
-                                           nullptr, 0, nullptr, nullptr);
-    if (bytes_needed <= 1)
-    {
-        return;
-    }
-    std::string utf8(static_cast<size_t>(bytes_needed - 1), '\0');
-    WideCharToMultiByte(CP_UTF8, 0, line.c_str(), -1, utf8.data(), bytes_needed,
-                        nullptr, nullptr);
-    DWORD written = 0;
-    WriteFile(file, utf8.data(), static_cast<DWORD>(utf8.size()), &written,
-              nullptr);
-}
-
-void native_diag_logf(wchar_t const *prefix, HWND hwnd,
-                      std::wstring const &message)
-{
-    if (!native_diag_enabled())
-    {
-        return;
-    }
-    std::wstringstream ss;
-    ss << L"[TT_NATIVE_DIAG] " << prefix << L" hwnd=0x" << std::hex
-       << reinterpret_cast<uintptr_t>(hwnd) << std::dec << L" cls="
-       << hwnd_class_name(hwnd) << L" " << message;
-    native_diag_log(ss.str());
-}
-
-void native_diag_dump_window_rim_state(HWND hwnd, wchar_t const *event_tag,
-                                       WPARAM wparam, LPARAM lparam)
-{
-    if (!native_diag_enabled() || !hwnd || !event_tag)
-    {
-        return;
-    }
-
-    DWORD style = static_cast<DWORD>(GetWindowLongPtrW(hwnd, GWL_STYLE));
-    DWORD ex_style = static_cast<DWORD>(GetWindowLongPtrW(hwnd, GWL_EXSTYLE));
-
-    ULONGLONG tick = GetTickCount64();
-    HWND active_hwnd = GetActiveWindow();
-    HWND foreground_hwnd = GetForegroundWindow();
-    bool active = active_hwnd == hwnd;
-    bool foreground = foreground_hwnd == hwnd;
-    bool visible = IsWindowVisible(hwnd) != FALSE;
-    bool zoomed = IsZoomed(hwnd) != FALSE;
-    bool iconic = IsIconic(hwnd) != FALSE;
-
-    RECT rw{};
-    GetWindowRect(hwnd, &rw);
-    RECT rc{};
-    GetClientRect(hwnd, &rc);
-
-    RECT efb{};
-    HRESULT efb_hr = DwmGetWindowAttribute(hwnd, DWMWA_EXTENDED_FRAME_BOUNDS,
-                                           &efb, sizeof(efb));
-
-    DWM_WINDOW_CORNER_PREFERENCE corner_pref = DWMWCP_DEFAULT;
-    HRESULT corner_hr =
-        DwmGetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE,
-                              &corner_pref, sizeof(corner_pref));
-
-    COLORREF border = 0;
-    HRESULT border_hr = DwmGetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, &border,
-                                              sizeof(border));
-    COLORREF caption = 0;
-    HRESULT caption_hr = DwmGetWindowAttribute(hwnd, DWMWA_CAPTION_COLOR,
-                                               &caption, sizeof(caption));
-    COLORREF text = 0;
-    HRESULT text_hr =
-        DwmGetWindowAttribute(hwnd, DWMWA_TEXT_COLOR, &text, sizeof(text));
-
-    UINT frame_thickness = 0;
-    HRESULT frame_hr =
-        DwmGetWindowAttribute(hwnd, DWMWA_VISIBLE_FRAME_BORDER_THICKNESS,
-                              &frame_thickness, sizeof(frame_thickness));
-
-    BOOL immersive_dark = FALSE;
-    HRESULT immersive_hr =
-        DwmGetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE,
-                              &immersive_dark, sizeof(immersive_dark));
-
-    BOOL nc_enabled = FALSE;
-    HRESULT nce_hr = DwmGetWindowAttribute(hwnd, DWMWA_NCRENDERING_ENABLED,
-                                           &nc_enabled, sizeof(nc_enabled));
-
-    DWORD nc_policy = 0;
-    HRESULT ncp_hr = DwmGetWindowAttribute(hwnd, DWMWA_NCRENDERING_POLICY,
-                                           &nc_policy, sizeof(nc_policy));
-
-    BOOL allow_ncpaint = FALSE;
-    HRESULT allow_ncpaint_hr = DwmGetWindowAttribute(
-        hwnd, DWMWA_ALLOW_NCPAINT, &allow_ncpaint, sizeof(allow_ncpaint));
-
-    DWORD sys_backdrop = 0;
-    HRESULT sys_backdrop_hr = DwmGetWindowAttribute(
-        hwnd, DWMWA_SYSTEMBACKDROP_TYPE, &sys_backdrop, sizeof(sys_backdrop));
-
-    std::wstringstream ss;
-    ss << L"event=" << event_tag << L" wp=0x" << std::hex
-       << static_cast<uintptr_t>(wparam) << L" lp=0x"
-       << static_cast<uintptr_t>(lparam) << std::dec;
-    ss << L" t_ms=" << tick;
-    ss << L" active=" << (active ? 1 : 0);
-    ss << L" foreground=" << (foreground ? 1 : 0);
-    ss << L" visible=" << (visible ? 1 : 0);
-    ss << L" zoomed=" << (zoomed ? 1 : 0);
-    ss << L" iconic=" << (iconic ? 1 : 0);
-    ss << L" style=0x" << std::hex << style << L" ex=0x" << ex_style
-       << std::dec;
-    ss << L" rw=[" << rw.left << L"," << rw.top << L"," << rw.right << L","
-       << rw.bottom << L"]";
-    ss << L" rc=[" << rc.left << L"," << rc.top << L"," << rc.right << L","
-       << rc.bottom << L"]";
-    ss << L" efb_hr=0x" << std::hex << static_cast<uint32_t>(efb_hr) << std::dec
-       << L" efb=[" << efb.left << L"," << efb.top << L"," << efb.right << L","
-       << efb.bottom << L"]";
-    ss << L" corner_hr=0x" << std::hex << static_cast<uint32_t>(corner_hr)
-       << std::dec << L" corner=" << static_cast<int>(corner_pref);
-    ss << L" border_hr=0x" << std::hex << static_cast<uint32_t>(border_hr)
-       << std::dec << L" border=0x" << std::hex << border << std::dec;
-    ss << L" caption_hr=0x" << std::hex << static_cast<uint32_t>(caption_hr)
-       << std::dec << L" caption=0x" << std::hex << caption << std::dec;
-    ss << L" text_hr=0x" << std::hex << static_cast<uint32_t>(text_hr)
-       << std::dec << L" text=0x" << std::hex << text << std::dec;
-    ss << L" vfbth_hr=0x" << std::hex << static_cast<uint32_t>(frame_hr)
-       << std::dec << L" vfbth=" << frame_thickness;
-    ss << L" immersive_hr=0x" << std::hex << static_cast<uint32_t>(immersive_hr)
-       << std::dec << L" immersive=" << (immersive_dark ? 1 : 0);
-    ss << L" nce_hr=0x" << std::hex << static_cast<uint32_t>(nce_hr) << std::dec
-       << L" nce=" << (nc_enabled ? 1 : 0);
-    ss << L" ncp_hr=0x" << std::hex << static_cast<uint32_t>(ncp_hr) << std::dec
-       << L" ncp=" << nc_policy;
-    ss << L" allow_ncpaint_hr=0x" << std::hex
-       << static_cast<uint32_t>(allow_ncpaint_hr) << std::dec
-       << L" allow_ncpaint=" << (allow_ncpaint ? 1 : 0);
-    ss << L" sysbackdrop_hr=0x" << std::hex
-       << static_cast<uint32_t>(sys_backdrop_hr) << std::dec << L" sysbackdrop="
-       << sys_backdrop;
-
-    native_diag_logf(L"rim", hwnd, ss.str());
 }
 
 struct ResizeBorderThickness
@@ -647,8 +450,6 @@ WPARAM syscommand_for_resize_wmsz(int wmsz_edge)
 int compute_inner_glass_mask_thickness_px(HWND hwnd)
 {
     (void)hwnd;
-    // No geometry hacks: WebView occupies the full client area. Any DWM rim is
-    // handled via window attributes, not by insetting/masking WebView bounds.
     return 0;
 }
 
@@ -770,13 +571,6 @@ bool ensure_dcomp_visual_tree(TrayState &state, DCompInitFailure *failure)
             failure->hr = hr;
             failure->step = L"D3D11CreateDevice";
         }
-        if (native_diag_enabled())
-        {
-            std::wstringstream ss;
-            ss << L"D3D11CreateDevice hr=0x" << std::hex
-               << static_cast<uint32_t>(hr) << std::dec;
-            native_diag_logf(L"dcomp", state.webview_window, ss.str());
-        }
         return false;
     }
 
@@ -788,13 +582,6 @@ bool ensure_dcomp_visual_tree(TrayState &state, DCompInitFailure *failure)
         {
             failure->hr = hr;
             failure->step = L"DCompositionCreateDevice2";
-        }
-        if (native_diag_enabled())
-        {
-            std::wstringstream ss;
-            ss << L"DCompositionCreateDevice2 hr=0x" << std::hex
-               << static_cast<uint32_t>(hr) << std::dec;
-            native_diag_logf(L"dcomp", state.webview_window, ss.str());
         }
         return false;
     }
@@ -808,13 +595,6 @@ bool ensure_dcomp_visual_tree(TrayState &state, DCompInitFailure *failure)
             failure->hr = hr;
             failure->step = L"CreateVisual(root)";
         }
-        if (native_diag_enabled())
-        {
-            std::wstringstream ss;
-            ss << L"CreateVisual hr=0x" << std::hex << static_cast<uint32_t>(hr)
-               << std::dec;
-            native_diag_logf(L"dcomp", state.webview_window, ss.str());
-        }
         return false;
     }
 
@@ -827,19 +607,10 @@ bool ensure_dcomp_visual_tree(TrayState &state, DCompInitFailure *failure)
             failure->hr = hr;
             failure->step = L"CreateVisual(webview)";
         }
-        if (native_diag_enabled())
-        {
-            std::wstringstream ss;
-            ss << L"CreateVisual(webview) hr=0x" << std::hex
-               << static_cast<uint32_t>(hr) << std::dec;
-            native_diag_logf(L"dcomp", state.webview_window, ss.str());
-        }
         return false;
     }
 
-    // Clamp bitmap sampling at the edge of the DComp visuals. This helps
-    // prevent 1px fringes (often white) that can show up when the content is
-    // sampled during activation / composition transitions.
+    // Clamp bitmap sampling at the edge of the DComp visuals.
     root->SetBorderMode(DCOMPOSITION_BORDER_MODE_HARD);
     webview_visual->SetBorderMode(DCOMPOSITION_BORDER_MODE_HARD);
 
@@ -850,13 +621,6 @@ bool ensure_dcomp_visual_tree(TrayState &state, DCompInitFailure *failure)
         {
             failure->hr = hr;
             failure->step = L"AddVisual(webview)";
-        }
-        if (native_diag_enabled())
-        {
-            std::wstringstream ss;
-            ss << L"AddVisual(webview) hr=0x" << std::hex
-               << static_cast<uint32_t>(hr) << std::dec;
-            native_diag_logf(L"dcomp", state.webview_window, ss.str());
         }
         return false;
     }
@@ -910,13 +674,6 @@ bool attach_dcomp_target(TrayState &state, DCompInitFailure *failure)
             failure->hr = hr;
             failure->step = L"CreateTargetForHwnd";
         }
-        if (native_diag_enabled())
-        {
-            std::wstringstream ss;
-            ss << L"CreateTargetForHwnd hr=0x" << std::hex
-               << static_cast<uint32_t>(hr) << std::dec;
-            native_diag_logf(L"dcomp", state.webview_window, ss.str());
-        }
         return false;
     }
 
@@ -927,13 +684,6 @@ bool attach_dcomp_target(TrayState &state, DCompInitFailure *failure)
         {
             failure->hr = hr;
             failure->step = L"SetRoot";
-        }
-        if (native_diag_enabled())
-        {
-            std::wstringstream ss;
-            ss << L"SetRoot hr=0x" << std::hex << static_cast<uint32_t>(hr)
-               << std::dec;
-            native_diag_logf(L"dcomp", state.webview_window, ss.str());
         }
         return false;
     }
@@ -994,35 +744,9 @@ void update_webview_controller_bounds_from_client_rect(TrayState *state,
         return;
     }
     RECT bounds = compute_webview_controller_bounds_from_client(hwnd, client);
-    HRESULT put_hr = state->webview_controller->put_Bounds(bounds);
+    state->webview_controller->put_Bounds(bounds);
     update_dcomp_root_clip(state, client);
     commit_dcomp(state);
-
-    if (native_diag_enabled())
-    {
-        RECT rw{};
-        GetWindowRect(hwnd, &rw);
-        RECT efb{};
-        HRESULT efb_hr = DwmGetWindowAttribute(
-            hwnd, DWMWA_EXTENDED_FRAME_BOUNDS, &efb, sizeof(efb));
-        RECT current{};
-        HRESULT hr = state->webview_controller->get_Bounds(&current);
-        std::wstringstream ss;
-        ss << L"dpi=" << GetDpiForWindow(hwnd) << L" rw=[" << rw.left << L","
-           << rw.top << L"," << rw.right << L"," << rw.bottom << L"]"
-           << L" efb_hr=0x" << std::hex << static_cast<uint32_t>(efb_hr)
-           << std::dec << L" efb=[" << efb.left << L"," << efb.top << L","
-           << efb.right << L"," << efb.bottom << L"]" << L" client=["
-           << client.left << L"," << client.top << L"," << client.right << L","
-           << client.bottom << L"]" << L" put_hr=0x" << std::hex
-           << static_cast<uint32_t>(put_hr) << std::dec << L" set=["
-           << bounds.left << L"," << bounds.top << L"," << bounds.right << L","
-           << bounds.bottom << L"]" << L" get_hr=0x" << std::hex
-           << static_cast<uint32_t>(hr) << std::dec << L" get=[" << current.left
-           << L"," << current.top << L"," << current.right << L","
-           << current.bottom << L"]";
-        native_diag_logf(L"put_Bounds", hwnd, ss.str());
-    }
 }
 
 void update_webview_controller_bounds(TrayState *state, HWND hwnd)
@@ -1082,19 +806,6 @@ HRESULT finish_webview_controller_setup(TrayState &state)
         {
             COREWEBVIEW2_COLOR transparent{0, 0, 0, 0};
             controller2->put_DefaultBackgroundColor(transparent);
-            if (native_diag_enabled())
-            {
-                COREWEBVIEW2_COLOR current{};
-                HRESULT hr = controller2->get_DefaultBackgroundColor(&current);
-                std::wstringstream ss;
-                ss << L"set={0,0,0,0}" << L" get_hr=0x" << std::hex
-                   << static_cast<uint32_t>(hr) << std::dec << L" get={"
-                   << static_cast<int>(current.R) << L","
-                   << static_cast<int>(current.G) << L","
-                   << static_cast<int>(current.B) << L","
-                   << static_cast<int>(current.A) << L"}";
-                native_diag_logf(L"webview_bg", state.webview_window, ss.str());
-            }
         }
     }
 
@@ -1136,12 +847,6 @@ HRESULT finish_webview_controller_setup(TrayState &state)
                     return S_OK;
                 }
                 reload_native_auth_token(state);
-                if (native_diag_enabled() && state.webview_window)
-                {
-                    log_webview_dom_transparency(state);
-                    SetTimer(state.webview_window, kDiagSweepTimerId, 750,
-                             nullptr);
-                }
                 if (state.webview_window)
                 {
                     ShowWindow(state.webview_window, SW_SHOW);
@@ -1299,13 +1004,6 @@ bool try_forward_webview_mouse_input(TrayState *state, HWND hwnd, UINT msg,
     auto keys = webview_mouse_keys_from_wparam(wparam);
     HRESULT hr = state->webview_comp_controller->SendMouseInput(kind, keys,
                                                                 mouse_data, pt);
-    if (native_diag_enabled() && FAILED(hr))
-    {
-        std::wstringstream ss;
-        ss << L"msg=0x" << std::hex << static_cast<uint32_t>(msg) << std::dec
-           << L" hr=0x" << std::hex << static_cast<uint32_t>(hr) << std::dec;
-        native_diag_logf(L"SendMouseInput", hwnd, ss.str());
-    }
     return SUCCEEDED(hr);
 }
 
@@ -1321,15 +1019,7 @@ void post_webview_message(TrayState &state, std::wstring const &message)
 HRESULT safe_dwm_set_window_attribute(HWND hwnd, DWORD attr, void const *value,
                                       DWORD size)
 {
-    HRESULT hr = DwmSetWindowAttribute(hwnd, attr, value, size);
-    if (native_diag_enabled())
-    {
-        std::wstringstream ss;
-        ss << L"attr=" << attr << L" hr=0x" << std::hex
-           << static_cast<uint32_t>(hr) << L" size=" << std::dec << size;
-        native_diag_logf(L"dwm.attr", hwnd, ss.str());
-    }
-    return hr;
+    return DwmSetWindowAttribute(hwnd, attr, value, size);
 }
 
 bool supports_dark_mode()
@@ -1358,22 +1048,14 @@ void apply_dark_titlebar(HWND hwnd)
         return;
     }
     BOOL dark = TRUE;
-    HRESULT hr1 = safe_dwm_set_window_attribute(
-        hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &dark, sizeof(dark));
+    safe_dwm_set_window_attribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &dark,
+                                  sizeof(dark));
     COLORREF caption_color = DWMWA_COLOR_NONE;
-    HRESULT hr2 = safe_dwm_set_window_attribute(
-        hwnd, DWMWA_CAPTION_COLOR, &caption_color, sizeof(caption_color));
+    safe_dwm_set_window_attribute(hwnd, DWMWA_CAPTION_COLOR, &caption_color,
+                                  sizeof(caption_color));
     COLORREF text_color = DWMWA_COLOR_NONE;
-    HRESULT hr3 = safe_dwm_set_window_attribute(
-        hwnd, DWMWA_TEXT_COLOR, &text_color, sizeof(text_color));
-    if (native_diag_enabled())
-    {
-        std::wstringstream ss;
-        ss << L"immersive_dark=0x" << std::hex << static_cast<uint32_t>(hr1)
-           << L" caption=0x" << static_cast<uint32_t>(hr2) << L" text=0x"
-           << static_cast<uint32_t>(hr3) << std::dec;
-        native_diag_logf(L"dwm", hwnd, ss.str());
-    }
+    safe_dwm_set_window_attribute(hwnd, DWMWA_TEXT_COLOR, &text_color,
+                                  sizeof(text_color));
 }
 
 void apply_frameless_window_style(HWND hwnd)
@@ -1387,19 +1069,11 @@ void apply_frameless_window_style(HWND hwnd)
         return;
     }
     COLORREF border = kStableDwmRimColor;
-    HRESULT hr1 = safe_dwm_set_window_attribute(hwnd, DWMWA_BORDER_COLOR,
-                                                &border, sizeof(border));
+    safe_dwm_set_window_attribute(hwnd, DWMWA_BORDER_COLOR, &border,
+                                  sizeof(border));
     UINT frame_thickness = 0;
-    HRESULT hr2 = safe_dwm_set_window_attribute(
-        hwnd, DWMWA_VISIBLE_FRAME_BORDER_THICKNESS, &frame_thickness,
-        sizeof(frame_thickness));
-    if (native_diag_enabled())
-    {
-        std::wstringstream ss;
-        ss << L"border_color=0x" << std::hex << static_cast<uint32_t>(hr1)
-           << L" frame_thickness=0x" << static_cast<uint32_t>(hr2) << std::dec;
-        native_diag_logf(L"dwm", hwnd, ss.str());
-    }
+    safe_dwm_set_window_attribute(hwnd, DWMWA_VISIBLE_FRAME_BORDER_THICKNESS,
+                                  &frame_thickness, sizeof(frame_thickness));
 }
 
 void apply_stable_activation_rim(HWND hwnd, bool flush)
@@ -1430,34 +1104,15 @@ bool set_no_redirection_bitmap(HWND hwnd, bool enable)
                : (ex & ~static_cast<LONG_PTR>(WS_EX_NOREDIRECTIONBITMAP));
     if (desired == ex)
     {
-        if (native_diag_enabled())
-        {
-            std::wstringstream ss;
-            ss << L"enable=" << (enable ? L"true" : L"false") << L" ex=0x"
-               << std::hex << static_cast<uint32_t>(ex) << std::dec
-               << L" (already)";
-            native_diag_logf(L"noredirect", hwnd, ss.str());
-        }
         return ((ex & WS_EX_NOREDIRECTIONBITMAP) != 0) == enable;
     }
     SetLastError(ERROR_SUCCESS);
     SetWindowLongPtrW(hwnd, GWL_EXSTYLE, desired);
-    DWORD gle = GetLastError();
     SetWindowPos(hwnd, nullptr, 0, 0, 0, 0,
                  SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
                      SWP_NOACTIVATE);
     LONG_PTR applied = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
-    bool ok = ((applied & WS_EX_NOREDIRECTIONBITMAP) != 0) == enable;
-    if (native_diag_enabled() || !ok)
-    {
-        std::wstringstream ss;
-        ss << L"enable=" << (enable ? L"true" : L"false") << L" gle=" << gle
-           << L" desired_ex=0x" << std::hex << static_cast<uint32_t>(desired)
-           << L" applied_ex=0x" << static_cast<uint32_t>(applied) << std::dec
-           << L" ok=" << (ok ? L"true" : L"false");
-        native_diag_logf(L"noredirect", hwnd, ss.str());
-    }
-    return ok;
+    return ((applied & WS_EX_NOREDIRECTIONBITMAP) != 0) == enable;
 }
 
 void configure_webview_window_chrome(HWND hwnd)
@@ -1471,107 +1126,6 @@ void configure_webview_window_chrome(HWND hwnd)
     enable_acrylic(hwnd);
     apply_rounded_corners(hwnd);
     apply_system_backdrop_type(hwnd, DWMSBT_NONE);
-}
-
-void log_webview_dom_transparency(TrayState &state)
-{
-    if (!native_diag_enabled() || !state.webview)
-    {
-        return;
-    }
-
-    constexpr wchar_t script[] =
-        LR"((() => { const de=document.documentElement; const body=document.body; const root=document.getElementById("root"); const csDe=getComputedStyle(de); const csBody=body?getComputedStyle(body):null; const csRoot=root?getComputedStyle(root):null; return { nativeHost: de?.dataset?.nativeHost ?? null, htmlBg: csDe?.backgroundColor ?? null, bodyBg: csBody?.backgroundColor ?? null, rootBg: csRoot?.backgroundColor ?? null }; })())";
-
-    state.webview->ExecuteScript(
-        script,
-        Microsoft::WRL::Callback<ICoreWebView2ExecuteScriptCompletedHandler>(
-            [&state](HRESULT hr, LPCWSTR resultObjectAsJson) -> HRESULT
-            {
-                std::wstringstream ss;
-                ss << L"hr=0x" << std::hex << static_cast<uint32_t>(hr)
-                   << std::dec;
-                if (resultObjectAsJson)
-                {
-                    ss << L" json=" << resultObjectAsJson;
-                }
-                native_diag_logf(L"dom", state.webview_window, ss.str());
-                return S_OK;
-            })
-            .Get());
-}
-
-void run_diag_hittest_sweep(TrayState &state)
-{
-    if (!native_diag_enabled() || !state.webview_window)
-    {
-        return;
-    }
-    RECT wr{};
-    if (!GetWindowRect(state.webview_window, &wr))
-    {
-        native_diag_logf(L"sweep", state.webview_window,
-                         L"GetWindowRect failed");
-        return;
-    }
-    ResizeBorderThickness border =
-        get_resize_border_thickness(state.webview_window);
-    long width = std::max(0L, wr.right - wr.left);
-    long height = std::max(0L, wr.bottom - wr.top);
-    if (width == 0 || height == 0)
-    {
-        native_diag_logf(L"sweep", state.webview_window, L"zero window size");
-        return;
-    }
-
-    long mid_x = wr.left + width / 2;
-    long mid_y = wr.top + height / 2;
-    long left_x = wr.left + std::max(1, border.x / 2);
-    long right_x = wr.right - std::max(1, border.x / 2);
-    long top_y = wr.top + std::max(1, border.y / 2);
-    long bottom_y = wr.bottom - std::max(1, border.y / 2);
-
-    std::array<POINT, 8> points = {
-        POINT{static_cast<LONG>(left_x), static_cast<LONG>(top_y)},
-        POINT{static_cast<LONG>(mid_x), static_cast<LONG>(top_y)},
-        POINT{static_cast<LONG>(right_x), static_cast<LONG>(top_y)},
-        POINT{static_cast<LONG>(right_x), static_cast<LONG>(mid_y)},
-        POINT{static_cast<LONG>(right_x), static_cast<LONG>(bottom_y)},
-        POINT{static_cast<LONG>(mid_x), static_cast<LONG>(bottom_y)},
-        POINT{static_cast<LONG>(left_x), static_cast<LONG>(bottom_y)},
-        POINT{static_cast<LONG>(left_x), static_cast<LONG>(mid_y)},
-    };
-
-    POINT original{};
-    GetCursorPos(&original);
-
-    std::wstringstream header;
-    header << L"wr=[" << wr.left << L"," << wr.top << L"," << wr.right << L","
-           << wr.bottom << L"] border=[" << border.x << L"," << border.y
-           << L"]";
-    native_diag_logf(L"sweep", state.webview_window, header.str());
-
-    for (size_t i = 0; i < points.size(); ++i)
-    {
-        POINT pt = points[i];
-        SetCursorPos(pt.x, pt.y);
-        HWND under = WindowFromPoint(pt);
-        std::wstringstream ss;
-        ss << L"i=" << i << L" pt=(" << pt.x << L"," << pt.y << L") under=0x"
-           << std::hex << reinterpret_cast<uintptr_t>(under) << std::dec
-           << L" cls=" << hwnd_class_name(under);
-        native_diag_logf(L"sweep", state.webview_window, ss.str());
-
-        INPUT inputs[2] = {};
-        inputs[0].type = INPUT_MOUSE;
-        inputs[0].mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
-        inputs[1].type = INPUT_MOUSE;
-        inputs[1].mi.dwFlags = MOUSEEVENTF_LEFTUP;
-        SendInput(2, inputs, sizeof(INPUT));
-        Sleep(50);
-    }
-
-    SetCursorPos(original.x, original.y);
 }
 
 std::wstring build_host_response(std::string const &id, bool success,
@@ -2173,20 +1727,10 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
     switch (msg)
     {
     case WM_NCCREATE:
-        // Earliest message where we can influence DWM non-client behavior
-        // before the first activation paint.
-        native_diag_dump_window_rim_state(hwnd, L"WM_NCCREATE.pre", wparam,
-                                          lparam);
         apply_stable_activation_rim(hwnd, true);
-        native_diag_dump_window_rim_state(hwnd, L"WM_NCCREATE.post", wparam,
-                                          lparam);
         break;
     case WM_CREATE:
-        native_diag_dump_window_rim_state(hwnd, L"WM_CREATE.pre", wparam,
-                                          lparam);
         apply_stable_activation_rim(hwnd, true);
-        native_diag_dump_window_rim_state(hwnd, L"WM_CREATE.post", wparam,
-                                          lparam);
         break;
     case WM_ENTERSIZEMOVE:
         if (state)
@@ -2197,14 +1741,9 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
     case WM_EXITSIZEMOVE:
         if (state)
         {
-            // Ensure the final size commit is synchronous as well, otherwise
-            // WebView/DComp can remain in a partially-updated state after the
-            // interactive resize ends.
             update_webview_controller_bounds(state, hwnd);
             state->webview_in_size_move = false;
         }
-        native_diag_dump_window_rim_state(hwnd, L"WM_EXITSIZEMOVE", wparam,
-                                          lparam);
         return 0;
     case WM_SIZING:
     {
@@ -2217,9 +1756,6 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
         {
             return 0;
         }
-
-        // WM_NCCALCSIZE returns 0 (frameless client), so for our purposes
-        // the interactive resize rect is a good approximation of the client.
         int window_w = std::max(0L, window_rect->right - window_rect->left);
         int window_h = std::max(0L, window_rect->bottom - window_rect->top);
         RECT client{0, 0, window_w, window_h};
@@ -2232,7 +1768,6 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
             return 0;
         }
         update_webview_controller_bounds(state, hwnd);
-        native_diag_dump_window_rim_state(hwnd, L"WM_SIZE", wparam, lparam);
         return 0;
     case WM_SETFOCUS:
         if (state && state->webview_controller)
@@ -2269,16 +1804,6 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
                 if (!wmsz)
                 {
                     break;
-                }
-                if (native_diag_enabled())
-                {
-                    std::wstringstream ss;
-                    ss << L"hit=" << *hit << L" wmsz=" << *wmsz << L" sys=0x"
-                       << std::hex << syscommand_for_resize_wmsz(*wmsz)
-                       << std::dec << L" client=(" << client_pt.x << L","
-                       << client_pt.y << L") screen=(" << screen_pt.x << L","
-                       << screen_pt.y << L")";
-                    native_diag_logf(L"resize.begin", hwnd, ss.str());
                 }
                 ReleaseCapture();
                 if (state)
@@ -2317,86 +1842,42 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
         }
         break;
     case WM_ERASEBKGND:
-        if (native_diag_enabled())
-        {
-            native_diag_logf(L"erasebkgnd", hwnd, L"return=1");
-        }
         return 1;
     case WM_PAINT:
     {
-        // Never paint a solid background. The only content is DComp/WebView.
         PAINTSTRUCT ps{};
         BeginPaint(hwnd, &ps);
         EndPaint(hwnd, &ps);
-        if (native_diag_enabled())
-        {
-            std::wstringstream ss;
-            ss << L"rcPaint=[" << ps.rcPaint.left << L"," << ps.rcPaint.top
-               << L"," << ps.rcPaint.right << L"," << ps.rcPaint.bottom << L"]";
-            native_diag_logf(L"paint", hwnd, ss.str());
-        }
         return 0;
     }
     case WM_NCACTIVATE:
     {
-        native_diag_dump_window_rim_state(hwnd, L"WM_NCACTIVATE.pre", wparam,
-                                          lparam);
         apply_stable_activation_rim(hwnd, true);
-        native_diag_dump_window_rim_state(hwnd, L"WM_NCACTIVATE.preApplied",
-                                          wparam, lparam);
         LRESULT result = DefWindowProcW(hwnd, msg, wparam, lparam);
-        native_diag_dump_window_rim_state(hwnd, L"WM_NCACTIVATE.postDef",
-                                          wparam, lparam);
         apply_stable_activation_rim(hwnd, true);
-        native_diag_dump_window_rim_state(hwnd, L"WM_NCACTIVATE.postApplied",
-                                          wparam, lparam);
         return result;
     }
     case WM_ACTIVATE:
     {
-        native_diag_dump_window_rim_state(hwnd, L"WM_ACTIVATE.pre", wparam,
-                                          lparam);
         apply_stable_activation_rim(hwnd, true);
-        native_diag_dump_window_rim_state(hwnd, L"WM_ACTIVATE.preApplied",
-                                          wparam, lparam);
         LRESULT result = DefWindowProcW(hwnd, msg, wparam, lparam);
-        native_diag_dump_window_rim_state(hwnd, L"WM_ACTIVATE.postDef", wparam,
-                                          lparam);
         apply_stable_activation_rim(hwnd, true);
-        native_diag_dump_window_rim_state(hwnd, L"WM_ACTIVATE.postApplied",
-                                          wparam, lparam);
         return result;
     }
     case WM_NCPAINT:
     {
-        // Focus changes and snap can land on an NCPAINT; ensure attributes are
-        // applied before default non-client paint runs.
-        native_diag_dump_window_rim_state(hwnd, L"WM_NCPAINT.pre", wparam,
-                                          lparam);
         bool flush = true;
         if (state && state->webview_in_size_move)
         {
-            // Avoid adding extra DwmFlush sync points during interactive
-            // sizing.
             flush = false;
         }
         apply_stable_activation_rim(hwnd, flush);
-        native_diag_dump_window_rim_state(hwnd, L"WM_NCPAINT.preDef", wparam,
-                                          lparam);
         LRESULT result = DefWindowProcW(hwnd, msg, wparam, lparam);
-        native_diag_dump_window_rim_state(hwnd, L"WM_NCPAINT.postDef", wparam,
-                                          lparam);
         apply_stable_activation_rim(hwnd, flush);
-        native_diag_dump_window_rim_state(hwnd, L"WM_NCPAINT.postApplied",
-                                          wparam, lparam);
         return result;
     }
     case WM_DWMCOMPOSITIONCHANGED:
-        native_diag_dump_window_rim_state(hwnd, L"WM_DWMCOMPOSITIONCHANGED.pre",
-                                          wparam, lparam);
         apply_stable_activation_rim(hwnd, true);
-        native_diag_dump_window_rim_state(
-            hwnd, L"WM_DWMCOMPOSITIONCHANGED.post", wparam, lparam);
         break;
     case WM_SETCURSOR:
         if (LOWORD(lparam) == HTCLIENT)
@@ -2419,47 +1900,20 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
         }
         break;
     case WM_THEMECHANGED:
-        native_diag_dump_window_rim_state(hwnd, L"WM_THEMECHANGED.pre", wparam,
-                                          lparam);
         apply_stable_activation_rim(hwnd, true);
-        native_diag_dump_window_rim_state(hwnd, L"WM_THEMECHANGED.post", wparam,
-                                          lparam);
         break;
     case WM_SETTINGCHANGE:
-        native_diag_dump_window_rim_state(hwnd, L"WM_SETTINGCHANGE.pre", wparam,
-                                          lparam);
         apply_stable_activation_rim(hwnd, true);
-        native_diag_dump_window_rim_state(hwnd, L"WM_SETTINGCHANGE.post",
-                                          wparam, lparam);
         break;
     case WM_ACTIVATEAPP:
-        native_diag_dump_window_rim_state(hwnd, L"WM_ACTIVATEAPP.pre", wparam,
-                                          lparam);
         apply_stable_activation_rim(hwnd, true);
-        native_diag_dump_window_rim_state(hwnd, L"WM_ACTIVATEAPP.post", wparam,
-                                          lparam);
         break;
     case WM_NCHITTEST:
     {
-        // Frameless resize hit-testing (edges only). Drag is handled by
-        // WebView CSS regions via WebView2 non-client queries.
         POINT pt{GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
-        if (native_diag_enabled())
-        {
-            HWND under = WindowFromPoint(pt);
-            std::wstringstream ss;
-            ss << L"pt=(" << pt.x << L"," << pt.y << L")" << L" under=0x"
-               << std::hex << reinterpret_cast<uintptr_t>(under) << std::dec
-               << L" under_cls=" << hwnd_class_name(under);
-            native_diag_logf(L"nchittest_enter", hwnd, ss.str());
-        }
 
         if (IsZoomed(hwnd))
         {
-            if (native_diag_enabled())
-            {
-                native_diag_logf(L"nchittest_exit", hwnd, L"HTCLIENT (zoomed)");
-            }
             return HTCLIENT;
         }
 
@@ -2468,12 +1922,6 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
         {
             if (dwm_hit != HTCLIENT && dwm_hit != HTCAPTION)
             {
-                if (native_diag_enabled())
-                {
-                    std::wstringstream ss;
-                    ss << L"dwm_hit=" << dwm_hit;
-                    native_diag_logf(L"nchittest_exit", hwnd, ss.str());
-                }
                 return dwm_hit;
             }
         }
@@ -2486,15 +1934,6 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
         }
 
         LRESULT result = HTCLIENT;
-
-        if (native_diag_enabled())
-        {
-            std::wstringstream ss;
-            ss << L"rw=[" << rw.left << L"," << rw.top << L"," << rw.right
-               << L"," << rw.bottom << L"]" << L" result=" << result;
-            native_diag_logf(L"nchittest_exit", hwnd, ss.str());
-        }
-
         if (result == HTCLIENT && state)
         {
             POINT client_pt{pt.x, pt.y};
@@ -2548,8 +1987,6 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
     case WM_DPICHANGED:
         if (state && state->webview_controller)
         {
-            native_diag_dump_window_rim_state(hwnd, L"WM_DPICHANGED.enter",
-                                              wparam, lparam);
             auto *newRect = reinterpret_cast<RECT *>(lparam);
             if (newRect)
             {
@@ -2560,17 +1997,9 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
                 configure_webview_controller_pixel_mode(*state, hwnd);
                 update_webview_controller_bounds(state, hwnd);
             }
-            native_diag_dump_window_rim_state(hwnd, L"WM_DPICHANGED.exit",
-                                              wparam, lparam);
         }
         return 0;
     case WM_TIMER:
-        if (state && wparam == kDiagSweepTimerId)
-        {
-            KillTimer(hwnd, kDiagSweepTimerId);
-            run_diag_hittest_sweep(*state);
-            return 0;
-        }
         break;
     case WM_CLOSE:
         if (state)
@@ -2654,22 +2083,9 @@ bool ensure_native_webview(TrayState &state)
         }
         SetWindowLongPtrW(state.webview_window, GWLP_USERDATA,
                           reinterpret_cast<LONG_PTR>(&state));
-        if (native_diag_enabled())
-        {
-            DWORD style = static_cast<DWORD>(
-                GetWindowLongPtrW(state.webview_window, GWL_STYLE));
-            DWORD ex_style = static_cast<DWORD>(
-                GetWindowLongPtrW(state.webview_window, GWL_EXSTYLE));
-            std::wstringstream ss;
-            ss << L"style=0x" << std::hex << style << L" ex=0x" << ex_style
-               << std::dec;
-            native_diag_logf(L"create", state.webview_window, ss.str());
-        }
         apply_webview_window_icons(state);
         configure_webview_window_chrome(state.webview_window);
         set_no_redirection_bitmap(state.webview_window, true);
-        native_diag_dump_window_rim_state(state.webview_window,
-                                          L"create.after_chrome", 0, 0);
         ShowWindow(state.webview_window, SW_HIDE);
     }
     if (state.webview_controller)
@@ -2749,14 +2165,6 @@ bool ensure_native_webview(TrayState &state)
                 HRESULT qi_hr = env->QueryInterface(IID_PPV_ARGS(&env3));
                 if (FAILED(qi_hr) || !env3)
                 {
-                    if (native_diag_enabled())
-                    {
-                        std::wstringstream ss;
-                        ss << L"env3_qi_hr=0x" << std::hex
-                           << static_cast<uint32_t>(qi_hr) << std::dec;
-                        native_diag_logf(L"webview2", state.webview_window,
-                                         ss.str());
-                    }
                     return start_hwnd_host("ICoreWebView2Environment3 missing",
                                            qi_hr);
                 }
@@ -2988,15 +2396,8 @@ void apply_system_backdrop_type(HWND hwnd, DWORD type)
     {
         return;
     }
-    HRESULT hr = safe_dwm_set_window_attribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE,
-                                               &type, sizeof(type));
-    if (native_diag_enabled())
-    {
-        std::wstringstream ss;
-        ss << L"system_backdrop_type=" << type << L" hr=0x" << std::hex
-           << static_cast<uint32_t>(hr) << std::dec;
-        native_diag_logf(L"dwm", hwnd, ss.str());
-    }
+    safe_dwm_set_window_attribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, &type,
+                                  sizeof(type));
 }
 
 void enable_acrylic(HWND hwnd)
@@ -3006,32 +2407,12 @@ void enable_acrylic(HWND hwnd)
         hUser32, "SetWindowCompositionAttribute");
     if (!fn)
     {
-        native_diag_logf(L"acrylic", hwnd,
-                         L"SetWindowCompositionAttribute=null");
         return;
     }
     ACCENT_POLICY policy{ACCENT_ENABLE_BLURBEHIND, 0, 0xCCFFFFFF, 0};
-    if (native_diag_enabled())
-    {
-        std::wstringstream ss;
-        ss << L"apply accent_state=" << static_cast<int>(policy.AccentState)
-           << L" flags=0x" << std::hex << policy.AccentFlags << L" gradient=0x"
-           << policy.GradientColor << L" anim=0x" << policy.AnimationId
-           << std::dec;
-        native_diag_logf(L"acrylic.apply", hwnd, ss.str());
-    }
     WINDOWCOMPOSITIONATTRIBDATA data{19, &policy, sizeof(policy)};
     SetLastError(ERROR_SUCCESS);
-    BOOL ok = fn(hwnd, &data);
-    if (native_diag_enabled())
-    {
-        DWORD err = GetLastError();
-        std::wstringstream ss;
-        ss << L"ok=" << (ok ? L"true" : L"false") << L" gle=" << err
-           << L" accent=BLURBEHIND gradient=0x" << std::hex
-           << policy.GradientColor << std::dec;
-        native_diag_logf(L"acrylic", hwnd, ss.str());
-    }
+    fn(hwnd, &data);
 }
 
 LRESULT CALLBACK SplashProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
