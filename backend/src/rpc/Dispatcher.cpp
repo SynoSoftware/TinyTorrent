@@ -81,6 +81,20 @@ std::string handler_error_message()
     return g_handler_error_message;
 }
 
+char const *add_torrent_status_name(engine::Core::AddTorrentStatus status)
+{
+    switch (status)
+    {
+    case engine::Core::AddTorrentStatus::Ok:
+        return "ok";
+    case engine::Core::AddTorrentStatus::InvalidUri:
+        return "invalid-uri";
+    case engine::Core::AddTorrentStatus::InvalidPath:
+        return "invalid-path";
+    }
+    return "unknown";
+}
+
 } // namespace
 
 struct ShortcutRequest
@@ -2623,6 +2637,14 @@ std::string handle_torrent_add(engine::Core *engine, yyjson_val *arguments)
 
     request.paused = bool_value(yyjson_obj_get(arguments, "paused"));
 
+    auto const has_metainfo = !request.metainfo.empty();
+    auto const uri_descriptor =
+        request.uri ? std::string(*request.uri) : std::string("<none>");
+    TT_LOG_INFO("rpc: torrent-add request validated download-dir={} paused={} "
+                "metainfo={} uri={}",
+                request.download_path.string(), request.paused,
+                has_metainfo ? "yes" : "no", uri_descriptor);
+
     bool metainfo_loaded = false;
     yyjson_val *metainfo_path_value = yyjson_obj_get(arguments, "metainfo-path");
     if (metainfo_path_value && yyjson_is_str(metainfo_path_value))
@@ -2697,6 +2719,8 @@ std::string handle_torrent_add(engine::Core *engine, yyjson_val *arguments)
                  request.download_path.string(),
                  static_cast<int>(request.paused));
     auto status = engine->enqueue_add_torrent(std::move(request));
+    TT_LOG_INFO("rpc: torrent-add enqueued status={}",
+                add_torrent_status_name(status));
     return serialize_add_result(status);
 }
 
