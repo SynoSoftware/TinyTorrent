@@ -16,11 +16,11 @@ export const TOOLBAR_ICON_BUTTON_CLASSES = `${TOOLBAR_ICON_CLASSES} bg-content1/
 
 export type ToolbarIconSize = "sm" | "md" | "lg" | "xl";
 
-export const ICON_SIZE_MAP: Record<ToolbarIconSize, string> = {
-    sm: "var(--tt-status-icon-sm)",
-    md: "var(--tt-status-icon-md)",
-    lg: "var(--tt-status-icon-lg)",
-    xl: "var(--tt-status-icon-xl)",
+export const ICON_SIZE_CLASSES: Record<ToolbarIconSize, string> = {
+    sm: "toolbar-icon-size-sm",
+    md: "toolbar-icon-size-md",
+    lg: "toolbar-icon-size-lg",
+    xl: "toolbar-icon-size-xl",
 };
 
 export type ToolbarIconButtonProps = ComponentPropsWithoutRef<typeof Button> & {
@@ -38,16 +38,15 @@ export const ToolbarIconButton = forwardRef<
     ref
 ) {
     const { disabled, ...buttonProps } = restProps;
+    const iconSizeClass = ICON_SIZE_CLASSES[
+        iconSize as ToolbarIconSize
+    ];
     const content =
         icon ??
         (Icon ? (
             <Icon
                 strokeWidth={ICON_STROKE_WIDTH}
-                className="text-current "
-                style={{
-                    width: ICON_SIZE_MAP[iconSize as ToolbarIconSize],
-                    height: ICON_SIZE_MAP[iconSize as ToolbarIconSize],
-                }}
+                className={cn("text-current", iconSizeClass)}
             />
         ) : null);
 

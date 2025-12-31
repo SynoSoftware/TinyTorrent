@@ -82,12 +82,12 @@ export function SwitchRenderer({
     block: Extract<SectionBlock, { type: "switch" }>;
 }) {
     const { t } = useTranslation();
-    const { config, updateConfig, isImmersive } = useSettingsForm() as any;
+    const { config, updateConfig, isImmersive } = useSettingsForm();
     const dependsOn = block.dependsOn;
     const baseDisabled = dependsOn ? !(config[dependsOn] as boolean) : false;
     const isDisabled =
         baseDisabled ||
-        (block.disabledWhenNotImmersive && !Boolean(isImmersive));
+        (block.disabledWhenNotImmersive && !isImmersive);
 
     return (
         <div className="flex justify-between items-center h-control-row">
