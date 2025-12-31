@@ -16,6 +16,7 @@ Notes:
 import http.client
 import base64
 import json
+import os
 import secrets
 import socket
 import subprocess
@@ -23,8 +24,9 @@ import threading
 import time
 from pathlib import Path
 
-BACKEND_BINARY = "./buildstate/debug/TinyTorrent.exe"
-# BACKEND_BINARY = "./buildstate/debug/tt-engine.exe"
+# Prefer the daemon binary for acceptance tests (no UI/tray/WebView required).
+BACKEND_BINARY = "./buildstate/debug/tinytorrent-daemon.exe"
+# BACKEND_BINARY = "./buildstate/debug/TinyTorrent.exe"
 # BACKEND_BINARY = "../build_vs/debug/TinyTorrent.exe"
 
 RPC_PATH = "/transmission/rpc"
@@ -32,16 +34,22 @@ WS_PATH = "/ws"
 
 
 def connection_json_path():
+    # Must match tt::utils::data_root() (LocalAppData\\TinyTorrent\\data).
+    local_appdata = os.environ.get("LOCALAPPDATA")
+    if local_appdata:
+        return Path(local_appdata) / "TinyTorrent" / "data" / "connection.json"
     exe_path = Path(BACKEND_BINARY).resolve(strict=False)
     return exe_path.parent / "data" / "connection.json"
 
 
-def read_connection_port():
+def read_connection_port(expected_pid=None):
     try:
         path = connection_json_path()
         if not path.is_file():
             return None
         payload = json.loads(path.read_text(encoding="utf-8"))
+        if expected_pid is not None and payload.get("pid") != expected_pid:
+            return None
         port = payload.get("port")
         if isinstance(port, int) and port != 0:
             return port
@@ -51,8 +59,7 @@ def read_connection_port():
 
 
 def backend_data_root():
-    exe_path = Path(BACKEND_BINARY).resolve(strict=False)
-    return exe_path.parent / "data"
+    return connection_json_path().parent
 
 
 def random_secret():
@@ -60,7 +67,7 @@ def random_secret():
 
 
 def start_backend(secret):
-    args = [BACKEND_BINARY, "--session-secret", secret]
+    args = [BACKEND_BINARY, f"--session-secret={secret}"]
     proc = subprocess.Popen(
         args,
         stdout=subprocess.PIPE,
@@ -98,7 +105,7 @@ def start_backend(secret):
         if port:
             break
         if port is None:
-            port = read_connection_port()
+            port = read_connection_port(proc.pid)
             if port:
                 break
         time.sleep(0.1)
@@ -200,22 +207,43 @@ def websocket_sequence(port, secret):
         "",
     ]
     sock.sendall("\r\n".join(headers).encode())
-    response = sock.recv(4096)
-    if b"101" not in response:
+
+    response = b""
+    while b"\r\n\r\n" not in response:
+        chunk = sock.recv(4096)
+        if not chunk:
+            raise RuntimeError("websocket handshake failed (socket closed)")
+        response += chunk
+        if len(response) > 65536:
+            raise RuntimeError("websocket handshake failed (oversized response)")
+    header_blob, leftover = response.split(b"\r\n\r\n", 1)
+    if b"101" not in header_blob:
         raise RuntimeError("websocket handshake failed")
 
+    buffer = bytearray(leftover)
+
+    def recv_exact_ws(count):
+        while len(buffer) < count:
+            chunk = sock.recv(4096)
+            if not chunk:
+                raise RuntimeError("socket closed")
+            buffer.extend(chunk)
+        out = bytes(buffer[:count])
+        del buffer[:count]
+        return out
+
     def read_frame():
-        header = recv_exact(sock, 2)
+        header = recv_exact_ws(2)
         length = header[1] & 0x7F
         if length == 126:
-            length = int.from_bytes(recv_exact(sock, 2), "big")
+            length = int.from_bytes(recv_exact_ws(2), "big")
         elif length == 127:
-            length = int.from_bytes(recv_exact(sock, 8), "big")
+            length = int.from_bytes(recv_exact_ws(8), "big")
         if header[1] & 0x80:
-            mask = recv_exact(sock, 4)
+            mask = recv_exact_ws(4)
         else:
             mask = None
-        payload = recv_exact(sock, length)
+        payload = recv_exact_ws(length)
         if mask:
             payload = bytes(b ^ mask[i % 4] for i, b in enumerate(payload))
         return payload

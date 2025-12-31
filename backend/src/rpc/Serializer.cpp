@@ -1116,7 +1116,8 @@ serialize_history_data(std::vector<engine::HistoryBucket> const &buckets,
     return doc.write(R"({"result":"error"})");
 }
 
-std::string serialize_ws_snapshot(engine::SessionSnapshot const &snapshot)
+std::string serialize_ws_snapshot(engine::SessionSnapshot const &snapshot,
+                                  std::uint64_t sequence)
 {
     tt::json::MutableDocument doc;
     if (!doc.is_valid())
@@ -1128,6 +1129,7 @@ std::string serialize_ws_snapshot(engine::SessionSnapshot const &snapshot)
     auto *root = yyjson_mut_obj(native);
     doc.set_root(root);
     yyjson_mut_obj_add_str(native, root, "type", "sync-snapshot");
+    yyjson_mut_obj_add_uint(native, root, "sequence", sequence);
 
     auto *data = yyjson_mut_obj(native);
     yyjson_mut_obj_add_val(native, root, "data", data);

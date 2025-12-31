@@ -138,7 +138,7 @@ TEST_CASE("serialize_ws_snapshot reports aggregated labels registry")
     torrent2.labels = {"Movies", "Drama"};
     snapshot.torrents = {torrent1, torrent2};
 
-    auto payload = tt::rpc::serialize_ws_snapshot(snapshot);
+    auto payload = tt::rpc::serialize_ws_snapshot(snapshot, 0);
     JsonDocGuard guard(payload);
     auto *root = guard.root();
     REQUIRE(root != nullptr);

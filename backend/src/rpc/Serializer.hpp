@@ -100,7 +100,8 @@ std::string serialize_blocklist_update(
 std::string
 serialize_history_data(std::vector<engine::HistoryBucket> const &buckets,
                        std::int64_t step, int recording_interval);
-std::string serialize_ws_snapshot(engine::SessionSnapshot const &snapshot);
+std::string serialize_ws_snapshot(engine::SessionSnapshot const &snapshot,
+                                  std::uint64_t sequence);
 std::string serialize_ws_patch(
     engine::SessionSnapshot const &snapshot,
     std::vector<engine::TorrentSnapshot> const &added,
