@@ -1267,7 +1267,10 @@ void Server::broadcast_websocket_updates()
             }
             if (!snapshot_clients.empty())
             {
-                auto payload = serialize_ws_snapshot(*snapshot);
+                auto payload =
+                    serialize_ws_snapshot(*snapshot,
+                                          g_patch_sequence.load(
+                                              std::memory_order_relaxed));
                 std::vector<struct mg_connection *> sent_clients;
                 sent_clients.reserve(snapshot_clients.size());
                 for (auto conn : snapshot_clients)
@@ -1824,7 +1827,9 @@ void Server::handle_ws_open(struct mg_connection *conn,
     // visible to broadcast logic. Hold the clients mutex while adding and
     // sending the initial snapshot to avoid races where patch messages could
     // be sent before the snapshot is recorded.
-    std::string initial = serialize_ws_snapshot(*snapshot);
+    std::string initial =
+        serialize_ws_snapshot(*snapshot,
+                              g_patch_sequence.load(std::memory_order_relaxed));
     {
         std::lock_guard<std::mutex> lock(ws_clients_mtx_);
         ws_clients_.push_back({conn, std::move(snapshot)});
