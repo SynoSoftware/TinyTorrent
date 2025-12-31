@@ -331,6 +331,7 @@ TorrentManager::build_snapshot(SnapshotBuildCallbacks const &callbacks)
         int id = assign_rpc_id(status.info_hashes.get_best());
 
         result.seen_ids.insert(id);
+        bool const seen_before = snapshot_cache_.contains(id);
 
         if (callbacks.on_torrent_visit)
         {
@@ -347,6 +348,11 @@ TorrentManager::build_snapshot(SnapshotBuildCallbacks const &callbacks)
         }
         else if (callbacks.build_snapshot_entry)
         {
+            if (!seen_before)
+            {
+                TT_LOG_INFO("{}: snapshot discovered new torrent id={} name={}",
+                            hash, id, status.name);
+            }
             std::optional<std::int64_t> cached_added_time = std::nullopt;
             auto it = snapshot_cache_.find(id);
             if (it != snapshot_cache_.end())
@@ -462,13 +468,23 @@ void TorrentManager::process_alerts()
         {
             handle_metadata_received_alert(*metadata);
         }
-        else if (auto *add_failed =
+        else if (auto *add_alert =
                      libtorrent::alert_cast<libtorrent::add_torrent_alert>(
                          alert))
         {
-            if (add_failed->error && callbacks_.on_torrent_add_failed)
+            if (add_alert->error)
             {
-                callbacks_.on_torrent_add_failed(*add_failed);
+                if (callbacks_.on_torrent_add_failed)
+                {
+                    callbacks_.on_torrent_add_failed(*add_alert);
+                }
+            }
+            else
+            {
+                auto const hash =
+                    info_hash_to_hex(add_alert->params.info_hashes);
+                TT_LOG_INFO("{}: add torrent queued (save_path={})", hash,
+                            add_alert->params.save_path);
             }
         }
         else if (auto *metadata_failed =
@@ -577,6 +593,12 @@ void TorrentManager::async_add_torrent(libtorrent::add_torrent_params params)
         {
             if (session_)
             {
+                auto const hash = info_hash_to_hex(params.info_hashes);
+                bool const paused = static_cast<bool>(
+                    params.flags & libtorrent::torrent_flags::paused);
+                TT_LOG_INFO("engine: dequeued torrent-add for {} save_path={} "
+                            "paused={}",
+                            hash, params.save_path, paused ? "yes" : "no");
                 session_->async_add_torrent(std::move(params));
             }
         });

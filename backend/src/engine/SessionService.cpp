@@ -159,6 +159,7 @@ Core::AddTorrentStatus SessionService::add_torrent(TorrentAddRequest request)
 {
     libtorrent::add_torrent_params params;
     libtorrent::error_code ec;
+    std::string info_hash_text = "<pending>";
 
     if (!request.metainfo.empty())
     {
@@ -276,7 +277,14 @@ Core::AddTorrentStatus SessionService::add_torrent(TorrentAddRequest request)
                 std::chrono::system_clock::now());
             persistence_->add_or_update_torrent(std::move(entry));
         }
+        info_hash_text = *hash;
+        TT_LOG_INFO(
+            "engine: torrent-add request prepared for {} save_path={} paused={}",
+            info_hash_text, params.save_path, request.paused);
     }
+
+    TT_LOG_INFO("engine: scheduling torrent-add for {} save_path={}",
+                info_hash_text, params.save_path);
 
     manager_->async_add_torrent(std::move(params));
     return Core::AddTorrentStatus::Ok;
