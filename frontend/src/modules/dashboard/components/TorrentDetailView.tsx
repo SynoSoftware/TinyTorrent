@@ -1,3 +1,4 @@
+import { cn } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 import { GeneralTab } from "./details/tabs/GeneralTab";
 import { ContentTab } from "./details/tabs/ContentTab";
@@ -81,14 +82,11 @@ export function TorrentDetailView({
     });
 
     return (
-        /**
-         * FLAG: Missing semantic focus token.
-         * Per AGENTS.md the inspector container must use a shared focus role/class
-         * exported from the token pipeline (constants.json -> index.css -> logic.ts).
-         * Do NOT hardcode visual focus styles here; add the token if missing.
-         */
         <div
-            className={className ?? "h-full min-h-0 flex flex-col"}
+            className={cn(
+                className,
+                "h-full min-h-0 flex flex-col outline-none"
+            )}
             tabIndex={0}
             onKeyDown={handleKeyDown}
         >

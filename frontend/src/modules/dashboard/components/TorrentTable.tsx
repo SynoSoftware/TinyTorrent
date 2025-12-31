@@ -28,6 +28,7 @@ import {
     flexRender,
     type Column,
     type ColumnDef,
+    type ColumnSizingInfoState,
     type Header,
     type Row,
     type RowSelectionState,
@@ -76,6 +77,8 @@ import {
     PANEL_SHADOW,
 } from "@/shared/ui/layout/glass-surface";
 import useLayoutMetrics from "@/shared/hooks/useLayoutMetrics";
+import { useContextMenuPosition } from "@/shared/hooks/ui/useContextMenuPosition";
+import type { ContextMenuVirtualElement } from "@/shared/hooks/ui/useContextMenuPosition";
 import { useKeyboardScope } from "@/shared/hooks/useKeyboardScope";
 import {
     COLUMN_DEFINITIONS,
@@ -100,8 +103,7 @@ import { CONFIG, ICON_SIZE } from "@/config/logic";
 const STORAGE_KEY = "tiny-torrent.table-state.v2.8";
 const CELL_PADDING_CLASS = "pl-tight pr-panel";
 const CELL_BASE_CLASSES =
-    "flex items-center overflow-hidden h-full truncate box-border leading-none";
-const DEFAULT_CONTEXT_MENU_MARGIN = 16;
+    "flex items-center overflow-hidden h-full truncate whitespace-nowrap text-ellipsis box-border leading-none";
 
 const SPEED_HISTORY_LIMIT = 30;
 const DND_OVERLAY_CLASSES = "pointer-events-none fixed inset-0 z-40";
@@ -123,13 +125,11 @@ interface MarqueeState {
     isAdditive: boolean;
 }
 
-type HeaderMenuItem =
-    | {
-          type: "column";
-          column: Column<Torrent>;
-          label: string;
-      }
-    | { type: "separator"; key: string };
+type HeaderMenuItem = {
+    column: Column<Torrent>;
+    label: string;
+    isPinned: boolean;
+};
 
 const SHORTCUT_KEY_LABELS: Record<string, string> = {
     ctrl: "Ctrl",
@@ -160,6 +160,70 @@ const formatShortcutLabel = (value?: string | string[]) => {
     const combos = Array.isArray(value) ? value : [value];
     return combos.map(formatShortcutCombination).join(" / ");
 };
+
+const normalizeColumnSizingState = (
+    sizing: Record<string, number>
+): Record<string, number> => {
+    const normalized: Record<string, number> = {};
+    Object.entries(sizing).forEach(([id, raw]) => {
+        const def = COLUMN_DEFINITIONS[id as ColumnId];
+        const min = def?.minSize ?? 80;
+        const base = def?.width ?? min;
+        const value =
+            typeof raw === "number" && Number.isFinite(raw) ? raw : base;
+        normalized[id] = Math.max(min, value);
+    });
+    Object.entries(COLUMN_DEFINITIONS).forEach(([id, def]) => {
+        if (normalized[id]) return;
+        const min = def?.minSize ?? 80;
+        const base = def?.width ?? min;
+        normalized[id] = Math.max(min, base);
+    });
+    return normalized;
+};
+
+const AUTO_FIT_PADDING = 48;
+const createMeasurementContext = (() => {
+    if (typeof document === "undefined") return null;
+    const canvas = document.createElement("canvas");
+    return canvas.getContext("2d");
+})();
+
+const measureTextWidth = (text: string) => {
+    if (typeof window === "undefined" || !createMeasurementContext) return 0;
+    const rootStyle = getComputedStyle(document.documentElement);
+    const fontSize =
+        rootStyle.getPropertyValue("--tt-font-size-base") || rootStyle.fontSize;
+    const fontFamily = rootStyle.fontFamily || "Inter, system-ui";
+    createMeasurementContext.font = `${fontSize} ${fontFamily}`;
+    return Number.isFinite(createMeasurementContext.measureText(text).width)
+        ? createMeasurementContext.measureText(text).width
+        : 0;
+};
+
+const SUPPORTS_POINTER_EVENTS =
+    typeof window !== "undefined" && "PointerEvent" in window;
+
+const stringifyCellValue = (value: unknown) => {
+    if (value === undefined || value === null) return "";
+    if (typeof value === "object") {
+        try {
+            return JSON.stringify(value);
+        } catch {
+            return String(value);
+        }
+    }
+    return String(value);
+};
+
+const createColumnSizingInfoState = (): ColumnSizingInfoState => ({
+    columnSizingStart: [],
+    deltaOffset: null,
+    deltaPercentage: null,
+    isResizingColumn: false,
+    startOffset: null,
+    startSize: null,
+});
 
 const ADD_TORRENT_SHORTCUT = formatShortcutLabel(["ctrl+o", "meta+o"]);
 
@@ -202,80 +266,78 @@ interface TorrentTableProps {
 }
 
 // --- HELPERS ---
-const clampContextMenuPoint = (
-    x: number,
-    y: number,
-    marginOverride?: number
-) => {
-    if (typeof window === "undefined") {
-        return { x, y };
-    }
-    const margin =
-        typeof marginOverride === "number"
-            ? marginOverride
-            : DEFAULT_CONTEXT_MENU_MARGIN;
-    const maxX = Math.max(margin, window.innerWidth - margin);
-    const maxY = Math.max(margin, window.innerHeight - margin);
-    return {
-        x: Math.min(Math.max(x, margin), maxX),
-        y: Math.min(Math.max(y, margin), maxY),
-    };
-};
-
-interface VirtualElement {
-    x: number;
-    y: number;
-    getBoundingClientRect: () => DOMRect;
-}
-
-const createVirtualElement = (
-    x: number,
-    y: number,
-    marginOverride?: number
-): VirtualElement => {
-    const { x: boundedX, y: boundedY } = clampContextMenuPoint(
-        x,
-        y,
-        marginOverride
-    );
-    return {
-        x: boundedX,
-        y: boundedY,
-        getBoundingClientRect: () =>
-            ({
-                width: 0,
-                height: 0,
-                top: boundedY,
-                right: boundedX,
-                bottom: boundedY,
-                left: boundedX,
-                x: boundedX,
-                y: boundedY,
-                toJSON: () => {},
-            } as DOMRect),
-    };
-};
-
 // --- SUB-COMPONENT: DRAGGABLE HEADER ---
 const DraggableHeader = memo(
     ({
         header,
         isOverlay = false,
         onContextMenu,
+        onAutoFitColumn,
+        onResizeStart,
+        isResizing = false,
     }: {
         header: Header<Torrent, unknown>;
         isOverlay?: boolean;
         onContextMenu?: (e: React.MouseEvent) => void;
+        onAutoFitColumn?: (column: Column<Torrent>) => void;
+        onResizeStart?: (column: Column<Torrent>, clientX: number) => void;
+        isResizing?: boolean;
     }) => {
         const { column } = header;
+        const canResize =
+            header.column.id !== "selection" &&
+            (typeof column.getCanResize === "function"
+                ? column.getCanResize()
+                : true);
         const {
             setNodeRef,
             attributes,
             listeners,
+            setActivatorNodeRef,
             transform,
             transition,
             isDragging,
         } = useSortable({ id: header.column.id });
+        const handleAutoFit = (event: React.MouseEvent) => {
+            event.stopPropagation();
+            if (column.getCanResize()) {
+                onAutoFitColumn?.(column);
+            }
+        };
+        const startManualResize = (clientX?: number) => {
+            if (clientX === undefined || clientX === null) return;
+            onResizeStart?.(column, clientX);
+        };
+        const handlePointerDown = (event: React.PointerEvent) => {
+            event.preventDefault();
+            event.stopPropagation();
+            startManualResize(event.clientX);
+        };
+        const handleMouseDown = (event: React.MouseEvent) => {
+            if (SUPPORTS_POINTER_EVENTS) {
+                event.stopPropagation();
+                return;
+            }
+            event.preventDefault();
+            event.stopPropagation();
+            startManualResize(event.clientX);
+        };
+        const handleTouchStart = (event: React.TouchEvent) => {
+            if (SUPPORTS_POINTER_EVENTS) {
+                event.stopPropagation();
+                return;
+            }
+            const touch = event.touches[0];
+            if (!touch) return;
+            event.preventDefault();
+            event.stopPropagation();
+            startManualResize(touch.clientX);
+        };
+
+        const isColumnResizing =
+            isResizing || (typeof column.getIsResizing === "function"
+                ? column.getIsResizing()
+                : false);
 
         const style: CSSProperties = {
             transform: CSS.Translate.toString(transform),
@@ -294,11 +356,8 @@ const DraggableHeader = memo(
             <div
                 ref={setNodeRef}
                 style={style}
-                {...attributes}
-                {...listeners}
                 role="columnheader"
                 tabIndex={-1}
-                onClick={canSort ? column.getToggleSortingHandler() : undefined}
                 onContextMenu={onContextMenu}
                 className={cn(
                     "relative flex items-center h-row border-r border-content1/10 transition-colors group select-none overflow-hidden",
@@ -315,6 +374,9 @@ const DraggableHeader = memo(
                 )}
             >
                 <div
+                    ref={setActivatorNodeRef}
+                    {...attributes}
+                    {...listeners}
                     className={cn(
                         CELL_BASE_CLASSES,
                         "flex-1 gap-tools",
@@ -326,6 +388,9 @@ const DraggableHeader = memo(
                         isSelection && "justify-center "
                     )}
                     style={{ letterSpacing: "var(--tt-tracking-tight)" }}
+                    onClick={
+                        canSort ? column.getToggleSortingHandler() : undefined
+                    }
                 >
                     {flexRender(column.columnDef.header, header.getContext())}
                     {sortState === "asc" && (
@@ -350,24 +415,20 @@ const DraggableHeader = memo(
                     )}
                 </div>
 
-                {!isOverlay && header.column.getCanResize() && (
+                {!isOverlay && canResize && (
                     <div
-                        onMouseDown={(e) => {
-                            header.getResizeHandler()(e);
-                            e.stopPropagation();
-                        }}
-                        onTouchStart={(e) => {
-                            header.getResizeHandler()(e);
-                            e.stopPropagation();
-                        }}
+                        onPointerDown={handlePointerDown}
+                        onMouseDown={handleMouseDown}
+                        onTouchStart={handleTouchStart}
                         onClick={(e) => e.stopPropagation()}
+                        onDoubleClick={handleAutoFit}
                         className="absolute right-0 top-0 h-full w-4 cursor-col-resize touch-none select-none flex justify-center items-center z-30"
                     >
                         <div
                             className={cn(
                                 "w-(--bw) h-indicator bg-foreground/10 transition-colors rounded-full",
                                 "group-hover:bg-primary/50",
-                                column.getIsResizing() &&
+                                isColumnResizing &&
                                     "bg-primary w-(--tt-divider-width) h-indicator"
                             )}
                         />
@@ -814,14 +875,16 @@ export function TorrentTable({
             return {
                 columnOrder: validOrder,
                 columnVisibility: parsed.columnVisibility || {},
-                columnSizing: parsed.columnSizing || {},
+                columnSizing: normalizeColumnSizingState(
+                    parsed.columnSizing || {}
+                ),
                 sorting: parsed.sorting || [],
             };
         } catch {
             return {
                 columnOrder: DEFAULT_COLUMN_ORDER,
                 columnVisibility: {},
-                columnSizing: {},
+                columnSizing: normalizeColumnSizingState({}),
                 sorting: [],
             };
         }
@@ -835,7 +898,11 @@ export function TorrentTable({
     const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(
         initialState.columnVisibility
     );
-    const [columnSizing, setColumnSizing] = useState(initialState.columnSizing);
+    const [columnSizing, setColumnSizing] = useState(
+        normalizeColumnSizingState(initialState.columnSizing)
+    );
+    const [columnSizingInfo, setColumnSizingInfo] =
+        useState<ColumnSizingInfoState>(createColumnSizingInfoState);
     const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
     const rowSelectionRef = useRef<RowSelectionState>(rowSelection);
     useEffect(() => {
@@ -846,15 +913,23 @@ export function TorrentTable({
     const [activeDragHeaderId, setActiveDragHeaderId] = useState<string | null>(
         null
     );
+    const [activeResizeColumnId, setActiveResizeColumnId] = useState<
+        string | null
+    >(null);
+    const resizeStartRef = useRef<{
+        columnId: string;
+        startX: number;
+        startSize: number;
+    } | null>(null);
     const [activeRowId, setActiveRowId] = useState<string | null>(null);
     const [dropTargetRowId, setDropTargetRowId] = useState<string | null>(null);
     const [isColumnModalOpen, setIsColumnModalOpen] = useState(false);
     const [contextMenu, setContextMenu] = useState<{
-        virtualElement: ReturnType<typeof createVirtualElement>;
+    virtualElement: ContextMenuVirtualElement;
         torrent: Torrent;
     } | null>(null);
     const [headerContextMenu, setHeaderContextMenu] = useState<{
-        virtualElement: ReturnType<typeof createVirtualElement>;
+        virtualElement: ContextMenuVirtualElement;
         columnId: string | null;
     } | null>(null);
     const [anchorIndex, setAnchorIndex] = useState<number | null>(null);
@@ -1025,6 +1100,7 @@ export function TorrentTable({
                 },
                 size: def.width ?? 150,
                 minSize: def.minSize ?? 80,
+                enableResizing: true,
                 meta: { align: def.align },
                 cell: ({ row, table }) => {
                     return def.render({
@@ -1057,24 +1133,159 @@ export function TorrentTable({
             columnVisibility,
             rowSelection,
             columnSizing,
+            columnSizingInfo,
         },
         meta: tableMeta,
         columnResizeMode: "onChange",
+        enableColumnResizing: true,
         enableSortingRemoval: true,
         getCoreRowModel: getCoreRowModel(),
         getSortedRowModel: getSortedRowModel(),
         onSortingChange: setSorting,
         onColumnOrderChange: setColumnOrder,
         onColumnVisibilityChange: setColumnVisibility,
-        onColumnSizingChange: setColumnSizing,
+        onColumnSizingChange: (updater) => {
+            setColumnSizing((prev) =>
+                normalizeColumnSizingState(
+                    typeof updater === "function" ? updater(prev) : updater
+                )
+            );
+        },
+        onColumnSizingInfoChange: setColumnSizingInfo,
         onRowSelectionChange: setRowSelection,
         enableRowSelection: true,
         autoResetAll: false,
     });
 
     const { rows } = table.getRowModel();
-    const { rowHeight, fileContextMenuMargin, fileContextMenuWidth } =
-        useLayoutMetrics();
+    const getColumnLabel = useCallback(
+        (column: Column<Torrent>) => {
+            const definition = COLUMN_DEFINITIONS[column.id as ColumnId];
+            const labelKey = definition?.labelKey;
+            if (labelKey) {
+                return t(labelKey);
+            }
+            return column.id;
+        },
+        [t]
+    );
+    const resetColumnResizeState = useCallback(() => {
+        resizeStartRef.current = null;
+        setActiveResizeColumnId(null);
+        setColumnSizingInfo(createColumnSizingInfoState());
+    }, [setActiveResizeColumnId, setColumnSizingInfo]);
+    const autoFitColumn = useCallback(
+        (column: Column<Torrent>) => {
+            if (!column.getCanResize()) return;
+            resetColumnResizeState();
+            const headerLabel = getColumnLabel(column);
+            let maxWidth = measureTextWidth(headerLabel);
+            const sampleRows = rows.slice(0, 40);
+            sampleRows.forEach((row) => {
+                const value = row.getValue(column.id);
+                maxWidth = Math.max(
+                    maxWidth,
+                    measureTextWidth(stringifyCellValue(value))
+                );
+            });
+            const definition = COLUMN_DEFINITIONS[column.id as ColumnId];
+            const minSize = definition?.minSize ?? 60;
+            const computedWidth = Math.ceil(
+                Math.max(minSize, maxWidth + AUTO_FIT_PADDING)
+            );
+            setColumnSizing((prev: Record<string, number>) =>
+                normalizeColumnSizingState({
+                    ...prev,
+                    [column.id]: computedWidth,
+                })
+            );
+        },
+        [getColumnLabel, resetColumnResizeState, rows, setColumnSizing]
+    );
+    const autoFitAllColumns = useCallback(() => {
+        table.getAllLeafColumns().forEach((column) => {
+            if (!column.getCanResize()) return;
+            autoFitColumn(column);
+        });
+    }, [autoFitColumn, table]);
+    const { rowHeight, fileContextMenuMargin } = useLayoutMetrics();
+    const { clampContextMenuPosition, createVirtualElement } =
+        useContextMenuPosition({
+            defaultMargin: fileContextMenuMargin,
+        });
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        if (!activeResizeColumnId) return;
+
+        const handlePointerMove = (event: PointerEvent) => {
+            const resizeState = resizeStartRef.current;
+            if (!resizeState) return;
+            const column = table.getColumn(resizeState.columnId);
+            if (!column) return;
+            const delta = event.clientX - resizeState.startX;
+            const minSize = column.columnDef.minSize ?? 80;
+            const maxSize =
+                typeof column.columnDef.maxSize === "number"
+                    ? column.columnDef.maxSize
+                    : Number.POSITIVE_INFINITY;
+            const nextSize = Math.min(
+                maxSize,
+                Math.max(minSize, Math.round(resizeState.startSize + delta))
+            );
+            event.preventDefault();
+            setColumnSizing((prev) => {
+                if (prev[resizeState.columnId] === nextSize) return prev;
+                return { ...prev, [resizeState.columnId]: nextSize };
+            });
+            setColumnSizingInfo((info) => ({
+                ...info,
+                deltaOffset: delta,
+                deltaPercentage:
+                    resizeState.startSize > 0
+                        ? delta / resizeState.startSize
+                        : 0,
+            }));
+        };
+
+        const handlePointerUp = () => {
+            resetColumnResizeState();
+        };
+
+        window.addEventListener("pointermove", handlePointerMove);
+        window.addEventListener("pointerup", handlePointerUp);
+
+        return () => {
+            window.removeEventListener("pointermove", handlePointerMove);
+            window.removeEventListener("pointerup", handlePointerUp);
+        };
+    }, [
+        activeResizeColumnId,
+        resetColumnResizeState,
+        setColumnSizing,
+        setColumnSizingInfo,
+        table,
+    ]);
+    const handleColumnResizeStart = useCallback(
+        (column: Column<Torrent>, clientX: number) => {
+            if (!column.getCanResize()) return;
+            const startSize = column.getSize();
+            resizeStartRef.current = {
+                columnId: column.id,
+                startX: clientX,
+                startSize,
+            };
+            setActiveResizeColumnId(column.id);
+            setColumnSizingInfo(() => ({
+                columnSizingStart: [[column.id, startSize]],
+                deltaOffset: 0,
+                deltaPercentage: 0,
+                isResizingColumn: column.id,
+                startOffset: clientX,
+                startSize,
+            }));
+        },
+        [setActiveResizeColumnId, setColumnSizingInfo]
+    );
 
     const rowVirtualizer = useVirtualizer({
         count: rows.length,
@@ -1613,11 +1824,9 @@ export function TorrentTable({
         (e: React.MouseEvent, torrent: Torrent) => {
             e.preventDefault();
             if (torrent.isGhost) return;
-            const virtualElement = createVirtualElement(
-                e.clientX,
-                e.clientY,
-                fileContextMenuMargin
-            );
+            const virtualElement = createVirtualElement(e.clientX, e.clientY, {
+                margin: fileContextMenuMargin,
+            });
             setContextMenu({ virtualElement, torrent });
 
             const allRows = table.getRowModel().rows;
@@ -1640,7 +1849,7 @@ export function TorrentTable({
             const virtualElement = createVirtualElement(
                 event.clientX,
                 event.clientY,
-                fileContextMenuMargin
+                { margin: fileContextMenuMargin }
             );
             setHeaderContextMenu({ virtualElement, columnId });
         },
@@ -1686,33 +1895,34 @@ export function TorrentTable({
         if (!headerContextMenu) return [];
         const columns = table
             .getAllLeafColumns()
-            .filter((column) => column.id !== "selection");
-        const getColumnLabel = (column: Column<Torrent>) =>
-            t(COLUMN_DEFINITIONS[column.id as ColumnId]?.labelKey ?? column.id);
-        const createColumnItem = (column: Column<Torrent>): HeaderMenuItem => ({
-            type: "column",
-            column,
-            label: getColumnLabel(column),
-        });
-        const createSeparatorItem = (key: string): HeaderMenuItem => ({
-            type: "separator",
-            key,
-        });
+            .filter((column) => column.id !== "selection")
+            .map(
+                (column): HeaderMenuItem => ({
+                    column,
+                    label: getColumnLabel(column),
+                    isPinned:
+                        !!headerMenuActiveColumn &&
+                        headerMenuActiveColumn.id === column.id,
+                })
+            );
         const alphabetical = [...columns].sort((a, b) =>
-            getColumnLabel(a).localeCompare(getColumnLabel(b))
+            a.label.localeCompare(b.label)
         );
         if (!headerMenuActiveColumn) {
-            return alphabetical.map(createColumnItem);
+            return alphabetical;
         }
-        const others = alphabetical.filter(
-            (column) => column.id !== headerMenuActiveColumn.id
+        const pinned = alphabetical.find((item) => item.isPinned);
+        if (!pinned) {
+            return alphabetical;
+        }
+        const rest = alphabetical.filter(
+            (item) => item.column.id !== pinned.column.id
         );
         return [
-            createColumnItem(headerMenuActiveColumn),
-            createSeparatorItem(`${headerMenuActiveColumn.id}-separator`),
-            ...others.map(createColumnItem),
+            pinned,
+            ...rest.map((item) => ({ ...item, isPinned: false })),
         ];
-    }, [headerContextMenu, headerMenuActiveColumn, table, t]);
+    }, [getColumnLabel, headerContextMenu, headerMenuActiveColumn, table]);
 
     const headerContainerClass = cn(
         "flex w-full sticky top-0 z-20 border-b border-content1/20 bg-content1/10 backdrop-blur-sm "
@@ -1767,6 +1977,18 @@ export function TorrentTable({
                                                         e,
                                                         header.column.id
                                                     )
+                                                }
+                                                onAutoFitColumn={
+                                                    autoFitColumn
+                                                }
+                                                onResizeStart={
+                                                    handleColumnResizeStart
+                                                }
+                                                isResizing={
+                                                    columnSizingInfo.isResizingColumn ===
+                                                        header.column.id ||
+                                                    activeResizeColumnId ===
+                                                        header.column.id
                                                 }
                                             />
                                         ))}
@@ -2153,7 +2375,7 @@ export function TorrentTable({
                                         key="hide-column"
                                         color="danger"
                                         isDisabled={!headerMenuActiveColumn}
-                                        className="px-panel py-(--p-tight) text-scaled font-semibold"
+                                        className="px-panel py-tight text-scaled font-semibold"
                                         onPress={() =>
                                             headerMenuActiveColumn?.toggleVisibility(
                                                 false
@@ -2163,59 +2385,53 @@ export function TorrentTable({
                                         {t("table.actions.hide_column")}
                                     </DropdownItem>
                                     <DropdownItem
-                                        key="header-divider"
-                                        isReadOnly
-                                        className=" "
+                                        key="fit-all-columns"
+                                        className="px-panel py-tight text-scaled font-semibold"
+                                        onPress={autoFitAllColumns}
+                                        showDivider
                                     >
-                                        <div className="border-t border-content1/20 my-tight mx-panel" />
+                                        {t("table.actions.fit_all_columns")}
                                     </DropdownItem>
                                     <DropdownSection
                                         key="columns-section"
                                         title={t("table.column_picker_title")}
                                     >
-                                        {
-                                            headerMenuItems.map((item) => {
-                                                if (item.type === "separator") {
-                                                    return (
-                                                        <DropdownItem
-                                                            key={item.key}
-                                                            isReadOnly
-                                                            className=" "
-                                                        >
-                                                            <div className="border-t border-content1/10 my-tight" />
-                                                        </DropdownItem>
-                                                    );
-                                                }
-                                                const isVisible =
-                                                    item.column.getIsVisible();
-                                                return (
-                                                    <DropdownItem
-                                                        key={item.column.id}
-                                                        className="pl-stage text-scaled"
-                                                        closeOnSelect={false}
-                                                        onPress={() =>
-                                                            item.column.toggleVisibility(
-                                                                !isVisible
-                                                            )
-                                                        }
-                                                        startContent={
-                                                            <Checkbox
-                                                                isSelected={
-                                                                    isVisible
-                                                                }
-                                                                size="md"
-                                                                disableAnimation
-                                                                classNames={{
-                                                                    base: "mr-tight",
-                                                                }}
-                                                            />
-                                                        }
-                                                    >
-                                                        {item.label}
-                                                    </DropdownItem>
-                                                );
-                                            }) as ItemElement<object>[]
-                                        }
+                                        {headerMenuItems.map((item, index) => {
+                                            const isVisible =
+                                                item.column.getIsVisible();
+                                            const showDivider =
+                                                item.isPinned &&
+                                                headerMenuItems.length > 1;
+                                            return (
+                                                <DropdownItem
+                                                    key={item.column.id}
+                                                    className={cn(
+                                                        "pl-stage text-scaled",
+                                                        item.isPinned &&
+                                                            "font-semibold text-foreground"
+                                                    )}
+                                                    closeOnSelect={false}
+                                                    onPress={() =>
+                                                        item.column.toggleVisibility(
+                                                            !isVisible
+                                                        )
+                                                    }
+                                                    startContent={
+                                                        <Checkbox
+                                                            isSelected={isVisible}
+                                                            size="md"
+                                                            disableAnimation
+                                                            classNames={{
+                                                                base: "mr-tight",
+                                                            }}
+                                                        />
+                                                    }
+                                                    showDivider={showDivider}
+                                                >
+                                                    {item.label}
+                                                </DropdownItem>
+                                            );
+                                        }) as ItemElement<object>[]}
                                     </DropdownSection>
                                 </DropdownMenu>
                             </Dropdown>

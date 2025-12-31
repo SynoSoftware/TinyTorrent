@@ -13,6 +13,7 @@ import {
 
 import { useTranslation } from "react-i18next";
 import useLayoutMetrics from "@/shared/hooks/useLayoutMetrics";
+import { useContextMenuPosition } from "@/shared/hooks/ui/useContextMenuPosition";
 import { ICON_STROKE_WIDTH } from "@/config/logic";
 import { formatBytes } from "@/shared/utils/format";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -237,27 +238,11 @@ export function FileExplorerTree({
         fileContextMenuMargin: contextMenuMargin,
     } = useLayoutMetrics();
 
-    const clampContextMenuPosition = useCallback(
-        (x: number, y: number, menuWidth = contextMenuWidth) => {
-            const rect = containerRef.current?.getBoundingClientRect();
-            if (!rect) {
-                return { x, y };
-            }
-            const maxX = Math.max(
-                rect.width - menuWidth - contextMenuMargin,
-                contextMenuMargin
-            );
-            const maxY = Math.max(
-                rect.height - contextMenuMargin,
-                contextMenuMargin
-            );
-            return {
-                x: Math.min(Math.max(x, contextMenuMargin), maxX),
-                y: Math.min(Math.max(y, contextMenuMargin), maxY),
-            };
-        },
-        [contextMenuMargin, contextMenuWidth]
-    );
+    const { clampContextMenuPosition } = useContextMenuPosition({
+        containerRef,
+        defaultMargin: contextMenuMargin,
+        defaultMenuWidth: contextMenuWidth,
+    });
     const getRangeIndexes = useCallback(
         (targetIndex: number, anchorIndex: number | null) => {
             if (anchorIndex === null) {
@@ -381,7 +366,7 @@ export function FileExplorerTree({
         const clamped = clampContextMenuPosition(
             fileContextMenu.rawX,
             fileContextMenu.rawY,
-            rect.width
+            { menuWidth: rect.width }
         );
         if (
             clamped.x === fileContextMenu.x &&

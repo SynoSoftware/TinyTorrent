@@ -266,7 +266,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
             <div className="flex min-w-0 items-center h-full">
                 <span
                     className={cn(
-                        "font-medium truncate max-w-md transition-colors cap-height-text",
+                        "font-medium truncate max-w-full transition-colors cap-height-text",
                         TABLE_LAYOUT.fontSize,
                         torrent.state === "paused" && "text-foreground/50"
                     )}

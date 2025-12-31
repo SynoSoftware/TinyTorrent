@@ -167,6 +167,10 @@
     /* Added semantic tokens for previously inline arbitrary Tailwind calcs */
     --tt-modal-max-width: calc(180 * var(--u) * var(--z));
     --tt-modal-body-max-height: calc(70 * var(--u) * var(--z));
+    --tt-modal-add-w: calc(var(--u) * 180 * var(--z));
+    --tt-modal-body-max-h: calc(var(--u) * 70 * var(--z));
+    --tt-modal-settings-h: calc(var(--u) * 200 * var(--z));
+    --tt-modal-settings-min-h: calc(var(--u) * 125 * var(--z));
     --tt-settings-h: calc(200 * var(--u));
     --tt-settings-max-h: calc(200 * var(--u));
     --tt-settings-min-h: calc(125 * var(--u));
@@ -352,6 +356,10 @@
 
     .max-w-tooltip {
         max-width: var(--tt-modal-max-width);
+    }
+
+    .min-w-status-chip {
+        min-width: var(--tt-badge-min-width);
     }
 
     /* LIGHT - emerald paper */
@@ -825,14 +833,6 @@ main .torrent-table-watermark {
 
     .max-w-dir-picker {
         max-width: var(--tt-directory-picker-max-w);
-    }
-
-    .max-w-modal {
-        max-width: var(--tt-modal-max-width);
-    }
-
-    .max-h-modal-body {
-        max-height: var(--tt-modal-body-max-height);
     }
 
     .max-h-command-palette {

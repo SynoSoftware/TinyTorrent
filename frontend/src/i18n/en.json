@@ -394,7 +394,8 @@
             "remove": "Remove",
             "remove_with_data": "Remove and Delete Files",
             "hide_column": "Hide Column",
-            "resume": "Resume"
+            "resume": "Resume",
+            "fit_all_columns": "Fit All Columns"
         },
         "column_desc_added": "When the torrent was added",
         "column_desc_eta": "Estimated completion time",
