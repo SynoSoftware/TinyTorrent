@@ -8,6 +8,7 @@ import {
     createSplinePoints,
 } from "@/shared/utils/spline";
 import { INTERACTION_CONFIG } from "@/config/logic";
+import { useUiClock } from "@/shared/hooks/useUiClock";
 
 const { networkGraph } = INTERACTION_CONFIG;
 const GRAPH_WIDTH = networkGraph.width;
@@ -21,6 +22,9 @@ interface NetworkGraphProps {
 }
 
 export const NetworkGraph = ({ data, color, className }: NetworkGraphProps) => {
+    // Subscribe to the UI clock so graph cadence is stable.
+    const { tick } = useUiClock();
+    void tick;
     const normalizedData = data.length ? data : [0];
     const maxValue = Math.max(...normalizedData, 1);
     const points = createSplinePoints(
