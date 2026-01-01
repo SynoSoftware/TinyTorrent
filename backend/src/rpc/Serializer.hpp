@@ -67,8 +67,9 @@ std::string serialize_session_settings(
     engine::CoreSettings const &settings, std::size_t blocklist_entries,
     std::optional<std::chrono::system_clock::time_point> blocklist_updated,
     std::string const &rpc_bind, std::string const &listen_error,
-    UiPreferences const &ui_preferences);
+    bool state_store_ready, UiPreferences const &ui_preferences);
 std::string serialize_session_stats(engine::SessionSnapshot const &snapshot);
+std::string serialize_state_store_status(bool ready);
 std::string serialize_session_tray_status(std::uint64_t download_kbps,
                                           std::uint64_t upload_kbps,
                                           std::size_t active_count,

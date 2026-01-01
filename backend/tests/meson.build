@@ -31,6 +31,11 @@ tt_test_common_sources = [
 
 ]
 
+crash_sentinel_exe = executable('harness-crash-sentinel',
+  'HarnessCrashSentinel.cpp',
+  cpp_args: tt_cpp_args,
+  c_args: tt_c_args)
+
 doctest_dep = dependency('doctest', method: 'cmake', modules: ['doctest::doctest'])
 
 dispatcher_test_exe = executable('dispatcher-test', tt_test_common_sources + ['main_test.cpp', 'DispatcherTest.cpp'],
@@ -47,6 +52,19 @@ rpc_endpoint_test_exe = executable('rpc-endpoint-test',
 
 test('dispatcher-test', dispatcher_test_exe)
 test('rpc-endpoint-test', rpc_endpoint_test_exe)
+
+daemon_smoke_test_exe = executable('daemon-smoke-test',
+  tt_test_common_sources + ['main_test.cpp', 'DaemonSmokeTest.cpp', '../src/rpc/Server.cpp'],
+  dependencies: [tt_common_dep, doctest_dep],
+  cpp_args: tt_cpp_args,
+  c_args: tt_c_args,
+)
+
+test(
+  'daemon-smoke-test',
+  daemon_smoke_test_exe,
+  timeout: 120
+)
 
 serializer_test_exe = executable('serializer-test',
   tt_test_common_sources + ['main_test.cpp', 'SerializerTest.cpp'],

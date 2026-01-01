@@ -98,11 +98,13 @@ SnapshotBuilder::SnapshotBuilder(
     PersistenceManager *persistence, std::unordered_map<int, int> &priorities,
     std::shared_mutex &priorities_mutex,
     std::function<std::uint64_t(int)> ensure_revision,
-    std::function<std::string(std::string const &)> error_lookup)
+    std::function<std::string(std::string const &)> error_lookup,
+    std::function<RehashState(int)> rehash_info)
     : persistence_(persistence), priorities_(priorities),
       priorities_mutex_(priorities_mutex),
       ensure_revision_(std::move(ensure_revision)),
-      error_lookup_(std::move(error_lookup))
+      error_lookup_(std::move(error_lookup)),
+      rehash_info_(std::move(rehash_info))
 {
 }
 
@@ -172,6 +174,13 @@ TorrentSnapshot SnapshotBuilder::build_snapshot(
     snapshot.left_until_done = std::max<std::int64_t>(
         0, status.total_wanted - status.total_wanted_done);
     snapshot.size_when_done = status.total_wanted;
+    if (rehash_info_)
+    {
+        auto info = rehash_info_(rpc_id);
+        snapshot.rehash_active = info.active;
+        snapshot.rehash_start_count = info.start_count;
+        snapshot.rehash_complete_count = info.complete_count;
+    }
     if (revision == 0)
     {
         revision = ensure_revision_(rpc_id);

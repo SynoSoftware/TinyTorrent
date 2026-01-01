@@ -19,11 +19,13 @@
 #include <cstdint>
 #include <filesystem>
 #include <libtorrent/alert_types.hpp>
+#include <libtorrent/session_status.hpp>
 #include <libtorrent/torrent_flags.hpp>
 #include <libtorrent/write_resume_data.hpp>
 #include <memory>
 #include <span>
 #include <system_error>
+#include <functional>
 #include <vector>
 #if defined(__has_include)
 #if __has_include(<sanitizer/common_interface_defs.h>)
@@ -368,6 +370,7 @@ TorrentManager::build_snapshot(SnapshotBuildCallbacks const &callbacks)
         }
 
         entry.revision = revision;
+        apply_activity(entry, id);
 
         if (callbacks.labels_for_torrent)
         {
@@ -415,6 +418,7 @@ TorrentManager::build_snapshot(SnapshotBuildCallbacks const &callbacks)
     snapshot->upload_rate = total_upload_rate;
     snapshot->dht_nodes = 0;
 
+    prune_activity(result.seen_ids);
     snapshot_cache_ = std::move(updated_cache);
     store_snapshot(snapshot);
     result.snapshot = std::move(snapshot);
@@ -446,9 +450,26 @@ void TorrentManager::process_alerts()
     alert_buffer_annotated_size_ = alert_buffer_.size();
     for (auto const *alert : alert_buffer_)
     {
-        if (auto *finished =
-                libtorrent::alert_cast<libtorrent::torrent_finished_alert>(
+        if (auto *announce =
+                libtorrent::alert_cast<libtorrent::tracker_announce_alert>(
                     alert))
+        {
+            record_tracker_announce(*announce);
+        }
+        else if (auto *dht =
+                     libtorrent::alert_cast<libtorrent::dht_reply_alert>(alert))
+        {
+            record_dht_reply(*dht);
+        }
+        else if (auto *peer =
+                     libtorrent::alert_cast<libtorrent::peer_connect_alert>(
+                         alert))
+        {
+            record_peer_connect(*peer);
+        }
+        else if (auto *finished =
+                     libtorrent::alert_cast<libtorrent::torrent_finished_alert>(
+                         alert))
         {
             handle_torrent_finished(*finished);
         }
@@ -574,6 +595,12 @@ void TorrentManager::process_alerts()
             {
                 callbacks_.on_storage_moved_failed(*storage_failed);
             }
+        }
+        else if (auto *checked =
+                     libtorrent::alert_cast<libtorrent::torrent_checked_alert>(
+                         alert))
+        {
+            mark_rehash_completed(checked->handle);
         }
         else if (auto *fastresume = libtorrent::alert_cast<
                      libtorrent::fastresume_rejected_alert>(alert))
@@ -1017,6 +1044,129 @@ TorrentManager::purge_missing_ids(std::unordered_set<int> const &seen_ids)
         }
     }
     return removed;
+}
+
+void TorrentManager::record_tracker_announce(
+    libtorrent::tracker_announce_alert const &alert)
+{
+    record_activity(alert.handle, [](ActivityCounters &c)
+                    { ++c.tracker_announces; });
+}
+
+void TorrentManager::record_dht_reply(
+    libtorrent::dht_reply_alert const &alert)
+{
+    record_activity(alert.handle, [](ActivityCounters &c)
+                    { ++c.dht_replies; });
+}
+
+void TorrentManager::record_peer_connect(
+    libtorrent::peer_connect_alert const &alert)
+{
+    record_activity(alert.handle, [](ActivityCounters &c)
+                    { ++c.peer_connections; });
+}
+
+void TorrentManager::record_activity(
+    libtorrent::torrent_handle const &handle,
+    std::function<void(ActivityCounters &)> update)
+{
+    if (!handle.is_valid() || !update)
+    {
+        return;
+    }
+    auto status = handle.status();
+    auto const info_hash = status.info_hashes.get_best();
+    if (!hash_is_nonzero(info_hash))
+    {
+        return;
+    }
+    int id = assign_rpc_id(info_hash);
+    std::lock_guard<std::mutex> lock(activity_mutex_);
+    update(activity_counters_[id]);
+}
+
+std::optional<int>
+TorrentManager::id_for_handle(libtorrent::torrent_handle const &handle) const
+{
+    if (!handle.is_valid())
+    {
+        return std::nullopt;
+    }
+    auto const info_hash = handle.info_hashes().get_best();
+    if (!hash_is_nonzero(info_hash))
+    {
+        return std::nullopt;
+    }
+    return id_for_hash(info_hash);
+}
+
+void TorrentManager::notify_rehash_requested(int id)
+{
+    if (id <= 0)
+    {
+        return;
+    }
+    std::lock_guard<std::mutex> lock(rehash_mutex_);
+    auto &state = rehash_states_[id];
+    ++state.start_count;
+    state.active = true;
+}
+
+void TorrentManager::mark_rehash_completed(
+    libtorrent::torrent_handle const &handle)
+{
+    if (auto id = id_for_handle(handle); id)
+    {
+        std::lock_guard<std::mutex> lock(rehash_mutex_);
+        auto &state = rehash_states_[*id];
+        ++state.complete_count;
+        state.active = false;
+    }
+}
+
+RehashState TorrentManager::rehash_info(int id) const
+{
+    if (id <= 0)
+    {
+        return RehashState{};
+    }
+    std::lock_guard<std::mutex> lock(rehash_mutex_);
+    auto it = rehash_states_.find(id);
+    if (it != rehash_states_.end())
+    {
+        return it->second;
+    }
+    return RehashState{};
+}
+
+void TorrentManager::apply_activity(TorrentSnapshot &snapshot,
+                                    int id) const
+{
+    std::lock_guard<std::mutex> lock(activity_mutex_);
+    if (auto it = activity_counters_.find(id); it != activity_counters_.end())
+    {
+        snapshot.tracker_announces = it->second.tracker_announces;
+        snapshot.dht_replies = it->second.dht_replies;
+        snapshot.peer_connections = it->second.peer_connections;
+    }
+}
+
+void TorrentManager::prune_activity(
+    std::unordered_set<int> const &seen_ids)
+{
+    std::lock_guard<std::mutex> lock(activity_mutex_);
+    for (auto it = activity_counters_.begin(); it != activity_counters_.end();)
+    {
+        if (!seen_ids.contains(it->first))
+        {
+            it = activity_counters_.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
 }
 
 bool TorrentManager::has_pending_move(std::string const &hash) const

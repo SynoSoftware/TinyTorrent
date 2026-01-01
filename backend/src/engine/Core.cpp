@@ -540,6 +540,11 @@ CoreSettings Core::settings() const noexcept
     return impl_->config_service->get();
 }
 
+bool Core::state_store_loaded() const noexcept
+{
+    return impl_ && impl_->persistence && impl_->persistence->is_valid();
+}
+
 std::vector<TorrentSnapshot> Core::torrent_list() const
 {
     auto s = impl_->session_service->snapshot();
@@ -609,6 +614,13 @@ void Core::verify_torrents(std::vector<int> ids)
     impl_->torrent_manager->enqueue_task(
         [this, ids]
         {
+            if (impl_->torrent_manager)
+            {
+                for (int id : ids)
+                {
+                    impl_->torrent_manager->notify_rehash_requested(id);
+                }
+            }
             impl_->session_service->perform_action(ids, [](auto &h)
                                                    { h.force_recheck(); });
         });

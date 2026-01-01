@@ -55,6 +55,7 @@ class PersistenceManager
     // State Management (Updates Cache + DB)
     void add_or_update_torrent(storage::PersistedTorrent torrent);
     void remove_torrent(std::string const &hash);
+    void wait_for_pending_tasks();
 
     void update_save_path(std::string const &hash, std::string const &path);
     void update_rpc_id(std::string const &hash, int rpc_id);
