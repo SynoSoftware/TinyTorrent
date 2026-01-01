@@ -1,5 +1,6 @@
 #include "utils/FS.hpp"
 
+#include <cstdlib>
 #include <filesystem>
 #include <optional>
 #include <system_error>
@@ -132,6 +133,34 @@ std::optional<std::filesystem::path> tiny_torrent_appdata_root()
 
 std::filesystem::path data_root()
 {
+#if defined(_WIN32)
+    DWORD override_len = GetEnvironmentVariableW(L"TT_DATA_ROOT", nullptr, 0);
+    if (override_len > 0)
+    {
+        std::wstring buffer;
+        buffer.resize(override_len);
+        DWORD written = GetEnvironmentVariableW(L"TT_DATA_ROOT", buffer.data(),
+                                                override_len);
+        if (written > 0)
+        {
+            buffer.resize(written);
+            std::filesystem::path override_root(buffer);
+            if (auto ensured = ensure_directory(override_root))
+            {
+                return *ensured;
+            }
+        }
+    }
+#else
+    if (auto *env = std::getenv("TT_DATA_ROOT"); env != nullptr && env[0] != '\0')
+    {
+        std::filesystem::path override_root(env);
+        if (auto ensured = ensure_directory(override_root))
+        {
+            return *ensured;
+        }
+    }
+#endif
 #if defined(_WIN32)
     if (auto appdata = tiny_torrent_appdata_root())
     {

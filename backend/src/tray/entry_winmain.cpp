@@ -2448,9 +2448,52 @@ void apply_rounded_corners_for_size(HWND hwnd, int width, int height)
         return;
     }
 
+    struct RegionCacheEntry
+    {
+        HWND hwnd = nullptr;
+        int w = -1;
+        int h = -1;
+        int radius = -1;
+        bool zoomed = false;
+    };
+
+    static std::array<RegionCacheEntry, 4> g_region_cache{};
+    auto find_cache = [&](HWND key) -> RegionCacheEntry *
+    {
+        for (auto &entry : g_region_cache)
+        {
+            if (entry.hwnd == key)
+            {
+                return &entry;
+            }
+        }
+        for (auto &entry : g_region_cache)
+        {
+            if (entry.hwnd == nullptr)
+            {
+                entry.hwnd = key;
+                return &entry;
+            }
+        }
+        g_region_cache[0].hwnd = key;
+        return &g_region_cache[0];
+    };
+
     if (IsZoomed(hwnd))
     {
+        if (auto *entry = find_cache(hwnd);
+            entry && entry->zoomed && entry->w == width && entry->h == height)
+        {
+            return;
+        }
         SetWindowRgn(hwnd, nullptr, TRUE);
+        if (auto *entry = find_cache(hwnd))
+        {
+            entry->w = width;
+            entry->h = height;
+            entry->radius = 0;
+            entry->zoomed = true;
+        }
         return;
     }
 
@@ -2468,6 +2511,13 @@ void apply_rounded_corners_for_size(HWND hwnd, int width, int height)
     radius_f = std::min(radius_f, max_radius);
     int radius = std::max(0, static_cast<int>(std::lround(radius_f)));
 
+    if (auto *entry = find_cache(hwnd);
+        entry && !entry->zoomed && entry->w == w && entry->h == h &&
+        entry->radius == radius)
+    {
+        return;
+    }
+
     // CreateRoundRectRgn takes the ellipse width/height, not the radius.
     HRGN rgn = CreateRoundRectRgn(0, 0, w + 1, h + 1, radius * 2, radius * 2);
     if (!rgn)
@@ -2477,6 +2527,15 @@ void apply_rounded_corners_for_size(HWND hwnd, int width, int height)
     if (SetWindowRgn(hwnd, rgn, TRUE) == 0)
     {
         DeleteObject(rgn);
+        return;
+    }
+
+    if (auto *entry = find_cache(hwnd))
+    {
+        entry->w = w;
+        entry->h = h;
+        entry->radius = radius;
+        entry->zoomed = false;
     }
 }
 
@@ -2945,6 +3004,13 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int)
     LPWSTR *argv_w = CommandLineToArgvW(GetCommandLineW(), &argc_w);
     bool start_hidden = false;
     bool has_run_seconds = false;
+    if (wcsstr(GetCommandLineW(), L"--run-seconds") != nullptr)
+    {
+        has_run_seconds = true;
+        start_hidden = true;
+    }
+    bool has_data_root_override =
+        GetEnvironmentVariableW(L"TT_DATA_ROOT", nullptr, 0) > 0;
     std::vector<std::string> argv_storage;
     std::vector<char *> argv_ptrs;
     if (argv_w && argc_w > 0)
@@ -2967,7 +3033,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int)
         }
         for (auto &arg : argv_storage)
         {
-            argv_ptrs.push_back(arg.data());
+            argv_ptrs.push_back(const_cast<char *>(arg.c_str()));
         }
         LocalFree(argv_w);
         argv_w = nullptr;
@@ -2985,7 +3051,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int)
 
     // Single instance mutex
     HANDLE hMutex = nullptr;
-    if (!has_run_seconds)
+    if (!has_run_seconds || !has_data_root_override)
     {
         hMutex = CreateMutexW(nullptr, TRUE, L"TinyTorrent_SingleInstance_Mutex");
         if (GetLastError() == ERROR_ALREADY_EXISTS)
