@@ -197,26 +197,24 @@ const normalizeColumnSizingState = (
     return normalized;
 };
 
-const AUTO_FIT_PADDING = 48;
-// 1px threshold, derived without introducing new numeric literals.
-const AUTO_FIT_NOOP_THRESHOLD = Math.round(
-    AUTO_FIT_PADDING / AUTO_FIT_PADDING
-);
-const createMeasurementContext = (() => {
+const layoutTableConfig = CONFIG.layout.table;
+const AUTO_FIT_PADDING = layoutTableConfig.legacyAutoFitPaddingPx;
+const AUTO_FIT_TOLERANCE_PX = layoutTableConfig.fallbackPixelTolerancePx;
+const measurementContext = (() => {
     if (typeof document === "undefined") return null;
     const canvas = document.createElement("canvas");
     return canvas.getContext("2d");
 })();
 
 const measureTextWidth = (text: string) => {
-    if (typeof window === "undefined" || !createMeasurementContext) return 0;
+    if (typeof window === "undefined" || !measurementContext) return 0;
     const rootStyle = getComputedStyle(document.documentElement);
     const fontSize =
         rootStyle.getPropertyValue("--tt-font-size-base") || rootStyle.fontSize;
     const fontFamily = rootStyle.fontFamily || "Inter, system-ui";
-    createMeasurementContext.font = `${fontSize} ${fontFamily}`;
-    return Number.isFinite(createMeasurementContext.measureText(text).width)
-        ? createMeasurementContext.measureText(text).width
+    measurementContext.font = `${fontSize} ${fontFamily}`;
+    return Number.isFinite(measurementContext.measureText(text).width)
+        ? measurementContext.measureText(text).width
         : 0;
 };
 
@@ -363,7 +361,8 @@ const DraggableHeader = memo(
         };
 
         const isColumnResizing =
-            isResizing || (typeof column.getIsResizing === "function"
+            isResizing ||
+            (typeof column.getIsResizing === "function"
                 ? column.getIsResizing()
                 : false);
 
@@ -767,7 +766,6 @@ export function TorrentTable({
 
     const parentRef = useRef<HTMLDivElement>(null);
     const tableContainerRef = useRef<HTMLDivElement>(null);
-    const lastAutoFitColumnRef = useRef<string | null>(null);
     const focusReturnRef = useRef<HTMLElement | null>(null);
     const marqueeStateRef = useRef<MarqueeState | null>(null);
     const marqueeClickBlockRef = useRef(false);
@@ -996,7 +994,7 @@ export function TorrentTable({
     const [dropTargetRowId, setDropTargetRowId] = useState<string | null>(null);
     const [isColumnModalOpen, setIsColumnModalOpen] = useState(false);
     const [contextMenu, setContextMenu] = useState<{
-    virtualElement: ContextMenuVirtualElement;
+        virtualElement: ContextMenuVirtualElement;
         torrent: Torrent;
     } | null>(null);
     const [headerContextMenu, setHeaderContextMenu] = useState<{
@@ -1280,9 +1278,6 @@ export function TorrentTable({
         setActiveResizeColumnId(null);
         setColumnSizingInfo(createColumnSizingInfoState());
     }, [setActiveResizeColumnId, setColumnSizingInfo]);
-    useEffect(() => {
-        lastAutoFitColumnRef.current = null;
-    }, [columnOrder]);
     const autoFitColumn = useCallback(
         (column: Column<Torrent>) => {
             if (!column.getCanResize()) return false;
@@ -1304,8 +1299,7 @@ export function TorrentTable({
             );
             const currentWidth = column.getSize();
             if (
-                Math.abs(computedWidth - currentWidth) <=
-                AUTO_FIT_NOOP_THRESHOLD
+                Math.abs(computedWidth - currentWidth) <= AUTO_FIT_TOLERANCE_PX
             ) {
                 return false;
             }
@@ -1320,7 +1314,6 @@ export function TorrentTable({
         [getColumnLabel, resetColumnResizeState, rows, setColumnSizing]
     );
     const autoFitAllColumns = useCallback(() => {
-        lastAutoFitColumnRef.current = null;
         table.getAllLeafColumns().forEach((column) => {
             if (!column.getCanResize()) return;
             autoFitColumn(column);
@@ -1329,18 +1322,10 @@ export function TorrentTable({
     const handleColumnAutoFitRequest = useCallback(
         (column: Column<Torrent>) => {
             if (!column.getCanResize()) return;
-            if (lastAutoFitColumnRef.current === column.id) {
-                autoFitAllColumns();
-                lastAutoFitColumnRef.current = null;
-                return;
-            }
             const didResize = autoFitColumn(column);
             if (!didResize) {
                 autoFitAllColumns();
-                lastAutoFitColumnRef.current = null;
-                return;
             }
-            lastAutoFitColumnRef.current = column.id;
         },
         [autoFitAllColumns, autoFitColumn]
     );
@@ -1383,9 +1368,6 @@ export function TorrentTable({
                 maxSize,
                 Math.max(minSize, Math.round(resizeState.startSize + delta))
             );
-            if (nextSize !== resizeState.startSize) {
-                lastAutoFitColumnRef.current = null;
-            }
             const nextTotal =
                 resizeState.startTotal - resizeState.startSize + nextSize;
             event.preventDefault();
@@ -2087,8 +2069,9 @@ export function TorrentTable({
             column: getColumnLabel(headerMenuActiveColumn),
         });
     }, [getColumnLabel, headerMenuActiveColumn, t]);
-    const isHeaderMenuHideEnabled =
-        Boolean(headerMenuActiveColumn?.getIsVisible());
+    const isHeaderMenuHideEnabled = Boolean(
+        headerMenuActiveColumn?.getIsVisible()
+    );
 
     const headerMenuItems = useMemo<HeaderMenuItem[]>(() => {
         if (!headerContextMenu) return [];
@@ -2148,7 +2131,8 @@ export function TorrentTable({
         "rounded-panel border border-default/10"
     );
     const isAnyColumnResizing =
-        Boolean(activeResizeColumnId) || Boolean(columnSizingInfo.isResizingColumn);
+        Boolean(activeResizeColumnId) ||
+        Boolean(columnSizingInfo.isResizingColumn);
     const headerSortableIds = useMemo(
         () =>
             table
@@ -2204,7 +2188,9 @@ export function TorrentTable({
                                             <DraggableHeader
                                                 key={header.id}
                                                 header={header}
-                                                isAnyColumnResizing={isAnyColumnResizing}
+                                                isAnyColumnResizing={
+                                                    isAnyColumnResizing
+                                                }
                                                 onContextMenu={(e) =>
                                                     handleHeaderContextMenu(
                                                         e,
@@ -2375,7 +2361,9 @@ export function TorrentTable({
                                                             onDropTargetChange={
                                                                 handleDropTargetChange
                                                             }
-                                                            isAnyColumnResizing={isAnyColumnResizing}
+                                                            isAnyColumnResizing={
+                                                                isAnyColumnResizing
+                                                            }
                                                         />
                                                     );
                                                 })}
@@ -2642,42 +2630,49 @@ export function TorrentTable({
                                         key="columns-section"
                                         title={t("table.column_picker_title")}
                                     >
-                                        {headerMenuItems.map((item) => {
-                                            const isVisible =
-                                                item.column.getIsVisible();
-                                            return (
-                                                <DropdownItem
-                                                    key={item.column.id}
-                                                    className={cn(
-                                                        "pl-stage text-scaled",
-                                                        item.isPinned &&
-                                                            "font-semibold text-foreground"
-                                                    )}
-                                                    closeOnSelect={false}
-                                                    onPress={() =>
-                                                        handleHeaderMenuAction(
-                                                            () =>
-                                                                item.column.toggleVisibility(
-                                                                    !isVisible
-                                                                ),
-                                                            { keepOpen: true }
-                                                        )
-                                                    }
-                                                    startContent={
-                                                        <Checkbox
-                                                            isSelected={isVisible}
-                                                            size="md"
-                                                            disableAnimation
-                                                            classNames={{
-                                                                base: "mr-tight",
-                                                            }}
-                                                        />
-                                                    }
-                                                >
-                                                    {item.label}
-                                                </DropdownItem>
-                                            );
-                                        }) as ItemElement<object>[]}
+                                        {
+                                            headerMenuItems.map((item) => {
+                                                const isVisible =
+                                                    item.column.getIsVisible();
+                                                return (
+                                                    <DropdownItem
+                                                        key={item.column.id}
+                                                        className={cn(
+                                                            "pl-stage text-scaled",
+                                                            item.isPinned &&
+                                                                "font-semibold text-foreground"
+                                                        )}
+                                                        closeOnSelect={false}
+                                                        onPress={() =>
+                                                            handleHeaderMenuAction(
+                                                                () =>
+                                                                    item.column.toggleVisibility(
+                                                                        !isVisible
+                                                                    ),
+                                                                {
+                                                                    keepOpen:
+                                                                        true,
+                                                                }
+                                                            )
+                                                        }
+                                                        startContent={
+                                                            <Checkbox
+                                                                isSelected={
+                                                                    isVisible
+                                                                }
+                                                                size="md"
+                                                                disableAnimation
+                                                                classNames={{
+                                                                    base: "mr-tight",
+                                                                }}
+                                                            />
+                                                        }
+                                                    >
+                                                        {item.label}
+                                                    </DropdownItem>
+                                                );
+                                            }) as ItemElement<object>[]
+                                        }
                                     </DropdownSection>
                                 </DropdownMenu>
                             </Dropdown>

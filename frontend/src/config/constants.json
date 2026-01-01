@@ -35,7 +35,9 @@
         "table": {
             "density": "normal",
             "font_mono": "font-mono",
-            "overscan": 20
+            "overscan": 20,
+            "legacyAutoFitPaddingPx": 48,
+            "fallbackPixelTolerancePx": 2
         },
         "menu": {
             "min_width": 220
