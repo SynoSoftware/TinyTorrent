@@ -179,6 +179,12 @@ unless justified by an explicit port and single responsibility.
 
 ## **2.5 God-Object Decompression Rule (Critical Enforcement)**
 
+**Clarification (Critical):**
+This rule does NOT authorize proactive or speculative refactoring.
+Only code that is directly modified as part of the task may be moved,
+extracted, or cleaned up.
+Unmodified code must remain in place.
+
 Architecture violations must be **reduced over time**, never preserved.
 
 **Rule:**
