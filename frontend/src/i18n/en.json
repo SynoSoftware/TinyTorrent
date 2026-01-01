@@ -99,7 +99,8 @@
         "magnet_placeholder": "magnet:?xt=urn:btih...",
         "options": "OPTIONS",
         "save_path": "SAVE PATH",
-        "start_now": "Start Immediately"
+        "start_now": "Start Immediately",
+        "add_error_default": "Unable to add torrent."
     },
     "nav": {
         "filter_all": "All",
