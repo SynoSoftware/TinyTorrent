@@ -62,19 +62,42 @@ function Ensure-VsFrontendSyncHook {
         return
     }
 
-    $marker = '<Target Name="SyncFrontendAssets"'
-    $targetBlock = @'
-  <Target Name="SyncFrontendAssets" BeforeTargets="PrepareForBuild" Condition="'$(Configuration)'=='debug'">
-    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(ProjectDir)..\..\..\scripts\gen-packed-fs.ps1&quot; -InputDir &quot;$(ProjectDir)..\..\..\frontend\dist&quot; -OutputFile &quot;$(ProjectDir)..\..\src\vendor\tt_packed_fs.c&quot;" />
+    $targetCondition = 'Condition="''$(Configuration)''==''debug'' or ''$(Configuration)''==''Debug''"'
+    $repoRoot = Get-RepoRoot
+    $workspaceRoot = (Resolve-Path -LiteralPath (Join-Path $repoRoot '..')).Path
+
+    $scriptPathCandidate = Join-Path $workspaceRoot 'scripts\gen-packed-fs.ps1'
+    if (-not (Test-Path -LiteralPath $scriptPathCandidate)) {
+        throw "gen-packed-fs.ps1 not found at $scriptPathCandidate"
+    }
+    $scriptPath = (Resolve-Path -LiteralPath $scriptPathCandidate).Path
+
+    $frontendDistPath = Join-Path $workspaceRoot 'frontend\dist'
+    $outputFilePath = Join-Path $repoRoot 'src\vendor\tt_packed_fs.c'
+
+    $targetTemplate = @'
+  <Target Name="SyncFrontendAssets" BeforeTargets="PrepareForBuild" Condition="'$(Configuration)'=='debug' or '$(Configuration)'=='Debug'">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;{0}&quot; -InputDir &quot;{1}&quot; -OutputFile &quot;{2}&quot;" />
   </Target>
 '@
+    $targetBlock = $targetTemplate -f $scriptPath, $frontendDistPath, $outputFilePath
+    $targetPattern = '(?ms)\s*<Target Name="SyncFrontendAssets".*?</Target>\s*'
 
     foreach ($proj in $exeProjects) {
-        if (Select-String -LiteralPath $proj.FullName -Pattern $marker -Quiet) {
+        $content = Get-Content -LiteralPath $proj.FullName -Raw
+        if ($content.IndexOf($targetCondition, [System.StringComparison]::Ordinal) -ne -1) {
             continue
         }
-        $content = Get-Content -LiteralPath $proj.FullName -Raw
-        $content = $content -replace '(?=</Project>)', "$targetBlock`r`n"
+        if ([regex]::IsMatch($content, $targetPattern)) {
+            $content = [regex]::Replace($content, $targetPattern, '', 1)
+        }
+        $closingTag = '</Project>'
+        $rootIndex = $content.LastIndexOf($closingTag, [System.StringComparison]::Ordinal)
+        if ($rootIndex -lt 0) {
+            continue
+        }
+        $content = $content.Substring(0, $rootIndex) + "`r`n$targetBlock`r`n" +
+            $content.Substring($rootIndex)
         [System.IO.File]::WriteAllText($proj.FullName, $content, (New-Object System.Text.UTF8Encoding($false)))
         Log-Info "Inserted Visual Studio frontend sync hook into $($proj.Name)"
     }
@@ -229,6 +252,9 @@ function Write-VsDebuggerUserFiles {
 
         if ($Backend -ne 'ninja') {
             Write-VsDebuggerUserFiles -BuildDir $buildDir -Configuration $Configuration -TripletRoot $tripletRoot
+        }
+        if ($Backend -eq 'vs2022' -and $Configuration -eq 'Debug') {
+            Ensure-VsFrontendSyncHook -BuildDir $buildDir
         }
     }
     finally {
