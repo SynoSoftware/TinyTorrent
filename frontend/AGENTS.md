@@ -1093,6 +1093,67 @@ export default defineConfig({
 });
 ```
 
+## **7 Incremental Architecture & Naming Improvement Rule (Mandatory)**
+
+This rule enforces **local improvement**, not global refactoring.
+
+**Scope:**
+Applies only to files and components that are **touched by the current change**.
+
+### **A. Incremental Architecture Improvement**
+
+If an edited file already violates any of the following:
+
+- multiple responsibilities
+- mixed concerns (UI + data shaping, UI + fetching, UI + layout orchestration)
+- god-components (too many unrelated props, effects, or render branches)
+
+then the agent must **reduce the violation**, even if only slightly.
+
+**Required behavior:**
+
+- Extract **one** responsibility (hook, helper, subcomponent), or
+- Move logic closer to its correct layer (hook → service → adapter), or
+- Introduce a clearer boundary (split component, isolate effect, isolate selector)
+
+**Explicitly NOT required:**
+
+- Repo-wide refactors
+- Large redesigns
+- Touching unrelated files
+
+Leaving the file in the same or worse architectural state is a spec violation.
+
+---
+
+### **B. Identifier Quality & Rename Reporting**
+
+When editing UI code, the agent must actively evaluate **identifier quality**.
+
+If any variable, function, hook, component, or file name is:
+
+- misleading
+- overly generic
+- lying about responsibility
+- historically incorrect
+- or drifting from its current role
+
+the agent must **report it**, not silently rename it.
+
+**Mandatory output:**
+Include a short section titled **“Rename Candidates”** containing:
+
+- `currentName` → `recommendedName`
+- One-line reason (scope drift, unclear intent, overloaded meaning, legacy name)
+
+**Rules:**
+
+- Do NOT perform renames unless explicitly instructed.
+- Reporting is mandatory; renaming is optional and user-controlled.
+- Missing obvious rename candidates is a spec violation.
+
+This enables fast, safe batch renames by the user (VS Code / IDE).
+
 ---
 
 # **17. Internationalization (Enforcement)**
