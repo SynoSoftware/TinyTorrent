@@ -56,6 +56,7 @@ import React, {
     memo,
     useCallback,
     useEffect,
+    useLayoutEffect,
     useMemo,
     useRef,
     useState,
@@ -108,6 +109,9 @@ const CELL_BASE_CLASSES =
 const SPEED_HISTORY_LIMIT = 30;
 const DND_OVERLAY_CLASSES = "pointer-events-none fixed inset-0 z-40";
 const TABLE_TOTAL_WIDTH_VAR = "--tt-table-total-w";
+const MEASURE_LAYER_CLASS = "absolute pointer-events-none invisible";
+const MEASURE_HEADER_SELECTOR = "[data-tt-measure-header]";
+const MEASURE_CELL_SELECTOR = "[data-tt-measure-cell]";
 
 const toCssVarSafeId = (value: string) => value.replace(/[^a-zA-Z0-9_-]/g, "-");
 
@@ -181,57 +185,19 @@ const normalizeColumnSizingState = (
 ): Record<string, number> => {
     const normalized: Record<string, number> = {};
     Object.entries(sizing).forEach(([id, raw]) => {
-        const def = COLUMN_DEFINITIONS[id as ColumnId];
-        const min = def?.minSize ?? 80;
-        const base = def?.width ?? min;
-        const value =
-            typeof raw === "number" && Number.isFinite(raw) ? raw : base;
-        normalized[id] = Math.max(min, value);
-    });
-    Object.entries(COLUMN_DEFINITIONS).forEach(([id, def]) => {
-        if (normalized[id]) return;
-        const min = def?.minSize ?? 80;
-        const base = def?.width ?? min;
-        normalized[id] = Math.max(min, base);
+        if (!COLUMN_DEFINITIONS[id as ColumnId]) return;
+        if (typeof raw === "number" && Number.isFinite(raw)) {
+            normalized[id] = raw;
+        }
     });
     return normalized;
 };
 
 const layoutTableConfig = CONFIG.layout.table;
-const AUTO_FIT_PADDING = layoutTableConfig.legacyAutoFitPaddingPx;
 const AUTO_FIT_TOLERANCE_PX = layoutTableConfig.fallbackPixelTolerancePx;
-const measurementContext = (() => {
-    if (typeof document === "undefined") return null;
-    const canvas = document.createElement("canvas");
-    return canvas.getContext("2d");
-})();
-
-const measureTextWidth = (text: string) => {
-    if (typeof window === "undefined" || !measurementContext) return 0;
-    const rootStyle = getComputedStyle(document.documentElement);
-    const fontSize =
-        rootStyle.getPropertyValue("--tt-font-size-base") || rootStyle.fontSize;
-    const fontFamily = rootStyle.fontFamily || "Inter, system-ui";
-    measurementContext.font = `${fontSize} ${fontFamily}`;
-    return Number.isFinite(measurementContext.measureText(text).width)
-        ? measurementContext.measureText(text).width
-        : 0;
-};
 
 const SUPPORTS_POINTER_EVENTS =
     typeof window !== "undefined" && "PointerEvent" in window;
-
-const stringifyCellValue = (value: unknown) => {
-    if (value === undefined || value === null) return "";
-    if (typeof value === "object") {
-        try {
-            return JSON.stringify(value);
-        } catch {
-            return String(value);
-        }
-    }
-    return String(value);
-};
 
 const createColumnSizingInfoState = (): ColumnSizingInfoState => ({
     columnSizingStart: [],
@@ -241,6 +207,103 @@ const createColumnSizingInfoState = (): ColumnSizingInfoState => ({
     startOffset: null,
     startSize: null,
 });
+
+const readMeasuredWidth = (element: HTMLElement) => {
+    const width = element.getBoundingClientRect().width;
+    return Number.isFinite(width) ? Math.ceil(width) : Number.NaN;
+};
+
+const useMeasuredColumnWidths = (
+    layerRef: React.RefObject<HTMLDivElement | null>,
+    tolerancePx: number
+) => {
+    const [minWidths, setMinWidths] = useState<Record<string, number>>({});
+    const minWidthsRef = useRef(minWidths);
+
+    useEffect(() => {
+        minWidthsRef.current = minWidths;
+    }, [minWidths]);
+
+    const measure = useCallback(() => {
+        const layer = layerRef.current;
+        if (!layer) return null;
+
+        const headerWidths: Record<string, number> = {};
+        const cellWidths: Record<string, number> = {};
+
+        layer.querySelectorAll<HTMLElement>(MEASURE_HEADER_SELECTOR).forEach(
+            (element) => {
+                const columnId = element.dataset.ttMeasureHeader;
+                if (!columnId) return;
+                const width = readMeasuredWidth(element);
+                if (!Number.isFinite(width)) return;
+                const current = headerWidths[columnId];
+                if (!Number.isFinite(current) || width > current) {
+                    headerWidths[columnId] = width;
+                }
+            }
+        );
+
+        layer.querySelectorAll<HTMLElement>(MEASURE_CELL_SELECTOR).forEach(
+            (element) => {
+                const columnId = element.dataset.ttMeasureCell;
+                if (!columnId) return;
+                const width = readMeasuredWidth(element);
+                if (!Number.isFinite(width)) return;
+                const current = cellWidths[columnId];
+                if (!Number.isFinite(current) || width > current) {
+                    cellWidths[columnId] = width;
+                }
+            }
+        );
+
+        const nextMinWidths: Record<string, number> = {};
+        const columnIds = new Set([
+            ...Object.keys(headerWidths),
+            ...Object.keys(cellWidths),
+        ]);
+        columnIds.forEach((columnId) => {
+            const headerWidth = headerWidths[columnId];
+            const cellWidth = cellWidths[columnId];
+            if (Number.isFinite(headerWidth) && Number.isFinite(cellWidth)) {
+                nextMinWidths[columnId] = Math.max(headerWidth, cellWidth);
+                return;
+            }
+            if (Number.isFinite(headerWidth)) {
+                nextMinWidths[columnId] = headerWidth;
+                return;
+            }
+            if (Number.isFinite(cellWidth)) {
+                nextMinWidths[columnId] = cellWidth;
+            }
+        });
+
+        setMinWidths((prev) => {
+            const nextIds = Object.keys(nextMinWidths);
+            if (nextIds.length !== Object.keys(prev).length) {
+                return nextMinWidths;
+            }
+            for (const id of nextIds) {
+                if (!Object.prototype.hasOwnProperty.call(prev, id)) {
+                    return nextMinWidths;
+                }
+                const prevWidth = prev[id];
+                const nextWidth = nextMinWidths[id];
+                if (!Number.isFinite(prevWidth)) {
+                    return nextMinWidths;
+                }
+                if (Math.abs(nextWidth - prevWidth) > tolerancePx) {
+                    return nextMinWidths;
+                }
+            }
+            return prev;
+        });
+
+        return nextMinWidths;
+    }, [layerRef, tolerancePx]);
+
+    return { minWidths, minWidthsRef, measure };
+};
 
 const ADD_TORRENT_SHORTCUT = formatShortcutLabel(["ctrl+o", "meta+o"]);
 
@@ -381,6 +444,8 @@ const DraggableHeader = memo(
         const canSort = column.getCanSort();
         const align = column.columnDef.meta?.align || "start";
         const isSelection = header.id.toString() === "selection";
+        const SortArrowIcon = sortState === "desc" ? ArrowDown : ArrowUp;
+        const sortArrowOpacity = sortState ? "opacity-100" : "opacity-0";
 
         return (
             <div
@@ -423,26 +488,17 @@ const DraggableHeader = memo(
                     }
                 >
                     {flexRender(column.columnDef.header, header.getContext())}
-                    {sortState === "asc" && (
-                        <ArrowUp
-                            strokeWidth={ICON_STROKE_WIDTH_DENSE}
-                            className="text-primary shrink-0"
-                            style={{
-                                width: ICON_SIZE.secondary,
-                                height: ICON_SIZE.secondary,
-                            }}
-                        />
-                    )}
-                    {sortState === "desc" && (
-                        <ArrowDown
-                            strokeWidth={ICON_STROKE_WIDTH_DENSE}
-                            className="text-primary shrink-0"
-                            style={{
-                                width: ICON_SIZE.secondary,
-                                height: ICON_SIZE.secondary,
-                            }}
-                        />
-                    )}
+                    <SortArrowIcon
+                        strokeWidth={ICON_STROKE_WIDTH_DENSE}
+                        className={cn(
+                            "text-primary shrink-0",
+                            sortArrowOpacity
+                        )}
+                        style={{
+                            width: ICON_SIZE.secondary,
+                            height: ICON_SIZE.secondary,
+                        }}
+                    />
                 </div>
 
                 {!isOverlay && canResize && (
@@ -478,6 +534,8 @@ const ColumnHeaderPreview = ({
     const align = column.columnDef.meta?.align || "start";
     const isSelection = header.id.toString() === "selection";
     const sortState = column.getIsSorted();
+    const SortArrowIcon = sortState === "desc" ? ArrowDown : ArrowUp;
+    const sortArrowOpacity = sortState ? "opacity-100" : "opacity-0";
     return (
         <div
             className={cn(
@@ -501,26 +559,14 @@ const ColumnHeaderPreview = ({
                 style={{ letterSpacing: "var(--tt-tracking-tight)" }}
             >
                 {flexRender(column.columnDef.header, header.getContext())}
-                {sortState === "asc" && (
-                    <ArrowUp
-                        strokeWidth={ICON_STROKE_WIDTH_DENSE}
-                        className="text-primary shrink-0"
-                        style={{
-                            width: ICON_SIZE.secondary,
-                            height: ICON_SIZE.secondary,
-                        }}
-                    />
-                )}
-                {sortState === "desc" && (
-                    <ArrowDown
-                        strokeWidth={ICON_STROKE_WIDTH_DENSE}
-                        className="text-primary shrink-0"
-                        style={{
-                            width: ICON_SIZE.secondary,
-                            height: ICON_SIZE.secondary,
-                        }}
-                    />
-                )}
+                <SortArrowIcon
+                    strokeWidth={ICON_STROKE_WIDTH_DENSE}
+                    className={cn("text-primary shrink-0", sortArrowOpacity)}
+                    style={{
+                        width: ICON_SIZE.secondary,
+                        height: ICON_SIZE.secondary,
+                    }}
+                />
             </div>
         </div>
     );
@@ -550,6 +596,106 @@ const renderVisibleCells = (row: Row<Torrent>) =>
             </div>
         );
     });
+
+const ColumnMeasurementLayer = memo(
+    ({
+        headers,
+        rows,
+        measureLayerRef,
+    }: {
+        headers: Header<Torrent, unknown>[];
+        rows: Row<Torrent>[];
+        measureLayerRef: React.RefObject<HTMLDivElement | null>;
+    }) => {
+        return (
+            <div
+                ref={measureLayerRef}
+                aria-hidden="true"
+                className={MEASURE_LAYER_CLASS}
+            >
+                <div className="flex">
+                    {headers.map((header) => {
+                        const { column } = header;
+                        const align =
+                            column.columnDef.meta?.align || "start";
+                        const isSelection =
+                            header.id.toString() === "selection";
+                        const sortState = column.getIsSorted();
+                        const SortArrowIcon =
+                            sortState === "desc" ? ArrowDown : ArrowUp;
+                        const sortArrowOpacity = sortState
+                            ? "opacity-100"
+                            : "opacity-0";
+                        return (
+                            <div
+                                key={header.id}
+                                data-tt-measure-header={column.id}
+                                className={cn(
+                                    CELL_BASE_CLASSES,
+                                    "gap-tools text-scaled font-bold uppercase text-foreground/60",
+                                    CELL_PADDING_CLASS,
+                                    align === "center" && "justify-center",
+                                    align === "end" && "justify-end",
+                                    isSelection && "justify-center"
+                                )}
+                                style={{
+                                    letterSpacing: "var(--tt-tracking-tight)",
+                                    width: "max-content",
+                                }}
+                            >
+                                {flexRender(
+                                    column.columnDef.header,
+                                    header.getContext()
+                                )}
+                                <SortArrowIcon
+                                    strokeWidth={ICON_STROKE_WIDTH_DENSE}
+                                    className={cn(
+                                        "text-primary shrink-0",
+                                        sortArrowOpacity
+                                    )}
+                                    style={{
+                                        width: ICON_SIZE.secondary,
+                                        height: ICON_SIZE.secondary,
+                                    }}
+                                />
+                            </div>
+                        );
+                    })}
+                </div>
+                {rows.map((row) => (
+                    <div key={row.id} className="flex">
+                        {row.getVisibleCells().map((cell) => {
+                            const align =
+                                cell.column.columnDef.meta?.align || "start";
+                            const isSelection =
+                                cell.column.id === "selection";
+                            return (
+                                <div
+                                    key={cell.id}
+                                    data-tt-measure-cell={cell.column.id}
+                                    className={cn(
+                                        CELL_BASE_CLASSES,
+                                        CELL_PADDING_CLASS,
+                                        align === "center" &&
+                                            "justify-center",
+                                        align === "end" && "justify-end",
+                                        isSelection && "justify-center"
+                                    )}
+                                    style={{ width: "max-content" }}
+                                >
+                                    {flexRender(
+                                        cell.column.columnDef.cell,
+                                        cell.getContext()
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                ))}
+            </div>
+        );
+    }
+);
 
 // --- SUB-COMPONENT: VIRTUAL ROW ---
 const VirtualRow = memo(
@@ -766,6 +912,7 @@ export function TorrentTable({
 
     const parentRef = useRef<HTMLDivElement>(null);
     const tableContainerRef = useRef<HTMLDivElement>(null);
+    const measureLayerRef = useRef<HTMLDivElement>(null);
     const focusReturnRef = useRef<HTMLElement | null>(null);
     const marqueeStateRef = useRef<MarqueeState | null>(null);
     const marqueeClickBlockRef = useRef(false);
@@ -978,6 +1125,9 @@ export function TorrentTable({
     const [activeResizeColumnId, setActiveResizeColumnId] = useState<
         string | null
     >(null);
+    const isAnyColumnResizing =
+        Boolean(activeResizeColumnId) ||
+        Boolean(columnSizingInfo.isResizingColumn);
     const resizeStartRef = useRef<{
         columnId: string;
         startX: number;
@@ -1097,9 +1247,6 @@ export function TorrentTable({
             sorting,
         };
 
-        const isAnyColumnResizing =
-            Boolean(activeResizeColumnId) ||
-            Boolean(columnSizingInfo.isResizingColumn);
         if (isAnyColumnResizing) {
             if (saveTimeoutRef.current) {
                 window.clearTimeout(saveTimeoutRef.current);
@@ -1186,7 +1333,6 @@ export function TorrentTable({
                     );
                 },
                 size: def.width ?? 150,
-                minSize: def.minSize ?? 80,
                 enableResizing: true,
                 meta: { align: def.align },
                 cell: ({ row, table }) => {
@@ -1245,7 +1391,18 @@ export function TorrentTable({
     });
 
     const { rows } = table.getRowModel();
-
+    const {
+        minWidths: measuredMinWidths,
+        minWidthsRef: measuredMinWidthsRef,
+        measure: measureColumnMinWidths,
+    } = useMeasuredColumnWidths(measureLayerRef, AUTO_FIT_TOLERANCE_PX);
+    const getMeasuredColumnMinWidth = useCallback(
+        (columnId: string, fallbackWidth: number) => {
+            const measured = measuredMinWidthsRef.current[columnId];
+            return Number.isFinite(measured) ? measured : fallbackWidth;
+        },
+        [measuredMinWidthsRef]
+    );
     useEffect(() => {
         const container = tableContainerRef.current;
         if (!container) return;
@@ -1279,24 +1436,18 @@ export function TorrentTable({
         setColumnSizingInfo(createColumnSizingInfoState());
     }, [setActiveResizeColumnId, setColumnSizingInfo]);
     const autoFitColumn = useCallback(
-        (column: Column<Torrent>) => {
+        (
+            column: Column<Torrent>,
+            measurements?: Record<string, number> | null
+        ) => {
             if (!column.getCanResize()) return false;
             resetColumnResizeState();
-            const headerLabel = getColumnLabel(column);
-            let maxWidth = measureTextWidth(headerLabel);
-            const sampleRows = rows.slice(0, 40);
-            sampleRows.forEach((row) => {
-                const value = row.getValue(column.id);
-                maxWidth = Math.max(
-                    maxWidth,
-                    measureTextWidth(stringifyCellValue(value))
-                );
-            });
-            const definition = COLUMN_DEFINITIONS[column.id as ColumnId];
-            const minSize = definition?.minSize ?? 60;
-            const computedWidth = Math.ceil(
-                Math.max(minSize, maxWidth + AUTO_FIT_PADDING)
-            );
+            const measuredWidths = measurements ?? measureColumnMinWidths();
+            const measuredWidth =
+                (measuredWidths && measuredWidths[column.id]) ??
+                measuredMinWidthsRef.current[column.id];
+            if (!Number.isFinite(measuredWidth)) return false;
+            const computedWidth = Math.ceil(measuredWidth);
             const currentWidth = column.getSize();
             if (
                 Math.abs(computedWidth - currentWidth) <= AUTO_FIT_TOLERANCE_PX
@@ -1311,14 +1462,20 @@ export function TorrentTable({
             );
             return true;
         },
-        [getColumnLabel, resetColumnResizeState, rows, setColumnSizing]
+        [
+            measureColumnMinWidths,
+            measuredMinWidthsRef,
+            resetColumnResizeState,
+            setColumnSizing,
+        ]
     );
     const autoFitAllColumns = useCallback(() => {
+        const measuredWidths = measureColumnMinWidths();
         table.getAllLeafColumns().forEach((column) => {
             if (!column.getCanResize()) return;
-            autoFitColumn(column);
+            autoFitColumn(column, measuredWidths);
         });
-    }, [autoFitColumn, table]);
+    }, [autoFitColumn, measureColumnMinWidths, table]);
     const handleColumnAutoFitRequest = useCallback(
         (column: Column<Torrent>) => {
             if (!column.getCanResize()) return;
@@ -1359,7 +1516,10 @@ export function TorrentTable({
             const column = table.getColumn(resizeState.columnId);
             if (!column) return;
             const delta = event.clientX - resizeState.startX;
-            const minSize = column.columnDef.minSize ?? 80;
+            const minSize = getMeasuredColumnMinWidth(
+                resizeState.columnId,
+                column.getSize()
+            );
             const maxSize =
                 typeof column.columnDef.maxSize === "number"
                     ? column.columnDef.maxSize
@@ -1449,6 +1609,63 @@ export function TorrentTable({
         estimateSize: () => rowHeight,
         overscan: TABLE_LAYOUT.overscan,
     });
+    const measurementItems = rowVirtualizer.getVirtualItems();
+    const measurementRows = measurementItems
+        .map((virtualRow) => rows[virtualRow.index])
+        .filter((row): row is Row<Torrent> => Boolean(row));
+    const measurementRowKey = measurementItems
+        .map((virtualRow) => virtualRow.index)
+        .join("|");
+    const measurementHeaders = table
+        .getFlatHeaders()
+        .filter(
+            (header) =>
+                !header.isPlaceholder && header.column.getIsVisible()
+        );
+
+    useLayoutEffect(() => {
+        if (isAnyColumnResizing) return;
+        measureColumnMinWidths();
+    }, [
+        columnOrder,
+        columnVisibility,
+        isAnyColumnResizing,
+        measureColumnMinWidths,
+        measurementRowKey,
+        rows,
+        sorting,
+    ]);
+    useEffect(() => {
+        if (isAnyColumnResizing) return;
+        if (!Object.keys(measuredMinWidths).length) return;
+        setColumnSizing((prev: Record<string, number>) => {
+            let didChange = false;
+            const next = { ...prev };
+            table.getAllLeafColumns().forEach((column) => {
+                if (!column.getCanResize()) return;
+                const minWidth = getMeasuredColumnMinWidth(
+                    column.id,
+                    column.getSize()
+                );
+                if (!Number.isFinite(minWidth)) return;
+                const current = Number.isFinite(prev[column.id])
+                    ? prev[column.id]
+                    : column.getSize();
+                if (!Number.isFinite(current)) return;
+                if (current + AUTO_FIT_TOLERANCE_PX < minWidth) {
+                    next[column.id] = minWidth;
+                    didChange = true;
+                }
+            });
+            return didChange ? normalizeColumnSizingState(next) : prev;
+        });
+    }, [
+        getMeasuredColumnMinWidth,
+        isAnyColumnResizing,
+        measuredMinWidths,
+        setColumnSizing,
+        table,
+    ]);
 
     useEffect(() => {
         rowsRef.current = rows;
@@ -2130,9 +2347,6 @@ export function TorrentTable({
         "relative flex-1 h-full min-h-0 flex flex-col overflow-hidden",
         "rounded-panel border border-default/10"
     );
-    const isAnyColumnResizing =
-        Boolean(activeResizeColumnId) ||
-        Boolean(columnSizingInfo.isResizingColumn);
     const headerSortableIds = useMemo(
         () =>
             table
@@ -2158,6 +2372,11 @@ export function TorrentTable({
                 )}
                 onClick={() => setContextMenu(null)}
             >
+                <ColumnMeasurementLayer
+                    headers={measurementHeaders}
+                    rows={measurementRows}
+                    measureLayerRef={measureLayerRef}
+                />
                 <DndContext
                     collisionDetection={closestCenter}
                     sensors={isAnyColumnResizing ? [] : sensors}
