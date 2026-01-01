@@ -1,14 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTorrentClient } from "@/app/providers/TorrentClientProvider";
-import { useEngineHeartbeat } from "@/shared/hooks/useEngineHeartbeat";
+import { useUiClock } from "@/shared/hooks/useUiClock";
 
-// Push-based: subscribes to engine heartbeat, updates history only when engine emits
+// UI-clock driven: samples engine history on a stable cadence.
 export const useEngineSpeedHistory = (torrentId: string | null | undefined) => {
     const client = useTorrentClient();
-    const { tick } = useEngineHeartbeat({
-        mode: "detail",
-        detailId: torrentId,
-    });
+    const { tick } = useUiClock();
     // Removed unused 'size' and 'any' type usages
     const empty = useMemo(() => ({ down: [], up: [] }), []);
     const [history, setHistory] = useState<{ down: number[]; up: number[] }>(

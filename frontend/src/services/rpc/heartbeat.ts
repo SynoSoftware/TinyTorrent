@@ -13,6 +13,7 @@ export type HeartbeatSource = "polling" | "websocket";
 export interface HeartbeatPayload {
     torrents: TorrentEntity[];
     sessionStats: SessionStats;
+    timestampMs: number;
     detailId?: string | null;
     detail?: TorrentDetailEntity | null;
     // Optional array of torrent ids that changed since previous heartbeat
@@ -59,6 +60,7 @@ export class HeartbeatManager {
     private lastTorrents?: TorrentEntity[];
     private lastSessionStats?: SessionStats;
     private lastSource?: HeartbeatSource;
+    private lastPayloadTimestampMs?: number;
     private readonly detailCache = new Map<string, TorrentDetailEntity>();
     // Per-torrent speed history: true O(1) circular buffer (no shift/push, no leaks)
     private readonly speedHistory = new Map<
@@ -176,6 +178,7 @@ export class HeartbeatManager {
         const payload: HeartbeatPayload = {
             torrents: this.lastTorrents,
             sessionStats: this.lastSessionStats,
+            timestampMs: this.lastPayloadTimestampMs ?? Date.now(),
             detailId,
             detail:
                 detailId == null
@@ -187,20 +190,26 @@ export class HeartbeatManager {
     }
 
     public pushLivePayload(payload: HeartbeatPayload) {
+        const timestampMs = payload.timestampMs ?? Date.now();
+        payload.timestampMs = timestampMs;
         this.lastSource = payload.source ?? "websocket";
         const prev = this.lastTorrents;
         this.lastTorrents = payload.torrents;
         this.updateEngineState(payload.torrents);
         payload.changedIds = this.computeChangedIds(payload.torrents, prev);
         this.lastSessionStats = payload.sessionStats;
+        this.lastPayloadTimestampMs = timestampMs;
         this.broadcastToSubscribers(payload);
     }
 
     private broadcastToSubscribers(payload: HeartbeatPayload) {
+        const timestampMs =
+            payload.timestampMs ?? this.lastPayloadTimestampMs ?? Date.now();
         for (const { params } of this.subscribers.values()) {
             const detailId = params.detailId;
             const combined: HeartbeatPayload = {
                 ...payload,
+                timestampMs,
                 detailId,
                 detail:
                     detailId == null
@@ -223,6 +232,7 @@ export class HeartbeatManager {
         this.broadcastToSubscribers({
             torrents: this.lastTorrents,
             sessionStats: this.lastSessionStats,
+            timestampMs: this.lastPayloadTimestampMs ?? Date.now(),
             source,
         });
     }
@@ -308,6 +318,8 @@ export class HeartbeatManager {
             const prevTorrents = this.lastTorrents;
             this.lastTorrents = torrents;
             this.lastSessionStats = sessionStats;
+            const timestampMs = Date.now();
+            this.lastPayloadTimestampMs = timestampMs;
 
             // compute changed ids between prev and current snapshot
             const changedIds = this.computeChangedIds(torrents, prevTorrents);
@@ -360,6 +372,7 @@ export class HeartbeatManager {
                 const payload: HeartbeatPayload = {
                     torrents,
                     sessionStats,
+                    timestampMs,
                     detailId,
                     detail: detailPayload,
                     changedIds,

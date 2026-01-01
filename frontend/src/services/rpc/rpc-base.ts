@@ -444,6 +444,7 @@ export class TransmissionAdapter implements EngineAdapter {
         this.heartbeat.pushLivePayload({
             torrents: normalized,
             sessionStats: stats,
+            timestampMs: Date.now(),
             source: "websocket",
         });
     };
