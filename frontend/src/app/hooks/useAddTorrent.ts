@@ -55,6 +55,7 @@ export function useAddTorrent({
                 payload.magnetLink ??
                 payload.metainfo ??
                 "New Torrent";
+            let rpcAttempted = false;
             try {
                 ghostId = addGhostTorrent({
                     id: `ghost-${Date.now()}-${Math.random()
@@ -67,6 +68,7 @@ export function useAddTorrent({
                         (payload.magnetLink ? "magnet_lookup" : "loading"),
                     state: context?.state,
                 });
+                rpcAttempted = true;
                 await torrentClient.addTorrent({
                     magnetLink: payload.magnetLink,
                     metainfo: payload.metainfo,
@@ -76,11 +78,11 @@ export function useAddTorrent({
                 });
                 await refreshTorrents();
                 await refreshSessionStatsData();
-            } catch {
-                if (isMountedRef.current) {
+            } catch (error) {
+                if (isMountedRef.current && rpcAttempted) {
                     reportRpcStatus("error");
                 }
-                throw new Error("Failed to add torrent");
+                throw error;
             } finally {
                 if (ghostId) {
                     removeGhostTorrent(ghostId);

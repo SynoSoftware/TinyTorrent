@@ -94,6 +94,8 @@ export function AddTorrentModal({
     );
     const [isParsingTorrent, setIsParsingTorrent] = useState(false);
     const [parseError, setParseError] = useState<string | null>(null);
+    const [submitError, setSubmitError] = useState<string | null>(null);
+    const [hasSubmitError, setHasSubmitError] = useState(false);
 
     const readFileAsBase64 = (file: File) =>
         new Promise<string>((resolve, reject) => {
@@ -145,6 +147,11 @@ export function AddTorrentModal({
         }
     };
 
+    const clearSubmitError = useCallback(() => {
+        setHasSubmitError(false);
+        setSubmitError(null);
+    }, []);
+
     const handleBrowseDirectory = useCallback(async () => {
         if (!canBrowseDirectories) return;
         try {
@@ -166,8 +173,9 @@ export function AddTorrentModal({
             if (fileInputRef.current) {
                 fileInputRef.current.value = "";
             }
+            clearSubmitError();
         }
-    }, [isOpen]);
+    }, [isOpen, clearSubmitError]);
 
     useEffect(() => {
         const nextDefault = initialDownloadDir?.trim() ?? "";
@@ -312,8 +320,28 @@ export function AddTorrentModal({
         hasFreeSpace &&
         torrentSize > (directorySpace?.sizeBytes ?? 0);
 
+    const resolveSubmitErrorMessage = (error: unknown): string | null => {
+        if (error instanceof Error && error.message) {
+            return error.message;
+        }
+        if (typeof error === "string" && error.length) {
+            return error;
+        }
+        if (
+            error &&
+            typeof error === "object" &&
+            "message" in error &&
+            typeof (error as { message?: unknown }).message === "string" &&
+            (error as { message: string }).message
+        ) {
+            return (error as { message: string }).message;
+        }
+        return null;
+    };
+
     const handleSubmit = async () => {
         if (!canSubmit || isSubmitting) return;
+        clearSubmitError();
         const trimmedLink = magnetLink.trim();
         const ghostLabel =
             torrentMetadata?.name ?? trimmedLink ?? t("modals.add_title");
@@ -344,12 +372,13 @@ export function AddTorrentModal({
             }
             await onAdd(payload, ghostContext);
             onClose();
-        } catch {
-            // The caller will handle errors; keep the modal open for corrections.
+        } catch (error) {
+            setHasSubmitError(true);
+            setSubmitError(resolveSubmitErrorMessage(error));
         }
     };
 
-    const handleFilesToggle = useCallback(
+        const handleFilesToggle = useCallback(
         (indexes: number[], wanted: boolean) => {
             setFilesUnwanted((prev) => {
                 const next = new Set(prev);
@@ -641,11 +670,23 @@ export function AddTorrentModal({
                                         isSubmitting ||
                                         isSpaceInsufficient
                                     }
-                                    className="flex-1"
+                                className="flex-1"
                                 >
                                     {t("modals.download")}
                                 </Button>
                             </div>
+                            {hasSubmitError && (
+                                <div className="space-y-tight">
+                                    <p className="text-xs text-danger">
+                                        {t("modals.add_error_default")}
+                                    </p>
+                                    {submitError && (
+                                        <p className="text-foreground/60 text-xs break-words">
+                                            {submitError}
+                                        </p>
+                                    )}
+                                </div>
+                            )}
                             {isSpaceInsufficient && (
                                 <p className="text-scaled text-warning">
                                     {t("modals.disk_gauge.insufficient")}
