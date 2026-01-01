@@ -21,6 +21,7 @@ import {
     type ChangeEvent,
 } from "react";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import {
     FileExplorerTree,
     type FileExplorerEntry,
@@ -43,6 +44,11 @@ type AddTorrentModalPayload = {
     startNow: boolean;
     filesUnwanted?: number[];
 };
+
+type AddTorrentSource =
+    | { type: "native"; path: string }
+    | { type: "file"; file: File }
+    | { type: "magnet"; magnetLink: string };
 
 interface AddTorrentModalProps {
     isOpen: boolean;
@@ -71,22 +77,23 @@ export function AddTorrentModal({
     const { t } = useTranslation();
     const torrentClient = useTorrentClient();
     const canBrowseDirectories = NativeShell.isAvailable;
-    const checkFreeSpace = torrentClient.checkFreeSpace;
-    const supportsCheckFreeSpace = Boolean(checkFreeSpace);
-    const [magnetLink, setMagnetLink] = useState("");
-    const [downloadDir, setDownloadDir] = useState(
-        initialDownloadDir?.trim() ?? ""
+    const checkFreeSpace = useMemo(
+        () =>
+            torrentClient.checkFreeSpace
+                ? (path: string) => torrentClient.checkFreeSpace!(path)
+                : undefined,
+        [torrentClient]
     );
+    const supportsCheckFreeSpace = Boolean(checkFreeSpace);
+    const initialDownloadDirValue = initialDownloadDir?.trim() ?? "";
+    const [magnetLink, setMagnetLink] = useState("");
+    const [downloadDir, setDownloadDir] = useState(initialDownloadDirValue);
     const [startNow, setStartNow] = useState(true);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [selectedNativeFilePath, setSelectedNativeFilePath] =
         useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
-    const lastInitialDownloadDir = useRef(initialDownloadDir?.trim() ?? "");
-    const [directorySpace, setDirectorySpace] =
-        useState<TransmissionFreeSpace | null>(null);
-    const [isSpaceLoading, setIsSpaceLoading] = useState(false);
-    const [spaceError, setSpaceError] = useState<string | null>(null);
+    const lastInitialDownloadDir = useRef(initialDownloadDirValue);
     const [torrentMetadata, setTorrentMetadata] =
         useState<TorrentMetadata | null>(null);
     const [filesUnwanted, setFilesUnwanted] = useState<Set<number>>(
@@ -121,6 +128,7 @@ export function AddTorrentModal({
 
     const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
         const nextFile = event.target.files?.[0] ?? null;
+        setSelectedNativeFilePath(null);
         setSelectedFile(nextFile);
     };
 
@@ -152,6 +160,21 @@ export function AddTorrentModal({
         setSubmitError(null);
     }, []);
 
+    const {
+        directorySpace,
+        isSpaceLoading,
+        spaceError,
+        spaceHint,
+        refreshDiskSpace,
+        reportSpaceError,
+    } = useDiskSpaceProbe({
+        isOpen,
+        downloadDir,
+        checkFreeSpace,
+        supportsCheckFreeSpace,
+        t,
+    });
+
     const handleBrowseDirectory = useCallback(async () => {
         if (!canBrowseDirectories) return;
         try {
@@ -160,9 +183,9 @@ export function AddTorrentModal({
                 setDownloadDir(selected);
             }
         } catch {
-            setSpaceError(t("modals.disk_gauge_error"));
+            reportSpaceError(t("modals.disk_gauge_error"));
         }
-    }, [canBrowseDirectories, downloadDir, t]);
+    }, [canBrowseDirectories, downloadDir, reportSpaceError, t]);
 
     useEffect(() => {
         if (!isOpen) {
@@ -178,7 +201,7 @@ export function AddTorrentModal({
     }, [isOpen, clearSubmitError]);
 
     useEffect(() => {
-        const nextDefault = initialDownloadDir?.trim() ?? "";
+        const nextDefault = initialDownloadDirValue;
         if (!isOpen) {
             lastInitialDownloadDir.current = nextDefault;
             return;
@@ -190,7 +213,41 @@ export function AddTorrentModal({
             return current;
         });
         lastInitialDownloadDir.current = nextDefault;
-    }, [initialDownloadDir, isOpen]);
+    }, [initialDownloadDirValue, isOpen]);
+
+    useEffect(() => {
+        let active = true;
+        if (!isOpen || downloadDir.trim() || initialDownloadDirValue) {
+            return () => {
+                active = false;
+            };
+        }
+        if (!torrentClient.fetchSessionSettings) {
+            return () => {
+                active = false;
+            };
+        }
+        torrentClient
+            .fetchSessionSettings()
+            .then((settings) => {
+                if (!active) return;
+                const sessionDir = settings["download-dir"];
+                if (typeof sessionDir === "string" && sessionDir.trim()) {
+                    setDownloadDir(sessionDir);
+                }
+            })
+            .catch(() => {
+                // Swallow fetch errors; the modal can still accept manual input.
+            });
+        return () => {
+            active = false;
+        };
+    }, [
+        downloadDir,
+        initialDownloadDirValue,
+        isOpen,
+        torrentClient,
+    ]);
 
     useEffect(() => {
         if (isNativeMode || !isOpen || !initialFile) {
@@ -237,53 +294,6 @@ export function AddTorrentModal({
         };
     }, [selectedFile, t, isNativeMode]);
 
-    useEffect(() => {
-        let active = true;
-        if (!supportsCheckFreeSpace) {
-            setDirectorySpace(null);
-            setSpaceError(null);
-            setIsSpaceLoading(false);
-            return () => {
-                active = false;
-            };
-        }
-        if (!downloadDir.trim()) {
-            setDirectorySpace(null);
-            setSpaceError(null);
-            setIsSpaceLoading(false);
-            return () => {
-                active = false;
-            };
-        }
-        setIsSpaceLoading(true);
-        setSpaceError(null);
-        if (!checkFreeSpace) {
-            setDirectorySpace(null);
-            setSpaceError(null);
-            setIsSpaceLoading(false);
-            return () => {
-                active = false;
-            };
-        }
-        checkFreeSpace(downloadDir)
-            .then((space) => {
-                if (!active) return;
-                setDirectorySpace(space);
-            })
-            .catch(() => {
-                if (!active) return;
-                setDirectorySpace(null);
-                setSpaceError(t("modals.disk_gauge_error"));
-            })
-            .finally(() => {
-                if (!active) return;
-                setIsSpaceLoading(false);
-            });
-        return () => {
-            active = false;
-        };
-    }, [downloadDir, checkFreeSpace, t]);
-
     const fileTreeEntries = useMemo<FileExplorerEntry[]>(() => {
         if (!torrentMetadata) return [];
         return torrentMetadata.files.map(
@@ -304,15 +314,27 @@ export function AddTorrentModal({
         );
     }, [torrentMetadata]);
 
-    const canSubmit = useMemo(
-        () =>
-            Boolean(
-                magnetLink.trim() ||
-                    selectedFile ||
-                    selectedNativeFilePath
-            ),
-        [magnetLink, selectedFile, selectedNativeFilePath]
-    );
+    const magnetLinkValue = useMemo(() => {
+        const trimmed = magnetLink.trim();
+        if (trimmed) return trimmed;
+        return initialMagnetLink?.trim() ?? undefined;
+    }, [magnetLink, initialMagnetLink]);
+
+    const source = useMemo<AddTorrentSource | null>(() => {
+        const trimmedNativePath = selectedNativeFilePath?.trim();
+        if (trimmedNativePath) {
+            return { type: "native", path: trimmedNativePath };
+        }
+        if (selectedFile) {
+            return { type: "file", file: selectedFile };
+        }
+        if (magnetLinkValue) {
+            return { type: "magnet", magnetLink: magnetLinkValue };
+        }
+        return null;
+    }, [selectedNativeFilePath, selectedFile, magnetLinkValue]);
+
+    const canSubmit = Boolean(source);
     const hasTorrentSize = typeof torrentSize === "number" && torrentSize > 0;
     const hasFreeSpace = typeof directorySpace?.sizeBytes === "number";
     const isSpaceInsufficient =
@@ -320,46 +342,48 @@ export function AddTorrentModal({
         hasFreeSpace &&
         torrentSize > (directorySpace?.sizeBytes ?? 0);
 
-    const resolveSubmitErrorMessage = (error: unknown): string | null => {
-        if (error instanceof Error && error.message) {
-            return error.message;
-        }
-        if (typeof error === "string" && error.length) {
-            return error;
-        }
-        if (
-            error &&
-            typeof error === "object" &&
-            "message" in error &&
-            typeof (error as { message?: unknown }).message === "string" &&
-            (error as { message: string }).message
-        ) {
-            return (error as { message: string }).message;
-        }
-        return null;
-    };
-
     const handleSubmit = async () => {
-        if (!canSubmit || isSubmitting) return;
+        if (isSubmitting) return;
         clearSubmitError();
-        const trimmedLink = magnetLink.trim();
+        if (!source) {
+            setHasSubmitError(true);
+            setSubmitError(t("modals.add_error_source_missing"));
+            return;
+        }
         const ghostLabel =
-            torrentMetadata?.name ?? trimmedLink ?? t("modals.add_title");
+            torrentMetadata?.name ??
+            (source.type === "file"
+                ? source.file.name
+                : source.type === "native"
+                ? source.path
+                : source.magnetLink) ??
+            t("modals.add_title");
         const ghostContext: AddTorrentContext = {
             label: ghostLabel,
-            strategy: trimmedLink ? "magnet_lookup" : "loading",
+            strategy: source.type === "magnet" ? "magnet_lookup" : "loading",
         };
         try {
             const payload: AddTorrentModalPayload = {
                 downloadDir,
                 startNow,
             };
-            if (selectedNativeFilePath) {
-                payload.metainfoPath = selectedNativeFilePath;
-            } else if (selectedFile) {
-                payload.metainfo = await readFileAsBase64(selectedFile);
-            } else if (trimmedLink) {
-                payload.magnetLink = trimmedLink;
+            if (source.type === "native") {
+                payload.metainfoPath = source.path;
+            } else if (source.type === "file") {
+                try {
+                    payload.metainfo = await readFileAsBase64(source.file);
+                } catch (error) {
+                    setHasSubmitError(true);
+                    setSubmitError(
+                        isFileAccessError(error)
+                            ? t("modals.file_unavailable")
+                            : resolveSubmitErrorMessage(error) ??
+                                  t("modals.add_error_default")
+                    );
+                    return;
+                }
+            } else if (source.type === "magnet") {
+                payload.magnetLink = source.magnetLink;
             }
             if (torrentMetadata && filesUnwanted.size) {
                 const filtered = Array.from(filesUnwanted).sort(
@@ -369,6 +393,16 @@ export function AddTorrentModal({
                     (payload as { filesUnwanted?: number[] }).filesUnwanted =
                         filtered;
                 }
+            }
+            if (import.meta.env.DEV) {
+                const logSource = source.type === "magnet" ? "magnet" : "file";
+                console.info(
+                    "[tiny-torrent][add] source=%s downloadDir=%s startNow=%s filesUnwanted=%s",
+                    logSource,
+                    payload.downloadDir,
+                    payload.startNow,
+                    filesUnwanted.size
+                );
             }
             await onAdd(payload, ghostContext);
             onClose();
@@ -636,15 +670,20 @@ export function AddTorrentModal({
                         </ModalBody>
                         <ModalFooter className="flex flex-col gap-tools">
                             {supportsCheckFreeSpace && (
-                            <DiskSpaceGauge
-                                freeBytes={directorySpace?.sizeBytes}
-                                totalBytes={directorySpace?.totalSize}
-                                torrentSize={torrentSize}
-                                path={directorySpace?.path ?? downloadDir}
-                                isLoading={isSpaceLoading}
-                                error={spaceError}
-                                isInsufficient={isSpaceInsufficient}
-                            />
+                                <DiskSpaceGauge
+                                    freeBytes={directorySpace?.sizeBytes}
+                                    totalBytes={directorySpace?.totalSize}
+                                    torrentSize={torrentSize}
+                                    path={
+                                        directorySpace?.path ??
+                                        (downloadDir.trim() || undefined)
+                                    }
+                                    isLoading={isSpaceLoading}
+                                    error={spaceError}
+                                    hint={spaceHint}
+                                    onRetry={refreshDiskSpace}
+                                    isInsufficient={isSpaceInsufficient}
+                                />
                             )}
                             <div className="flex w-full items-center justify-between gap-tools">
                                 <Button
@@ -670,7 +709,7 @@ export function AddTorrentModal({
                                         isSubmitting ||
                                         isSpaceInsufficient
                                     }
-                                className="flex-1"
+                                    className="flex-1"
                                 >
                                     {t("modals.download")}
                                 </Button>
@@ -698,4 +737,153 @@ export function AddTorrentModal({
             </ModalContent>
         </Modal>
     );
+}
+
+type DiskSpaceProbeParams = {
+    isOpen: boolean;
+    downloadDir: string;
+    checkFreeSpace?: (path: string) => Promise<TransmissionFreeSpace>;
+    supportsCheckFreeSpace: boolean;
+    t: TFunction;
+};
+
+type DiskSpaceProbeResult = {
+    directorySpace: TransmissionFreeSpace | null;
+    isSpaceLoading: boolean;
+    spaceError: string | null;
+    spaceHint: string | null;
+    refreshDiskSpace: () => void;
+    reportSpaceError: (message: string) => void;
+};
+
+function useDiskSpaceProbe({
+    isOpen,
+    downloadDir,
+    checkFreeSpace,
+    supportsCheckFreeSpace,
+    t,
+}: DiskSpaceProbeParams): DiskSpaceProbeResult {
+    const [directorySpace, setDirectorySpace] =
+        useState<TransmissionFreeSpace | null>(null);
+    const [isSpaceLoading, setIsSpaceLoading] = useState(false);
+    const [spaceError, setSpaceError] = useState<string | null>(null);
+    const [spaceHint, setSpaceHint] = useState<string | null>(null);
+    const requestTokenRef = useRef<symbol | null>(null);
+
+    const resetSpaceState = useCallback(() => {
+        requestTokenRef.current = null;
+        setDirectorySpace(null);
+        setSpaceError(null);
+        setSpaceHint(null);
+        setIsSpaceLoading(false);
+    }, []);
+
+    const reportSpaceError = useCallback((message: string) => {
+        requestTokenRef.current = null;
+        setDirectorySpace(null);
+        setSpaceHint(null);
+        setIsSpaceLoading(false);
+        setSpaceError(message);
+    }, []);
+
+    const refreshDiskSpace = useCallback(() => {
+        if (!isOpen) {
+            resetSpaceState();
+            return;
+        }
+        if (!supportsCheckFreeSpace || !checkFreeSpace) {
+            resetSpaceState();
+            return;
+        }
+        const trimmedDownloadDir = downloadDir.trim();
+        if (!trimmedDownloadDir) {
+            requestTokenRef.current = null;
+            setDirectorySpace(null);
+            setSpaceError(null);
+            setIsSpaceLoading(false);
+            setSpaceHint(t("modals.disk_gauge.choose_path"));
+            return;
+        }
+        const token = Symbol("disk-space-request");
+        requestTokenRef.current = token;
+        setIsSpaceLoading(true);
+        setSpaceError(null);
+        setSpaceHint(null);
+        checkFreeSpace(trimmedDownloadDir)
+            .then((space) => {
+                if (requestTokenRef.current !== token) return;
+                setDirectorySpace(space);
+            })
+            .catch((error) => {
+                if (requestTokenRef.current !== token) return;
+                setDirectorySpace(null);
+                setSpaceError(resolveDiskSpaceErrorMessage(error, t));
+            })
+            .finally(() => {
+                if (requestTokenRef.current !== token) return;
+                setIsSpaceLoading(false);
+            });
+    }, [
+        checkFreeSpace,
+        downloadDir,
+        isOpen,
+        resetSpaceState,
+        supportsCheckFreeSpace,
+        t,
+    ]);
+
+    useEffect(() => {
+        refreshDiskSpace();
+    }, [refreshDiskSpace]);
+
+    return {
+        directorySpace,
+        isSpaceLoading,
+        spaceError,
+        spaceHint,
+        refreshDiskSpace,
+        reportSpaceError,
+    };
+}
+
+function extractErrorMessage(error: unknown): string | null {
+    if (error instanceof Error && error.message) {
+        return error.message;
+    }
+    if (typeof error === "string" && error.length) {
+        return error;
+    }
+    if (
+        error &&
+        typeof error === "object" &&
+        "message" in error &&
+        typeof (error as { message?: unknown }).message === "string" &&
+        (error as { message: string }).message
+    ) {
+        return (error as { message: string }).message;
+    }
+    return null;
+}
+
+function isFileAccessError(error: unknown): boolean {
+    if (!error || typeof error !== "object") {
+        return false;
+    }
+    const name = (error as { name?: unknown }).name;
+    return name === "NotAllowedError" || name === "SecurityError";
+}
+
+function resolveSubmitErrorMessage(error: unknown): string | null {
+    return extractErrorMessage(error);
+}
+
+function resolveDiskSpaceErrorMessage(
+    error: unknown,
+    t: TFunction
+): string {
+    const message = extractErrorMessage(error);
+    if (message) {
+        return t("modals.disk_gauge.error_detail", { message });
+    }
+    return t("modals.disk_gauge_error");
 }

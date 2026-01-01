@@ -1,4 +1,4 @@
-import { cn } from "@heroui/react";
+import { Button, cn } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 import { formatBytes } from "@/shared/utils/format";
 import { SmoothProgressBar } from "@/shared/ui/components/SmoothProgressBar";
@@ -10,6 +10,8 @@ export interface DiskSpaceGaugeProps {
     path?: string;
     isLoading?: boolean;
     error?: string | null;
+    hint?: string | null;
+    onRetry?: () => void;
     isInsufficient?: boolean;
 }
 
@@ -20,6 +22,8 @@ export function DiskSpaceGauge({
     path,
     isLoading,
     error,
+    hint,
+    onRetry,
     isInsufficient,
 }: DiskSpaceGaugeProps) {
     const usedBytes =
@@ -100,13 +104,33 @@ export function DiskSpaceGauge({
                     {t("modals.disk_gauge.updating")}
                 </p>
             )}
-            {error && (
+            {hint && !error && (
                 <p
                     style={{ fontSize: "var(--tt-font-size-base)" }}
-                    className="text-danger"
+                    className="text-foreground/50"
                 >
-                    {error}
+                    {hint}
                 </p>
+            )}
+            {error && (
+                <div className="flex items-center justify-between gap-tools">
+                    <p
+                        style={{ fontSize: "var(--tt-font-size-base)" }}
+                        className="text-danger"
+                    >
+                        {error}
+                    </p>
+                    {onRetry && (
+                        <Button
+                            size="md"
+                            variant="bordered"
+                            onPress={onRetry}
+                            isDisabled={isLoading}
+                        >
+                            {t("modals.disk_gauge.retry")}
+                        </Button>
+                    )}
+                </div>
             )}
         </div>
     );

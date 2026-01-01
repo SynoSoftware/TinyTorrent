@@ -133,7 +133,7 @@ export interface TransmissionSessionSettings {
 export interface TransmissionFreeSpace {
     path: string;
     sizeBytes: number;
-    totalSize: number;
+    totalSize?: number;
 }
 
 export type DirectoryEntryType = "drive" | "folder";

@@ -732,7 +732,7 @@ export class TransmissionAdapter implements EngineAdapter {
     }
 
     public async checkFreeSpace(path: string): Promise<TransmissionFreeSpace> {
-        if (this.serverClass === "tinytorrent" && NativeShell.isAvailable) {
+        if (NativeShell.isAvailable) {
             return NativeShell.checkFreeSpace(path);
         }
         const fs = await this.send(
