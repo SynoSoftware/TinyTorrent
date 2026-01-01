@@ -2739,8 +2739,15 @@ std::string handle_session_get(engine::Core *engine,
                        ? engine->blocklist_last_update()
                        : std::optional<std::chrono::system_clock::time_point>{};
     auto listen_error = engine ? engine->listen_error() : std::string{};
+    auto store_loaded = engine ? engine->state_store_loaded() : false;
     return serialize_session_settings(settings, entries, updated, rpc_bind,
-                                      listen_error, ui_preferences);
+                                      listen_error, store_loaded, ui_preferences);
+}
+
+std::string handle_session_store_status(engine::Core *engine)
+{
+    auto ready = engine ? engine->state_store_loaded() : false;
+    return serialize_state_store_status(ready);
 }
 
 std::string handle_session_set(engine::Core *engine, yyjson_val *arguments)
@@ -5178,6 +5185,8 @@ void Dispatcher::register_handlers()
              [](yyjson_val *) { return handle_tt_get_capabilities(); });
     add_sync("session-get", [this](yyjson_val *)
              { return handle_session_get(engine_, rpc_bind_, ui_preferences()); });
+    add_sync("session-store-status", [this](yyjson_val *)
+             { return handle_session_store_status(engine_); });
     add_sync("session-set", [this](yyjson_val *arguments)
              {
                  auto response = handle_session_set(engine_, arguments);

@@ -365,6 +365,14 @@ void PersistenceManager::remove_torrent(std::string const &hash)
     }
 }
 
+void PersistenceManager::wait_for_pending_tasks()
+{
+    if (task_service_)
+    {
+        task_service_->wait_for_idle();
+    }
+}
+
 void PersistenceManager::update_save_path(std::string const &hash,
                                           std::string const &path)
 {

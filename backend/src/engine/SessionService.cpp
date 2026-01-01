@@ -98,7 +98,8 @@ SessionService::SessionService(TorrentManager *manager,
         {
             std::lock_guard<std::mutex> l(data_mutex_);
             return error_messages_.count(hash) ? error_messages_.at(hash) : "";
-        });
+        },
+        [this](int id) { return manager_->rehash_info(id); });
 
     bus_->subscribe<TorrentErrorEvent>(
         [this](auto const &e)
@@ -304,6 +305,10 @@ void SessionService::remove_torrents(std::vector<int> const &ids,
         manager_->remove_torrent(h, delete_data);
         if (persistence_)
             persistence_->remove_torrent(hash);
+    }
+    if (delete_data && persistence_)
+    {
+        persistence_->wait_for_pending_tasks();
     }
 }
 

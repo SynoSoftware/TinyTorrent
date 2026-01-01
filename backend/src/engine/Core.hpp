@@ -175,6 +175,19 @@ struct TorrentSnapshot
     std::vector<std::string> labels;
     int bandwidth_priority = 0;
     std::uint64_t revision = 0;
+    std::uint64_t tracker_announces = 0;
+    std::uint64_t dht_replies = 0;
+    std::uint64_t peer_connections = 0;
+    std::uint64_t rehash_start_count = 0;
+    std::uint64_t rehash_complete_count = 0;
+    bool rehash_active = false;
+};
+
+struct RehashState
+{
+    std::uint64_t start_count = 0;
+    std::uint64_t complete_count = 0;
+    bool active = false;
 };
 
 struct TorrentFileInfo
@@ -342,6 +355,7 @@ class Core
     std::string listen_error() const;
     void set_listen_error_for_testing(std::string message);
     void submit_io_task(std::function<void()> task);
+    bool state_store_loaded() const noexcept;
 
   private:
     struct Impl;

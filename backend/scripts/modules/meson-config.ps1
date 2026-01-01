@@ -52,6 +52,34 @@ function Get-TestDir {
     return Join-Path $buildDir 'tests'
 }
 
+function Ensure-VsFrontendSyncHook {
+    param(
+        [Parameter(Mandatory = $true)][string]$BuildDir
+    )
+
+    $exeProjects = Get-ChildItem -LiteralPath $BuildDir -Filter '*@exe.vcxproj' -File -Recurse -ErrorAction SilentlyContinue
+    if (-not $exeProjects) {
+        return
+    }
+
+    $marker = '<Target Name="SyncFrontendAssets"'
+    $targetBlock = @'
+  <Target Name="SyncFrontendAssets" BeforeTargets="PrepareForBuild" Condition="'$(Configuration)'=='debug'">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(ProjectDir)..\..\..\scripts\gen-packed-fs.ps1&quot; -InputDir &quot;$(ProjectDir)..\..\..\frontend\dist&quot; -OutputFile &quot;$(ProjectDir)..\..\src\vendor\tt_packed_fs.c&quot;" />
+  </Target>
+'@
+
+    foreach ($proj in $exeProjects) {
+        if (Select-String -LiteralPath $proj.FullName -Pattern $marker -Quiet) {
+            continue
+        }
+        $content = Get-Content -LiteralPath $proj.FullName -Raw
+        $content = $content -replace '(?=</Project>)', "$targetBlock`r`n"
+        [System.IO.File]::WriteAllText($proj.FullName, $content, (New-Object System.Text.UTF8Encoding($false)))
+        Log-Info "Inserted Visual Studio frontend sync hook into $($proj.Name)"
+    }
+}
+
 function Invoke-MesonConfigure {
     param(
         [Parameter(Mandatory = $true)][ValidateSet('Debug', 'Release')][string]$Configuration,
@@ -105,14 +133,14 @@ function Invoke-MesonConfigure {
     $exe = if ($tools.Meson) { $tools.Meson } else { $tools.Python }
     $args = if ($tools.Meson) { $mesonArgs } else { @('-m', 'mesonbuild.mesonmain') + $mesonArgs }
 
-    function Write-VsDebuggerUserFiles {
-        param(
-            [Parameter(Mandatory = $true)][string]$BuildDir,
-            [Parameter(Mandatory = $true)][ValidateSet('Debug', 'Release')][string]$Configuration,
-            [Parameter(Mandatory = $true)][string]$TripletRoot
-        )
+function Write-VsDebuggerUserFiles {
+    param(
+        [Parameter(Mandatory = $true)][string]$BuildDir,
+        [Parameter(Mandatory = $true)][ValidateSet('Debug', 'Release')][string]$Configuration,
+        [Parameter(Mandatory = $true)][string]$TripletRoot
+    )
 
-        $vcpkgBin = Join-Path $TripletRoot 'bin'
+    $vcpkgBin = Join-Path $TripletRoot 'bin'
         $vcpkgDebugBin = Join-Path $TripletRoot 'debug\bin'
         $pathParts = @()
 
@@ -248,6 +276,93 @@ function Invoke-MesonBuild {
     }
 }
 
+function Invoke-HarnessSelfCheck {
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('Debug', 'Release')]
+        [string]$Configuration
+    )
+
+    $buildDir = Get-BuildDir -Configuration $Configuration
+    $targetName = 'harness-crash-sentinel'
+    $targetInfo = $null
+    $tools = Get-Tooling
+    $mesonExe = if ($tools.Meson) { $tools.Meson } else { $tools.Python }
+    $introspectArgs = if ($tools.Meson) {
+        @('introspect', '--targets', $buildDir)
+    }
+    else {
+        @('-m', 'mesonbuild.mesonmain', 'introspect', '--targets', $buildDir)
+    }
+
+    Push-Location (Get-RepoRoot)
+    try {
+        $introspectOutput = (& $mesonExe @introspectArgs) -join "`n"
+        if ($LASTEXITCODE -ne 0) {
+            throw "Meson introspect failed (exit $LASTEXITCODE)."
+        }
+        $targets = try {
+            $introspectOutput | ConvertFrom-Json
+        }
+        catch {
+            throw "Meson introspect returned invalid JSON: $($_.Exception.Message)"
+        }
+        $targetInfo = $targets | Where-Object { $_.name -eq $targetName } |
+            Select-Object -First 1
+        if (-not $targetInfo) {
+            Log-Info "Harness sentinel target '$targetName' missing; skipping self-check."
+            return
+        }
+
+        $compileArgs = if ($tools.Meson) {
+            @('compile', '-C', $buildDir, $targetName)
+        }
+        else {
+            @('-m', 'mesonbuild.mesonmain', 'compile', '-C', $buildDir, $targetName)
+        }
+
+        Log-Info "Building harness sentinel target '$targetName'..."
+        & $mesonExe @compileArgs
+        if ($LASTEXITCODE -ne 0) {
+            throw "Meson compile failed for '$targetName' (exit $LASTEXITCODE)."
+        }
+    }
+    finally {
+        Pop-Location
+    }
+
+    $filename = $targetInfo.filename
+    if ($filename -is [System.Array]) {
+        $filename = $filename[0]
+    }
+    $filename = [string]$filename
+    if (-not $filename) {
+        throw "Meson target '$targetName' missing filename metadata."
+    }
+
+    if ([System.IO.Path]::IsPathRooted($filename)) {
+        $sentinelExe = $filename
+    }
+    else {
+        $sentinelExe = Join-Path $buildDir $filename
+    }
+    if (-not (Test-Path -LiteralPath $sentinelExe)) {
+        throw "Harness self-check sentinel not found after build: $sentinelExe"
+    }
+
+    $workingDir = Split-Path $sentinelExe -Parent
+    Log-Section -Title 'Harness Self-Check' -Subtitle 'Crash sentinel exit code'
+    Log-Info "Running crash sentinel ($sentinelExe)..."
+
+    $proc = Start-Process -FilePath $sentinelExe -WorkingDirectory $workingDir -NoNewWindow -PassThru -Wait
+    $exitCode = $proc.ExitCode
+    if ($exitCode -eq 0) {
+        throw "Harness self-check sentinel exited 0 (expected crash)."
+    }
+
+    Log-Success "HarnessSelfCheck: observed non-zero exit code ($exitCode) (expected)"
+}
+
 function Invoke-MesonTests {
     param(
         [Parameter(Mandatory = $true)][ValidateSet('Debug', 'Release')][string]$Configuration
@@ -272,6 +387,7 @@ function Invoke-MesonTests {
     }
 
     Log-Info "Running tests ($Configuration)... (logs: $logDir)"
+    Invoke-HarnessSelfCheck -Configuration $Configuration
 
     $oldPath = $env:PATH
     $oldTtEnginePath = $env:TT_ENGINE_PATH

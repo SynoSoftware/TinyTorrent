@@ -294,6 +294,14 @@ void add_torrent_delta(yyjson_mut_doc *doc, yyjson_mut_val *entry,
                         current.download_rate);
     add_if_changed_uint(doc, entry, "rateUpload", previous.upload_rate,
                         current.upload_rate);
+    add_if_changed_uint(doc, entry, "trackerAnnounces",
+                        previous.tracker_announces,
+                        current.tracker_announces);
+    add_if_changed_uint(doc, entry, "dhtReplies", previous.dht_replies,
+                        current.dht_replies);
+    add_if_changed_uint(doc, entry, "peerConnections",
+                        previous.peer_connections,
+                        current.peer_connections);
     add_if_changed_sint(doc, entry, "peersConnected", previous.peers_connected,
                         current.peers_connected);
     add_if_changed_sint(doc, entry, "peersSendingToUs",
@@ -389,7 +397,13 @@ bool torrent_snapshot_equal(engine::TorrentSnapshot const &a,
            a.error_string == b.error_string &&
            a.left_until_done == b.left_until_done &&
            a.size_when_done == b.size_when_done && a.labels == b.labels &&
-           a.bandwidth_priority == b.bandwidth_priority;
+           a.bandwidth_priority == b.bandwidth_priority &&
+           a.tracker_announces == b.tracker_announces &&
+           a.dht_replies == b.dht_replies &&
+           a.peer_connections == b.peer_connections &&
+           a.rehash_start_count == b.rehash_start_count &&
+           a.rehash_complete_count == b.rehash_complete_count &&
+           a.rehash_active == b.rehash_active;
 }
 
 std::optional<std::uint16_t> parse_listen_port(std::string_view interface)
@@ -492,7 +506,7 @@ std::string serialize_session_settings(
     engine::CoreSettings const &settings, std::size_t blocklist_entries,
     std::optional<std::chrono::system_clock::time_point> blocklist_updated,
     std::string const &rpc_bind, std::string const &listen_error,
-    UiPreferences const &ui_preferences)
+    bool state_store_ready, UiPreferences const &ui_preferences)
 {
     tt::json::MutableDocument doc;
     if (!doc.is_valid())
@@ -659,6 +673,8 @@ std::string serialize_session_settings(
         yyjson_mut_obj_add_str(native, arguments, "listen-error",
                                listen_error.c_str());
     }
+    yyjson_mut_obj_add_bool(native, arguments, "stateStoreLoaded",
+                            state_store_ready);
     auto [rpc_host, rpc_port] = tt::net::parse_rpc_bind(rpc_bind);
     if (!rpc_host.empty())
     {
@@ -731,6 +747,26 @@ std::string serialize_session_stats(engine::SessionSnapshot const &snapshot)
     return doc.write(R"({"result":"error"})");
 }
 
+std::string serialize_state_store_status(bool ready)
+{
+    tt::json::MutableDocument doc;
+    if (!doc.is_valid())
+    {
+        return "{}";
+    }
+
+    auto *native = doc.doc();
+    auto *root = yyjson_mut_obj(native);
+    doc.set_root(root);
+    yyjson_mut_obj_add_str(native, root, "result", "success");
+
+    auto *arguments = yyjson_mut_obj(native);
+    yyjson_mut_obj_add_val(native, root, "arguments", arguments);
+    yyjson_mut_obj_add_bool(native, arguments, "ready", ready);
+
+    return doc.write();
+}
+
 std::string serialize_session_tray_status(std::uint64_t download_kbps,
                                           std::uint64_t upload_kbps,
                                           std::size_t active_count,
@@ -775,7 +811,6 @@ std::string serialize_session_tray_status(std::uint64_t download_kbps,
         yyjson_mut_obj_add_str(native, arguments, "errorMessage",
                                error_message.c_str());
     }
-
     add_ui_preferences(doc.doc(), arguments, ui_preferences);
 
     return doc.write(R"({"result":"error"})");
@@ -810,6 +845,11 @@ static void add_torrent_summary(yyjson_mut_doc *doc, yyjson_mut_val *entry,
     yyjson_mut_obj_add_sint(doc, entry, "status", torrent.status);
     yyjson_mut_obj_add_uint(doc, entry, "rateDownload", torrent.download_rate);
     yyjson_mut_obj_add_uint(doc, entry, "rateUpload", torrent.upload_rate);
+    yyjson_mut_obj_add_uint(doc, entry, "trackerAnnounces",
+                            torrent.tracker_announces);
+    yyjson_mut_obj_add_uint(doc, entry, "dhtReplies", torrent.dht_replies);
+    yyjson_mut_obj_add_uint(doc, entry, "peerConnections",
+                            torrent.peer_connections);
     yyjson_mut_obj_add_sint(doc, entry, "peersConnected",
                             torrent.peers_connected);
     yyjson_mut_obj_add_sint(doc, entry, "peersSendingToUs",
@@ -835,6 +875,12 @@ static void add_torrent_summary(yyjson_mut_doc *doc, yyjson_mut_val *entry,
                             torrent.sequential_download);
     yyjson_mut_obj_add_bool(doc, entry, "superSeeding", torrent.super_seeding);
     yyjson_mut_obj_add_bool(doc, entry, "isFinished", torrent.is_finished);
+    yyjson_mut_obj_add_uint(doc, entry, "rehashStartCount",
+                            torrent.rehash_start_count);
+    yyjson_mut_obj_add_uint(doc, entry, "rehashCompleteCount",
+                            torrent.rehash_complete_count);
+    yyjson_mut_obj_add_bool(doc, entry, "rehashActive",
+                            torrent.rehash_active);
 }
 
 std::string

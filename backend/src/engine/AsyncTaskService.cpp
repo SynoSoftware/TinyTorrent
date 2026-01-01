@@ -80,6 +80,7 @@ void AsyncTaskService::loop()
             if (exit_requested_.load(std::memory_order_acquire) &&
                 tasks_.empty())
             {
+                idle_cv_.notify_all();
                 break;
             }
             if (tasks_.empty())
@@ -88,6 +89,7 @@ void AsyncTaskService::loop()
             }
             task = std::move(tasks_.front());
             tasks_.pop_front();
+            ++active_executions_;
         }
         try
         {
@@ -104,8 +106,37 @@ void AsyncTaskService::loop()
         {
             TT_LOG_INFO("async task exception");
         }
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            if (active_executions_ > 0)
+            {
+                --active_executions_;
+            }
+            if (tasks_.empty() && active_executions_ == 0)
+            {
+                idle_cv_.notify_all();
+            }
+        }
+    }
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (active_executions_ != 0)
+        {
+            active_executions_ = 0;
+            idle_cv_.notify_all();
+        }
     }
     running_.store(false, std::memory_order_release);
+}
+
+void AsyncTaskService::wait_for_idle()
+{
+    std::unique_lock<std::mutex> lock(mutex_);
+    idle_cv_.wait(
+        lock, [this]()
+        {
+            return tasks_.empty() && active_executions_ == 0;
+        });
 }
 
 } // namespace tt::engine

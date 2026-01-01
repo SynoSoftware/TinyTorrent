@@ -8,6 +8,16 @@
 #include <mutex>
 #include <utility>
 
+#if defined(_WIN32)
+#  ifndef WIN32_LEAN_AND_MEAN
+#    define WIN32_LEAN_AND_MEAN
+#  endif
+#  ifndef NOMINMAX
+#    define NOMINMAX
+#  endif
+#  include <windows.h>
+#endif
+
 namespace tt::log
 {
 
@@ -64,6 +74,11 @@ inline void write_line(char level, std::string_view fmt, Args &&...args)
         std::fprintf(stderr, "%s\n", final.c_str());
         std::fflush(stderr);
     }
+
+#if defined(_WIN32) && defined(TT_BUILD_DEBUG)
+    OutputDebugStringA(final.c_str());
+    OutputDebugStringA("\n");
+#endif
     // 2) Always append to a fallback file to ensure logs are persisted
     try
     {

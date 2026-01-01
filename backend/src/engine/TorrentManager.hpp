@@ -170,6 +170,8 @@ class TorrentManager
                                       std::optional<int> upload_limit_kbps,
                                       std::optional<bool> upload_limited);
     SessionTotals capture_session_totals() const;
+    RehashState rehash_info(int id) const;
+    void notify_rehash_requested(int id);
 
     std::shared_ptr<SessionSnapshot> snapshot_copy() const noexcept;
     void store_snapshot(std::shared_ptr<SessionSnapshot> snapshot);
@@ -194,6 +196,27 @@ class TorrentManager
     std::unordered_map<int, TorrentSnapshot> snapshot_cache_;
     mutable std::mutex pending_move_mutex_;
     std::unordered_map<std::string, std::filesystem::path> pending_move_paths_;
+    struct ActivityCounters
+    {
+        std::uint64_t tracker_announces = 0;
+        std::uint64_t dht_replies = 0;
+        std::uint64_t peer_connections = 0;
+    };
+
+    void record_tracker_announce(libtorrent::tracker_announce_alert const &alert);
+    void record_dht_reply(libtorrent::dht_reply_alert const &alert);
+    void record_peer_connect(libtorrent::peer_connect_alert const &alert);
+    void record_activity(libtorrent::torrent_handle const &handle,
+                         std::function<void(ActivityCounters &)> update);
+    void apply_activity(TorrentSnapshot &snapshot, int id) const;
+    void prune_activity(std::unordered_set<int> const &seen_ids);
+    void mark_rehash_completed(libtorrent::torrent_handle const &handle);
+    std::optional<int> id_for_handle(libtorrent::torrent_handle const &handle) const;
+
+    std::unordered_map<int, ActivityCounters> activity_counters_;
+    mutable std::mutex activity_mutex_;
+    std::unordered_map<int, RehashState> rehash_states_;
+    mutable std::mutex rehash_mutex_;
 
     static constexpr std::size_t kMaxPendingTasks = 4096;
     static constexpr std::size_t kAlertBufferCapacity = 65536;

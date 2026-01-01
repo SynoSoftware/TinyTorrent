@@ -26,7 +26,8 @@ class SnapshotBuilder
         std::unordered_map<int, int> &priorities,
         std::shared_mutex &priorities_mutex,
         std::function<std::uint64_t(int)> ensure_revision,
-        std::function<std::string(std::string const &)> error_lookup);
+        std::function<std::string(std::string const &)> error_lookup,
+        std::function<RehashState(int)> rehash_info);
 
     TorrentSnapshot build_snapshot(
         int rpc_id, libtorrent::v2::torrent_status const &status,
@@ -37,7 +38,7 @@ class SnapshotBuilder
                                  libtorrent::torrent_handle const &handle,
                                  libtorrent::v2::torrent_status const &status);
 
-  private:
+private:
     std::vector<TorrentFileInfo>
     collect_files(libtorrent::torrent_handle const &handle);
 
@@ -52,6 +53,7 @@ class SnapshotBuilder
     std::shared_mutex &priorities_mutex_;
     std::function<std::uint64_t(int)> ensure_revision_;
     std::function<std::string(std::string const &)> error_lookup_;
+    std::function<RehashState(int)> rehash_info_;
 };
 
 } // namespace tt::engine
