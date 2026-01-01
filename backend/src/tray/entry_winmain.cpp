@@ -539,9 +539,9 @@ bool ensure_dcomp_visual_tree(TrayState &state, DCompInitFailure *failure)
     {
         float w = static_cast<float>(std::max(0L, client.right - client.left));
         float h = static_cast<float>(std::max(0L, client.bottom - client.top));
-        float radius = kWindowCornerRadiusDip *
-                       (static_cast<float>(GetDpiForWindow(state.webview_window)) /
-                        96.0f);
+        float radius =
+            kWindowCornerRadiusDip *
+            (static_cast<float>(GetDpiForWindow(state.webview_window)) / 96.0f);
         float max_radius = std::max(0.0f, std::min(w, h) / 2.0f);
         radius = std::min(radius, max_radius);
 
@@ -642,7 +642,8 @@ void update_dcomp_root_clip(TrayState *state, RECT client)
     if (state->webview_window && !IsZoomed(state->webview_window))
     {
         radius = kWindowCornerRadiusDip *
-                 (static_cast<float>(GetDpiForWindow(state->webview_window)) / 96.0f);
+                 (static_cast<float>(GetDpiForWindow(state->webview_window)) /
+                  96.0f);
         float max_radius = std::max(0.0f, std::min(w, h) / 2.0f);
         radius = std::min(radius, max_radius);
     }
@@ -767,49 +768,48 @@ HRESULT finish_webview_controller_setup(TrayState &state)
             state.webview_cursor = cursor;
         }
 
-        HRESULT cursor_hr =
-            state.webview_comp_controller->add_CursorChanged(
-                Microsoft::WRL::Callback<ICoreWebView2CursorChangedEventHandler>(
-                    [&state](ICoreWebView2CompositionController *,
-                             IUnknown *) -> HRESULT
+        HRESULT cursor_hr = state.webview_comp_controller->add_CursorChanged(
+            Microsoft::WRL::Callback<ICoreWebView2CursorChangedEventHandler>(
+                [&state](ICoreWebView2CompositionController *,
+                         IUnknown *) -> HRESULT
+                {
+                    if (!state.webview_comp_controller)
                     {
-                        if (!state.webview_comp_controller)
+                        state.webview_cursor = nullptr;
+                        return S_OK;
+                    }
+                    HCURSOR cursor = nullptr;
+                    if (SUCCEEDED(
+                            state.webview_comp_controller->get_Cursor(&cursor)))
+                    {
+                        state.webview_cursor = cursor;
+                        if (state.webview_window)
                         {
-                            state.webview_cursor = nullptr;
-                            return S_OK;
-                        }
-                        HCURSOR cursor = nullptr;
-                        if (SUCCEEDED(
-                                state.webview_comp_controller->get_Cursor(&cursor)))
-                        {
-                            state.webview_cursor = cursor;
-                            if (state.webview_window)
+                            POINT screen_pt{};
+                            if (GetCursorPos(&screen_pt))
                             {
-                                POINT screen_pt{};
-                                if (GetCursorPos(&screen_pt))
+                                HWND under = WindowFromPoint(screen_pt);
+                                if (under == state.webview_window)
                                 {
-                                    HWND under = WindowFromPoint(screen_pt);
-                                    if (under == state.webview_window)
+                                    POINT client_pt = screen_pt;
+                                    if (ScreenToClient(state.webview_window,
+                                                       &client_pt))
                                     {
-                                        POINT client_pt = screen_pt;
-                                        if (ScreenToClient(state.webview_window,
-                                                           &client_pt))
+                                        if (!resize_hit_from_client_point(
+                                                state.webview_window,
+                                                client_pt))
                                         {
-                                            if (!resize_hit_from_client_point(
-                                                    state.webview_window,
-                                                    client_pt))
-                                            {
-                                                SetCursor(cursor);
-                                            }
+                                            SetCursor(cursor);
                                         }
                                     }
                                 }
                             }
                         }
-                        return S_OK;
-                    })
-                    .Get(),
-                &state.cursor_token);
+                    }
+                    return S_OK;
+                })
+                .Get(),
+            &state.cursor_token);
         state.cursor_token_set = SUCCEEDED(cursor_hr);
     }
 
@@ -1655,9 +1655,8 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
             }
         }
 
-        if (state &&
-            tt::tray::input::handle_webview_mouse_input(*state, hwnd, msg, wparam,
-                                                      lparam))
+        if (state && tt::tray::input::handle_webview_mouse_input(
+                         *state, hwnd, msg, wparam, lparam))
         {
             return 0;
         }
@@ -1724,7 +1723,8 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
                     }
                 }
             }
-            if (state && state->webview_comp_controller && state->webview_cursor)
+            if (state && state->webview_comp_controller &&
+                state->webview_cursor)
             {
                 SetCursor(state->webview_cursor);
                 return TRUE;
@@ -1744,9 +1744,8 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
     case WM_POINTERUPDATE:
     case WM_POINTERENTER:
     case WM_POINTERLEAVE:
-        if (state &&
-            tt::tray::input::handle_webview_pointer_input(*state, hwnd, msg,
-                                                          wparam, lparam))
+        if (state && tt::tray::input::handle_webview_pointer_input(
+                         *state, hwnd, msg, wparam, lparam))
         {
             return 0;
         }
@@ -1859,8 +1858,8 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
         {
             state->user_closed_ui.store(true);
             state->ui_attached.store(false);
-            tt::tray::rpc::post_rpc_request(*state,
-                                            R"({"method":"session-ui-detach"})");
+            tt::tray::rpc::post_rpc_request(
+                *state, R"({"method":"session-ui-detach"})");
             if (state->webview_window)
             {
                 ShowWindow(state->webview_window, SW_HIDE);
@@ -2179,8 +2178,7 @@ tt::rpc::UiPreferences load_ui_preferences()
 void focus_or_launch_ui(TrayState &state)
 {
     AllowSetForegroundWindow(ASFW_ANY);
-    if (state.ui_attached.load() &&
-        tt::tray::rpc::request_ui_focus(state))
+    if (state.ui_attached.load() && tt::tray::rpc::request_ui_focus(state))
     {
         if (!state.token.empty())
         {
@@ -2247,12 +2245,6 @@ void apply_rounded_corners(HWND hwnd)
         safe_dwm_set_window_attribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE,
                                       &pref, sizeof(pref));
     }
-
-    RECT client{};
-    GetClientRect(hwnd, &client);
-    int w = std::max(0L, client.right - client.left);
-    int h = std::max(0L, client.bottom - client.top);
-    apply_rounded_corners_for_size(hwnd, w, h);
 }
 
 void apply_rounded_corners_for_size(HWND hwnd, int width, int height)
@@ -2325,9 +2317,9 @@ void apply_rounded_corners_for_size(HWND hwnd, int width, int height)
     radius_f = std::min(radius_f, max_radius);
     int radius = std::max(0, static_cast<int>(std::lround(radius_f)));
 
-    if (auto *entry = find_cache(hwnd);
-        entry && !entry->zoomed && entry->w == w && entry->h == h &&
-        entry->radius == radius)
+    if (auto *entry = find_cache(hwnd); entry && !entry->zoomed &&
+                                        entry->w == w && entry->h == h &&
+                                        entry->radius == radius)
     {
         return;
     }
@@ -2397,6 +2389,29 @@ LRESULT CALLBACK SplashProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
             DestroyWindow(hwnd);
         }
         return 0;
+    case WM_SIZE:
+    {
+        // RECT rc{};
+        //  GetClientRect(hwnd, &rc);
+        apply_rounded_corners(hwnd);
+        // apply_rounded_corners_for_size(hwnd, rc.right, rc.bottom);
+        return 0;
+    }
+    case WM_DPICHANGED:
+    {
+        RECT *suggested = (RECT *)lparam;
+        SetWindowPos(hwnd, nullptr, suggested->left, suggested->top,
+                     suggested->right - suggested->left,
+                     suggested->bottom - suggested->top,
+                     SWP_NOZORDER | SWP_NOACTIVATE);
+
+        // RECT rc{};
+        //  GetClientRect(hwnd, &rc);
+        apply_rounded_corners(hwnd);
+        // apply_rounded_corners_for_size(hwnd, rc.right, rc.bottom);
+        return 0;
+    }
+
     case WM_PAINT:
     {
         PAINTSTRUCT ps;
@@ -2526,9 +2541,7 @@ bool register_drop_target(TrayState &state)
         return true;
     }
     auto handler = [&state](std::wstring const &path)
-    {
-        tt::tray::rpc::handle_dropped_torrent(state, path);
-    };
+    { tt::tray::rpc::handle_dropped_torrent(state, path); };
     auto drop_target = Microsoft::WRL::Make<TrayDropTarget>(handler);
     if (!drop_target)
     {
@@ -2558,8 +2571,8 @@ TrayStatus rpc_get_tray_status(TrayState &state)
 {
     TrayStatus s;
     s.rpc_success = false;
-    auto body =
-        tt::tray::rpc::post_rpc_request(state, R"({"method":"session-tray-status"})");
+    auto body = tt::tray::rpc::post_rpc_request(
+        state, R"({"method":"session-tray-status"})");
     if (body.empty())
         return s;
 
@@ -2716,9 +2729,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
         {
             bool target = !state->paused_all.load();
             tt::tray::rpc::post_rpc_request(
-                    *state,
-                    target ? "{\"method\":\"session-pause-all\"}"
-                           : "{\"method\":\"session-resume-all\"}");
+                *state, target ? "{\"method\":\"session-pause-all\"}"
+                               : "{\"method\":\"session-resume-all\"}");
         }
         break;
         case ID_OPEN_DOWNLOADS:
@@ -2816,7 +2828,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int)
     HANDLE hMutex = nullptr;
     if (!has_run_seconds || !has_data_root_override)
     {
-        hMutex = CreateMutexW(nullptr, TRUE, L"TinyTorrent_SingleInstance_Mutex");
+        hMutex =
+            CreateMutexW(nullptr, TRUE, L"TinyTorrent_SingleInstance_Mutex");
         if (GetLastError() == ERROR_ALREADY_EXISTS)
         {
             HWND ex = FindWindowW(L"TinyTorrentTrayWindow", nullptr);
