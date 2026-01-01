@@ -400,7 +400,11 @@ export class TransmissionAdapter implements EngineAdapter {
                 zTinyTorrentCapabilitiesNormalized
             );
             this.applyCapabilities(response);
-        } catch {
+        } catch (error) {
+            console.error(
+                `[tiny-torrent][rpc] refreshExtendedCapabilities failed`,
+                error
+            );
             this.applyCapabilities(null);
         }
     }
@@ -1118,6 +1122,9 @@ type TinyTorrentWebSocketMessage =
     | TinyTorrentEventMessage;
 
 class TinyTorrentWebSocketSession {
+    private static nextSessionId = 1;
+    private readonly sessionId: number;
+    private readonly logPrefix: string;
     private baseUrl?: URL;
     private socket?: WebSocket;
     private reconnectTimer?: number;
@@ -1129,9 +1136,13 @@ class TinyTorrentWebSocketSession {
     private lastSessionStats?: TransmissionSessionStats;
     private readonly options: TinyTorrentWebSocketSessionOptions;
     private focusRestoreTimer?: number;
+    private connectAttempt = 0;
 
     constructor(options: TinyTorrentWebSocketSessionOptions) {
+        this.sessionId = TinyTorrentWebSocketSession.nextSessionId++;
+        this.logPrefix = `[tiny-torrent][ws #${this.sessionId}]`;
         this.options = options;
+        console.log(`${this.logPrefix} session created`);
     }
 
     private handleUiFocusSignal() {
@@ -1177,6 +1188,7 @@ class TinyTorrentWebSocketSession {
         }
         this.stop();
         this.baseUrl = baseUrl;
+        console.log(`${this.logPrefix} start requested baseUrl=${baseUrl.toString()}`);
         this.torrentsMap.clear();
         this.lastSessionStats = undefined;
         this.shouldReconnect = true;
@@ -1185,12 +1197,14 @@ class TinyTorrentWebSocketSession {
     }
 
     public stop() {
+        console.log(`${this.logPrefix} stop invoked`);
         this.shouldReconnect = false;
         if (this.reconnectTimer) {
             window.clearTimeout(this.reconnectTimer);
             this.reconnectTimer = undefined;
         }
         if (this.socket) {
+            console.log(`${this.logPrefix} closing socket`);
             this.socket.close();
             this.socket = undefined;
         }
@@ -1202,6 +1216,9 @@ class TinyTorrentWebSocketSession {
         if (this.reconnectTimer) {
             window.clearTimeout(this.reconnectTimer);
         }
+        console.log(
+            `${this.logPrefix} scheduling connect in ${delay}ms (shouldReconnect=${this.shouldReconnect})`
+        );
         this.reconnectTimer = window.setTimeout(() => this.openSocket(), delay);
     }
 
@@ -1212,9 +1229,17 @@ class TinyTorrentWebSocketSession {
             this.options.onError?.(new Error("Invalid WebSocket URL"));
             return;
         }
+        const attemptId = ++this.connectAttempt;
+        console.log(
+            `${this.logPrefix} opening WebSocket attempt #${attemptId} to ${url.toString()}`
+        );
         try {
             this.socket = new WebSocket(url.toString());
         } catch (error) {
+            console.error(
+                `${this.logPrefix} connect attempt #${attemptId} failed`,
+                error
+            );
             this.options.onError?.(error);
             this.scheduleConnect(this.reconnectDelay);
             this.reconnectDelay = Math.min(
@@ -1242,6 +1267,9 @@ class TinyTorrentWebSocketSession {
     }
 
     private handleOpen = () => {
+        console.log(
+            `${this.logPrefix} websocket opened (attempt #${this.connectAttempt})`
+        );
         this.reconnectDelay = WS_RECONNECT_INITIAL_DELAY_MS;
         this.isConnected = true;
         this.options.onConnected?.();
@@ -1344,7 +1372,10 @@ class TinyTorrentWebSocketSession {
         });
     }
 
-    private handleClose = () => {
+    private handleClose = (event: CloseEvent) => {
+        console.warn(
+            `${this.logPrefix} websocket closed code=${event.code} reason=${event.reason}`
+        );
         this.markDisconnected();
         if (this.shouldReconnect) {
             this.scheduleConnect(this.reconnectDelay);
@@ -1356,6 +1387,7 @@ class TinyTorrentWebSocketSession {
     };
 
     private handleError = (event: Event) => {
+        console.error(`${this.logPrefix} websocket error`, event);
         this.options.onError?.(event);
     };
 
@@ -1363,6 +1395,7 @@ class TinyTorrentWebSocketSession {
         if (!this.isConnected) {
             return;
         }
+        console.log(`${this.logPrefix} markDisconnected`);
         this.isConnected = false;
         this.options.onDisconnected?.();
     }
