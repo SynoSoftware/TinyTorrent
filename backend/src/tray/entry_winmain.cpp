@@ -213,6 +213,9 @@ struct TrayState
     Microsoft::WRL::ComPtr<ICoreWebView2> webview;
     EventRegistrationToken web_message_token{};
     EventRegistrationToken navigation_token{};
+    EventRegistrationToken cursor_token{};
+    bool cursor_token_set = false;
+    HCURSOR webview_cursor = nullptr;
 
     HINTERNET http_session = nullptr;
     HINTERNET http_connect = nullptr;
@@ -851,6 +854,67 @@ HRESULT finish_webview_controller_setup(TrayState &state)
         return E_FAIL;
     }
 
+    if (state.cursor_token_set && state.webview_comp_controller)
+    {
+        state.webview_comp_controller->remove_CursorChanged(state.cursor_token);
+        state.cursor_token_set = false;
+        state.cursor_token = {};
+    }
+    state.webview_cursor = nullptr;
+    if (state.webview_comp_controller)
+    {
+        HCURSOR cursor = nullptr;
+        if (SUCCEEDED(state.webview_comp_controller->get_Cursor(&cursor)))
+        {
+            state.webview_cursor = cursor;
+        }
+
+        HRESULT cursor_hr =
+            state.webview_comp_controller->add_CursorChanged(
+                Microsoft::WRL::Callback<ICoreWebView2CursorChangedEventHandler>(
+                    [&state](ICoreWebView2CompositionController *,
+                             IUnknown *) -> HRESULT
+                    {
+                        if (!state.webview_comp_controller)
+                        {
+                            state.webview_cursor = nullptr;
+                            return S_OK;
+                        }
+                        HCURSOR cursor = nullptr;
+                        if (SUCCEEDED(
+                                state.webview_comp_controller->get_Cursor(&cursor)))
+                        {
+                            state.webview_cursor = cursor;
+                            if (state.webview_window)
+                            {
+                                POINT screen_pt{};
+                                if (GetCursorPos(&screen_pt))
+                                {
+                                    HWND under = WindowFromPoint(screen_pt);
+                                    if (under == state.webview_window)
+                                    {
+                                        POINT client_pt = screen_pt;
+                                        if (ScreenToClient(state.webview_window,
+                                                           &client_pt))
+                                        {
+                                            if (!resize_hit_from_client_point(
+                                                    state.webview_window,
+                                                    client_pt))
+                                            {
+                                                SetCursor(cursor);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        return S_OK;
+                    })
+                    .Get(),
+                &state.cursor_token);
+        state.cursor_token_set = SUCCEEDED(cursor_hr);
+    }
+
     auto script = build_native_bridge_script(state);
     state.webview->AddScriptToExecuteOnDocumentCreated(script.c_str(), nullptr);
     state.webview->add_WebMessageReceived(
@@ -1217,6 +1281,13 @@ bool perform_window_command(TrayState &state, std::string const &command)
 
 void cancel_native_webview(TrayState &state)
 {
+    if (state.cursor_token_set && state.webview_comp_controller)
+    {
+        state.webview_comp_controller->remove_CursorChanged(state.cursor_token);
+        state.cursor_token_set = false;
+        state.cursor_token = {};
+    }
+    state.webview_cursor = nullptr;
     if (state.webview_controller)
     {
         state.webview_controller->Close();
@@ -1936,6 +2007,11 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
                         return TRUE;
                     }
                 }
+            }
+            if (state && state->webview_comp_controller && state->webview_cursor)
+            {
+                SetCursor(state->webview_cursor);
+                return TRUE;
             }
         }
         break;
