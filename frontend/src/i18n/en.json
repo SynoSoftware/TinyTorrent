@@ -394,6 +394,7 @@
             "remove": "Remove",
             "remove_with_data": "Remove and Delete Files",
             "hide_column": "Hide Column",
+            "hide_column_named": "Hide {{column}}",
             "resume": "Resume",
             "fit_all_columns": "Fit All Columns"
         },

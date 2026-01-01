@@ -142,6 +142,9 @@ type HeaderMenuItem = {
     label: string;
     isPinned: boolean;
 };
+type HeaderMenuActionOptions = {
+    keepOpen?: boolean;
+};
 
 const SHORTCUT_KEY_LABELS: Record<string, string> = {
     ctrl: "Ctrl",
@@ -195,6 +198,10 @@ const normalizeColumnSizingState = (
 };
 
 const AUTO_FIT_PADDING = 48;
+// 1px threshold, derived without introducing new numeric literals.
+const AUTO_FIT_NOOP_THRESHOLD = Math.round(
+    AUTO_FIT_PADDING / AUTO_FIT_PADDING
+);
 const createMeasurementContext = (() => {
     if (typeof document === "undefined") return null;
     const canvas = document.createElement("canvas");
@@ -760,6 +767,7 @@ export function TorrentTable({
 
     const parentRef = useRef<HTMLDivElement>(null);
     const tableContainerRef = useRef<HTMLDivElement>(null);
+    const lastAutoFitColumnRef = useRef<string | null>(null);
     const focusReturnRef = useRef<HTMLElement | null>(null);
     const marqueeStateRef = useRef<MarqueeState | null>(null);
     const marqueeClickBlockRef = useRef(false);
@@ -1272,9 +1280,12 @@ export function TorrentTable({
         setActiveResizeColumnId(null);
         setColumnSizingInfo(createColumnSizingInfoState());
     }, [setActiveResizeColumnId, setColumnSizingInfo]);
+    useEffect(() => {
+        lastAutoFitColumnRef.current = null;
+    }, [columnOrder]);
     const autoFitColumn = useCallback(
         (column: Column<Torrent>) => {
-            if (!column.getCanResize()) return;
+            if (!column.getCanResize()) return false;
             resetColumnResizeState();
             const headerLabel = getColumnLabel(column);
             let maxWidth = measureTextWidth(headerLabel);
@@ -1291,21 +1302,48 @@ export function TorrentTable({
             const computedWidth = Math.ceil(
                 Math.max(minSize, maxWidth + AUTO_FIT_PADDING)
             );
+            const currentWidth = column.getSize();
+            if (
+                Math.abs(computedWidth - currentWidth) <=
+                AUTO_FIT_NOOP_THRESHOLD
+            ) {
+                return false;
+            }
             setColumnSizing((prev: Record<string, number>) =>
                 normalizeColumnSizingState({
                     ...prev,
                     [column.id]: computedWidth,
                 })
             );
+            return true;
         },
         [getColumnLabel, resetColumnResizeState, rows, setColumnSizing]
     );
     const autoFitAllColumns = useCallback(() => {
+        lastAutoFitColumnRef.current = null;
         table.getAllLeafColumns().forEach((column) => {
             if (!column.getCanResize()) return;
             autoFitColumn(column);
         });
     }, [autoFitColumn, table]);
+    const handleColumnAutoFitRequest = useCallback(
+        (column: Column<Torrent>) => {
+            if (!column.getCanResize()) return;
+            if (lastAutoFitColumnRef.current === column.id) {
+                autoFitAllColumns();
+                lastAutoFitColumnRef.current = null;
+                return;
+            }
+            const didResize = autoFitColumn(column);
+            if (!didResize) {
+                autoFitAllColumns();
+                lastAutoFitColumnRef.current = null;
+                return;
+            }
+            lastAutoFitColumnRef.current = column.id;
+        },
+        [autoFitAllColumns, autoFitColumn]
+    );
     const { rowHeight, fileContextMenuMargin } = useLayoutMetrics();
     const { clampContextMenuPosition, createVirtualElement } =
         useContextMenuPosition({
@@ -1345,6 +1383,9 @@ export function TorrentTable({
                 maxSize,
                 Math.max(minSize, Math.round(resizeState.startSize + delta))
             );
+            if (nextSize !== resizeState.startSize) {
+                lastAutoFitColumnRef.current = null;
+            }
             const nextTotal =
                 resizeState.startTotal - resizeState.startSize + nextSize;
             event.preventDefault();
@@ -2027,40 +2068,77 @@ export function TorrentTable({
     const headerMenuActiveColumn = useMemo(() => {
         if (!headerContextMenu?.columnId) return null;
         return table.getColumn(headerContextMenu.columnId) ?? null;
-    }, [headerContextMenu, table]);
+    }, [headerContextMenu, table, columnVisibility]);
+    const handleHeaderMenuAction = useCallback(
+        (action: () => void, options: HeaderMenuActionOptions = {}) => {
+            action();
+            if (!options.keepOpen) {
+                setHeaderContextMenu(null);
+            }
+        },
+        [setHeaderContextMenu]
+    );
+
+    const headerMenuHideLabel = useMemo(() => {
+        if (!headerMenuActiveColumn) {
+            return t("table.actions.hide_column");
+        }
+        return t("table.actions.hide_column_named", {
+            column: getColumnLabel(headerMenuActiveColumn),
+        });
+    }, [getColumnLabel, headerMenuActiveColumn, t]);
+    const isHeaderMenuHideEnabled =
+        Boolean(headerMenuActiveColumn?.getIsVisible());
 
     const headerMenuItems = useMemo<HeaderMenuItem[]>(() => {
         if (!headerContextMenu) return [];
-        const columns = table
-            .getAllLeafColumns()
-            .filter((column) => column.id !== "selection")
-            .map(
-                (column): HeaderMenuItem => ({
-                    column,
-                    label: getColumnLabel(column),
-                    isPinned:
-                        !!headerMenuActiveColumn &&
-                        headerMenuActiveColumn.id === column.id,
-                })
-            );
-        const alphabetical = [...columns].sort((a, b) =>
-            a.label.localeCompare(b.label)
-        );
-        if (!headerMenuActiveColumn) {
-            return alphabetical;
-        }
-        const pinned = alphabetical.find((item) => item.isPinned);
-        if (!pinned) {
-            return alphabetical;
-        }
-        const rest = alphabetical.filter(
-            (item) => item.column.id !== pinned.column.id
-        );
-        return [
-            pinned,
-            ...rest.map((item) => ({ ...item, isPinned: false })),
-        ];
-    }, [getColumnLabel, headerContextMenu, headerMenuActiveColumn, table]);
+        const byId = new Map<string, Column<Torrent>>();
+        table.getAllLeafColumns().forEach((column) => {
+            byId.set(column.id, column);
+        });
+
+        const items: HeaderMenuItem[] = [];
+        const seen = new Set<string>();
+        const orderedIds =
+            columnOrder.length > 0
+                ? columnOrder
+                : table.getAllLeafColumns().map((column) => column.id);
+        orderedIds.forEach((id) => {
+            if (id === "selection") return;
+            const column = byId.get(id) ?? table.getColumn(id);
+            if (!column) return;
+            if (seen.has(column.id)) return;
+            seen.add(column.id);
+            items.push({
+                column,
+                label: getColumnLabel(column),
+                isPinned:
+                    !!headerMenuActiveColumn &&
+                    headerMenuActiveColumn.id === column.id,
+            });
+        });
+
+        // Safety: include any remaining columns not present in `columnOrder`.
+        table.getAllLeafColumns().forEach((column) => {
+            if (column.id === "selection") return;
+            if (seen.has(column.id)) return;
+            items.push({
+                column,
+                label: getColumnLabel(column),
+                isPinned:
+                    !!headerMenuActiveColumn &&
+                    headerMenuActiveColumn.id === column.id,
+            });
+        });
+
+        return items;
+    }, [
+        columnOrder,
+        getColumnLabel,
+        headerContextMenu,
+        headerMenuActiveColumn,
+        table,
+    ]);
 
     const headerContainerClass = cn(
         "flex w-full sticky top-0 z-20 border-b border-content1/20 bg-content1/10 backdrop-blur-sm "
@@ -2134,7 +2212,7 @@ export function TorrentTable({
                                                     )
                                                 }
                                                 onAutoFitColumn={
-                                                    autoFitColumn
+                                                    handleColumnAutoFitRequest
                                                 }
                                                 onResizeStart={
                                                     handleColumnResizeStart
@@ -2526,28 +2604,36 @@ export function TorrentTable({
                                 </DropdownTrigger>
                                 <DropdownMenu
                                     variant="shadow"
+                                    classNames={{ list: "overflow-hidden" }}
                                     className={cn(
                                         GLASS_MENU_SURFACE,
-                                        "min-w-(--tt-menu-min-width)"
+                                        "min-w-(--tt-menu-min-width)",
+                                        "overflow-hidden"
                                     )}
                                 >
                                     <DropdownItem
                                         key="hide-column"
                                         color="danger"
-                                        isDisabled={!headerMenuActiveColumn}
+                                        isDisabled={!isHeaderMenuHideEnabled}
                                         className="px-panel py-tight text-scaled font-semibold"
                                         onPress={() =>
-                                            headerMenuActiveColumn?.toggleVisibility(
-                                                false
+                                            handleHeaderMenuAction(() =>
+                                                headerMenuActiveColumn?.toggleVisibility(
+                                                    false
+                                                )
                                             )
                                         }
                                     >
-                                        {t("table.actions.hide_column")}
+                                        {headerMenuHideLabel}
                                     </DropdownItem>
                                     <DropdownItem
                                         key="fit-all-columns"
                                         className="px-panel py-tight text-scaled font-semibold"
-                                        onPress={autoFitAllColumns}
+                                        onPress={() =>
+                                            handleHeaderMenuAction(
+                                                autoFitAllColumns
+                                            )
+                                        }
                                         showDivider
                                     >
                                         {t("table.actions.fit_all_columns")}
@@ -2559,9 +2645,6 @@ export function TorrentTable({
                                         {headerMenuItems.map((item) => {
                                             const isVisible =
                                                 item.column.getIsVisible();
-                                            const showDivider =
-                                                item.isPinned &&
-                                                headerMenuItems.length > 1;
                                             return (
                                                 <DropdownItem
                                                     key={item.column.id}
@@ -2572,8 +2655,12 @@ export function TorrentTable({
                                                     )}
                                                     closeOnSelect={false}
                                                     onPress={() =>
-                                                        item.column.toggleVisibility(
-                                                            !isVisible
+                                                        handleHeaderMenuAction(
+                                                            () =>
+                                                                item.column.toggleVisibility(
+                                                                    !isVisible
+                                                                ),
+                                                            { keepOpen: true }
                                                         )
                                                     }
                                                     startContent={
@@ -2586,7 +2673,6 @@ export function TorrentTable({
                                                             }}
                                                         />
                                                     }
-                                                    showDivider={showDivider}
                                                 >
                                                     {item.label}
                                                 </DropdownItem>
