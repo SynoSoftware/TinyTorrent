@@ -15,7 +15,7 @@ import type {
     SliderDefinition,
 } from "@/modules/settings/data/settings-tabs";
 import type { RpcStatus } from "@/shared/types/rpc";
-import { ICON_STROKE_WIDTH, INTERACTION_CONFIG } from "@/config/logic";
+import { CLIPBOARD_BADGE_DURATION_MS, ICON_STROKE_WIDTH, INTERACTION_CONFIG } from "@/config/logic";
 import { APP_VERSION } from "@/shared/version";
 import { ChevronLeft, RotateCcw, Save, X } from "lucide-react";
 import { SettingsFormBuilder } from "@/modules/settings/components/SettingsFormBuilder";
@@ -138,7 +138,7 @@ export function SettingsModal({
         }
         jsonCopyTimerRef.current = window.setTimeout(() => {
             setJsonCopyStatus("idle");
-        }, 1500);
+        }, CLIPBOARD_BADGE_DURATION_MS);
     }, [configJson]);
 
     useEffect(() => {

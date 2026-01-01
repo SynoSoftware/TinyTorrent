@@ -5,6 +5,7 @@ import type { HeartbeatPayload } from "@/services/rpc/heartbeat";
 import type { RpcStatus } from "@/shared/types/rpc";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { TorrentStatus } from "@/services/rpc/entities";
+import { GHOST_TIMEOUT_MS } from "@/config/logic";
 
 type UseTorrentDataOptions = {
     client: EngineAdapter;
@@ -68,8 +69,6 @@ const areTorrentsEqual = (current: Torrent, next: Torrent) =>
     current.added === next.added &&
     current.savePath === next.savePath &&
     current.rpcId === next.rpcId;
-
-const GHOST_TIMEOUT_MS = 30_000;
 
 export type GhostTorrentStrategy = "magnet_lookup" | "loading";
 

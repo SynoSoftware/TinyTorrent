@@ -289,5 +289,15 @@
                 "up_stroke_token": "--heroui-primary"
             }
         }
+    },
+    "timers": {
+        "clipboard_badge_duration_ms": 1500,
+        "focus_restore_delay_ms": 500,
+        "ws_reconnect": {
+            "initial_delay_ms": 1000,
+            "max_delay_ms": 10000
+        },
+        "ghost_timeout_ms": 30000,
+        "table_persist_debounce_ms": 250
     }
 }

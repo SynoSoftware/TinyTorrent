@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import { SpeedChart } from "@/modules/dashboard/components/details/visualizations/SpeedChart";
 import { useEngineSpeedHistory } from "@/shared/hooks/useEngineSpeedHistory";
-import { useEngineHeartbeat } from "@/shared/hooks/useEngineHeartbeat";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
 import { TEXT_ROLES } from "./textRoles";
 
@@ -14,10 +13,6 @@ interface SpeedTabProps {
 
 export const SpeedTab = ({ torrent }: SpeedTabProps) => {
     const { t } = useTranslation();
-    const { tick } = useEngineHeartbeat({
-        mode: "detail",
-        detailId: torrent.id,
-    });
     const { down: downHistory, up: upHistory } = useEngineSpeedHistory(
         torrent.id
     );
@@ -40,7 +35,6 @@ export const SpeedTab = ({ torrent }: SpeedTabProps) => {
                 <SpeedChart
                     downHistory={downHistory}
                     upHistory={upHistory}
-                    tick={tick}
                 />
             </GlassPanel>
         </div>

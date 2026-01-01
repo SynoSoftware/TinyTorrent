@@ -88,6 +88,7 @@ import {
     type DashboardTableMeta,
 } from "@/modules/dashboard/components/ColumnDefinitions";
 import { useTorrentShortcuts } from "@/modules/dashboard/hooks/useTorrentShortcuts";
+import { useTorrentSpeedHistory } from "@/modules/dashboard/hooks/useTorrentSpeedHistory";
 import {
     TABLE_LAYOUT,
     INTERACTION_CONFIG,
@@ -97,8 +98,10 @@ import {
     ICON_STROKE_WIDTH,
     ICON_STROKE_WIDTH_DENSE,
     UI_BASES,
+    CONFIG,
+    ICON_SIZE,
+    TABLE_PERSIST_DEBOUNCE_MS,
 } from "@/config/logic";
-import { CONFIG, ICON_SIZE } from "@/config/logic";
 
 // --- CONSTANTS ---
 const STORAGE_KEY = "tiny-torrent.table-state.v2.8";
@@ -874,8 +877,9 @@ export function TorrentTable({
     const [highlightedRowId, setHighlightedRowId] = useState<string | null>(
         null
     );
-    const [speedHistory, setSpeedHistory] = useState<Record<string, number[]>>(
-        {}
+    const speedHistoryRef = useTorrentSpeedHistory(
+        torrents,
+        SPEED_HISTORY_LIMIT
     );
 
     const getDisplayTorrent = useCallback(
@@ -1028,36 +1032,6 @@ export function TorrentTable({
             container.removeEventListener("mousedown", handleMouseDown);
         };
     }, []);
-
-    useEffect(() => {
-        setSpeedHistory((prev) => {
-            const next: Record<string, number[]> = { ...prev };
-            const seenIds = new Set<string>();
-            // We iterate over the raw torrents to maintain history
-            torrents.forEach((torrent) => {
-                seenIds.add(torrent.id);
-                const history = next[torrent.id] ?? [];
-                const currentSpeed =
-                    torrent.state === "downloading"
-                        ? torrent.speed.down
-                        : torrent.state === "seeding"
-                        ? torrent.speed.up
-                        : 0;
-                // Avoid updates if speed hasn't changed to save renders?
-                // No, sparklines need the time progression.
-                const updated = [...history, currentSpeed].slice(
-                    -SPEED_HISTORY_LIMIT
-                );
-                next[torrent.id] = updated;
-            });
-            Object.keys(next).forEach((id) => {
-                if (!seenIds.has(id)) {
-                    delete next[id];
-                }
-            });
-            return next;
-        });
-    }, [torrents]);
 
     // --- STATE ---
     const getInitialState = () => {
@@ -1265,7 +1239,7 @@ export function TorrentTable({
                 JSON.stringify(latestStateRef.current)
             );
             saveTimeoutRef.current = null;
-        }, 250);
+        }, TABLE_PERSIST_DEBOUNCE_MS);
     }, [
         activeResizeColumnId,
         columnOrder,
@@ -1350,10 +1324,10 @@ export function TorrentTable({
     // We pass dynamic data through meta to avoid column regeneration
     const tableMeta = useMemo<DashboardTableMeta>(
         () => ({
-            speedHistory,
+            speedHistoryRef,
             optimisticStatuses,
         }),
-        [speedHistory, optimisticStatuses]
+        [speedHistoryRef, optimisticStatuses]
     );
 
     const table = useReactTable({

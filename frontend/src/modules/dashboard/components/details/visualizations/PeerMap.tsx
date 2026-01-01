@@ -7,6 +7,7 @@ import { GLASS_TOOLTIP_CLASSNAMES } from "./constants";
 import { useCanvasPalette } from "./canvasUtils";
 import { DETAILS_PEER_MAP_CONFIG, INTERACTION_CONFIG } from "@/config/logic";
 import { formatSpeed } from "@/shared/utils/format";
+import { useUiClock } from "@/shared/hooks/useUiClock";
 import type { TorrentPeerEntity } from "@/services/rpc/entities";
 
 // SPD PHYSICS SCHEMA (Zero-Inline Policy)
@@ -49,6 +50,7 @@ export const PeerMap = ({
     const [mode, setMode] = useState<SwarmMode>("impression");
     const [radialAperture, setRadialAperture] = useState(1.0);
     const lastInteractionRef = useRef<number>(Date.now());
+    const { tick } = useUiClock();
 
     const {
         center: C,
@@ -64,14 +66,14 @@ export const PeerMap = ({
         if (mode !== "instrument") setMode("instrument");
     }, [mode]);
 
+    // UI-clock driven: drop into impression mode once the swarm is idle.
     useEffect(() => {
-        const interval = setInterval(() => {
-            const isIdle =
-                Date.now() - lastInteractionRef.current > SPD_PHYSICS.DECAY_MS;
-            if (isIdle && !hoveredPeerId) setMode("impression");
-        }, 1000);
-        return () => clearInterval(interval);
-    }, [hoveredPeerId]);
+        const isIdle =
+            Date.now() - lastInteractionRef.current > SPD_PHYSICS.DECAY_MS;
+        if (isIdle && !hoveredPeerId) {
+            setMode("impression");
+        }
+    }, [hoveredPeerId, tick]);
 
     // 2. Swarm Intelligence Metrics
     const swarmStats = useMemo(() => {

@@ -29,9 +29,10 @@ import {
 
 import { type TFunction } from "i18next";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
-import { type CSSProperties, type ReactNode } from "react";
+import { type CSSProperties, type ReactNode, type RefObject } from "react";
 import { TABLE_LAYOUT, ICON_STROKE_WIDTH_DENSE } from "@/config/logic";
 import useLayoutMetrics from "@/shared/hooks/useLayoutMetrics";
+import { useUiClock } from "@/shared/hooks/useUiClock";
 import { GLASS_MENU_SURFACE } from "@/shared/ui/layout/glass-surface";
 import { SmoothProgressBar } from "@/shared/ui/components/SmoothProgressBar";
 import {
@@ -62,7 +63,7 @@ export type ColumnId =
 
 // We define what we expect in table.options.meta
 export interface DashboardTableMeta {
-    speedHistory: Record<string, number[]>;
+    speedHistoryRef: RefObject<Record<string, number[]>>;
     optimisticStatuses: OptimisticStatusMap;
 }
 
@@ -154,6 +155,9 @@ const formatQueueOrdinal = (queuePosition?: number) => {
 };
 
 const SpeedColumnCell = ({ torrent, table }: ColumnRendererProps) => {
+    // Subscribe to UI clock so sparklines advance on a stable cadence.
+    const { tick } = useUiClock();
+    void tick;
     const isDownloading = torrent.state === "downloading";
     const isSeeding = torrent.state === "seeding";
     const speedValue = isDownloading
@@ -163,7 +167,7 @@ const SpeedColumnCell = ({ torrent, table }: ColumnRendererProps) => {
         : null;
 
     const meta = table.options.meta as DashboardTableMeta | undefined;
-    const history = meta?.speedHistory?.[torrent.id] ?? [];
+    const history = meta?.speedHistoryRef?.current?.[torrent.id] ?? [];
     const sparklineHistory = history.length > 0 ? history : [0, 0];
 
     const maxHistorySpeed = Math.max(...sparklineHistory);
