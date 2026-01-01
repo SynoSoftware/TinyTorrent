@@ -294,7 +294,12 @@ if host_machine.system() == 'windows'
       tt_gui_sources += src
     endif
   endforeach
-  tt_gui_sources += ['src/tray/entry_winmain.cpp']
+  tt_gui_sources += [
+    'src/tray/entry_winmain.cpp',
+    'src/tray/ole/DropTarget.cpp',
+    'src/tray/input/WebViewInput.cpp',
+    'src/tray/rpc/RpcClient.cpp',
+  ]
   tt_gui_sources += tinytorrent_windows_resources
 
   tt_webview_dep = dependency(

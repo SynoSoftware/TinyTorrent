@@ -49,10 +49,17 @@
 #include "app/DaemonMain.hpp"
 #include "rpc/Server.hpp"
 #include "rpc/UiPreferences.hpp"
+#include "tray/StringUtil.hpp"
+#include "tray/TrayState.hpp"
+#include "tray/input/WebViewInput.hpp"
+#include "tray/ole/DropTarget.hpp"
+#include "tray/rpc/RpcClient.hpp"
 #include "tt_packed_fs_resource.h"
 #include "utils/FS.hpp"
 #include "utils/Log.hpp"
 #include "utils/Shutdown.hpp"
+
+using tt::tray::TrayState;
 
 #pragma comment(lib, "Dwmapi.lib")
 #pragma comment(lib, "Winhttp.lib")
@@ -180,64 +187,6 @@ struct TrayStatus
     tt::rpc::UiPreferences ui_preferences;
 };
 
-struct TrayState
-{
-    HINSTANCE hInstance = nullptr;
-    HWND hwnd = nullptr;
-    NOTIFYICONDATAW nid{};
-    HMENU menu = nullptr;
-    HICON icon = nullptr;
-    HICON large_icon = nullptr;
-    std::wstring open_url;
-    std::atomic_bool running{true};
-    std::atomic_bool paused_all{false};
-    unsigned short port = 0;
-    std::string token;
-    std::wstring webview_user_data_dir;
-
-    HWND webview_window = nullptr;
-    Microsoft::WRL::ComPtr<ID3D11Device> d3d_device;
-    Microsoft::WRL::ComPtr<ID3D11DeviceContext> d3d_context;
-    Microsoft::WRL::ComPtr<IDCompositionDevice> dcomp_device;
-    Microsoft::WRL::ComPtr<IDCompositionTarget> dcomp_target;
-    Microsoft::WRL::ComPtr<IDCompositionVisual> dcomp_root_visual;
-    Microsoft::WRL::ComPtr<IDCompositionVisual> dcomp_webview_visual;
-    Microsoft::WRL::ComPtr<IDCompositionRectangleClip> dcomp_root_clip;
-    bool webview_in_size_move = false;
-
-    Microsoft::WRL::ComPtr<ICoreWebView2Controller> webview_controller;
-    Microsoft::WRL::ComPtr<ICoreWebView2CompositionController>
-        webview_comp_controller;
-    Microsoft::WRL::ComPtr<ICoreWebView2CompositionController4>
-        webview_comp_controller4;
-    Microsoft::WRL::ComPtr<ICoreWebView2> webview;
-    EventRegistrationToken web_message_token{};
-    EventRegistrationToken navigation_token{};
-    EventRegistrationToken cursor_token{};
-    bool cursor_token_set = false;
-    HCURSOR webview_cursor = nullptr;
-
-    HINTERNET http_session = nullptr;
-    HINTERNET http_connect = nullptr;
-    std::mutex http_mutex;
-
-    std::thread status_thread{};
-    std::string download_dir_cache;
-    std::mutex download_dir_mutex;
-
-    bool auto_open_requested = false;
-    std::atomic_bool handshake_completed{false};
-    std::atomic_bool user_closed_ui{false};
-    std::atomic_bool shutting_down{false};
-    bool webview2_available = true;
-    std::string last_error_message;
-    bool start_hidden = false;
-    std::wstring splash_message;
-    tt::rpc::UiPreferences ui_preferences;
-    std::atomic_bool ui_attached{false};
-    std::optional<WINDOWPLACEMENT> saved_window_placement;
-};
-
 struct DCompInitFailure
 {
     HRESULT hr = S_OK;
@@ -285,14 +234,14 @@ void handle_webview_json_message(TrayState &state, std::string const &payload);
 std::wstring build_native_bridge_script(TrayState &state);
 std::wstring compute_webview_user_data_dir();
 void cancel_native_webview(TrayState &state);
-std::string http_post_rpc(TrayState &state, std::string const &payload);
+bool register_drop_target(TrayState &state);
+void unregister_drop_target(TrayState &state);
 void enable_acrylic(HWND hwnd);
 void apply_rounded_corners(HWND hwnd);
 void apply_rounded_corners_for_size(HWND hwnd, int width, int height);
 void apply_system_backdrop_type(HWND hwnd, DWORD type);
 bool capture_window_placement(HWND hwnd, WINDOWPLACEMENT &placement);
 void apply_saved_window_state(TrayState &state);
-std::string escape_json_string(std::string_view value);
 std::string build_path_payload(std::wstring const &path);
 std::string build_free_space_payload(std::wstring const &path,
                                      ULARGE_INTEGER const &free_bytes,
@@ -304,36 +253,6 @@ std::optional<std::wstring>
 resolve_existing_directory(std::wstring const &candidate);
 
 // --- Utilities ---
-
-std::wstring widen(std::string const &value)
-{
-    if (value.empty())
-        return {};
-    int len = MultiByteToWideChar(CP_UTF8, 0, value.c_str(), -1, nullptr, 0);
-    if (len <= 0)
-        return {};
-    std::wstring out(len, L'\0');
-    MultiByteToWideChar(CP_UTF8, 0, value.c_str(), -1, out.data(), len);
-    if (!out.empty() && out.back() == L'\0')
-        out.pop_back();
-    return out;
-}
-
-std::string narrow(std::wstring const &value)
-{
-    if (value.empty())
-        return {};
-    int len = WideCharToMultiByte(CP_UTF8, 0, value.c_str(), -1, nullptr, 0,
-                                  nullptr, nullptr);
-    if (len <= 0)
-        return {};
-    std::string out(len, '\0');
-    WideCharToMultiByte(CP_UTF8, 0, value.c_str(), -1, out.data(), len, nullptr,
-                        nullptr);
-    if (!out.empty() && out.back() == '\0')
-        out.pop_back();
-    return out;
-}
 
 std::wstring hwnd_class_name(HWND hwnd)
 {
@@ -491,27 +410,6 @@ ResizeBorderThickness get_resize_border_thickness(HWND hwnd)
         border_y = fallback_border;
     }
     return {border_x, border_y};
-}
-
-RECT compute_webview_controller_bounds_from_client(HWND hwnd, RECT client)
-{
-    (void)hwnd;
-    if (client.right < client.left)
-    {
-        client.right = client.left;
-    }
-    if (client.bottom < client.top)
-    {
-        client.bottom = client.top;
-    }
-    return client;
-}
-
-RECT compute_webview_controller_bounds(HWND hwnd)
-{
-    RECT client{};
-    GetClientRect(hwnd, &client);
-    return compute_webview_controller_bounds_from_client(hwnd, client);
 }
 
 void reset_dcomp_host(TrayState &state)
@@ -962,152 +860,6 @@ HRESULT finish_webview_controller_setup(TrayState &state)
     return S_OK;
 }
 
-COREWEBVIEW2_MOUSE_EVENT_VIRTUAL_KEYS
-webview_mouse_keys_from_wparam(WPARAM wparam)
-{
-    COREWEBVIEW2_MOUSE_EVENT_VIRTUAL_KEYS keys =
-        COREWEBVIEW2_MOUSE_EVENT_VIRTUAL_KEYS_NONE;
-    if (wparam & MK_LBUTTON)
-    {
-        keys |= COREWEBVIEW2_MOUSE_EVENT_VIRTUAL_KEYS_LEFT_BUTTON;
-    }
-    if (wparam & MK_RBUTTON)
-    {
-        keys |= COREWEBVIEW2_MOUSE_EVENT_VIRTUAL_KEYS_RIGHT_BUTTON;
-    }
-    if (wparam & MK_MBUTTON)
-    {
-        keys |= COREWEBVIEW2_MOUSE_EVENT_VIRTUAL_KEYS_MIDDLE_BUTTON;
-    }
-    if (wparam & MK_XBUTTON1)
-    {
-        keys |= COREWEBVIEW2_MOUSE_EVENT_VIRTUAL_KEYS_X_BUTTON1;
-    }
-    if (wparam & MK_XBUTTON2)
-    {
-        keys |= COREWEBVIEW2_MOUSE_EVENT_VIRTUAL_KEYS_X_BUTTON2;
-    }
-    if (wparam & MK_SHIFT)
-    {
-        keys |= COREWEBVIEW2_MOUSE_EVENT_VIRTUAL_KEYS_SHIFT;
-    }
-    if (wparam & MK_CONTROL)
-    {
-        keys |= COREWEBVIEW2_MOUSE_EVENT_VIRTUAL_KEYS_CONTROL;
-    }
-    return keys;
-}
-
-bool try_forward_webview_mouse_input(TrayState *state, HWND hwnd, UINT msg,
-                                     WPARAM wparam, LPARAM lparam)
-{
-    if (!state || !state->webview_comp_controller || !state->webview_controller)
-    {
-        return false;
-    }
-
-    COREWEBVIEW2_MOUSE_EVENT_KIND kind{};
-    UINT32 mouse_data = 0;
-    POINT pt{};
-    bool screen_point = false;
-
-    switch (msg)
-    {
-    case WM_MOUSEMOVE:
-        kind = COREWEBVIEW2_MOUSE_EVENT_KIND_MOVE;
-        pt = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
-        break;
-    case WM_LBUTTONDOWN:
-        kind = COREWEBVIEW2_MOUSE_EVENT_KIND_LEFT_BUTTON_DOWN;
-        pt = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
-        break;
-    case WM_LBUTTONUP:
-        kind = COREWEBVIEW2_MOUSE_EVENT_KIND_LEFT_BUTTON_UP;
-        pt = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
-        break;
-    case WM_LBUTTONDBLCLK:
-        kind = COREWEBVIEW2_MOUSE_EVENT_KIND_LEFT_BUTTON_DOUBLE_CLICK;
-        pt = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
-        break;
-    case WM_RBUTTONDOWN:
-        kind = COREWEBVIEW2_MOUSE_EVENT_KIND_RIGHT_BUTTON_DOWN;
-        pt = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
-        break;
-    case WM_RBUTTONUP:
-        kind = COREWEBVIEW2_MOUSE_EVENT_KIND_RIGHT_BUTTON_UP;
-        pt = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
-        break;
-    case WM_RBUTTONDBLCLK:
-        kind = COREWEBVIEW2_MOUSE_EVENT_KIND_RIGHT_BUTTON_DOUBLE_CLICK;
-        pt = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
-        break;
-    case WM_MBUTTONDOWN:
-        kind = COREWEBVIEW2_MOUSE_EVENT_KIND_MIDDLE_BUTTON_DOWN;
-        pt = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
-        break;
-    case WM_MBUTTONUP:
-        kind = COREWEBVIEW2_MOUSE_EVENT_KIND_MIDDLE_BUTTON_UP;
-        pt = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
-        break;
-    case WM_MBUTTONDBLCLK:
-        kind = COREWEBVIEW2_MOUSE_EVENT_KIND_MIDDLE_BUTTON_DOUBLE_CLICK;
-        pt = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
-        break;
-    case WM_XBUTTONDOWN:
-        kind = COREWEBVIEW2_MOUSE_EVENT_KIND_X_BUTTON_DOWN;
-        mouse_data = static_cast<UINT32>(GET_XBUTTON_WPARAM(wparam));
-        pt = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
-        break;
-    case WM_XBUTTONUP:
-        kind = COREWEBVIEW2_MOUSE_EVENT_KIND_X_BUTTON_UP;
-        mouse_data = static_cast<UINT32>(GET_XBUTTON_WPARAM(wparam));
-        pt = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
-        break;
-    case WM_XBUTTONDBLCLK:
-        kind = COREWEBVIEW2_MOUSE_EVENT_KIND_X_BUTTON_DOUBLE_CLICK;
-        mouse_data = static_cast<UINT32>(GET_XBUTTON_WPARAM(wparam));
-        pt = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
-        break;
-    case WM_MOUSEWHEEL:
-        kind = COREWEBVIEW2_MOUSE_EVENT_KIND_WHEEL;
-        mouse_data = static_cast<UINT32>(
-            static_cast<SHORT>(HIWORD(static_cast<DWORD>(wparam))));
-        pt = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
-        screen_point = true;
-        break;
-    case WM_MOUSEHWHEEL:
-        kind = COREWEBVIEW2_MOUSE_EVENT_KIND_HORIZONTAL_WHEEL;
-        mouse_data = static_cast<UINT32>(
-            static_cast<SHORT>(HIWORD(static_cast<DWORD>(wparam))));
-        pt = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
-        screen_point = true;
-        break;
-    default:
-        return false;
-    }
-
-    if (screen_point)
-    {
-        if (!ScreenToClient(hwnd, &pt))
-        {
-            return false;
-        }
-    }
-
-    RECT bounds = compute_webview_controller_bounds(hwnd);
-    if (pt.x < bounds.left || pt.x >= bounds.right || pt.y < bounds.top ||
-        pt.y >= bounds.bottom)
-    {
-        // Outside the WebView host bounds.
-        return false;
-    }
-
-    auto keys = webview_mouse_keys_from_wparam(wparam);
-    HRESULT hr = state->webview_comp_controller->SendMouseInput(kind, keys,
-                                                                mouse_data, pt);
-    return SUCCEEDED(hr);
-}
-
 void post_webview_message(TrayState &state, std::wstring const &message)
 {
     if (!state.webview)
@@ -1299,6 +1051,7 @@ void cancel_native_webview(TrayState &state)
     {
         state.webview.Reset();
     }
+    state.webview_environment3.Reset();
     state.dcomp_webview_visual.Reset();
     state.dcomp_root_visual.Reset();
     state.dcomp_target.Reset();
@@ -1307,6 +1060,7 @@ void cancel_native_webview(TrayState &state)
     state.d3d_device.Reset();
     if (state.webview_window)
     {
+        unregister_drop_target(state);
         DestroyWindow(state.webview_window);
         state.webview_window = nullptr;
     }
@@ -1597,46 +1351,6 @@ std::wstring escape_js_string(std::wstring const &value)
             break;
         default:
             result += ch;
-            break;
-        }
-    }
-    return result;
-}
-
-std::string escape_json_string(std::string_view value)
-{
-    std::string result;
-    result.reserve(value.size());
-    for (unsigned char ch : value)
-    {
-        switch (ch)
-        {
-        case '\\':
-            result += "\\\\";
-            break;
-        case '"':
-            result += "\\\"";
-            break;
-        case '\n':
-            result += "\\n";
-            break;
-        case '\r':
-            result += "\\r";
-            break;
-        case '\t':
-            result += "\\t";
-            break;
-        default:
-            if (ch < 0x20)
-            {
-                char buf[7];
-                snprintf(buf, sizeof(buf), "\\u%04x", ch);
-                result += buf;
-            }
-            else
-            {
-                result += static_cast<char>(ch);
-            }
             break;
         }
     }
@@ -1941,7 +1655,9 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
             }
         }
 
-        if (try_forward_webview_mouse_input(state, hwnd, msg, wparam, lparam))
+        if (state &&
+            tt::tray::input::handle_webview_mouse_input(*state, hwnd, msg, wparam,
+                                                      lparam))
         {
             return 0;
         }
@@ -2013,6 +1729,26 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
                 SetCursor(state->webview_cursor);
                 return TRUE;
             }
+        }
+        break;
+    case WM_MOVE:
+    case WM_WINDOWPOSCHANGED:
+        if (state && state->webview_controller)
+        {
+            state->webview_controller->NotifyParentWindowPositionChanged();
+        }
+        break;
+    case WM_POINTERACTIVATE:
+    case WM_POINTERDOWN:
+    case WM_POINTERUP:
+    case WM_POINTERUPDATE:
+    case WM_POINTERENTER:
+    case WM_POINTERLEAVE:
+        if (state &&
+            tt::tray::input::handle_webview_pointer_input(*state, hwnd, msg,
+                                                          wparam, lparam))
+        {
+            return 0;
         }
         break;
     case WM_THEMECHANGED:
@@ -2123,7 +1859,8 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
         {
             state->user_closed_ui.store(true);
             state->ui_attached.store(false);
-            http_post_rpc(*state, R"({"method":"session-ui-detach"})");
+            tt::tray::rpc::post_rpc_request(*state,
+                                            R"({"method":"session-ui-detach"})");
             if (state->webview_window)
             {
                 ShowWindow(state->webview_window, SW_HIDE);
@@ -2204,6 +1941,7 @@ bool ensure_native_webview(TrayState &state)
         configure_webview_window_chrome(state.webview_window);
         set_no_redirection_bitmap(state.webview_window, true);
         ShowWindow(state.webview_window, SW_HIDE);
+        register_drop_target(state);
     }
     if (state.webview_controller)
     {
@@ -2286,6 +2024,7 @@ bool ensure_native_webview(TrayState &state)
                                            qi_hr);
                 }
 
+                state.webview_environment3 = env3;
                 return env3->CreateCoreWebView2CompositionController(
                     state.webview_window,
                     Microsoft::WRL::Callback<
@@ -2437,12 +2176,11 @@ tt::rpc::UiPreferences load_ui_preferences()
 
 // --- Browser Logic (Deterministic Zero-Heuristic Activation) ---
 
-bool request_ui_focus(TrayState &state);
-
 void focus_or_launch_ui(TrayState &state)
 {
     AllowSetForegroundWindow(ASFW_ANY);
-    if (state.ui_attached.load() && request_ui_focus(state))
+    if (state.ui_attached.load() &&
+        tt::tray::rpc::request_ui_focus(state))
     {
         if (!state.token.empty())
         {
@@ -2742,98 +2480,6 @@ void create_splash_window(HINSTANCE instance, HICON icon,
 
 // --- RPC Handlers ---
 
-bool ensure_http_handles(TrayState &state)
-{
-    if (state.port == 0)
-        return false;
-    if (state.http_session && state.http_connect)
-        return true;
-
-    state.http_session =
-        WinHttpOpen(L"TinyTorrentTray/1.0", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
-                    NULL, NULL, 0);
-    if (!state.http_session)
-        return false;
-
-    state.http_connect =
-        WinHttpConnect(state.http_session, kRpcHost, state.port, 0);
-    return state.http_connect != nullptr;
-}
-
-std::string http_post_rpc(TrayState &state, std::string const &payload)
-{
-    std::lock_guard<std::mutex> guard(state.http_mutex);
-    if (!ensure_http_handles(state))
-        return {};
-
-    HINTERNET hRequest =
-        WinHttpOpenRequest(state.http_connect, L"POST", kRpcEndpoint, nullptr,
-                           nullptr, nullptr, WINHTTP_FLAG_BYPASS_PROXY_CACHE);
-    if (!hRequest)
-        return {};
-
-    std::wstring headers = L"Content-Type: application/json\r\nX-TT-Auth: " +
-                           widen(state.token) + L"\r\n";
-    std::string result;
-
-    // Fixed: Passed -1 for header length (null-terminated)
-    if (WinHttpSendRequest(hRequest, headers.c_str(), (DWORD)-1,
-                           (LPVOID)payload.data(), (DWORD)payload.size(),
-                           (DWORD)payload.size(), 0))
-    {
-        if (WinHttpReceiveResponse(hRequest, nullptr))
-        {
-            DWORD dwSize = 0;
-            do
-            {
-                if (!WinHttpQueryDataAvailable(hRequest, &dwSize) ||
-                    dwSize == 0)
-                    break;
-                std::string buffer;
-                buffer.resize(dwSize);
-                DWORD dwRead = 0;
-                if (WinHttpReadData(hRequest, buffer.data(), dwSize, &dwRead))
-                    result.append(buffer.data(), dwRead);
-            } while (dwSize > 0);
-        }
-    }
-    WinHttpCloseHandle(hRequest);
-    return result;
-}
-
-bool rpc_response_success(std::string const &body)
-{
-    if (body.empty())
-        return false;
-    yyjson_doc *doc = yyjson_read(body.c_str(), body.size(), 0);
-    if (!doc)
-        return false;
-    bool success = false;
-    if (auto *root = yyjson_doc_get_root(doc); root && yyjson_is_obj(root))
-    {
-        if (auto *result = yyjson_obj_get(root, "result");
-            result && yyjson_is_str(result))
-        {
-            success = std::string_view(yyjson_get_str(result)) ==
-                      std::string_view("success");
-        }
-    }
-    yyjson_doc_free(doc);
-    return success;
-}
-
-bool request_ui_focus(TrayState &state)
-{
-    auto body = http_post_rpc(state, R"({"method":"session-ui-focus"})");
-    if (body.empty() || !rpc_response_success(body))
-    {
-        http_post_rpc(state, R"({"method":"session-ui-detach"})");
-        state.ui_attached.store(false);
-        return false;
-    }
-    return true;
-}
-
 tt::rpc::UiPreferences parse_tray_ui_preferences(yyjson_val *arguments)
 {
     tt::rpc::UiPreferences result;
@@ -2869,11 +2515,51 @@ tt::rpc::UiPreferences parse_tray_ui_preferences(yyjson_val *arguments)
     return result;
 }
 
+bool register_drop_target(TrayState &state)
+{
+    if (!state.webview_window)
+    {
+        return false;
+    }
+    if (state.drop_target)
+    {
+        return true;
+    }
+    auto handler = [&state](std::wstring const &path)
+    {
+        tt::tray::rpc::handle_dropped_torrent(state, path);
+    };
+    auto drop_target = Microsoft::WRL::Make<TrayDropTarget>(handler);
+    if (!drop_target)
+    {
+        return false;
+    }
+    HRESULT hr = RegisterDragDrop(state.webview_window, drop_target.Get());
+    if (FAILED(hr))
+    {
+        TT_LOG_WARN("tray drop: RegisterDragDrop failed ({:#X})",
+                    static_cast<uint32_t>(hr));
+        return false;
+    }
+    state.drop_target = drop_target;
+    return true;
+}
+
+void unregister_drop_target(TrayState &state)
+{
+    if (state.webview_window && state.drop_target)
+    {
+        RevokeDragDrop(state.webview_window);
+        state.drop_target.Reset();
+    }
+}
+
 TrayStatus rpc_get_tray_status(TrayState &state)
 {
     TrayStatus s;
     s.rpc_success = false;
-    auto body = http_post_rpc(state, R"({"method":"session-tray-status"})");
+    auto body =
+        tt::tray::rpc::post_rpc_request(state, R"({"method":"session-tray-status"})");
     if (body.empty())
         return s;
 
@@ -3029,9 +2715,10 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
         case ID_PAUSE_RESUME:
         {
             bool target = !state->paused_all.load();
-            http_post_rpc(*state, target
-                                      ? "{\"method\":\"session-pause-all\"}"
-                                      : "{\"method\":\"session-resume-all\"}");
+            tt::tray::rpc::post_rpc_request(
+                    *state,
+                    target ? "{\"method\":\"session-pause-all\"}"
+                           : "{\"method\":\"session-resume-all\"}");
         }
         break;
         case ID_OPEN_DOWNLOADS:
