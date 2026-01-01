@@ -31,7 +31,12 @@ import {
     getTorrentList,
     getSessionStats,
 } from "@/services/rpc/schemas";
-import { CONFIG } from "@/config/logic";
+import {
+    CONFIG,
+    FOCUS_RESTORE_DELAY_MS,
+    WS_RECONNECT_INITIAL_DELAY_MS,
+    WS_RECONNECT_MAX_DELAY_MS,
+} from "@/config/logic";
 import type { EngineAdapter } from "./engine-adapter";
 import { NativeShell } from "@/app/runtime";
 import { HeartbeatManager } from "./heartbeat";
@@ -1116,8 +1121,8 @@ class TinyTorrentWebSocketSession {
     private baseUrl?: URL;
     private socket?: WebSocket;
     private reconnectTimer?: number;
-    private reconnectDelay = 1000;
-    private readonly maxReconnectDelay = 10000;
+    private reconnectDelay = WS_RECONNECT_INITIAL_DELAY_MS;
+    private readonly maxReconnectDelay = WS_RECONNECT_MAX_DELAY_MS;
     private shouldReconnect = false;
     private isConnected = false;
     private readonly torrentsMap = new Map<number, TransmissionTorrent>();
@@ -1163,7 +1168,7 @@ class TinyTorrentWebSocketSession {
                 document.title = originalTitle;
             }
             this.focusRestoreTimer = undefined;
-        }, 500);
+        }, FOCUS_RESTORE_DELAY_MS);
     }
 
     public start(baseUrl: URL) {
@@ -1175,7 +1180,7 @@ class TinyTorrentWebSocketSession {
         this.torrentsMap.clear();
         this.lastSessionStats = undefined;
         this.shouldReconnect = true;
-        this.reconnectDelay = 1000;
+        this.reconnectDelay = WS_RECONNECT_INITIAL_DELAY_MS;
         this.scheduleConnect(0);
     }
 
@@ -1237,7 +1242,7 @@ class TinyTorrentWebSocketSession {
     }
 
     private handleOpen = () => {
-        this.reconnectDelay = 1000;
+        this.reconnectDelay = WS_RECONNECT_INITIAL_DELAY_MS;
         this.isConnected = true;
         this.options.onConnected?.();
     };

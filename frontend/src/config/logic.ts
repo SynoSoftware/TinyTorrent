@@ -63,6 +63,19 @@ const DEFAULT_TABLE_LAYOUT = {
 } as const;
 
 const layoutConfig = constants.layout ?? {};
+const timerConfig = asRecord(constants.timers);
+const wsReconnectConfig = asRecord(timerConfig.ws_reconnect);
+
+const DEFAULT_TIMERS = {
+    clipboard_badge_duration_ms: 1500,
+    focus_restore_delay_ms: 500,
+    ws_reconnect: {
+        initial_delay_ms: 1000,
+        max_delay_ms: 10000,
+    },
+    ghost_timeout_ms: 30000,
+    table_persist_debounce_ms: 250,
+} as const;
 
 // --- SHELL (Classic / Immersive) ---
 const DEFAULT_SHELL_CLASSIC = {
@@ -405,6 +418,37 @@ export const HEARTBEAT_INTERVALS = {
     table: TABLE_REFRESH_INTERVAL_MS,
     background: BACKGROUND_REFRESH_INTERVAL_MS,
 };
+
+export const CLIPBOARD_BADGE_DURATION_MS = readNumber(
+    timerConfig.clipboard_badge_duration_ms,
+    DEFAULT_TIMERS.clipboard_badge_duration_ms
+);
+
+export const FOCUS_RESTORE_DELAY_MS = readNumber(
+    timerConfig.focus_restore_delay_ms,
+    DEFAULT_TIMERS.focus_restore_delay_ms
+);
+
+export const WS_RECONNECT_INITIAL_DELAY_MS = readNumber(
+    wsReconnectConfig.initial_delay_ms,
+    DEFAULT_TIMERS.ws_reconnect.initial_delay_ms
+);
+
+export const WS_RECONNECT_MAX_DELAY_MS = readNumber(
+    wsReconnectConfig.max_delay_ms,
+    DEFAULT_TIMERS.ws_reconnect.max_delay_ms
+);
+
+export const GHOST_TIMEOUT_MS = readNumber(
+    timerConfig.ghost_timeout_ms,
+    DEFAULT_TIMERS.ghost_timeout_ms
+);
+
+export const TABLE_PERSIST_DEBOUNCE_MS = readNumber(
+    timerConfig.table_persist_debounce_ms,
+    DEFAULT_TIMERS.table_persist_debounce_ms
+);
+
 
 export interface DragOverlayRootConfig {
     initialScale: number;

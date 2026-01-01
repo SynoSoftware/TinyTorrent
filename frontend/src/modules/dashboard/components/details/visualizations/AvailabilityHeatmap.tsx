@@ -20,7 +20,7 @@ import {
     HEATMAP_CELL_STROKE_INSET,
     HEATMAP_USE_UI_SAMPLING_SHIM,
 } from "@/config/logic";
-import { useEngineHeartbeat } from "@/shared/hooks/useEngineHeartbeat";
+import { useUiClock } from "@/shared/hooks/useUiClock";
 import { TEXT_ROLES } from "@/modules/dashboard/components/details/tabs/textRoles";
 
 interface AvailabilityHeatmapProps {
@@ -50,8 +50,8 @@ export const AvailabilityHeatmap = ({
         () => pieceAvailability ?? [],
         [pieceAvailability]
     );
-    // Engine heartbeat for redraws
-    const { tick } = useEngineHeartbeat({ mode: "detail" });
+    // UI clock for redraw cadence (independent of server updates)
+    const { tick } = useUiClock();
     const hasAvailability = availabilityList.length > 0;
 
     const startZoomPulse = useCallback(() => {
@@ -192,7 +192,7 @@ export const AvailabilityHeatmap = ({
         palette.placeholder,
     ]);
 
-    // Redraw on data or engine heartbeat. We avoid creating our own timers.
+    // Redraw on data or UI clock. Avoid per-component timers.
     useEffect(() => {
         drawHeatmap();
     }, [drawHeatmap, tick]);
@@ -201,7 +201,7 @@ export const AvailabilityHeatmap = ({
         setHoveredCell(null);
     }, [heatCells]);
 
-    // Clear zoom pulse on the next engine tick to avoid UI timers.
+    // Clear zoom pulse on the next UI tick to avoid per-component timers.
     useEffect(() => {
         if (isZooming) {
             setIsZooming(false);

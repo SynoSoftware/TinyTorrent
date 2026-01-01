@@ -2,10 +2,12 @@ import { useCallback, useEffect, useState } from "react";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { TorrentStatus } from "@/services/rpc/entities";
 import type { OptimisticStatusMap } from "@/modules/dashboard/types/optimistic";
+import { useUiClock } from "@/shared/hooks/useUiClock";
 
 export function useOptimisticStatuses(torrents: Torrent[]) {
     const [optimisticStatuses, setOptimisticStatuses] =
         useState<OptimisticStatusMap>({});
+    const { tick } = useUiClock();
 
     const updateOptimisticStatuses = useCallback(
         (updates: Array<{ id: string; state?: TorrentStatus }>) => {
@@ -28,20 +30,19 @@ export function useOptimisticStatuses(torrents: Torrent[]) {
     );
 
     useEffect(() => {
-        const interval = window.setInterval(() => {
-            setOptimisticStatuses((prev) => {
-                const next = { ...prev };
-                const now = Date.now();
-                Object.entries(prev).forEach(([id, entry]) => {
-                    if (entry.expiresAt <= now) {
-                        delete next[id];
-                    }
-                });
-                return next;
-            });
-        }, 500);
-        return () => window.clearInterval(interval);
-    }, []);
+        setOptimisticStatuses((prev) => {
+            let mutated = false;
+            const next = { ...prev };
+            const now = Date.now();
+            for (const [id, entry] of Object.entries(prev)) {
+                if (entry.expiresAt <= now) {
+                    delete next[id];
+                    mutated = true;
+                }
+            }
+            return mutated ? next : prev;
+        });
+    }, [tick]);
 
     useEffect(() => {
         setOptimisticStatuses((prev) => {

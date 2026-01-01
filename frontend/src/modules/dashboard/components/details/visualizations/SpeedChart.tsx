@@ -1,12 +1,12 @@
 import { Button } from "@heroui/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatSpeed } from "@/shared/utils/format";
-import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
 import {
     CHART_HEIGHT,
     CHART_WIDTH,
     SPEED_WINDOW_OPTIONS,
 } from "@/config/logic";
+import { useUiClock } from "@/shared/hooks/useUiClock";
 import {
     HISTORY_POINTS,
     getCssToken,
@@ -93,16 +93,10 @@ type SpeedWindowKey = (typeof SPEED_WINDOW_OPTIONS)[number]["key"];
 interface SpeedChartProps {
     downHistory: number[];
     upHistory: number[];
-    // `tick` is an engine-driven heartbeat counter. Incremented on every engine heartbeat.
-    // Redraw happens on tick changes so the UI advances time even when values are identical.
-    tick?: number;
 }
 
-export const SpeedChart = ({
-    downHistory,
-    upHistory,
-    tick,
-}: SpeedChartProps) => {
+export const SpeedChart = ({ downHistory, upHistory }: SpeedChartProps) => {
+    const { tick } = useUiClock();
     const [selectedWindow, setSelectedWindow] = useState<SpeedWindowKey>("1m");
     const latestDown = downHistory.at(-1) ?? 0;
     const latestUp = upHistory.at(-1) ?? 0;
@@ -143,8 +137,8 @@ export const SpeedChart = ({
     // Always call hooks at the top level (AGENTS.md compliance)
     const palette = useCanvasPalette();
 
-    // Render snapshot on any relevant change. Crucially, include `tick` so that
-    // time advances even when speed values are identical between heartbeats.
+    // Render snapshot on any relevant change. `tick` advances the UI timeline
+    // even when speed values are identical between updates.
     useEffect(() => {
         const canvas = canvasRef.current;
         if (!canvas) return;
