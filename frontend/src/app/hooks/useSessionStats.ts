@@ -58,6 +58,12 @@ export function useSessionStats({
         };
     }, [sessionReady, torrentClient, isMountedRef, reportRpcStatus]);
 
+    useEffect(() => {
+        console.log(
+            `[tiny-torrent][heartbeat] liveTransportStatus -> ${liveTransportStatus}`
+        );
+    }, [liveTransportStatus]);
+
     return {
         sessionStats,
         refreshSessionStatsData,

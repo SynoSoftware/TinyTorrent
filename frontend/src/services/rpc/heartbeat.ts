@@ -242,12 +242,18 @@ export class HeartbeatManager {
         this.pollingEnabled = false;
         this.clearTimer();
         this.setTransportSource("websocket");
+        console.log(
+            `[tiny-torrent][heartbeat] disablePolling (subscribers=${this.subscribers.size})`
+        );
     }
 
     public enablePolling() {
         if (this.pollingEnabled) return;
         this.pollingEnabled = true;
         this.setTransportSource("polling");
+        console.log(
+            `[tiny-torrent][heartbeat] enablePolling (subscribers=${this.subscribers.size})`
+        );
         if (this.subscribers.size > 0) {
             this.rescheduleLoop();
         }
