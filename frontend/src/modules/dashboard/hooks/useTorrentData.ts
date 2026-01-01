@@ -6,6 +6,7 @@ import type { RpcStatus } from "@/shared/types/rpc";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { TorrentStatus } from "@/services/rpc/entities";
 import { GHOST_TIMEOUT_MS } from "@/config/logic";
+import { buildUniqueTorrentOrder } from "./utils/torrent-order.ts";
 
 type UseTorrentDataOptions = {
     client: EngineAdapter;
@@ -99,15 +100,12 @@ export function useTorrentData({
     const commitTorrentSnapshot = useCallback(
         (data: Torrent[]) => {
             if (!isMountedRef.current) return;
-            const nextOrder: string[] = [];
             const nextCache = new Map<string, Torrent>();
             const previousCache = snapshotCacheRef.current;
             const previousOrder = snapshotOrderRef.current;
             let hasDataChanges = false;
-            let hasOrderChanges = previousOrder.length !== data.length;
 
-            for (let index = 0; index < data.length; index += 1) {
-                const incoming = data[index];
+            data.forEach((incoming) => {
                 const cached = previousCache.get(incoming.id);
                 const normalized = {
                     ...incoming,
@@ -121,29 +119,25 @@ export function useTorrentData({
                 );
                 const nextTorrent = reuseExisting ? cached! : normalized;
                 nextCache.set(incoming.id, nextTorrent);
-                nextOrder.push(incoming.id);
-
                 if (!reuseExisting) {
                     hasDataChanges = true;
                 }
-                if (!hasOrderChanges && previousOrder[index] !== incoming.id) {
-                    hasOrderChanges = true;
+            });
+
+            const nextOrder = buildUniqueTorrentOrder(data);
+            let hasOrderChanges = previousOrder.length !== nextOrder.length;
+            if (!hasOrderChanges) {
+                for (let index = 0; index < nextOrder.length; index += 1) {
+                    if (previousOrder[index] !== nextOrder[index]) {
+                        hasOrderChanges = true;
+                        break;
+                    }
                 }
             }
 
             snapshotCacheRef.current = nextCache;
             snapshotOrderRef.current = nextOrder;
 
-            const totalDown = data.reduce(
-                (acc, torrent) =>
-                    acc +
-                    (torrent.state === "downloading" ? torrent.speed.down : 0),
-                0
-            );
-            const totalUp = data.reduce(
-                (acc, torrent) => acc + torrent.speed.up,
-                0
-            );
             // pushSpeeds removed: engine-owned history is canonical
             onRpcStatusChange?.("connected");
             if (!initialLoadRef.current) {
