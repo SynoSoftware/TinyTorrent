@@ -27,6 +27,7 @@
 #include <array>
 #include <atomic>
 #include <chrono>
+#include <cmath>
 #include <cstddef>
 #include <cstdio>
 #include <cwchar>
@@ -41,6 +42,7 @@
 #include <string_view>
 #include <system_error>
 #include <thread>
+#include <vector>
 
 #include <yyjson.h>
 
@@ -142,6 +144,7 @@ constexpr wchar_t kWebView2InstallUrl[] =
     L"#download-section";
 constexpr UINT_PTR kDiagSweepTimerId = 0xD1A6;
 constexpr COLORREF kStableDwmRimColor = RGB(0, 0, 0);
+constexpr float kWindowCornerRadiusDip = 16.0f;
 
 // ===== Undocumented compositor API for Acrylic =====
 enum ACCENT_STATE
@@ -223,6 +226,7 @@ struct TrayState
     std::atomic_bool handshake_completed{false};
     std::atomic_bool user_closed_ui{false};
     std::atomic_bool shutting_down{false};
+    bool webview2_available = true;
     std::string last_error_message;
     bool start_hidden = false;
     std::wstring splash_message;
@@ -281,6 +285,7 @@ void cancel_native_webview(TrayState &state);
 std::string http_post_rpc(TrayState &state, std::string const &payload);
 void enable_acrylic(HWND hwnd);
 void apply_rounded_corners(HWND hwnd);
+void apply_rounded_corners_for_size(HWND hwnd, int width, int height);
 void apply_system_backdrop_type(HWND hwnd, DWORD type);
 bool capture_window_placement(HWND hwnd, WINDOWPLACEMENT &placement);
 void apply_saved_window_state(TrayState &state);
@@ -631,10 +636,26 @@ bool ensure_dcomp_visual_tree(TrayState &state, DCompInitFailure *failure)
     hr = dcomp->CreateRectangleClip(&root_clip);
     if (SUCCEEDED(hr) && root_clip)
     {
+        float w = static_cast<float>(std::max(0L, client.right - client.left));
+        float h = static_cast<float>(std::max(0L, client.bottom - client.top));
+        float radius = kWindowCornerRadiusDip *
+                       (static_cast<float>(GetDpiForWindow(state.webview_window)) /
+                        96.0f);
+        float max_radius = std::max(0.0f, std::min(w, h) / 2.0f);
+        radius = std::min(radius, max_radius);
+
         root_clip->SetLeft(0.0f);
         root_clip->SetTop(0.0f);
-        root_clip->SetRight(static_cast<float>(client.right - client.left));
-        root_clip->SetBottom(static_cast<float>(client.bottom - client.top));
+        root_clip->SetRight(w);
+        root_clip->SetBottom(h);
+        root_clip->SetTopLeftRadiusX(radius);
+        root_clip->SetTopLeftRadiusY(radius);
+        root_clip->SetTopRightRadiusX(radius);
+        root_clip->SetTopRightRadiusY(radius);
+        root_clip->SetBottomLeftRadiusX(radius);
+        root_clip->SetBottomLeftRadiusY(radius);
+        root_clip->SetBottomRightRadiusX(radius);
+        root_clip->SetBottomRightRadiusY(radius);
         root->SetClip(root_clip.Get());
     }
 
@@ -716,10 +737,26 @@ void update_dcomp_root_clip(TrayState *state, RECT client)
 
     float w = static_cast<float>(std::max(0L, client.right - client.left));
     float h = static_cast<float>(std::max(0L, client.bottom - client.top));
+    float radius = 0.0f;
+    if (state->webview_window && !IsZoomed(state->webview_window))
+    {
+        radius = kWindowCornerRadiusDip *
+                 (static_cast<float>(GetDpiForWindow(state->webview_window)) / 96.0f);
+        float max_radius = std::max(0.0f, std::min(w, h) / 2.0f);
+        radius = std::min(radius, max_radius);
+    }
     state->dcomp_root_clip->SetLeft(0.0f);
     state->dcomp_root_clip->SetTop(0.0f);
     state->dcomp_root_clip->SetRight(w);
     state->dcomp_root_clip->SetBottom(h);
+    state->dcomp_root_clip->SetTopLeftRadiusX(radius);
+    state->dcomp_root_clip->SetTopLeftRadiusY(radius);
+    state->dcomp_root_clip->SetTopRightRadiusX(radius);
+    state->dcomp_root_clip->SetTopRightRadiusY(radius);
+    state->dcomp_root_clip->SetBottomLeftRadiusX(radius);
+    state->dcomp_root_clip->SetBottomLeftRadiusY(radius);
+    state->dcomp_root_clip->SetBottomRightRadiusX(radius);
+    state->dcomp_root_clip->SetBottomRightRadiusY(radius);
 }
 
 void commit_dcomp(TrayState *state)
@@ -1743,6 +1780,7 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
         {
             update_webview_controller_bounds(state, hwnd);
             state->webview_in_size_move = false;
+            apply_rounded_corners(hwnd);
         }
         return 0;
     case WM_SIZING:
@@ -1760,6 +1798,7 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
         int window_h = std::max(0L, window_rect->bottom - window_rect->top);
         RECT client{0, 0, window_w, window_h};
         update_webview_controller_bounds_from_client_rect(state, hwnd, client);
+        apply_rounded_corners_for_size(hwnd, window_w, window_h);
         return 0;
     }
     case WM_SIZE:
@@ -1768,6 +1807,7 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
             return 0;
         }
         update_webview_controller_bounds(state, hwnd);
+        apply_rounded_corners(hwnd);
         return 0;
     case WM_SETFOCUS:
         if (state && state->webview_controller)
@@ -1996,6 +2036,7 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
                              SWP_NOZORDER | SWP_NOACTIVATE);
                 configure_webview_controller_pixel_mode(*state, hwnd);
                 update_webview_controller_bounds(state, hwnd);
+                apply_rounded_corners(hwnd);
             }
         }
         return 0;
@@ -2264,6 +2305,11 @@ bool ensure_native_webview(TrayState &state)
 void show_native_window(TrayState &state)
 {
     state.user_closed_ui.store(false);
+    if (!state.webview2_available)
+    {
+        prompt_webview2_install();
+        return;
+    }
     if (!ensure_native_webview(state))
     {
         return;
@@ -2377,13 +2423,61 @@ void focus_or_launch_ui(TrayState &state)
 
 void apply_rounded_corners(HWND hwnd)
 {
-    if (!hwnd || !supports_corner_preferences())
+    if (!hwnd)
     {
         return;
     }
-    const DWM_WINDOW_CORNER_PREFERENCE pref = DWMWCP_ROUND;
-    safe_dwm_set_window_attribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, &pref,
-                                  sizeof(pref));
+    if (supports_corner_preferences())
+    {
+        const DWM_WINDOW_CORNER_PREFERENCE pref = DWMWCP_ROUND;
+        safe_dwm_set_window_attribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE,
+                                      &pref, sizeof(pref));
+    }
+
+    RECT client{};
+    GetClientRect(hwnd, &client);
+    int w = std::max(0L, client.right - client.left);
+    int h = std::max(0L, client.bottom - client.top);
+    apply_rounded_corners_for_size(hwnd, w, h);
+}
+
+void apply_rounded_corners_for_size(HWND hwnd, int width, int height)
+{
+    if (!hwnd)
+    {
+        return;
+    }
+
+    if (IsZoomed(hwnd))
+    {
+        SetWindowRgn(hwnd, nullptr, TRUE);
+        return;
+    }
+
+    int w = std::max(0, width);
+    int h = std::max(0, height);
+    if (w <= 0 || h <= 0)
+    {
+        return;
+    }
+
+    float radius_f = kWindowCornerRadiusDip *
+                     (static_cast<float>(GetDpiForWindow(hwnd)) / 96.0f);
+    float max_radius = std::max(
+        0.0f, std::min(static_cast<float>(w), static_cast<float>(h)) / 2.0f);
+    radius_f = std::min(radius_f, max_radius);
+    int radius = std::max(0, static_cast<int>(std::lround(radius_f)));
+
+    // CreateRoundRectRgn takes the ellipse width/height, not the radius.
+    HRGN rgn = CreateRoundRectRgn(0, 0, w + 1, h + 1, radius * 2, radius * 2);
+    if (!rgn)
+    {
+        return;
+    }
+    if (SetWindowRgn(hwnd, rgn, TRUE) == 0)
+    {
+        DeleteObject(rgn);
+    }
 }
 
 void apply_system_backdrop_type(HWND hwnd, DWORD type)
@@ -2844,27 +2938,69 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int)
     g_app_instance = hInstance;
     bool com_initialized =
         SUCCEEDED(CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED));
-    if (!com_initialized || !is_webview2_runtime_available())
+    bool webview2_available =
+        com_initialized && is_webview2_runtime_available();
+
+    int argc_w = 0;
+    LPWSTR *argv_w = CommandLineToArgvW(GetCommandLineW(), &argc_w);
+    bool start_hidden = false;
+    bool has_run_seconds = false;
+    std::vector<std::string> argv_storage;
+    std::vector<char *> argv_ptrs;
+    if (argv_w && argc_w > 0)
     {
-        prompt_webview2_install();
-        if (com_initialized)
+        argv_storage.reserve(static_cast<size_t>(argc_w));
+        argv_ptrs.reserve(static_cast<size_t>(argc_w));
+        for (int i = 0; i < argc_w; ++i)
         {
-            CoUninitialize();
+            std::wstring wide_arg(argv_w[i] ? argv_w[i] : L"");
+            if (wide_arg == kStartHiddenArg)
+            {
+                start_hidden = true;
+            }
+            if (wide_arg.rfind(L"--run-seconds", 0) == 0)
+            {
+                has_run_seconds = true;
+                start_hidden = true;
+            }
+            argv_storage.emplace_back(narrow(wide_arg));
         }
-        return 0;
+        for (auto &arg : argv_storage)
+        {
+            argv_ptrs.push_back(arg.data());
+        }
+        LocalFree(argv_w);
+        argv_w = nullptr;
+    }
+    else
+    {
+        if (argv_w)
+        {
+            LocalFree(argv_w);
+            argv_w = nullptr;
+        }
+        argv_storage.emplace_back("TinyTorrent");
+        argv_ptrs.push_back(argv_storage.back().data());
     }
 
     // Single instance mutex
-    HANDLE hMutex =
-        CreateMutexW(nullptr, TRUE, L"TinyTorrent_SingleInstance_Mutex");
-    if (GetLastError() == ERROR_ALREADY_EXISTS)
+    HANDLE hMutex = nullptr;
+    if (!has_run_seconds)
     {
-        HWND ex = FindWindowW(L"TinyTorrentTrayWindow", nullptr);
-        if (ex)
-            PostMessageW(ex, kTrayCallbackMessage, 0, WM_LBUTTONDBLCLK);
-        if (hMutex)
-            CloseHandle(hMutex);
-        return 0;
+        hMutex = CreateMutexW(nullptr, TRUE, L"TinyTorrent_SingleInstance_Mutex");
+        if (GetLastError() == ERROR_ALREADY_EXISTS)
+        {
+            HWND ex = FindWindowW(L"TinyTorrentTrayWindow", nullptr);
+            if (ex)
+                PostMessageW(ex, kTrayCallbackMessage, 0, WM_LBUTTONDBLCLK);
+            if (hMutex)
+                CloseHandle(hMutex);
+            if (com_initialized)
+            {
+                CoUninitialize();
+            }
+            return 0;
+        }
     }
 
     HICON icon_large =
@@ -2874,8 +3010,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int)
         (HICON)LoadImageW(hInstance, MAKEINTRESOURCEW(IDI_TINYTORRENT),
                           IMAGE_ICON, GetSystemMetrics(SM_CXSMICON),
                           GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR);
-
-    bool start_hidden = wcsstr(GetCommandLineW(), kStartHiddenArg) != nullptr;
 
     auto startup_ui_prefs = load_ui_preferences();
     std::wstring startup_splash_message =
@@ -2900,6 +3034,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int)
     state->icon = icon_small;
     state->large_icon = icon_large;
     state->start_hidden = start_hidden;
+    state->webview2_available = webview2_available;
     state->ui_preferences = startup_ui_prefs;
     state->splash_message = startup_splash_message;
     state->auto_open_requested =
@@ -2917,8 +3052,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int)
     std::thread daemon(
         [&]()
         {
-            char *argv[] = {(char *)"TinyTorrent"};
-            tt::app::daemon_main(1, argv, &ready_p);
+            tt::app::daemon_main(static_cast<int>(argv_ptrs.size()),
+                                 argv_ptrs.data(), &ready_p);
         });
 
     // Pumping messages while waiting for daemon connection info
