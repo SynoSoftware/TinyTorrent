@@ -1,4 +1,4 @@
-# **AGENTS_BACKEND.md — TinyTorrent Backend Specification**
+# **AGENTS.md — TinyTorrent Backend Specification**
 
 **Purpose:**
 Authoritative reference for the **TinyTorrent Daemon**.  
@@ -169,6 +169,43 @@ Any of these indicates the boundary is broken:
 
 When a file starts to accumulate unrelated responsibilities, the correct action is to **introduce ports + split adapters**, not to “organize it better inside one file”.
 
+**Naming Smell Rule:**
+Classes or files named `Manager`, `Helper`, or generic `Service`
+(outside inbound adapters) are presumed architectural violations
+unless justified by an explicit port and single responsibility.
+
+
+---
+
+## **2.5 God-Object Decompression Rule (Critical Enforcement)**
+
+Architecture violations must be **reduced over time**, never preserved.
+
+**Rule:**
+If a patch touches a file that already violates the
+“single primary responsibility” rule, the patch **must reduce that violation**,
+even if only partially.
+
+**Mandatory behavior:**
+
+- At least **one responsibility** must be extracted behind a port or moved into
+  a new unit.
+- Leaving the file in the **same or worse** architectural state is a spec violation.
+- “Out of scope” is **not** an acceptable justification.
+
+**Examples of valid reductions:**
+
+- Extract persistence behind a repository port.
+- Move snapshot-building out of engine/session logic.
+- Introduce a port and stub implementation even if full migration is deferred.
+
+**Prohibited behavior:**
+
+- Adding new logic to an already mixed-responsibility file.
+- “Cleaning up later” without an actual extraction in the same patch.
+
+This rule exists to prevent architectural debt from compounding.
+
 ---
 
 # **3. Dependencies (vcpkg)**
@@ -255,7 +292,18 @@ root/
 
 ---
 
-# **5. Implementation Rules**
+# **5. Implementation Rules (Enforced)**
+
+These rules are **executable constraints**, not guidelines.
+
+If a patch violates any rule below, the correct action is to
+**change the structure**, not to justify the violation.
+
+When modifying existing code:
+
+- New logic must **not** be added to files that already mix responsibilities.
+- Structural improvement is part of the definition of done.
+
 
 ### 5.1 Window Backdrop Policy (Non-Negotiable, Windows Host / Tray UI)
 
@@ -351,6 +399,19 @@ technology.
 * Keep each file within a single architectural role (Domain vs Application vs Adapter vs Infrastructure).
 * If a file starts to mix roles, the fix is **ports + split**, not internal reorganization.
 * Apply DRY where it reduces maintenance; avoid “God managers” and catch-all services.
+
+**No-New-Logic-in-Bad-Files Rule (Critical):**
+
+If a file already violates cohesion (multiple architectural roles),
+**no new logic may be added to it**.
+
+All new behavior must:
+
+- Be placed in a new file, or
+- Be introduced via a port with an adapter implementation.
+
+This applies even if the change is “small”.
+
 
 ---
 
@@ -507,3 +568,45 @@ Tray only calls RPCs and shows results.
 * When you change code, run the build/tests as appropriate and fix issues before calling the task complete.
 * Before reporting a task as completed, perform a review and fix all important issues. Repeat until satisfied, then run `.\make.ps1 debug` and ensure no compilation failures (and no warnings if reasonably possible) and all tests pass.
 
+## **10.1 Patch Acceptance Checklist (Mandatory)**
+
+Before declaring a task complete, the agent must confirm:
+
+1. No new logic was added to a file that already mixed responsibilities.
+2. If such a file was touched, at least one responsibility was extracted.
+3. Any new dependency crosses a boundary only via a port.
+4. No new “Manager”, “Helper”, or catch-all classes were introduced.
+5. The patch moves the architecture **closer** to the spec, not merely sideways.
+
+If any item fails, the patch is incomplete.
+
+## **10.2 Identifier Quality & Rename Reporting (Mandatory)**
+
+When touching or reviewing code, the agent must actively evaluate
+**identifier quality** (variable, function, type, and file names).
+
+**Rule:**
+If any identifier is misleading, overloaded, vague, or no longer matches
+its responsibility, the agent must **report it explicitly** instead of silently
+renaming it.
+
+**Required behavior:**
+
+- Produce a short list titled **“Rename Candidates”**.
+- List each item as:
+  - `current_name` → `recommended_name`
+  - One-line justification (semantic mismatch, scope drift, legacy name, etc.)
+- Do **not** perform the rename unless explicitly instructed.
+
+**Examples of rename triggers:**
+
+- Names like `Manager`, `Helper`, `Util`, `Service` without a clear role.
+- Variables representing snapshots/events but named as “state” or “data”.
+- Functions that now coordinate behavior but are named as pure getters/setters.
+- Files whose names no longer match their architectural role.
+
+**Rationale:**
+Renaming is a high-signal refactor best performed interactively.
+Reporting candidates preserves velocity while improving correctness.
+
+Failure to report obvious rename candidates is a spec violation.
