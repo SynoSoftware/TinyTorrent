@@ -17,6 +17,11 @@
 #include <string>
 #include <thread>
 #include <vector>
+#if defined(_WIN32)
+#include <Windows.h>
+#else
+#include <unistd.h>
+#endif
 
 namespace
 {
@@ -328,6 +333,22 @@ std::filesystem::path resolve_engine_path()
 
 TEST_CASE("tt-engine serves packed UI assets")
 {
+    auto test_root =
+        std::filesystem::temp_directory_path() /
+        std::filesystem::path(std::string("TinyTorrent-test-") +
+#if defined(_WIN32)
+                              std::to_string(GetCurrentProcessId())
+#else
+                              std::to_string(static_cast<unsigned long>(::getpid()))
+#endif
+        );
+    std::filesystem::create_directories(test_root);
+#if defined(_WIN32)
+    SetEnvironmentVariableW(L"TT_DATA_ROOT", test_root.wstring().c_str());
+#else
+    setenv("TT_DATA_ROOT", test_root.string().c_str(), 1);
+#endif
+
     auto engine_path = resolve_engine_path();
     REQUIRE(std::filesystem::exists(engine_path));
 

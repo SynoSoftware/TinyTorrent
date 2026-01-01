@@ -23,6 +23,7 @@ import subprocess
 import threading
 import time
 from pathlib import Path
+import tempfile
 
 # Prefer the daemon binary for acceptance tests (no UI/tray/WebView required).
 BACKEND_BINARY = "./buildstate/debug/tinytorrent-daemon.exe"
@@ -34,7 +35,10 @@ WS_PATH = "/ws"
 
 
 def connection_json_path():
-    # Must match tt::utils::data_root() (LocalAppData\\TinyTorrent\\data).
+    # Must match tt::utils::data_root().
+    override = os.environ.get("TT_DATA_ROOT")
+    if override:
+        return Path(override) / "connection.json"
     local_appdata = os.environ.get("LOCALAPPDATA")
     if local_appdata:
         return Path(local_appdata) / "TinyTorrent" / "data" / "connection.json"
@@ -67,6 +71,10 @@ def random_secret():
 
 
 def start_backend(secret):
+    # Isolate acceptance tests from any running instance by using a dedicated
+    # data root (also avoids sharing tinytorrent.db / tinytorrent.log).
+    if not os.environ.get("TT_DATA_ROOT"):
+        os.environ["TT_DATA_ROOT"] = tempfile.mkdtemp(prefix="TinyTorrent-acceptance-")
     args = [BACKEND_BINARY, f"--session-secret={secret}"]
     proc = subprocess.Popen(
         args,
