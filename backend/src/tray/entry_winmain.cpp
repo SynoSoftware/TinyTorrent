@@ -151,7 +151,7 @@ constexpr wchar_t kWebView2InstallUrl[] =
     L"#download-section";
 constexpr UINT_PTR kDiagSweepTimerId = 0xD1A6;
 constexpr COLORREF kStableDwmRimColor = RGB(0, 0, 0);
-constexpr float kWindowCornerRadiusDip = 16.0f;
+// constexpr float kWindowCornerRadiusDip = 16.0f;
 
 // ===== Undocumented compositor API for Acrylic =====
 enum ACCENT_STATE
@@ -238,7 +238,7 @@ bool register_drop_target(TrayState &state);
 void unregister_drop_target(TrayState &state);
 void enable_acrylic(HWND hwnd);
 void apply_rounded_corners(HWND hwnd);
-void apply_rounded_corners_for_size(HWND hwnd, int width, int height);
+//void apply_rounded_corners_for_size(HWND hwnd, int width, int height);
 void apply_system_backdrop_type(HWND hwnd, DWORD type);
 bool capture_window_placement(HWND hwnd, WINDOWPLACEMENT &placement);
 void apply_saved_window_state(TrayState &state);
@@ -537,28 +537,29 @@ bool ensure_dcomp_visual_tree(TrayState &state, DCompInitFailure *failure)
     hr = dcomp->CreateRectangleClip(&root_clip);
     if (SUCCEEDED(hr) && root_clip)
     {
-        float w = static_cast<float>(std::max(0L, client.right - client.left));
-        float h = static_cast<float>(std::max(0L, client.bottom - client.top));
-        float radius =
-            kWindowCornerRadiusDip *
-            (static_cast<float>(GetDpiForWindow(state.webview_window)) / 96.0f);
-        float max_radius = std::max(0.0f, std::min(w, h) / 2.0f);
-        radius = std::min(radius, max_radius);
-
-        root_clip->SetLeft(0.0f);
-        root_clip->SetTop(0.0f);
-        root_clip->SetRight(w);
-        root_clip->SetBottom(h);
-        root_clip->SetTopLeftRadiusX(radius);
-        root_clip->SetTopLeftRadiusY(radius);
-        root_clip->SetTopRightRadiusX(radius);
-        root_clip->SetTopRightRadiusY(radius);
-        root_clip->SetBottomLeftRadiusX(radius);
-        root_clip->SetBottomLeftRadiusY(radius);
-        root_clip->SetBottomRightRadiusX(radius);
-        root_clip->SetBottomRightRadiusY(radius);
-        root->SetClip(root_clip.Get());
-    }
+         float w = static_cast<float>(std::max(0L, client.right - client.left));
+         float h = static_cast<float>(std::max(0L, client.bottom - client.top)); 
+//         float radius =
+    //         kWindowCornerRadiusDip *
+    //         (static_cast<float>(GetDpiForWindow(state.webview_window))
+    //         / 96.0f);
+    //     float max_radius = std::max(0.0f, std::min(w, h) / 2.0f);
+    //     radius = std::min(radius, max_radius);
+    //
+         root_clip->SetLeft(0.0f);
+         root_clip->SetTop(0.0f);
+         root_clip->SetRight(w);
+         root_clip->SetBottom(h);
+    //     root_clip->SetTopLeftRadiusX(radius);
+    //     root_clip->SetTopLeftRadiusY(radius);
+    //     root_clip->SetTopRightRadiusX(radius);
+    //     root_clip->SetTopRightRadiusY(radius);
+    //     root_clip->SetBottomLeftRadiusX(radius);
+    //     root_clip->SetBottomLeftRadiusY(radius);
+    //     root_clip->SetBottomRightRadiusX(radius);
+    //     root_clip->SetBottomRightRadiusY(radius);
+         root->SetClip(root_clip.Get());
+     }
 
     state.d3d_device = device;
     state.d3d_context = context;
@@ -638,27 +639,27 @@ void update_dcomp_root_clip(TrayState *state, RECT client)
 
     float w = static_cast<float>(std::max(0L, client.right - client.left));
     float h = static_cast<float>(std::max(0L, client.bottom - client.top));
-    float radius = 0.0f;
-    if (state->webview_window && !IsZoomed(state->webview_window))
-    {
-        radius = kWindowCornerRadiusDip *
-                 (static_cast<float>(GetDpiForWindow(state->webview_window)) /
-                  96.0f);
-        float max_radius = std::max(0.0f, std::min(w, h) / 2.0f);
-        radius = std::min(radius, max_radius);
-    }
+//    float radius = 0.0f;
+   //if (state->webview_window && !IsZoomed(state->webview_window))
+   //{
+   //    radius = kWindowCornerRadiusDip *
+   //             (static_cast<float>(GetDpiForWindow(state->webview_window)) /
+   //              96.0f);
+   //    float max_radius = std::max(0.0f, std::min(w, h) / 2.0f);
+   //    radius = std::min(radius, max_radius);
+   //}
     state->dcomp_root_clip->SetLeft(0.0f);
     state->dcomp_root_clip->SetTop(0.0f);
     state->dcomp_root_clip->SetRight(w);
     state->dcomp_root_clip->SetBottom(h);
-    state->dcomp_root_clip->SetTopLeftRadiusX(radius);
-    state->dcomp_root_clip->SetTopLeftRadiusY(radius);
-    state->dcomp_root_clip->SetTopRightRadiusX(radius);
-    state->dcomp_root_clip->SetTopRightRadiusY(radius);
-    state->dcomp_root_clip->SetBottomLeftRadiusX(radius);
-    state->dcomp_root_clip->SetBottomLeftRadiusY(radius);
-    state->dcomp_root_clip->SetBottomRightRadiusX(radius);
-    state->dcomp_root_clip->SetBottomRightRadiusY(radius);
+ //   state->dcomp_root_clip->SetTopLeftRadiusX(radius);
+ //   state->dcomp_root_clip->SetTopLeftRadiusY(radius);
+ //   state->dcomp_root_clip->SetTopRightRadiusX(radius);
+ //   state->dcomp_root_clip->SetTopRightRadiusY(radius);
+ //   state->dcomp_root_clip->SetBottomLeftRadiusX(radius);
+ //   state->dcomp_root_clip->SetBottomLeftRadiusY(radius);
+ //   state->dcomp_root_clip->SetBottomRightRadiusX(radius);
+ //   state->dcomp_root_clip->SetBottomRightRadiusY(radius);
 }
 
 void commit_dcomp(TrayState *state)
@@ -875,31 +876,13 @@ HRESULT safe_dwm_set_window_attribute(HWND hwnd, DWORD attr, void const *value,
     return DwmSetWindowAttribute(hwnd, attr, value, size);
 }
 
-bool supports_dark_mode()
-{
-    return IsWindowsVersionOrGreater(10, 0, 17763); // 1809+
-}
-
-bool supports_corner_preferences()
-{
-    return IsWindowsVersionOrGreater(10, 0, 18362); // 1903+
-}
-
-bool supports_system_backdrop()
-{
-    return IsWindowsVersionOrGreater(10, 0, 22000); // Windows 11
-}
-
 void apply_dark_titlebar(HWND hwnd)
 {
     if (!hwnd)
     {
         return;
     }
-    if (!supports_dark_mode())
-    {
-        return;
-    }
+
     BOOL dark = TRUE;
     safe_dwm_set_window_attribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &dark,
                                   sizeof(dark));
@@ -914,10 +897,6 @@ void apply_dark_titlebar(HWND hwnd)
 void apply_frameless_window_style(HWND hwnd)
 {
     if (!hwnd)
-    {
-        return;
-    }
-    if (!supports_dark_mode())
     {
         return;
     }
@@ -1583,7 +1562,7 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
         int window_h = std::max(0L, window_rect->bottom - window_rect->top);
         RECT client{0, 0, window_w, window_h};
         update_webview_controller_bounds_from_client_rect(state, hwnd, client);
-        apply_rounded_corners_for_size(hwnd, window_w, window_h);
+        //apply_rounded_corners_for_size(hwnd, window_w, window_h);
         return 0;
     }
     case WM_SIZE:
@@ -2236,17 +2215,14 @@ void focus_or_launch_ui(TrayState &state)
 void apply_rounded_corners(HWND hwnd)
 {
     if (!hwnd)
-    {
         return;
-    }
-    if (supports_corner_preferences())
-    {
-        const DWM_WINDOW_CORNER_PREFERENCE pref = DWMWCP_ROUND;
-        safe_dwm_set_window_attribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE,
-                                      &pref, sizeof(pref));
-    }
+
+    const DWM_WINDOW_CORNER_PREFERENCE pref = DWMWCP_ROUND;
+    DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, &pref,
+                          sizeof(pref));
 }
 
+/*
 void apply_rounded_corners_for_size(HWND hwnd, int width, int height)
 {
     if (!hwnd)
@@ -2344,14 +2320,11 @@ void apply_rounded_corners_for_size(HWND hwnd, int width, int height)
         entry->zoomed = false;
     }
 }
+    */
 
 void apply_system_backdrop_type(HWND hwnd, DWORD type)
 {
     if (!hwnd)
-    {
-        return;
-    }
-    if (!supports_system_backdrop())
     {
         return;
     }
@@ -2451,6 +2424,11 @@ LRESULT CALLBACK SplashProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
         return DefWindowProcW(hwnd, msg, wparam, lparam);
     }
 }
+static void enable_dwm_frame(HWND hwnd)
+{
+    MARGINS m = {-1};
+    DwmExtendFrameIntoClientArea(hwnd, &m);
+}
 
 void create_splash_window(HINSTANCE instance, HICON icon,
                           std::wstring const &message)
@@ -2485,6 +2463,7 @@ void create_splash_window(HINSTANCE instance, HICON icon,
     {
         SetWindowLongPtrW(hwnd, GWLP_USERDATA,
                           reinterpret_cast<LONG_PTR>(icon));
+      //  enable_dwm_frame(hwnd);
         apply_rounded_corners(hwnd);
         apply_system_backdrop_type(hwnd, DWMSBT_NONE);
         enable_acrylic(hwnd);
