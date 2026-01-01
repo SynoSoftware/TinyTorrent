@@ -345,11 +345,26 @@ export const zTransmissionSessionSettings = z.object({
         .optional(),
 });
 
-export const zTransmissionFreeSpace = z.object({
-    path: z.string(),
-    sizeBytes: z.number(),
-    totalSize: z.number(),
-});
+export const zTransmissionFreeSpace = z.preprocess(
+    (value) => {
+        if (!value || typeof value !== "object") {
+            return value;
+        }
+        const raw = value as Record<string, unknown>;
+        const sizeBytes = raw.sizeBytes ?? raw["size-bytes"];
+        const totalSize = raw.totalSize ?? raw["total-size"];
+        return {
+            ...raw,
+            sizeBytes,
+            totalSize,
+        };
+    },
+    z.object({
+        path: z.string(),
+        sizeBytes: z.number(),
+        totalSize: z.number().optional(),
+    })
+);
 
 const zDirectoryEntryType = z.enum(["drive", "folder"]);
 

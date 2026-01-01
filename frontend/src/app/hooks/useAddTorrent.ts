@@ -24,6 +24,7 @@ interface UseAddTorrentParams {
 interface AddTorrentPayload {
     magnetLink?: string;
     metainfo?: string;
+    metainfoPath?: string;
     downloadDir: string;
     startNow: boolean;
     filesUnwanted?: number[];
@@ -53,6 +54,7 @@ export function useAddTorrent({
             const label =
                 context?.label ??
                 payload.magnetLink ??
+                payload.metainfoPath ??
                 payload.metainfo ??
                 "New Torrent";
             let rpcAttempted = false;
@@ -72,6 +74,7 @@ export function useAddTorrent({
                 await torrentClient.addTorrent({
                     magnetLink: payload.magnetLink,
                     metainfo: payload.metainfo,
+                    metainfoPath: payload.metainfoPath,
                     downloadDir: payload.downloadDir,
                     paused: !payload.startNow,
                     filesUnwanted: payload.filesUnwanted,

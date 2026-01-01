@@ -98,7 +98,9 @@ export class HeartbeatManager {
                 prev.state !== c.state ||
                 prev.progress !== c.progress ||
                 prev.speed?.down !== c.speed?.down ||
-                prev.speed?.up !== c.speed?.up
+                prev.speed?.up !== c.speed?.up ||
+                prev.leftUntilDone !== c.leftUntilDone ||
+                prev.sizeWhenDone !== c.sizeWhenDone
             ) {
                 changed.push(c.id);
             }

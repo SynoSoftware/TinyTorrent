@@ -1,7 +1,11 @@
-import * as assert from "node:assert/strict";
+import type { Torrent } from "@/modules/dashboard/types/torrent";
+import { buildUniqueTorrentOrder } from "@/modules/dashboard/hooks/utils/torrent-order";
 
-import type { Torrent } from "../../types/torrent.ts";
-import { buildUniqueTorrentOrder } from "./torrent-order.ts";
+const assertDeepEqual = <T>(actual: T, expected: T, message: string) => {
+    if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+        throw new Error(message);
+    }
+};
 
 const createTorrent = (id: string): Torrent => ({
     id,
@@ -32,13 +36,13 @@ const duplicates = [
     createTorrent("hash-c"),
 ];
 
-assert.deepStrictEqual(
+assertDeepEqual(
     buildUniqueTorrentOrder(duplicates),
     ["hash-a", "hash-b", "hash-c"],
     "should deduplicate duplicate IDs"
 );
 
-assert.deepStrictEqual(
+assertDeepEqual(
     buildUniqueTorrentOrder([]),
     [],
     "should return empty order for empty snapshots"
