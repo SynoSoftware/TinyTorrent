@@ -53,6 +53,8 @@ It is a **command center**.
   * Keyboard focus trapped
   * Escape closes (Cancel)
   * Does not scroll at the window level
+  * The modal must never scroll. All overflow is clipped at the window level.
+
 
 ### **Internal Structure**
 
@@ -179,7 +181,8 @@ Options never auto-toggle each other.
 ## **5. Pane B —  Payload & Resolution**
 
 **Purpose:** Sculpt the payload when metadata is available; present a resolution state otherwise.
-**Visual:** Transparent over Layer 2 glass.
+**Visual:** Transparent over Layer 2 glass. Acts as a fixed-height data viewport.
+
 
 ---
 
@@ -212,6 +215,22 @@ These are **commands**, not recommendations.
   * File-type icon
   * Filename
   * Size
+
+#### **Geometry & Text Rules (Non-Negotiable)**
+
+* Rows use a single fixed height (`h-row`).
+* Text never wraps.
+* Overflowing filenames are truncated with ellipsis.
+* Full filenames are revealed via hover tooltip or inline rename.
+* Row height must never change based on content.
+
+#### **Scroll Ownership Rules**
+
+* The modal window never scrolls.
+* Pane A never scrolls.
+* Pane B owns vertical scrolling exclusively.
+* No nested scroll containers are allowed.
+* Horizontal scrolling is permitted inside Pane B only.
 
 ---
 
@@ -384,6 +403,7 @@ All motion uses Framer Motion.
 * No layout thrash
 * Skeletons shown while metadata parses
 * Footer commit action disabled until metadata is ready; mode selection remains available.
+* Virtualized lists must assume fixed row heights to preserve layout stability.
 
 
 ---
