@@ -1018,13 +1018,13 @@ serialize_torrent_detail(std::vector<engine::TorrentDetail> const &details)
         yyjson_mut_obj_add_uint(native, entry, "pieceSize", detail.piece_size);
 
         auto state_bits = encode_piece_bitfield(detail.piece_states);
-        yyjson_mut_obj_add_str(native, entry, "pieceStates",
-                               state_bits.c_str());
+        yyjson_mut_obj_add_strcpy(native, entry, "pieceStates",
+                                  state_bits.c_str());
 
         auto availability_payload =
             encode_piece_availability(detail.piece_availability);
-        yyjson_mut_obj_add_str(native, entry, "pieceAvailability",
-                               availability_payload.c_str());
+        yyjson_mut_obj_add_strcpy(native, entry, "pieceAvailability",
+                                  availability_payload.c_str());
 
         yyjson_mut_arr_add_val(array, entry);
     }
