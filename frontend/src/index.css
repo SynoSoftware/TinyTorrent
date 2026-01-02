@@ -161,6 +161,13 @@
     --tt-status-icon-xl: calc(12 * var(--u) * var(--z));
     --tt-control-icon-size: var(--tt-status-icon-md);
     --tt-button-h: var(--tt-h-md);
+    /* Phase 1 tokens (derived via Token Pipeline) */
+    --tt-window-control-w: calc(var(--tt-size-btn-lg) * 1.2);
+    --tt-fz-navbar: calc(var(--fz-scaled) * 1.3);
+    --tt-h-chip: calc(var(--tt-size-btn) * 0.6);
+
+    /* Resize handle height (80% of row height) */
+    --tt-resize-h: calc(var(--tt-h-row) * 0.6);
     --tt-button-min-w: var(--button-min-w);
 
     --tt-file-row-padding-left: var(--p-2);
@@ -179,7 +186,8 @@
     --tt-settings-h: calc(200 * var(--u));
     --tt-settings-max-h: calc(200 * var(--u));
     --tt-settings-min-h: calc(125 * var(--u));
-    --tt-badge-min-width: calc(15 * var(--u) * var(--z));
+    /* Increased badge min width so status chips can display text without truncation */
+    --tt-badge-min-width: calc(28 * var(--u) * var(--z));
     --tt-divider-width: calc(2 * var(--bw));
     --tt-peers-hud-height: calc(45 * var(--u) * var(--z));
     --tt-directory-picker-max-w: calc(40 * var(--u) * var(--z));
@@ -659,12 +667,27 @@
         height: var(--tt-status-icon-xl);
     }
 
+    /* Token-driven hit area for toolbar icon-only buttons */
+    .toolbar-icon-hit {
+        min-width: var(--tt-size-btn-lg);
+        min-height: var(--tt-size-btn-lg);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
     .window-control-button-width {
-        width: var(--tt-window-control-size);
+        width: var(--tt-window-control-w);
         height: 100%;
         display: flex;
         align-items: center;
         justify-content: center;
+    }
+
+    /* Navbar headline typography (30% larger than base, scales with --fz and --z) */
+    .text-navbar {
+        font-size: var(--tt-fz-navbar);
+        line-height: 1;
     }
 
     /* Semantic text sizing utility mapping to scaled font variable */
@@ -848,6 +871,15 @@ main .torrent-table-watermark {
         height: var(--button-h);
     }
 
+    .h-status-chip {
+        height: var(--tt-h-chip);
+        min-height: var(--tt-h-chip);
+    }
+
+    .h-resize-h {
+        height: var(--tt-resize-h);
+    }
+
     .h-settings {
         height: var(--tt-settings-h);
     }
@@ -862,6 +894,22 @@ main .torrent-table-watermark {
 
     .max-w-dir-picker {
         max-width: var(--tt-directory-picker-max-w);
+    }
+
+    /* Navbar height utility - ensures Tabs and Input share same height (token-driven) */
+    .h-navbar {
+        height: var(--tt-navbar-h);
+    }
+
+    /* Navbar pill height - smaller, centered controls (Tabs pills, search input) */
+    .h-navbar-pill {
+        height: var(--tt-size-btn-lg);
+    }
+
+    /* Cursor height slightly taller than pill (derived via token pipeline) */
+    --tt-navbar-cursor-h: calc(var(--tt-size-btn-lg) + var(--tt-uz));
+    .h-navbar-cursor {
+        height: var(--tt-navbar-cursor-h);
     }
 
     .max-w-modal {

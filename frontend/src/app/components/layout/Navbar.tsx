@@ -116,8 +116,8 @@ export function Navbar({
                             >
                                 <TinyTorrentIcon title={t("brand.name")} />
                             </div>
-                            <div className="hidden flex-col md:flex justify-center ml-tight">
-                                <span className="font-bold tracking-tight text-foreground text-base leading-none">
+                            <div className="hidden  flex-col md:flex justify-center ml-tight">
+                                <span className="font-bold tracking-tight text-foreground text-base leading-none  text-navbar">
                                     {t("brand.name")}
                                 </span>
                                 <span className="text-default-400 font-mono text-xs font-medium leading-none mt-0.5">
@@ -130,7 +130,7 @@ export function Navbar({
 
                         <div className="h-sep w-px bg-default-200/50 mx-tight" />
 
-                        <div className="hidden lg:flex">
+                        <div className="hidden lg:flex text-navbar">
                             <Tabs
                                 aria-label="Filter"
                                 variant="light"
@@ -143,9 +143,9 @@ export function Navbar({
                                 classNames={{
                                     base: "",
                                     tabList:
-                                        "bg-default-100/50 p-tight border border-default-200/50 shadow-inner gap-tight",
-                                    cursor: "bg-background shadow-sm border-default-100",
-                                    tab: "px-panel font-semibold text-default-500 transition-colors",
+                                        "bg-default-100/50 p-tight border border-default-200/50 shadow-inner gap-tight h-navbar-pill overflow-visible",
+                                    cursor: "bg-background shadow-sm border-default-100 h-navbar-cursor rounded-full ",
+                                    tab: "px-panel font-semibold text-default-500 transition-colors text-navbar",
                                 }}
                             >
                                 <Tab
@@ -154,7 +154,7 @@ export function Navbar({
                                         <div className="flex items-center gap-tight">
                                             <StatusIcon
                                                 Icon={ListChecks}
-                                                size="md"
+                                                size="lg"
                                                 className="text-default-400"
                                             />
                                             {t("nav.filter_all")}
@@ -167,7 +167,7 @@ export function Navbar({
                                         <div className="flex items-center gap-tight">
                                             <StatusIcon
                                                 Icon={DownloadCloud}
-                                                size="md"
+                                                size="lg"
                                                 className="text-default-400"
                                             />
                                             {t("nav.filter_downloading")}
@@ -180,7 +180,7 @@ export function Navbar({
                                         <div className="flex items-center gap-tight">
                                             <StatusIcon
                                                 Icon={UploadCloud}
-                                                size="md"
+                                                size="lg"
                                                 className="text-default-400"
                                             />
                                             {t("nav.filter_seeding")}
@@ -193,12 +193,15 @@ export function Navbar({
                             <Input
                                 classNames={{
                                     base: "transition-all",
-                                    mainWrapper: "h-full",
-                                    input: "text-small text-foreground/90 whitespace-nowrap overflow-hidden text-ellipsis placeholder:opacity-70",
+                                    mainWrapper: "h-navbar-pill",
+                                    input: "text-navbar font-medium text-foreground/90 whitespace-nowrap overflow-hidden text-ellipsis placeholder:opacity-70",
                                     inputWrapper:
                                         "h-full flex items-center gap-tools flex-nowrap font-normal text-default-500 bg-default-100/50 hover:bg-default-200/50 p-tight border border-default-200/50 focus-within:bg-default-100 focus-within:border-primary/20 shadow-inner rounded-full transition-colors",
                                 }}
-                                style={{ width: "var(--tt-search-width)" }}
+                                style={{
+                                    width: "var(--tt-search-width)",
+                                    fontSize: "var(--tt-fz-navbar)",
+                                }}
                                 placeholder={t("nav.search_placeholder")}
                                 size="md"
                                 value={searchQuery}
@@ -210,7 +213,7 @@ export function Navbar({
                                 startContent={
                                     <StatusIcon
                                         Icon={Search}
-                                        size="md"
+                                        size="lg"
                                         className="text-default-400"
                                     />
                                 }
@@ -262,6 +265,7 @@ export function Navbar({
                                 onPress={onResumeSelection}
                                 disabled={!hasSelection}
                                 className="text-success hover:text-success-600 hover:bg-success/10"
+                                iconSize="lg"
                             />
                             <ToolbarIconButton
                                 Icon={Pause}
@@ -270,6 +274,7 @@ export function Navbar({
                                 onPress={onPauseSelection}
                                 disabled={!hasSelection}
                                 className="text-warning hover:text-warning-600 hover:bg-warning/10"
+                                iconSize="lg"
                             />
                             <ToolbarIconButton
                                 Icon={RotateCcw}
@@ -278,6 +283,7 @@ export function Navbar({
                                 onPress={onRecheckSelection}
                                 disabled={!hasSelection}
                                 className="text-default-500 hover:text-foreground hover:bg-default-200"
+                                iconSize="lg"
                             />
                             <ToolbarIconButton
                                 Icon={Trash2}
@@ -286,6 +292,7 @@ export function Navbar({
                                 onPress={onRemoveSelection}
                                 disabled={!hasSelection}
                                 className="text-danger hover:text-danger-600 hover:bg-danger/10"
+                                iconSize="lg"
                             />
                         </div>
 
@@ -301,6 +308,7 @@ export function Navbar({
                             onPress={onSettings}
                             className="text-default-400 hover:text-foreground"
                             style={{ overflow: "visible" }}
+                            iconSize="lg"
                         />
                     </div>
 

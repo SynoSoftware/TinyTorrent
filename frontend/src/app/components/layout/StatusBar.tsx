@@ -157,7 +157,11 @@ export function StatusBar({
                 GLASS_BLOCK_SURFACE,
                 BLOCK_SHADOW
             )}
-            style={shell.frameStyle}
+            style={{
+                ...shell.frameStyle,
+                borderBottomLeftRadius: 0,
+                borderBottomRightRadius: 0,
+            }}
         >
             <div
                 className="flex items-center justify-between gap-stage"
