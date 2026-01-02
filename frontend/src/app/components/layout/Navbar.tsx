@@ -1,4 +1,4 @@
-import { Input, Tab, Tabs, cn } from "@heroui/react";
+import { Button, Input, Tab, Tabs, cn } from "@heroui/react";
 import {
     DownloadCloud,
     ListChecks,
@@ -7,7 +7,6 @@ import {
     RotateCcw,
     Search,
     Settings,
-    Plus,
     Trash2,
     UploadCloud,
     Minimize,
@@ -15,6 +14,8 @@ import {
     Moon,
     Sun,
     X,
+    FileUp,
+    Magnet,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { TinyTorrentIcon } from "@/shared/ui/components/TinyTorrentIcon";
@@ -29,14 +30,15 @@ import {
     BLOCK_SHADOW,
     GLASS_BLOCK_SURFACE,
 } from "@/shared/ui/layout/glass-surface";
-import { getShellTokens } from "@/config/logic";
+import { ICON_STROKE_WIDTH, getShellTokens } from "@/config/logic";
 
 interface NavbarProps {
     filter: string;
     searchQuery: string;
     setSearchQuery: (value: string) => void;
     setFilter: (key: string) => void;
-    onAdd: () => void;
+    onAddTorrent: () => void;
+    onAddMagnet: () => void;
     onSettings: () => void;
     hasSelection: boolean;
     onResumeSelection: () => void;
@@ -57,7 +59,8 @@ export function Navbar({
     searchQuery,
     setSearchQuery,
     setFilter,
-    onAdd,
+    onAddTorrent,
+    onAddMagnet,
     onSettings,
     hasSelection,
     onResumeSelection,
@@ -211,13 +214,34 @@ export function Navbar({
                     </div>
 
                     <div className="flex items-center gap-tools min-w-0">
-                        <ToolbarIconButton
-                            Icon={Plus}
-                            ariaLabel={t("toolbar.add_torrent")}
-                            title={t("toolbar.add_torrent")}
-                            onPress={onAdd}
-                            className="bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary-600 ring-1 ring-primary/20"
-                        />
+                        <Button
+                            size="md"
+                            variant="shadow"
+                            color="primary"
+                            onPress={onAddTorrent}
+                            className="ring-1 ring-primary/20"
+                            startContent={
+                                <FileUp
+                                    strokeWidth={ICON_STROKE_WIDTH}
+                                    className="icon-size text-current"
+                                />
+                            }
+                        >
+                            {t("toolbar.add_torrent")}
+                        </Button>
+                        <Button
+                            size="md"
+                            variant="shadow"
+                            onPress={onAddMagnet}
+                            startContent={
+                                <Magnet
+                                    strokeWidth={ICON_STROKE_WIDTH}
+                                    className="icon-size text-current"
+                                />
+                            }
+                        >
+                            {t("toolbar.add_magnet")}
+                        </Button>
 
                         <div
                             className="hidden sm:flex w-px bg-default-200/50 mx-tight"

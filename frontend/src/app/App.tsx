@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+    type ChangeEvent,
+} from "react";
 import Runtime from "@/app/runtime";
 import { useHotkeys } from "react-hotkeys-hook";
 import useWorkbenchScale from "./hooks/useWorkbenchScale";
@@ -33,6 +40,26 @@ import type {
     PeerSortStrategy,
 } from "@/modules/dashboard/types/torrentDetail";
 import type { ServerClass } from "@/services/rpc/entities";
+import { AddMagnetModal } from "@/modules/torrent-add/components/AddMagnetModal";
+import {
+    AddTorrentWindow,
+    type AddTorrentSelection,
+} from "@/modules/torrent-add/components/AddTorrentWindow";
+import { normalizeMagnetLink } from "@/app/utils/magnet";
+import { parseTorrentFile, type TorrentMetadata } from "@/shared/utils/torrent";
+import { readTorrentFileAsMetainfoBase64 } from "@/modules/torrent-add/services/torrent-metainfo";
+
+type AddTorrentDraft =
+    | {
+          kind: "file";
+          file: File;
+          metadata: TorrentMetadata;
+      }
+    | {
+          kind: "existing";
+          torrentId: string;
+          metadata: TorrentMetadata;
+      };
 
 interface FocusControllerProps {
     selectedTorrents: Torrent[];
@@ -154,29 +181,49 @@ export default function App() {
     const isRunningNative = isNativeHost || isNativeIntegrationActive;
 
     const {
-        isAddModalOpen,
-        openAddModal,
-        closeAddModal,
+        isAddMagnetModalOpen,
+        openAddMagnetModal,
+        closeAddMagnetModal,
         isSettingsOpen,
         openSettings,
         closeSettings,
     } = useWorkspaceModals();
 
+    const [magnetDraft, setMagnetDraft] = useState("");
+    const [isResolvingMagnet, setIsResolvingMagnet] = useState(false);
+    const [torrentDraft, setTorrentDraft] = useState<AddTorrentDraft | null>(
+        null
+    );
+    const [isFinalizingExisting, setIsFinalizingExisting] = useState(false);
+    const torrentFilePickerRef = useRef<HTMLInputElement | null>(null);
+
+    const openAddTorrentPicker = useCallback(() => {
+        torrentFilePickerRef.current?.click();
+    }, []);
+
+    const openAddMagnet = useCallback(
+        (magnetLink?: string) => {
+            setMagnetDraft(magnetLink?.trim() ?? "");
+            openAddMagnetModal();
+        },
+        [openAddMagnetModal]
+    );
+
+    const openAddTorrentFromFile = useCallback(async (file: File) => {
+        try {
+            const metadata = await parseTorrentFile(file);
+            setTorrentDraft({ kind: "file", file, metadata });
+        } catch {
+            // Ignore parse errors; Add Torrent window cannot open without metadata.
+        }
+    }, []);
+
     const addModalState = useAddModalState({
-        openAddModal,
-        isAddModalOpen,
-        isNativeMode: isRunningNative,
+        onOpenAddMagnet: openAddMagnet,
+        onOpenAddTorrentFromFile: openAddTorrentFromFile,
     });
 
-    const {
-        getRootProps,
-        getInputProps,
-        isDragActive,
-        pendingTorrentFile,
-        incomingMagnetLink,
-        clearPendingTorrentFile,
-        clearIncomingMagnetLink,
-    } = addModalState;
+    const { getRootProps, getInputProps, isDragActive } = addModalState;
 
     const isMountedRef = useRef(false);
     const uiReadyNotifiedRef = useRef(false);
@@ -381,7 +428,16 @@ export default function App() {
                 description: t(
                     "command_palette.actions.add_torrent_description"
                 ),
-                onSelect: openAddModal,
+                onSelect: openAddTorrentPicker,
+            },
+            {
+                id: "add-magnet",
+                group: actionGroup,
+                title: t("command_palette.actions.add_magnet"),
+                description: t(
+                    "command_palette.actions.add_magnet_description"
+                ),
+                onSelect: () => openAddMagnet(),
             },
             {
                 id: "open-settings",
@@ -434,7 +490,8 @@ export default function App() {
         ];
     }, [
         focusSearchInput,
-        openAddModal,
+        openAddMagnet,
+        openAddTorrentPicker,
         openSettings,
         refreshTorrents,
         setFilter,
@@ -472,8 +529,6 @@ export default function App() {
         engineInfo,
         isDetectingEngine,
         isDragActive,
-        pendingTorrentFile,
-        incomingMagnetLink,
         dismissedHudCardSet,
     });
     const visibleHudCards = hudCards.visibleHudCards;
@@ -649,12 +704,6 @@ export default function App() {
         clearDetail();
     }, [clearDetail]);
 
-    const handleAddModalClose = useCallback(() => {
-        closeAddModal();
-        clearPendingTorrentFile();
-        clearIncomingMagnetLink();
-    }, [clearIncomingMagnetLink, clearPendingTorrentFile, closeAddModal]);
-
     const sequentialMethodAvailable = Boolean(
         torrentClient.setSequentialDownload
     );
@@ -761,8 +810,158 @@ export default function App() {
         reconnect();
     };
 
+    const closeAddTorrentWindow = useCallback(() => {
+        setTorrentDraft(null);
+    }, []);
+
+    const handleTorrentPickerChange = useCallback(
+        (event: ChangeEvent<HTMLInputElement>) => {
+            const file = event.target.files?.[0] ?? null;
+            event.target.value = "";
+            if (!file) return;
+            void openAddTorrentFromFile(file);
+        },
+        [openAddTorrentFromFile]
+    );
+
+    const resolveMagnetToMetadata = useCallback(
+        async (magnetLink: string): Promise<{ torrentId: string; metadata: TorrentMetadata } | null> => {
+            const normalized = normalizeMagnetLink(magnetLink);
+            if (!normalized) {
+                return null;
+            }
+
+            setIsResolvingMagnet(true);
+            try {
+                const added = await torrentClient.addTorrent({
+                    magnetLink: normalized,
+                    paused: true,
+                    downloadDir: settingsFlow.settingsConfig.download_dir,
+                });
+
+                const deadlineMs = Date.now() + 30000;
+                while (Date.now() < deadlineMs) {
+                    const detail = await torrentClient.getTorrentDetails(
+                        added.id
+                    );
+                    const files = detail.files ?? [];
+                    if (files.length > 0) {
+                        const metadata: TorrentMetadata = {
+                            name: detail.name,
+                            files: files.map((f) => ({
+                                path: f.name,
+                                length: f.length ?? 0,
+                            })),
+                        };
+                        return { torrentId: added.id, metadata };
+                    }
+                    await new Promise((r) => setTimeout(r, 500));
+                }
+                return null;
+            } finally {
+                setIsResolvingMagnet(false);
+            }
+        },
+        [settingsFlow.settingsConfig.download_dir, torrentClient]
+    );
+
+    const handleMagnetModalCancel = useCallback(() => {
+        if (isResolvingMagnet) return;
+        setMagnetDraft("");
+        closeAddMagnetModal();
+    }, [closeAddMagnetModal, isResolvingMagnet]);
+
+    const handleMagnetModalConfirm = useCallback(
+        async (magnetLink: string) => {
+            const result = await resolveMagnetToMetadata(magnetLink);
+            if (!result) {
+                closeAddMagnetModal();
+                return;
+            }
+            setTorrentDraft({
+                kind: "existing",
+                torrentId: result.torrentId,
+                metadata: result.metadata,
+            });
+            closeAddMagnetModal();
+        },
+        [closeAddMagnetModal, resolveMagnetToMetadata]
+    );
+
+    const handleTorrentWindowCancel = useCallback(async () => {
+        const draft = torrentDraft;
+        closeAddTorrentWindow();
+        if (draft?.kind === "existing") {
+            try {
+                await torrentClient.remove([draft.torrentId], false);
+            } catch {
+                // Ignore cleanup errors; torrent might already be removed.
+            }
+        }
+    }, [closeAddTorrentWindow, torrentClient, torrentDraft]);
+
+    const handleTorrentWindowConfirm = useCallback(
+        async (selection: AddTorrentSelection) => {
+            const draft = torrentDraft;
+            if (!draft) return;
+
+            if (draft.kind === "file") {
+                const metainfo = await readTorrentFileAsMetainfoBase64(
+                    draft.file
+                );
+                if (!metainfo.ok) {
+                    closeAddTorrentWindow();
+                    return;
+                }
+                await handleAddTorrent({
+                    downloadDir: selection.downloadDir,
+                    startNow: selection.startNow,
+                    metainfo: metainfo.metainfoBase64,
+                    filesUnwanted: selection.filesUnwanted,
+                    priorityHigh: selection.priorityHigh,
+                    priorityNormal: selection.priorityNormal,
+                    priorityLow: selection.priorityLow,
+                });
+                closeAddTorrentWindow();
+                return;
+            }
+
+            setIsFinalizingExisting(true);
+            try {
+                if (torrentClient.setTorrentLocation) {
+                    await torrentClient.setTorrentLocation(
+                        draft.torrentId,
+                        selection.downloadDir,
+                        true
+                    );
+                }
+                if (selection.filesUnwanted.length) {
+                    await torrentClient.updateFileSelection(
+                        draft.torrentId,
+                        selection.filesUnwanted,
+                        false
+                    );
+                }
+                if (selection.startNow) {
+                    await torrentClient.resume([draft.torrentId]);
+                }
+                closeAddTorrentWindow();
+            } finally {
+                setIsFinalizingExisting(false);
+            }
+        },
+        [closeAddTorrentWindow, handleAddTorrent, torrentClient, torrentDraft]
+    );
+
     return (
         <FocusProvider>
+            <input
+                ref={torrentFilePickerRef}
+                type="file"
+                accept=".torrent"
+                onChange={handleTorrentPickerChange}
+                className="hidden"
+            />
             <FocusController
                 selectedTorrents={selectedTorrents}
                 activeTorrentId={activeTorrentId}
@@ -778,7 +977,8 @@ export default function App() {
                 searchQuery={searchQuery}
                 setSearchQuery={setSearchQuery}
                 setFilter={setFilter}
-                openAddModal={openAddModal}
+                openAddTorrent={openAddTorrentPicker}
+                openAddMagnet={() => openAddMagnet()}
                 openSettings={openSettings}
                 selectedTorrents={selectedTorrents}
                 handleBulkAction={handleBulkAction}
@@ -822,12 +1022,6 @@ export default function App() {
                 visibleHudCards={visibleHudCards}
                 dismissHudCard={dismissHudCard}
                 hasDismissedInsights={hasDismissedInsights}
-                isAddModalOpen={isAddModalOpen}
-                handleAddModalClose={handleAddModalClose}
-                pendingTorrentFile={pendingTorrentFile}
-                incomingMagnetLink={incomingMagnetLink}
-                handleAddTorrent={handleAddTorrent}
-                isAddingTorrent={isAddingTorrent}
                 isSettingsOpen={isSettingsOpen}
                 closeSettings={closeSettings}
                 settingsConfig={settingsFlow.settingsConfig}
@@ -847,6 +1041,26 @@ export default function App() {
                 actions={commandActions}
                 getContextActions={getContextActions}
             />
+            <AddMagnetModal
+                isOpen={isAddMagnetModalOpen}
+                initialMagnetLink={magnetDraft}
+                isResolving={isResolvingMagnet}
+                onCancel={handleMagnetModalCancel}
+                onConfirm={handleMagnetModalConfirm}
+            />
+            {torrentDraft && (
+                <AddTorrentWindow
+                    isOpen={Boolean(torrentDraft)}
+                    metadata={torrentDraft.metadata}
+                    initialDownloadDir={settingsFlow.settingsConfig.download_dir}
+                    isSubmitting={isAddingTorrent || isFinalizingExisting}
+                    onCancel={() => void handleTorrentWindowCancel()}
+                    onConfirm={(selection) =>
+                        void handleTorrentWindowConfirm(selection)
+                    }
+                    checkFreeSpace={torrentClient.checkFreeSpace}
+                />
+            )}
         </FocusProvider>
     );
 }

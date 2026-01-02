@@ -5,8 +5,10 @@
     },
     "command_palette": {
         "actions": {
+            "add_magnet": "Add Magnet",
+            "add_magnet_description": "Paste a magnet link to resolve metadata.",
             "add_torrent": "Add Torrent",
-            "add_torrent_description": "Open the add torrent modal.",
+            "add_torrent_description": "Choose a .torrent file to configure before adding.",
             "focus_search": "Focus search field",
             "focus_search_description": "Jump straight to the filter bar.",
             "open_inspector": "Open inspector",
@@ -70,7 +72,40 @@
     },
     "modals": {
         "add_title": "Add Torrent",
+        "add_source_file": "Torrent File",
+        "add_source_magnet": "Magnet Link",
+        "add_magnet": {
+            "confirm": "Resolve",
+            "hint": "Paste a magnet link to resolve torrent metadata.",
+            "placeholder": "magnet:?xt=urn:btih...",
+            "resolving": "Resolving metadata...",
+            "title": "Add Magnet"
+        },
+        "add_torrent": {
+            "add_and_start": "Add & Start",
+            "add_paused": "Add Paused",
+            "col_name": "Name",
+            "col_priority": "Priority",
+            "col_select": "Select",
+            "col_size": "Size",
+            "destination": "DESTINATION",
+            "disk_space_insufficient": "Not enough disk space for the current selection.",
+            "file_count": "{{count}} file",
+            "file_count_plural": "{{count}} files",
+            "files_title": "FILES",
+            "filter_placeholder": "Filter files...",
+            "free_space_label": "Free space",
+            "free_space_loading": "Refreshing...",
+            "free_space_unknown": "Unknown",
+            "save_path_placeholder": "Choose a save path",
+            "select_all": "Select All",
+            "select_none": "Select None",
+            "selected_size_label": "Selected size",
+            "start_behavior": "START BEHAVIOR",
+            "title": "Add Torrent"
+        },
         "cancel": "Cancel",
+        "close": "Close",
         "disk_gauge": {
             "choose_path": "Choose a save location to view disk space.",
             "error_detail": "Unable to refresh disk usage: {{message}}",
@@ -101,6 +136,7 @@
         "file_tree_title": "Contents",
         "file_tree_waiting": "Waiting for torrent metadata…",
         "magnet_label": "MAGNET LINK",
+        "magnet_help": "Paste a magnet link; the daemon will resolve metadata automatically.",
         "magnet_placeholder": "magnet:?xt=urn:btih...",
         "options": "OPTIONS",
         "save_path": "SAVE PATH",
@@ -453,6 +489,7 @@
         "toggle_label": "Theme: {{value}}"
     },
     "toolbar": {
+        "add_magnet": "Add Magnet",
         "add_torrent": "Add Torrent",
         "delete_confirm": {
             "description": "Remove {{count}} torrents from the list?",

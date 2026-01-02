@@ -16,7 +16,6 @@ import { AlertTriangle, Link2, MousePointer, PlugZap, X } from "lucide-react";
 import Runtime, { NativeShell } from "@/app/runtime";
 
 import { ModeLayout } from "@/modules/dashboard/components/ModeLayout";
-import { AddTorrentModal } from "@/modules/torrent-add/components/AddTorrentModal";
 import { SettingsModal } from "@/modules/settings/components/SettingsModal";
 import { Navbar } from "./layout/Navbar";
 import { StatusBar, type EngineDisplayType } from "./layout/StatusBar";
@@ -84,7 +83,8 @@ interface WorkspaceShellProps {
     searchQuery: string;
     setSearchQuery: (value: string) => void;
     setFilter: (key: string) => void;
-    openAddModal: () => void;
+    openAddTorrent: () => void;
+    openAddMagnet: () => void;
     openSettings: () => void;
     selectedTorrents: Torrent[];
     handleBulkAction: (action: TorrentTableAction) => Promise<void>;
@@ -138,15 +138,6 @@ interface WorkspaceShellProps {
     visibleHudCards: AmbientHudCard[];
     dismissHudCard: (cardId: string) => void;
     hasDismissedInsights: boolean;
-    isAddModalOpen: boolean;
-    handleAddModalClose: () => void;
-    pendingTorrentFile: File | null;
-    incomingMagnetLink: string | null;
-    handleAddTorrent: (
-        payload: AddTorrentPayload,
-        context?: AddTorrentContext
-    ) => Promise<void>;
-    isAddingTorrent: boolean;
     isSettingsOpen: boolean;
     closeSettings: () => void;
     settingsConfig: SettingsConfig;
@@ -176,7 +167,8 @@ export function WorkspaceShell({
     searchQuery,
     setSearchQuery,
     setFilter,
-    openAddModal,
+    openAddTorrent,
+    openAddMagnet,
     openSettings,
     selectedTorrents,
     handleBulkAction,
@@ -218,12 +210,6 @@ export function WorkspaceShell({
     visibleHudCards,
     dismissHudCard,
     hasDismissedInsights,
-    isAddModalOpen,
-    handleAddModalClose,
-    pendingTorrentFile,
-    incomingMagnetLink,
-    handleAddTorrent,
-    isAddingTorrent,
     isSettingsOpen,
     closeSettings,
     settingsConfig,
@@ -249,12 +235,13 @@ export function WorkspaceShell({
     const isImmersiveShell = workspaceStyle === "immersive";
 
     const renderNavbar = () => (
-        <Navbar
+            <Navbar
             filter={filter}
             setFilter={setFilter}
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
-            onAdd={() => openAddModal()}
+            onAddTorrent={openAddTorrent}
+            onAddMagnet={openAddMagnet}
             onSettings={() => openSettings()}
             hasSelection={selectedTorrents.length > 0}
             onResumeSelection={() => {
@@ -598,16 +585,6 @@ export function WorkspaceShell({
 
             {renderDeleteModal()}
 
-            <AddTorrentModal
-                isOpen={isAddModalOpen}
-                onClose={handleAddModalClose}
-                initialFile={pendingTorrentFile}
-                initialMagnetLink={incomingMagnetLink ?? undefined}
-                initialDownloadDir={settingsConfig.download_dir}
-                onAdd={handleAddTorrent}
-                isSubmitting={isAddingTorrent}
-                isNativeMode={isNativeIntegrationActive}
-            />
             <SettingsModal
                 isOpen={isSettingsOpen}
                 onClose={closeSettings}

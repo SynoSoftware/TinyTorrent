@@ -358,8 +358,30 @@
         max-width: var(--tt-modal-max-width);
     }
 
+    .max-w-modal-add {
+        max-width: var(--tt-modal-add-w);
+    }
+
+    .max-h-modal-body {
+        max-height: var(--tt-modal-body-max-h);
+    }
+
     .min-w-status-chip {
         min-width: var(--tt-badge-min-width);
+    }
+
+    .rounded-modal {
+        border-radius: var(--r-lg);
+    }
+
+    .icon-size {
+        width: var(--tt-icon-size);
+        height: var(--tt-icon-size);
+    }
+
+    .icon-size-lg {
+        width: var(--icon-lg);
+        height: var(--icon-lg);
     }
 
     /* LIGHT - emerald paper */

@@ -28,6 +28,7 @@ import {
     zTransmissionTorrentRenameResult,
     zSystemInstallResult,
     zRpcSuccess,
+    zTransmissionAddTorrentResponse,
     getTorrentList,
     getSessionStats,
 } from "@/services/rpc/schemas";
@@ -51,6 +52,7 @@ import type {
     TorrentTrackerEntity,
     TorrentPeerEntity,
     AddTorrentPayload,
+    AddTorrentResult,
     SessionStats,
     EngineInfo,
     LibtorrentPriority,
@@ -902,7 +904,7 @@ export class TransmissionAdapter implements EngineAdapter {
         return normalizeTorrentDetail(detail);
     }
 
-    public async addTorrent(payload: AddTorrentPayload): Promise<void> {
+    public async addTorrent(payload: AddTorrentPayload): Promise<AddTorrentResult> {
         const args: Record<string, unknown> = {
             paused: payload.paused,
         };
@@ -918,10 +920,38 @@ export class TransmissionAdapter implements EngineAdapter {
         } else {
             throw new Error("No torrent source provided");
         }
-        await this.send(
+        if (payload.filesUnwanted?.length) {
+            args["files-unwanted"] = payload.filesUnwanted;
+        }
+
+        if (this.serverClass !== "tinytorrent") {
+            if (payload.priorityHigh?.length) {
+                args["priority-high"] = payload.priorityHigh;
+            }
+            if (payload.priorityNormal?.length) {
+                args["priority-normal"] = payload.priorityNormal;
+            }
+            if (payload.priorityLow?.length) {
+                args["priority-low"] = payload.priorityLow;
+            }
+        }
+
+        const response = await this.send(
             { method: "torrent-add", arguments: args },
-            zRpcSuccess
+            zTransmissionAddTorrentResponse
         );
+        const parsed = response as AddTorrentResponse;
+        const torrent = parsed["torrent-added"] ?? parsed["torrent-duplicate"];
+        if (!torrent) {
+            throw new Error("Torrent add did not return an identifier");
+        }
+        this.idMap.set(torrent.hashString, torrent.id);
+        return {
+            id: torrent.hashString,
+            rpcId: torrent.id,
+            name: torrent.name,
+            duplicate: Boolean(parsed["torrent-duplicate"]),
+        };
     }
 
     public async pause(ids: string[]): Promise<void> {
@@ -1032,10 +1062,26 @@ export class TransmissionAdapter implements EngineAdapter {
     public async setTorrentLocation(
         ids: number | number[],
         location: string,
+        moveData?: boolean
+    ): Promise<void>;
+    public async setTorrentLocation(
+        id: string,
+        location: string,
+        moveData?: boolean
+    ): Promise<void>;
+    public async setTorrentLocation(
+        idsOrId: number | number[] | string,
+        location: string,
         moveData = true
     ): Promise<void> {
+        const ids =
+            typeof idsOrId === "string"
+                ? [await this.resolveRpcId(idsOrId)]
+                : Array.isArray(idsOrId)
+                  ? idsOrId
+                  : [idsOrId];
         await this.mutate("torrent-set-location", {
-            ids: Array.isArray(ids) ? ids : [ids],
+            ids,
             location,
             move: moveData,
         });

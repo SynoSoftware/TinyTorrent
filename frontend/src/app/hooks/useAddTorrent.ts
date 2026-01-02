@@ -28,6 +28,9 @@ interface AddTorrentPayload {
     downloadDir: string;
     startNow: boolean;
     filesUnwanted?: number[];
+    priorityHigh?: number[];
+    priorityNormal?: number[];
+    priorityLow?: number[];
 }
 
 export interface AddTorrentContext {
@@ -78,6 +81,9 @@ export function useAddTorrent({
                     downloadDir: payload.downloadDir,
                     paused: !payload.startNow,
                     filesUnwanted: payload.filesUnwanted,
+                    priorityHigh: payload.priorityHigh,
+                    priorityNormal: payload.priorityNormal,
+                    priorityLow: payload.priorityLow,
                 });
                 await refreshTorrents();
                 await refreshSessionStatsData();

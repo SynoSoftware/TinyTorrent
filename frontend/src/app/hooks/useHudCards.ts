@@ -6,19 +6,11 @@ import type { EngineInfo } from "@/services/rpc/entities";
 import type { RpcStatus } from "@/shared/types/rpc";
 import type { AmbientHudCard } from "@/app/types/workspace";
 
-const formatMicrocopyValue = (value: string, max = 48) => {
-    if (!value) return "";
-    if (value.length <= max) return value;
-    return `${value.slice(0, max)}...`;
-};
-
 interface UseHudCardsParams {
     rpcStatus: RpcStatus;
     engineInfo: EngineInfo | null;
     isDetectingEngine: boolean;
     isDragActive: boolean;
-    pendingTorrentFile: File | null;
-    incomingMagnetLink: string | null;
     dismissedHudCardSet: Set<string>;
 }
 
@@ -27,8 +19,6 @@ export function useHudCards({
     engineInfo,
     isDetectingEngine,
     isDragActive,
-    pendingTorrentFile,
-    incomingMagnetLink,
     dismissedHudCardSet,
 }: UseHudCardsParams) {
     const { t } = useTranslation();
@@ -99,10 +89,6 @@ export function useHudCards({
             ? t("workspace.stage.drop_active_title", {
                   defaultValue: "Release to queue",
               })
-            : pendingTorrentFile
-            ? t("workspace.stage.drop_file_ready_title", {
-                  defaultValue: "File staged",
-              })
             : t("workspace.stage.drop_idle_title", {
                   defaultValue: "Drop torrents anywhere",
               });
@@ -110,13 +96,6 @@ export function useHudCards({
             ? t("workspace.stage.drop_active_description", {
                   defaultValue:
                       "We'll parse and schedule this payload instantly.",
-              })
-            : pendingTorrentFile
-            ? t("workspace.stage.drop_file_ready_description", {
-                  defaultValue: `Primed: ${formatMicrocopyValue(
-                      pendingTorrentFile.name,
-                      34
-                  )}`,
               })
             : t("workspace.stage.drop_idle_description", {
                   defaultValue:
@@ -129,31 +108,19 @@ export function useHudCards({
             ? "bg-primary/15 text-primary"
             : "bg-foreground/10 text-foreground/60";
 
-        const deepLinkReady = Boolean(incomingMagnetLink);
-        const magnetPreview = incomingMagnetLink
-            ? formatMicrocopyValue(incomingMagnetLink, 60)
-            : "";
-        const deepLinkTitle = deepLinkReady
-            ? t("workspace.stage.deeplink_ready_title", {
-                  defaultValue: "Magnet captured",
-              })
-            : t("workspace.stage.deeplink_idle_title", {
-                  defaultValue: "Deep links armed",
-              });
-        const deepLinkDescription = deepLinkReady
-            ? t("workspace.stage.deeplink_ready_description", {
-                  defaultValue: `Composer pre-filled with ${magnetPreview}`,
-              })
-            : t("workspace.stage.deeplink_idle_description", {
-                  defaultValue:
-                      "Share any magnet:? URL or magnet query to auto-open the Add modal.",
-              });
-        const deepSurface = deepLinkReady
-            ? "bg-gradient-to-br from-pink-500/20 via-background/30 to-transparent"
-            : "bg-gradient-to-br from-foreground/10 via-background/30 to-transparent";
-        const deepIconBg = deepLinkReady
-            ? "bg-pink-500/20 text-pink-50"
-            : "bg-foreground/10 text-foreground/60";
+        const deepLinkTitle = t("workspace.stage.deeplink_idle_title", {
+            defaultValue: "Deep links armed",
+        });
+        const deepLinkDescription = t(
+            "workspace.stage.deeplink_idle_description",
+            {
+                defaultValue:
+                    "Share any magnet:? URL or magnet query to auto-open the Add modal.",
+            }
+        );
+        const deepSurface =
+            "bg-gradient-to-br from-foreground/10 via-background/30 to-transparent";
+        const deepIconBg = "bg-foreground/10 text-foreground/60";
 
         return [
             {
@@ -191,10 +158,8 @@ export function useHudCards({
             },
         ];
     }, [
-        incomingMagnetLink,
         isDetectingEngine,
         isDragActive,
-        pendingTorrentFile,
         rpcStatus,
         engineInfo,
         t,
