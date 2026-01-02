@@ -39,7 +39,7 @@ TinyTorrent = **modern µTorrent** × **glass UI** × **Windows 11 acrylic polis
 
 ## **2a. UI Scale System**
 
-- All interactive element sizes (icons, hit areas, paddings) are derived from central config.
+- All interactive element sizes are derived from central config and must respect Typography vs Geometry ownership (§2c).
 - Do **not** use Tailwind pixel-based sizing classes (`w-5`, `h-6`, `text-[14px]`) directly.
 - All sizing must reference scale tokens or semantic utility classes derived from config.
 
@@ -52,6 +52,8 @@ All spacing, sizing, radius, and scale values must come from configuration token
 **UI must be consistent and controlled by a small set of shared knobs.** If a UI change requires a number and no suitable semantic token exists, the element must be left unchanged and flagged instead.
 
 ### **No-New-Numbers Rule**
+
+This restriction applies to component TSX/CSS usage; introducing numbers is allowed only in `constants.json` and `index.css @theme` as part of the token pipeline.
 
 When fixing zoom-related or css magic number issues:
 
@@ -75,6 +77,55 @@ When fixing zoom-related or css magic number issues:
 
 ---
 
+## **2c. Typography vs Geometry Ownership (Authoritative)**
+
+TinyTorrent uses **two root primitives** with **non-overlapping responsibilities**.
+
+This is NOT optional and NOT stylistic.
+
+### **Typography-Owned (Derived from `--fz`)**
+
+Typography tokens MUST be expressed as named CSS tokens in `@theme` (e.g. `--tt-text-body`, `--tt-icon`, `--tt-row`) and may use `--fz` in their arithmetic.
+
+The following MUST scale with font size:
+
+- Body text
+- Table body text
+- Numeric text (speeds, sizes, counts)
+- Icon glyph size
+- Label text
+- Row height for data tables and lists
+
+These elements must visually track readability.
+If text grows, rows and icons must grow with it.
+
+### **Geometry-Owned (Derived from `--u * --z`)**
+
+The following MUST scale with layout rhythm:
+
+- Panel padding (`p-tight`, `p-panel`, `p-stage`)
+- Gaps (`gap-tools`, `gap-stage`)
+- Structural bars (`h-nav`, `h-status`)
+- Modal framing and chrome
+- Glass surfaces and borders
+- Divider/separator thickness (borders)
+- Focus ring thickness/offset
+- Scrollbar thickness
+- Resize/drag handle hit-target geometry
+
+These elements define spatial rhythm and must remain stable relative to each other.
+
+### **Hard Rule**
+
+Composing typography tokens with geometry tokens in the same component is expected; the rule forbids deriving a single token from both systems.
+
+No single CSS dimension token (height/width/padding/gap/font-size/line-height/icon-size) may be computed from both systems.
+
+If an element requires both:
+
+- Do NOT implement it.
+- FLAG it as a missing semantic role.
+
 # **3. Design System Authority & Token Pipeline**
 
 This section defines the **Zero-Literal Mandate**. To maintain the "Confident Workbench" feel and ensure 100% harmonic scaling, all agents must strictly follow this pipeline.
@@ -91,14 +142,17 @@ Any visual or layout change **MUST**:
 Component-local visual tuning is forbidden.
 
 **The only acceptable global knobs are:**
-- **Unit:** `--u` (base unit)
-- **Zoom:** `--z` (global scale multiplier)
-- **Font scale:** `--fz` (typography scaling)
+
+- **Unit:** `--u` (layout rhythm unit)
+- **Zoom:** `--z` (layout scale multiplier)
+- **Font scale:** `--fz` (readability scale)
 - **Radius set:** a single semantic radius family (no competing radius systems)
 - **Blur set:** Layer 1 + Layer 2 blur tokens only
 - **Elevation set:** Layer 1 + Layer 2 shadow tokens only
 - **Core structural sizes:** `h-nav`, `h-status`, `h-row` (and other structural sizes only if already part of the shell contract)
 - **Core spacing roles:** `p-panel`, `p-tight`, `gap-stage`, `gap-tools`
+
+Note: `--tt-font-base` is a theme token (length anchor), not a knob; it exists only to let `--fz` scale typography.
 
 If a change requires another knob, do not implement it in component code — flag it and route it through the token pipeline.
 
@@ -107,7 +161,10 @@ If a change requires another knob, do not implement it in component code — fla
 No dimension or color may skip a layer.
 
 1. **Intent (`constants.json`):** Defines logical units (e.g., `"padding_panel": 6`).
-2. **Arithmetic (`index.css` @theme):** Performs the scaling: `calc(var(--u) * [units] * var(--z))`.
+2. **Arithmetic (`index.css` @theme):** Performs scaling using ONLY root knobs:
+   - Geometry: `calc(var(--u) * [units] * var(--z))`
+   - Typography: `calc(var(--tt-font-base) * var(--fz) * [units])`
+
 3. **Role (`logic.ts`):** Exports semantic strings (e.g., `export const PADDING_PANEL = "p-panel"`).
 4. **Application (`.tsx`):** Uses the semantic class. **Literal numbers are forbidden here.**
 
@@ -151,10 +208,17 @@ When modifying layout, you must categorize every spacing decision into a **Logic
 ## **F. The Scale Test (Pre-Commit Requirement)**
 
 Before submitting any UI code, the agent must perform a "Mental Scale Test":
-> *"If I change `--u` from `4px` to `8px` in index.css, will my new code expand proportionally and maintain its internal alignment?"*
->
-> - If **Yes**: Proceed.
-> - If **No**: You used a magic number or a hardcoded Tailwind utility. **Delete it.**
+ *"If I change `--u` from `4px` to `8px` in index.css, will my new code expand proportionally and maintain its internal alignment?"*
+
+ - If **Yes**: Proceed.
+ - If **No**: You used a magic number or a hardcoded Tailwind utility. **Delete it.**
+
+Additionally:
+
+- Increasing `--fz` must improve readability without breaking layout.
+- Increasing `--z` must expand layout without making text unreadable.
+- If both are required to fix an issue, the design is wrong and must be flagged.
+
 
 ## **G. Single Place of Control**
 
@@ -289,6 +353,8 @@ Before claiming UI work is done, verify:
 - No duplicates: the same concept uses the same token everywhere (row height, panel padding, tool gaps).
 - DRY: no repeated “glass recipe” strings; shared recipes are centralized.
 - Scale test: changing `--u` (4→8) and `--z` (1→1.25) would scale everything harmonically.
+- Typography scaling and layout scaling were not conflated.
+
 
 Any PR containing forbidden numeric Tailwind/bracket classes is invalid and must be rewritten.
 
@@ -673,7 +739,7 @@ Instead of "modals for details", TinyTorrent uses a **Master–Detail Workbench*
     - `react-resizable-panels` for all splits.
     - Drag handles:
 
-        - Invisible 4 px hover target
+        - Invisible drag-handle hit target (`h-handle-hit` or equivalent semantic token)
         - On hover/drag, show a 1 px separator line using `border-default` semantics.
 
     - No thick gutters; everything feels sharp and minimal like VS Code.
