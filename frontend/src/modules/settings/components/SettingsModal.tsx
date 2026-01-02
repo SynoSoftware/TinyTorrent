@@ -15,7 +15,11 @@ import type {
     SliderDefinition,
 } from "@/modules/settings/data/settings-tabs";
 import type { RpcStatus } from "@/shared/types/rpc";
-import { CLIPBOARD_BADGE_DURATION_MS, ICON_STROKE_WIDTH, INTERACTION_CONFIG } from "@/config/logic";
+import {
+    CLIPBOARD_BADGE_DURATION_MS,
+    ICON_STROKE_WIDTH,
+    INTERACTION_CONFIG,
+} from "@/config/logic";
 import { APP_VERSION } from "@/shared/version";
 import { ChevronLeft, RotateCcw, Save, X } from "lucide-react";
 import { SettingsFormBuilder } from "@/modules/settings/components/SettingsFormBuilder";
@@ -24,6 +28,7 @@ import { SystemTabContent } from "@/modules/settings/components/tabs/system/Syst
 import { SettingsFormProvider } from "@/modules/settings/context/SettingsFormContext";
 import { NativeShell } from "@/app/runtime";
 import { GLASS_MODAL_SURFACE } from "@/shared/ui/layout/glass-surface";
+import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
 import type { ServerClass } from "@/services/rpc/entities";
 import { InterfaceTabContent } from "@/modules/settings/components/InterfaceTabContent";
 
@@ -39,7 +44,9 @@ type SaveableSettingsConfig = Omit<
     keyof LiveUserPreferencePatch
 >;
 
-const stripLivePreferences = (config: SettingsConfig): SaveableSettingsConfig => {
+const stripLivePreferences = (
+    config: SettingsConfig
+): SaveableSettingsConfig => {
     const {
         refresh_interval_ms: _refreshIntervalMs,
         request_timeout_ms: _requestTimeoutMs,
@@ -306,16 +313,26 @@ export function SettingsModal({
             }
             setConfig((prev) => ({ ...prev, [key]: nextValue }));
 
-            if (key === "table_watermark_enabled" && typeof nextValue === "boolean") {
+            if (
+                key === "table_watermark_enabled" &&
+                typeof nextValue === "boolean"
+            ) {
                 onApplyUserPreferencesPatch?.({
                     table_watermark_enabled: nextValue,
                 });
             }
-            if (key === "refresh_interval_ms" && typeof nextValue === "number") {
-                onApplyUserPreferencesPatch?.({ refresh_interval_ms: nextValue });
+            if (
+                key === "refresh_interval_ms" &&
+                typeof nextValue === "number"
+            ) {
+                onApplyUserPreferencesPatch?.({
+                    refresh_interval_ms: nextValue,
+                });
             }
             if (key === "request_timeout_ms" && typeof nextValue === "number") {
-                onApplyUserPreferencesPatch?.({ request_timeout_ms: nextValue });
+                onApplyUserPreferencesPatch?.({
+                    request_timeout_ms: nextValue,
+                });
             }
         },
         [onApplyUserPreferencesPatch, sliderConstraints]
@@ -538,21 +555,13 @@ export function SettingsModal({
                                     )}
                                 </div>
                             </div>
-                            <Button
-                                isIconOnly
-                                radius="full"
-                                size="md"
-                                variant="shadow"
+                            <ToolbarIconButton
+                                Icon={X}
+                                ariaLabel={t("torrent_modal.actions.close")}
                                 onPress={onClose}
+                                iconSize="lg"
                                 className="text-foreground/40 hover:text-foreground hidden sm:flex"
-                            >
-                                <X
-                                    style={{
-                                        width: "var(--tt-icon-size)",
-                                        height: "var(--tt-icon-size)",
-                                    }}
-                                />
-                            </Button>
+                            />
                         </div>
 
                         {/* Scrollable Content */}

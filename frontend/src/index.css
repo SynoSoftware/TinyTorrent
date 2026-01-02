@@ -161,13 +161,15 @@
     --tt-priority-badge-font-size: var(--fz-scaled);
     --tt-priority-badge-padding-x: var(--p-2);
     --tt-priority-badge-padding-y: var(--p-1);
+    --tt-priority-select-w: calc(32 * var(--u) * var(--z));
     --tt-file-icon-size: calc(4 * var(--u) * var(--z));
     --tt-file-checkbox-padding: var(--p-1);
 
     /* Added semantic tokens for previously inline arbitrary Tailwind calcs */
     --tt-modal-max-width: calc(180 * var(--u) * var(--z));
     --tt-modal-body-max-height: calc(70 * var(--u) * var(--z));
-    --tt-modal-add-w: calc(var(--u) * 180 * var(--z));
+    --tt-modal-add-w: calc(var(--u) * 275 * var(--z));
+    --tt-modal-add-h: calc(var(--u) * 188 * var(--z));
     --tt-modal-body-max-h: calc(var(--u) * 70 * var(--z));
     --tt-modal-settings-h: calc(var(--u) * 200 * var(--z));
     --tt-modal-settings-min-h: calc(var(--u) * 125 * var(--z));
@@ -287,6 +289,21 @@
         width: var(--tt-status-icon-xl);
         height: var(--tt-status-icon-xl);
     }
+    .toolbar-icon-button-glow {
+        padding: var(--gap-tools);
+        min-width: calc(var(--tt-status-icon-xl) + var(--gap-tools));
+        min-height: calc(var(--tt-status-icon-xl) + var(--gap-tools));
+        box-shadow: 0 0 var(--gap-tools) rgba(var(--heroui-primary-500), 0.4);
+        transition: box-shadow 0.2s ease, transform 0.2s ease;
+    }
+    .toolbar-icon-button-glow:hover {
+        box-shadow: 0 0 var(--gap-tools) rgba(var(--heroui-primary-500), 0.6);
+        transform: scale(1.02);
+    }
+    .toolbar-icon-button-glow:focus-visible {
+        box-shadow: 0 0 calc(var(--gap-tools) + var(--gap-tools))
+            rgba(var(--heroui-primary-500), 0.75);
+    }
     .window-control-button-width {
         width: var(--tt-navbar-h);
     }
@@ -360,6 +377,17 @@
 
     .max-w-modal-add {
         max-width: var(--tt-modal-add-w);
+    }
+
+    .h-modal-add {
+        height: var(--tt-modal-add-h);
+        min-height: var(--tt-modal-add-h);
+        max-height: var(--tt-modal-add-h);
+    }
+
+    .priority-select-trigger {
+        min-width: var(--tt-priority-select-w);
+        width: var(--tt-priority-select-w);
     }
 
     .max-h-modal-body {

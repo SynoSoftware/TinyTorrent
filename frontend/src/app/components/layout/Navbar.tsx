@@ -118,7 +118,9 @@ export function Navbar({
                                     {t("brand.name")}
                                 </span>
                                 <span className="text-default-400 font-mono text-xs font-medium leading-none mt-0.5">
-                                    {t("brand.version", { version: APP_VERSION })}
+                                    {t("brand.version", {
+                                        version: APP_VERSION,
+                                    })}
                                 </span>
                             </div>
                         </div>
@@ -212,37 +214,31 @@ export function Navbar({
                             />
                         </div>
                     </div>
+                    <div
+                        className={cn(
+                            "flex items-center gap-tools transition-opacity duration-200",
+                            "opacity-100"
+                        )}
+                    >
+                        <div className="flex items-center gap-tools min-w-0">
+                            <ToolbarIconButton
+                                Icon={FileUp}
+                                ariaLabel={t("toolbar.add_torrent")}
+                                title={t("toolbar.add_torrent")}
+                                onPress={onAddTorrent}
+                                className="text-primary hover:text-primary-600 hover:bg-primary/10 ring-1 ring-primary/20"
+                                iconSize="lg"
+                            />
 
-                    <div className="flex items-center gap-tools min-w-0">
-                        <Button
-                            size="md"
-                            variant="shadow"
-                            color="primary"
-                            onPress={onAddTorrent}
-                            className="ring-1 ring-primary/20"
-                            startContent={
-                                <FileUp
-                                    strokeWidth={ICON_STROKE_WIDTH}
-                                    className="icon-size text-current"
-                                />
-                            }
-                        >
-                            {t("toolbar.add_torrent")}
-                        </Button>
-                        <Button
-                            size="md"
-                            variant="shadow"
-                            onPress={onAddMagnet}
-                            startContent={
-                                <Magnet
-                                    strokeWidth={ICON_STROKE_WIDTH}
-                                    className="icon-size text-current"
-                                />
-                            }
-                        >
-                            {t("toolbar.add_magnet")}
-                        </Button>
-
+                            <ToolbarIconButton
+                                Icon={Magnet}
+                                ariaLabel={t("toolbar.add_magnet")}
+                                title={t("toolbar.add_magnet")}
+                                onPress={onAddMagnet}
+                                className="text-primary hover:text-primary-600 hover:bg-primary/10"
+                                iconSize="lg"
+                            />
+                        </div>
                         <div
                             className="hidden sm:flex w-px bg-default-200/50 mx-tight"
                             style={{ height: "calc(var(--tt-navbar-h) / 2)" }}
