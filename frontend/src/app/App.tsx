@@ -41,10 +41,11 @@ import type {
 } from "@/modules/dashboard/types/torrentDetail";
 import type { ServerClass } from "@/services/rpc/entities";
 import {
-    AddTorrentWindow,
+    AddTorrentModal,
     type AddTorrentSelection,
     type AddTorrentSource,
-} from "@/modules/torrent-add/components/AddTorrentWindow";
+} from "@/modules/torrent-add/components/AddTorrentModal";
+import { AddMagnetModal } from "@/modules/torrent-add/components/AddMagnetModal";
 import { normalizeMagnetLink } from "@/app/utils/magnet";
 import { parseTorrentFile, type TorrentMetadata } from "@/shared/utils/torrent";
 import { readTorrentFileAsMetainfoBase64 } from "@/modules/torrent-add/services/torrent-metainfo";
@@ -168,29 +169,40 @@ export default function App() {
     const isNativeHost = Runtime.isNativeHost;
     const isRunningNative = isNativeHost || isNativeIntegrationActive;
 
-    const { isSettingsOpen, openSettings, closeSettings } = useWorkspaceModals();
+    const { isSettingsOpen, openSettings, closeSettings } =
+        useWorkspaceModals();
 
     const [addSource, setAddSource] = useState<AddTorrentSource | null>(null);
     const [isResolvingMagnet, setIsResolvingMagnet] = useState(false);
     const [isFinalizingExisting, setIsFinalizingExisting] = useState(false);
+    const [isMagnetModalOpen, setMagnetModalOpen] = useState(false);
+    const [magnetModalInitialValue, setMagnetModalInitialValue] = useState("");
     const torrentFilePickerRef = useRef<HTMLInputElement | null>(null);
 
     const openAddTorrentPicker = useCallback(() => {
         torrentFilePickerRef.current?.click();
     }, []);
 
-    const openAddMagnet = useCallback(
-        (magnetLink?: string) => {
-            const normalized =
-                normalizeMagnetLink(
-                    magnetLink ??
-                        (typeof window !== "undefined"
-                            ? window.prompt(
-                                  t("modals.magnet_placeholder")
-                              ) ?? ""
-                            : "")
-                ) ?? "";
+    const openAddMagnet = useCallback((magnetLink?: string) => {
+        const normalized = magnetLink
+            ? normalizeMagnetLink(magnetLink)
+            : undefined;
+        const initialValue = normalized ?? magnetLink ?? "";
+        setMagnetModalInitialValue(initialValue);
+        setMagnetModalOpen(true);
+    }, []);
+
+    const handleMagnetModalClose = useCallback(() => {
+        setMagnetModalOpen(false);
+        setMagnetModalInitialValue("");
+    }, []);
+
+    const handleMagnetSubmit = useCallback(
+        (link: string) => {
+            const normalized = normalizeMagnetLink(link);
             if (!normalized) return;
+            setMagnetModalOpen(false);
+            setMagnetModalInitialValue("");
             setAddSource({
                 kind: "magnet",
                 label: normalized,
@@ -198,7 +210,7 @@ export default function App() {
                 status: "resolving",
             });
         },
-        [t]
+        [setAddSource]
     );
 
     const openAddTorrentFromFile = useCallback(async (file: File) => {
@@ -976,12 +988,7 @@ export default function App() {
                 setIsFinalizingExisting(false);
             }
         },
-        [
-            addSource,
-            closeAddTorrentWindow,
-            handleAddTorrent,
-            torrentClient,
-        ]
+        [addSource, closeAddTorrentWindow, handleAddTorrent, torrentClient]
     );
 
     return (
@@ -1061,7 +1068,9 @@ export default function App() {
                 handleSaveSettings={settingsFlow.handleSaveSettings}
                 handleTestPort={settingsFlow.handleTestPort}
                 restoreHudCards={restoreHudCards}
-                applyUserPreferencesPatch={settingsFlow.applyUserPreferencesPatch}
+                applyUserPreferencesPatch={
+                    settingsFlow.applyUserPreferencesPatch
+                }
                 tableWatermarkEnabled={
                     settingsFlow.settingsConfig.table_watermark_enabled
                 }
@@ -1072,11 +1081,19 @@ export default function App() {
                 actions={commandActions}
                 getContextActions={getContextActions}
             />
+            <AddMagnetModal
+                isOpen={isMagnetModalOpen}
+                initialValue={magnetModalInitialValue}
+                onClose={handleMagnetModalClose}
+                onSubmit={handleMagnetSubmit}
+            />
             {addSource && (
-                <AddTorrentWindow
+                <AddTorrentModal
                     isOpen={Boolean(addSource)}
                     source={addSource}
-                    initialDownloadDir={settingsFlow.settingsConfig.download_dir}
+                    initialDownloadDir={
+                        settingsFlow.settingsConfig.download_dir
+                    }
                     isSubmitting={isAddingTorrent || isFinalizingExisting}
                     isResolvingSource={isResolvingMagnet}
                     onCancel={() => void handleTorrentWindowCancel()}

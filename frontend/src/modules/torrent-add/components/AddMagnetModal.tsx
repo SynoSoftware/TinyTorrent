@@ -73,9 +73,8 @@ export function AddMagnetModal({
             onOpenChange={(open) => (!open ? handleClose() : undefined)}
             backdrop="blur"
             placement="center"
-            // 1. Hide the default close button so we can use your custom ToolbarIconButton
-            hideCloseButton
             motionProps={INTERACTION_CONFIG.modalBloom}
+            hideCloseButton
             classNames={{
                 base: cn(GLASS_MODAL_SURFACE),
             }}
@@ -83,24 +82,23 @@ export function AddMagnetModal({
             <ModalContent>
                 {() => (
                     <>
-                        {/* 2. Apply the layout/visual classes directly to ModalHeader */}
-                        <ModalHeader className="border-b border-content1/10 flex items-center justify-between px-stage bg-content1/30 backdrop-blur-xl gap-tools">
-                            <div className="flex items-center gap-tools">
-                                <Magnet className="text-primary" />
-                                <span className="text-label tracking-label uppercase font-semibold">
-                                    {t("modals.add_magnet.title")}
-                                </span>
+                        <ModalHeader className="border-b border-default/20 px-stage py-panel">
+                            <div className="flex items-center justify-between gap-tools">
+                                <div className="flex items-center gap-tools">
+                                    <Magnet className="text-primary" />
+                                    <span className="text-label tracking-label uppercase font-semibold">
+                                        {t("modals.add_magnet.title")}
+                                    </span>
+                                </div>
+                                <ToolbarIconButton
+                                    Icon={X}
+                                    ariaLabel={t("torrent_modal.actions.close")}
+                                    onPress={handleClose}
+                                    iconSize="lg"
+                                    className="text-foreground/40 hover:text-foreground hidden sm:flex"
+                                />
                             </div>
-                            {/* 3. Your Custom Close Button maintained here */}
-                            <ToolbarIconButton
-                                Icon={X}
-                                ariaLabel={t("torrent_modal.actions.close")}
-                                onPress={handleClose}
-                                iconSize="lg" // Keeps the size you wanted
-                                className="text-foreground/40 hover:text-foreground"
-                            />
                         </ModalHeader>
-
                         <ModalBody className="space-y-panel py-panel">
                             <Textarea
                                 ref={textareaRef}
