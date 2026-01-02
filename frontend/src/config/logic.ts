@@ -79,7 +79,7 @@ const DEFAULT_TIMERS = {
 
 // --- SHELL (Classic / Immersive) ---
 const DEFAULT_SHELL_CLASSIC = {
-    outer_radius: 20,
+    outer_radius: 12,
     panel_gap: 0,
     ring_padding: 0,
     handle_hit_area: 10,
@@ -370,8 +370,15 @@ export const SPEED_WINDOW_OPTIONS = [
     { key: "1h", label: "1h", minutes: 60 },
 ] as const;
 
-export const ICON_STROKE_WIDTH = constants.iconography.stroke_width;
-export const ICON_STROKE_WIDTH_DENSE = constants.iconography.stroke_width_dense;
+const iconography = constants.iconography ?? {};
+const iconographyStrokeWidth = readNumber(iconography.stroke_width, 1.5);
+const iconographyStrokeWidthDense = readNumber(
+    iconography.stroke_width_dense,
+    1.2
+);
+
+export const ICON_STROKE_WIDTH = `var(--tt-icon-stroke, ${iconographyStrokeWidth})`;
+export const ICON_STROKE_WIDTH_DENSE = `var(--tt-icon-stroke-dense, ${iconographyStrokeWidthDense})`;
 
 // Semantic status visuals used across the app (moved out of components)
 export const STATUS_VISUALS: Record<
@@ -448,7 +455,6 @@ export const TABLE_PERSIST_DEBOUNCE_MS = readNumber(
     timerConfig.table_persist_debounce_ms,
     DEFAULT_TIMERS.table_persist_debounce_ms
 );
-
 
 export interface DragOverlayRootConfig {
     initialScale: number;

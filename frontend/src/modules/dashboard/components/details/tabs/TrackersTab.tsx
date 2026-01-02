@@ -7,6 +7,8 @@ import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import { GLASS_PANEL_SURFACE } from "@/shared/ui/layout/glass-surface";
 import type { TorrentTrackerEntity } from "@/services/rpc/entities";
 import { TEXT_ROLES } from "./textRoles";
+import StatusIcon from "@/shared/ui/components/StatusIcon";
+import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
 
 interface TrackersTabProps {
     trackers: TorrentTrackerEntity[];
@@ -46,34 +48,40 @@ export const TrackersTab = ({
     return (
         <div className="flex h-full flex-col gap-panel">
             {/* Workbench Toolbar */}
-            <div className="flex items-center justify-between px-tight">
+                <div className="sticky top-0 z-sticky flex items-center justify-between px-tight">
                 <div className="flex items-center gap-tools">
-                    <Activity size={14} className="text-primary" />
+                    <StatusIcon
+                        Icon={Activity}
+                        size="md"
+                        className="text-primary"
+                    />
                     <span className="text-label uppercase tracking-tight text-foreground/60">
                         {t("torrent_modal.trackers.title", {
                             defaultValue: "Trackers",
                         })}
                     </span>
                 </div>
-                <Button
-                    isIconOnly
-                    size="md"
-                    variant="shadow"
+                <ToolbarIconButton
+                    Icon={Plus}
+                    ariaLabel={t("torrent_modal.trackers.toggle_add")}
                     onPress={() => setShowAdd((v) => !v)}
-                    className="hover:bg-primary/10 hover:text-primary"
-                >
-                    <Plus size={18} />
-                </Button>
+                    iconSize="md"
+                    className="text-primary hover:text-primary/80"
+                />
             </div>
 
             {/* Cinematic Table */}
             <GlassPanel className="relative min-h-0 flex-1 overflow-hidden border-default/10 ">
                 <div className="h-full overflow-auto">
                     <table className="w-full border-separate border-spacing-0 text-left">
-                        <thead className="sticky top-0 z-20 bg-background/80 backdrop-blur-md">
+                        <thead className="sticky top-0 z-sticky bg-background/80 backdrop-blur-md">
                             <tr className="text-label font-bold uppercase tracking-tight text-foreground/40">
                                 <th className="border-b border-default/10 py-panel pl-panel pr-tight">
-                                    <Activity size={12} />
+                                    <StatusIcon
+                                        Icon={Activity}
+                                        size="sm"
+                                        className="text-foreground/50"
+                                    />
                                 </th>
                                 <th className="border-b border-default/10 px-tight py-panel">
                                     {t("torrent_modal.trackers.hostname", {
@@ -150,7 +158,11 @@ export const TrackersTab = ({
                                         </td>
                                         <td className="border-b border-default/5 px-tight py-panel tabular-nums text-foreground/50">
                                             <div className="flex items-center gap-tight">
-                                                <Timer size={10} />
+                                                <StatusIcon
+                                                    Icon={Timer}
+                                                    size="sm"
+                                                    className="text-foreground/50"
+                                                />
                                                 {formatCountdown(
                                                     nextAnnounceSecs
                                                 )}
@@ -158,8 +170,9 @@ export const TrackersTab = ({
                                         </td>
                                         <td className="border-b border-default/5 px-tight py-panel text-foreground/70">
                                             <div className="flex items-center gap-tools">
-                                                <Users
-                                                    size={10}
+                                                <StatusIcon
+                                                    Icon={Users}
+                                                    size="sm"
                                                     className="text-foreground/30"
                                                 />
                                                 {t(
@@ -209,7 +222,7 @@ export const TrackersTab = ({
                 <div
                     className={cn(
                         GLASS_PANEL_SURFACE,
-                        "absolute inset-0 z-30 flex flex-col rounded-none bg-background/40 backdrop-blur-xl"
+                        "absolute inset-0 z-overlay flex flex-col rounded-none bg-background/40 backdrop-blur-xl"
                     )}
                 >
                         <div className="flex items-center justify-between border-b border-default/10 px-panel py-panel">
@@ -218,34 +231,33 @@ export const TrackersTab = ({
                                     defaultValue: "Add Trackers",
                                 })}
                             </span>
-                            <Button
-                                isIconOnly
-                                size="md"
-                                variant="shadow"
+                            <ToolbarIconButton
+                                Icon={X}
+                                ariaLabel={t("torrent_modal.trackers.close")}
                                 onPress={() => setShowAdd(false)}
-                            >
-                                <X size={16} />
-                            </Button>
+                                iconSize="md"
+                                className="text-foreground/50 hover:text-foreground"
+                            />
                         </div>
                         <div className="flex-1 p-panel">
-                        <Textarea
-                            variant="bordered"
-                            placeholder={t(
-                                "torrent_modal.trackers.add_placeholder",
-                                {
-                                    defaultValue:
-                                        "Paste announce URLs (one per line)...",
-                                }
-                            )}
-                            value={newTrackers}
-                            onValueChange={setNewTrackers}
-                            classNames={{
-                                input: "font-mono text-scaled",
-                                inputWrapper:
-                                    "border-default/20 bg-background/40",
-                            }}
-                            minRows={6}
-                        />
+                            <Textarea
+                                variant="bordered"
+                                placeholder={t(
+                                    "torrent_modal.trackers.add_placeholder",
+                                    {
+                                        defaultValue:
+                                            "Paste announce URLs (one per line)...",
+                                    }
+                                )}
+                                value={newTrackers}
+                                onValueChange={setNewTrackers}
+                                classNames={{
+                                    input: "font-mono text-scaled",
+                                    inputWrapper:
+                                        "border-default/20 bg-background/40",
+                                }}
+                                minRows={6}
+                            />
                         </div>
                         <div className="flex justify-end gap-tools border-t border-default/10 p-panel bg-background/20">
                             <Button
@@ -258,7 +270,13 @@ export const TrackersTab = ({
                             <Button
                                 size="md"
                                 color="primary"
-                                startContent={<Check size={14} />}
+                                startContent={
+                                    <StatusIcon
+                                        Icon={Check}
+                                        size="sm"
+                                        className="text-current"
+                                    />
+                                }
                                 onPress={() => {
                                     /* Logic here */ setShowAdd(false);
                                 }}

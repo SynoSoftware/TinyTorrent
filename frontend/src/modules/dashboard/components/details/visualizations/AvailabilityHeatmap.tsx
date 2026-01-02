@@ -22,6 +22,7 @@ import {
 } from "@/config/logic";
 import { useUiClock } from "@/shared/hooks/useUiClock";
 import { TEXT_ROLES } from "@/modules/dashboard/components/details/tabs/textRoles";
+import StatusIcon from "@/shared/ui/components/StatusIcon";
 
 interface AvailabilityHeatmapProps {
     pieceAvailability?: number[];
@@ -290,7 +291,11 @@ export const AvailabilityHeatmap = ({
                         onPress={() => handleZoom("out")}
                         isDisabled={zoomIndex === 0}
                     >
-                        <ZoomOut size={12} className="text-current" />
+                        <StatusIcon
+                            Icon={ZoomOut}
+                            size="sm"
+                            className="text-current"
+                        />
                     </Button>
                     <span className="text-scaled font-mono text-foreground/60">
                         x{zoomLevel.toFixed(1)}
@@ -305,7 +310,11 @@ export const AvailabilityHeatmap = ({
                             zoomIndex === HEATMAP_ZOOM_LEVELS.length - 1
                         }
                     >
-                        <ZoomIn size={12} className="text-current" />
+                        <StatusIcon
+                            Icon={ZoomIn}
+                            size="sm"
+                            className="text-current"
+                        />
                     </Button>
                 </div>
             </div>

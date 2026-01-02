@@ -46,6 +46,7 @@ import {
 import { buildSplinePath } from "@/shared/utils/spline";
 import type { Table } from "@tanstack/react-table";
 import type { OptimisticStatusMap } from "@/modules/dashboard/types/optimistic";
+import StatusIcon from "@/shared/ui/components/StatusIcon";
 
 // --- TYPES ---
 
@@ -345,13 +346,11 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
                         variant="shadow"
                         color={conf.color}
                         startContent={
-                            <Icon
+                            <StatusIcon
+                                Icon={Icon}
+                                size="sm"
                                 strokeWidth={ICON_STROKE_WIDTH_DENSE}
-                                className="text-current aspect-square"
-                                style={{
-                                    width: "var(--tt-icon-size)",
-                                    height: "var(--tt-icon-size)",
-                                }}
+                                className="text-current"
                             />
                         }
                         style={STATUS_CHIP_STYLE}
@@ -447,13 +446,11 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
                     DENSE_NUMERIC
                 )}
             >
-                <Users
+                <StatusIcon
+                    Icon={Users}
+                    size="sm"
                     strokeWidth={ICON_STROKE_WIDTH_DENSE}
-                    className="opacity-50 text-current aspect-square"
-                    style={{
-                        width: "var(--tt-icon-size)",
-                        height: "var(--tt-icon-size)",
-                    }}
+                    className="opacity-50 text-current"
                 />
                 <span>{torrent.peerSummary.connected}</span>
                 <span className="opacity-30">/</span>

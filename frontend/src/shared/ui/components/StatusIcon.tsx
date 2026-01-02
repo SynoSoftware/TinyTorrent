@@ -1,14 +1,15 @@
-import React from "react";
-import { ICON_STROKE_WIDTH, UI_BASES } from "@/config/logic";
+import { cn } from "@heroui/react";
+import { ICON_STROKE_WIDTH } from "@/config/logic";
+import { ICON_SIZE_CLASSES } from "@/shared/ui/layout/toolbar-button";
 
-export type StatusIconSize = "sm" | "md" | "lg";
+export type StatusIconSize = "sm" | "md" | "lg" | "xl";
 
 export interface StatusIconProps {
     Icon: React.ComponentType<any>;
     size?: StatusIconSize;
     className?: string;
     style?: React.CSSProperties;
-    strokeWidth?: number;
+    strokeWidth?: number | string;
 }
 
 export const StatusIcon = ({
@@ -18,19 +19,11 @@ export const StatusIcon = ({
     style,
     strokeWidth,
 }: StatusIconProps) => {
-    const sizeMap: Record<StatusIconSize, string> = {
-        sm: UI_BASES.statusbar.iconSm,
-        md: UI_BASES.statusbar.iconMd,
-        lg: UI_BASES.statusbar.iconLg,
-    };
-
-    const dim = sizeMap[size] ?? UI_BASES.statusbar.iconMd;
-
     return (
         <Icon
-            className={className}
+            className={cn(ICON_SIZE_CLASSES[size], className)}
             strokeWidth={strokeWidth ?? ICON_STROKE_WIDTH}
-            style={{ width: dim, height: dim, ...style }}
+            style={style}
         />
     );
 };

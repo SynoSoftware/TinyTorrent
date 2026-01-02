@@ -86,8 +86,7 @@ export function SwitchRenderer({
     const dependsOn = block.dependsOn;
     const baseDisabled = dependsOn ? !(config[dependsOn] as boolean) : false;
     const isDisabled =
-        baseDisabled ||
-        (block.disabledWhenNotImmersive && !isImmersive);
+        baseDisabled || (block.disabledWhenNotImmersive && !isImmersive);
 
     return (
         <div className="flex justify-between items-center h-control-row">
@@ -203,11 +202,7 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
                 block.endIcon ? (
                     <block.endIcon
                         strokeWidth={ICON_STROKE_WIDTH}
-                        className="text-foreground/40"
-                        style={{
-                            width: "var(--tt-icon-size)",
-                            height: "var(--tt-icon-size)",
-                        }}
+                        className="text-foreground/40 shrink-0 toolbar-icon-size-sm"
                     />
                 ) : undefined
             }

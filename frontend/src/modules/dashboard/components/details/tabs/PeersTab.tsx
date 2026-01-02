@@ -21,6 +21,7 @@ import { usePeerHover } from "@/shared/hooks/usePeerHover";
 import { ICON_STROKE_WIDTH } from "@/config/logic";
 import { GLASS_TOOLTIP_CLASSNAMES } from "@/modules/dashboard/components/details/visualizations/constants";
 import { TEXT_ROLES } from "./textRoles";
+import StatusIcon from "@/shared/ui/components/StatusIcon";
 
 export type PeerContextAction = "add_peer" | "ban_ip" | "copy_ip";
 
@@ -225,14 +226,16 @@ export const PeersTab = ({
 
                                     <div className="flex-1 min-w-0 flex items-center gap-tools">
                                         {isEncrypted && (
-                                            <ShieldCheck
-                                                size={12}
+                                            <StatusIcon
+                                                Icon={ShieldCheck}
+                                                size="sm"
                                                 className="text-success/50"
                                             />
                                         )}
                                         {isUTP && (
-                                            <Zap
-                                                size={12}
+                                            <StatusIcon
+                                                Icon={Zap}
+                                                size="sm"
                                                 className="text-primary/50"
                                             />
                                         )}
@@ -279,21 +282,23 @@ export const PeersTab = ({
                             }}
                             onPointerDown={(e) => e.stopPropagation()}
                         >
-                            <div className="px-panel py-tight border-b border-content1/10 mb-tight flex items-center gap-tools">
-                                <Info
-                                    size={14}
-                                    className="text-foreground/30"
-                                />
-                                <span className={`${TEXT_ROLES.label} text-foreground/40 truncate`}>
-                                    {peerContextMenu.peer.address}
-                                </span>
-                            </div>
+                                <div className="px-panel py-tight border-b border-content1/10 mb-tight flex items-center gap-tools">
+                                    <StatusIcon
+                                        Icon={Info}
+                                        size="sm"
+                                        className="text-foreground/30"
+                                    />
+                                    <span className={`${TEXT_ROLES.label} text-foreground/40 truncate`}>
+                                        {peerContextMenu.peer.address}
+                                    </span>
+                                </div>
                             <button
                                 onClick={() => handleAction("copy_ip")}
                                 className="w-full flex items-center gap-tools px-panel py-tight rounded-xl text-scaled font-semibold hover:bg-content1/10 transition-colors"
                             >
-                                <Copy
-                                    size={16}
+                                <StatusIcon
+                                    Icon={Copy}
+                                    size="sm"
                                     strokeWidth={ICON_STROKE_WIDTH}
                                 />{" "}
                                 {t("peers.action_copy_ip")}
@@ -302,8 +307,9 @@ export const PeersTab = ({
                                 onClick={() => handleAction("add_peer")}
                                 className="w-full flex items-center gap-tools px-panel py-tight rounded-xl text-scaled font-semibold hover:bg-content1/10 transition-colors"
                             >
-                                <UserPlus
-                                    size={16}
+                                <StatusIcon
+                                    Icon={UserPlus}
+                                    size="sm"
                                     strokeWidth={ICON_STROKE_WIDTH}
                                 />{" "}
                                 {t("peers.action_add_peer")}
@@ -312,8 +318,9 @@ export const PeersTab = ({
                                 onClick={() => handleAction("ban_ip")}
                                 className="w-full flex items-center gap-tools px-panel py-tight rounded-xl text-scaled font-semibold text-danger hover:bg-danger/10 transition-colors border-t border-content1/10 mt-tight"
                             >
-                                <Ban
-                                    size={16}
+                                <StatusIcon
+                                    Icon={Ban}
+                                    size="sm"
                                     strokeWidth={ICON_STROKE_WIDTH}
                                 />{" "}
                                 {t("peers.action_ban_ip")}

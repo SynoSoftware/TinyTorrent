@@ -2,6 +2,7 @@ import { Button, Chip, Input, Switch } from "@heroui/react";
 import { RefreshCw, CheckCircle, XCircle, Download } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ICON_STROKE_WIDTH } from "@/config/logic";
 import type { RpcStatus } from "@/shared/types/rpc";
 import type { ServerClass } from "@/services/rpc/entities";
 import {
@@ -176,17 +177,13 @@ export function ConnectionCredentialsCard({
                             startContent={
                                 statusColor === "success" ? (
                                     <CheckCircle
-                                        style={{
-                                            width: "var(--tt-icon-size)",
-                                            height: "var(--tt-icon-size)",
-                                        }}
+                                        strokeWidth={ICON_STROKE_WIDTH}
+                                        className="toolbar-icon-size-sm shrink-0"
                                     />
                                 ) : (
                                     <XCircle
-                                        style={{
-                                            width: "var(--tt-icon-size)",
-                                            height: "var(--tt-icon-size)",
-                                        }}
+                                        strokeWidth={ICON_STROKE_WIDTH}
+                                        className="toolbar-icon-size-sm shrink-0"
                                     />
                                 )
                             }
@@ -207,10 +204,8 @@ export function ConnectionCredentialsCard({
                                         />
                                     ) : serverType === "transmission" ? (
                                         <Download
-                                            style={{
-                                                width: "var(--tt-icon-size)",
-                                                height: "var(--tt-icon-size)",
-                                            }}
+                                            strokeWidth={ICON_STROKE_WIDTH}
+                                            className="toolbar-icon-size-sm shrink-0"
                                         />
                                     ) : null
                                 }
@@ -227,10 +222,8 @@ export function ConnectionCredentialsCard({
                         type="button"
                         startContent={
                             <RefreshCw
-                                style={{
-                                    width: "var(--tt-icon-size)",
-                                    height: "var(--tt-icon-size)",
-                                }}
+                                strokeWidth={ICON_STROKE_WIDTH}
+                                className="toolbar-icon-size-sm shrink-0"
                             />
                         }
                     >

@@ -469,10 +469,8 @@ export function SettingsModal({
                                 onPress={onClose}
                             >
                                 <X
-                                    style={{
-                                        width: "var(--tt-icon-size)",
-                                        height: "var(--tt-icon-size)",
-                                    }}
+                                    strokeWidth={ICON_STROKE_WIDTH}
+                                    className="toolbar-icon-size-md"
                                 />
                             </Button>
                         </div>
@@ -498,15 +496,11 @@ export function SettingsModal({
                                     <tab.icon
                                         strokeWidth={ICON_STROKE_WIDTH}
                                         className={cn(
-                                            "shrink-0",
+                                            "shrink-0 toolbar-icon-size-md",
                                             activeTab === tab.id
                                                 ? "text-primary"
                                                 : "text-foreground/50"
                                         )}
-                                        style={{
-                                            width: "var(--icon-lg)",
-                                            height: "var(--icon-lg)",
-                                        }}
                                     />
                                     <span>{t(tab.labelKey)}</span>
                                     {activeTab === tab.id && (
@@ -537,12 +531,7 @@ export function SettingsModal({
                                     className="sm:hidden -ml-tight text-foreground/50"
                                     onPress={() => setIsMobileMenuOpen(true)}
                                 >
-                                    <ChevronLeft
-                                        style={{
-                                            width: "var(--tt-icon-size)",
-                                            height: "var(--tt-icon-size)",
-                                        }}
-                                    />
+                                    <ChevronLeft className="toolbar-icon-size-md" />
                                 </Button>
                                 <div className="flex flex-col">
                                     <h1 className="font-bold text-foreground tt-navbar-tab-font">
@@ -645,10 +634,8 @@ export function SettingsModal({
                                 onPress={handleReset}
                                 startContent={
                                     <RotateCcw
-                                        style={{
-                                            width: "var(--tt-icon-size)",
-                                            height: "var(--tt-icon-size)",
-                                        }}
+                                        strokeWidth={ICON_STROKE_WIDTH}
+                                        className="toolbar-icon-size-sm shrink-0"
                                     />
                                 }
                             >
@@ -673,10 +660,8 @@ export function SettingsModal({
                                     startContent={
                                         !isSaving && (
                                             <Save
-                                                style={{
-                                                    width: "var(--tt-icon-size)",
-                                                    height: "var(--tt-icon-size)",
-                                                }}
+                                                strokeWidth={ICON_STROKE_WIDTH}
+                                                className="toolbar-icon-size-sm shrink-0"
                                             />
                                         )
                                     }

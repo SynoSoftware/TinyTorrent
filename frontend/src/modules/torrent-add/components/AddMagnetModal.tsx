@@ -20,6 +20,7 @@ import { Magnet, X } from "lucide-react";
 
 import { INTERACTION_CONFIG } from "@/config/logic";
 import { GLASS_MODAL_SURFACE } from "@/shared/ui/layout/glass-surface";
+import { StatusIcon } from "@/shared/ui/components/StatusIcon";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
 
 interface AddMagnetModalProps {
@@ -58,7 +59,7 @@ export function AddMagnetModal({
     }, [value, onSubmit, handleClose]);
 
     const handleKeyDown = useCallback(
-        (event: KeyboardEvent<HTMLTextAreaElement>) => {
+        (event: KeyboardEvent<HTMLInputElement>) => {
             if (event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault();
                 handleConfirm();
@@ -85,7 +86,11 @@ export function AddMagnetModal({
                         <ModalHeader className="border-b border-default/20 px-stage py-panel">
                             <div className="flex items-center justify-between gap-tools">
                                 <div className="flex items-center gap-tools">
-                                    <Magnet className="text-primary" />
+                                    <StatusIcon
+                                        Icon={Magnet}
+                                        size="md"
+                                        className="text-primary"
+                                    />
                                     <span className="text-label tracking-label uppercase font-semibold">
                                         {t("modals.add_magnet.title")}
                                     </span>

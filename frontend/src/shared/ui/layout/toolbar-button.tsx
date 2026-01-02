@@ -1,139 +1,102 @@
+import { Button, cn } from "@heroui/react";
 import {
-    Button,
-    Modal,
-    ModalBody,
-    ModalContent,
-    ModalFooter,
-    ModalHeader,
-    Textarea,
-    cn,
-} from "@heroui/react";
-import {
-    useCallback,
-    useEffect,
-    useRef,
-    useState,
-    type KeyboardEvent,
+    cloneElement,
+    forwardRef,
+    isValidElement,
+    type ComponentPropsWithoutRef,
+    type ReactElement,
+    type ReactNode,
 } from "react";
-import { useTranslation } from "react-i18next";
-import { Magnet, X } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
-import { INTERACTION_CONFIG } from "@/config/logic";
-import { GLASS_MODAL_SURFACE } from "@/shared/ui/layout/glass-surface";
-import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
+import { ICON_STROKE_WIDTH } from "@/config/logic";
 
-interface AddMagnetModalProps {
-    isOpen: boolean;
-    initialValue?: string;
-    onClose: () => void;
-    onSubmit: (link: string) => void;
+export type ToolbarIconSize = "sm" | "md" | "lg" | "xl";
+
+export const ICON_SIZE_CLASSES: Record<ToolbarIconSize, string> = {
+    sm: "toolbar-icon-size-sm",
+    md: "toolbar-icon-size-md",
+    lg: "toolbar-icon-size-lg",
+    xl: "toolbar-icon-size-xl",
+};
+
+export interface ToolbarIconButtonProps
+    extends Omit<ComponentPropsWithoutRef<typeof Button>, "isIconOnly"> {
+    Icon?: LucideIcon;
+    icon?: ReactNode;
+    iconSize?: ToolbarIconSize;
+    iconStrokeWidth?: number | string;
+    ariaLabel?: string;
 }
 
-export function AddMagnetModal({
-    isOpen,
-    initialValue,
-    onClose,
-    onSubmit,
-}: AddMagnetModalProps) {
-    const { t } = useTranslation();
-    const [value, setValue] = useState(initialValue ?? "");
-    const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+export const ToolbarIconButton = forwardRef<
+    HTMLButtonElement,
+    ToolbarIconButtonProps
+>(function ToolbarIconButton(
+    {
+        Icon,
+        icon,
+        iconSize = "md",
+        iconStrokeWidth,
+        ariaLabel,
+        title,
+        className,
+        children,
+        variant,
+        ...buttonProps
+    },
+    ref
+) {
+    const mergedVariant = variant ?? "ghost";
+    const strokeWidth = iconStrokeWidth ?? ICON_STROKE_WIDTH;
+    const iconClass = ICON_SIZE_CLASSES[iconSize];
 
-    useEffect(() => {
-        if (!isOpen) return;
-        setValue(initialValue ?? "");
-        textareaRef.current?.focus();
-    }, [initialValue, isOpen]);
+    const iconContent = (() => {
+        if (Icon) {
+            return (
+                <Icon
+                    strokeWidth={strokeWidth}
+                    className={cn("text-current", iconClass)}
+                />
+            );
+        }
 
-    const handleClose = useCallback(() => {
-        setValue("");
-        onClose();
-    }, [onClose]);
+        const node = icon ?? children;
+        if (!node) {
+            return null;
+        }
 
-    const handleConfirm = useCallback(() => {
-        const trimmed = value.trim();
-        if (!trimmed) return;
-        onSubmit(trimmed);
-        handleClose();
-    }, [value, onSubmit, handleClose]);
+        if (isValidElement(node)) {
+            const element = node as ReactElement<{
+                className?: string;
+            }>;
+            return cloneElement(element, {
+                className: cn(
+                    iconClass,
+                    "text-current",
+                    element.props.className
+                ),
+            });
+        }
 
-    const handleKeyDown = useCallback(
-        (event: KeyboardEvent<HTMLTextAreaElement>) => {
-            if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                handleConfirm();
-            }
-        },
-        [handleConfirm]
-    );
+        return <span className={cn(iconClass, "text-current")}>{node}</span>;
+    })();
 
     return (
-        <Modal
-            isOpen={isOpen}
-            onOpenChange={(open) => (!open ? handleClose() : undefined)}
-            backdrop="blur"
-            placement="center"
-            // 1. Hide the default close button so we can use your custom ToolbarIconButton
-            hideCloseButton
-            motionProps={INTERACTION_CONFIG.modalBloom}
-            classNames={{
-                base: cn(GLASS_MODAL_SURFACE),
-            }}
+        <Button
+            ref={ref}
+            isIconOnly
+            variant={mergedVariant}
+            radius="full"
+            className={cn(
+                "p-tight inline-flex items-center justify-center transition-colors",
+                className
+            )}
+            aria-label={ariaLabel}
+            title={title}
+            {...buttonProps}
         >
-            <ModalContent>
-                {() => (
-                    <>
-                        {/* 2. Apply the layout/visual classes directly to ModalHeader */}
-                        <ModalHeader className="border-b border-content1/10 flex items-center justify-between px-stage bg-content1/30 backdrop-blur-xl gap-tools">
-                            <div className="flex items-center gap-tools">
-                                <Magnet className="text-primary" />
-                                <span className="text-label tracking-label uppercase font-semibold">
-                                    {t("modals.add_magnet.title")}
-                                </span>
-                            </div>
-                            {/* 3. Your Custom Close Button maintained here */}
-                            <ToolbarIconButton
-                                Icon={X}
-                                ariaLabel={t("torrent_modal.actions.close")}
-                                onPress={handleClose}
-                                iconSize="lg" // Keeps the size you wanted
-                                className="text-foreground/40 hover:text-foreground"
-                            />
-                        </ModalHeader>
-
-                        <ModalBody className="space-y-panel py-panel">
-                            <Textarea
-                                ref={textareaRef}
-                                autoFocus
-                                value={value}
-                                onValueChange={setValue}
-                                placeholder={t("modals.add_magnet.placeholder")}
-                                variant="bordered"
-                                classNames={{
-                                    input: "font-mono text-scaled",
-                                }}
-                                onKeyDown={handleKeyDown}
-                            />
-                            <p className="text-foreground/70 text-scaled leading-relaxed">
-                                {t("modals.add_magnet.hint")}
-                            </p>
-                        </ModalBody>
-                        <ModalFooter className="border-t border-default/20 px-stage py-panel flex items-center justify-end gap-tools">
-                            <Button variant="light" onPress={handleClose}>
-                                {t("modals.cancel")}
-                            </Button>
-                            <Button
-                                color="primary"
-                                variant="shadow"
-                                onPress={handleConfirm}
-                                isDisabled={!value.trim()}
-                            >
-                                {t("modals.add_magnet.confirm")}
-                            </Button>
-                        </ModalFooter>
-                    </>
-                )}
-            </ModalContent>
-        </Modal>
+            {iconContent}
+        </Button>
     );
-}
+});
