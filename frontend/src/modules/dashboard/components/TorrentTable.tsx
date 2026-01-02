@@ -703,7 +703,7 @@ const VirtualRow = memo(
         isHighlighted,
         onDropTargetChange,
         isAnyColumnResizing = false,
-        columnOrderVersion,
+        columnOrder,
     }: {
         row: Row<Torrent>;
         virtualRow: VirtualItem;
@@ -718,8 +718,9 @@ const VirtualRow = memo(
         isHighlighted: boolean;
         onDropTargetChange?: (id: string | null) => void;
         isAnyColumnResizing?: boolean;
-        columnOrderVersion?: string;
+        columnOrder?: string[];
     }) => {
+        void columnOrder;
         // Inside VirtualRow component
         const {
             setNodeRef,
@@ -797,7 +798,6 @@ const VirtualRow = memo(
                 ref={setNodeRef}
                 data-index={virtualRow.index}
                 data-torrent-row={row.original.id}
-                data-tt-column-order={columnOrderVersion}
                 {...(attributes ?? {})}
                 {...(listeners ?? {})}
                 role="row"
@@ -1064,10 +1064,6 @@ export function TorrentTable({
     const [sorting, setSorting] = useState<SortingState>(initialState.sorting);
     const [columnOrder, setColumnOrder] = useState<string[]>(
         initialState.columnOrder
-    );
-    const columnOrderVersion = useMemo(
-        () => columnOrder.join("|"),
-        [columnOrder]
     );
     const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(
         initialState.columnVisibility
@@ -2554,9 +2550,7 @@ export function TorrentTable({
                                                             isAnyColumnResizing={
                                                                 isAnyColumnResizing
                                                             }
-                                                            columnOrderVersion={
-                                                                columnOrderVersion
-                                                            }
+                                                            columnOrder={columnOrder}
                                                         />
                                                     );
                                                 })}
