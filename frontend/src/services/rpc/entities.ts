@@ -110,6 +110,16 @@ export interface AddTorrentPayload {
     downloadDir?: string;
     paused?: boolean;
     filesUnwanted?: number[];
+    priorityHigh?: number[];
+    priorityNormal?: number[];
+    priorityLow?: number[];
+}
+
+export interface AddTorrentResult {
+    id: string;
+    rpcId: number;
+    name?: string;
+    duplicate?: boolean;
 }
 
 export interface SessionStats {

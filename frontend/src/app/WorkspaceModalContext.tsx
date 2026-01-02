@@ -7,9 +7,9 @@ import {
 } from "react";
 
 type WorkspaceModalContextValue = {
-    isAddModalOpen: boolean;
-    openAddModal: () => void;
-    closeAddModal: () => void;
+    isAddMagnetModalOpen: boolean;
+    openAddMagnetModal: () => void;
+    closeAddMagnetModal: () => void;
     isSettingsOpen: boolean;
     openSettings: () => void;
     closeSettings: () => void;
@@ -20,20 +20,26 @@ const WorkspaceModalContext = createContext<WorkspaceModalContextValue | null>(
 );
 
 export function WorkspaceModalProvider({ children }: { children: ReactNode }) {
-    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [isAddMagnetModalOpen, setIsAddMagnetModalOpen] = useState(false);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-    const openAddModal = useCallback(() => setIsAddModalOpen(true), []);
-    const closeAddModal = useCallback(() => setIsAddModalOpen(false), []);
+    const openAddMagnetModal = useCallback(
+        () => setIsAddMagnetModalOpen(true),
+        []
+    );
+    const closeAddMagnetModal = useCallback(
+        () => setIsAddMagnetModalOpen(false),
+        []
+    );
     const openSettings = useCallback(() => setIsSettingsOpen(true), []);
     const closeSettings = useCallback(() => setIsSettingsOpen(false), []);
 
     return (
         <WorkspaceModalContext.Provider
             value={{
-                isAddModalOpen,
-                openAddModal,
-                closeAddModal,
+                isAddMagnetModalOpen,
+                openAddMagnetModal,
+                closeAddMagnetModal,
                 isSettingsOpen,
                 openSettings,
                 closeSettings,

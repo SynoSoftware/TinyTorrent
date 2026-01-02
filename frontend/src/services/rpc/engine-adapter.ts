@@ -3,6 +3,7 @@ import type {
     TorrentDetailEntity,
     TorrentEntity,
     AddTorrentPayload,
+    AddTorrentResult,
     SessionStats,
     TinyTorrentCapabilities,
     AutorunStatus,
@@ -37,7 +38,7 @@ export interface EngineAdapter {
     getTorrents(): Promise<TorrentEntity[]>;
     getTorrentDetails(id: string): Promise<TorrentDetailEntity>;
     getSessionStats(): Promise<SessionStats>;
-    addTorrent(payload: AddTorrentPayload): Promise<void>;
+    addTorrent(payload: AddTorrentPayload): Promise<AddTorrentResult>;
     pause(ids: string[]): Promise<void>;
     resume(ids: string[]): Promise<void>;
     remove(ids: string[], deleteData: boolean): Promise<void>;
@@ -50,6 +51,11 @@ export interface EngineAdapter {
         id: string,
         indexes: number[],
         wanted: boolean
+    ): Promise<void>;
+    setTorrentLocation?(
+        id: string,
+        location: string,
+        moveData?: boolean
     ): Promise<void>;
     setSequentialDownload?(id: string, enabled: boolean): Promise<void>;
     setSuperSeeding?(id: string, enabled: boolean): Promise<void>;

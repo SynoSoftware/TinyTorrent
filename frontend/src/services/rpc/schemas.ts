@@ -151,6 +151,13 @@ const zTransmissionTorrent = z
     })
     .passthrough();
 
+export const zTransmissionAddTorrentResponse = z
+    .object({
+        "torrent-added": zTransmissionTorrent.optional(),
+        "torrent-duplicate": zTransmissionTorrent.optional(),
+    })
+    .passthrough();
+
 const zTransmissionTorrentDetailBase = z.object({
     files: z.array(zTransmissionTorrentFile).default([]),
     trackers: z.array(zTransmissionTorrentTracker).default([]),

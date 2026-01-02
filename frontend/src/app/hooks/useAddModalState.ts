@@ -1,36 +1,27 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useDropzone } from "react-dropzone";
 
-import Runtime, { NativeShell } from "@/app/runtime";
-import { findMagnetInString, normalizeMagnetLink } from "@/app/utils/magnet";
+import { NativeShell } from "@/app/runtime";
+import { normalizeMagnetLink } from "@/app/utils/magnet";
 
 interface UseAddModalStateParams {
-    openAddModal: () => void;
-    isAddModalOpen: boolean;
-    isNativeMode: boolean;
+    onOpenAddMagnet: (magnetLink?: string) => void;
+    onOpenAddTorrentFromFile: (file: File) => void;
 }
 
 export function useAddModalState({
-    openAddModal,
-    isAddModalOpen,
-    isNativeMode,
+    onOpenAddMagnet,
+    onOpenAddTorrentFromFile,
 }: UseAddModalStateParams) {
-    const [pendingTorrentFile, setPendingTorrentFile] = useState<File | null>(
-        null
-    );
-    const [incomingMagnetLink, setIncomingMagnetLink] = useState<string | null>(
-        null
-    );
     const deepLinkHandledRef = useRef(false);
 
     const onDrop = useCallback(
         (acceptedFiles: File[]) => {
             if (acceptedFiles.length) {
-                setPendingTorrentFile(acceptedFiles[0]);
+                onOpenAddTorrentFromFile(acceptedFiles[0]);
             }
-            openAddModal();
         },
-        [openAddModal]
+        [onOpenAddTorrentFromFile]
     );
 
     const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -51,59 +42,15 @@ export function useAddModalState({
             const normalized = normalizeMagnetLink(link);
             if (!normalized) return;
             deepLinkHandledRef.current = true;
-            setPendingTorrentFile(null);
-            setIncomingMagnetLink(normalized);
-            openAddModal();
+            onOpenAddMagnet(normalized);
         };
         const cleanup = NativeShell.onEvent("magnet-link", handleMagnetEvent);
         return cleanup;
-    }, [openAddModal]);
-
-    useEffect(() => {
-        if (!isAddModalOpen) return;
-        if (incomingMagnetLink || pendingTorrentFile) return;
-        if (isNativeMode || Runtime.isNativeHost) return;
-        if (typeof navigator === "undefined" || !navigator.clipboard?.readText)
-            return;
-
-        let active = true;
-        const tryPasteClipboard = async () => {
-            try {
-                const clipboardText = await navigator.clipboard.readText();
-                if (!active || !clipboardText) return;
-                const magnet =
-                    normalizeMagnetLink(clipboardText) ??
-                    normalizeMagnetLink(findMagnetInString(clipboardText));
-                if (magnet) {
-                    setIncomingMagnetLink(magnet);
-                }
-            } catch {
-                // Ignore permission issues or unsupported environments.
-            }
-        };
-        void tryPasteClipboard();
-        return () => {
-            active = false;
-        };
-    }, [incomingMagnetLink, isAddModalOpen, pendingTorrentFile]);
-
-    const clearPendingTorrentFile = useCallback(() => {
-        setPendingTorrentFile(null);
-    }, []);
-
-    const clearIncomingMagnetLink = useCallback(() => {
-        setIncomingMagnetLink(null);
-    }, []);
+    }, [onOpenAddMagnet]);
 
     return {
         getRootProps,
         getInputProps,
         isDragActive,
-        pendingTorrentFile,
-        incomingMagnetLink,
-        setPendingTorrentFile,
-        setIncomingMagnetLink,
-        clearPendingTorrentFile,
-        clearIncomingMagnetLink,
     };
 }
