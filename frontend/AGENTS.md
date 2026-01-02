@@ -126,6 +126,12 @@ If an element requires both:
 - Do NOT implement it.
 - FLAG it as a missing semantic role.
 
+### **Constraint Directionality**
+
+Geometry-owned containers (Sidebars, Navs) impose **Hard Constraints**. If Typography content exceeds the Geometry container, the content must truncate or scroll—the container must **never** grow to fit the text. This preserves the "Command Center" layout stability.
+
+---
+
 # **3. Design System Authority & Token Pipeline**
 
 This section defines the **Zero-Literal Mandate**. To maintain the "Confident Workbench" feel and ensure 100% harmonic scaling, all agents must strictly follow this pipeline.
@@ -184,6 +190,7 @@ No dimension or color may skip a layer.
 Repeating long Tailwind strings is a bug. Any visual recipe used in more than one place must be centralized.
 
 **Must be centralized if repeated or longer than a short layout skeleton:**
+
 - Glass surfaces (Layer 1, Layer 2)
 - Panel frames (border + blur + background)
 - Focus ring / focus border treatment
@@ -192,6 +199,7 @@ Repeating long Tailwind strings is a bug. Any visual recipe used in more than on
 - Badge/chip recipes
 
 **Rule:**
+
 - If a class string is repeated twice (or is a long “recipe”), it must become a shared constant/token exported from a single place (config logic or shared UI primitive).
 - Components must assemble UI from semantic pieces: `cn(GLASS_PANEL, P_PANEL, FOCUS_RING, className)` not bespoke class soup.
 
@@ -210,15 +218,14 @@ When modifying layout, you must categorize every spacing decision into a **Logic
 Before submitting any UI code, the agent must perform a "Mental Scale Test":
  *"If I change `--u` from `4px` to `8px` in index.css, will my new code expand proportionally and maintain its internal alignment?"*
 
- - If **Yes**: Proceed.
- - If **No**: You used a magic number or a hardcoded Tailwind utility. **Delete it.**
+- If **Yes**: Proceed.
+- If **No**: You used a magic number or a hardcoded Tailwind utility. **Delete it.**
 
 Additionally:
 
 - Increasing `--fz` must improve readability without breaking layout.
 - Increasing `--z` must expand layout without making text unreadable.
 - If both are required to fix an issue, the design is wrong and must be flagged.
-
 
 ## **G. Single Place of Control**
 
@@ -233,6 +240,7 @@ If a component requires a specific width (e.g., the Directory Picker), do not ca
 Tailwind is allowed only for non-token structural composition:
 
 **Allowed:**
+
 - `flex`, `grid`, `items-*`, `justify-*`, `grow`, `shrink`, `min-h-0`, `min-w-0`
 - `relative`, `absolute`, `sticky`, `inset-0` (no numeric geometry)
 - `overflow-hidden`, `overflow-auto`, `truncate`, `whitespace-*`
@@ -241,6 +249,7 @@ Tailwind is allowed only for non-token structural composition:
 - Responsive variants (`sm:`, `md:` etc.) only when they reference semantic utilities (not numeric ones)
 
 **Not allowed in components (must be semantic tokens instead):**
+
 - spacing, sizing, radius, shadows, blur, typography sizes, arbitrary bracket expressions, or any numeric geometry.
 
 ## **I. Missing Token Protocol (Mandatory)**
@@ -256,6 +265,20 @@ When a needed semantic token does not exist, the agent must:
    - component usage
 
 No workaround is acceptable.
+
+## **J. Z-Index Authority**
+
+`z-index` literals are forbidden. Use semantic z-tokens only:
+
+- `--z-floor` (0)
+- `--z-panel` (10)
+- `--z-sticky` (20)
+- `--z-overlay` (30)
+- `--z-modal` (40)
+- `--z-toast` (50)
+- `--z-cursor` (999)
+
+These must be defined in `constants.json`.
 
 ---
 
@@ -332,7 +355,8 @@ All shell-level constants (fallback grays, noise strength, etc.) live in `config
 
 ---
 
-# **5. UI Consistency Enforcement (Non-Negotiable) **
+# **5. UI Consistency Enforcement (Non-Negotiable)**
+
 **Applies to all UI, including §§2, 3, 4, and 8**
 
 ## **A. Consistency Contract**
@@ -355,7 +379,6 @@ Before claiming UI work is done, verify:
 - Scale test: changing `--u` (4→8) and `--z` (1→1.25) would scale everything harmonically.
 - Typography scaling and layout scaling were not conflated.
 
-
 Any PR containing forbidden numeric Tailwind/bracket classes is invalid and must be rewritten.
 
 ## **C. Agent Output Requirement**
@@ -365,7 +388,6 @@ When an agent changes UI, it must include a short “Token Mapping” note in th
 - Which semantic roles were used (e.g., `p-panel`, `gap-stage`, `h-row`, glass layer token)
 - Whether any new token was required
 - If required but missing → must be flagged, not hacked
-
 
 ---
 
@@ -544,6 +566,7 @@ TinyTorrent is an **OS-level tool**, not a webpage.
     - `body` and `#root` must be `h-screen w-screen overflow-hidden`.
     - The window **never** has a scrollbar.
     - Only specific panels (Table, Inspector, long lists) have internal scrollbars.
+    - **Overlay Scrollbars Only:** Default OS scrollbars are forbidden inside panes. All scrollable areas must use a custom, overlay-style scrollbar (thin, rounded, transparent track, semi-opaque thumb) that sits *on top* of the content layer to prevent layout shifts when content changes length.
 
 4. **Selection vs Text**
 
@@ -1012,34 +1035,34 @@ src/
 
 ### **1. Features (`modules/`)**
 
-* Flat > nested. No `parts/`, `tabs/`, `components/` folders inside a module.
-* Use underscores to group related siblings: `Dashboard_Grid.tsx`.
-* Local hooks belong in `hooks.ts` inside the module.
+- Flat > nested. No `parts/`, `tabs/`, `components/` folders inside a module.
+- Use underscores to group related siblings: `Dashboard_Grid.tsx`.
+- Local hooks belong in `hooks.ts` inside the module.
 
 ### **2. Configuration (`config/`)**
 
-* Two-file rule:
+- Two-file rule:
 
   1. `constants.json` — literals only.
   2. `logic.ts` — types and computed logic.
 
-* No other files in root `config/`.
+- No other files in root `config/`.
 
 ### **3. Services (`services/`)**
 
-* Every service must define Zod schemas for its external data.
-* All RPC/network goes through adapters in `services/rpc`.
+- Every service must define Zod schemas for its external data.
+- All RPC/network goes through adapters in `services/rpc`.
 
 ### **4. Simplicity**
 
-* No folders without real code.
-* Avoid deep nesting.
-* Keep related logic physically close.
+- No folders without real code.
+- Avoid deep nesting.
+- Keep related logic physically close.
 
 ### **5. No Empty Folders**
 
-* Folders exist only if they contain meaningful code.
-* Delete any folder that becomes empty.
+- Folders exist only if they contain meaningful code.
+- Delete any folder that becomes empty.
 
 ---
 
@@ -1053,25 +1076,25 @@ These guarantee consistency and prevent drift.
 
 **Components → PascalCase (with underscores for siblings)**
 
-* `DashboardView.tsx`
-* `Dashboard_Grid.tsx`
+- `DashboardView.tsx`
+- `Dashboard_Grid.tsx`
 
 **Hooks & Logic → camelCase**
 
-* `hooks.ts`
-* `useVirtualGrid.ts`
+- `hooks.ts`
+- `useVirtualGrid.ts`
 
 **Services → kebab-case**
 
-* `engine-adapter.ts`
+- `engine-adapter.ts`
 
 ---
 
 ## **2. Configuration Access**
 
-* Never hardcode numbers or colors in code.
-* Import literals from `@/config/constants.json`.
-* Import config logic from `@/config/logic.ts`.
+- Never hardcode numbers or colors in code.
+- Import literals from `@/config/constants.json`.
+- Import config logic from `@/config/logic.ts`.
 
 ---
 
@@ -1090,16 +1113,16 @@ Order inside a component file:
 
 ## **4. Service Isolation**
 
-* UI never calls `fetch` directly.
-* UI → hooks → service adapters → Zod → network.
+- UI never calls `fetch` directly.
+- UI → hooks → service adapters → Zod → network.
 
 ---
 
 ## **5. Indentation & Hygiene**
 
-* 4-space indentation.
-* No empty folders.
-* Delete unused files immediately.
+- 4-space indentation.
+- No empty folders.
+- Delete unused files immediately.
 
 ## **6. Absolute Import Policy (Mandatory)**
 
@@ -1224,20 +1247,20 @@ This enables fast, safe batch renames by the user (VS Code / IDE).
 
 # **17. Internationalization (Enforcement)**
 
-* No hard-coded English anywhere in the codebase.
+- No hard-coded English anywhere in the codebase.
 
-* All visible UI text must be referenced through `t("…")`.
+- All visible UI text must be referenced through `t("…")`.
 
-* Work with `en.json` only. Ignore other translation files even if they exist.
+- Work with `en.json` only. Ignore other translation files even if they exist.
 
-* When a new UI string is needed:
+- When a new UI string is needed:
 
   1. Add key/value to `en.json`.
   2. Use `t("key")` in the component.
 
-* Agents must never output inline English text in JSX/TSX.
+- Agents must never output inline English text in JSX/TSX.
 
-* If a string appears inline, it must be moved to `en.json` automatically.
+- If a string appears inline, it must be moved to `en.json` automatically.
 
 ---
 
@@ -1247,8 +1270,8 @@ When in doubt, the agent must ask:
 
 > **"Does this make the app feel more powerful, more confident, and more jaw-dropping?"**
 
-* If the answer is "It saves space" or "It looks compact," **reject it**.
-* If the answer is "It feels premium, cinematic, and authoritative," **accept it**.
+- If the answer is "It saves space" or "It looks compact," **reject it**.
+- If the answer is "It feels premium, cinematic, and authoritative," **accept it**.
 
 **One-Line North Star:**
 TinyTorrent must behave like a desktop tool and look better than desktop tools ever have.
@@ -1267,6 +1290,7 @@ TinyTorrent must behave like a desktop tool and look better than desktop tools e
 
 5. For code search, never use `Select-String`. Always use ripgrep:
 
-   * `rg -n -C 5 "<pattern>" <path>`
+   - `rg -n -C 5 "<pattern>" <path>`
 
 6. Never write complex or nested shell one-liners. If a command requires tricky quoting or multiple pipes, move it into a script file instead. All commands must be simple, cross-platform, and Windows-safe.
+
