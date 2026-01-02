@@ -310,6 +310,27 @@ When modifying existing code:
 - New logic must **not** be added to files that already mix responsibilities.
 - Structural improvement is part of the definition of done.
 
+### 5.0 Windows Composition Invariants (Hard Rule)
+
+Do NOT check Windows version or feature availability for visual/window
+capabilities such as:
+
+- Rounded corners
+- Acrylic / blur / backdrop effects
+- DWM window attributes (DWMWA_*)
+- Accent policies (WCA_ACCENT_POLICY)
+
+Rules:
+
+- Always apply the intended attributes unconditionally.
+- Never branch on Windows version, build number, or feature detection.
+- Let unsupported attributes fail silently via DWM.
+- Visual behavior must be deterministic across code paths.
+
+Rationale:
+Version-gating introduces divergent behavior and state bugs.
+DWM safely ignores unsupported attributes; probing adds complexity
+without improving correctness.
 
 ### 5.1 Window Backdrop Policy (Non-Negotiable, Windows Host / Tray UI)
 
