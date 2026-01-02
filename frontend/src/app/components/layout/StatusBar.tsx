@@ -28,6 +28,7 @@ import {
     BLOCK_SHADOW,
     GLASS_BLOCK_SURFACE,
 } from "@/shared/ui/layout/glass-surface";
+import { useSessionSpeedHistory } from "@/shared/hooks/useSessionSpeedHistory";
 
 // Types
 import type { SessionStats } from "@/services/rpc/entities";
@@ -146,6 +147,8 @@ export function StatusBar({
     const downSpeed = sessionStats?.downloadSpeed ?? 0;
     const upSpeed = sessionStats?.uploadSpeed ?? 0;
     const isSelection = selectedCount > 0;
+    const { down: downloadHistory, up: uploadHistory } =
+        useSessionSpeedHistory(sessionStats);
 
     return (
         <footer
@@ -217,7 +220,11 @@ export function StatusBar({
                                     }}
                                 >
                                     <NetworkGraph
-                                        data={[]}
+                                        data={
+                                            config.label === "down"
+                                                ? downloadHistory
+                                                : uploadHistory
+                                        }
                                         color={config.color as any}
                                         className="h-full w-full"
                                     />

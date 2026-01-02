@@ -1,4 +1,6 @@
 import { useEffect, useRef } from "react";
+
+import { CONFIG } from "@/config/logic";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import { subscribeUiClock } from "@/shared/hooks/useUiClock";
 
@@ -14,10 +16,11 @@ const getCurrentSpeed = (torrent: Torrent) => {
     return 0;
 };
 
-export const useTorrentSpeedHistory = (
-    torrents: Torrent[],
-    historyLimit: number
-) => {
+const HISTORY_POINTS = CONFIG.performance.history_data_points;
+const createZeroHistory = () =>
+    new Array(HISTORY_POINTS).fill(0);
+
+export const useTorrentSpeedHistory = (torrents: Torrent[]) => {
     const historyRef = useRef<SpeedHistoryMap>({});
     const torrentsRef = useRef<Torrent[]>(torrents);
 
@@ -31,10 +34,10 @@ export const useTorrentSpeedHistory = (
             const seenIds = new Set<string>();
             torrentsRef.current.forEach((torrent) => {
                 seenIds.add(torrent.id);
-                const history = next[torrent.id] ?? [];
+                const history = next[torrent.id] ?? createZeroHistory();
                 history.push(getCurrentSpeed(torrent));
-                if (history.length > historyLimit) {
-                    history.splice(0, history.length - historyLimit);
+                if (history.length > HISTORY_POINTS) {
+                    history.splice(0, history.length - HISTORY_POINTS);
                 }
                 next[torrent.id] = history;
             });
@@ -47,7 +50,7 @@ export const useTorrentSpeedHistory = (
 
         updateHistory();
         return subscribeUiClock(updateHistory);
-    }, [historyLimit]);
+    }, []);
 
     return historyRef;
 };
