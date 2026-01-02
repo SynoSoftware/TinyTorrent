@@ -233,8 +233,9 @@ const useMeasuredColumnWidths = (
         const headerWidths: Record<string, number> = {};
         const cellWidths: Record<string, number> = {};
 
-        layer.querySelectorAll<HTMLElement>(MEASURE_HEADER_SELECTOR).forEach(
-            (element) => {
+        layer
+            .querySelectorAll<HTMLElement>(MEASURE_HEADER_SELECTOR)
+            .forEach((element) => {
                 const columnId = element.dataset.ttMeasureHeader;
                 if (!columnId) return;
                 const width = readMeasuredWidth(element);
@@ -243,11 +244,11 @@ const useMeasuredColumnWidths = (
                 if (!Number.isFinite(current) || width > current) {
                     headerWidths[columnId] = width;
                 }
-            }
-        );
+            });
 
-        layer.querySelectorAll<HTMLElement>(MEASURE_CELL_SELECTOR).forEach(
-            (element) => {
+        layer
+            .querySelectorAll<HTMLElement>(MEASURE_CELL_SELECTOR)
+            .forEach((element) => {
                 const columnId = element.dataset.ttMeasureCell;
                 if (!columnId) return;
                 const width = readMeasuredWidth(element);
@@ -256,8 +257,7 @@ const useMeasuredColumnWidths = (
                 if (!Number.isFinite(current) || width > current) {
                     cellWidths[columnId] = width;
                 }
-            }
-        );
+            });
 
         const nextMinWidths: Record<string, number> = {};
         const columnIds = new Set([
@@ -510,11 +510,11 @@ const DraggableHeader = memo(
                     >
                         <div
                             className={cn(
-                                "w-(--tt-divider-width) h-indicator bg-foreground/10 transition-colors rounded-full",
+                                "bg-foreground/10 transition-colors rounded-full h-resize-h",
                                 "group-hover:bg-primary/50",
-                                isColumnResizing &&
-                                    "bg-primary w-(--tt-divider-width) h-indicator"
+                                isColumnResizing && "bg-primary h-resize-h"
                             )}
+                            style={{ width: "var(--tt-divider-width)" }}
                         />
                     </div>
                 )}
@@ -613,8 +613,7 @@ const ColumnMeasurementLayer = memo(
                 <div className="flex">
                     {headers.map((header) => {
                         const { column } = header;
-                        const align =
-                            column.columnDef.meta?.align || "start";
+                        const align = column.columnDef.meta?.align || "start";
                         const isSelection =
                             header.id.toString() === "selection";
                         const sortState = column.getIsSorted();
@@ -660,8 +659,7 @@ const ColumnMeasurementLayer = memo(
                         {row.getVisibleCells().map((cell) => {
                             const align =
                                 cell.column.columnDef.meta?.align || "start";
-                            const isSelection =
-                                cell.column.id === "selection";
+                            const isSelection = cell.column.id === "selection";
                             return (
                                 <div
                                     key={cell.id}
@@ -669,8 +667,7 @@ const ColumnMeasurementLayer = memo(
                                     className={cn(
                                         CELL_BASE_CLASSES,
                                         CELL_PADDING_CLASS,
-                                        align === "center" &&
-                                            "justify-center",
+                                        align === "center" && "justify-center",
                                         align === "end" && "justify-end",
                                         isSelection && "justify-center"
                                     )}
@@ -706,6 +703,7 @@ const VirtualRow = memo(
         isHighlighted,
         onDropTargetChange,
         isAnyColumnResizing = false,
+        columnOrderVersion,
     }: {
         row: Row<Torrent>;
         virtualRow: VirtualItem;
@@ -720,6 +718,7 @@ const VirtualRow = memo(
         isHighlighted: boolean;
         onDropTargetChange?: (id: string | null) => void;
         isAnyColumnResizing?: boolean;
+        columnOrderVersion?: string;
     }) => {
         // Inside VirtualRow component
         const {
@@ -798,6 +797,7 @@ const VirtualRow = memo(
                 ref={setNodeRef}
                 data-index={virtualRow.index}
                 data-torrent-row={row.original.id}
+                data-tt-column-order={columnOrderVersion}
                 {...(attributes ?? {})}
                 {...(listeners ?? {})}
                 role="row"
@@ -1065,6 +1065,10 @@ export function TorrentTable({
     const [columnOrder, setColumnOrder] = useState<string[]>(
         initialState.columnOrder
     );
+    const columnOrderVersion = useMemo(
+        () => columnOrder.join("|"),
+        [columnOrder]
+    );
     const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(
         initialState.columnVisibility
     );
@@ -1256,9 +1260,12 @@ export function TorrentTable({
     // Memoized columns based ONLY on translation and stable definitions.
     // Dynamic data (sparklines) is accessed via meta.
     const columns = useMemo<ColumnDef<Torrent>[]>(() => {
-        return Object.keys(COLUMN_DEFINITIONS).map((colId) => {
+        // Build columns in the canonical default order so the table's
+        // initial mapping between header and cell renderers remains stable.
+        const cols = DEFAULT_COLUMN_ORDER.map((colId) => {
             const id = colId as ColumnId;
             const def = COLUMN_DEFINITIONS[id];
+            if (!def) return null;
             const sortAccessor = def.sortAccessor;
             const accessorKey = sortAccessor ? undefined : def.rpcField;
             const accessorFn = sortAccessor
@@ -1273,18 +1280,18 @@ export function TorrentTable({
                     const label = def.labelKey ? t(def.labelKey) : "";
                     const HeaderIcon = def.headerIcon;
                     return HeaderIcon ? (
-                            <div
-                                className="flex items-center gap-tight text-scaled font-semibold uppercase text-foreground/60"
-                                style={{
-                                    letterSpacing: "var(--tt-tracking-ultra)",
-                                }}
-                            >
-                                <HeaderIcon
-                                    strokeWidth={ICON_STROKE_WIDTH_DENSE}
-                                    className="text-foreground/50 animate-pulse toolbar-icon-size-lg"
-                                />
-                                <span>{label}</span>
-                            </div>
+                        <div
+                            className="flex items-center gap-tight text-scaled font-semibold uppercase text-foreground/60"
+                            style={{
+                                letterSpacing: "var(--tt-tracking-ultra)",
+                            }}
+                        >
+                            <HeaderIcon
+                                strokeWidth={ICON_STROKE_WIDTH_DENSE}
+                                className="text-foreground/50 animate-pulse toolbar-icon-size-md"
+                            />
+                            <span>{label}</span>
+                        </div>
                     ) : (
                         label
                     );
@@ -1302,6 +1309,7 @@ export function TorrentTable({
                 },
             } as ColumnDef<Torrent>;
         });
+        return cols.filter(Boolean) as ColumnDef<Torrent>[];
     }, [t]);
 
     // We pass dynamic data through meta to avoid column regeneration
@@ -1576,8 +1584,7 @@ export function TorrentTable({
     const measurementHeaders = table
         .getFlatHeaders()
         .filter(
-            (header) =>
-                !header.isPlaceholder && header.column.getIsVisible()
+            (header) => !header.isPlaceholder && header.column.getIsVisible()
         );
 
     useLayoutEffect(() => {
@@ -2078,11 +2085,18 @@ export function TorrentTable({
         setActiveDragHeaderId(null);
         const { active, over } = event;
         if (active && over && active.id !== over.id) {
+            // Compute new order and update both React state and the react-table
+            // instance to ensure header and cell renderers refresh immediately.
             setColumnOrder((order) => {
                 const oldIndex = order.indexOf(active.id as string);
                 const newIndex = order.indexOf(over.id as string);
                 if (oldIndex < 0 || newIndex < 0) return order;
-                return arrayMove(order, oldIndex, newIndex);
+                const next = arrayMove(order, oldIndex, newIndex);
+                try {
+                    // Keep react-table's internal state in sync immediately.
+                    table.setColumnOrder(next as string[]);
+                } catch {}
+                return next;
             });
         }
     };
@@ -2539,6 +2553,9 @@ export function TorrentTable({
                                                             }
                                                             isAnyColumnResizing={
                                                                 isAnyColumnResizing
+                                                            }
+                                                            columnOrderVersion={
+                                                                columnOrderVersion
                                                             }
                                                         />
                                                     );

@@ -124,9 +124,11 @@ const STATUS_CHIP_STYLE: CSSProperties = {
     gap: "var(--gap-tools)",
     borderRadius: "var(--r-md)",
     minWidth: "var(--tt-badge-min-width)",
-    minHeight: "var(--tt-icon-size)",
-    paddingBlock: "var(--spacing-tight)",
+    width: "auto",
+    /* Height/padding are controlled via the .h-status-chip utility token
+       to respect the Token Pipeline and avoid inline geometry drift. */
     boxSizing: "border-box",
+    /* keep boxSizing present; other sizing is handled by class */
 };
 
 const getOrdinalSuffix = (value: number) => {
@@ -340,29 +342,29 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
             };
             const Icon = conf.icon;
             return (
-                <div className="min-w-0">
+                <div className="min-w-0 w-full flex items-center justify-center h-full">
                     <Chip
                         size="md"
-                        variant="shadow"
+                        variant="flat"
                         color={conf.color}
-                        startContent={
+                        style={STATUS_CHIP_STYLE}
+                        classNames={{
+                            base: "h-status-chip px-tight inline-flex items-center justify-center gap-tools whitespace-nowrap",
+                            content:
+                                "font-bold text-scaled uppercase tracking-wider leading-none whitespace-nowrap",
+                        }}
+                    >
+                        <div className="flex items-center justify-center gap-tools">
                             <StatusIcon
                                 Icon={Icon}
                                 size="sm"
                                 strokeWidth={ICON_STROKE_WIDTH_DENSE}
                                 className="text-current"
                             />
-                        }
-                        style={STATUS_CHIP_STYLE}
-                        classNames={{
-                            base: "h-indicator px-tight inline-flex items-center whitespace-nowrap flex-nowrap",
-                            content:
-                                "font-bold text-scaled uppercase tracking-wider leading-none whitespace-nowrap",
-                        }}
-                    >
-                        <span className="truncate" title={t(conf.labelKey)}>
-                            {t(conf.labelKey)}
-                        </span>
+                            <span className="truncate" title={t(conf.labelKey)}>
+                                {t(conf.labelKey)}
+                            </span>
+                        </div>
                     </Chip>
                 </div>
             );
@@ -448,7 +450,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
             >
                 <StatusIcon
                     Icon={Users}
-                    size="sm"
+                    size="md"
                     strokeWidth={ICON_STROKE_WIDTH_DENSE}
                     className="opacity-50 text-current"
                 />
