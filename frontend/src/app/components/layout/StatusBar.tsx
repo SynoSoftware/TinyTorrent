@@ -189,15 +189,11 @@ export function StatusBar({
                                 <div className="flex items-center shrink-0 gap-tools">
                                     <div
                                         className={cn(
-                                            "flex items-center justify-center rounded-2xl bg-content1/10 text-foreground/50 transition-colors p-tight",
+                                            "flex items-center justify-center rounded-2xl bg-content1/10 text-foreground/50 transition-colors p-tight toolbar-icon-size-xl",
                                             config.color === "success"
                                                 ? "group-hover:bg-success/10 group-hover:text-success"
                                                 : "group-hover:bg-primary/10 group-hover:text-primary"
                                         )}
-                                        style={{
-                                            width: "var(--tt-status-icon-xl)",
-                                            height: "var(--tt-status-icon-xl)",
-                                        }}
                                     >
                                         <StatusIcon
                                             Icon={config.Icon}

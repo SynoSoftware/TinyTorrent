@@ -98,7 +98,10 @@ export function Navbar({
                         "flex grow h-full min-w-0 items-center justify-between gap-stage px-panel py-tight relative"
                     )}
                     style={{
-                        borderRadius: `${shell.innerRadius}px`,
+                        borderTopLeftRadius: 0,
+                        borderTopRightRadius: `${shell.innerRadius}px`,
+                        borderBottomLeftRadius: `${shell.innerRadius}px`,
+                        borderBottomRightRadius: `${shell.innerRadius}px`,
                         marginRight: "var(--spacing-panel)",
                     }}
                 >
@@ -327,7 +330,13 @@ export function Navbar({
                         BLOCK_SHADOW,
                         "flex h-full items-stretch divide-x divide-default/20 overflow-hidden"
                     )}
-                    style={{ borderRadius: `${shell.innerRadius}px` }}
+                    style={{
+                        borderTopLeftRadius: `${shell.innerRadius}px`,
+                        borderTopRightRadius: 0,
+                        borderBottomLeftRadius: `${shell.innerRadius}px`,
+                        borderBottomRightRadius: `${shell.innerRadius}px`,
+                        marginRight: 0,
+                    }}
                 >
                     <WindowControlButton
                         Icon={Icon}

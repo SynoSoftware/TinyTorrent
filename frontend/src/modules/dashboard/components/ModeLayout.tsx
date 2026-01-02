@@ -25,6 +25,7 @@ import {
     getShellTokens,
     MIN_HANDLE_VISUAL_WIDTH,
 } from "@/config/logic";
+import StatusIcon from "@/shared/ui/components/StatusIcon";
 import type { WorkspaceStyle } from "@/app/hooks/useWorkspaceShell";
 import type { TorrentPeerEntity } from "@/services/rpc/entities";
 import type {
@@ -270,11 +271,9 @@ export function ModeLayout({
                             paddingBottom: "var(--tt-drop-overlay-padding-y)",
                         }}
                     >
-                        <FileUp
-                            style={{
-                                width: "var(--tt-drop-icon-size)",
-                                height: "var(--tt-drop-icon-size)",
-                            }}
+                        <StatusIcon
+                            Icon={FileUp}
+                            size="xl"
                             strokeWidth={ICON_STROKE_WIDTH}
                             className="text-primary"
                         />

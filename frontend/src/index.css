@@ -57,10 +57,10 @@
     /* (removed duplicate spacing-tight; authoritative value is --tt-p-tight above) */
     /* --- Forensic-mapped tokens (flagged items) --- */
     --tt-col-sparkline: calc(
-        var(--tt-uz) * 16
+        var(--tt-uz) * 24
     ); /* The w-16 found in ColumnDefinitions */
     --tt-h-indicator: calc(
-        var(--tt-uz) * 3
+        var(--tt-uz) * 2
     ); /* The h-3/h-4 for progress/skeletons */
     /* Modal structural elements */
     --tt-h-modal-header: var(--tt-h-nav); /* unify h-16 with h-nav */
@@ -70,10 +70,6 @@
 
     /* Visualization typography */
     --tt-fz-label: calc(var(--fz) * 1); /* ~10px equivalent relative to base */
-
-    /* Navbar typography tokens (tab label and meta text) */
-    --tt-navbar-tab-font-size: calc(var(--fz-scaled) * 1.5);
-    --tt-navbar-meta-font-size: calc(var(--fz-scaled) * 1);
 
     /* Utility mapping aliases */
     --spacing-sparkline: var(--tt-col-sparkline);
@@ -86,6 +82,7 @@
     --height-row: var(--tt-h-row);
     --size-btn: var(--tt-size-btn);
     --size-btn-lg: var(--tt-size-btn-lg);
+    --tt-window-control-size: calc(var(--tt-navbar-h) * 1.2);
 }
 
 /* Core design-system primitives and derived geometry
@@ -132,6 +129,17 @@
     --stroke: clamp(1px, calc(var(--sw) * var(--z) * 1px), 2px);
     --glass-blur: clamp(14px, var(--blur), 22px);
 
+    --tt-icon-stroke: var(--stroke);
+    --tt-icon-stroke-dense: var(--stroke);
+
+    --z-floor: 0;
+    --z-panel: 10;
+    --z-sticky: 20;
+    --z-overlay: 30;
+    --z-modal: 40;
+    --z-toast: 50;
+    --z-cursor: 999;
+
     /* Semantic roles (derive only; do not introduce new numbers) */
     --button-min-w: calc(6 * var(--u) * var(--z));
     --table-font: var(--fz-scaled);
@@ -151,6 +159,7 @@
     --tt-status-icon-md: calc(5 * var(--u) * var(--z));
     --tt-status-icon-lg: calc(8 * var(--u) * var(--z));
     --tt-status-icon-xl: calc(12 * var(--u) * var(--z));
+    --tt-control-icon-size: var(--tt-status-icon-md);
     --tt-button-h: var(--tt-h-md);
     --tt-button-min-w: var(--button-min-w);
 
@@ -161,18 +170,12 @@
     --tt-priority-badge-font-size: var(--fz-scaled);
     --tt-priority-badge-padding-x: var(--p-2);
     --tt-priority-badge-padding-y: var(--p-1);
-    --tt-priority-select-w: calc(32 * var(--u) * var(--z));
     --tt-file-icon-size: calc(4 * var(--u) * var(--z));
     --tt-file-checkbox-padding: var(--p-1);
 
     /* Added semantic tokens for previously inline arbitrary Tailwind calcs */
     --tt-modal-max-width: calc(180 * var(--u) * var(--z));
     --tt-modal-body-max-height: calc(70 * var(--u) * var(--z));
-    --tt-modal-add-w: calc(var(--u) * 275 * var(--z));
-    --tt-modal-add-h: calc(var(--u) * 188 * var(--z));
-    --tt-modal-body-max-h: calc(var(--u) * 70 * var(--z));
-    --tt-modal-settings-h: calc(var(--u) * 200 * var(--z));
-    --tt-modal-settings-min-h: calc(var(--u) * 125 * var(--z));
     --tt-settings-h: calc(200 * var(--u));
     --tt-settings-max-h: calc(200 * var(--u));
     --tt-settings-min-h: calc(125 * var(--u));
@@ -267,46 +270,6 @@
     .tracking-0-3 {
         letter-spacing: var(--tt-tracking-ultra);
     }
-    .tt-navbar-tab-font {
-        font-size: var(--tt-navbar-tab-font-size);
-    }
-    .tt-navbar-meta-font {
-        font-size: var(--tt-navbar-meta-font-size);
-    }
-    .toolbar-icon-size-sm {
-        width: var(--tt-status-icon-sm);
-        height: var(--tt-status-icon-sm);
-    }
-    .toolbar-icon-size-md {
-        width: var(--tt-status-icon-md);
-        height: var(--tt-status-icon-md);
-    }
-    .toolbar-icon-size-lg {
-        width: var(--tt-status-icon-lg);
-        height: var(--tt-status-icon-lg);
-    }
-    .toolbar-icon-size-xl {
-        width: var(--tt-status-icon-xl);
-        height: var(--tt-status-icon-xl);
-    }
-    .toolbar-icon-button-glow {
-        padding: var(--gap-tools);
-        min-width: calc(var(--tt-status-icon-xl) + var(--gap-tools));
-        min-height: calc(var(--tt-status-icon-xl) + var(--gap-tools));
-        box-shadow: 0 0 var(--gap-tools) rgba(var(--heroui-primary-500), 0.4);
-        transition: box-shadow 0.2s ease, transform 0.2s ease;
-    }
-    .toolbar-icon-button-glow:hover {
-        box-shadow: 0 0 var(--gap-tools) rgba(var(--heroui-primary-500), 0.6);
-        transform: scale(1.02);
-    }
-    .toolbar-icon-button-glow:focus-visible {
-        box-shadow: 0 0 calc(var(--gap-tools) + var(--gap-tools))
-            rgba(var(--heroui-primary-500), 0.75);
-    }
-    .window-control-button-width {
-        width: var(--tt-navbar-h);
-    }
     /* Semantic role for label tracking (use in components via logic export) */
     .tracking-label {
         letter-spacing: var(--tt-tracking-ultra);
@@ -328,6 +291,30 @@
 
     .z-top {
         z-index: 12000;
+    }
+
+    .z-floor {
+        z-index: var(--z-floor);
+    }
+
+    .z-panel {
+        z-index: var(--z-panel);
+    }
+
+    .z-sticky {
+        z-index: var(--z-sticky);
+    }
+
+    .z-overlay {
+        z-index: var(--z-overlay);
+    }
+
+    .z-modal {
+        z-index: var(--z-modal);
+    }
+
+    .z-toast {
+        z-index: var(--z-toast);
     }
 
     .shadow-success-glow {
@@ -373,43 +360,6 @@
 
     .max-w-tooltip {
         max-width: var(--tt-modal-max-width);
-    }
-
-    .max-w-modal-add {
-        max-width: var(--tt-modal-add-w);
-    }
-
-    .h-modal-add {
-        height: var(--tt-modal-add-h);
-        min-height: var(--tt-modal-add-h);
-        max-height: var(--tt-modal-add-h);
-    }
-
-    .priority-select-trigger {
-        min-width: var(--tt-priority-select-w);
-        width: var(--tt-priority-select-w);
-    }
-
-    .max-h-modal-body {
-        max-height: var(--tt-modal-body-max-h);
-    }
-
-    .min-w-status-chip {
-        min-width: var(--tt-badge-min-width);
-    }
-
-    .rounded-modal {
-        border-radius: var(--r-lg);
-    }
-
-    .icon-size {
-        width: var(--tt-icon-size);
-        height: var(--tt-icon-size);
-    }
-
-    .icon-size-lg {
-        width: var(--icon-lg);
-        height: var(--icon-lg);
     }
 
     /* LIGHT - emerald paper */
@@ -688,6 +638,35 @@
         width: var(--tt-dot-size);
     }
 
+    .toolbar-icon-size-sm {
+        width: var(--tt-status-icon-sm);
+        height: var(--tt-status-icon-sm);
+    }
+
+    .toolbar-icon-size-md,
+    .tt-icon-md {
+        width: var(--tt-status-icon-md);
+        height: var(--tt-status-icon-md);
+    }
+
+    .toolbar-icon-size-lg {
+        width: var(--tt-status-icon-lg);
+        height: var(--tt-status-icon-lg);
+    }
+
+    .toolbar-icon-size-xl {
+        width: var(--tt-status-icon-xl);
+        height: var(--tt-status-icon-xl);
+    }
+
+    .window-control-button-width {
+        width: var(--tt-window-control-size);
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
     /* Semantic text sizing utility mapping to scaled font variable */
     .text-scaled {
         font-size: var(--tt-font-size-base);
@@ -883,6 +862,14 @@ main .torrent-table-watermark {
 
     .max-w-dir-picker {
         max-width: var(--tt-directory-picker-max-w);
+    }
+
+    .max-w-modal {
+        max-width: var(--tt-modal-max-width);
+    }
+
+    .max-h-modal-body {
+        max-height: var(--tt-modal-body-max-height);
     }
 
     .max-h-command-palette {

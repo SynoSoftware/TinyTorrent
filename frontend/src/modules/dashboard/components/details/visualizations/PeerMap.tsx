@@ -9,6 +9,7 @@ import { DETAILS_PEER_MAP_CONFIG, INTERACTION_CONFIG } from "@/config/logic";
 import { formatSpeed } from "@/shared/utils/format";
 import { useUiClock } from "@/shared/hooks/useUiClock";
 import type { TorrentPeerEntity } from "@/services/rpc/entities";
+import StatusIcon from "@/shared/ui/components/StatusIcon";
 
 // SPD PHYSICS SCHEMA (Zero-Inline Policy)
 const SPD_PHYSICS = {
@@ -194,8 +195,9 @@ export const PeerMap = ({
                             : t("peers.swarm_pulse")}
                     </span>
                     <div className="flex items-center gap-tools">
-                        <Activity
-                            size={10}
+                        <StatusIcon
+                            Icon={Activity}
+                            size="sm"
                             className={cn(
                                 "transition-opacity",
                                 mode === "instrument"
@@ -210,17 +212,21 @@ export const PeerMap = ({
                 </div>
                 <AnimatePresence>
                     {mode === "instrument" && (
-                        <motion.div
-                            initial={{ opacity: 0, x: 5 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            className="flex gap-tools items-center"
-                        >
-                            <span className="text-label font-mono text-foreground/40 uppercase">
-                                Aperture:{" "}
-                                {formatSpeed(swarmStats.max * radialAperture)}
-                            </span>
-                            <Compass size={12} className="text-primary/50" />
-                        </motion.div>
+                            <motion.div
+                                initial={{ opacity: 0, x: 5 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                className="flex gap-tools items-center"
+                            >
+                                <span className="text-label font-mono text-foreground/40 uppercase">
+                                    Aperture:{" "}
+                                    {formatSpeed(swarmStats.max * radialAperture)}
+                                </span>
+                                <StatusIcon
+                                    Icon={Compass}
+                                    size="sm"
+                                    className="text-primary/50"
+                                />
+                            </motion.div>
                     )}
                 </AnimatePresence>
             </div>

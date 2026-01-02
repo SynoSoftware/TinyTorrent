@@ -78,6 +78,7 @@ import {
     PANEL_SHADOW,
 } from "@/shared/ui/layout/glass-surface";
 import useLayoutMetrics from "@/shared/hooks/useLayoutMetrics";
+import StatusIcon from "@/shared/ui/components/StatusIcon";
 import { useContextMenuPosition } from "@/shared/hooks/ui/useContextMenuPosition";
 import type { ContextMenuVirtualElement } from "@/shared/hooks/ui/useContextMenuPosition";
 import { useKeyboardScope } from "@/shared/hooks/useKeyboardScope";
@@ -99,7 +100,6 @@ import {
     ICON_STROKE_WIDTH_DENSE,
     UI_BASES,
     CONFIG,
-    ICON_SIZE,
     TABLE_PERSIST_DEBOUNCE_MS,
 } from "@/config/logic";
 
@@ -493,13 +493,9 @@ const DraggableHeader = memo(
                     <SortArrowIcon
                         strokeWidth={ICON_STROKE_WIDTH_DENSE}
                         className={cn(
-                            "text-primary shrink-0",
+                            "text-primary shrink-0 toolbar-icon-size-sm",
                             sortArrowOpacity
                         )}
-                        style={{
-                            width: ICON_SIZE.secondary,
-                            height: ICON_SIZE.secondary,
-                        }}
                     />
                 </div>
 
@@ -563,11 +559,10 @@ const ColumnHeaderPreview = ({
                 {flexRender(column.columnDef.header, header.getContext())}
                 <SortArrowIcon
                     strokeWidth={ICON_STROKE_WIDTH_DENSE}
-                    className={cn("text-primary shrink-0", sortArrowOpacity)}
-                    style={{
-                        width: ICON_SIZE.secondary,
-                        height: ICON_SIZE.secondary,
-                    }}
+                    className={cn(
+                        "text-primary shrink-0 toolbar-icon-size-sm",
+                        sortArrowOpacity
+                    )}
                 />
             </div>
         </div>
@@ -652,13 +647,9 @@ const ColumnMeasurementLayer = memo(
                                 <SortArrowIcon
                                     strokeWidth={ICON_STROKE_WIDTH_DENSE}
                                     className={cn(
-                                        "text-primary shrink-0",
+                                        "text-primary shrink-0 toolbar-icon-size-sm",
                                         sortArrowOpacity
                                     )}
-                                    style={{
-                                        width: ICON_SIZE.secondary,
-                                        height: ICON_SIZE.secondary,
-                                    }}
                                 />
                             </div>
                         );
@@ -1282,22 +1273,18 @@ export function TorrentTable({
                     const label = def.labelKey ? t(def.labelKey) : "";
                     const HeaderIcon = def.headerIcon;
                     return HeaderIcon ? (
-                        <div
-                            className="flex items-center gap-tight text-scaled font-semibold uppercase text-foreground/60"
-                            style={{
-                                letterSpacing: "var(--tt-tracking-ultra)",
-                            }}
-                        >
-                            <HeaderIcon
-                                strokeWidth={ICON_STROKE_WIDTH_DENSE}
-                                className="text-foreground/50 animate-pulse"
+                            <div
+                                className="flex items-center gap-tight text-scaled font-semibold uppercase text-foreground/60"
                                 style={{
-                                    width: ICON_SIZE.primary,
-                                    height: ICON_SIZE.primary,
+                                    letterSpacing: "var(--tt-tracking-ultra)",
                                 }}
-                            />
-                            <span>{label}</span>
-                        </div>
+                            >
+                                <HeaderIcon
+                                    strokeWidth={ICON_STROKE_WIDTH_DENSE}
+                                    className="text-foreground/50 animate-pulse toolbar-icon-size-lg"
+                                />
+                                <span>{label}</span>
+                            </div>
                     ) : (
                         label
                     );
@@ -2432,9 +2419,9 @@ export function TorrentTable({
                                                 "var(--tt-tracking-ultra)",
                                         }}
                                     >
-                                        <FileUp
-                                            size={20}
-                                            strokeWidth={ICON_STROKE_WIDTH}
+                                        <StatusIcon
+                                            Icon={FileUp}
+                                            size="lg"
                                             className="text-primary"
                                         />
                                         <span>

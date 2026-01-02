@@ -16,6 +16,8 @@ import { SmoothProgressBar } from "@/shared/ui/components/SmoothProgressBar";
 import { ICON_STROKE_WIDTH } from "@/config/logic";
 import { writeClipboard } from "@/shared/utils/clipboard";
 import { TEXT_ROLES } from "./textRoles";
+import StatusIcon from "@/shared/ui/components/StatusIcon";
+import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
 
 interface GeneralTabProps {
     torrent: TorrentDetail;
@@ -47,13 +49,14 @@ const GeneralInfoCard = ({
 }: GeneralInfoCardProps) => (
     <GlassPanel className="p-panel">
         <div className="flex items-start gap-tools">
-            <div className="flex size-icon-btn-lg items-center justify-center rounded-xl border border-content1/20 bg-content1/30">
-                <Icon
-                    size={18}
-                    strokeWidth={ICON_STROKE_WIDTH}
-                    className={accent ?? "text-foreground/70"}
-                />
-            </div>
+        <div className="flex size-icon-btn-lg items-center justify-center rounded-xl border border-content1/20 bg-content1/30">
+            <StatusIcon
+                Icon={Icon}
+                size="lg"
+                className={accent ?? "text-foreground/70"}
+                strokeWidth={ICON_STROKE_WIDTH}
+            />
+        </div>
             <div className="flex-1">
                 <div className={TEXT_ROLES.label}>{label}</div>
                 <div className={`${TEXT_ROLES.primary} font-mono`}>{value}</div>
@@ -282,12 +285,13 @@ export const GeneralTab = ({
 
             <div className="grid grid-cols-1 gap-panel sm:grid-cols-2">
                 <GlassPanel className="p-panel space-y-3">
-                    <div className="flex items-center gap-tools">
-                        <Folder
-                            size={16}
-                            strokeWidth={ICON_STROKE_WIDTH}
-                            className="text-foreground/50"
-                        />
+                        <div className="flex items-center gap-tools">
+                            <StatusIcon
+                                Icon={Folder}
+                                size="sm"
+                                strokeWidth={ICON_STROKE_WIDTH}
+                                className="text-foreground/50"
+                            />
                         <span
                             className="text-scaled uppercase text-foreground/40"
                             style={{
@@ -304,8 +308,9 @@ export const GeneralTab = ({
                 <GlassPanel className="p-panel space-y-3">
                     <div className="flex items-center justify-between gap-tools">
                         <div className="flex items-center gap-tools">
-                            <Hash
-                                size={16}
+                            <StatusIcon
+                                Icon={Hash}
+                                size="sm"
                                 strokeWidth={ICON_STROKE_WIDTH}
                                 className="text-foreground/50"
                             />
@@ -313,20 +318,13 @@ export const GeneralTab = ({
                                 {t("torrent_modal.labels.info_hash")}
                             </span>
                         </div>
-                        <Button
-                            isIconOnly
-                            size="md"
-                            variant="shadow"
+                        <ToolbarIconButton
+                            Icon={Copy}
+                            ariaLabel={t("table.actions.copy_hash")}
                             onPress={handleCopyHash}
-                            aria-label={t("table.actions.copy_hash")}
+                            iconSize="md"
                             className="text-foreground/50 hover:text-foreground"
-                        >
-                            <Copy
-                                size={12}
-                                strokeWidth={ICON_STROKE_WIDTH}
-                                className="text-current"
-                            />
-                        </Button>
+                        />
                     </div>
                     <code className="font-mono text-scaled text-foreground/70 bg-content1/20 px-tight py-tight rounded wrap-break-word">
                         {torrent.hash}

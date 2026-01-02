@@ -11,7 +11,7 @@ import {
     ModalHeader,
     cn,
 } from "@heroui/react";
-import { AlertTriangle, Link2, MousePointer, PlugZap, X } from "lucide-react";
+import { X } from "lucide-react";
 
 import Runtime, { NativeShell } from "@/app/runtime";
 
@@ -32,6 +32,7 @@ import {
     INTERACTION_CONFIG,
 } from "@/config/logic";
 import { GLASS_MODAL_SURFACE } from "@/shared/ui/layout/glass-surface";
+import { StatusIcon } from "@/shared/ui/components/StatusIcon";
 import type {
     AmbientHudCard,
     DeleteIntent,
@@ -512,30 +513,26 @@ export function WorkspaceShell({
                                                             }
                                                         )}
                                                     >
-                                                        <X
-                                                            size={12}
-                                                            strokeWidth={
-                                                                ICON_STROKE_WIDTH
-                                                            }
+                                                        <StatusIcon
+                                                            Icon={X}
+                                                            size="md"
                                                             className="text-current"
                                                         />
                                                     </button>
 
                                                     <div className="flex items-start gap-workbench">
-                                                        <div
-                                                            className={cn(
-                                                                "flex size-icon-btn-lg items-center justify-center rounded-2xl",
-                                                                card.iconBgClass
-                                                            )}
-                                                        >
-                                                            <Icon
-                                                                size={18}
-                                                                strokeWidth={
-                                                                    ICON_STROKE_WIDTH
-                                                                }
-                                                                className="text-current"
-                                                            />
-                                                        </div>
+                                                    <div
+                                                        className={cn(
+                                                            "flex size-icon-btn-lg items-center justify-center rounded-2xl",
+                                                            card.iconBgClass
+                                                        )}
+                                                    >
+                                                        <StatusIcon
+                                                            Icon={Icon}
+                                                            size="lg"
+                                                            className="text-current"
+                                                        />
+                                                    </div>
 
                                                         <div className="flex-1">
                                                             <p className="text-sm text-foreground/60">

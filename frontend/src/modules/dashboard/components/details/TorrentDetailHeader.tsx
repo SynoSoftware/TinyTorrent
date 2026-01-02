@@ -54,11 +54,7 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
             <div className="flex items-center gap-tight min-w-0">
                 <Info
                     strokeWidth={ICON_STROKE_WIDTH}
-                    className="text-foreground/50 shrink-0"
-                    style={{
-                        width: "var(--tt-status-icon-md)",
-                        height: "var(--tt-status-icon-md)",
-                    }}
+                    className="text-foreground/50 shrink-0 toolbar-icon-size-md"
                 />
                 <span className="text-scaled font-semibold uppercase text-foreground leading-tight tracking-tight truncate min-w-0">
                     {renderedName}
