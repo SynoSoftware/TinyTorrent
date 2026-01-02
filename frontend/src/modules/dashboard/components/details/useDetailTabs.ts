@@ -25,13 +25,19 @@ export const useDetailTabs = ({
 
     useEffect(() => {
         if (!inspectorTabCommand) return;
-        if (inspectorTabCommand !== active) {
-            setActive(inspectorTabCommand);
+        // Use functional updater to avoid depending on `active` in the
+        // dependency array. This ensures the handler is called exactly once
+        // in response to a new `inspectorTabCommand` prop without creating
+        // an effect-driven loop.
+        setActive((prev) => {
+            if (prev === inspectorTabCommand) {
+                onInspectorTabCommandHandled?.();
+                return prev;
+            }
             onInspectorTabCommandHandled?.();
-            return;
-        }
-        onInspectorTabCommandHandled?.();
-    }, [active, inspectorTabCommand, onInspectorTabCommandHandled]);
+            return inspectorTabCommand;
+        });
+    }, [inspectorTabCommand, onInspectorTabCommandHandled]);
 
     useEffect(() => {
         setActive("general");

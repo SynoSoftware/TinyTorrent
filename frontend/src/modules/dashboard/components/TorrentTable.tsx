@@ -109,7 +109,6 @@ const CELL_PADDING_CLASS = "pl-tight pr-panel";
 const CELL_BASE_CLASSES =
     "flex items-center overflow-hidden h-full truncate whitespace-nowrap text-ellipsis box-border leading-none";
 
-const SPEED_HISTORY_LIMIT = 30;
 const DND_OVERLAY_CLASSES = "pointer-events-none fixed inset-0 z-40";
 const TABLE_TOTAL_WIDTH_VAR = "--tt-table-total-w";
 const MEASURE_LAYER_CLASS = "absolute pointer-events-none invisible";
@@ -877,10 +876,7 @@ export function TorrentTable({
     const [highlightedRowId, setHighlightedRowId] = useState<string | null>(
         null
     );
-    const speedHistoryRef = useTorrentSpeedHistory(
-        torrents,
-        SPEED_HISTORY_LIMIT
-    );
+    const speedHistoryRef = useTorrentSpeedHistory(torrents);
 
     const getDisplayTorrent = useCallback(
         (torrent: Torrent) => {
