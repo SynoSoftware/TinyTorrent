@@ -150,8 +150,14 @@ constexpr wchar_t kWebView2InstallUrl[] =
     L"https://developer.microsoft.com/en-us/microsoft-edge/webview2/"
     L"#download-section";
 constexpr UINT_PTR kDiagSweepTimerId = 0xD1A6;
+
 constexpr COLORREF kStableDwmRimColor = RGB(0, 0, 0);
-// constexpr float kWindowCornerRadiusDip = 16.0f;
+#ifndef TT_ENABLE_WEBVIEW_DCOMP_ROUNDED_CLIP
+#define TT_ENABLE_WEBVIEW_DCOMP_ROUNDED_CLIP 0
+#endif
+constexpr bool kDefaultWebviewDCompRoundedClipEnabled =
+    TT_ENABLE_WEBVIEW_DCOMP_ROUNDED_CLIP != 0;
+constexpr float kWindowCornerRadiusDip = 16.0f;
 
 // ===== Undocumented compositor API for Acrylic =====
 enum ACCENT_STATE
@@ -238,7 +244,10 @@ bool register_drop_target(TrayState &state);
 void unregister_drop_target(TrayState &state);
 void enable_acrylic(HWND hwnd);
 void apply_rounded_corners(HWND hwnd);
-//void apply_rounded_corners_for_size(HWND hwnd, int width, int height);
+void apply_rounded_corners_for_size(HWND hwnd, int width, int height, bool enable);
+void apply_webview_window_icons(TrayState &state);
+bool set_no_redirection_bitmap(HWND hwnd, bool enable);
+void close_splash_window();
 void apply_system_backdrop_type(HWND hwnd, DWORD type);
 bool capture_window_placement(HWND hwnd, WINDOWPLACEMENT &placement);
 void apply_saved_window_state(TrayState &state);
@@ -251,6 +260,10 @@ std::optional<std::wstring>
 open_folder_dialog(HWND owner, std::wstring const &initial_path);
 std::optional<std::wstring>
 resolve_existing_directory(std::wstring const &candidate);
+bool should_apply_webview_rounded_clip(TrayState const *state);
+float compute_webview_rounding_radius(TrayState const *state, float width,
+                                      float height);
+void maybe_show_webview_window(TrayState &state);
 
 // --- Utilities ---
 
@@ -425,6 +438,9 @@ void reset_dcomp_host(TrayState &state)
 
 void reset_webview_objects_keep_window(TrayState &state)
 {
+    state.webview_ready.store(false);
+    state.pending_show_request.store(false);
+
     if (state.webview_controller)
     {
         state.webview_controller->Close();
@@ -433,6 +449,42 @@ void reset_webview_objects_keep_window(TrayState &state)
     state.webview_comp_controller4.Reset();
     state.webview_comp_controller.Reset();
     state.webview.Reset();
+}
+
+bool should_apply_webview_rounded_clip(TrayState const *state)
+{
+    return state && state->rounded_clip_enabled.load();
+}
+
+float compute_webview_rounding_radius(TrayState const *state, float width,
+                                      float height)
+{
+    if (!should_apply_webview_rounded_clip(state) || width <= 0.0f ||
+        height <= 0.0f || !state->webview_window ||
+        IsZoomed(state->webview_window))
+    {
+        return 0.0f;
+    }
+    UINT dpi = GetDpiForWindow(state->webview_window);
+    float radius = kWindowCornerRadiusDip * (static_cast<float>(dpi) / 96.0f);
+    float max_radius = std::max(0.0f, std::min(width, height) / 2.0f);
+    return std::min(radius, max_radius);
+}
+
+void maybe_show_webview_window(TrayState &state)
+{
+    if (!state.webview_window || state.user_closed_ui.load() ||
+        !state.pending_show_request.load() || !state.webview_ready.load())
+    {
+        return;
+    }
+    apply_webview_window_icons(state);
+    apply_saved_window_state(state);
+    ShowWindow(state.webview_window, SW_SHOW);
+    set_no_redirection_bitmap(state.webview_window, true);
+    SetForegroundWindow(state.webview_window);
+    close_splash_window();
+    state.pending_show_request.store(false);
 }
 
 bool ensure_dcomp_visual_tree(TrayState &state, DCompInitFailure *failure)
@@ -537,29 +589,23 @@ bool ensure_dcomp_visual_tree(TrayState &state, DCompInitFailure *failure)
     hr = dcomp->CreateRectangleClip(&root_clip);
     if (SUCCEEDED(hr) && root_clip)
     {
-         float w = static_cast<float>(std::max(0L, client.right - client.left));
-         float h = static_cast<float>(std::max(0L, client.bottom - client.top)); 
-//         float radius =
-    //         kWindowCornerRadiusDip *
-    //         (static_cast<float>(GetDpiForWindow(state.webview_window))
-    //         / 96.0f);
-    //     float max_radius = std::max(0.0f, std::min(w, h) / 2.0f);
-    //     radius = std::min(radius, max_radius);
-    //
-         root_clip->SetLeft(0.0f);
-         root_clip->SetTop(0.0f);
-         root_clip->SetRight(w);
-         root_clip->SetBottom(h);
-    //     root_clip->SetTopLeftRadiusX(radius);
-    //     root_clip->SetTopLeftRadiusY(radius);
-    //     root_clip->SetTopRightRadiusX(radius);
-    //     root_clip->SetTopRightRadiusY(radius);
-    //     root_clip->SetBottomLeftRadiusX(radius);
-    //     root_clip->SetBottomLeftRadiusY(radius);
-    //     root_clip->SetBottomRightRadiusX(radius);
-    //     root_clip->SetBottomRightRadiusY(radius);
-         root->SetClip(root_clip.Get());
-     }
+        float w = static_cast<float>(std::max(0L, client.right - client.left));
+        float h = static_cast<float>(std::max(0L, client.bottom - client.top));
+        root_clip->SetLeft(0.0f);
+        root_clip->SetTop(0.0f);
+        root_clip->SetRight(w);
+        root_clip->SetBottom(h);
+        float radius = compute_webview_rounding_radius(&state, w, h);
+        root_clip->SetTopLeftRadiusX(radius);
+        root_clip->SetTopLeftRadiusY(radius);
+        root_clip->SetTopRightRadiusX(radius);
+        root_clip->SetTopRightRadiusY(radius);
+        root_clip->SetBottomLeftRadiusX(radius);
+        root_clip->SetBottomLeftRadiusY(radius);
+        root_clip->SetBottomRightRadiusX(radius);
+        root_clip->SetBottomRightRadiusY(radius);
+        root->SetClip(root_clip.Get());
+    }
 
     state.d3d_device = device;
     state.d3d_context = context;
@@ -639,27 +685,19 @@ void update_dcomp_root_clip(TrayState *state, RECT client)
 
     float w = static_cast<float>(std::max(0L, client.right - client.left));
     float h = static_cast<float>(std::max(0L, client.bottom - client.top));
-//    float radius = 0.0f;
-   //if (state->webview_window && !IsZoomed(state->webview_window))
-   //{
-   //    radius = kWindowCornerRadiusDip *
-   //             (static_cast<float>(GetDpiForWindow(state->webview_window)) /
-   //              96.0f);
-   //    float max_radius = std::max(0.0f, std::min(w, h) / 2.0f);
-   //    radius = std::min(radius, max_radius);
-   //}
     state->dcomp_root_clip->SetLeft(0.0f);
     state->dcomp_root_clip->SetTop(0.0f);
     state->dcomp_root_clip->SetRight(w);
     state->dcomp_root_clip->SetBottom(h);
- //   state->dcomp_root_clip->SetTopLeftRadiusX(radius);
- //   state->dcomp_root_clip->SetTopLeftRadiusY(radius);
- //   state->dcomp_root_clip->SetTopRightRadiusX(radius);
- //   state->dcomp_root_clip->SetTopRightRadiusY(radius);
- //   state->dcomp_root_clip->SetBottomLeftRadiusX(radius);
- //   state->dcomp_root_clip->SetBottomLeftRadiusY(radius);
- //   state->dcomp_root_clip->SetBottomRightRadiusX(radius);
- //   state->dcomp_root_clip->SetBottomRightRadiusY(radius);
+    float radius = compute_webview_rounding_radius(state, w, h);
+    state->dcomp_root_clip->SetTopLeftRadiusX(radius);
+    state->dcomp_root_clip->SetTopLeftRadiusY(radius);
+    state->dcomp_root_clip->SetTopRightRadiusX(radius);
+    state->dcomp_root_clip->SetTopRightRadiusY(radius);
+    state->dcomp_root_clip->SetBottomLeftRadiusX(radius);
+    state->dcomp_root_clip->SetBottomLeftRadiusY(radius);
+    state->dcomp_root_clip->SetBottomRightRadiusX(radius);
+    state->dcomp_root_clip->SetBottomRightRadiusY(radius);
 }
 
 void commit_dcomp(TrayState *state)
@@ -687,6 +725,10 @@ void update_webview_controller_bounds_from_client_rect(TrayState *state,
     state->webview_controller->put_Bounds(bounds);
     update_dcomp_root_clip(state, client);
     commit_dcomp(state);
+    int client_width = std::max(0L, client.right - client.left);
+    int client_height = std::max(0L, client.bottom - client.top);
+    apply_rounded_corners_for_size(hwnd, client_width, client_height,
+                                   should_apply_webview_rounded_clip(state));
 }
 
 void update_webview_controller_bounds(TrayState *state, HWND hwnd)
@@ -847,11 +889,8 @@ HRESULT finish_webview_controller_setup(TrayState &state)
                     return S_OK;
                 }
                 reload_native_auth_token(state);
-                if (state.webview_window)
-                {
-                    ShowWindow(state.webview_window, SW_SHOW);
-                    SetForegroundWindow(state.webview_window);
-                }
+                state.webview_ready.store(true);
+                maybe_show_webview_window(state);
                 return S_OK;
             })
             .Get(),
@@ -1012,6 +1051,9 @@ bool perform_window_command(TrayState &state, std::string const &command)
 
 void cancel_native_webview(TrayState &state)
 {
+    state.webview_ready.store(false);
+    state.pending_show_request.store(false);
+
     if (state.cursor_token_set && state.webview_comp_controller)
     {
         state.webview_comp_controller->remove_CursorChanged(state.cursor_token);
@@ -1230,6 +1272,43 @@ void handle_webview_json_message(TrayState &state, std::string const &payload)
     {
         success = true;
         response_payload = "{\"autorun\":false,\"associations\":false}";
+    }
+    else if (name_value == "set-window-rounded-clip")
+    {
+        if (!payload_val || !yyjson_is_obj(payload_val))
+        {
+            error = "native host rounding request missing payload";
+        }
+        else
+        {
+            yyjson_val *enabled_val = yyjson_obj_get(payload_val, "enabled");
+            if (!enabled_val || !yyjson_is_bool(enabled_val))
+            {
+                error = "native host rounding request missing enabled flag";
+            }
+            else
+            {
+                bool requested = yyjson_get_bool(enabled_val);
+                state.rounded_clip_enabled.store(requested);
+                if (state.webview_window)
+                {
+                    RECT client{};
+                    GetClientRect(state.webview_window, &client);
+                    update_dcomp_root_clip(&state, client);
+                    commit_dcomp(&state);
+                    int client_width = std::max(0L, client.right - client.left);
+                    int client_height =
+                        std::max(0L, client.bottom - client.top);
+                    apply_rounded_corners_for_size(state.webview_window,
+                                                   client_width, client_height,
+                                                   requested);
+                    apply_rounded_corners(state.webview_window);
+                }
+                success = true;
+                response_payload = std::string("{\"enabled\":") +
+                                   (requested ? "true" : "false") + "}";
+            }
+        }
     }
     else if (name_value == "persist-window-state")
     {
@@ -1509,6 +1588,8 @@ std::wstring build_native_bridge_script(TrayState &state)
     script += L"host: \"" + host + L"\", ";
     script += L"port: \"" + port + L"\", ";
     script += L"scheme: \"" + std::wstring(scheme) + L"\"";
+    script += L", roundedClipEnabled: ";
+    script += state.rounded_clip_enabled.load() ? L"true" : L"false";
     script += L"};";
     script += L"try{";
     script += L"if(\"" + token + L"\".length){";
@@ -1562,7 +1643,8 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
         int window_h = std::max(0L, window_rect->bottom - window_rect->top);
         RECT client{0, 0, window_w, window_h};
         update_webview_controller_bounds_from_client_rect(state, hwnd, client);
-        //apply_rounded_corners_for_size(hwnd, window_w, window_h);
+        apply_rounded_corners_for_size(
+            hwnd, window_w, window_h, should_apply_webview_rounded_clip(state));
         return 0;
     }
     case WM_SIZE:
@@ -1837,6 +1919,7 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
         {
             state->user_closed_ui.store(true);
             state->ui_attached.store(false);
+            state->pending_show_request.store(false);
             tt::tray::rpc::post_rpc_request(
                 *state, R"({"method":"session-ui-detach"})");
             if (state->webview_window)
@@ -2103,20 +2186,12 @@ void show_native_window(TrayState &state)
         prompt_webview2_install();
         return;
     }
+    state.pending_show_request.store(true);
     if (!ensure_native_webview(state))
     {
         return;
     }
-    if (!state.webview_window)
-    {
-        return;
-    }
-    apply_webview_window_icons(state);
-    apply_saved_window_state(state);
-    ShowWindow(state.webview_window, SW_SHOW);
-    set_no_redirection_bitmap(state.webview_window, true);
-    SetForegroundWindow(state.webview_window);
-    close_splash_window();
+    maybe_show_webview_window(state);
 }
 
 std::wstring format_rate(uint64_t bytes)
@@ -2221,9 +2296,8 @@ void apply_rounded_corners(HWND hwnd)
     DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, &pref,
                           sizeof(pref));
 }
-
-/*
-void apply_rounded_corners_for_size(HWND hwnd, int width, int height)
+void apply_rounded_corners_for_size(HWND hwnd, int width, int height,
+                                    bool enable)
 {
     if (!hwnd)
     {
@@ -2237,6 +2311,7 @@ void apply_rounded_corners_for_size(HWND hwnd, int width, int height)
         int h = -1;
         int radius = -1;
         bool zoomed = false;
+        bool enabled = false;
     };
 
     static std::array<RegionCacheEntry, 4> g_region_cache{};
@@ -2261,6 +2336,20 @@ void apply_rounded_corners_for_size(HWND hwnd, int width, int height)
         return &g_region_cache[0];
     };
 
+    if (!enable)
+    {
+        SetWindowRgn(hwnd, nullptr, TRUE);
+        if (auto *entry = find_cache(hwnd))
+        {
+            entry->w = width;
+            entry->h = height;
+            entry->radius = 0;
+            entry->zoomed = false;
+            entry->enabled = false;
+        }
+        return;
+    }
+
     if (IsZoomed(hwnd))
     {
         if (auto *entry = find_cache(hwnd);
@@ -2275,6 +2364,7 @@ void apply_rounded_corners_for_size(HWND hwnd, int width, int height)
             entry->h = height;
             entry->radius = 0;
             entry->zoomed = true;
+            entry->enabled = false;
         }
         return;
     }
@@ -2283,6 +2373,14 @@ void apply_rounded_corners_for_size(HWND hwnd, int width, int height)
     int h = std::max(0, height);
     if (w <= 0 || h <= 0)
     {
+        SetWindowRgn(hwnd, nullptr, TRUE);
+        if (auto *entry = find_cache(hwnd))
+        {
+            entry->w = w;
+            entry->h = h;
+            entry->radius = 0;
+            entry->enabled = false;
+        }
         return;
     }
 
@@ -2293,9 +2391,9 @@ void apply_rounded_corners_for_size(HWND hwnd, int width, int height)
     radius_f = std::min(radius_f, max_radius);
     int radius = std::max(0, static_cast<int>(std::lround(radius_f)));
 
-    if (auto *entry = find_cache(hwnd); entry && !entry->zoomed &&
-                                        entry->w == w && entry->h == h &&
-                                        entry->radius == radius)
+    if (auto *entry = find_cache(hwnd);
+        entry && !entry->zoomed && entry->enabled && entry->w == w &&
+        entry->h == h && entry->radius == radius)
     {
         return;
     }
@@ -2318,9 +2416,9 @@ void apply_rounded_corners_for_size(HWND hwnd, int width, int height)
         entry->h = h;
         entry->radius = radius;
         entry->zoomed = false;
+        entry->enabled = true;
     }
 }
-    */
 
 void apply_system_backdrop_type(HWND hwnd, DWORD type)
 {
@@ -2364,10 +2462,7 @@ LRESULT CALLBACK SplashProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
         return 0;
     case WM_SIZE:
     {
-        // RECT rc{};
-        //  GetClientRect(hwnd, &rc);
         apply_rounded_corners(hwnd);
-        // apply_rounded_corners_for_size(hwnd, rc.right, rc.bottom);
         return 0;
     }
     case WM_DPICHANGED:
@@ -2378,10 +2473,7 @@ LRESULT CALLBACK SplashProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
                      suggested->bottom - suggested->top,
                      SWP_NOZORDER | SWP_NOACTIVATE);
 
-        // RECT rc{};
-        //  GetClientRect(hwnd, &rc);
         apply_rounded_corners(hwnd);
-        // apply_rounded_corners_for_size(hwnd, rc.right, rc.bottom);
         return 0;
     }
 
@@ -2463,7 +2555,7 @@ void create_splash_window(HINSTANCE instance, HICON icon,
     {
         SetWindowLongPtrW(hwnd, GWLP_USERDATA,
                           reinterpret_cast<LONG_PTR>(icon));
-      //  enable_dwm_frame(hwnd);
+        //  enable_dwm_frame(hwnd);
         apply_rounded_corners(hwnd);
         apply_system_backdrop_type(hwnd, DWMSBT_NONE);
         enable_acrylic(hwnd);
@@ -2856,6 +2948,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int)
     state->large_icon = icon_large;
     state->start_hidden = start_hidden;
     state->webview2_available = webview2_available;
+    state->rounded_clip_enabled.store(kDefaultWebviewDCompRoundedClipEnabled);
     state->ui_preferences = startup_ui_prefs;
     state->splash_message = startup_splash_message;
     state->auto_open_requested =

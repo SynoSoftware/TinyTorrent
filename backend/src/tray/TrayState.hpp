@@ -71,6 +71,8 @@ struct TrayState
     std::atomic_bool handshake_completed{false};
     std::atomic_bool user_closed_ui{false};
     std::atomic_bool shutting_down{false};
+    std::atomic_bool webview_ready{false};
+    std::atomic_bool pending_show_request{false};
     bool webview2_available = true;
     std::string last_error_message;
     bool start_hidden = false;
@@ -79,5 +81,6 @@ struct TrayState
     std::atomic_bool ui_attached{false};
     std::optional<WINDOWPLACEMENT> saved_window_placement;
     Microsoft::WRL::ComPtr<TrayDropTarget> drop_target;
+    std::atomic_bool rounded_clip_enabled{false};
 };
 } // namespace tt::tray
