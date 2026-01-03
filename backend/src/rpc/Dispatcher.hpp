@@ -1,5 +1,6 @@
 #pragma once
 
+#include "services/SystemInstallService.hpp"
 #include "engine/Core.hpp"
 #include "rpc/UiPreferences.hpp"
 
@@ -16,33 +17,6 @@ struct yyjson_val;
 
 namespace tt::rpc
 {
-enum class HandlerAction
-{
-    None,
-    Enable,
-    Disable,
-};
-
-struct HandlerActionRequest
-{
-    HandlerAction action = HandlerAction::None;
-    bool already_elevated = false;
-};
-
-struct SystemHandlerResult
-{
-    bool success = false;
-    bool permission_denied = false;
-    std::string message;
-    bool requires_elevation = false;
-};
-
-HandlerActionRequest parse_handler_action(int argc, char *argv[]);
-SystemHandlerResult perform_handler_action_impl(HandlerAction action,
-                                                bool allow_elevation,
-                                                bool already_elevated);
-bool run_handler_action_elevated(HandlerAction action);
-
 using ResponseCallback = std::function<void(std::string)>;
 using DispatchHandler = std::function<void(yyjson_val *, ResponseCallback)>;
 using ResponsePoster = std::function<void(std::function<void()>)>;
@@ -55,6 +29,7 @@ class Dispatcher
     Dispatcher(engine::Core *engine, std::string rpc_bind = {},
                ResponsePoster post_response = {},
                std::shared_ptr<UiPreferencesStore> ui_preferences = {},
+               std::shared_ptr<SystemInstallService> install_service = {},
                EventPublisher event_publisher = {},
                UiClientChecker has_ui_client = {});
     void dispatch(std::string_view payload, ResponseCallback cb);
@@ -72,6 +47,7 @@ class Dispatcher
     std::unordered_map<std::string, DispatchHandler> handlers_;
     ResponsePoster post_response_;
     std::shared_ptr<UiPreferencesStore> ui_preferences_store_;
+    std::shared_ptr<SystemInstallService> install_service_;
     UiPreferences ui_preferences_;
     mutable std::shared_mutex ui_preferences_mutex_;
     EventPublisher broadcast_event_;

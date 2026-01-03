@@ -1,4 +1,5 @@
 #pragma once
+#include "services/SystemInstallService.hpp"
 #include "rpc/Dispatcher.hpp"
 #include "rpc/UiPreferences.hpp"
 #include "vendor/mongoose.h"
@@ -50,7 +51,9 @@ class Server
   public:
     explicit Server(engine::Core *engine,
                     std::string bind_url = "http://127.0.0.1:8080",
-                    ServerOptions options = {});
+                    ServerOptions options = {},
+                    std::shared_ptr<SystemInstallService> system_install_service =
+                        {});
     ~Server();
 
     Server(Server const &) = delete;
@@ -91,6 +94,7 @@ class Server
     std::string rpc_path_;
     engine::Core *engine_;
     std::shared_ptr<UiPreferencesStore> ui_preferences_store_;
+    std::shared_ptr<SystemInstallService> system_install_service_;
     Dispatcher dispatcher_;
     mg_mgr mgr_;
     struct mg_connection *listener_;

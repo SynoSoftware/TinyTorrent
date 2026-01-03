@@ -157,6 +157,26 @@ struct Core::Impl
         resume_service = std::make_unique<ResumeDataService>(
             torrent_manager.get(), persistence.get());
 
+        event_bus->subscribe<ResumeDataAvailableEvent>(
+            [this](auto const &event)
+            {
+                if (resume_service)
+                    resume_service->persist_resume_data(event.hash,
+                                                        event.params);
+            });
+        event_bus->subscribe<ResumeDataSavedEvent>(
+            [this](auto const &event)
+            {
+                if (resume_service)
+                    resume_service->mark_completed(event.hash);
+            });
+        event_bus->subscribe<ExtendResumeDeadlineEvent>(
+            [this](auto const &)
+            {
+                if (resume_service)
+                    resume_service->extend_deadline();
+            });
+
         // 1. Create the generic scheduler
         scheduler_service = std::make_unique<SchedulerService>();
 
