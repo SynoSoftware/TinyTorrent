@@ -449,15 +449,9 @@ const DraggableHeader = memo(
         const SortArrowIcon = sortState === "desc" ? ArrowDown : ArrowUp;
         const sortArrowOpacity = sortState ? "opacity-100" : "opacity-0";
 
-        const shouldAnimateLayout =
-            !isAnyColumnResizing && !isDragging && !isOverlay;
-
         return (
-            <motion.div
+            <div
                 ref={setNodeRef}
-                layout={shouldAnimateLayout}
-                layoutId={`column-header-${header.id}`}
-                initial={false}
                 style={style}
                 role="columnheader"
                 tabIndex={-1}
@@ -524,7 +518,7 @@ const DraggableHeader = memo(
                         />
                     </div>
                 )}
-            </motion.div>
+            </div>
         );
     }
 );
@@ -710,6 +704,7 @@ const VirtualRow = memo(
         onDropTargetChange,
         isAnyColumnResizing = false,
         columnOrder,
+        suppressLayoutAnimations = false,
     }: {
         row: Row<Torrent>;
         virtualRow: VirtualItem;
@@ -725,6 +720,7 @@ const VirtualRow = memo(
         onDropTargetChange?: (id: string | null) => void;
         isAnyColumnResizing?: boolean;
         columnOrder?: string[];
+        suppressLayoutAnimations?: boolean;
     }) => {
         void columnOrder;
         // Inside VirtualRow component
@@ -775,7 +771,13 @@ const VirtualRow = memo(
                 style.pointerEvents = "none";
             }
             return style;
-        }, [virtualRow.start, transform, transition, isDragging]);
+        }, [
+            virtualRow.start,
+            transform,
+            transition,
+            isDragging,
+            isAnyColumnResizing,
+        ]);
 
         const isDropTarget =
             dropTargetRowId === row.id && activeRowId !== row.id;
@@ -824,9 +826,9 @@ const VirtualRow = memo(
             >
                 {/* INNER DIV: Handles all visuals. Separating layout from paint prevents glitching. */}
                 <motion.div
-                    layout={!isAnyColumnResizing}
+                    layout={!isAnyColumnResizing && !suppressLayoutAnimations}
                     layoutId={
-                        isAnyColumnResizing
+                        isAnyColumnResizing || suppressLayoutAnimations
                             ? undefined
                             : `torrent-row-${row.id}`
                     }
@@ -1109,6 +1111,24 @@ export function TorrentTable({
     const columnResizeRafRef = useRef<number | null>(null);
     const [activeRowId, setActiveRowId] = useState<string | null>(null);
     const [dropTargetRowId, setDropTargetRowId] = useState<string | null>(null);
+    const [pendingQueueOrder, setPendingQueueOrder] = useState<string[] | null>(
+        null
+    );
+    const tableData = useMemo(() => {
+        if (!pendingQueueOrder) return data;
+        const orderMap = new Map<string, number>();
+        pendingQueueOrder.forEach((id, index) => orderMap.set(id, index));
+        return [...data].sort((a, b) => {
+            const firstIndex = orderMap.get(a.id);
+            const secondIndex = orderMap.get(b.id);
+            if (firstIndex === undefined && secondIndex === undefined) return 0;
+            if (firstIndex === undefined) return 1;
+            if (secondIndex === undefined) return -1;
+            return firstIndex - secondIndex;
+        });
+    }, [data, pendingQueueOrder]);
+    const [suppressLayoutAnimations, setSuppressLayoutAnimations] =
+        useState<boolean>(false);
     const [isColumnModalOpen, setIsColumnModalOpen] = useState(false);
     const [contextMenu, setContextMenu] = useState<{
         virtualElement: ContextMenuVirtualElement;
@@ -1324,7 +1344,7 @@ export function TorrentTable({
     );
 
     const table = useReactTable({
-        data,
+        data: tableData,
         columns,
         getRowId: (torrent) => torrent.id,
         state: {
@@ -1580,9 +1600,6 @@ export function TorrentTable({
     const measurementRows = measurementItems
         .map((virtualRow) => rows[virtualRow.index])
         .filter((row): row is Row<Torrent> => Boolean(row));
-    const measurementRowKey = measurementItems
-        .map((virtualRow) => virtualRow.index)
-        .join("|");
     const measurementHeaders = table
         .getFlatHeaders()
         .filter(
@@ -1597,7 +1614,6 @@ export function TorrentTable({
         columnVisibility,
         isAnyColumnResizing,
         measureColumnMinWidths,
-        measurementRowKey,
         rows,
         sorting,
     ]);
@@ -1913,8 +1929,27 @@ export function TorrentTable({
         if (!canReorderQueue) {
             setActiveRowId(null);
             setDropTargetRowId(null);
+            setSuppressLayoutAnimations(false);
+            setPendingQueueOrder(null);
         }
     }, [canReorderQueue]);
+
+    useEffect(() => {
+        if (!pendingQueueOrder) return;
+        if (data.length !== pendingQueueOrder.length) return;
+        for (let i = 0; i < data.length; i += 1) {
+            if (data[i].id !== pendingQueueOrder[i]) {
+                return;
+            }
+        }
+        setPendingQueueOrder(null);
+    }, [data, pendingQueueOrder]);
+
+    useEffect(() => {
+        if (pendingQueueOrder) return;
+        if (!suppressLayoutAnimations) return;
+        setSuppressLayoutAnimations(false);
+    }, [pendingQueueOrder, suppressLayoutAnimations]);
 
     const handleDropTargetChange = useCallback((id: string | null) => {
         setDropTargetRowId(id);
@@ -1923,6 +1958,10 @@ export function TorrentTable({
     const handleRowDragStart = useCallback(
         (event: DragStartEvent) => {
             if (!canReorderQueue) return;
+            // Suppress layout animations while dragging to avoid
+            // conflicting transforms between the virtualizer and
+            // framer-motion's layout engine.
+            setSuppressLayoutAnimations(true);
             setActiveRowId(event.active.id as string);
         },
         [canReorderQueue]
@@ -1930,6 +1969,9 @@ export function TorrentTable({
 
     const handleRowDragEnd = useCallback(
         async (event: DragEndEvent) => {
+            // Keep layout animations suppressed until the reorder
+            // work (and any async queue RPCs) complete and the
+            // virtualizer has settled positions.
             setActiveRowId(null);
             setDropTargetRowId(null);
             if (!canReorderQueue) return;
@@ -1953,6 +1995,9 @@ export function TorrentTable({
                 : targetIndex;
             const delta = normalizedTo - normalizedFrom;
             if (delta === 0) return;
+
+            const nextOrder = arrayMove(rowIds, draggedIndex, targetIndex);
+            setPendingQueueOrder(nextOrder);
 
             const actionKey = delta > 0 ? "queue-move-down" : "queue-move-up";
             const steps = Math.abs(delta);
@@ -2556,7 +2601,12 @@ export function TorrentTable({
                                                             isAnyColumnResizing={
                                                                 isAnyColumnResizing
                                                             }
-                                                            columnOrder={columnOrder}
+                                                            columnOrder={
+                                                                columnOrder
+                                                            }
+                                                            suppressLayoutAnimations={
+                                                                suppressLayoutAnimations
+                                                            }
                                                         />
                                                     );
                                                 })}
