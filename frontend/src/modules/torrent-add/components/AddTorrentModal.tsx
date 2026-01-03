@@ -30,7 +30,9 @@ import {
     useState,
 } from "react";
 import { useTranslation } from "react-i18next";
+import { useKeyboardScope } from "@/shared/hooks/useKeyboardScope";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { KEY_SCOPE } from "@/config/logic";
 import {
     ArrowDown,
     ChevronDown,
@@ -268,6 +270,25 @@ export function AddTorrentModal({
         "tt-add-pane-layout",
         undefined
     );
+
+    // Keyboard scope: disable dashboard and enable modal while this modal is mounted
+    const { activate: activateModal, deactivate: deactivateModal } = useKeyboardScope(
+        KEY_SCOPE.Modal
+    );
+    const { activate: activateDashboard, deactivate: deactivateDashboard } = useKeyboardScope(
+        KEY_SCOPE.Dashboard
+    );
+
+    useEffect(() => {
+        // On mount: disable dashboard scope, enable modal scope
+        deactivateDashboard();
+        activateModal();
+        return () => {
+            // On unmount: disable modal scope, re-enable dashboard scope
+            deactivateModal();
+            activateDashboard();
+        };
+    }, [activateDashboard, activateModal, deactivateDashboard, deactivateModal]);
     const tableOverscan =
         typeof TABLE_LAYOUT.overscan === "number" ? TABLE_LAYOUT.overscan : 12;
 
