@@ -21,7 +21,7 @@ import {
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import {
     type DragEvent,
-    type KeyboardEvent,
+    type FormEvent,
     useCallback,
     useEffect,
     useMemo,
@@ -553,30 +553,11 @@ export function AddTorrentModal({
         ]
     );
 
-    const handleModalKeyDown = useCallback(
-        (event: KeyboardEvent<HTMLDivElement>) => {
-            if (
-                event.key !== "Enter" ||
-                (event.nativeEvent as any).isComposing ||
-                event.altKey ||
-                event.ctrlKey ||
-                event.metaKey ||
-                event.defaultPrevented ||
-                !canConfirm
-            ) {
-                return;
-            }
-
-            const target = event.target;
-            if (
-                target instanceof HTMLElement &&
-                ["BUTTON", "SELECT"].includes(target.tagName)
-            ) {
-                return;
-            }
-
+    const handleSubmit = useCallback(
+        (event: FormEvent<HTMLFormElement>) => {
             event.preventDefault();
-            handleConfirm();
+            if (!canConfirm) return;
+            void handleConfirm();
         },
         [canConfirm, handleConfirm]
     );
@@ -754,8 +735,8 @@ export function AddTorrentModal({
         >
             <ModalContent>
                 {() => (
-                    <div
-                        onKeyDown={handleModalKeyDown}
+                    <form
+                        onSubmit={handleSubmit}
                         className="flex flex-col h-full"
                         tabIndex={-1}
                     >
@@ -1404,9 +1385,9 @@ export function AddTorrentModal({
                                     {t("modals.cancel")}
                                 </Button>
                                 <Button
+                                    type="submit"
                                     color="primary"
                                     variant="shadow"
-                                    onPress={handleConfirm}
                                     isDisabled={!canConfirm}
                                     isLoading={isSubmitting}
                                     startContent={
@@ -1421,7 +1402,7 @@ export function AddTorrentModal({
                                 </Button>
                             </div>
                         </ModalFooter>
-                    </div>
+                    </form>
                 )}
             </ModalContent>
         </Modal>

@@ -7,6 +7,7 @@ import {
     cancelScheduledFrame,
     scheduleFrame,
     useCanvasPalette,
+    normalizeCanvasColor,
 } from "./canvasUtils";
 import type { FrameHandle } from "./canvasUtils";
 import { DETAILS_PIECE_MAP_CONFIG } from "@/config/logic";
@@ -332,11 +333,12 @@ export const PiecesMap = ({
         [columns, totalPieces, rowAtY]
     );
     function resolveCssColor(value: string): string {
-        if (!value.startsWith("var(")) return value;
+        if (!value.startsWith("var(")) return normalizeCanvasColor(value);
         const name = value.slice(4, -1).trim();
-        return getComputedStyle(document.documentElement)
+        const resolved = getComputedStyle(document.documentElement)
             .getPropertyValue(name)
             .trim();
+        return normalizeCanvasColor(resolved);
     }
 
     // ---- draw helpers ----
@@ -744,7 +746,7 @@ export const PiecesMap = ({
 
             <div
                 ref={rootRef}
-                className="relative z-10 flex-1 min-h-[320px] rounded-2xl border border-content1/20 bg-content1/10 p-panel overflow-hidden"
+                className="relative z-10 flex-1 min-h-0 rounded-2xl border border-content1/20 bg-content1/10 p-panel overflow-hidden"
                 onWheel={handleWheel}
             >
                 <div className="relative w-full h-full">

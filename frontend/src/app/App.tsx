@@ -551,6 +551,20 @@ export default function App() {
         [setCommandPaletteOpen]
     );
 
+    useHotkeys(
+        "shift+=,numpadadd",
+        (event) => {
+            if (addSource || isMagnetModalOpen) return;
+            event.preventDefault();
+            openAddTorrentPicker();
+        },
+        {
+            enableOnFormTags: false,
+            enableOnContentEditable: false,
+        },
+        [addSource, isMagnetModalOpen, openAddTorrentPicker]
+    );
+
     const commandActions = useMemo(() => {
         const actionGroup = t("command_palette.group.actions");
         const filterGroup = t("command_palette.group.filters");
@@ -1210,9 +1224,7 @@ export default function App() {
                     isSubmitting={isAddingTorrent || isFinalizingExisting}
                     isResolvingSource={isResolvingMagnet}
                     onCancel={() => void handleTorrentWindowCancel()}
-                    onConfirm={(selection) =>
-                        void handleTorrentWindowConfirm(selection)
-                    }
+                    onConfirm={handleTorrentWindowConfirm}
                     onResolveMagnet={undefined}
                     checkFreeSpace={torrentClient.checkFreeSpace}
                     onBrowseDirectory={

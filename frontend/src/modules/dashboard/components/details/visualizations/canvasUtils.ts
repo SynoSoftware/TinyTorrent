@@ -39,6 +39,24 @@ export type CanvasPalette = {
     danger: string;
 };
 
+export const normalizeCanvasColor = (value: string): string => {
+    const trimmed = value.trim();
+    if (!trimmed) return trimmed;
+    const lower = trimmed.toLowerCase();
+    if (
+        lower.startsWith("var(") ||
+        lower.startsWith("#") ||
+        lower.startsWith("rgb") ||
+        lower.startsWith("hsl") ||
+        lower.startsWith("oklch") ||
+        lower.startsWith("oklab") ||
+        lower.startsWith("color(")
+    ) {
+        return trimmed;
+    }
+    return `hsl(${trimmed})`;
+};
+
 export const useCanvasPalette = (): CanvasPalette => {
     return useMemo(() => {
         if (typeof window === "undefined") {
@@ -62,7 +80,8 @@ export const useCanvasPalette = (): CanvasPalette => {
         }
 
         const styles = getComputedStyle(document.documentElement);
-        const read = (name: string) => styles.getPropertyValue(name).trim();
+        const read = (name: string) =>
+            normalizeCanvasColor(styles.getPropertyValue(name));
         return {
             primary: read("--heroui-primary"),
             success: read("--heroui-success"),
@@ -89,7 +108,7 @@ export const getCssToken = (name: string): string => {
     try {
         const styles = getComputedStyle(document.documentElement);
         const v = styles.getPropertyValue(name);
-        return v ? v.trim() : "";
+        return v ? normalizeCanvasColor(v) : "";
     } catch {
         return "";
     }

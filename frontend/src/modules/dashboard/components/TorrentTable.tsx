@@ -448,10 +448,15 @@ const DraggableHeader = memo(
         const isSelection = header.id.toString() === "selection";
         const SortArrowIcon = sortState === "desc" ? ArrowDown : ArrowUp;
         const sortArrowOpacity = sortState ? "opacity-100" : "opacity-0";
+        const shouldAnimateLayout =
+            !isAnyColumnResizing && !isDragging && !isOverlay;
 
         return (
-            <div
+            <motion.div
                 ref={setNodeRef}
+                layout={shouldAnimateLayout}
+                layoutId={`column-header-${header.id}`}
+                initial={false}
                 style={style}
                 role="columnheader"
                 tabIndex={-1}
@@ -518,7 +523,7 @@ const DraggableHeader = memo(
                         />
                     </div>
                 )}
-            </div>
+            </motion.div>
         );
     }
 );
@@ -1129,6 +1134,7 @@ export function TorrentTable({
     }, [data, pendingQueueOrder]);
     const [suppressLayoutAnimations, setSuppressLayoutAnimations] =
         useState<boolean>(false);
+    const [isColumnOrderChanging, setIsColumnOrderChanging] = useState(false);
     const [isColumnModalOpen, setIsColumnModalOpen] = useState(false);
     const [contextMenu, setContextMenu] = useState<{
         virtualElement: ContextMenuVirtualElement;
@@ -1951,6 +1957,17 @@ export function TorrentTable({
         setSuppressLayoutAnimations(false);
     }, [pendingQueueOrder, suppressLayoutAnimations]);
 
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        setIsColumnOrderChanging(true);
+        const raf = window.requestAnimationFrame(() => {
+            setIsColumnOrderChanging(false);
+        });
+        return () => {
+            window.cancelAnimationFrame(raf);
+        };
+    }, [columnOrder]);
+
     const handleDropTargetChange = useCallback((id: string | null) => {
         setDropTargetRowId(id);
     }, []);
@@ -2011,6 +2028,8 @@ export function TorrentTable({
     const handleRowDragCancel = useCallback(() => {
         setActiveRowId(null);
         setDropTargetRowId(null);
+        setPendingQueueOrder(null);
+        setSuppressLayoutAnimations(false);
     }, []);
 
     const activeDragRow = activeRowId
@@ -2605,7 +2624,8 @@ export function TorrentTable({
                                                                 columnOrder
                                                             }
                                                             suppressLayoutAnimations={
-                                                                suppressLayoutAnimations
+                                                                suppressLayoutAnimations ||
+                                                                isColumnOrderChanging
                                                             }
                                                         />
                                                     );
