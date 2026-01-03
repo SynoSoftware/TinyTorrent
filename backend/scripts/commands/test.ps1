@@ -23,9 +23,11 @@ $RepoRoot = Split-Path -Parent $CommandsRoot
 $VerifierScript = Join-Path $RepoRoot 'verify_upgrade.py'
 if (Test-Path -LiteralPath $VerifierScript) {
     Log-Section -Title 'Acceptance Test' -Subtitle 'Host-shell simulator'
-    $pythonExe = (Get-Command python -ErrorAction SilentlyContinue)?.Source
+    $pythonCommand = Get-Command python -ErrorAction SilentlyContinue
+    $pythonExe = if ($pythonCommand) { $pythonCommand.Source } else { $null }
     if (-not $pythonExe) {
-        $pythonExe = (Get-Command py -ErrorAction SilentlyContinue)?.Source
+        $pyCommand = Get-Command py -ErrorAction SilentlyContinue
+        $pythonExe = if ($pyCommand) { $pyCommand.Source } else { $null }
     }
     if (-not $pythonExe) {
         Log-Warn 'Python interpreter not found; skipping verify_upgrade.py'
