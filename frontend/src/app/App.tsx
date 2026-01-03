@@ -111,6 +111,7 @@ function FocusController({
         [toggleInspector]
     );
 
+    // FocusController does not register app-global hotkeys.
     return null;
 }
 
@@ -333,7 +334,7 @@ export default function App() {
         });
 
     // Workbench zoom: initialize global scale hook
-    const { increase, decrease, reset } = useWorkbenchScale();
+    const { increase, decrease, reset, setScale } = useWorkbenchScale();
 
     useEffect(() => {
         if (Runtime.isNativeHost && typeof document !== "undefined") {
@@ -855,12 +856,12 @@ export default function App() {
 
     const rehashStatus: RehashStatus | undefined = useMemo(() => {
         const verifyingTorrents = torrents.filter(
-            (torrent) => torrent.state === "checking"
+            (torrent: Torrent) => torrent.state === "checking"
         );
         if (!verifyingTorrents.length) return undefined;
         const value =
             (verifyingTorrents.reduce(
-                (acc, torrent) =>
+                (acc: number, torrent: Torrent) =>
                     acc +
                     (torrent.verificationProgress ?? torrent.progress ?? 0),
                 0

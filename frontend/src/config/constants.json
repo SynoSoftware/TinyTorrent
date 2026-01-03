@@ -211,7 +211,8 @@
         "keyScope": {
             "Dashboard": "dashboard",
             "Modal": "modal",
-            "Settings": "settings"
+            "Settings": "settings",
+            "App": "app"
         },
         "keymap": {
             "action.select_all": ["ctrl+a", "meta+a"],

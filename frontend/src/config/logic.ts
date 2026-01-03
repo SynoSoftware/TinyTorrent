@@ -708,6 +708,7 @@ type ShortcutKeyScopeMap = {
     Dashboard: "dashboard";
     Modal: "modal";
     Settings: "settings";
+    App: "app";
 };
 
 export const ShortcutIntent = constants.shortcuts.intents as ShortcutIntentMap;
