@@ -8,6 +8,7 @@ import { ClientProvider } from "./providers/TorrentClientProvider";
 import { WorkspaceModalProvider } from "./WorkspaceModalContext";
 import { HotkeysProvider } from "react-hotkeys-hook";
 import { DEFAULT_KEYBOARD_SCOPE } from "@/shared/hooks/useKeyboardScope";
+import { KEY_SCOPE } from "@/config/logic";
 import { ConnectionConfigProvider } from "./context/ConnectionConfigContext";
 import { CONFIG, IS_NATIVE_HOST } from "@/config/logic";
 import { applyCssTokenBases } from "@/config/logic";
@@ -17,7 +18,8 @@ applyCssTokenBases();
 function applyNativeHostDataset() {
     const root = document.documentElement;
     const hasWebViewBridge = Boolean(
-        (window as unknown as { chrome?: { webview?: unknown } }).chrome?.webview
+        (window as unknown as { chrome?: { webview?: unknown } }).chrome
+            ?.webview
     );
     if (IS_NATIVE_HOST || hasWebViewBridge) {
         root.dataset.nativeHost = "true";
@@ -30,7 +32,9 @@ applyNativeHostDataset();
 
 createRoot(document.getElementById("root")!).render(
     <StrictMode>
-        <HotkeysProvider initiallyActiveScopes={[DEFAULT_KEYBOARD_SCOPE]}>
+        <HotkeysProvider
+            initiallyActiveScopes={[DEFAULT_KEYBOARD_SCOPE, KEY_SCOPE.App]}
+        >
             <ConnectionConfigProvider>
                 <ClientProvider>
                     <WorkspaceModalProvider>
