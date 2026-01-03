@@ -170,11 +170,21 @@ const SpeedColumnCell = ({ torrent, table }: ColumnRendererProps) => {
         : null;
 
     const meta = table.options.meta as DashboardTableMeta | undefined;
-    const history = meta?.speedHistoryRef?.current?.[torrent.id] ?? [];
-    const sparklineHistory = history.length > 0 ? history : [0, 0];
+    const rawHistory = meta?.speedHistoryRef?.current?.[torrent.id] ?? [];
+    // Sanitize history (ensure numeric) and append the current speedValue
+    const sanitizedHistory = rawHistory.map((v) =>
+        Number.isFinite(v) ? v : 0
+    );
+    const current = Number.isFinite(speedValue as number)
+        ? (speedValue as number)
+        : 0;
+    const sparklineHistory =
+        sanitizedHistory.length > 0
+            ? [...sanitizedHistory, current]
+            : [current, 0];
 
-    const maxHistorySpeed = Math.max(...sparklineHistory);
-    const maxSpeed = Math.max(speedValue ?? 0, maxHistorySpeed, 1);
+    const maxHistorySpeed = Math.max(...sparklineHistory, 0);
+    const maxSpeed = Math.max(current, maxHistorySpeed, 1);
     // Use layout hook to derive sparkline sizing without forcing layout on each render
     // (hook updates on resize / theme change only)
     const { rowHeight } = useLayoutMetrics();

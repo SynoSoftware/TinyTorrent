@@ -10,6 +10,7 @@ import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
+import type { CapabilityState } from "@/app/types/capabilities";
 import { formatBytes, formatPercent, formatRatio } from "@/shared/utils/format";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import { SmoothProgressBar } from "@/shared/ui/components/SmoothProgressBar";
@@ -22,8 +23,8 @@ import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
 interface GeneralTabProps {
     torrent: TorrentDetail;
     downloadDir: string;
-    sequentialSupported?: boolean;
-    superSeedingSupported?: boolean;
+    sequentialCapability: CapabilityState;
+    superSeedingCapability: CapabilityState;
     onSequentialToggle?: (enabled: boolean) => Promise<void> | void;
     onSuperSeedingToggle?: (enabled: boolean) => Promise<void> | void;
     onForceTrackerReannounce?: () => Promise<void> | void;
@@ -69,8 +70,8 @@ const GeneralInfoCard = ({
 export const GeneralTab = ({
     torrent,
     downloadDir,
-    sequentialSupported,
-    superSeedingSupported,
+    sequentialCapability,
+    superSeedingCapability,
     onSequentialToggle,
     onSuperSeedingToggle,
     onForceTrackerReannounce,
@@ -79,6 +80,17 @@ export const GeneralTab = ({
 }: GeneralTabProps) => {
     const { t } = useTranslation();
     const handleCopyHash = () => writeClipboard(torrent.hash);
+
+    const renderCapabilityNote = (state: CapabilityState) => {
+        if (state === "supported") return null;
+        const message =
+            state === "unsupported"
+                ? t("torrent_modal.controls.not_supported")
+                : t("torrent_modal.controls.capability_probe_pending");
+        return (
+            <span className="text-scaled text-warning">{message}</span>
+        );
+    };
 
     // Compute peer count (no .isActive property in TorrentPeerEntity)
     const peerCount = Array.isArray(torrent.peers) ? torrent.peers.length : 0;
@@ -208,7 +220,7 @@ export const GeneralTab = ({
                     <Switch
                         size="md"
                         color="success"
-                        isDisabled={!sequentialSupported}
+                        isDisabled={sequentialCapability === "unsupported"}
                         isSelected={Boolean(torrent.sequentialDownload)}
                         onValueChange={(value) =>
                             onSequentialToggle?.(Boolean(value))
@@ -221,17 +233,13 @@ export const GeneralTab = ({
                             <span className="text-scaled text-foreground/50">
                                 {t("torrent_modal.controls.sequential_helper")}
                             </span>
-                            {!sequentialSupported && (
-                                <span className="text-scaled text-warning">
-                                    {t("torrent_modal.controls.not_supported")}
-                                </span>
-                            )}
+                            {renderCapabilityNote(sequentialCapability)}
                         </div>
                     </Switch>
                     <Switch
                         size="md"
                         color="primary"
-                        isDisabled={!superSeedingSupported}
+                        isDisabled={superSeedingCapability === "unsupported"}
                         isSelected={Boolean(torrent.superSeeding)}
                         onValueChange={(value) =>
                             onSuperSeedingToggle?.(Boolean(value))
@@ -246,11 +254,7 @@ export const GeneralTab = ({
                                     "torrent_modal.controls.super_seeding_helper"
                                 )}
                             </span>
-                            {!superSeedingSupported && (
-                                <span className="text-scaled text-warning">
-                                    {t("torrent_modal.controls.not_supported")}
-                                </span>
-                            )}
+                            {renderCapabilityNote(superSeedingCapability)}
                         </div>
                     </Switch>
                 </div>

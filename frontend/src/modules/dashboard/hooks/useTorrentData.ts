@@ -2,17 +2,19 @@ import { useState, useEffect, useCallback, useRef } from "react";
 
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import type { HeartbeatPayload } from "@/services/rpc/heartbeat";
-import type { RpcStatus } from "@/shared/types/rpc";
+import type { ReportReadErrorFn } from "@/shared/types/rpc";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { TorrentStatus } from "@/services/rpc/entities";
 import { GHOST_TIMEOUT_MS } from "@/config/logic";
 import { buildUniqueTorrentOrder } from "./utils/torrent-order.ts";
+import { isRpcCommandError } from "@/services/rpc/errors";
 
 type UseTorrentDataOptions = {
     client: EngineAdapter;
     sessionReady: boolean;
     pollingIntervalMs: number;
-    onRpcStatusChange?: (status: Exclude<RpcStatus, "idle">) => void;
+    markTransportConnected?: () => void;
+    reportReadError: ReportReadErrorFn;
 };
 
 export type QueueActionHandlers = {
@@ -85,7 +87,8 @@ export function useTorrentData({
     client,
     sessionReady,
     pollingIntervalMs,
-    onRpcStatusChange,
+    markTransportConnected,
+    reportReadError,
 }: UseTorrentDataOptions): UseTorrentDataResult {
     const [torrents, setTorrents] = useState<Torrent[]>([]);
     const [isInitialLoadFinished, setIsInitialLoadFinished] = useState(false);
@@ -139,7 +142,7 @@ export function useTorrentData({
             snapshotOrderRef.current = nextOrder;
 
             // pushSpeeds removed: engine-owned history is canonical
-            onRpcStatusChange?.("connected");
+            markTransportConnected?.();
             if (!initialLoadRef.current) {
                 initialLoadRef.current = true;
                 setIsInitialLoadFinished(true);
@@ -153,7 +156,7 @@ export function useTorrentData({
             const nextList = nextOrder.map((id) => nextCache.get(id)!);
             setTorrents(nextList);
         },
-        [onRpcStatusChange]
+        [markTransportConnected]
     );
 
     const buildGhostTorrent = (options: GhostTorrentOptions): Torrent => ({
@@ -231,12 +234,12 @@ export function useTorrentData({
             const data = await client.getTorrents();
             commitTorrentSnapshot(data);
         } catch (error) {
-            if (isMountedRef.current) {
-                onRpcStatusChange?.("error");
+            if (isMountedRef.current && !isRpcCommandError(error)) {
+                reportReadError();
             }
             throw error;
         }
-    }, [client, commitTorrentSnapshot, onRpcStatusChange]);
+    }, [client, commitTorrentSnapshot, reportReadError]);
 
     useEffect(() => {
         isMountedRef.current = true;
@@ -258,7 +261,7 @@ export function useTorrentData({
     const handleHeartbeatUpdate = useCallback(
         ({ torrents: heartbeatTorrents, changedIds }: HeartbeatPayload) => {
             if (!heartbeatTorrents) return;
-            onRpcStatusChange?.("connected");
+            markTransportConnected?.();
             // If heartbeat reports no changed IDs, skip committing to avoid work
             const isInitialLoad = snapshotCacheRef.current.size === 0;
             if (
@@ -348,7 +351,7 @@ export function useTorrentData({
             // Fallback to full commit when changedIds not provided or indicates full change
             commitTorrentSnapshot(heartbeatTorrents);
         },
-        [commitTorrentSnapshot, onRpcStatusChange]
+        [commitTorrentSnapshot, markTransportConnected]
     );
 
     useEffect(() => {
@@ -360,7 +363,7 @@ export function useTorrentData({
             onUpdate: handleHeartbeatUpdate,
             onError: () => {
                 if (!isMountedRef.current) return;
-                onRpcStatusChange?.("error");
+                reportReadError();
             },
         });
         return () => {
@@ -371,7 +374,8 @@ export function useTorrentData({
         sessionReady,
         pollingIntervalMs,
         handleHeartbeatUpdate,
-        onRpcStatusChange,
+        markTransportConnected,
+        reportReadError,
     ]);
 
     return {

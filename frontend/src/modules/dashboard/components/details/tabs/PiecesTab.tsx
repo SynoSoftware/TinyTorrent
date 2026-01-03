@@ -55,7 +55,9 @@ export const PiecesTab = ({
                     label={t("torrent_modal.availability.label")}
                     legendRare={t("torrent_modal.availability.legend_rare")}
                     legendCommon={t("torrent_modal.availability.legend_common")}
-                    emptyLabel={t("torrent_modal.availability.empty")}
+                    emptyLabel={t(
+                        "torrent_modal.availability.backend_missing"
+                    )}
                     formatTooltip={(piece, peers) =>
                         t("torrent_modal.availability.tooltip", {
                             piece,

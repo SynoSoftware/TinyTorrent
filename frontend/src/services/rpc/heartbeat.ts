@@ -51,6 +51,14 @@ const MODE_INTERVALS: Record<HeartbeatMode, number> = {
     detail: HEARTBEAT_INTERVALS.detail,
 };
 
+const DETAIL_FETCH_CONCURRENCY = 3;
+
+type DetailFetchResult = {
+    detailId: string;
+    detail?: TorrentDetailEntity;
+    error?: unknown;
+};
+
 export class HeartbeatManager {
     private readonly subscribers = new Map<symbol, HeartbeatSubscriber>();
     private timerId?: number;
@@ -61,7 +69,10 @@ export class HeartbeatManager {
     private lastSessionStats?: SessionStats;
     private lastSource?: HeartbeatSource;
     private lastPayloadTimestampMs?: number;
-    private readonly detailCache = new Map<string, TorrentDetailEntity>();
+    private readonly detailCache = new Map<
+        string,
+        { hash: string; detail: TorrentDetailEntity }
+    >();
     // Per-torrent speed history: true O(1) circular buffer (no shift/push, no leaks)
     private readonly speedHistory = new Map<
         string,
@@ -140,6 +151,68 @@ export class HeartbeatManager {
             up: up.slice(ptr).concat(up.slice(0, ptr)),
         };
     }
+    
+    private fetchDetailResponses(detailIds: string[]): Promise<DetailFetchResult[]> {
+        if (detailIds.length === 0) {
+            return Promise.resolve([]);
+        }
+        const queue = detailIds.slice();
+        const results: DetailFetchResult[] = [];
+        const worker = async () => {
+            while (true) {
+                const detailId = queue.shift();
+                if (!detailId) {
+                    return;
+                }
+                try {
+                    const detail = await this.client.getTorrentDetails(detailId);
+                    results.push({ detailId, detail });
+                } catch (error) {
+                    results.push({ detailId, error });
+                }
+            }
+        };
+        const concurrency = Math.min(detailIds.length, DETAIL_FETCH_CONCURRENCY);
+        const workers = new Array(concurrency).fill(null).map(() => worker());
+        return Promise.all(workers).then(() => results);
+    }
+    
+    private hasDetailSubscribers() {
+        for (const { params } of this.subscribers.values()) {
+            if (params.detailId != null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private getCachedDetail(detailId: string): TorrentDetailEntity | null {
+        const entry = this.detailCache.get(detailId);
+        if (!entry) {
+            return null;
+        }
+        const currentTorrent = this.lastTorrents?.find(
+            (torrent) => torrent.id === detailId
+        );
+        if (!currentTorrent || currentTorrent.hash !== entry.hash) {
+            this.detailCache.delete(detailId);
+            return null;
+        }
+        return entry.detail;
+    }
+
+    private pruneDetailCache(torrents: TorrentEntity[]) {
+        const existingHashes = new Map<string, string>();
+        for (const torrent of torrents) {
+            existingHashes.set(torrent.id, torrent.hash);
+        }
+        for (const [id, entry] of this.detailCache.entries()) {
+            const hash = existingHashes.get(id);
+            if (!hash || hash !== entry.hash) {
+                this.detailCache.delete(id);
+            }
+        }
+    }
 
     public subscribe(params: HeartbeatSubscriberParams): HeartbeatSubscription {
         const id = Symbol("heartbeat-subscription");
@@ -185,7 +258,7 @@ export class HeartbeatManager {
             detail:
                 detailId == null
                     ? undefined
-                    : this.detailCache.get(detailId) ?? null,
+                    : this.getCachedDetail(detailId),
             source: this.lastSource,
         };
         params.onUpdate(payload);
@@ -197,6 +270,7 @@ export class HeartbeatManager {
         this.lastSource = payload.source ?? "websocket";
         const prev = this.lastTorrents;
         this.lastTorrents = payload.torrents;
+        this.pruneDetailCache(payload.torrents);
         this.updateEngineState(payload.torrents);
         payload.changedIds = this.computeChangedIds(payload.torrents, prev);
         this.lastSessionStats = payload.sessionStats;
@@ -216,7 +290,7 @@ export class HeartbeatManager {
                 detail:
                     detailId == null
                         ? undefined
-                        : this.detailCache.get(detailId) ?? null,
+                        : this.getCachedDetail(detailId),
                 source: payload.source ?? this.lastSource,
             };
             try {
@@ -247,6 +321,7 @@ export class HeartbeatManager {
         console.log(
             `[tiny-torrent][heartbeat] disablePolling (subscribers=${this.subscribers.size})`
         );
+        this.rescheduleLoop();
     }
 
     public enablePolling() {
@@ -271,11 +346,10 @@ export class HeartbeatManager {
             window.clearTimeout(this.timerId);
             this.timerId = undefined;
         }
-        if (
-            this.subscribers.size === 0 ||
-            this.isRunning ||
-            !this.pollingEnabled
-        ) {
+        const shouldRun =
+            this.subscribers.size > 0 &&
+            (this.pollingEnabled || this.hasDetailSubscribers());
+        if (!shouldRun || this.isRunning) {
             return;
         }
         const interval = this.getCurrentInterval();
@@ -310,61 +384,88 @@ export class HeartbeatManager {
     }
 
     private async tick() {
-        if (!this.pollingEnabled || this.subscribers.size === 0) return;
+        if (this.subscribers.size === 0) return;
+        const snapshot = Array.from(this.subscribers.values());
+        const detailIds = Array.from(
+            new Set(
+                snapshot
+                    .map((entry) => entry.params.detailId)
+                    .filter((id): id is string => Boolean(id))
+            )
+        );
+        const hasDetailSubscribers = detailIds.length > 0;
+        const shouldFetchSummary =
+            this.pollingEnabled || !this.hasInitialData();
+        if (!shouldFetchSummary && !hasDetailSubscribers) {
+            return;
+        }
+
         this.isRunning = true;
         this.clearTimer();
-        const snapshot = Array.from(this.subscribers.values());
         try {
-            const [torrents, sessionStats] = await Promise.all([
-                this.client.getTorrents(),
-                this.client.getSessionStats(),
-            ]);
-            // Update internal speed history buffers before broadcasting.
-            this.updateEngineState(torrents);
-            // Produce a compact, cheap hash for the torrent list.
-            const currentHash = this.computeHash(torrents);
-            const prevTorrents = this.lastTorrents;
-            this.lastTorrents = torrents;
-            this.lastSessionStats = sessionStats;
-            const timestampMs = Date.now();
-            this.lastPayloadTimestampMs = timestampMs;
+            let torrents = this.lastTorrents;
+            let sessionStats = this.lastSessionStats;
+            let currentHash = this.lastTorrentHash;
+            let changedIds: string[] = [];
 
-            // compute changed ids between prev and current snapshot
-            const changedIds = this.computeChangedIds(torrents, prevTorrents);
+            if (shouldFetchSummary || !torrents || !sessionStats) {
+                const [fetchedTorrents, fetchedSessionStats] = await Promise.all([
+                    this.client.getTorrents(),
+                    this.client.getSessionStats(),
+                ]);
+                const prevTorrents = this.lastTorrents;
+                torrents = fetchedTorrents;
+                sessionStats = fetchedSessionStats;
+                this.updateEngineState(torrents);
+                currentHash = this.computeHash(torrents);
+                changedIds = this.computeChangedIds(torrents, prevTorrents);
+                this.lastTorrents = torrents;
+                this.lastSessionStats = sessionStats;
+                this.lastTorrentHash = currentHash;
+                this.pruneDetailCache(torrents);
+            }
+            if (!torrents || !sessionStats) {
+                return;
+            }
 
-            const detailIds = Array.from(
-                new Set(
-                    snapshot
-                        .map((entry) => entry.params.detailId)
-                        .filter((id): id is string => Boolean(id))
-                )
-            );
             const detailResults = new Map<
                 string,
                 { data?: TorrentDetailEntity; error?: unknown }
             >();
 
-            // Build previous summary map for change detection
-            const prevMap = new Map<string, TorrentEntity>();
-            if (prevTorrents) {
-                for (const t of prevTorrents) prevMap.set(t.id, t);
-            }
+            if (hasDetailSubscribers) {
+                const detailResponses = await this.fetchDetailResponses(
+                    detailIds
+                );
 
-            for (const detailId of detailIds) {
-                // Always fetch details for active subscribers (diagnostics are volatile)
-                try {
-                    const detail = await this.client.getTorrentDetails(
-                        detailId
+                for (const response of detailResponses) {
+                    const { detailId, detail, error } = response;
+                    if (error || !detail) {
+                        detailResults.set(detailId, { error });
+                        continue;
+                    }
+                    const currentTorrent = torrents.find(
+                        (torrent) => torrent.id === detailId
                     );
+                    if (!currentTorrent || currentTorrent.hash !== detail.hash) {
+                        this.detailCache.delete(detailId);
+                        detailResults.set(detailId, {
+                            error: new Error("Torrent identity mismatch"),
+                        });
+                        continue;
+                    }
                     detailResults.set(detailId, { data: detail });
-                    this.detailCache.set(detailId, detail);
-                } catch (error) {
-                    detailResults.set(detailId, { error });
+                    this.detailCache.set(detailId, {
+                        hash: detail.hash,
+                        detail,
+                    });
                 }
             }
 
-            // Broadcast to each subscriber only when their personal lastSeenHash
-            // differs from the current hash, or when their requested detail changed.
+            const timestampMs = Date.now();
+            this.lastPayloadTimestampMs = timestampMs;
+            this.lastSource = "polling";
+
             for (const subEntry of snapshot) {
                 const { params } = subEntry;
                 const detailId = params.detailId;
@@ -373,9 +474,7 @@ export class HeartbeatManager {
                 const detailPayload =
                     detailId == null
                         ? undefined
-                        : detailEntry?.data ??
-                          this.detailCache.get(detailId) ??
-                          null;
+                        : detailEntry?.data ?? this.getCachedDetail(detailId) ?? null;
 
                 const payload: HeartbeatPayload = {
                     torrents,
@@ -386,13 +485,9 @@ export class HeartbeatManager {
                     changedIds,
                     source: "polling",
                 };
-                this.lastSource = "polling";
                 try {
                     const stored = this.subscribers.get(subEntry.id);
                     const lastSeen = stored?.lastSeenHash;
-                    // Always notify table-mode subscribers on each tick so
-                    // visualizations (network graphs, sparklines) receive the
-                    // heartbeat even when data values are zero.
                     const shouldNotify =
                         lastSeen !== currentHash ||
                         Boolean(detailEntry?.data) ||
@@ -402,13 +497,12 @@ export class HeartbeatManager {
                         if (stored) stored.lastSeenHash = currentHash;
                     }
                 } catch {
-                    // swallow subscriber errors to keep heartbeat alive
+                    // swallow subscriber errors
                 }
                 if (detailEntry?.error) {
                     params.onError?.(detailEntry.error);
                 }
             }
-            this.lastTorrentHash = currentHash;
         } catch (error) {
             this.notifyError(snapshot, error);
         } finally {

@@ -3,7 +3,8 @@ import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable"
 import type { QueueActionHandlers } from "@/modules/dashboard/hooks/useTorrentData";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
-import type { RpcStatus } from "@/shared/types/rpc";
+import type { ReportCommandErrorFn } from "@/shared/types/rpc";
+import { isRpcCommandError } from "@/services/rpc/errors";
 
 interface UseTorrentActionsParams {
     torrentClient: EngineAdapter;
@@ -11,7 +12,7 @@ interface UseTorrentActionsParams {
     refreshTorrents: () => Promise<void>;
     refreshDetailData: () => Promise<void>;
     refreshSessionStatsData: () => Promise<void>;
-    reportRpcStatus: (status: RpcStatus) => void;
+    reportCommandError: ReportCommandErrorFn;
     isMountedRef: MutableRefObject<boolean>;
 }
 
@@ -19,6 +20,7 @@ interface RefreshOptions {
     refreshTorrents?: boolean;
     refreshDetail?: boolean;
     refreshStats?: boolean;
+    reportRpcError?: boolean;
 }
 
 export function useTorrentActions({
@@ -27,7 +29,7 @@ export function useTorrentActions({
     refreshTorrents,
     refreshDetailData,
     refreshSessionStatsData,
-    reportRpcStatus,
+    reportCommandError,
     isMountedRef,
 }: UseTorrentActionsParams) {
     const runWithRefresh = useCallback(
@@ -43,9 +45,11 @@ export function useTorrentActions({
                 if (options?.refreshStats ?? true) {
                     await refreshSessionStatsData();
                 }
-            } catch {
-                if (isMountedRef.current) {
-                    reportRpcStatus("error");
+            } catch (error) {
+                if (isMountedRef.current && (options?.reportRpcError ?? true)) {
+                    if (!isRpcCommandError(error)) {
+                        reportCommandError(error);
+                    }
                 }
             }
         },
@@ -53,7 +57,7 @@ export function useTorrentActions({
             refreshDetailData,
             refreshSessionStatsData,
             refreshTorrents,
-            reportRpcStatus,
+            reportCommandError,
             isMountedRef,
         ]
     );
@@ -99,13 +103,16 @@ export function useTorrentActions({
             if (!targetPath) return;
             try {
                 await torrentClient.openPath(targetPath);
-            } catch {
-                if (isMountedRef.current) {
-                    reportRpcStatus("error");
+            } catch (error) {
+                if (
+                    isMountedRef.current &&
+                    !isRpcCommandError(error)
+                ) {
+                    reportCommandError(error);
                 }
             }
         },
-        [reportRpcStatus, torrentClient, isMountedRef]
+        [reportCommandError, torrentClient, isMountedRef]
     );
 
     return {

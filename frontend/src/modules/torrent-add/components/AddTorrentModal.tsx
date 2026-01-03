@@ -132,8 +132,7 @@ function detectDriveKind(path: string): "SSD" | "HDD" | "Network" | "Unknown" {
     return "Unknown";
 }
 
-const MODAL_CLASSES =
-    "w-full max-w-modal-add h-add-modal overflow-hidden flex flex-col";
+const MODAL_CLASSES = "w-full overflow-hidden flex flex-col";
 const PANE_SURFACE = cn(
     GLASS_PANEL_SURFACE,
     "rounded-panel border border-default/20 backdrop-blur-md"
@@ -703,6 +702,10 @@ export function AddTorrentModal({
             classNames={{
                 base: cn(GLASS_MODAL_SURFACE, MODAL_CLASSES),
             }}
+            style={{
+                maxWidth: "var(--tt-modal-max-width)",
+                maxHeight: "var(--tt-modal-body-max-height)",
+            }}
         >
             <ModalContent>
                 {() => (
@@ -815,30 +818,30 @@ export function AddTorrentModal({
                                                             ) : null
                                                         }
                                                     />
-                                                        <Dropdown>
-                                                            <DropdownTrigger>
-                                                                <Button
-                                                                    size="md"
-                                                                    variant="ghost"
-                                                                    color="primary"
-                                                                    startContent={
-                                                                        <StatusIcon
-                                                                            Icon={
-                                                                                FolderOpen
-                                                                            }
-                                                                            size="md"
-                                                                            className="text-current"
-                                                                        />
-                                                                    }
-                                                                    isDisabled={
-                                                                        !recentPaths.length
-                                                                    }
-                                                                >
-                                                                    {t(
-                                                                        "modals.add_torrent.history"
-                                                                    )}
-                                                                </Button>
-                                                            </DropdownTrigger>
+                                                    <Dropdown>
+                                                        <DropdownTrigger>
+                                                            <Button
+                                                                size="md"
+                                                                variant="ghost"
+                                                                color="primary"
+                                                                startContent={
+                                                                    <StatusIcon
+                                                                        Icon={
+                                                                            FolderOpen
+                                                                        }
+                                                                        size="md"
+                                                                        className="text-current"
+                                                                    />
+                                                                }
+                                                                isDisabled={
+                                                                    !recentPaths.length
+                                                                }
+                                                            >
+                                                                {t(
+                                                                    "modals.add_torrent.history"
+                                                                )}
+                                                            </Button>
+                                                        </DropdownTrigger>
                                                         <DropdownMenu
                                                             aria-label={t(
                                                                 "modals.add_torrent.history"
@@ -1146,21 +1149,21 @@ export function AddTorrentModal({
                                                         variant="bordered"
                                                         className="w-full"
                                                     />
-                                                        <Dropdown>
-                                                            <DropdownTrigger>
-                                                                <Button
-                                                                    variant="bordered"
-                                                                    size="md"
-                                                                    startContent={
-                                                                        <StatusIcon
-                                                                            Icon={
-                                                                                Wand2
-                                                                            }
-                                                                            size="md"
-                                                                            className="text-foreground/50"
-                                                                        />
-                                                                    }
-                                                                >
+                                                    <Dropdown>
+                                                        <DropdownTrigger>
+                                                            <Button
+                                                                variant="bordered"
+                                                                size="md"
+                                                                startContent={
+                                                                    <StatusIcon
+                                                                        Icon={
+                                                                            Wand2
+                                                                        }
+                                                                        size="md"
+                                                                        className="text-foreground/50"
+                                                                    />
+                                                                }
+                                                            >
                                                                 {t(
                                                                     "modals.add_torrent.smart_select"
                                                                 )}
@@ -1351,18 +1354,18 @@ export function AddTorrentModal({
                                 >
                                     {t("modals.cancel")}
                                 </Button>
-                            <Button
-                                color="primary"
-                                variant="shadow"
-                                onPress={handleConfirm}
-                                isDisabled={
-                                    !files.length ||
-                                    !downloadDir.trim() ||
-                                    isSubmitting ||
-                                    isResolvingSource ||
-                                    resolvedState !== "ready"
-                                }
-                                isLoading={isSubmitting}
+                                <Button
+                                    color="primary"
+                                    variant="shadow"
+                                    onPress={handleConfirm}
+                                    isDisabled={
+                                        !files.length ||
+                                        !downloadDir.trim() ||
+                                        isSubmitting ||
+                                        isResolvingSource ||
+                                        resolvedState !== "ready"
+                                    }
+                                    isLoading={isSubmitting}
                                     startContent={
                                         <StatusIcon
                                             Icon={ArrowDown}

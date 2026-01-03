@@ -1,12 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
-import type { RpcStatus } from "@/shared/types/rpc";
+import type {
+    ReportCommandErrorFn,
+    ReportReadErrorFn,
+    RpcStatus,
+} from "@/shared/types/rpc";
 
 type UseRpcConnectionResult = {
     rpcStatus: RpcStatus;
     isReady: boolean;
     reconnect: () => void;
-    reportRpcStatus: (status: RpcStatus) => void;
+    markTransportConnected: () => void;
+    reportCommandError: ReportCommandErrorFn;
+    reportReadError: ReportReadErrorFn;
 };
 
 export function useRpcConnection(
@@ -17,8 +23,8 @@ export function useRpcConnection(
     const isMountedRef = useRef(false);
     const isHandshakingRef = useRef(false);
     const pendingReconnectRef = useRef(false);
-    const latestHandshakeRef = useRef<() => Promise<void>>(
-        () => Promise.resolve()
+    const latestHandshakeRef = useRef<() => Promise<void>>(() =>
+        Promise.resolve()
     );
 
     const updateStatus = useCallback((next: RpcStatus) => {
@@ -27,6 +33,35 @@ export function useRpcConnection(
             setRpcStatus(next);
         }
     }, []);
+
+    const reportTransportError = useCallback(
+        (error?: unknown) => {
+            console.error("[tiny-torrent][rpc] transport error", error);
+            updateStatus("error");
+        },
+        [updateStatus]
+    );
+
+    const markTransportConnected = useCallback(() => {
+        updateStatus("connected");
+    }, [updateStatus]);
+
+    const reportCommandError = useCallback(
+        (error?: unknown) => {
+            console.warn("[tiny-torrent][rpc] command error", error);
+        },
+        []
+    );
+
+    const reportReadError = useCallback(
+        (error?: unknown) => {
+            console.warn(
+                "[tiny-torrent][rpc] read RPC error - transport status remains connected",
+                error
+            );
+        },
+        []
+    );
 
     const handshake = useCallback(async () => {
         if (isHandshakingRef.current) {
@@ -45,11 +80,11 @@ export function useRpcConnection(
             if (client.handshake) {
                 await client.handshake();
             }
-            updateStatus("connected");
+            markTransportConnected();
             console.log("[tiny-torrent][rpc] handshake succeeded");
-        } catch {
+        } catch (error) {
             console.log("[tiny-torrent][rpc] handshake failed");
-            updateStatus("error");
+            reportTransportError(error);
         } finally {
             if (isMountedRef.current) {
                 setIsReady(true);
@@ -63,7 +98,7 @@ export function useRpcConnection(
                 void latestHandshakeRef.current?.();
             }
         }
-    }, [client, updateStatus]);
+    }, [client, markTransportConnected, reportTransportError, updateStatus]);
 
     useEffect(() => {
         latestHandshakeRef.current = handshake;
@@ -82,18 +117,12 @@ export function useRpcConnection(
         void handshake();
     }, [handshake]);
 
-    const reportRpcStatus = useCallback(
-        (status: RpcStatus) => {
-            console.log(`[tiny-torrent][rpc] report status -> ${status}`);
-            updateStatus(status);
-        },
-        [updateStatus]
-    );
-
     return {
         rpcStatus,
         isReady,
         reconnect,
-        reportRpcStatus,
+        markTransportConnected,
+        reportCommandError,
+        reportReadError,
     };
 }

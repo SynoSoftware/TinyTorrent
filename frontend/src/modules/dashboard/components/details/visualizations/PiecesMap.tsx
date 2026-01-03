@@ -71,12 +71,20 @@ export const PiecesMap = ({
         ? formatBytes(pieceSize)
         : t("torrent_modal.stats.unknown_size");
     const normalizedPercentLabel = Math.round(normalizedPercent * 100) + "%";
+    const hasBinaryPieceStates =
+        Boolean(pieceStates) &&
+        pieceStates.every((value) => value === 0 || value === 1);
+
     // Dummy counts for summary bar (replace with real logic if needed)
     const doneCount = pieceStates
-        ? pieceStates.filter((s) => s === 2).length
+        ? pieceStates.filter((state) =>
+              hasBinaryPieceStates ? state === 1 : state === 2
+          ).length
         : Math.round(totalPieces * normalizedPercent);
     const downloadingCount = pieceStates
-        ? pieceStates.filter((s) => s === 1).length
+        ? hasBinaryPieceStates
+            ? 0
+            : pieceStates.filter((s) => s === 1).length
         : 0;
     // Tooltip lines
     const tooltipLines = useMemo(() => {
@@ -104,6 +112,29 @@ export const PiecesMap = ({
             height: 24,
         });
     }, []);
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        const cell = DETAILS_PIECE_MAP_CONFIG.cell_size;
+
+        for (let i = 0; i < cellsToDraw; i++) {
+            const x = (i % columns) * cell;
+            const y = Math.floor(i / columns) * cell;
+
+            ctx.fillStyle =
+                i < totalPieces * normalizedPercent
+                    ? palette.success
+                    : palette.content1;
+
+            ctx.fillRect(x, y, cell - 1, cell - 1);
+        }
+    }, [cellsToDraw, columns, totalPieces, normalizedPercent, palette]);
 
     const tooltipStyle = useMemo(() => {
         if (!hoveredPiece || !hoverPosition) return undefined;
@@ -149,6 +180,11 @@ export const PiecesMap = ({
                     </span>
                 </div>
             </div>
+            {hasBinaryPieceStates && (
+                <div className="text-scaled text-foreground/60">
+                    {t("torrent_modal.piece_map.binary_states_note")}
+                </div>
+            )}
             <div className="rounded-2xl border border-content1/20 bg-content1/10 p-panel">
                 <div className="relative">
                     <canvas
@@ -209,7 +245,9 @@ export const PiecesMap = ({
                             borderRadius: 4,
                         }}
                     />
-                    <span className={`${TEXT_ROLES.secondary} text-foreground/70`}>
+                    <span
+                        className={`${TEXT_ROLES.secondary} text-foreground/70`}
+                    >
                         {t("torrent_modal.stats.verified")}
                     </span>
                 </span>
@@ -224,7 +262,9 @@ export const PiecesMap = ({
                             border: "2px dashed " + palette.primary,
                         }}
                     />
-                    <span className={`${TEXT_ROLES.secondary} text-foreground/70`}>
+                    <span
+                        className={`${TEXT_ROLES.secondary} text-foreground/70`}
+                    >
                         {t("torrent_modal.stats.downloading")}
                     </span>
                 </span>
@@ -239,7 +279,9 @@ export const PiecesMap = ({
                             border: "1.5px solid " + palette.danger,
                         }}
                     />
-                    <span className={`${TEXT_ROLES.secondary} text-foreground/70`}>
+                    <span
+                        className={`${TEXT_ROLES.secondary} text-foreground/70`}
+                    >
                         {t("torrent_modal.stats.missing")}
                     </span>
                 </span>

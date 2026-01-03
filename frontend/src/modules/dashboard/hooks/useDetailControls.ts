@@ -1,7 +1,9 @@
 import { useCallback, type MutableRefObject } from "react";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
-import type { RpcStatus } from "@/shared/types/rpc";
+import type { ReportCommandErrorFn } from "@/shared/types/rpc";
+import { isRpcCommandError } from "@/services/rpc/errors";
+import type { CapabilityKey, CapabilityState } from "@/app/types/capabilities";
 
 interface UseDetailControlsParams {
     detailData: TorrentDetail | null;
@@ -9,10 +11,14 @@ interface UseDetailControlsParams {
     refreshTorrents: () => Promise<void>;
     refreshDetailData: () => Promise<void>;
     refreshSessionStatsData: () => Promise<void>;
-    reportRpcStatus: (status: RpcStatus) => void;
+    reportCommandError: ReportCommandErrorFn;
     isMountedRef: MutableRefObject<boolean>;
     mutateDetail: (
         updater: (current: TorrentDetail) => TorrentDetail | null
+    ) => void;
+    updateCapabilityState: (
+        capability: CapabilityKey,
+        state: CapabilityState
     ) => void;
 }
 
@@ -20,6 +26,8 @@ interface RefreshOptions {
     refreshTorrents?: boolean;
     refreshDetail?: boolean;
     refreshStats?: boolean;
+    reportRpcError?: boolean;
+    propagateError?: boolean;
 }
 
 export function useDetailControls({
@@ -28,9 +36,10 @@ export function useDetailControls({
     refreshTorrents,
     refreshDetailData,
     refreshSessionStatsData,
-    reportRpcStatus,
+    reportCommandError,
     isMountedRef,
     mutateDetail,
+    updateCapabilityState,
 }: UseDetailControlsParams) {
     const runWithRefresh = useCallback(
         async (operation: () => Promise<void>, options?: RefreshOptions) => {
@@ -45,9 +54,14 @@ export function useDetailControls({
                 if (options?.refreshStats ?? true) {
                     await refreshSessionStatsData();
                 }
-            } catch {
-                if (isMountedRef.current) {
-                    reportRpcStatus("error");
+            } catch (error) {
+                if (isMountedRef.current && (options?.reportRpcError ?? true)) {
+                    if (!isRpcCommandError(error)) {
+                        reportCommandError(error);
+                    }
+                }
+                if (options?.propagateError) {
+                    throw error;
                 }
             }
         },
@@ -55,7 +69,7 @@ export function useDetailControls({
             refreshDetailData,
             refreshSessionStatsData,
             refreshTorrents,
-            reportRpcStatus,
+            reportCommandError,
             isMountedRef,
         ]
     );
@@ -63,17 +77,32 @@ export function useDetailControls({
     const handleFileSelectionChange = useCallback(
         async (indexes: number[], wanted: boolean) => {
             if (!detailData) return;
+            const availableIndexes = new Set(
+                detailData.files?.map((file) => file.index) ?? []
+            );
+            const validIndexes = indexes.filter((index) =>
+                availableIndexes.has(index)
+            );
+            if (!validIndexes.length) return;
+            const fileCount = detailData.files?.length ?? 0;
+            const boundedIndexes = validIndexes.filter(
+                (index) => index >= 0 && index < fileCount
+            );
+            if (!boundedIndexes.length) return;
+
             mutateDetail((current) => {
                 if (!current.files) return current;
                 const updatedFiles = current.files.map((file) =>
-                    indexes.includes(file.index) ? { ...file, wanted } : file
+                    boundedIndexes.includes(file.index)
+                        ? { ...file, wanted }
+                        : file
                 );
                 return { ...current, files: updatedFiles };
             });
             await runWithRefresh(() =>
                 torrentClient.updateFileSelection(
                     detailData.id,
-                    indexes,
+                    boundedIndexes,
                     wanted
                 )
             );
@@ -90,9 +119,25 @@ export function useDetailControls({
                 ...current,
                 sequentialDownload: enabled,
             }));
-            await runWithRefresh(() => sequentialFn(detailData.id, enabled));
+            try {
+                await runWithRefresh(
+                    () => sequentialFn(detailData.id, enabled),
+                    { propagateError: true }
+                );
+                updateCapabilityState("sequentialDownload", "supported");
+            } catch (error) {
+                if (isUnsupportedCapabilityError(error)) {
+                    updateCapabilityState("sequentialDownload", "unsupported");
+                }
+            }
         },
-        [detailData, mutateDetail, runWithRefresh, torrentClient]
+        [
+            detailData,
+            mutateDetail,
+            runWithRefresh,
+            torrentClient,
+            updateCapabilityState,
+        ]
     );
 
     const handleSuperSeedingToggle = useCallback(
@@ -101,9 +146,25 @@ export function useDetailControls({
             const superSeedingFn = torrentClient.setSuperSeeding;
             if (!superSeedingFn) return;
             mutateDetail((current) => ({ ...current, superSeeding: enabled }));
-            await runWithRefresh(() => superSeedingFn(detailData.id, enabled));
+            try {
+                await runWithRefresh(
+                    () => superSeedingFn(detailData.id, enabled),
+                    { propagateError: true }
+                );
+                updateCapabilityState("superSeeding", "supported");
+            } catch (error) {
+                if (isUnsupportedCapabilityError(error)) {
+                    updateCapabilityState("superSeeding", "unsupported");
+                }
+            }
         },
-        [detailData, mutateDetail, runWithRefresh, torrentClient]
+        [
+            detailData,
+            mutateDetail,
+            runWithRefresh,
+            torrentClient,
+            updateCapabilityState,
+        ]
     );
 
     const handleForceTrackerReannounce = useCallback(async () => {
@@ -113,8 +174,25 @@ export function useDetailControls({
         await runWithRefresh(() => reannounceFn(detailData.id), {
             refreshTorrents: false,
             refreshStats: false,
+            reportRpcError: false,
         });
     }, [detailData, runWithRefresh, torrentClient]);
+
+    const isUnsupportedCapabilityError = (error: unknown) => {
+        if (!isRpcCommandError(error)) {
+            return false;
+        }
+        const normalizedCode = error.code?.toLowerCase();
+        if (normalizedCode === "invalid arguments") {
+            return true;
+        }
+        const message = error.message?.toLowerCase() ?? "";
+        return (
+            message.includes("invalid arguments") ||
+            message.includes("unsupported field") ||
+            message.includes("field not found")
+        );
+    };
 
     return {
         handleFileSelectionChange,

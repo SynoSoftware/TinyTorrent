@@ -3,19 +3,20 @@ import type { MutableRefObject } from "react";
 
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import type { SessionStats } from "@/services/rpc/entities";
-import type { RpcStatus } from "@/shared/types/rpc";
+import type { ReportReadErrorFn } from "@/shared/types/rpc";
 import type { HeartbeatSource } from "@/services/rpc/heartbeat";
+import { isRpcCommandError } from "@/services/rpc/errors";
 
 interface UseSessionStatsParams {
     torrentClient: EngineAdapter;
-    reportRpcStatus: (status: RpcStatus) => void;
+    reportReadError: ReportReadErrorFn;
     isMountedRef: MutableRefObject<boolean>;
     sessionReady: boolean;
 }
 
 export function useSessionStats({
     torrentClient,
-    reportRpcStatus,
+    reportReadError,
     isMountedRef,
     sessionReady,
 }: UseSessionStatsParams) {
@@ -29,12 +30,12 @@ export function useSessionStats({
             if (isMountedRef.current) {
                 setSessionStats(stats);
             }
-        } catch {
-            if (isMountedRef.current) {
-                reportRpcStatus("error");
+        } catch (error) {
+            if (isMountedRef.current && !isRpcCommandError(error)) {
+                reportReadError();
             }
         }
-    }, [isMountedRef, reportRpcStatus, torrentClient]);
+    }, [isMountedRef, reportReadError, torrentClient]);
 
     useEffect(() => {
         if (!sessionReady) return;
@@ -46,17 +47,16 @@ export function useSessionStats({
                 if (source) {
                     setLiveTransportStatus(source);
                 }
-                reportRpcStatus("connected");
             },
             onError: () => {
                 if (!isMountedRef.current) return;
-                reportRpcStatus("error");
+                reportReadError();
             },
         });
         return () => {
             subscription.unsubscribe();
         };
-    }, [sessionReady, torrentClient, isMountedRef, reportRpcStatus]);
+    }, [sessionReady, torrentClient, isMountedRef, reportReadError]);
 
     useEffect(() => {
         console.log(

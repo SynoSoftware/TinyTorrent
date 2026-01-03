@@ -44,24 +44,109 @@ const logValidationIssue = (
     }
 };
 
+const atobShim = (value: string) => {
+    if (typeof atob === "function") {
+        return atob(value);
+    }
+    const globalObj = typeof globalThis !== "undefined" ? globalThis : {};
+    const BufferCtor = (globalObj as any).Buffer;
+    if (BufferCtor && typeof BufferCtor.from === "function") {
+        return BufferCtor.from(value, "base64").toString("binary");
+    }
+    throw new Error("Base64 decode unavailable");
+};
+
+const decodeBase64 = (value: string) => {
+    const binary = atobShim(value);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; ++i) {
+        bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes;
+};
+
+const decodePieceStates = (encoded: unknown, pieceCount?: number) => {
+    if (typeof encoded !== "string") return undefined;
+    let bytes: Uint8Array;
+    try {
+        bytes = decodeBase64(encoded);
+    } catch (error) {
+        logValidationIssue("decodePieceStates", encoded, error);
+        return undefined;
+    }
+    const totalPieces =
+        typeof pieceCount === "number" && pieceCount > 0
+            ? pieceCount
+            : bytes.length * 8;
+    const expectedBytes = Math.ceil(totalPieces / 8);
+    if (bytes.length < expectedBytes) {
+        logValidationIssue(
+            "decodePieceStates",
+            { encodedLength: bytes.length, pieceCount: totalPieces },
+            new Error("Encoded pieceStates length does not cover pieceCount")
+        );
+        return undefined;
+    }
+    const states: number[] = [];
+    for (let i = 0; i < totalPieces; ++i) {
+        const byteIndex = Math.floor(i / 8);
+        const bitIndex = i % 8;
+        const byte = byteIndex < bytes.length ? bytes[byteIndex] : 0;
+        states.push((byte >> bitIndex) & 1 ? 1 : 0);
+    }
+    return states;
+};
+
+const decodePieceAvailability = (
+    encoded: unknown,
+    pieceCount?: number
+) => {
+    if (typeof encoded !== "string") return undefined;
+    let bytes: Uint8Array;
+    try {
+        bytes = decodeBase64(encoded);
+    } catch (error) {
+        logValidationIssue("decodePieceAvailability", encoded, error);
+        return undefined;
+    }
+    const expectedEntries =
+        typeof pieceCount === "number" && pieceCount > 0
+            ? pieceCount
+            : Math.floor(bytes.length / 2);
+    const requiredLength = expectedEntries * 2;
+    if (bytes.length < requiredLength) {
+        logValidationIssue(
+            "decodePieceAvailability",
+            { encodedLength: bytes.length, pieceCount: expectedEntries },
+            new Error(
+                "Encoded pieceAvailability length is shorter than expected for the reported pieceCount"
+            )
+        );
+        return undefined;
+    }
+    const availability: number[] = [];
+    const entries = Math.min(expectedEntries, Math.floor(bytes.length / 2));
+    for (let index = 0; index < entries; ++index) {
+        const offset = index * 2;
+        availability.push(bytes[offset] | (bytes[offset + 1] << 8));
+    }
+    return availability;
+};
+
 const zTransmissionTorrentFile = z
     .object({
-        bytesCompleted: z.number(),
-        length: z.number(),
         name: z.string(),
-        percentDone: z.number(),
-        priority: z.number(),
-        wanted: z.boolean(),
+        length: z.number(),
+        bytesCompleted: z.number().optional(),
     })
-    .passthrough()
-    .catch({
-        bytesCompleted: 0,
-        length: 0,
-        name: "",
-        percentDone: 0,
-        priority: 0,
-        wanted: false,
-    });
+    .passthrough();
+
+const zTransmissionTorrentFileStat = z
+    .object({
+        wanted: z.boolean(),
+        priority: z.number(),
+    })
+    .passthrough();
 
 const zTransmissionTorrentTracker = z
     .object({
@@ -160,43 +245,38 @@ export const zTransmissionAddTorrentResponse = z
 
 const zTransmissionTorrentDetailBase = z.object({
     files: z.array(zTransmissionTorrentFile).default([]),
+    fileStats: z.array(zTransmissionTorrentFileStat).default([]),
     trackers: z.array(zTransmissionTorrentTracker).default([]),
     peers: z.array(zTransmissionTorrentPeer).default([]),
     pieceCount: z.number().optional(),
     pieceSize: z.number().optional(),
-    pieceStates: z.array(z.number()).optional(),
-    pieceAvailability: z.array(z.number()).optional(),
+    pieceStates: z.string().optional(),
+    pieceAvailability: z.string().optional(),
     labels: z.array(z.string()).default([]),
     isPrivate: z.boolean().default(false),
 });
 const zTransmissionTorrentDetail = zTransmissionTorrent
     .merge(zTransmissionTorrentDetailBase)
-    .passthrough()
-    .catch({
-        id: 0,
-        hashString: "",
-        name: "",
-        totalSize: 0,
-        percentDone: 0,
-        status: 0,
-        rateDownload: 0,
-        rateUpload: 0,
-        peersConnected: 0,
-        eta: 0,
-        addedDate: 0,
-        uploadRatio: 0,
-        uploadedEver: 0,
-        downloadedEver: 0,
-        files: [],
-        trackers: [],
-        peers: [],
-        labels: [],
-        isPrivate: false,
-        pieceCount: undefined,
-        pieceSize: undefined,
-        pieceStates: undefined,
-        pieceAvailability: undefined,
-    });
+    .passthrough();
+
+const zTransmissionTorrentDetailWithPieces = zTransmissionTorrentDetail.transform(
+    (raw) => {
+        const detail = { ...raw } as TransmissionTorrentDetail;
+        const decodedStates = decodePieceStates(
+            detail.pieceStates,
+            detail.pieceCount
+        );
+        detail.pieceStates =
+            decodedStates !== undefined ? decodedStates : undefined;
+        const decodedAvailability = decodePieceAvailability(
+            detail.pieceAvailability,
+            detail.pieceCount
+        );
+        detail.pieceAvailability =
+            decodedAvailability !== undefined ? decodedAvailability : undefined;
+        return detail;
+    }
+);
 
 const zTorrentListResponse = z
     .object({
@@ -546,7 +626,13 @@ export const zTransmissionTorrentArray = zTorrentListResponse.transform(
 );
 
 export const zTransmissionTorrentDetailSingle =
-    zTorrentDetailResponse.transform((v) => v.torrents[0]);
+    zTorrentDetailResponse.transform((v) => {
+        const [torrent] = v.torrents;
+        if (!torrent) {
+            return null;
+        }
+        return zTransmissionTorrentDetailWithPieces.parse(torrent);
+    });
 
 export const zSessionStats = zSessionStatsRaw.transform((raw) =>
     normalizeSessionStats(raw)

@@ -74,6 +74,16 @@ export const PeersTab = ({
     const { rowHeight, fileContextMenuMargin, fileContextMenuWidth } =
         useLayoutMetrics();
 
+    if (!peers.length) {
+        return (
+            <GlassPanel className="flex h-full items-center justify-center border-default/10 text-center">
+                <p className={`${TEXT_ROLES.primary} text-foreground/30`}>
+                    {t("torrent_modal.peers.empty_backend")}
+                </p>
+            </GlassPanel>
+        );
+    }
+
     const orderedPeers = useMemo(() => {
         if (!sortBySpeed) return peers;
         return [...peers].sort(

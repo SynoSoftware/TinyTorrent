@@ -37,12 +37,14 @@ export interface TransmissionTorrent {
 }
 
 export interface TransmissionTorrentFile {
-    bytesCompleted: number;
-    length: number;
     name: string;
-    percentDone: number;
-    priority: number;
+    length: number;
+    bytesCompleted?: number;
+}
+
+export interface TransmissionTorrentFileStat {
     wanted: boolean;
+    priority: number;
 }
 
 export interface TransmissionTorrentTracker {
@@ -78,6 +80,7 @@ export interface TransmissionTorrentDetail extends TransmissionTorrent {
     files: TransmissionTorrentFile[];
     trackers: TransmissionTorrentTracker[];
     peers: TransmissionTorrentPeer[];
+    fileStats?: TransmissionTorrentFileStat[];
     pieceCount?: number;
     pieceSize?: number;
     pieceStates?: number[];

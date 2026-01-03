@@ -449,9 +449,15 @@ const DraggableHeader = memo(
         const SortArrowIcon = sortState === "desc" ? ArrowDown : ArrowUp;
         const sortArrowOpacity = sortState ? "opacity-100" : "opacity-0";
 
+        const shouldAnimateLayout =
+            !isAnyColumnResizing && !isDragging && !isOverlay;
+
         return (
-            <div
+            <motion.div
                 ref={setNodeRef}
+                layout={shouldAnimateLayout}
+                layoutId={`column-header-${header.id}`}
+                initial={false}
                 style={style}
                 role="columnheader"
                 tabIndex={-1}
@@ -518,7 +524,7 @@ const DraggableHeader = memo(
                         />
                     </div>
                 )}
-            </div>
+            </motion.div>
         );
     }
 );

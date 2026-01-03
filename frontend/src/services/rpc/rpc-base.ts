@@ -62,6 +62,7 @@ import type {
     ServerClass,
 } from "./entities";
 import { normalizeTorrent, normalizeTorrentDetail } from "./normalizers";
+import { RpcCommandError } from "./errors";
 
 type RpcRequest<M extends string> = {
     method: M;
@@ -119,6 +120,7 @@ const SUMMARY_FIELDS: Array<keyof TransmissionTorrent> = [
 const DETAIL_FIELDS = [
     ...SUMMARY_FIELDS,
     "files",
+    "fileStats",
     "trackers",
     "peers",
     "pieceCount",
@@ -256,8 +258,9 @@ export class TransmissionAdapter implements EngineAdapter {
             const json = await response.json();
             const parsed = parseRpcResponse(json);
             if (parsed.result !== "success") {
-                throw new Error(
-                    `Transmission RPC responded with ${parsed.result}`
+                throw new RpcCommandError(
+                    `Transmission RPC responded with ${parsed.result}`,
+                    parsed.result
                 );
             }
             const args = parsed.arguments ?? {};
@@ -392,7 +395,11 @@ export class TransmissionAdapter implements EngineAdapter {
     }
 
     public async refreshExtendedCapabilities(force = false): Promise<void> {
-        if (!force && this.tinyTorrentCapabilities !== undefined) {
+        if (
+            !force &&
+            this.tinyTorrentCapabilities !== undefined &&
+            this.tinyTorrentCapabilities !== null
+        ) {
             this.ensureWebsocketConnection();
             return;
         }
@@ -888,6 +895,9 @@ export class TransmissionAdapter implements EngineAdapter {
             },
             zTransmissionTorrentDetailSingle
         );
+        if (!detail) {
+            throw new Error(`Torrent ${id} not found`);
+        }
         return detail as TransmissionTorrentDetail;
     }
 
