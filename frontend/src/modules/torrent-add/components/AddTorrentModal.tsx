@@ -22,6 +22,7 @@ import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import {
     type DragEvent,
     type FormEvent,
+    type KeyboardEvent,
     useCallback,
     useEffect,
     useMemo,
@@ -562,6 +563,51 @@ export function AddTorrentModal({
         [canConfirm, handleConfirm]
     );
 
+    // Form ref used to programmatically request submit while preserving native semantics
+    const formRef = useRef<HTMLFormElement | null>(null);
+
+    const handleFormKeyDown = useCallback(
+        (event: KeyboardEvent<HTMLFormElement>) => {
+            if (event.key !== "Enter") return;
+            const target = event.target as HTMLElement | null;
+            if (!target) return;
+
+            const tag = target.tagName;
+            // Do not trigger submit when focus is in a textarea
+            if (tag === "TEXTAREA") return;
+            // Do not trigger submit for inputs explicitly opting out
+            if (tag === "INPUT") {
+                const inp = target as HTMLInputElement;
+                if (inp.type === "search") return;
+                if (inp.dataset?.modalSkipSubmit === "true") return;
+            }
+
+            // Otherwise, treat Enter as form submit.
+            event.preventDefault();
+            // Use requestSubmit if available to preserve form semantics/validation.
+            const form = formRef.current;
+            if (!form) return;
+            if (typeof (form as any).requestSubmit === "function") {
+                (form as any).requestSubmit();
+            } else {
+                // Fallback: click the primary submit button if present
+                const submitBtn = form.querySelector('button[type="submit"]') as HTMLButtonElement | null;
+                if (submitBtn) submitBtn.click();
+            }
+        },
+        []
+    );
+
+    useEffect(() => {
+        if (!isOpen) return;
+        // focus the form so Enter key presses are captured without clicking
+        try {
+            formRef.current?.focus();
+        } catch {
+            // ignore focus failures
+        }
+    }, [isOpen]);
+
     const virtualizer = useVirtualizer({
         count: filteredFiles.length,
         getScrollElement: () => scrollParentRef.current,
@@ -736,8 +782,10 @@ export function AddTorrentModal({
             <ModalContent>
                 {() => (
                     <form
+                        ref={formRef}
                         onSubmit={handleSubmit}
-                        className="flex flex-col h-full"
+                        onKeyDown={handleFormKeyDown}
+                        className="flex flex-col h-full focus:outline-none"
                         tabIndex={-1}
                     >
                         <ModalHeader className="px-stage py-panel border-b border-default flex flex-col gap-tight">
@@ -1178,6 +1226,14 @@ export function AddTorrentModal({
                                                         size="md"
                                                         variant="bordered"
                                                         className="w-full"
+                                                        data-modal-skip-submit="true"
+                                                        onKeyDown={(e) => {
+                                                            // Prevent Enter in the filter input from submitting the form
+                                                            if ((e as React.KeyboardEvent<HTMLInputElement>).key === "Enter") {
+                                                                (e as React.KeyboardEvent<HTMLInputElement>).preventDefault();
+                                                                (e as React.KeyboardEvent<HTMLInputElement>).stopPropagation();
+                                                            }
+                                                        }}
                                                     />
                                                     <Dropdown>
                                                         <DropdownTrigger>
