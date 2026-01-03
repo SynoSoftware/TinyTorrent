@@ -1398,59 +1398,6 @@ std::string serialize_fs_write_result(std::uint64_t bytes_written)
     return doc.write(R"({"result":"error"})");
 }
 
-std::string serialize_dialog_paths(std::vector<std::string> const &paths)
-{
-    tt::json::MutableDocument doc;
-    if (!doc.is_valid())
-    {
-        return "{}";
-    }
-
-    auto *native = doc.doc();
-    auto *root = yyjson_mut_obj(native);
-    doc.set_root(root);
-    yyjson_mut_obj_add_str(native, root, "result", "success");
-
-    auto *arguments = yyjson_mut_obj(native);
-    yyjson_mut_obj_add_val(native, root, "arguments", arguments);
-
-    auto *array = yyjson_mut_arr(native);
-    yyjson_mut_obj_add_val(native, arguments, "paths", array);
-    for (auto const &path : paths)
-    {
-        yyjson_mut_arr_add_str(native, array, path.c_str());
-    }
-
-    return doc.write(R"({"result":"error"})");
-}
-
-std::string serialize_dialog_path(std::optional<std::string> const &path)
-{
-    tt::json::MutableDocument doc;
-    if (!doc.is_valid())
-    {
-        return "{}";
-    }
-
-    auto *native = doc.doc();
-    auto *root = yyjson_mut_obj(native);
-    doc.set_root(root);
-    yyjson_mut_obj_add_str(native, root, "result", "success");
-
-    auto *arguments = yyjson_mut_obj(native);
-    yyjson_mut_obj_add_val(native, root, "arguments", arguments);
-    if (path)
-    {
-        yyjson_mut_obj_add_str(native, arguments, "path", path->c_str());
-    }
-    else
-    {
-        yyjson_mut_obj_add_null(native, arguments, "path");
-    }
-
-    return doc.write(R"({"result":"error"})");
-}
-
 std::string serialize_system_action(std::string const &action, bool success,
                                     std::string const &message,
                                     bool requires_elevation)
@@ -1617,10 +1564,10 @@ std::string serialize_system_install(SystemInstallResult const &result)
             yyjson_mut_obj_add_str(native, arguments, "installMessage",
                                    result.install_message.c_str());
         }
-        if (result.installed_path)
+        if (!result.installed_path.empty())
         {
             yyjson_mut_obj_add_str(native, arguments, "installedPath",
-                                   result.installed_path->c_str());
+                                   result.installed_path.c_str());
         }
     }
 

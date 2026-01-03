@@ -17,6 +17,7 @@
 #include <ws2tcpip.h>
 #endif
 #include "rpc/Dispatcher.hpp"
+#include "rpc/SystemHandler.hpp"
 
 #include "rpc/Serializer.hpp"
 #include "utils/Base64.hpp"
@@ -476,6 +477,86 @@ std::string path_to_string(std::filesystem::path const &value)
     {
         return {};
     }
+}
+
+std::vector<FsEntry> collect_directory_entries_generic(
+    std::filesystem::path const &path)
+{
+    std::vector<FsEntry> result;
+    std::error_code iter_ec;
+    for (std::filesystem::directory_iterator iter(path, iter_ec);
+         iter != std::filesystem::directory_iterator(); iter.increment(iter_ec))
+    {
+        if (iter_ec)
+        {
+            iter_ec.clear();
+            continue;
+        }
+        auto const &entry = *iter;
+        FsEntry info;
+        info.name = entry.path().filename().string();
+        std::error_code type_ec;
+        if (entry.is_directory(type_ec))
+        {
+            info.type = "directory";
+        }
+        else
+        {
+            type_ec.clear();
+            if (entry.is_regular_file(type_ec))
+            {
+                info.type = "file";
+            }
+            else
+            {
+                info.type = "other";
+            }
+        }
+        if (info.type == "file")
+        {
+            std::error_code size_ec;
+            info.size = entry.file_size(size_ec);
+            if (size_ec)
+            {
+                info.size = 0;
+            }
+        }
+        result.push_back(std::move(info));
+    }
+    std::sort(result.begin(), result.end(),
+              [](FsEntry const &a, FsEntry const &b)
+              {
+                  if (a.type != b.type)
+                  {
+                      return a.type < b.type;
+                  }
+                  return a.name < b.name;
+              });
+    return result;
+}
+
+std::optional<std::filesystem::space_info> query_directory_space(
+    std::filesystem::path const &path)
+{
+    std::error_code ec;
+    auto info = std::filesystem::space(path, ec);
+    if (ec)
+    {
+        return std::nullopt;
+    }
+    return info;
+}
+
+bool filesystem_path_exists(std::filesystem::path const &path)
+{
+    std::error_code ec;
+    return std::filesystem::exists(path, ec);
+}
+
+bool filesystem_is_directory(std::filesystem::path const &path)
+{
+    std::error_code ec;
+    return std::filesystem::is_directory(path, ec);
 }
 
 #if defined(_WIN32)
@@ -938,6 +1019,8 @@ InstallOutcome install_to_program_files(std::filesystem::path const &source)
 #endif
     return outcome;
 }
+
+#endif // defined(_WIN32)
 
 std::string join_messages(std::vector<std::string> const &values)
 {
@@ -2876,18 +2959,17 @@ void handle_fs_browse_async(engine::Core *engine, yyjson_val *arguments,
     {
         try
         {
-            if (!tt::rpc::filesystem::path_exists(normalized))
+            if (!filesystem_path_exists(normalized))
             {
                 cb(serialize_error("path does not exist"));
                 return;
             }
-            if (!tt::rpc::filesystem::is_directory(normalized))
+            if (!filesystem_is_directory(normalized))
             {
                 cb(serialize_error("path is not a directory"));
                 return;
             }
-            auto entries =
-                tt::rpc::filesystem::collect_directory_entries(normalized);
+            auto entries = collect_directory_entries_generic(normalized);
             auto parent = normalized.parent_path();
             cb(serialize_fs_browse(path_to_string(normalized),
                                    path_to_string(parent), separator, entries));
@@ -2926,7 +3008,7 @@ void handle_fs_space_async(engine::Core *engine, yyjson_val *arguments,
     {
         try
         {
-            auto info = tt::rpc::filesystem::query_space(target);
+            auto info = query_directory_space(target);
             if (!info)
             {
                 cb(serialize_error("unable to query space"));
@@ -4493,11 +4575,13 @@ SystemHandlerResult perform_handler_action_impl(HandlerAction action,
 Dispatcher::Dispatcher(engine::Core *engine, std::string rpc_bind,
                        ResponsePoster post_response,
                        std::shared_ptr<UiPreferencesStore> ui_preferences,
+                       std::shared_ptr<SystemInstallService> install_service,
                        EventPublisher event_publisher,
                        UiClientChecker has_ui_client)
     : engine_(engine), rpc_bind_(std::move(rpc_bind)),
       handlers_(), post_response_(std::move(post_response)),
       ui_preferences_store_(std::move(ui_preferences)),
+      install_service_(std::move(install_service)),
       broadcast_event_(std::move(event_publisher)),
       has_ui_client_(std::move(has_ui_client))
 {
