@@ -436,6 +436,17 @@ void reset_dcomp_host(TrayState &state)
     state.d3d_device.Reset();
 }
 
+void forget_webview_event_handlers(TrayState &state)
+{
+    if (state.webview)
+    {
+        state.webview->remove_WebMessageReceived(state.web_message_token);
+        state.webview->remove_NavigationCompleted(state.navigation_token);
+    }
+    state.web_message_token = {};
+    state.navigation_token = {};
+}
+
 void reset_webview_objects_keep_window(TrayState &state)
 {
     state.webview_ready.store(false);
@@ -448,6 +459,7 @@ void reset_webview_objects_keep_window(TrayState &state)
     }
     state.webview_comp_controller4.Reset();
     state.webview_comp_controller.Reset();
+    forget_webview_event_handlers(state);
     state.webview.Reset();
 }
 
@@ -1068,10 +1080,8 @@ void cancel_native_webview(TrayState &state)
     }
     state.webview_comp_controller4.Reset();
     state.webview_comp_controller.Reset();
-    if (state.webview)
-    {
-        state.webview.Reset();
-    }
+    forget_webview_event_handlers(state);
+    state.webview.Reset();
     state.webview_environment3.Reset();
     state.dcomp_webview_visual.Reset();
     state.dcomp_root_visual.Reset();
@@ -1922,10 +1932,7 @@ LRESULT CALLBACK WebViewWindowProc(HWND hwnd, UINT msg, WPARAM wparam,
             state->pending_show_request.store(false);
             tt::tray::rpc::post_rpc_request(
                 *state, R"({"method":"session-ui-detach"})");
-            if (state->webview_window)
-            {
-                ShowWindow(state->webview_window, SW_HIDE);
-            }
+            cancel_native_webview(*state);
         }
         return 0;
     }

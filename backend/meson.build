@@ -260,6 +260,8 @@ tt_base_sources = [
   'src/rpc/Dispatcher.cpp',
   'src/rpc/Serializer.cpp',
   'src/rpc/FsHooks.cpp',
+  'src/application/installer/SystemInstallService.cpp',
+  'src/services/SystemInstallService.cpp',
   'src/utils/FS.cpp',
   'src/utils/Log.cpp',
   'src/utils/OutboundRoute.cpp',

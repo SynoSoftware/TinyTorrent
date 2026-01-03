@@ -922,15 +922,18 @@ bool origin_allowed(struct mg_http_message *hm,
 }
 
 Server::Server(engine::Core *engine, std::string bind_url,
-               ServerOptions options)
+               ServerOptions options,
+               std::shared_ptr<SystemInstallService> system_install_service)
     : bind_url_(std::move(bind_url)), engine_(engine),
       ui_preferences_store_(make_ui_preferences_store(engine)),
+      system_install_service_(std::move(system_install_service)),
       dispatcher_(engine, bind_url_,
                   [this](std::function<void()> task)
                   {
                       enqueue_task(std::move(task));
                   },
                  ui_preferences_store_,
+                 system_install_service_,
                  [this](std::string const &payload)
                  {
                      auto payload_copy = std::string(payload);

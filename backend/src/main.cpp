@@ -1,5 +1,6 @@
 #include "app/DaemonMain.hpp"
 #include "engine/Core.hpp"
+#include "services/SystemInstallService.hpp"
 #include "rpc/Dispatcher.hpp"
 #include "rpc/Server.hpp"
 #include "utils/Endpoint.hpp"
@@ -404,33 +405,6 @@ int daemon_main(int argc, char *argv[],
             }
             return true;
         };
-
-        if (auto handler_request = tt::rpc::parse_handler_action(argc, argv);
-            handler_request.action != tt::rpc::HandlerAction::None)
-        {
-            auto result = tt::rpc::perform_handler_action_impl(
-                handler_request.action, !handler_request.already_elevated,
-                handler_request.already_elevated);
-
-#if defined(_WIN32)
-            if (!result.success)
-            {
-                std::string msg =
-                    result.message.empty()
-                        ? std::string("System handler operation failed")
-                        : result.message;
-                if (result.permission_denied)
-                {
-                    msg +=
-                        "\n\nPermission denied. Try running as Administrator.";
-                }
-                TT_LOG_ERROR("system handler action failed: {}", msg);
-                std::fprintf(stderr, "TinyTorrent system handler failed: %s\n",
-                             msg.c_str());
-            }
-#endif
-            return result.success ? 0 : 1;
-        }
 
         auto root = tt::utils::data_root();
 #// Ensure data root exists so the log file can be created
@@ -991,7 +965,9 @@ int daemon_main(int argc, char *argv[],
             TT_LOG_INFO("RPC authentication enforced via host-provided session secret.");
 #endif
         }
-        tt::rpc::Server rpc(engine.get(), rpc_bind, rpc_options);
+        auto install_service = std::make_shared<SystemInstallService>();
+        tt::rpc::Server rpc(engine.get(), rpc_bind, rpc_options,
+                            install_service);
         rpc.start();
 
         // Wait for the RPC listener to pick an ephemeral port (when
