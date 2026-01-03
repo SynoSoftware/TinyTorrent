@@ -58,6 +58,7 @@ import type {
 import type { HeartbeatSource } from "@/services/rpc/heartbeat";
 import type { RpcStatus } from "@/shared/types/rpc";
 import type { AddTorrentContext } from "@/app/hooks/useAddTorrent";
+import type { CapabilityStore } from "@/app/types/capabilities";
 import type { WorkspaceStyle } from "@/app/hooks/useWorkspaceShell";
 
 type AddTorrentPayload = {
@@ -117,8 +118,7 @@ interface WorkspaceShellProps {
     sequentialToggleHandler?: (enabled: boolean) => Promise<void>;
     superSeedingToggleHandler?: (enabled: boolean) => Promise<void>;
     handleForceTrackerReannounce: () => Promise<void>;
-    sequentialSupported: boolean;
-    superSeedingSupported: boolean;
+    capabilities: CapabilityStore;
     optimisticStatuses: OptimisticStatusMap;
     handleSelectionChange: (selection: Torrent[]) => void;
     handleActiveRowChange: (torrent: Torrent | null) => void;
@@ -189,8 +189,7 @@ export function WorkspaceShell({
     sequentialToggleHandler,
     superSeedingToggleHandler,
     handleForceTrackerReannounce,
-    sequentialSupported,
-    superSeedingSupported,
+    capabilities,
     optimisticStatuses,
     handleSelectionChange,
     handleActiveRowChange,
@@ -264,24 +263,23 @@ export function WorkspaceShell({
     );
 
     const renderModeLayoutSection = () => (
-        <ModeLayout
-            workspaceStyle={workspaceStyle}
-            torrents={torrents}
-            filter={filter}
-            searchQuery={searchQuery}
-            isTableLoading={isTableLoading}
-            onAction={handleTorrentAction}
-            onRequestDetails={handleRequestDetails}
-            detailData={detailData}
-            onCloseDetail={closeDetail}
-            onFilesToggle={handleFileSelectionChange}
-            onFileContextAction={onFileContextAction}
-            onPeerContextAction={onPeerContextAction}
-            onSequentialToggle={sequentialToggleHandler}
-            onSuperSeedingToggle={superSeedingToggleHandler}
-            onForceTrackerReannounce={handleForceTrackerReannounce}
-            sequentialSupported={sequentialSupported}
-            superSeedingSupported={superSeedingSupported}
+            <ModeLayout
+                workspaceStyle={workspaceStyle}
+                torrents={torrents}
+                filter={filter}
+                searchQuery={searchQuery}
+                isTableLoading={isTableLoading}
+                onAction={handleTorrentAction}
+                onRequestDetails={handleRequestDetails}
+                detailData={detailData}
+                onCloseDetail={closeDetail}
+                onFilesToggle={handleFileSelectionChange}
+                onFileContextAction={onFileContextAction}
+                onPeerContextAction={onPeerContextAction}
+                onSequentialToggle={sequentialToggleHandler}
+                onSuperSeedingToggle={superSeedingToggleHandler}
+                onForceTrackerReannounce={handleForceTrackerReannounce}
+                capabilities={capabilities}
             optimisticStatuses={optimisticStatuses}
             peerSortStrategy={peerSortStrategy}
             inspectorTabCommand={inspectorTabCommand}

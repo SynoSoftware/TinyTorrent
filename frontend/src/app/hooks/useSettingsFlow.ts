@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import type { MutableRefObject } from "react";
 
-import type { RpcStatus } from "@/shared/types/rpc";
+import type {
+    ReportCommandErrorFn,
+    RpcStatus,
+} from "@/shared/types/rpc";
 import type { TransmissionSessionSettings } from "@/services/rpc/types";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
+import { isRpcCommandError } from "@/services/rpc/errors";
 import {
     DEFAULT_SETTINGS_CONFIG,
     type SettingsConfig,
@@ -215,7 +219,7 @@ interface UseSettingsFlowParams {
     refreshTorrentsRef: MutableRefObject<() => Promise<void>>;
     refreshSessionStatsDataRef: MutableRefObject<() => Promise<void>>;
     refreshSessionSettings: () => Promise<TransmissionSessionSettings>;
-    reportRpcStatus: (status: RpcStatus) => void;
+    reportCommandError: ReportCommandErrorFn;
     rpcStatus: RpcStatus;
     isSettingsOpen: boolean;
     isMountedRef: MutableRefObject<boolean>;
@@ -227,7 +231,7 @@ export function useSettingsFlow({
     refreshTorrentsRef,
     refreshSessionStatsDataRef,
     refreshSessionSettings,
-    reportRpcStatus,
+    reportCommandError,
     rpcStatus,
     isSettingsOpen,
     isMountedRef,
@@ -303,7 +307,9 @@ export function useSettingsFlow({
                     payload: sessionPayload,
                 });
                 if (isMountedRef.current) {
-                    reportRpcStatus("error");
+                    if (!isRpcCommandError(error)) {
+                        reportCommandError(error);
+                    }
                 }
                 if (error instanceof Error) {
                     throw error;
@@ -318,7 +324,7 @@ export function useSettingsFlow({
         [
             refreshSessionStatsDataRef,
             refreshTorrentsRef,
-            reportRpcStatus,
+            reportCommandError,
             torrentClient,
             isMountedRef,
             sessionSettings,
@@ -331,12 +337,14 @@ export function useSettingsFlow({
                 throw new Error("Port test not supported");
             }
             await torrentClient.testPort();
-        } catch {
-            if (isMountedRef.current) {
-                reportRpcStatus("error");
+        } catch (error) {
+        if (isMountedRef.current) {
+            if (!isRpcCommandError(error)) {
+                reportCommandError(error);
             }
         }
-    }, [reportRpcStatus, torrentClient, isMountedRef]);
+    }
+}, [reportCommandError, torrentClient, isMountedRef]);
 
     const applyUserPreferencesPatch = useCallback(
         (patch: Partial<PreferencePayload>) => {

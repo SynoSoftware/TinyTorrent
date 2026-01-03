@@ -26,6 +26,7 @@ import {
     MIN_HANDLE_VISUAL_WIDTH,
 } from "@/config/logic";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
+import type { CapabilityStore } from "@/app/types/capabilities";
 import type { WorkspaceStyle } from "@/app/hooks/useWorkspaceShell";
 import type { TorrentPeerEntity } from "@/services/rpc/entities";
 import type {
@@ -73,8 +74,7 @@ interface ModeLayoutProps {
     onSequentialToggle?: (enabled: boolean) => Promise<void> | void;
     onSuperSeedingToggle?: (enabled: boolean) => Promise<void> | void;
     onForceTrackerReannounce?: () => Promise<void> | void;
-    sequentialSupported?: boolean;
-    superSeedingSupported?: boolean;
+    capabilities: CapabilityStore;
     optimisticStatuses?: OptimisticStatusMap;
     peerSortStrategy?: PeerSortStrategy;
     inspectorTabCommand?: DetailTab | null;
@@ -101,8 +101,7 @@ export function ModeLayout({
     onSuperSeedingToggle,
     onForceTrackerReannounce,
     onOpenFolder,
-    sequentialSupported,
-    superSeedingSupported,
+    capabilities,
     optimisticStatuses,
     peerSortStrategy,
     inspectorTabCommand,
@@ -427,10 +426,7 @@ export function ModeLayout({
                                     onForceTrackerReannounce={
                                         onForceTrackerReannounce
                                     }
-                                    sequentialSupported={sequentialSupported}
-                                    superSeedingSupported={
-                                        superSeedingSupported
-                                    }
+                                    capabilities={capabilities}
                                     isDetailFullscreen={false}
                                     onDock={handleDetailDock}
                                     onPopout={handleDetailPopout}
@@ -484,8 +480,7 @@ export function ModeLayout({
                                 onForceTrackerReannounce={
                                     onForceTrackerReannounce
                                 }
-                                sequentialSupported={sequentialSupported}
-                                superSeedingSupported={superSeedingSupported}
+                                capabilities={capabilities}
                                 isDetailFullscreen={isDetailFullscreen}
                                 onDock={handleDetailDock}
                                 onPopout={handleDetailPopout}

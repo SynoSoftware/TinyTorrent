@@ -2,6 +2,7 @@ import type {
     TransmissionTorrent,
     TransmissionTorrentDetail,
     TransmissionTorrentFile,
+    TransmissionTorrentFileStat,
     TransmissionTorrentPeer,
     TransmissionTorrentTracker,
 } from "./types";
@@ -37,24 +38,67 @@ const normalizeStatus = (
     return "paused";
 };
 
-const mapPriority = (priority: number): LibtorrentPriority => {
-    if (priority <= -1) return 0;
-    if (priority === 0) return 4;
+const mapPriority = (priority?: number): LibtorrentPriority => {
+    const normalized = typeof priority === "number" ? priority : 0;
+    if (normalized <= -1) return 0;
+    if (normalized === 0) return 4;
     return 7;
 };
 
-const normalizeFile = (
-    file: TransmissionTorrentFile,
-    index: number
-): TorrentFileEntity => ({
-    name: file.name,
-    index,
-    length: file.length,
-    bytesCompleted: file.bytesCompleted,
-    progress: file.percentDone,
-    priority: mapPriority(file.priority),
-    wanted: file.wanted,
-});
+const sanitizeFileName = (value: string | undefined, index: number) => {
+    const trimmed = value?.trim();
+    if (trimmed && trimmed.length > 0) {
+        return trimmed;
+    }
+    return `file-${index}`;
+};
+
+const zipFileEntities = (
+    detail: TransmissionTorrentDetail
+): TorrentFileEntity[] => {
+    const files = detail.files ?? [];
+    const stats = detail.fileStats ?? [];
+    const fileCount = files.length;
+    const statsCount = stats.length;
+    const hasStats = statsCount > 0;
+    const limit = hasStats
+        ? Math.min(fileCount, statsCount)
+        : fileCount;
+    if (hasStats && fileCount !== statsCount) {
+        console.warn(
+            `[tiny-torrent][rpc] file/fileStats length mismatch for torrent ${detail.hashString}: files=${fileCount} fileStats=${statsCount}`
+        );
+    } else if (!hasStats && fileCount > 0) {
+        console.warn(
+            `[tiny-torrent][rpc] missing fileStats for torrent ${detail.hashString}`
+        );
+    }
+    const result: TorrentFileEntity[] = [];
+    for (let index = 0; index < limit; ++index) {
+        const file = files[index];
+        const stat = stats[index];
+        const length =
+            typeof file.length === "number" ? file.length : undefined;
+        const bytesCompleted =
+            typeof file.bytesCompleted === "number"
+                ? file.bytesCompleted
+                : undefined;
+        const progress =
+            length && typeof bytesCompleted === "number" && length > 0
+                ? Math.min(bytesCompleted / length, 1)
+                : undefined;
+        result.push({
+            name: sanitizeFileName(file.name, index),
+            index,
+            length,
+            bytesCompleted,
+            progress,
+            priority: mapPriority(stat?.priority),
+            wanted: stat?.wanted ?? true,
+        });
+    }
+    return result;
+};
 
 const normalizeTracker = (
     tracker: TransmissionTorrentTracker
@@ -135,14 +179,17 @@ export const normalizeTorrent = (
 
 export const normalizeTorrentDetail = (
     detail: TransmissionTorrentDetail
-): TorrentDetailEntity => ({
-    ...normalizeTorrent(detail),
-    files: detail.files?.map(normalizeFile),
-    trackers: detail.trackers?.map(normalizeTracker),
-    peers: detail.peers?.map(normalizePeer),
-    pieceCount: detail.pieceCount,
-    pieceSize: detail.pieceSize,
-    pieceStates: detail.pieceStates,
-    pieceAvailability: detail.pieceAvailability,
-    downloadDir: detail.downloadDir,
-});
+): TorrentDetailEntity => {
+    const normalizedFiles = zipFileEntities(detail);
+    return {
+        ...normalizeTorrent(detail),
+        files: normalizedFiles,
+        trackers: detail.trackers?.map(normalizeTracker),
+        peers: detail.peers?.map(normalizePeer),
+        pieceCount: detail.pieceCount,
+        pieceSize: detail.pieceSize,
+        pieceStates: detail.pieceStates,
+        pieceAvailability: detail.pieceAvailability,
+        downloadDir: detail.downloadDir,
+    };
+};

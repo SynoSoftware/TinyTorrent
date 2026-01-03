@@ -16,6 +16,8 @@ export const SpeedTab = ({ torrent }: SpeedTabProps) => {
     const { down: downHistory, up: upHistory } = useEngineSpeedHistory(
         torrent.id
     );
+    const isHistoryEmpty =
+        downHistory.length === 0 && upHistory.length === 0;
     return (
         <div className="h-full flex flex-col">
             <GlassPanel className="flex-1 p-stage">
@@ -32,6 +34,11 @@ export const SpeedTab = ({ torrent }: SpeedTabProps) => {
                         {t("torrent_modal.speed.download")}
                     </span>
                 </div>
+                {isHistoryEmpty && (
+                    <div className="mb-tight rounded-2xl border border-content1/20 bg-background/20 p-panel text-scaled text-foreground/50">
+                        {t("torrent_modal.speed.collecting_samples")}
+                    </div>
+                )}
                 <SpeedChart
                     downHistory={downHistory}
                     upHistory={upHistory}

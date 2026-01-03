@@ -7,6 +7,7 @@ import {
     type ChangeEvent,
 } from "react";
 import Runtime, { NativeShell } from "@/app/runtime";
+import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import { useHotkeys } from "react-hotkeys-hook";
 import useWorkbenchScale from "./hooks/useWorkbenchScale";
 import { useTranslation } from "react-i18next";
@@ -31,6 +32,12 @@ import type {
 } from "./components/CommandPalette";
 import { WorkspaceShell } from "./components/WorkspaceShell";
 import type { EngineDisplayType } from "./components/layout/StatusBar";
+import type {
+    CapabilityKey,
+    CapabilityState,
+    CapabilityStore,
+} from "@/app/types/capabilities";
+import { DEFAULT_CAPABILITY_STORE } from "@/app/types/capabilities";
 import { useTorrentClient } from "./providers/TorrentClientProvider";
 import { FocusProvider, useFocusState } from "./context/FocusContext";
 import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
@@ -107,20 +114,38 @@ function FocusController({
     return null;
 }
 
+const LAST_DOWNLOAD_DIR_KEY = "tt-add-last-download-dir";
+
 export default function App() {
     const { t } = useTranslation();
     const torrentClient = useTorrentClient();
+    const torrentClientRef = useRef<EngineAdapter | null>(null);
     const {
         rpcStatus,
         reconnect,
         refreshSessionSettings,
-        reportRpcStatus,
+        markTransportConnected,
+        reportCommandError,
+        reportReadError,
         updateRequestTimeout,
         engineInfo,
         isDetectingEngine,
         isReady,
     } = useTransmissionSession(torrentClient);
     const [serverClass, setServerClass] = useState<ServerClass>("unknown");
+    const [capabilities, setCapabilities] = useState<CapabilityStore>(
+        DEFAULT_CAPABILITY_STORE
+    );
+
+    const updateCapabilityState = useCallback(
+        (capability: CapabilityKey, state: CapabilityState) => {
+            setCapabilities((prev) => {
+                if (prev[capability] === state) return prev;
+                return { ...prev, [capability]: state };
+            });
+        },
+        []
+    );
 
     const engineType = useMemo<EngineDisplayType>(() => {
         if (serverClass === "tinytorrent") {
@@ -165,9 +190,44 @@ export default function App() {
         };
     }, [rpcStatus, torrentClient]);
 
+    useEffect(() => {
+        if (!torrentClient.setSequentialDownload) {
+            updateCapabilityState("sequentialDownload", "unsupported");
+            return;
+        }
+        if (capabilities.sequentialDownload === "unsupported") {
+            updateCapabilityState("sequentialDownload", "unknown");
+        }
+    }, [
+        torrentClient.setSequentialDownload,
+        capabilities.sequentialDownload,
+        updateCapabilityState,
+    ]);
+
+    useEffect(() => {
+        if (!torrentClient.setSuperSeeding) {
+            updateCapabilityState("superSeeding", "unsupported");
+            return;
+        }
+        if (capabilities.superSeeding === "unsupported") {
+            updateCapabilityState("superSeeding", "unknown");
+        }
+    }, [
+        torrentClient.setSuperSeeding,
+        capabilities.superSeeding,
+        updateCapabilityState,
+    ]);
+
     const isNativeIntegrationActive = serverClass === "tinytorrent";
     const isNativeHost = Runtime.isNativeHost;
     const isRunningNative = isNativeHost || isNativeIntegrationActive;
+
+    const [lastDownloadDir, setLastDownloadDir] = useState(() => {
+        if (typeof window === "undefined") {
+            return "";
+        }
+        return window.localStorage.getItem(LAST_DOWNLOAD_DIR_KEY) ?? "";
+    });
 
     const { isSettingsOpen, openSettings, closeSettings } =
         useWorkspaceModals();
@@ -192,25 +252,52 @@ export default function App() {
         setMagnetModalOpen(true);
     }, []);
 
+    // Settings snapshot ref: allows handlers declared earlier to read current settings
+    const settingsConfigRef = useRef<{
+        start_added_torrents: boolean;
+        download_dir: string;
+    }>({
+        start_added_torrents: false,
+        download_dir: "",
+    });
+
     const handleMagnetModalClose = useCallback(() => {
         setMagnetModalOpen(false);
         setMagnetModalInitialValue("");
     }, []);
 
     const handleMagnetSubmit = useCallback(
-        (link: string) => {
+        async (link: string) => {
             const normalized = normalizeMagnetLink(link);
             if (!normalized) return;
             setMagnetModalOpen(false);
             setMagnetModalInitialValue("");
-            setAddSource({
-                kind: "magnet",
-                label: normalized,
-                magnetLink: normalized,
-                status: "resolving",
-            });
+
+            // Auto-add magnet links and obey the user's "start added torrents" setting.
+            const startNow = Boolean(
+                settingsConfigRef.current.start_added_torrents
+            );
+            const defaultDir =
+                lastDownloadDir || settingsConfigRef.current.download_dir;
+            try {
+                await torrentClient.addTorrent({
+                    magnetLink: normalized,
+                    paused: !startNow,
+                    downloadDir: defaultDir,
+                });
+                // Use the ref which will be updated after `refreshTorrents` is declared
+                try {
+                    void refreshTorrentsRef.current?.();
+                } catch {
+                    // ignore refresh errors
+                }
+            } catch (err) {
+                // Log failure; per spec we do not open the full AddTorrent modal for magnets.
+                // eslint-disable-next-line no-console
+                console.error("Failed to add magnet", err);
+            }
         },
-        [setAddSource]
+        [lastDownloadDir, torrentClient]
     );
 
     const openAddTorrentFromFile = useCallback(async (file: File) => {
@@ -240,7 +327,7 @@ export default function App() {
     const { sessionStats, refreshSessionStatsData, liveTransportStatus } =
         useSessionStats({
             torrentClient,
-            reportRpcStatus,
+            reportReadError,
             isMountedRef,
             sessionReady: rpcStatus === "connected",
         });
@@ -316,12 +403,49 @@ export default function App() {
         refreshTorrentsRef,
         refreshSessionStatsDataRef,
         refreshSessionSettings,
-        reportRpcStatus,
+        reportCommandError,
         rpcStatus,
         isSettingsOpen,
         isMountedRef,
         updateRequestTimeout,
     });
+
+    const {
+        download_dir: settingsDownloadDir,
+        start_added_torrents: settingsStartAdded,
+    } = settingsFlow.settingsConfig;
+
+    useEffect(() => {
+        // keep a snapshot ref of current settings for early-declared handlers
+        settingsConfigRef.current = {
+            start_added_torrents: settingsStartAdded,
+            download_dir: lastDownloadDir || settingsDownloadDir,
+        };
+    }, [lastDownloadDir, settingsDownloadDir, settingsStartAdded]);
+
+    useEffect(() => {
+        if (lastDownloadDir || !settingsDownloadDir) return;
+        setLastDownloadDir(settingsDownloadDir);
+    }, [lastDownloadDir, settingsDownloadDir]);
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        if (lastDownloadDir) {
+            window.localStorage.setItem(LAST_DOWNLOAD_DIR_KEY, lastDownloadDir);
+            return;
+        }
+        window.localStorage.removeItem(LAST_DOWNLOAD_DIR_KEY);
+    }, [lastDownloadDir]);
+
+    useEffect(() => {
+        if (!lastDownloadDir) return;
+        settingsFlow.setSettingsConfig((prev) => {
+            if (prev.download_dir === lastDownloadDir) {
+                return prev;
+            }
+            return { ...prev, download_dir: lastDownloadDir };
+        });
+    }, [lastDownloadDir, settingsFlow.setSettingsConfig]);
 
     const pollingIntervalMs = Math.max(
         1000,
@@ -340,7 +464,8 @@ export default function App() {
         client: torrentClient,
         sessionReady: rpcStatus === "connected",
         pollingIntervalMs,
-        onRpcStatusChange: reportRpcStatus,
+        markTransportConnected,
+        reportReadError,
     });
 
     useEffect(() => {
@@ -355,7 +480,7 @@ export default function App() {
         mutateDetail,
     } = useTorrentDetail({
         torrentClient,
-        reportRpcStatus,
+        reportReadError,
         isMountedRef,
         sessionReady: rpcStatus === "connected",
     });
@@ -368,11 +493,12 @@ export default function App() {
         detailData,
         torrentClient,
         mutateDetail,
-        reportRpcStatus,
+        reportCommandError,
         isMountedRef,
         refreshTorrents,
         refreshDetailData,
         refreshSessionStatsData,
+        updateCapabilityState,
     });
 
     const { handleTorrentAction: executeTorrentAction, handleOpenFolder } =
@@ -382,7 +508,7 @@ export default function App() {
             refreshTorrents,
             refreshDetailData,
             refreshSessionStatsData,
-            reportRpcStatus,
+            reportCommandError,
             isMountedRef,
         });
 
@@ -390,7 +516,7 @@ export default function App() {
         torrentClient,
         refreshTorrents,
         refreshSessionStatsData,
-        reportRpcStatus,
+        reportCommandError,
         isMountedRef,
         addGhostTorrent,
         removeGhostTorrent,
@@ -713,21 +839,6 @@ export default function App() {
         clearDetail();
     }, [clearDetail]);
 
-    const sequentialMethodAvailable = Boolean(
-        torrentClient.setSequentialDownload
-    );
-    const superSeedingMethodAvailable = Boolean(torrentClient.setSuperSeeding);
-    const sequentialSupported =
-        engineInfo !== null
-            ? Boolean(engineInfo.capabilities.sequentialDownload) &&
-              sequentialMethodAvailable
-            : sequentialMethodAvailable;
-    const superSeedingSupported =
-        engineInfo !== null
-            ? Boolean(engineInfo.capabilities.superSeeding) &&
-              superSeedingMethodAvailable
-            : superSeedingMethodAvailable;
-
     const rehashStatus: RehashStatus | undefined = useMemo(() => {
         const verifyingTorrents = torrents.filter(
             (torrent) => torrent.state === "checking"
@@ -778,25 +889,11 @@ export default function App() {
     useEffect(() => {
         if (typeof window === "undefined") return;
 
-        // Use a stable ref to always point to the latest torrentClient without
-        // recreating a ref object inside the effect on every render.
-        const torrentClientRef = (App as any)._torrentClientRef as
-            | { current: typeof torrentClient }
-            | undefined;
-        if (!torrentClientRef) {
-            // attach a module-scoped ref to the App function object so we can
-            // reuse it across re-renders without re-allocating inside the effect.
-            (App as any)._torrentClientRef = { current: torrentClient };
-        } else {
-            torrentClientRef.current = torrentClient;
-        }
+        torrentClientRef.current = torrentClient;
 
         const detachUi = () => {
-            const ref = (App as any)._torrentClientRef as {
-                current: typeof torrentClient;
-            } | null;
             try {
-                void ref?.current?.notifyUiDetached?.();
+                void torrentClientRef.current?.notifyUiDetached?.();
             } catch {
                 // swallow errors during unload
             }
@@ -845,10 +942,12 @@ export default function App() {
             setIsResolvingMagnet(true);
             let addedId: string | null = null;
             try {
+                const targetDownloadDir =
+                    lastDownloadDir || settingsFlow.settingsConfig.download_dir;
                 const added = await torrentClient.addTorrent({
                     magnetLink: normalized,
                     paused: true,
-                    downloadDir: settingsFlow.settingsConfig.download_dir,
+                    downloadDir: targetDownloadDir,
                 });
                 addedId = added.id;
 
@@ -882,7 +981,11 @@ export default function App() {
                 setIsResolvingMagnet(false);
             }
         },
-        [settingsFlow.settingsConfig.download_dir, torrentClient]
+        [
+            lastDownloadDir,
+            settingsFlow.settingsConfig.download_dir,
+            torrentClient,
+        ]
     );
 
     useEffect(() => {
@@ -942,6 +1045,12 @@ export default function App() {
             if (!addSource) return;
 
             const startNow = selection.commitMode !== "paused";
+            const persistDownloadDir = () => {
+                const normalized = selection.downloadDir.trim();
+                if (normalized) {
+                    setLastDownloadDir(normalized);
+                }
+            };
 
             if (addSource.kind === "file") {
                 const metainfo = await readTorrentFileAsMetainfoBase64(
@@ -960,6 +1069,7 @@ export default function App() {
                     priorityNormal: selection.priorityNormal,
                     priorityLow: selection.priorityLow,
                 });
+                persistDownloadDir();
                 closeAddTorrentWindow();
                 return;
             }
@@ -983,12 +1093,19 @@ export default function App() {
                 if (startNow && addSource.torrentId) {
                     await torrentClient.resume([addSource.torrentId]);
                 }
+                persistDownloadDir();
                 closeAddTorrentWindow();
             } finally {
                 setIsFinalizingExisting(false);
             }
         },
-        [addSource, closeAddTorrentWindow, handleAddTorrent, torrentClient]
+        [
+            addSource,
+            closeAddTorrentWindow,
+            handleAddTorrent,
+            torrentClient,
+            setLastDownloadDir,
+        ]
     );
 
     return (
@@ -1031,15 +1148,10 @@ export default function App() {
                 detailData={detailData}
                 closeDetail={handleCloseDetail}
                 handleFileSelectionChange={handleFileSelectionChange}
-                sequentialToggleHandler={
-                    sequentialSupported ? handleSequentialToggle : undefined
-                }
-                superSeedingToggleHandler={
-                    superSeedingSupported ? handleSuperSeedingToggle : undefined
-                }
+                sequentialToggleHandler={handleSequentialToggle}
+                superSeedingToggleHandler={handleSuperSeedingToggle}
                 handleForceTrackerReannounce={handleForceTrackerReannounce}
-                sequentialSupported={sequentialSupported}
-                superSeedingSupported={superSeedingSupported}
+                capabilities={capabilities}
                 optimisticStatuses={optimisticStatuses}
                 handleSelectionChange={handleSelectionChange}
                 handleActiveRowChange={handleActiveRowChange}
@@ -1087,11 +1199,12 @@ export default function App() {
                 onClose={handleMagnetModalClose}
                 onSubmit={handleMagnetSubmit}
             />
-            {addSource && (
+            {addSource && addSource.kind === "file" && (
                 <AddTorrentModal
-                    isOpen={Boolean(addSource)}
+                    isOpen={true}
                     source={addSource}
                     initialDownloadDir={
+                        lastDownloadDir ||
                         settingsFlow.settingsConfig.download_dir
                     }
                     isSubmitting={isAddingTorrent || isFinalizingExisting}
@@ -1100,20 +1213,7 @@ export default function App() {
                     onConfirm={(selection) =>
                         void handleTorrentWindowConfirm(selection)
                     }
-                    onResolveMagnet={
-                        addSource.kind === "magnet"
-                            ? () =>
-                                  setAddSource((prev) =>
-                                      prev && prev.kind === "magnet"
-                                          ? {
-                                                ...prev,
-                                                status: "resolving",
-                                                metadata: undefined,
-                                            }
-                                          : prev
-                                  )
-                            : undefined
-                    }
+                    onResolveMagnet={undefined}
                     checkFreeSpace={torrentClient.checkFreeSpace}
                     onBrowseDirectory={
                         NativeShell.isAvailable

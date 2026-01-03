@@ -2,7 +2,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { TransmissionSessionSettings } from "@/services/rpc/types";
 import type { EngineInfo } from "@/services/rpc/entities";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
-import type { RpcStatus } from "@/shared/types/rpc";
+import type {
+    ReportCommandErrorFn,
+    ReportReadErrorFn,
+    RpcStatus,
+} from "@/shared/types/rpc";
 import { useRpcConnection } from "./useRpcConnection";
 
 type UseTransmissionSessionResult = {
@@ -12,7 +16,9 @@ type UseTransmissionSessionResult = {
     reconnect: () => void;
     sessionSettings: TransmissionSessionSettings | null;
     refreshSessionSettings: () => Promise<TransmissionSessionSettings>;
-    reportRpcStatus: (status: RpcStatus) => void;
+    markTransportConnected: () => void;
+    reportCommandError: ReportCommandErrorFn;
+    reportReadError: ReportReadErrorFn;
     updateRequestTimeout: (timeout: number) => void;
     engineInfo: EngineInfo | null;
     isDetectingEngine: boolean;
@@ -21,8 +27,14 @@ type UseTransmissionSessionResult = {
 export function useTransmissionSession(
     client: EngineAdapter
 ): UseTransmissionSessionResult {
-    const { rpcStatus, isReady, reconnect, reportRpcStatus } =
-        useRpcConnection(client);
+    const {
+        rpcStatus,
+        isReady,
+        reconnect,
+        markTransportConnected,
+        reportCommandError,
+        reportReadError,
+    } = useRpcConnection(client);
     const [sessionSettings, setSessionSettings] =
         useState<TransmissionSessionSettings | null>(null);
     const [engineInfo, setEngineInfo] = useState<EngineInfo | null>(null);
@@ -92,7 +104,9 @@ export function useTransmissionSession(
         reconnect,
         sessionSettings,
         refreshSessionSettings,
-        reportRpcStatus,
+        markTransportConnected,
+        reportCommandError,
+        reportReadError,
         updateRequestTimeout,
         engineInfo,
         isDetectingEngine,

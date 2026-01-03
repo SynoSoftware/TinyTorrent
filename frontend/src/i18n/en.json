@@ -249,6 +249,7 @@
             "system_integration": "System-level services that affect startup, autorun, and tray helpers.",
             "table_watermark": "Display the ghosted TinyTorrent logo behind the torrent table.",
             "startup": "Control whether the HUD opens automatically, stays hidden on autorun, and how the splash screen is shown.",
+            "window_behavior": "Decide whether closing the window hides the UI or shuts the daemon down.",
             "shellStyle": "Choose between the classic panels or the immersive HUD shell. Changes apply instantly."
         },
         "headers": {
@@ -287,7 +288,17 @@
         },
         "system": {
             "notice": "System integration (autorun, shortcuts) is handled by the native shell and installer.",
-            "instructions": "Use the native installer or OS settings to configure startup and handler integrations."
+            "instructions": "Use the native installer or OS settings to configure startup and handler integrations.",
+            "handlers_unknown": "Unknown",
+            "checkAssociation": "Check Association",
+            "repairAssociation": "Repair",
+            "power_active": "Active",
+            "power_off": "Off",
+            "update_auto": "Auto",
+            "update_manual": "Manual",
+            "autorun_enabled": "Enabled",
+            "autorun_disabled": "Disabled",
+            "autorun_unknown": "Unknown"
         },
         "labels": {
             "shellStyle": "Shell style",
@@ -336,6 +347,14 @@
             "restore_hud_immersive": "Restore insights when entering immersive mode",
             "openOnTrayStart": "Open the HUD when the tray app starts",
             "autorunHidden": "Stay hidden when launched from startup",
+            "defaultTorrentApp": "Default torrent application",
+            "preventSleep": "Prevent system sleep while active",
+            "preventSleepHelper": "Keeps the PC awake only while downloading or seeding.",
+            "updateChecks": "Automatically check for updates",
+            "launchOnStartup": "Launch TinyTorrent on system startup",
+            "silentStart": "Start minimized to tray",
+            "silentStartHelper": "Applies to system startup only. Manual launch always opens the window.",
+            "closeButtonAction": "When clicking the close (x) button",
             "showSplash": "Show the splash screen before the HUD appears",
             "splashMessage": "Splash screen message",
             "turtleMode": "Turtle Mode",
@@ -370,6 +389,10 @@
             "shellStyle": {
                 "classic": "Classic",
                 "immersive": "Immersive"
+            },
+            "closeAction": {
+                "minimize": "Minimize to Tray",
+                "quit": "Quit Application"
             }
         },
         "sections": {
@@ -390,6 +413,7 @@
             "protocol": "Protocol Features",
             "seeding": "Seeding Behavior",
             "system_integration": "System Services",
+            "window_behavior": "Window Behavior",
             "turtle": "Turtle Mode (Scheduled)",
             "visuals": "Visuals"
         },
@@ -544,6 +568,7 @@
         },
         "availability": {
             "empty": "Availability data not available.",
+            "backend_missing": "Availability data not provided by the backend.",
             "label": "Piece Availability",
             "legend_common": "Common",
             "legend_rare": "Rare",
@@ -567,6 +592,7 @@
             "description": "Toggle advanced streaming and seeding behaviors when supported.",
             "force_reannounce": "Force Tracker Reannounce",
             "not_supported": "Not supported by this client",
+            "capability_probe_pending": "Backend capability not confirmed yet.",
             "sequential": "Sequential Download",
             "sequential_helper": "Download pieces in order for instant playback.",
             "super_seeding": "Super Seeding",
@@ -614,18 +640,21 @@
             "download": "DL",
             "ip": "IP",
             "progress": "Progress",
-            "upload": "UL"
+            "upload": "UL",
+            "empty_backend": "Backend returned no peers for this torrent."
         },
         "piece_map": {
             "tooltip": "Piece #{{piece}} - {{status}}",
             "tooltip_progress": "Torrent progress: {{percent}}%",
-            "tooltip_size": "Piece size: {{size}}"
+            "tooltip_size": "Piece size: {{size}}",
+            "binary_states_note": "Backend provided only verified/missing piece information."
         },
         "placeholder": "Select a torrent and open the inspector to see details.",
         "speed": {
             "average": "Average",
             "download": "Download Speed",
             "stable": "Steady Connection",
+            "collecting_samples": "Collecting samples from backend...",
             "upload": "Upload Speed"
         },
         "stats": {
@@ -664,6 +693,7 @@
         "title": "Torrent Details",
         "trackers": {
             "empty": "No tracker history available.",
+            "empty_backend": "Backend returned no trackers for this torrent.",
             "last_announce": "Last Announce",
             "peer_summary": "{{seeded}} seeded / {{leeching}} leeching",
             "peers_label": "Peers",

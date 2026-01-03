@@ -6,16 +6,19 @@ import type {
     GhostTorrentStrategy,
 } from "@/modules/dashboard/hooks/useTorrentData";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
-import type { RpcStatus } from "@/shared/types/rpc";
+import type {
+    ReportCommandErrorFn,
+} from "@/shared/types/rpc";
 import type { TorrentStatus } from "@/services/rpc/entities";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { TransmissionFreeSpace } from "@/services/rpc/types";
+import { isRpcCommandError } from "@/services/rpc/errors";
 
 interface UseAddTorrentParams {
     torrentClient: EngineAdapter;
     refreshTorrents: () => Promise<void>;
     refreshSessionStatsData: () => Promise<void>;
-    reportRpcStatus: (status: RpcStatus) => void;
+    reportCommandError: ReportCommandErrorFn;
     isMountedRef: MutableRefObject<boolean>;
     addGhostTorrent: (options: GhostTorrentOptions) => string;
     removeGhostTorrent: (id: string) => void;
@@ -43,7 +46,7 @@ export function useAddTorrent({
     torrentClient,
     refreshTorrents,
     refreshSessionStatsData,
-    reportRpcStatus,
+    reportCommandError,
     isMountedRef,
     addGhostTorrent,
     removeGhostTorrent,
@@ -88,8 +91,12 @@ export function useAddTorrent({
                 await refreshTorrents();
                 await refreshSessionStatsData();
             } catch (error) {
-                if (isMountedRef.current && rpcAttempted) {
-                    reportRpcStatus("error");
+                if (
+                    isMountedRef.current &&
+                    rpcAttempted &&
+                    !isRpcCommandError(error)
+                ) {
+                    reportCommandError(error);
                 }
                 throw error;
             } finally {
@@ -100,7 +107,7 @@ export function useAddTorrent({
             }
         },
         [
-            reportRpcStatus,
+            reportCommandError,
             refreshSessionStatsData,
             refreshTorrents,
             torrentClient,

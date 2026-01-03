@@ -93,7 +93,7 @@
     /* Structural fallbacks for layout tokens (prevents CLS/first-paint collapse) */
     --tt-zoom-level: 1; /* user scale multiplier (runtime) */
     --tt-unit-base: 4; /* spatial quantum (runtime) */
-    --tt-font-base: 11; /* base font px (runtime) */
+    --tt-font-base: 13; /* base font px (runtime) */
 
     /* Core law primitives (authoritative) */
     --u: calc(var(--tt-unit-base, 4) * 1px);
@@ -181,8 +181,8 @@
     --tt-file-checkbox-padding: var(--p-1);
 
     /* Added semantic tokens for previously inline arbitrary Tailwind calcs */
-    --tt-modal-max-width: calc(180 * var(--u) * var(--z));
-    --tt-modal-body-max-height: calc(70 * var(--u) * var(--z));
+    --tt-modal-max-width: calc(300 * var(--u) * var(--z));
+    --tt-modal-body-max-height: calc(400 * var(--u) * var(--z));
     --tt-settings-h: calc(200 * var(--u));
     --tt-settings-max-h: calc(200 * var(--u));
     --tt-settings-min-h: calc(125 * var(--u));

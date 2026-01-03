@@ -19,6 +19,7 @@ import type {
     FileExplorerContextAction,
     FileExplorerEntry,
 } from "@/shared/ui/workspace/FileExplorerTree";
+import type { CapabilityStore } from "@/app/types/capabilities";
 
 export interface TorrentDetailViewProps {
     torrent?: TorrentDetail | null;
@@ -42,8 +43,7 @@ export interface TorrentDetailViewProps {
     onSequentialToggle?: (enabled: boolean) => void | Promise<void>;
     onSuperSeedingToggle?: (enabled: boolean) => void | Promise<void>;
     onForceTrackerReannounce?: () => void | Promise<void>;
-    sequentialSupported?: boolean;
-    superSeedingSupported?: boolean;
+    capabilities: CapabilityStore;
 }
 
 /**
@@ -63,8 +63,7 @@ export function TorrentDetailView({
     onSequentialToggle,
     onSuperSeedingToggle,
     onForceTrackerReannounce,
-    sequentialSupported,
-    superSeedingSupported,
+    capabilities,
     isDetailFullscreen = false,
     onDock,
     onPopout,
@@ -106,8 +105,12 @@ export function TorrentDetailView({
                     <GeneralTab
                         torrent={torrent}
                         downloadDir={torrent.downloadDir ?? ""}
-                        sequentialSupported={sequentialSupported}
-                        superSeedingSupported={superSeedingSupported}
+                        sequentialCapability={
+                            capabilities.sequentialDownload
+                        }
+                        superSeedingCapability={
+                            capabilities.superSeeding
+                        }
                         onSequentialToggle={onSequentialToggle}
                         onSuperSeedingToggle={onSuperSeedingToggle}
                         onForceTrackerReannounce={onForceTrackerReannounce}
@@ -138,7 +141,9 @@ export function TorrentDetailView({
                 {active === "trackers" && torrent && (
                     <TrackersTab
                         trackers={torrent.trackers ?? []}
-                        emptyMessage={t("torrent_modal.trackers.empty")}
+                        emptyMessage={t(
+                            "torrent_modal.trackers.empty_backend"
+                        )}
                     />
                 )}
                 {active === "peers" && torrent && (

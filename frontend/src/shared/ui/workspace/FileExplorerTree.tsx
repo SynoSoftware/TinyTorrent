@@ -64,11 +64,17 @@ const buildFileTree = (entries: FileExplorerEntry[]): FileExplorerNode[] => {
     if (!entries.length) return [];
     const root: FileExplorerNode[] = [];
     entries.forEach((entry) => {
-        const normalizedPath = entry.name
+        const safeName = entry.name?.trim()
+            ? entry.name
+            : `file-${entry.index ?? "unknown"}`;
+        const normalizedPath = safeName
             .replace(/\\/g, "/")
             .replace(/^\/+/, "");
-        const segments = normalizedPath.split("/").filter(Boolean);
-        if (!segments.length) return;
+        const rawSegments = normalizedPath.split("/");
+        const segments =
+            rawSegments.filter(Boolean).length > 0
+                ? rawSegments.filter(Boolean)
+                : [safeName];
         let currentList = root;
         let currentPath = "";
         segments.forEach((segment, idx) => {
