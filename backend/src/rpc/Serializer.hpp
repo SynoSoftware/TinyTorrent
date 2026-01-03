@@ -1,9 +1,12 @@
 #pragma once
 
+#include "application/installer/InstallerActions.hpp"
+#include "services/SystemInstallService.hpp"
 #include "engine/Core.hpp"
 #include "rpc/UiPreferences.hpp"
 
 #include <chrono>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -13,55 +16,7 @@
 namespace tt::rpc
 {
 
-struct FsEntry
-{
-    std::string name;
-    std::string type;
-    std::uint64_t size = 0;
-};
-
-struct SystemInstallResult
-{
-    bool success = false;
-    bool permission_denied = false;
-    std::string message;
-    std::vector<std::pair<std::string, std::string>> shortcuts;
-    bool handlers_registered = false;
-    std::string handler_message;
-    bool install_requested = false;
-    bool install_success = false;
-    std::string install_message;
-    std::optional<std::string> installed_path;
-};
-
-std::string serialize_fs_browse(std::string const &path,
-                                std::string const &parent,
-                                std::string const &separator,
-                                std::vector<FsEntry> const &entries);
-std::string serialize_fs_space(std::string const &path,
-                               std::uint64_t free_bytes,
-                               std::uint64_t total_bytes);
-std::string serialize_fs_write_result(std::uint64_t bytes_written);
-std::string serialize_dialog_paths(std::vector<std::string> const &paths);
-std::string serialize_dialog_path(std::optional<std::string> const &path);
-std::string serialize_system_action(std::string const &action, bool success,
-                                    std::string const &message,
-                                    bool requires_elevation = false);
-
-std::string serialize_system_create_shortcuts(
-    bool success, std::string const &message,
-    std::vector<std::pair<std::string, std::string>> const &created);
-
-std::string serialize_system_install(SystemInstallResult const &result);
-
 std::string serialize_capabilities();
-
-std::string serialize_autorun_status(bool enabled, bool supported,
-                                     bool requires_elevation);
-std::string serialize_handler_status(bool registered, bool supported,
-                                     bool requires_elevation,
-                                     bool magnet_registered,
-                                     bool torrent_registered);
 
 std::string serialize_session_settings(
     engine::CoreSettings const &settings, std::size_t blocklist_entries,
@@ -91,7 +46,10 @@ serialize_torrent_detail(std::vector<engine::TorrentDetail> const &details);
 std::string serialize_free_space(std::string const &path,
                                  std::uint64_t sizeBytes,
                                  std::uint64_t totalSize);
+std::string serialize_fs_write_result(std::uint64_t bytes_written);
 std::string serialize_success();
+std::string serialize_system_install(
+    tt::application::installer::SystemInstallResult const &result);
 std::string serialize_session_test(bool port_open);
 std::string serialize_torrent_rename(int id, std::string const &name,
                                      std::string const &path);
