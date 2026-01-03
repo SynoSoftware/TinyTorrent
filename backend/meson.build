@@ -259,7 +259,6 @@ tt_base_sources = [
   'src/rpc/UiPreferences.cpp',
   'src/rpc/Dispatcher.cpp',
   'src/rpc/Serializer.cpp',
-  'src/rpc/FsHooks.cpp',
   'src/application/installer/SystemInstallService.cpp',
   'src/services/SystemInstallService.cpp',
   'src/utils/FS.cpp',
