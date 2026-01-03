@@ -9,8 +9,17 @@ import {
 import { cn } from "@heroui/react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useTranslation } from "react-i18next";
-import { Tooltip } from "@heroui/react";
-import { ShieldCheck, Zap, Ban, Copy, UserPlus, Info } from "lucide-react";
+import { Tooltip, Button } from "@heroui/react";
+import {
+    ShieldCheck,
+    Zap,
+    Ban,
+    Copy,
+    UserPlus,
+    Info,
+    ZoomIn,
+    ZoomOut,
+} from "lucide-react";
 
 import useLayoutMetrics from "@/shared/hooks/useLayoutMetrics";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
@@ -70,6 +79,13 @@ export const PeersTab = ({
     const listRef = useRef<HTMLDivElement | null>(null);
     const [peerContextMenu, setPeerContextMenu] =
         useState<PeerContextMenuState | null>(null);
+
+    const [hudScale, setHudScale] = useState(1);
+
+    const increaseHud = () =>
+        setHudScale((s) => Math.min(2, +(s + 0.1).toFixed(2)));
+    const decreaseHud = () =>
+        setHudScale((s) => Math.max(0.5, +(s - 0.1).toFixed(2)));
 
     const { rowHeight, fileContextMenuMargin, fileContextMenuWidth } =
         useLayoutMetrics();
@@ -150,7 +166,7 @@ export const PeersTab = ({
             <div className="flex gap-tight">
                 {flagStr.split("").map((f, i) => (
                     <Tooltip
-                        key={i}
+                        key={`${f}-${i}`}
                         content={t(FLAG_MAP[f] || "peers.flags.unknown")}
                         classNames={GLASS_TOOLTIP_CLASSNAMES}
                         delay={500}
@@ -167,7 +183,34 @@ export const PeersTab = ({
     return (
         <div className="flex flex-col h-full min-h-0 overflow-hidden gap-tools">
             {/* COORDINATED RADAR HUD */}
-            <GlassPanel className="flex-none h-peers-hud">
+            <GlassPanel
+                className="flex flex-col"
+                style={{
+                    height: `calc(var(--tt-peers-hud-height) * ${hudScale})`,
+                }}
+            >
+                <div className="flex items-center justify-end gap-tools px-panel">
+                    <div className="text-label text-foreground/40 mr-2">
+                        HUD
+                    </div>
+                    <Button
+                        isIconOnly
+                        size="sm"
+                        variant="shadow"
+                        onPress={decreaseHud}
+                    >
+                        <ZoomOut size={14} />
+                    </Button>
+                    <Button
+                        isIconOnly
+                        size="sm"
+                        variant="shadow"
+                        onPress={increaseHud}
+                    >
+                        <ZoomIn size={14} />
+                    </Button>
+                </div>
+
                 <PeerMap
                     peers={peers}
                     hoveredPeerId={hoveredPeer}
@@ -210,7 +253,10 @@ export const PeersTab = ({
 
                             return (
                                 <div
-                                    key={peer.address}
+                                    key={
+                                        peer.address ||
+                                        `peer-${virtualRow.index}`
+                                    }
                                     className={cn(
                                         "absolute left-0 right-0 flex items-center px-panel transition-colors border-b border-content1/5",
                                         isHovered
@@ -292,16 +338,18 @@ export const PeersTab = ({
                             }}
                             onPointerDown={(e) => e.stopPropagation()}
                         >
-                                <div className="px-panel py-tight border-b border-content1/10 mb-tight flex items-center gap-tools">
-                                    <StatusIcon
-                                        Icon={Info}
-                                        size="sm"
-                                        className="text-foreground/30"
-                                    />
-                                    <span className={`${TEXT_ROLES.label} text-foreground/40 truncate`}>
-                                        {peerContextMenu.peer.address}
-                                    </span>
-                                </div>
+                            <div className="px-panel py-tight border-b border-content1/10 mb-tight flex items-center gap-tools">
+                                <StatusIcon
+                                    Icon={Info}
+                                    size="sm"
+                                    className="text-foreground/30"
+                                />
+                                <span
+                                    className={`${TEXT_ROLES.label} text-foreground/40 truncate`}
+                                >
+                                    {peerContextMenu.peer.address}
+                                </span>
+                            </div>
                             <button
                                 onClick={() => handleAction("copy_ip")}
                                 className="w-full flex items-center gap-tools px-panel py-tight rounded-xl text-scaled font-semibold hover:bg-content1/10 transition-colors"
