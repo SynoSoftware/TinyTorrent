@@ -21,6 +21,7 @@ import {
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import {
     type DragEvent,
+    type KeyboardEvent,
     useCallback,
     useEffect,
     useMemo,
@@ -536,6 +537,50 @@ export function AddTorrentModal({
         source?.metadata?.name,
     ]);
 
+    const canConfirm = useMemo(
+        () =>
+            files.length > 0 &&
+            Boolean(downloadDir.trim()) &&
+            !isSubmitting &&
+            !isResolvingSource &&
+            resolvedState === "ready",
+        [
+            downloadDir,
+            files.length,
+            isResolvingSource,
+            isSubmitting,
+            resolvedState,
+        ]
+    );
+
+    const handleModalKeyDown = useCallback(
+        (event: KeyboardEvent<HTMLDivElement>) => {
+            if (
+                event.key !== "Enter" ||
+                (event.nativeEvent as any).isComposing ||
+                event.altKey ||
+                event.ctrlKey ||
+                event.metaKey ||
+                event.defaultPrevented ||
+                !canConfirm
+            ) {
+                return;
+            }
+
+            const target = event.target;
+            if (
+                target instanceof HTMLElement &&
+                ["BUTTON", "SELECT"].includes(target.tagName)
+            ) {
+                return;
+            }
+
+            event.preventDefault();
+            handleConfirm();
+        },
+        [canConfirm, handleConfirm]
+    );
+
     const virtualizer = useVirtualizer({
         count: filteredFiles.length,
         getScrollElement: () => scrollParentRef.current,
@@ -709,7 +754,11 @@ export function AddTorrentModal({
         >
             <ModalContent>
                 {() => (
-                    <>
+                    <div
+                        onKeyDown={handleModalKeyDown}
+                        className="flex flex-col h-full"
+                        tabIndex={-1}
+                    >
                         <ModalHeader className="px-stage py-panel border-b border-default flex flex-col gap-tight">
                             <div className="flex items-center justify-between gap-stage">
                                 <div className="min-w-0 flex flex-col gap-tight">
@@ -1358,13 +1407,7 @@ export function AddTorrentModal({
                                     color="primary"
                                     variant="shadow"
                                     onPress={handleConfirm}
-                                    isDisabled={
-                                        !files.length ||
-                                        !downloadDir.trim() ||
-                                        isSubmitting ||
-                                        isResolvingSource ||
-                                        resolvedState !== "ready"
-                                    }
+                                    isDisabled={!canConfirm}
                                     isLoading={isSubmitting}
                                     startContent={
                                         <StatusIcon
@@ -1378,7 +1421,7 @@ export function AddTorrentModal({
                                 </Button>
                             </div>
                         </ModalFooter>
-                    </>
+                    </div>
                 )}
             </ModalContent>
         </Modal>

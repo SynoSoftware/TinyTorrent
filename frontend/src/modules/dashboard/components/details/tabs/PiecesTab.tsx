@@ -22,25 +22,34 @@ export const PiecesTab = ({
     const { t } = useTranslation();
 
     return (
-        <div className="h-full flex flex-col gap-panel">
-            <GlassPanel className="flex-1 overflow-hidden p-panel">
-                <div className="flex items-center justify-between mb-tight">
+        <div className="flex flex-col flex-1 min-h-0 gap-panel">
+            <GlassPanel className="relative flex flex-col flex-1 min-h-0 overflow-hidden p-panel">
+                <div className="flex items-center justify-between mb-tight shrink-0">
                     <span className={`${TEXT_ROLES.label} text-foreground/60`}>
                         {t("torrent_modal.tabs.pieces")}
                     </span>
-                    <span className={`${TEXT_ROLES.secondary} text-foreground/60`}>
+                    <span
+                        className={`${TEXT_ROLES.secondary} text-foreground/60`}
+                    >
                         {t("torrent_modal.piece_map.tooltip_progress", {
-                            percent: Math.max(0, Math.min(100, piecePercent ?? 0)),
+                            percent: Math.max(
+                                0,
+                                Math.min(100, piecePercent ?? 0)
+                            ),
                         })}
                     </span>
                 </div>
-                <PiecesMap
-                    percent={piecePercent}
-                    pieceCount={pieceCount}
-                    pieceSize={pieceSize}
-                    pieceStates={pieceStates}
-                />
+
+                <div className="flex-1 min-h-0">
+                    <PiecesMap
+                        percent={piecePercent}
+                        pieceCount={pieceCount}
+                        pieceSize={pieceSize}
+                        pieceStates={pieceStates}
+                    />
+                </div>
             </GlassPanel>
+
             <GlassPanel className="flex-1 overflow-hidden p-panel">
                 <div className="flex items-center justify-between mb-tight">
                     <span className={`${TEXT_ROLES.label} text-foreground/60`}>
@@ -55,9 +64,7 @@ export const PiecesTab = ({
                     label={t("torrent_modal.availability.label")}
                     legendRare={t("torrent_modal.availability.legend_rare")}
                     legendCommon={t("torrent_modal.availability.legend_common")}
-                    emptyLabel={t(
-                        "torrent_modal.availability.backend_missing"
-                    )}
+                    emptyLabel={t("torrent_modal.availability.backend_missing")}
                     formatTooltip={(piece, peers) =>
                         t("torrent_modal.availability.tooltip", {
                             piece,

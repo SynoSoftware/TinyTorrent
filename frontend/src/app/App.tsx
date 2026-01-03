@@ -1044,13 +1044,12 @@ export default function App() {
         async (selection: AddTorrentSelection) => {
             if (!addSource) return;
 
+            const downloadDir = selection.downloadDir.trim();
+            if (downloadDir) {
+                setLastDownloadDir(downloadDir);
+            }
+
             const startNow = selection.commitMode !== "paused";
-            const persistDownloadDir = () => {
-                const normalized = selection.downloadDir.trim();
-                if (normalized) {
-                    setLastDownloadDir(normalized);
-                }
-            };
 
             if (addSource.kind === "file") {
                 const metainfo = await readTorrentFileAsMetainfoBase64(
@@ -1060,17 +1059,19 @@ export default function App() {
                     closeAddTorrentWindow();
                     return;
                 }
-                await handleAddTorrent({
-                    downloadDir: selection.downloadDir,
-                    startNow,
-                    metainfo: metainfo.metainfoBase64,
-                    filesUnwanted: selection.filesUnwanted,
-                    priorityHigh: selection.priorityHigh,
-                    priorityNormal: selection.priorityNormal,
-                    priorityLow: selection.priorityLow,
-                });
-                persistDownloadDir();
-                closeAddTorrentWindow();
+                try {
+                    await handleAddTorrent({
+                        downloadDir,
+                        startNow,
+                        metainfo: metainfo.metainfoBase64,
+                        filesUnwanted: selection.filesUnwanted,
+                        priorityHigh: selection.priorityHigh,
+                        priorityNormal: selection.priorityNormal,
+                        priorityLow: selection.priorityLow,
+                    });
+                } finally {
+                    closeAddTorrentWindow();
+                }
                 return;
             }
 
@@ -1079,7 +1080,7 @@ export default function App() {
                 if (addSource.torrentId && torrentClient.setTorrentLocation) {
                     await torrentClient.setTorrentLocation(
                         addSource.torrentId,
-                        selection.downloadDir,
+                        downloadDir,
                         true
                     );
                 }
@@ -1093,7 +1094,6 @@ export default function App() {
                 if (startNow && addSource.torrentId) {
                     await torrentClient.resume([addSource.torrentId]);
                 }
-                persistDownloadDir();
                 closeAddTorrentWindow();
             } finally {
                 setIsFinalizingExisting(false);
