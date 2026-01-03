@@ -48,7 +48,7 @@ export const TrackersTab = ({
     return (
         <div className="flex h-full flex-col gap-panel">
             {/* Workbench Toolbar */}
-                <div className="sticky top-0 z-sticky flex items-center justify-between px-tight">
+            <div className="sticky top-0 z-sticky flex items-center justify-between px-tight">
                 <div className="flex items-center gap-tools">
                     <StatusIcon
                         Icon={Activity}
@@ -106,10 +106,13 @@ export const TrackersTab = ({
                             </tr>
                         </thead>
                         <tbody className="font-mono text-scaled">
-                            {trackers.map((tracker) => {
-                                const trackerKey =
+                            {trackers.map((tracker, i) => {
+                                const trackerKeyBase =
                                     tracker.id ??
                                     `${tracker.announce}-${tracker.tier}`;
+                                const trackerKey = `${String(
+                                    trackerKeyBase
+                                )}-${i}`;
                                 const isOnline = tracker.lastAnnounceSucceeded;
 
                                 let hostname = "Unknown";
@@ -219,12 +222,12 @@ export const TrackersTab = ({
 
                 {/* Layer 2 Add Trackers Panel (IDE-style Drawer) */}
                 {showAdd && (
-                <div
-                    className={cn(
-                        GLASS_PANEL_SURFACE,
-                        "absolute inset-0 z-overlay flex flex-col rounded-none bg-background/40 backdrop-blur-xl"
-                    )}
-                >
+                    <div
+                        className={cn(
+                            GLASS_PANEL_SURFACE,
+                            "absolute inset-0 z-overlay flex flex-col rounded-none bg-background/40 backdrop-blur-xl"
+                        )}
+                    >
                         <div className="flex items-center justify-between border-b border-default/10 px-panel py-panel">
                             <span className="text-scaled font-semibold uppercase tracking-tight text-primary">
                                 {t("torrent_modal.trackers.add", {
