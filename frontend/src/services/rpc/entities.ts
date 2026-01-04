@@ -174,3 +174,14 @@ export interface TinyTorrentCapabilities {
     features: string[];
     serverClass?: ServerClass;
 }
+
+export interface NetworkTelemetry {
+    dhtEnabled?: boolean;
+    pexEnabled?: boolean;
+    lpdEnabled?: boolean;
+    portForwardingEnabled?: boolean;
+    altSpeedEnabled?: boolean;
+    downloadDirFreeSpace?: number;
+    downloadQueueEnabled?: boolean;
+    seedQueueEnabled?: boolean;
+}

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTorrentClient } from "@/app/providers/TorrentClientProvider";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import type {
     ReportCommandErrorFn,
@@ -16,8 +17,11 @@ type UseRpcConnectionResult = {
 };
 
 export function useRpcConnection(
-    client: EngineAdapter
+    client?: EngineAdapter
 ): UseRpcConnectionResult {
+    // If a client isn't provided, fall back to the app-wide client from context.
+    const defaultClient = useTorrentClient();
+    const resolvedClient: EngineAdapter = client ?? defaultClient;
     const [rpcStatus, setRpcStatus] = useState<RpcStatus>("idle");
     const [isReady, setIsReady] = useState(false);
     const isMountedRef = useRef(false);
@@ -71,8 +75,8 @@ export function useRpcConnection(
         setIsReady(false);
         updateStatus("idle");
         try {
-            if (client.handshake) {
-                await client.handshake();
+            if (resolvedClient.handshake) {
+                await resolvedClient.handshake();
             }
             markTransportConnected();
             console.log("[tiny-torrent][rpc] handshake succeeded");
@@ -92,7 +96,12 @@ export function useRpcConnection(
                 void latestHandshakeRef.current?.();
             }
         }
-    }, [client, markTransportConnected, reportTransportError, updateStatus]);
+    }, [
+        resolvedClient,
+        markTransportConnected,
+        reportTransportError,
+        updateStatus,
+    ]);
 
     useEffect(() => {
         latestHandshakeRef.current = handshake;

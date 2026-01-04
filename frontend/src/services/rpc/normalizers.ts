@@ -240,7 +240,7 @@ export const normalizeTorrent = (
     // otherwise cause all entries to collapse to a single map key.
     const primaryId = torrent.hashString || String(torrent.id);
 
-    return {
+    const normalizedTorrent = {
         id: primaryId,
         hash: torrent.hashString ?? String(torrent.id),
         name: torrent.name,
@@ -275,6 +275,10 @@ export const normalizeTorrent = (
         savePath: torrent.downloadDir,
         rpcId: torrent.id,
     };
+
+    //console.debug("[torrent] Normalized torrent:", normalizedTorrent);
+
+    return normalizedTorrent;
 };
 
 export const normalizeTorrentDetail = (

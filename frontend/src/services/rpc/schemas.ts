@@ -97,10 +97,7 @@ const decodePieceStates = (encoded: unknown, pieceCount?: number) => {
     return states;
 };
 
-const decodePieceAvailability = (
-    encoded: unknown,
-    pieceCount?: number
-) => {
+const decodePieceAvailability = (encoded: unknown, pieceCount?: number) => {
     if (typeof encoded !== "string") return undefined;
     let bytes: Uint8Array;
     try {
@@ -259,8 +256,8 @@ const zTransmissionTorrentDetail = zTransmissionTorrent
     .merge(zTransmissionTorrentDetailBase)
     .passthrough();
 
-const zTransmissionTorrentDetailWithPieces = zTransmissionTorrentDetail.transform(
-    (raw) => {
+const zTransmissionTorrentDetailWithPieces =
+    zTransmissionTorrentDetail.transform((raw) => {
         const detail = { ...raw } as TransmissionTorrentDetail;
         const decodedStates = decodePieceStates(
             detail.pieceStates,
@@ -275,8 +272,7 @@ const zTransmissionTorrentDetailWithPieces = zTransmissionTorrentDetail.transfor
         detail.pieceAvailability =
             decodedAvailability !== undefined ? decodedAvailability : undefined;
         return detail;
-    }
-);
+    });
 
 const zTorrentListResponse = z
     .object({
@@ -321,7 +317,7 @@ const zSessionStatsRaw = z
         pausedTorrentCount: 0,
         torrentCount: 0,
         uploadSpeed: 0,
-        dhtNodes: 0,
+        dhtNodes: 0, // dht node counts are not reliably provided by Transmission; do not fabricate
     });
 
 const EMPTY_SESSION_TOTALS = {
@@ -408,6 +404,7 @@ export const zTransmissionSessionSettings = z.object({
     "peer-limit-per-torrent": z.number().optional(),
     "lpd-enabled": z.boolean().optional(),
     "dht-enabled": z.boolean().optional(),
+    "dht-nodes": z.number().optional(),
     "pex-enabled": z.boolean().optional(),
     "blocklist-enabled": z.boolean().optional(),
     "blocklist-url": z.string().optional(),
