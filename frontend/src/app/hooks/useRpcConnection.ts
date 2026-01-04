@@ -28,7 +28,7 @@ export function useRpcConnection(
     );
 
     const updateStatus = useCallback((next: RpcStatus) => {
-        console.log(`[tiny-torrent][rpc] status -> ${next}`);
+        //        console.log(`[tiny-torrent][rpc] status -> ${next}`);
         if (isMountedRef.current) {
             setRpcStatus(next);
         }
@@ -46,22 +46,16 @@ export function useRpcConnection(
         updateStatus("connected");
     }, [updateStatus]);
 
-    const reportCommandError = useCallback(
-        (error?: unknown) => {
-            console.warn("[tiny-torrent][rpc] command error", error);
-        },
-        []
-    );
+    const reportCommandError = useCallback((error?: unknown) => {
+        console.warn("[tiny-torrent][rpc] command error", error);
+    }, []);
 
-    const reportReadError = useCallback(
-        (error?: unknown) => {
-            console.warn(
-                "[tiny-torrent][rpc] read RPC error - transport status remains connected",
-                error
-            );
-        },
-        []
-    );
+    const reportReadError = useCallback((error?: unknown) => {
+        console.warn(
+            "[tiny-torrent][rpc] read RPC error - transport status remains connected",
+            error
+        );
+    }, []);
 
     const handshake = useCallback(async () => {
         if (isHandshakingRef.current) {

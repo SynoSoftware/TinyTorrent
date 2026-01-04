@@ -28,6 +28,9 @@ interface GeneralTabProps {
     onSequentialToggle?: (enabled: boolean) => Promise<void> | void;
     onSuperSeedingToggle?: (enabled: boolean) => Promise<void> | void;
     onForceTrackerReannounce?: () => Promise<void> | void;
+    onSetLocation?: () => Promise<void> | void;
+    onRedownload?: () => Promise<void> | void;
+    onRetry?: () => Promise<void> | void;
     progressPercent: number;
     timeRemainingLabel: string;
     activePeers: number;
@@ -50,14 +53,14 @@ const GeneralInfoCard = ({
 }: GeneralInfoCardProps) => (
     <GlassPanel className="p-panel">
         <div className="flex items-start gap-tools">
-        <div className="flex size-icon-btn-lg items-center justify-center rounded-xl border border-content1/20 bg-content1/30">
-            <StatusIcon
-                Icon={Icon}
-                size="lg"
-                className={accent ?? "text-foreground/70"}
-                strokeWidth={ICON_STROKE_WIDTH}
-            />
-        </div>
+            <div className="flex size-icon-btn-lg items-center justify-center rounded-xl border border-content1/20 bg-content1/30">
+                <StatusIcon
+                    Icon={Icon}
+                    size="lg"
+                    className={accent ?? "text-foreground/70"}
+                    strokeWidth={ICON_STROKE_WIDTH}
+                />
+            </div>
             <div className="flex-1">
                 <div className={TEXT_ROLES.label}>{label}</div>
                 <div className={`${TEXT_ROLES.primary} font-mono`}>{value}</div>
@@ -75,6 +78,9 @@ export const GeneralTab = ({
     onSequentialToggle,
     onSuperSeedingToggle,
     onForceTrackerReannounce,
+    onSetLocation,
+    onRedownload,
+    onRetry,
     progressPercent,
     timeRemainingLabel,
 }: GeneralTabProps) => {
@@ -87,9 +93,7 @@ export const GeneralTab = ({
             state === "unsupported"
                 ? t("torrent_modal.controls.not_supported")
                 : t("torrent_modal.controls.capability_probe_pending");
-        return (
-            <span className="text-scaled text-warning">{message}</span>
-        );
+        return <span className="text-scaled text-warning">{message}</span>;
     };
 
     // Compute peer count (no .isActive property in TorrentPeerEntity)
@@ -120,8 +124,28 @@ export const GeneralTab = ({
                             variant="shadow"
                             color="primary"
                             onPress={() => {
-                                /* TODO: trigger folder picker */
+                                if (onSetLocation) return onSetLocation();
+                                try {
+                                    window.dispatchEvent(
+                                        new CustomEvent(
+                                            "tiny-torrent:set-location",
+                                            {
+                                                detail: { id: torrent.hash },
+                                            }
+                                        )
+                                    );
+                                } catch (error) {
+                                    console.error(
+                                        "Failed to set location:",
+                                        error
+                                    );
+                                }
                             }}
+                            isDisabled={false}
+                            title={t("tooltip.set_location", {
+                                defaultValue:
+                                    "Choose a new directory for the torrent's files.",
+                            })}
                         >
                             {t("directory_browser.select", {
                                 name: t("torrent_modal.labels.save_path"),
@@ -133,8 +157,28 @@ export const GeneralTab = ({
                             variant="shadow"
                             color="danger"
                             onPress={() => {
-                                /* TODO: remove and re-add torrent */
+                                if (onRedownload) return onRedownload();
+                                try {
+                                    window.dispatchEvent(
+                                        new CustomEvent(
+                                            "tiny-torrent:redownload",
+                                            {
+                                                detail: { id: torrent.hash },
+                                            }
+                                        )
+                                    );
+                                } catch (error) {
+                                    console.error(
+                                        "Failed to re-download torrent:",
+                                        error
+                                    );
+                                }
                             }}
+                            isDisabled={false}
+                            title={t("tooltip.redownload", {
+                                defaultValue:
+                                    "Re-download the torrent's data. This will overwrite existing files.",
+                            })}
                         >
                             {t("modals.download", {
                                 defaultValue: "Re-download",
@@ -145,11 +189,50 @@ export const GeneralTab = ({
                             variant="shadow"
                             color="default"
                             onPress={() => {
-                                /* TODO: retry fetch */
+                                if (onRetry) return onRetry();
+                                try {
+                                    window.dispatchEvent(
+                                        new CustomEvent(
+                                            "tiny-torrent:retry-fetch",
+                                            {
+                                                detail: { id: torrent.hash },
+                                            }
+                                        )
+                                    );
+                                } catch (error) {
+                                    console.error(
+                                        "Failed to retry torrent fetch:",
+                                        error
+                                    );
+                                }
                             }}
+                            isDisabled={false}
+                            title={t("tooltip.retry", {
+                                defaultValue:
+                                    "Retry fetching the torrent's metadata or state.",
+                            })}
                         >
                             {t("toolbar.feedback.refresh", {
                                 defaultValue: "Retry",
+                            })}
+                        </Button>
+                        <Button
+                            size="md"
+                            variant="shadow"
+                            color="primary"
+                            onPress={() => {
+                                window.open(
+                                    "https://help.tinytorrent.com/no-data-error",
+                                    "_blank"
+                                );
+                            }}
+                            title={t("tooltip.help", {
+                                defaultValue:
+                                    "Open the troubleshooting guide for resolving this error.",
+                            })}
+                        >
+                            {t("toolbar.help", {
+                                defaultValue: "Help",
                             })}
                         </Button>
                     </div>
@@ -289,13 +372,13 @@ export const GeneralTab = ({
 
             <div className="grid grid-cols-1 gap-panel sm:grid-cols-2">
                 <GlassPanel className="p-panel space-y-3">
-                        <div className="flex items-center gap-tools">
-                            <StatusIcon
-                                Icon={Folder}
-                                size="sm"
-                                strokeWidth={ICON_STROKE_WIDTH}
-                                className="text-foreground/50"
-                            />
+                    <div className="flex items-center gap-tools">
+                        <StatusIcon
+                            Icon={Folder}
+                            size="sm"
+                            strokeWidth={ICON_STROKE_WIDTH}
+                            className="text-foreground/50"
+                        />
                         <span
                             className="text-scaled uppercase text-foreground/40"
                             style={{

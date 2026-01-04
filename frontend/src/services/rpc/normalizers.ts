@@ -154,9 +154,13 @@ export const normalizeTorrent = (
         state === "checking"
             ? torrent.recheckProgress ?? torrent.percentDone
             : undefined;
+    // Use the hashString when present, otherwise fall back to the numeric RPC id
+    // as a string. Some engines may omit or mis-populate hashString which would
+    // otherwise cause all entries to collapse to a single map key.
+    const primaryId = torrent.hashString || String(torrent.id);
     return {
-        id: torrent.hashString,
-        hash: torrent.hashString,
+        id: primaryId,
+        hash: torrent.hashString ?? String(torrent.id),
         name: torrent.name,
         progress: torrent.percentDone,
         state,

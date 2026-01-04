@@ -13,6 +13,71 @@ import type { FrameHandle } from "./canvasUtils";
 import { DETAILS_PIECE_MAP_CONFIG } from "@/config/logic";
 import { TEXT_ROLES } from "@/modules/dashboard/components/details/tabs/textRoles";
 
+// Provide persistent debug helpers on `window` so they exist even if React
+// unmounts/remounts the component. These helpers are intentionally
+// defined at module scope (browser runtime) rather than inside the
+// React component lifecycle so the user can call them from DevTools.
+if (typeof window !== "undefined") {
+    try {
+        (window as any).__piecesMapForceResize = function () {
+            try {
+                const badge = document.getElementById("pieces-map-debug-badge");
+                const root = badge ? badge.parentElement : document.body;
+                const canvas = root ? root.querySelector("canvas") : null;
+                if (!canvas) return { ok: false, reason: "no-canvas-found" };
+
+                const dpr = window.devicePixelRatio || 1;
+                const rect = canvas.getBoundingClientRect();
+                const pxW = Math.max(1, Math.floor(rect.width * dpr));
+                const pxH = Math.max(
+                    1,
+                    Math.floor(Math.max(rect.height, 2) * dpr)
+                );
+
+                // Force attributes + style then re-read backing store
+                canvas.style.width = rect.width + "px";
+                canvas.style.height = Math.max(rect.height, 2) + "px";
+                canvas.setAttribute("width", String(pxW));
+                canvas.setAttribute("height", String(pxH));
+                canvas.width = pxW;
+                canvas.height = pxH;
+
+                return {
+                    ok: true,
+                    backing: { w: canvas.width, h: canvas.height },
+                    css: { w: rect.width, h: rect.height },
+                    dpr,
+                };
+            } catch (err) {
+                return { ok: false, error: String(err) };
+            }
+        };
+
+        (window as any).__piecesMapPing = function () {
+            const badge = document.getElementById("pieces-map-debug-badge");
+            if (badge) {
+                const now = new Date().toLocaleTimeString();
+                badge.textContent = `DEBUG ${now}`;
+                return { ok: true, now };
+            }
+            return { ok: false, reason: "no-badge" };
+        };
+        // dispatchable trigger: component will listen and call scheduleDraw
+        (window as any).__piecesMapTriggerDraw = function () {
+            try {
+                window.dispatchEvent(
+                    new CustomEvent("tiny-torrent:pieces-trigger-draw")
+                );
+                return { ok: true };
+            } catch (e) {
+                return { ok: false, error: String(e) };
+            }
+        };
+    } catch (e) {
+        // swallow; this file also runs in SSR tooling sometimes
+    }
+}
+
 type PieceStatus = "done" | "downloading" | "missing";
 
 interface PiecesMapProps {
@@ -97,13 +162,86 @@ function fitCanvasToParent(
     const pxW = Math.max(1, Math.floor(cssW * dpr));
     const pxH = Math.max(1, Math.floor(cssH * dpr));
 
-    if (canvas.width !== pxW) canvas.width = pxW;
-    if (canvas.height !== pxH) canvas.height = pxH;
+    // Attempt to set backing store; log before/after and fallback if needed
+    try {
+        const beforeW = canvas.width;
+        const beforeH = canvas.height;
+        console.log("PiecesMap.fitCanvasToParent:set", {
+            beforeW,
+            beforeH,
+            pxW,
+            pxH,
+        });
 
-    const ctx = canvas.getContext("2d");
-    if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        if (canvas.width !== pxW) canvas.width = pxW;
+        if (canvas.height !== pxH) canvas.height = pxH;
 
-    return { cssW: cssW, cssH: cssH, dpr };
+        let afterW = canvas.width;
+        let afterH = canvas.height;
+        if (afterW !== pxW || afterH !== pxH) {
+            console.warn(
+                "PiecesMap.fitCanvasToParent: backing store unchanged after assignment",
+                {
+                    afterW,
+                    afterH,
+                    expectedW: pxW,
+                    expectedH: pxH,
+                }
+            );
+
+            // Fallback: set inline style and attributes then retry
+            try {
+                canvas.style.width = cssW + "px";
+                canvas.style.height = cssH + "px";
+                canvas.setAttribute("width", String(pxW));
+                canvas.setAttribute("height", String(pxH));
+
+                canvas.width = pxW;
+                canvas.height = pxH;
+
+                afterW = canvas.width;
+                afterH = canvas.height;
+                if (afterW !== pxW || afterH !== pxH) {
+                    console.warn(
+                        "PiecesMap.fitCanvasToParent: fallback sizing still didn't match backing store",
+                        { afterW, afterH, pxW, pxH }
+                    );
+                } else {
+                    console.log(
+                        "PiecesMap.fitCanvasToParent: fallback sizing succeeded",
+                        { afterW, afterH }
+                    );
+                }
+            } catch (err2) {
+                console.error(
+                    "PiecesMap.fitCanvasToParent: error during fallback sizing",
+                    err2
+                );
+            }
+        } else {
+            console.log("PiecesMap.fitCanvasToParent: backing store updated", {
+                afterW,
+                afterH,
+            });
+        }
+
+        console.log("PiecesMap.fitCanvasToParent", {
+            node: canvas,
+            cssW,
+            cssH,
+            dpr,
+            backingW: canvas.width,
+            backingH: canvas.height,
+        });
+    } catch (err) {
+        console.error(
+            "PiecesMap.fitCanvasToParent: error setting backing store",
+            err
+        );
+    }
+
+    const backingMatches = canvas.width === pxW && canvas.height === pxH;
+    return { cssW: cssW, cssH: cssH, dpr, backingMatches };
 }
 
 /**
@@ -357,11 +495,37 @@ export const PiecesMap = ({
             const canvas = canvasRef.current;
             if (!canvas) return;
 
-            const { cssW, cssH } = fitCanvasToParent(canvas, rootRef.current);
+            // Debug entry
+            try {
+                console.log("PiecesMap.draw called", { nowMs });
+            } catch (e) {}
+
+            const { cssW, cssH, backingMatches } = fitCanvasToParent(
+                canvas,
+                rootRef.current
+            );
             computeGeometry(cssW, cssH);
+            try {
+                console.log("PiecesMap.computeGeometryResult", geomRef.current);
+            } catch (e) {}
 
             const ctx = canvas.getContext("2d");
-            if (!ctx) return;
+            if (!ctx) {
+                console.error("PiecesMap: 2D context missing");
+                return;
+            }
+
+            // Debug: resolved palette colors
+            try {
+                console.log("PiecesMap.palette", {
+                    success: resolveCssColor(palette.success),
+                    warning: resolveCssColor(palette.warning),
+                    primary: resolveCssColor(palette.primary),
+                    content1: resolveCssColor(palette.content1),
+                    danger: resolveCssColor(palette.danger),
+                    foreground: resolveCssColor(palette.foreground),
+                });
+            } catch (e) {}
 
             // background is handled by container; keep canvas transparent.
             ctx.clearRect(0, 0, cssW, cssH);
@@ -403,16 +567,20 @@ export const PiecesMap = ({
                     }
 
                     if (status === "missing") {
-                        ctx.fillStyle = resolveCssColor(palette.content1);
+                        // Use foreground with low alpha so "missing" pieces are
+                        // visible on dark themes (avoid relying on content1 token)
+                        ctx.fillStyle = resolveCssColor(palette.foreground);
 
-                        ctx.globalAlpha = 0.65;
+                        ctx.globalAlpha = 0.16;
                         ctx.fillRect(x, y0, wInner, hInner);
-                        ctx.globalAlpha = 1;
+                        ctx.globalAlpha = 0.16;
 
-                        // outline only if we have pixels for it
+                        // outline using foreground to ensure contrast on any theme
                         if (!tooSmallForDetail) {
-                            ctx.strokeStyle = resolveCssColor(palette.danger);
-
+                            ctx.strokeStyle = resolveCssColor(
+                                palette.foreground
+                            );
+                            ctx.globalAlpha = 0.9;
                             ctx.lineWidth = 1;
                             ctx.strokeRect(
                                 x + 0.5,
@@ -420,6 +588,7 @@ export const PiecesMap = ({
                                 wInner - 1,
                                 hInner - 1
                             );
+                            ctx.globalAlpha = 1;
                         }
                         continue;
                     }
@@ -474,7 +643,14 @@ export const PiecesMap = ({
         const overlay = overlayRef.current;
         if (!overlay) return;
 
-        const { cssW, cssH } = fitCanvasToParent(overlay, rootRef.current);
+        try {
+            console.log("PiecesMap.drawOverlay");
+        } catch (e) {}
+
+        const { cssW, cssH, backingMatches } = fitCanvasToParent(
+            overlay,
+            rootRef.current
+        );
         const ctx = overlay.getContext("2d");
         if (!ctx) return;
 
@@ -510,6 +686,11 @@ export const PiecesMap = ({
     }, [hovered, palette.foreground, palette.primary]);
 
     const scheduleDraw = useCallback(() => {
+        // Debug: scheduling a draw
+        try {
+            console.log("PiecesMap.scheduleDraw");
+        } catch (e) {}
+
         if (frameRef.current) cancelScheduledFrame(frameRef.current);
         frameRef.current = scheduleFrame((nowMs: number) => {
             animTRef.current = nowMs;
@@ -520,6 +701,119 @@ export const PiecesMap = ({
             cancelScheduledFrame(overlayFrameRef.current);
         overlayFrameRef.current = scheduleFrame(() => drawOverlay());
     }, [draw, drawOverlay]);
+
+    // If the backing store isn't matching, retry a few times after short delays.
+    const retryRef = useRef(0);
+    useEffect(() => {
+        const root = rootRef.current;
+        if (!root) return;
+
+        const attempt = () => {
+            const canvas = canvasRef.current;
+            if (!canvas) return;
+            const dpr = window.devicePixelRatio || 1;
+            const cssRect = root.getBoundingClientRect();
+            const expectedW = Math.max(1, Math.floor(cssRect.width * dpr));
+            const expectedH = Math.max(
+                1,
+                Math.floor(Math.max(cssRect.height, 2) * dpr)
+            );
+
+            if (canvas.width !== expectedW || canvas.height !== expectedH) {
+                retryRef.current += 1;
+                console.log(
+                    "PiecesMap.retrySizing: attempt",
+                    retryRef.current,
+                    {
+                        expectedW,
+                        expectedH,
+                        currentW: canvas.width,
+                        currentH: canvas.height,
+                    }
+                );
+                try {
+                    canvas.style.width = cssRect.width + "px";
+                    canvas.style.height = Math.max(cssRect.height, 2) + "px";
+                    canvas.setAttribute("width", String(expectedW));
+                    canvas.setAttribute("height", String(expectedH));
+                    canvas.width = expectedW;
+                    canvas.height = expectedH;
+                } catch (e) {
+                    console.error(
+                        "PiecesMap.retrySizing: error forcing size",
+                        e
+                    );
+                }
+                scheduleDraw();
+                if (retryRef.current < 4) setTimeout(attempt, 180);
+            } else {
+                if (retryRef.current > 0)
+                    console.log("PiecesMap.retrySizing: succeeded", {
+                        attempts: retryRef.current,
+                    });
+                retryRef.current = 0;
+            }
+        };
+
+        const id = setTimeout(attempt, 120);
+        return () => clearTimeout(id);
+    }, [scheduleDraw]);
+
+    // Listen for an external trigger to force a draw (useful from DevTools)
+    useEffect(() => {
+        const handler = () => {
+            try {
+                console.log(
+                    "PiecesMap: received external trigger -> scheduleDraw"
+                );
+                scheduleDraw();
+            } catch (e) {
+                console.error("PiecesMap: error handling external trigger", e);
+            }
+        };
+
+        window.addEventListener(
+            "tiny-torrent:pieces-trigger-draw",
+            handler as EventListener
+        );
+        return () =>
+            window.removeEventListener(
+                "tiny-torrent:pieces-trigger-draw",
+                handler as EventListener
+            );
+    }, [scheduleDraw]);
+
+    // Attach a non-passive native wheel listener so we can call preventDefault().
+    useEffect(() => {
+        const root = rootRef.current;
+        if (!root) return;
+
+        const onWheel = (ev: WheelEvent) => {
+            ev.preventDefault();
+
+            const dy = clamp(ev.deltaY, -120, 120);
+
+            if (ev.altKey) {
+                sigmaRef.current = clamp(
+                    sigmaRef.current - dy * 0.03,
+                    3.0,
+                    18.0
+                );
+            } else {
+                strengthRef.current = clamp(
+                    strengthRef.current - dy * 0.004,
+                    0.2,
+                    1.8
+                );
+            }
+
+            scheduleDraw();
+        };
+
+        root.addEventListener("wheel", onWheel, { passive: false });
+        return () =>
+            root.removeEventListener("wheel", onWheel as EventListener);
+    }, [scheduleDraw]);
 
     // ---- smooth focus easing (breathing surface) ----
     useEffect(() => {
@@ -575,6 +869,16 @@ export const PiecesMap = ({
                 setHoverPos(null);
                 return;
             }
+
+            // Debug hit-test
+            try {
+                console.log("PiecesMap.handleMove hit", {
+                    x,
+                    y,
+                    hit,
+                    status: resolvedStates[hit.index],
+                });
+            } catch (err) {}
             const status = resolvedStates[hit.index] ?? "missing";
             const info: HoverInfo = {
                 pieceIndex: hit.index,
@@ -663,36 +967,49 @@ export const PiecesMap = ({
         };
     }, [gridRows, rowAtY, scheduleDraw]);
 
-    const handleWheel = useCallback(
-        (e: React.WheelEvent) => {
-            // Wheel adjusts distortion strength/spread (semantic), never scrolls.
-            e.preventDefault();
-
-            const dy = clamp(e.deltaY, -120, 120);
-
-            if (e.altKey) {
-                // Alt-wheel: spread (how wide the focus region is)
-                sigmaRef.current = clamp(
-                    sigmaRef.current - dy * 0.03,
-                    3.0,
-                    18.0
-                );
-            } else {
-                // default: strength (how tall the focus region gets)
-                strengthRef.current = clamp(
-                    strengthRef.current - dy * 0.004,
-                    0.2,
-                    1.8
-                );
-            }
-
-            scheduleDraw();
-        },
-        [scheduleDraw]
-    );
+    // wheel handling is attached as a native, non-passive listener below
 
     // ---- minimal “2025” affordance: cursor changes for drag ----
     const cursor = draggingRef.current ? "grabbing" : "grab";
+
+    // Expose a debug helper on window for quick inspection from DevTools
+    useEffect(() => {
+        const helper = () => {
+            const canvas = canvasRef.current;
+            const overlay = overlayRef.current;
+            const geom = geomRef.current;
+            return {
+                cssSize: canvas
+                    ? { w: canvas.clientWidth, h: canvas.clientHeight }
+                    : null,
+                backingSize: canvas
+                    ? { w: canvas.width, h: canvas.height }
+                    : null,
+                geom,
+                totalPieces,
+                doneCount,
+                downloadingCount,
+                missingCount,
+                resolvedStatesSample: resolvedStates.slice(0, 32),
+            };
+        };
+
+        (window as any).__piecesMapDebug = helper;
+        console.log(
+            "PiecesMap: debug helper available as window.__piecesMapDebug()"
+        );
+        return () => {
+            try {
+                delete (window as any).__piecesMapDebug;
+            } catch (e) {}
+        };
+    }, [
+        totalPieces,
+        doneCount,
+        downloadingCount,
+        missingCount,
+        resolvedStates,
+    ]);
 
     return (
         <div className="flex flex-col flex-1 min-h-0 gap-panel">
@@ -755,7 +1072,6 @@ export const PiecesMap = ({
             <div
                 ref={rootRef}
                 className="relative z-10 flex-1 min-h-0 rounded-2xl border border-content1/20 bg-content1/10 p-panel overflow-hidden"
-                onWheel={handleWheel}
             >
                 <div className="relative w-full h-full">
                     <canvas
@@ -774,6 +1090,19 @@ export const PiecesMap = ({
                         ref={overlayRef}
                         className="absolute inset-0 w-full h-full block rounded-2xl pointer-events-none"
                     />
+
+                    {/* DEBUG: visible DOM badge so user can confirm debugging code runs */}
+                    <div
+                        id="pieces-map-debug-badge"
+                        className="absolute left-3 top-3 z-50 px-3 py-1 rounded-lg text-xs font-semibold"
+                        style={{
+                            background: "rgba(255,20,60,0.14)",
+                            color: "#ff5c7a",
+                            border: "1px solid rgba(255,20,60,0.28)",
+                        }}
+                    >
+                        DEBUG PIECES MAP
+                    </div>
 
                     {tooltipLines.length > 0 && tooltipStyle && (
                         <div
@@ -850,11 +1179,11 @@ export const PiecesMap = ({
                         style={{
                             width: 14,
                             height: 14,
-                            background: palette.content1,
+                            background: palette.foreground,
                             display: "inline-block",
                             borderRadius: 4,
                             border: "1px solid " + palette.danger,
-                            opacity: 0.85,
+                            opacity: 0.2,
                         }}
                     />
                     <span

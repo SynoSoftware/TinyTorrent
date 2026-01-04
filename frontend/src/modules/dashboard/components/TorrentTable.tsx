@@ -884,7 +884,7 @@ export function TorrentTable({
 
     const getDisplayTorrent = useCallback(
         (torrent: Torrent) => {
-            const override = optimisticStatuses[torrent.id];
+            const override = optimisticStatuses?.[torrent.id];
             return override ? { ...torrent, state: override.state } : torrent;
         },
         [optimisticStatuses]
@@ -912,7 +912,7 @@ export function TorrentTable({
             }`.toLowerCase();
             return haystack.includes(normalizedQuery);
         });
-    }, [torrents, filter, searchQuery, getDisplayTorrent]);
+    }, [pooledTorrents, filter, searchQuery, getDisplayTorrent]);
 
     const parentRef = useRef<HTMLDivElement>(null);
     const tableContainerRef = useRef<HTMLDivElement>(null);
@@ -2416,7 +2416,7 @@ export function TorrentTable({
                 />
                 <DndContext
                     collisionDetection={closestCenter}
-                    sensors={isAnyColumnResizing ? [] : sensors}
+                    sensors={sensors}
                     onDragStart={handleDragStart}
                     onDragEnd={handleDragEnd}
                     onDragCancel={handleDragCancel}
@@ -2552,9 +2552,7 @@ export function TorrentTable({
                             ) : (
                                 <DndContext
                                     collisionDetection={closestCenter}
-                                    sensors={
-                                        canReorderQueue ? rowSensors : undefined
-                                    }
+                                    sensors={rowSensors}
                                     onDragStart={handleRowDragStart}
                                     onDragEnd={handleRowDragEnd}
                                     onDragCancel={handleRowDragCancel}
@@ -2662,6 +2660,7 @@ export function TorrentTable({
                                     )}
                                 </DndContext>
                             )}
+
                             {marqueeRect && (
                                 <div
                                     aria-hidden="true"

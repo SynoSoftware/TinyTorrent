@@ -23,6 +23,7 @@ import {
     Clock, // added
     Users,
     Pause,
+    Bug,
     ArrowDown,
     ArrowUp,
 } from "lucide-react";
@@ -282,6 +283,9 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
         render: ({ torrent }) => (
             <div className="flex min-w-0 items-center h-full">
                 <span
+                    title={
+                        torrent.errorString ? torrent.errorString : undefined
+                    }
                     className={cn(
                         "font-medium truncate max-w-full transition-colors cap-height-text",
                         TABLE_LAYOUT.fontSize,
@@ -345,11 +349,20 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
         sortAccessor: (torrent) => torrent.state,
         headerIcon: Activity,
         render: ({ torrent, t }) => {
-            const conf = statusMap[torrent.state] ?? {
+            let conf = statusMap[torrent.state] ?? {
                 color: "default",
-                icon: Pause,
+                icon: Bug,
                 labelKey: "torrent_modal.statuses.error",
             };
+
+            // If the backend provided an errorString, elevate the status visually.
+            if (torrent.errorString) {
+                conf = {
+                    color: "danger",
+                    icon: Bug,
+                    labelKey: "torrent_modal.statuses.error",
+                };
+            }
             const Icon = conf.icon;
             return (
                 <div className="min-w-0 w-full flex items-center justify-center h-full">
@@ -371,7 +384,10 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
                                 strokeWidth={ICON_STROKE_WIDTH_DENSE}
                                 className="text-current"
                             />
-                            <span className="truncate" title={t(conf.labelKey)}>
+                            <span
+                                className="truncate"
+                                title={torrent.errorString || t(conf.labelKey)}
+                            >
                                 {t(conf.labelKey)}
                             </span>
                         </div>
