@@ -44,14 +44,15 @@ export const PeerMap = ({ peers }: PeerMapProps) => {
     const ZOOM_STEP = 0.08;
     const MAX_PAN_OFFSET = 60;
 
-    const maxRate = useMemo(
-        () =>
-            Math.max(
-                ...peers.map((peer) => peer.rateToClient + peer.rateToPeer),
-                1
-            ),
-        [peers]
-    );
+    const maxRate = useMemo(() => {
+        const vals = peers.map((peer) => {
+            const a = Number(peer.rateToClient) || 0;
+            const b = Number(peer.rateToPeer) || 0;
+            return a + b;
+        });
+        const m = Math.max(...vals, 1);
+        return Number.isFinite(m) && m > 0 ? m : 1;
+    }, [peers]);
 
     // No config or layout metrics used
 
@@ -77,21 +78,30 @@ export const PeerMap = ({ peers }: PeerMapProps) => {
         if (!peers.length) return [];
         return peers.map((peer, index) => {
             const angle = (index / peers.length) * Math.PI * 2;
-            const speed = peer.rateToClient + peer.rateToPeer;
+            const speed =
+                (Number(peer.rateToClient) || 0) +
+                (Number(peer.rateToPeer) || 0);
             // Use local safe defaults for radius and center
-            const distance =
-                PEER_MAP_RADIUS / 2 + (speed / maxRate) * (PEER_MAP_RADIUS / 2);
-            const x = PEER_MAP_CENTER + Math.cos(angle) * distance;
-            const y = PEER_MAP_CENTER + Math.sin(angle) * distance;
+            let distance = PEER_MAP_RADIUS / 2;
+            if (Number.isFinite(speed) && speed > 0) {
+                distance += (speed / maxRate) * (PEER_MAP_RADIUS / 2);
+            }
+            let x = PEER_MAP_CENTER + Math.cos(angle) * distance;
+            let y = PEER_MAP_CENTER + Math.sin(angle) * distance;
+            if (!Number.isFinite(x)) x = PEER_MAP_CENTER;
+            if (!Number.isFinite(y)) y = PEER_MAP_CENTER;
             // Use local safe defaults for node size
-            const size =
-                PEER_MAP_BASE_NODE_SIZE +
-                (peer.progress ?? 0) * PEER_MAP_PROGRESS_SCALE;
+            const prog = Number(peer.progress) || 0;
+            let size = PEER_MAP_BASE_NODE_SIZE + prog * PEER_MAP_PROGRESS_SCALE;
+            if (!Number.isFinite(size) || size <= 0)
+                size = PEER_MAP_BASE_NODE_SIZE;
 
             // Use semantic palette
             const fill = peer.peerIsChoking ? palette.danger : palette.success;
 
-            const seedBase = `${peer.address}-${index}`;
+            const seedBase = `${
+                peer.address ?? peer.clientName ?? "peer"
+            }-${index}`;
             const r1 = seeded01(seedBase + "-a");
             const r2 = seeded01(seedBase + "-b");
             const r3 = seeded01(seedBase + "-c");
@@ -259,65 +269,103 @@ export const PeerMap = ({ peers }: PeerMapProps) => {
                             className="opacity-25"
                         />
                         {nodes.map(
-                            ({
-                                peer,
-                                x,
-                                y,
-                                size,
-                                fill,
-                                driftX,
-                                driftY,
-                                duration,
-                                delay,
-                                delayY,
-                            }) => (
-                                <Tooltip
-                                    key={`${peer.address}-${x}-${y}`}
-                                    content={`${peer.address} • ${formatSpeed(
-                                        peer.rateToClient
-                                    )} DL`}
-                                    delay={0}
-                                    closeDelay={0}
-                                    classNames={GLASS_TOOLTIP_CLASSNAMES}
-                                >
-                                    <motion.circle
-                                        cx={x}
-                                        cy={y}
-                                        r={size}
-                                        fill={fill}
-                                        stroke="var(--heroui-foreground)"
-                                        strokeWidth={
-                                            peer.peerIsChoking ? 0.5 : 1
-                                        }
-                                        animate={{
-                                            translateX: [0, driftX, -driftX, 0],
-                                            translateY: [0, driftY, -driftY, 0],
-                                        }}
-                                        transition={{
-                                            translateX: {
-                                                duration,
-                                                repeat: Infinity,
-                                                repeatType: "mirror",
-                                                ease: "easeInOut",
-                                                delay,
-                                            },
-                                            translateY: {
-                                                duration,
-                                                repeat: Infinity,
-                                                repeatType: "mirror",
-                                                ease: "easeInOut",
-                                                delay: delayY,
-                                            },
-                                            default: {
-                                                type: "spring",
-                                                stiffness: 300,
-                                                damping: 20,
-                                            },
-                                        }}
-                                        whileHover={{ scale: 1.2 }}
-                                    />
-                                </Tooltip>
-                            )
+                            (
+                                {
+                                    peer,
+                                    x,
+                                    y,
+                                    size,
+                                    fill,
+                                    driftX,
+                                    driftY,
+                                    duration,
+                                    delay,
+                                    delayY,
+                                },
+                                i
+                            ) => {
+                                // ensure key is always a non-empty, stable string
+                                const safeAddr =
+                                    (peer.address &&
+                                        String(peer.address).trim()) ||
+                                    (peer.clientName &&
+                                        String(peer.clientName).trim()) ||
+                                    `peer-${i}`;
+                                const nodeKey = `${safeAddr}-${Math.round(
+                                    x
+                                )}-${Math.round(y)}-${i}`;
+                                const cx = Number.isFinite(x)
+                                    ? x
+                                    : PEER_MAP_CENTER;
+                                const cy = Number.isFinite(y)
+                                    ? y
+                                    : PEER_MAP_CENTER;
+                                const r = Number.isFinite(size)
+                                    ? size
+                                    : PEER_MAP_BASE_NODE_SIZE;
+                                const sw = peer.peerIsChoking ? 0.5 : 1;
+                                return (
+                                    <Tooltip
+                                        key={nodeKey}
+                                        content={`${safeAddr} • ${formatSpeed(
+                                            Number(peer.rateToClient) || 0
+                                        )} DL`}
+                                        delay={0}
+                                        closeDelay={0}
+                                        classNames={GLASS_TOOLTIP_CLASSNAMES}
+                                    >
+                                        <motion.circle
+                                            initial={{
+                                                translateX: 0,
+                                                translateY: 0,
+                                                scale: 1,
+                                            }}
+                                            cx={cx}
+                                            cy={cy}
+                                            r={r}
+                                            fill={fill}
+                                            stroke="var(--heroui-foreground)"
+                                            strokeWidth={sw}
+                                            animate={{
+                                                translateX: [
+                                                    0,
+                                                    driftX,
+                                                    -driftX,
+                                                    0,
+                                                ],
+                                                translateY: [
+                                                    0,
+                                                    driftY,
+                                                    -driftY,
+                                                    0,
+                                                ],
+                                            }}
+                                            transition={{
+                                                translateX: {
+                                                    duration,
+                                                    repeat: Infinity,
+                                                    repeatType: "mirror",
+                                                    ease: "easeInOut",
+                                                    delay,
+                                                },
+                                                translateY: {
+                                                    duration,
+                                                    repeat: Infinity,
+                                                    repeatType: "mirror",
+                                                    ease: "easeInOut",
+                                                    delay: delayY,
+                                                },
+                                                default: {
+                                                    type: "spring",
+                                                    stiffness: 300,
+                                                    damping: 20,
+                                                },
+                                            }}
+                                            whileHover={{ scale: 1.2 }}
+                                        />
+                                    </Tooltip>
+                                );
+                            }
                         )}
                     </motion.g>
                 </motion.svg>

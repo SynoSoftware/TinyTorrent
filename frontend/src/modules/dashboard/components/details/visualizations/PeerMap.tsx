@@ -78,11 +78,22 @@ export const PeerMap = ({
 
     // 2. Swarm Intelligence Metrics
     const swarmStats = useMemo(() => {
-        const max = Math.max(
-            ...peers.map((p) => p.rateToClient + p.rateToPeer),
-            SPD_PHYSICS.MIN_MAX_RATE
-        );
-        const helping = peers.filter((p) => p.rateToClient > 0).length;
+        const sums = peers.map((p) => {
+            const dl = Number.isFinite(Number(p.rateToClient))
+                ? Number(p.rateToClient)
+                : 0;
+            const ul = Number.isFinite(Number(p.rateToPeer))
+                ? Number(p.rateToPeer)
+                : 0;
+            return dl + ul;
+        });
+        const max = Math.max(...sums, 1, SPD_PHYSICS.MIN_MAX_RATE);
+        const helping = peers.filter((p) => {
+            const dl = Number.isFinite(Number(p.rateToClient))
+                ? Number(p.rateToClient)
+                : 0;
+            return dl > 0;
+        }).length;
         const hurting = peers.filter(
             (p) => p.peerIsChoking && p.clientIsInterested
         ).length;
@@ -103,12 +114,16 @@ export const PeerMap = ({
     // 3. Polar Projection Logic
     const nodes = useMemo(() => {
         const isInstrument = mode === "instrument";
-        const effectiveMax = swarmStats.max * radialAperture;
+        const effectiveMax = Math.max(1, swarmStats.max) * radialAperture;
         const isLocalIncomplete = torrentProgress < 1;
 
         return peers.map((peer) => {
-            const dl = peer.rateToClient;
-            const ul = peer.rateToPeer;
+            const dl = Number.isFinite(Number(peer.rateToClient))
+                ? Number(peer.rateToClient)
+                : 0;
+            const ul = Number.isFinite(Number(peer.rateToPeer))
+                ? Number(peer.rateToPeer)
+                : 0;
 
             // r (Radius): Log-Inverted Normalized Speed (Centralized Relevance)
             const logNorm = Math.log(dl + ul + 1) / Math.log(effectiveMax + 1);
@@ -116,18 +131,23 @@ export const PeerMap = ({
 
             // theta (Angle): Morph between Personality-Hash and Warped-Progress
             const warpedProgress = Math.pow(
-                peer.progress,
+                peer.progress || 0,
                 SPD_PHYSICS.PROGRESS_WARP
             );
+            const seedSource =
+                (peer.address && String(peer.address).trim()) ||
+                (peer.clientName && String(peer.clientName).trim()) ||
+                "";
             const thetaImpression =
-                getPeerIdentitySeed(peer.address) * Math.PI * 2;
+                getPeerIdentitySeed(seedSource) * Math.PI * 2;
+
             const thetaInstrument =
                 warpedProgress * Math.PI * SPD_PHYSICS.ORBIT_ARC - Math.PI / 2;
             const theta = isInstrument ? thetaInstrument : thetaImpression;
 
             // Health Strategy: Priority Logic [Hostility > Flow > Status]
             let color = palette.placeholder;
-            if (peer.progress >= 1) color = palette.success; // Seeder
+            if ((peer.progress || 0) >= 1) color = palette.success; // Seeder
             if (dl > 0) color = palette.primary; // Active flow
             if (
                 isLocalIncomplete &&
@@ -143,17 +163,23 @@ export const PeerMap = ({
 
             return {
                 peer,
-                id: peer.address,
+                id:
+                    (peer.address && String(peer.address).trim()) ||
+                    (peer.clientName && String(peer.clientName).trim()) ||
+                    `peer-${Math.floor(getPeerIdentitySeed(seedSource) * 1e9)}`,
                 x: C + Math.cos(theta) * r,
                 y: C + Math.sin(theta) * r,
                 theta,
                 r_dist: r,
-                size: MIN_S + peer.progress * S_SCALE,
+                size: MIN_S + (peer.progress || 0) * S_SCALE,
                 color,
                 vectorMag,
-                isUTP: peer.flagStr.includes("P") || peer.flagStr.includes("u"),
+                isUTP:
+                    (peer.flagStr || "").includes("P") ||
+                    (peer.flagStr || "").includes("u"),
                 isEncrypted:
-                    peer.flagStr.includes("E") || peer.flagStr.includes("X"),
+                    (peer.flagStr || "").includes("E") ||
+                    (peer.flagStr || "").includes("X"),
                 isInstrument,
             };
         });
@@ -212,21 +238,21 @@ export const PeerMap = ({
                 </div>
                 <AnimatePresence>
                     {mode === "instrument" && (
-                            <motion.div
-                                initial={{ opacity: 0, x: 5 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                className="flex gap-tools items-center"
-                            >
-                                <span className="text-label font-mono text-foreground/40 uppercase">
-                                    Aperture:{" "}
-                                    {formatSpeed(swarmStats.max * radialAperture)}
-                                </span>
-                                <StatusIcon
-                                    Icon={Compass}
-                                    size="sm"
-                                    className="text-primary/50"
-                                />
-                            </motion.div>
+                        <motion.div
+                            initial={{ opacity: 0, x: 5 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            className="flex gap-tools items-center"
+                        >
+                            <span className="text-label font-mono text-foreground/40 uppercase">
+                                Aperture:{" "}
+                                {formatSpeed(swarmStats.max * radialAperture)}
+                            </span>
+                            <StatusIcon
+                                Icon={Compass}
+                                size="sm"
+                                className="text-primary/50"
+                            />
+                        </motion.div>
                     )}
                 </AnimatePresence>
             </div>
@@ -292,11 +318,30 @@ export const PeerMap = ({
                     </AnimatePresence>
 
                     <g>
-                        {nodes.map((node) => {
+                        {nodes.map((node, i) => {
                             const isFocus = hoveredPeerId === node.id;
+                            const safeId =
+                                (node.id && String(node.id).trim()) ||
+                                `peer-${i}`;
+                            const layoutId = `peer-${safeId}`;
+                            const initialCx = Number.isFinite(node.x)
+                                ? node.x
+                                : 0;
+                            const initialCy = Number.isFinite(node.y)
+                                ? node.y
+                                : 0;
+                            const initialR = Number.isFinite(node.size)
+                                ? node.size
+                                : 1;
+                            const initialSw = node.isInstrument
+                                ? node.isUTP
+                                    ? 1.5
+                                    : 0.5
+                                : 0;
+
                             return (
                                 <Tooltip
-                                    key={node.id}
+                                    key={safeId}
                                     content={`${
                                         node.peer.address
                                     } • ${formatSpeed(
@@ -333,7 +378,13 @@ export const PeerMap = ({
                                         )}
 
                                         <motion.circle
-                                            layoutId={`peer-${node.id}`}
+                                            layoutId={layoutId}
+                                            initial={{
+                                                cx: initialCx,
+                                                cy: initialCy,
+                                                r: initialR,
+                                                strokeWidth: initialSw,
+                                            }}
                                             animate={{
                                                 cx: node.x,
                                                 cy: node.y,

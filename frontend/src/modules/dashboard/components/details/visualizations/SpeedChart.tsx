@@ -1,11 +1,7 @@
 import { Button } from "@heroui/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatSpeed } from "@/shared/utils/format";
-import {
-    CHART_HEIGHT,
-    CHART_WIDTH,
-    SPEED_WINDOW_OPTIONS,
-} from "@/config/logic";
+import { SPEED_WINDOW_OPTIONS } from "@/config/logic";
 import { useUiClock } from "@/shared/hooks/useUiClock";
 import {
     HISTORY_POINTS,
@@ -42,28 +38,31 @@ const resampleHistory = (values: number[], targetLength: number) => {
 const buildPoints = (
     values: number[],
     spacing: number,
-    maxValue: number
+    maxValue: number,
+    chartHeight: number
 ): Point[] => {
     if (!values.length) return [];
     return values.map((value, index) => ({
         x: index * spacing,
         y:
-            CHART_HEIGHT -
-            Math.min(Math.max(value / maxValue, 0), 1) * CHART_HEIGHT,
+            chartHeight -
+            Math.min(Math.max(value / maxValue, 0), 1) * chartHeight,
     }));
 };
 
 const drawSeries = (
     ctx: CanvasRenderingContext2D,
     points: Point[],
-    strokeStyle: string
+    strokeStyle: string,
+    chartWidth: number,
+    chartHeight: number
 ) => {
     if (!points.length) return;
     // Build path for fill
     ctx.beginPath();
-    ctx.moveTo(points[0].x, CHART_HEIGHT);
+    ctx.moveTo(points[0].x, chartHeight);
     points.forEach((point) => ctx.lineTo(point.x, point.y));
-    ctx.lineTo(points.at(-1)?.x ?? CHART_WIDTH, CHART_HEIGHT);
+    ctx.lineTo(points.at(-1)?.x ?? chartWidth, chartHeight);
     ctx.closePath();
 
     // Fill using the stroke color with reduced alpha (driven by design token).
@@ -101,6 +100,15 @@ export const SpeedChart = ({ downHistory, upHistory }: SpeedChartProps) => {
     const latestDown = downHistory.at(-1) ?? 0;
     const latestUp = upHistory.at(-1) ?? 0;
 
+    const containerRef = useRef<HTMLDivElement | null>(null);
+    const [dimensions, setDimensions] = useState<{
+        width: number;
+        height: number;
+    }>({
+        width: 0,
+        height: 0,
+    });
+
     const windowOption =
         SPEED_WINDOW_OPTIONS.find((option) => option.key === selectedWindow) ??
         SPEED_WINDOW_OPTIONS[0];
@@ -110,7 +118,9 @@ export const SpeedChart = ({ downHistory, upHistory }: SpeedChartProps) => {
     );
 
     const spacing =
-        targetLength > 1 ? CHART_WIDTH / (targetLength - 1) : CHART_WIDTH;
+        targetLength > 1
+            ? dimensions.width / (targetLength - 1)
+            : dimensions.width;
 
     const downValues = useMemo(
         () => resampleHistory(downHistory, targetLength),
@@ -128,28 +138,52 @@ export const SpeedChart = ({ downHistory, upHistory }: SpeedChartProps) => {
 
     const points = useMemo(() => {
         return {
-            down: buildPoints(downValues, spacing, maxValue),
-            up: buildPoints(upValues, spacing, maxValue),
+            down: buildPoints(downValues, spacing, maxValue, dimensions.height),
+            up: buildPoints(upValues, spacing, maxValue, dimensions.height),
         };
-    }, [downValues, upValues, spacing, maxValue]);
+    }, [downValues, upValues, spacing, maxValue, dimensions.height]);
 
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     // Always call hooks at the top level (AGENTS.md compliance)
     const palette = useCanvasPalette();
 
+    // ResizeObserver to match canvas backing store to displayed CSS size
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        const el = containerRef.current;
+        if (!el) return;
+        const ro = new ResizeObserver((entries) => {
+            for (const entry of entries) {
+                const w = Math.max(0, entry.contentRect.width || 0);
+                const h = Math.max(0, entry.contentRect.height || 0);
+                setDimensions({ width: w, height: h });
+            }
+        });
+        ro.observe(el);
+        // initialize
+        const rect = el.getBoundingClientRect();
+        setDimensions({ width: rect.width || 0, height: rect.height || 0 });
+        return () => ro.disconnect();
+    }, [containerRef.current]);
+
     // Render snapshot on any relevant change. `tick` advances the UI timeline
     // even when speed values are identical between updates.
     useEffect(() => {
         const canvas = canvasRef.current;
-        if (!canvas) return;
+        if (!canvas || dimensions.width <= 0 || dimensions.height <= 0) return;
         const ctx = canvas.getContext("2d");
         if (!ctx) return;
         const dpr =
             typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
-        canvas.width = CHART_WIDTH * dpr;
-        canvas.height = CHART_HEIGHT * dpr;
+
+        // Set backing store to match displayed CSS size multiplied by DPR
+        canvas.width = Math.max(1, Math.floor(dimensions.width * dpr));
+        canvas.height = Math.max(1, Math.floor(dimensions.height * dpr));
+        // Ensure CSS size matches logical pixels
+        canvas.style.width = `${dimensions.width}px`;
+        canvas.style.height = `${dimensions.height}px`;
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        ctx.clearRect(0, 0, CHART_WIDTH, CHART_HEIGHT);
+        ctx.clearRect(0, 0, dimensions.width, dimensions.height);
 
         // Use palette from top-level hook
         const downToken =
@@ -157,11 +191,22 @@ export const SpeedChart = ({ downHistory, upHistory }: SpeedChartProps) => {
         const upToken =
             getCssToken(SPEED_CHART_UP_STROKE_TOKEN) || palette.success;
 
-        // Draw fills/strokes using the resolved semantic colors. For fills we use
-        // `globalAlpha` to simulate a soft gradient without parsing color strings.
-        drawSeries(ctx, points.down, downToken);
-        drawSeries(ctx, points.up, upToken);
-    }, [points, spacing, tick]);
+        // Draw fills/strokes using the resolved semantic colors.
+        drawSeries(
+            ctx,
+            points.down,
+            downToken,
+            dimensions.width,
+            dimensions.height
+        );
+        drawSeries(
+            ctx,
+            points.up,
+            upToken,
+            dimensions.width,
+            dimensions.height
+        );
+    }, [points, spacing, tick, dimensions, palette]);
 
     return (
         <div className="flex flex-col gap-tools">
@@ -200,15 +245,11 @@ export const SpeedChart = ({ downHistory, upHistory }: SpeedChartProps) => {
             </div>
             <div className="rounded-2xl border border-content1/20 bg-content1/20 p-panel">
                 <div
+                    ref={containerRef}
                     className="w-full pointer-events-none"
-                    style={{ height: `${CHART_HEIGHT}px` }}
+                    style={{ height: `120px` }}
                 >
-                    <canvas
-                        ref={canvasRef}
-                        width={CHART_WIDTH}
-                        height={CHART_HEIGHT}
-                        className="w-full h-full block"
-                    />
+                    <canvas ref={canvasRef} className="w-full h-full block" />
                 </div>
             </div>
         </div>
