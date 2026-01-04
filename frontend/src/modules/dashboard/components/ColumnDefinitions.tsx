@@ -21,12 +21,17 @@ import {
     HardDrive, // size
     TrendingUp, // ratio
     Clock, // added
+    WifiOff,
     Users,
+    FileWarning,
+    ListStart,
     Pause,
     Bug,
     ArrowDown,
     ArrowUp,
+    RefreshCw,
 } from "lucide-react";
+import { type TorrentStatus } from "@/services/rpc/entities";
 
 import { type TFunction } from "i18next";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
@@ -241,32 +246,46 @@ const SpeedColumnCell = ({ torrent, table }: ColumnRendererProps) => {
         </div>
     );
 };
-
-const statusMap: Record<
-    Torrent["state"],
-    {
-        color: StatusColor;
-        icon: typeof ArrowDown | typeof ArrowUp | typeof Pause;
-        labelKey: string;
-    }
-> = {
+const statusMap: Record<TorrentStatus, StatusMeta> = {
     downloading: {
         color: "success",
         icon: ArrowDown,
         labelKey: "table.status_dl",
     },
-    seeding: { color: "primary", icon: ArrowUp, labelKey: "table.status_seed" },
-    paused: { color: "warning", icon: Pause, labelKey: "table.status_pause" },
-    checking: {
+    seeding: {
+        color: "primary",
+        icon: ArrowUp,
+        labelKey: "table.status_seed",
+    },
+    paused: {
         color: "warning",
         icon: Pause,
+        labelKey: "table.status_pause",
+    },
+    checking: {
+        color: "warning",
+        icon: RefreshCw, // integrity / verification work
         labelKey: "torrent_modal.statuses.checking",
     },
-    queued: { color: "warning", icon: Pause, labelKey: "table.status_queued" },
+    queued: {
+        color: "secondary",
+        icon: ListStart, // waiting in scheduler order
+        labelKey: "table.status_queued",
+    },
+    stalled: {
+        color: "secondary",
+        icon: WifiOff, // active but no peers / no traffic
+        labelKey: "table.status_stalled",
+    },
     error: {
         color: "danger",
-        icon: Pause,
+        icon: Bug,
         labelKey: "torrent_modal.statuses.error",
+    },
+    missing_files: {
+        color: "warning",
+        icon: FileWarning,
+        labelKey: "torrent_modal.statuses.missing_files",
     },
 };
 
@@ -349,21 +368,16 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
         sortAccessor: (torrent) => torrent.state,
         headerIcon: Activity,
         render: ({ torrent, t }) => {
-            let conf = statusMap[torrent.state] ?? {
-                color: "default",
-                icon: Bug,
-                labelKey: "torrent_modal.statuses.error",
-            };
+            const conf = torrent.errorString
+                ? {
+                      color: "danger",
+                      icon: Bug,
+                      labelKey: "torrent_modal.statuses.error",
+                  }
+                : statusMap[torrent.state];
 
-            // If the backend provided an errorString, elevate the status visually.
-            if (torrent.errorString) {
-                conf = {
-                    color: "danger",
-                    icon: Bug,
-                    labelKey: "torrent_modal.statuses.error",
-                };
-            }
             const Icon = conf.icon;
+
             return (
                 <div className="min-w-0 w-full flex items-center justify-center h-full">
                     <Chip

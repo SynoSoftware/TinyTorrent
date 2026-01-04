@@ -1,10 +1,12 @@
 export type TorrentStatus =
-    | "downloading"
-    | "seeding"
-    | "paused"
-    | "checking"
-    | "error"
-    | "queued";
+    | "downloading" // moving data down
+    | "seeding" // moving data up
+    | "queued" // blocked by scheduler
+    | "stalled" // active but no transfer
+    | "paused" // user intent
+    | "checking" // integrity work
+    | "error" // fatal
+    | "missing_files";
 
 export interface TorrentSpeed {
     down: number;
