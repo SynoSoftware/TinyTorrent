@@ -1,3 +1,4 @@
+// FILE: src/modules/dashboard/torrent-detail/GeneralTab.tsx
 import { Button, Switch } from "@heroui/react";
 import {
     ArrowDownCircle,
@@ -99,13 +100,12 @@ export const GeneralTab = ({
     // Compute peer count (no .isActive property in TorrentPeerEntity)
     const peerCount = Array.isArray(torrent.peers) ? torrent.peers.length : 0;
 
-    const showNoDataError =
-        typeof torrent.errorString === "string" &&
-        torrent.errorString.includes("No data found");
+    // Single source of truth: derived in rpc normalizer
+    const showMissingFilesError = torrent.state === "missing_files";
 
     return (
         <div className="space-y-stage">
-            {showNoDataError && (
+            {showMissingFilesError && (
                 <GlassPanel className="p-panel border border-warning/30 bg-warning/10 flex flex-col gap-tools">
                     <div className="text-scaled font-semibold uppercase tracking-tight text-warning">
                         {t("torrent_modal.errors.no_data_found_title", {
@@ -238,6 +238,7 @@ export const GeneralTab = ({
                     </div>
                 </GlassPanel>
             )}
+
             <GlassPanel className="space-y-3 border border-content1/20 bg-content1/30 p-panel">
                 <div className="flex items-center justify-between gap-panel">
                     <div className="flex flex-col">
@@ -273,6 +274,7 @@ export const GeneralTab = ({
                     />
                 </div>
             </GlassPanel>
+
             <GlassPanel className="p-panel space-y-4 bg-content1/30 border border-content1/20">
                 <div className="flex items-center justify-between gap-panel">
                     <div className="flex flex-col gap-tight">
@@ -299,6 +301,7 @@ export const GeneralTab = ({
                         {t("torrent_modal.controls.force_reannounce")}
                     </Button>
                 </div>
+
                 <div className="grid gap-tools sm:grid-cols-2">
                     <Switch
                         size="md"
@@ -319,6 +322,7 @@ export const GeneralTab = ({
                             {renderCapabilityNote(sequentialCapability)}
                         </div>
                     </Switch>
+
                     <Switch
                         size="md"
                         color="primary"
@@ -392,6 +396,7 @@ export const GeneralTab = ({
                         {downloadDir}
                     </code>
                 </GlassPanel>
+
                 <GlassPanel className="p-panel space-y-3">
                     <div className="flex items-center justify-between gap-tools">
                         <div className="flex items-center gap-tools">

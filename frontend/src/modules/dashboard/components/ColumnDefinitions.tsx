@@ -1,14 +1,6 @@
 // FILE: src/modules/dashboard/components/ColumnDefinitions.tsx
 
-import {
-    Button,
-    Chip,
-    Dropdown,
-    DropdownItem,
-    DropdownMenu,
-    DropdownTrigger,
-    cn,
-} from "@heroui/react";
+import { Chip, cn } from "@heroui/react";
 import type { LucideIcon } from "lucide-react";
 import {
     FileText, // name
@@ -31,15 +23,14 @@ import {
     ArrowUp,
     RefreshCw,
 } from "lucide-react";
-import { type TorrentStatus } from "@/services/rpc/entities";
 
+import { type TorrentStatus } from "@/services/rpc/entities";
 import { type TFunction } from "i18next";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import { type CSSProperties, type ReactNode, type RefObject } from "react";
 import { TABLE_LAYOUT, ICON_STROKE_WIDTH_DENSE } from "@/config/logic";
 import useLayoutMetrics from "@/shared/hooks/useLayoutMetrics";
 import { useUiClock } from "@/shared/hooks/useUiClock";
-import { GLASS_MENU_SURFACE } from "@/shared/ui/layout/glass-surface";
 import { SmoothProgressBar } from "@/shared/ui/components/SmoothProgressBar";
 import {
     formatBytes,
@@ -55,7 +46,6 @@ import type { OptimisticStatusMap } from "@/modules/dashboard/types/optimistic";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 
 // --- TYPES ---
-
 export type ColumnId =
     | "name"
     | "progress"
@@ -78,7 +68,7 @@ export interface ColumnRendererProps {
     torrent: Torrent;
     t: TFunction;
     isSelected: boolean;
-    table: Table<Torrent>; // Added table instance access
+    table: Table<Torrent>;
 }
 
 export interface ColumnDefinition {
@@ -105,36 +95,44 @@ type StatusColor =
     | "warning"
     | "danger";
 
+type StatusMeta = {
+    color: StatusColor;
+    icon: LucideIcon;
+    labelKey: string;
+};
+
 const ratioValue = (torrent: Torrent) => {
     if (typeof torrent.ratio === "number") return torrent.ratio;
     if (torrent.downloaded > 0) return torrent.uploaded / torrent.downloaded;
     return torrent.uploaded === 0 ? 0 : torrent.uploaded;
 };
+
+const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
+
 const getEffectiveProgress = (torrent: Torrent) => {
-    const rawProgress =
-        torrent.state === "checking"
-            ? torrent.verificationProgress ?? torrent.progress
-            : torrent.progress;
-    const normalized = rawProgress ?? 0;
-    return Math.max(Math.min(normalized, 1), 0);
+    switch (torrent.state) {
+        case "checking":
+            return clamp01(torrent.verificationProgress ?? 0);
+
+        case "missing_files":
+            return 0;
+
+        default:
+            return clamp01(torrent.progress ?? 0);
+    }
 };
 
 const DENSE_TEXT = `${TABLE_LAYOUT.fontSize} ${TABLE_LAYOUT.fontMono} leading-none cap-height-text`;
 const DENSE_NUMERIC = `${DENSE_TEXT} tabular-nums`;
-const DEFAULT_SPARKLINE_WIDTH = 64;
+
 const DEFAULT_SPARKLINE_HEIGHT = 12;
 
-// Sparkline dimensions should be based on the layout metric hook to avoid
-// synchronous layout thrashing from calling getComputedStyle in hot paths.
 const STATUS_CHIP_STYLE: CSSProperties = {
-    gap: "var(--gap-tools)",
-    borderRadius: "var(--r-md)",
-    minWidth: "var(--tt-badge-min-width)",
-    width: "auto",
-    /* Height/padding are controlled via the .h-status-chip utility token
-       to respect the Token Pipeline and avoid inline geometry drift. */
+    width: "var(--tt-status-chip-w)",
+    minWidth: "var(--tt-status-chip-w)",
+    maxWidth: "var(--tt-status-chip-w)",
+    height: "var(--tt-status-chip-h)",
     boxSizing: "border-box",
-    /* keep boxSizing present; other sizing is handled by class */
 };
 
 const getOrdinalSuffix = (value: number) => {
@@ -164,11 +162,12 @@ const formatQueueOrdinal = (queuePosition?: number) => {
 };
 
 const SpeedColumnCell = ({ torrent, table }: ColumnRendererProps) => {
-    // Subscribe to UI clock so sparklines advance on a stable cadence.
     const { tick } = useUiClock();
     void tick;
+
     const isDownloading = torrent.state === "downloading";
     const isSeeding = torrent.state === "seeding";
+
     const speedValue = isDownloading
         ? torrent.speed.down
         : isSeeding
@@ -177,13 +176,14 @@ const SpeedColumnCell = ({ torrent, table }: ColumnRendererProps) => {
 
     const meta = table.options.meta as DashboardTableMeta | undefined;
     const rawHistory = meta?.speedHistoryRef?.current?.[torrent.id] ?? [];
-    // Sanitize history (ensure numeric) and append the current speedValue
+
     const sanitizedHistory = rawHistory.map((v) =>
         Number.isFinite(v) ? v : 0
     );
     const current = Number.isFinite(speedValue as number)
         ? (speedValue as number)
         : 0;
+
     const sparklineHistory =
         sanitizedHistory.length > 0
             ? [...sanitizedHistory, current]
@@ -191,15 +191,16 @@ const SpeedColumnCell = ({ torrent, table }: ColumnRendererProps) => {
 
     const maxHistorySpeed = Math.max(...sparklineHistory, 0);
     const maxSpeed = Math.max(current, maxHistorySpeed, 1);
-    // Use layout hook to derive sparkline sizing without forcing layout on each render
-    // (hook updates on resize / theme change only)
+
     const { rowHeight } = useLayoutMetrics();
     const resolvedRow = Number.isFinite(rowHeight)
         ? rowHeight
         : DEFAULT_SPARKLINE_HEIGHT * 2.5;
+
     const SPARKLINE_WIDTH = Math.max(24, Math.round(resolvedRow * 2.3));
     const SPARKLINE_HEIGHT = Math.max(6, Math.round(resolvedRow * 0.45));
     const sparklineHeight = SPARKLINE_HEIGHT - 1;
+
     const path = buildSplinePath(
         sparklineHistory,
         SPARKLINE_WIDTH,
@@ -246,6 +247,7 @@ const SpeedColumnCell = ({ torrent, table }: ColumnRendererProps) => {
         </div>
     );
 };
+
 const statusMap: Record<TorrentStatus, StatusMeta> = {
     downloading: {
         color: "success",
@@ -264,17 +266,17 @@ const statusMap: Record<TorrentStatus, StatusMeta> = {
     },
     checking: {
         color: "warning",
-        icon: RefreshCw, // integrity / verification work
+        icon: RefreshCw,
         labelKey: "torrent_modal.statuses.checking",
     },
     queued: {
         color: "secondary",
-        icon: ListStart, // waiting in scheduler order
+        icon: ListStart,
         labelKey: "table.status_queued",
     },
     stalled: {
         color: "secondary",
-        icon: WifiOff, // active but no peers / no traffic
+        icon: WifiOff,
         labelKey: "table.status_stalled",
     },
     error: {
@@ -316,6 +318,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
             </div>
         ),
     },
+
     progress: {
         id: "progress",
         labelKey: "table.header_progress",
@@ -357,6 +360,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
             );
         },
     },
+
     status: {
         id: "status",
         labelKey: "table.header_status",
@@ -368,15 +372,16 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
         sortAccessor: (torrent) => torrent.state,
         headerIcon: Activity,
         render: ({ torrent, t }) => {
-            const conf = torrent.errorString
-                ? {
-                      color: "danger",
-                      icon: Bug,
-                      labelKey: "torrent_modal.statuses.error",
-                  }
-                : statusMap[torrent.state];
-
+            // IMPORTANT: No "errorString => error" override here.
+            // State is derived once in the RPC normalizer.
+            const conf = statusMap[torrent.state] ?? statusMap.paused;
             const Icon = conf.icon;
+
+            const tooltip =
+                typeof torrent.errorString === "string" &&
+                torrent.errorString.trim()
+                    ? torrent.errorString
+                    : t(conf.labelKey);
 
             return (
                 <div className="min-w-0 w-full flex items-center justify-center h-full">
@@ -388,20 +393,17 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
                         classNames={{
                             base: "h-status-chip px-tight inline-flex items-center justify-center gap-tools whitespace-nowrap",
                             content:
-                                "font-bold text-scaled uppercase tracking-wider leading-none whitespace-nowrap",
+                                "font-bold text-scaled  tracking-wider  whitespace-nowrap text-foreground",
                         }}
                     >
                         <div className="flex items-center justify-center gap-tools">
                             <StatusIcon
                                 Icon={Icon}
-                                size="sm"
+                                size="md"
                                 strokeWidth={ICON_STROKE_WIDTH_DENSE}
                                 className="text-current"
                             />
-                            <span
-                                className="truncate"
-                                title={torrent.errorString || t(conf.labelKey)}
-                            >
+                            <span className="truncate" title={tooltip}>
                                 {t(conf.labelKey)}
                             </span>
                         </div>
@@ -410,6 +412,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
             );
         },
     },
+
     queue: {
         id: "queue",
         labelKey: "table.header_queue",
@@ -427,6 +430,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
             </span>
         ),
     },
+
     eta: {
         id: "eta",
         labelKey: "table.header_eta",
@@ -458,6 +462,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
             );
         },
     },
+
     speed: {
         id: "speed",
         labelKey: "table.header_speed",
@@ -472,6 +477,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
         headerIcon: Gauge,
         render: (ctx) => <SpeedColumnCell {...ctx} />,
     },
+
     peers: {
         id: "peers",
         labelKey: "table.header_peers",
@@ -502,6 +508,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
             </div>
         ),
     },
+
     size: {
         id: "size",
         labelKey: "table.header_size",
@@ -518,6 +525,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
             </span>
         ),
     },
+
     ratio: {
         id: "ratio",
         labelKey: "table.header_ratio",

@@ -5,8 +5,8 @@ export type TorrentStatus =
     | "stalled" // active but no transfer
     | "paused" // user intent
     | "checking" // integrity work
-    | "error" // fatal
-    | "missing_files";
+    | "error" // fatal (non-missing-files)
+    | "missing_files"; // data missing / cannot find files
 
 export interface TorrentSpeed {
     down: number;
@@ -67,7 +67,7 @@ export interface TorrentEntity {
     id: string;
     hash: string;
     name: string;
-    progress: number;
+    progress?: number;
     verificationProgress?: number;
     state: TorrentStatus;
     speed: TorrentSpeed;

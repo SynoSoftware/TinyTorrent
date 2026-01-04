@@ -4,7 +4,7 @@ import {
     ArrowUp,
     Network,
     Zap,
-    HardDrive,
+    Files,
     Activity,
     Cog as TransmissionIcon,
     Wifi,
@@ -256,15 +256,13 @@ export function StatusBar({
                                 : t("status_bar.active_torrents")
                         }
                         value={
-                            isSelection
-                                ? `${selectedCount} ${t(
-                                      "status_bar.torrents_selected"
-                                  )}`
+                            isSelection && sessionStats
+                                ? `${selectedCount} / ${sessionStats.torrentCount}`
                                 : sessionStats
                                 ? `${sessionStats.activeTorrentCount} / ${sessionStats.torrentCount}`
                                 : "--"
                         }
-                        Icon={isSelection ? HardDrive : Activity}
+                        Icon={isSelection ? Files : Activity}
                         className="min-w-status-chip"
                     />
 

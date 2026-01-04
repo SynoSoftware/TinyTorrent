@@ -2,6 +2,7 @@
 
 import { motion, type Transition } from "framer-motion";
 import { cn } from "@heroui/react";
+import { useEffect, useRef, useState } from "react";
 
 import {
     buildSplinePathFromPoints,
@@ -22,6 +23,34 @@ interface NetworkGraphProps {
 }
 
 export const NetworkGraph = ({ data, color, className }: NetworkGraphProps) => {
+    const containerRef = useRef<SVGSVGElement>(null);
+    const [dimensions, setDimensions] = useState({
+        width: GRAPH_WIDTH,
+        height: GRAPH_HEIGHT,
+    });
+
+    useEffect(() => {
+        const updateDimensions = () => {
+            if (containerRef.current) {
+                const { clientWidth, clientHeight } = containerRef.current;
+                setDimensions({ width: clientWidth, height: clientHeight });
+            }
+        };
+
+        const observer = new ResizeObserver(updateDimensions);
+        if (containerRef.current) {
+            observer.observe(containerRef.current);
+        }
+
+        updateDimensions(); // Initial update
+
+        return () => {
+            if (containerRef.current) {
+                observer.unobserve(containerRef.current);
+            }
+        };
+    }, []);
+
     // Subscribe to the UI clock so graph cadence is stable.
     const { tick } = useUiClock();
     void tick;
@@ -29,19 +58,20 @@ export const NetworkGraph = ({ data, color, className }: NetworkGraphProps) => {
     const maxValue = Math.max(...normalizedData, 1);
     const points = createSplinePoints(
         normalizedData,
-        GRAPH_WIDTH,
-        GRAPH_HEIGHT,
+        dimensions.width,
+        dimensions.height,
         maxValue
     );
     const linePath = buildSplinePathFromPoints(points);
     const safeLinePath =
-        linePath || `M0,${GRAPH_HEIGHT} L${GRAPH_WIDTH},${GRAPH_HEIGHT}`;
+        linePath ||
+        `M0,${dimensions.height} L${dimensions.width},${dimensions.height}`;
     const areaPath =
         points.length > 0
-            ? `${safeLinePath} L${points[points.length - 1].x.toFixed(
-                  2
-              )},${GRAPH_HEIGHT} L${points[0].x.toFixed(2)},${GRAPH_HEIGHT} Z`
-            : `${safeLinePath} L${GRAPH_WIDTH},${GRAPH_HEIGHT} L0,${GRAPH_HEIGHT} Z`;
+            ? `${safeLinePath} L${points[points.length - 1].x.toFixed(2)},${
+                  dimensions.height
+              } L${points[0].x.toFixed(2)},${dimensions.height} Z`
+            : `${safeLinePath} L${dimensions.width},${dimensions.height} L0,${dimensions.height} Z`;
 
     const areaTransition: Transition = {
         d: { duration: 0 },
@@ -52,17 +82,18 @@ export const NetworkGraph = ({ data, color, className }: NetworkGraphProps) => {
 
     return (
         <svg
+            ref={containerRef}
             width="100%"
             height="100%"
-            viewBox={`0 0 ${GRAPH_WIDTH} ${GRAPH_HEIGHT}`}
+            viewBox={`0 0 ${dimensions.width} ${dimensions.height}`}
             preserveAspectRatio="none"
             className={cn("overflow-visible", className)}
         >
             <line
                 x1={0}
-                y1={BASELINE_Y}
-                x2={GRAPH_WIDTH}
-                y2={BASELINE_Y}
+                y1={dimensions.height - 0.5}
+                x2={dimensions.width}
+                y2={dimensions.height - 0.5}
                 stroke="currentColor"
                 strokeWidth={1}
                 className="opacity-10"
@@ -70,9 +101,9 @@ export const NetworkGraph = ({ data, color, className }: NetworkGraphProps) => {
             {data.every((value) => value === 0) && (
                 <line
                     x1={0}
-                    y1={BASELINE_Y}
-                    x2={GRAPH_WIDTH}
-                    y2={BASELINE_Y}
+                    y1={dimensions.height - 0.5}
+                    x2={dimensions.width}
+                    y2={dimensions.height - 0.5}
                     stroke="currentColor"
                     strokeWidth={2}
                     className={cn(
