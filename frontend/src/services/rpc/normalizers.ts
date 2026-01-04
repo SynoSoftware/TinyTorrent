@@ -61,9 +61,7 @@ const zipFileEntities = (
     const fileCount = files.length;
     const statsCount = stats.length;
     const hasStats = statsCount > 0;
-    const limit = hasStats
-        ? Math.min(fileCount, statsCount)
-        : fileCount;
+    const limit = hasStats ? Math.min(fileCount, statsCount) : fileCount;
     if (hasStats && fileCount !== statsCount) {
         console.warn(
             `[tiny-torrent][rpc] file/fileStats length mismatch for torrent ${detail.hashString}: files=${fileCount} fileStats=${statsCount}`
@@ -113,22 +111,38 @@ const normalizeTracker = (
     lastScrapeTime: tracker.lastScrapeTime,
     lastScrapeResult: tracker.lastScrapeResult,
     lastScrapeSucceeded: tracker.lastScrapeSucceeded,
-    seederCount: tracker.seederCount,
-    leecherCount: tracker.leecherCount,
+    // Preserve missing data as NaN instead of fabricating 0 so the UI
+    // can differentiate "missing" vs "zero".
+    seederCount: Number.isFinite(Number(tracker.seederCount))
+        ? Number(tracker.seederCount)
+        : NaN,
+    leecherCount: Number.isFinite(Number(tracker.leecherCount))
+        ? Number(tracker.leecherCount)
+        : NaN,
     scrapeState: tracker.scrapeState,
 });
 
 const normalizePeer = (peer: TransmissionTorrentPeer): TorrentPeerEntity => ({
     address: peer.address,
-    clientIsChoking: peer.clientIsChoking,
-    clientIsInterested: peer.clientIsInterested,
-    peerIsChoking: peer.peerIsChoking,
-    peerIsInterested: peer.peerIsInterested,
-    clientName: peer.clientName,
-    rateToClient: peer.rateToClient,
-    rateToPeer: peer.rateToPeer,
-    progress: peer.progress,
-    flagStr: peer.flagStr,
+    clientIsChoking: Boolean(peer.clientIsChoking),
+    clientIsInterested: Boolean(peer.clientIsInterested),
+    peerIsChoking: Boolean(peer.peerIsChoking),
+    peerIsInterested: Boolean(peer.peerIsInterested),
+    // Keep clientName as-is (empty string allowed). For numeric fields,
+    // preserve missing values as NaN so the UI can show "unknown" states
+    // instead of fabricating zero values.
+    clientName: peer.clientName ?? "",
+    rateToClient: Number.isFinite(Number(peer.rateToClient))
+        ? Number(peer.rateToClient)
+        : NaN,
+    rateToPeer: Number.isFinite(Number(peer.rateToPeer))
+        ? Number(peer.rateToPeer)
+        : NaN,
+    // Progress is safe to default to 0 for rendering geometry.
+    progress: Number.isFinite(Number(peer.progress))
+        ? Number(peer.progress)
+        : 0,
+    flagStr: peer.flagStr ?? "",
     country: peer.country,
 });
 

@@ -41,7 +41,7 @@ export type CanvasPalette = {
 
 export const normalizeCanvasColor = (value: string): string => {
     const trimmed = value.trim();
-    if (!trimmed) return trimmed;
+    if (!trimmed) return "#555555";
     const lower = trimmed.toLowerCase();
     if (
         lower.startsWith("var(") ||
@@ -79,9 +79,13 @@ export const useCanvasPalette = (): CanvasPalette => {
             } as CanvasPalette;
         }
 
-        const styles = getComputedStyle(document.documentElement);
-        const read = (name: string) =>
-            normalizeCanvasColor(styles.getPropertyValue(name));
+        const rootStyles = getComputedStyle(document.documentElement);
+        const bodyStyles = getComputedStyle(document.body);
+        const read = (name: string) => {
+            let v = rootStyles.getPropertyValue(name).trim();
+            if (!v) v = bodyStyles.getPropertyValue(name).trim();
+            return normalizeCanvasColor(v);
+        };
         return {
             primary: read("--heroui-primary"),
             success: read("--heroui-success"),
@@ -106,11 +110,14 @@ export const useCanvasPalette = (): CanvasPalette => {
 export const getCssToken = (name: string): string => {
     if (typeof window === "undefined") return "";
     try {
-        const styles = getComputedStyle(document.documentElement);
-        const v = styles.getPropertyValue(name);
-        return v ? normalizeCanvasColor(v) : "";
+        const root = getComputedStyle(document.documentElement);
+        const body = getComputedStyle(document.body);
+        let v = root.getPropertyValue(name).trim();
+        if (!v) v = body.getPropertyValue(name).trim();
+        // normalizeCanvasColor returns a safe fallback if value is empty
+        return normalizeCanvasColor(v);
     } catch {
-        return "";
+        return "#555555";
     }
 };
 

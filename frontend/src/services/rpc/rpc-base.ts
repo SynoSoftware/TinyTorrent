@@ -264,6 +264,20 @@ export class TransmissionAdapter implements EngineAdapter {
                 );
             }
             const args = parsed.arguments ?? {};
+            // Opt-in debug: set sessionStorage `tt-debug-raw-torrent-detail` to '1'
+            // to log the raw arguments for `torrent-get` responses once.
+            try {
+                const shouldLog =
+                    typeof sessionStorage !== "undefined" &&
+                    sessionStorage.getItem("tt-debug-raw-torrent-detail") ===
+                        "1";
+                if (shouldLog && payload.method === "torrent-get") {
+                    // eslint-disable-next-line no-console
+                    console.debug("[tiny-torrent][rpc-raw][torrent-get]", args);
+                }
+            } catch (e) {
+                // ignore sessionStorage errors
+            }
             return schema.parse(args as unknown) as T;
         } finally {
             if (timeoutId) {
@@ -914,7 +928,9 @@ export class TransmissionAdapter implements EngineAdapter {
         return normalizeTorrentDetail(detail);
     }
 
-    public async addTorrent(payload: AddTorrentPayload): Promise<AddTorrentResult> {
+    public async addTorrent(
+        payload: AddTorrentPayload
+    ): Promise<AddTorrentResult> {
         const args: Record<string, unknown> = {
             paused: payload.paused,
         };
@@ -1088,8 +1104,8 @@ export class TransmissionAdapter implements EngineAdapter {
             typeof idsOrId === "string"
                 ? [await this.resolveRpcId(idsOrId)]
                 : Array.isArray(idsOrId)
-                  ? idsOrId
-                  : [idsOrId];
+                ? idsOrId
+                : [idsOrId];
         await this.mutate("torrent-set-location", {
             ids,
             location,
@@ -1244,7 +1260,9 @@ class TinyTorrentWebSocketSession {
         }
         this.stop();
         this.baseUrl = baseUrl;
-        console.log(`${this.logPrefix} start requested baseUrl=${baseUrl.toString()}`);
+        console.log(
+            `${this.logPrefix} start requested baseUrl=${baseUrl.toString()}`
+        );
         this.torrentsMap.clear();
         this.lastSessionStats = undefined;
         this.shouldReconnect = true;
@@ -1287,7 +1305,9 @@ class TinyTorrentWebSocketSession {
         }
         const attemptId = ++this.connectAttempt;
         console.log(
-            `${this.logPrefix} opening WebSocket attempt #${attemptId} to ${url.toString()}`
+            `${
+                this.logPrefix
+            } opening WebSocket attempt #${attemptId} to ${url.toString()}`
         );
         try {
             this.socket = new WebSocket(url.toString());

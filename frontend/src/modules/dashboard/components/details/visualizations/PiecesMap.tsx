@@ -83,10 +83,19 @@ function fitCanvasToParent(
 
     const rect = container.getBoundingClientRect();
 
+    let cssW = rect.width;
+    let cssH = rect.height;
+
+    // Defensive: if container hasn't been laid out yet, force a sensible minimum
+    // to avoid zero-height backing stores which break canvas math during initial mount.
+    if (!cssH || cssH < 2) {
+        cssH = 150; // fallback semantic minimum; prefer token-derived value if available
+    }
+
     const dpr = window.devicePixelRatio || 1;
 
-    const pxW = Math.max(1, Math.floor(rect.width * dpr));
-    const pxH = Math.max(1, Math.floor(rect.height * dpr));
+    const pxW = Math.max(1, Math.floor(cssW * dpr));
+    const pxH = Math.max(1, Math.floor(cssH * dpr));
 
     if (canvas.width !== pxW) canvas.width = pxW;
     if (canvas.height !== pxH) canvas.height = pxH;
@@ -94,7 +103,7 @@ function fitCanvasToParent(
     const ctx = canvas.getContext("2d");
     if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    return { cssW: rect.width, cssH: rect.height, dpr };
+    return { cssW: cssW, cssH: cssH, dpr };
 }
 
 /**
@@ -335,9 +344,10 @@ export const PiecesMap = ({
     function resolveCssColor(value: string): string {
         if (!value.startsWith("var(")) return normalizeCanvasColor(value);
         const name = value.slice(4, -1).trim();
-        const resolved = getComputedStyle(document.documentElement)
-            .getPropertyValue(name)
-            .trim();
+        const rootStyles = getComputedStyle(document.documentElement);
+        const bodyStyles = getComputedStyle(document.body);
+        let resolved = rootStyles.getPropertyValue(name).trim();
+        if (!resolved) resolved = bodyStyles.getPropertyValue(name).trim();
         return normalizeCanvasColor(resolved);
     }
 
@@ -382,8 +392,7 @@ export const PiecesMap = ({
                 for (let col = 0; col < columns; col++) {
                     const pieceIndex = baseIndex + col;
                     if (pieceIndex >= totalPieces) break;
-
-                    const status = resolvedStates[pieceIndex];
+                    const status = resolvedStates[pieceIndex] ?? "missing";
                     const x = col * g.cellW;
 
                     if (status === "done") {
@@ -566,8 +575,7 @@ export const PiecesMap = ({
                 setHoverPos(null);
                 return;
             }
-
-            const status = resolvedStates[hit.index];
+            const status = resolvedStates[hit.index] ?? "missing";
             const info: HoverInfo = {
                 pieceIndex: hit.index,
                 status,

@@ -35,7 +35,7 @@ export const TrackersTab = ({
     const [showAdd, setShowAdd] = useState(false);
     const [newTrackers, setNewTrackers] = useState("");
 
-    if (!trackers.length) {
+    if (!trackers || trackers.length === 0) {
         return (
             <GlassPanel className="flex h-lg items-center justify-center border-default/10 text-center">
                 <p className={`${TEXT_ROLES.primary} text-foreground/30`}>
@@ -113,27 +113,37 @@ export const TrackersTab = ({
                                 const trackerKey = `${String(
                                     trackerKeyBase
                                 )}-${i}`;
-                                const isOnline = tracker.lastAnnounceSucceeded;
+                                const isOnline =
+                                    tracker.lastAnnounceSucceeded === true;
 
-                                let hostname = "Unknown";
+                                // Hostname parsing with fallback
+                                let hostname = t("labels.unknown", {
+                                    defaultValue: "Unknown",
+                                });
                                 try {
-                                    hostname = new URL(tracker.announce)
-                                        .hostname;
+                                    if (tracker.announce) {
+                                        const u = new URL(tracker.announce);
+                                        hostname =
+                                            u.hostname || tracker.announce;
+                                    } else {
+                                        hostname = tracker.announce || hostname;
+                                    }
                                 } catch {
-                                    hostname = tracker.announce;
+                                    hostname = tracker.announce || hostname;
                                 }
 
-                                // Calculate countdown based on server heartbeat
+                                // Calculate next announce countdown (seconds)
                                 let nextAnnounceSecs = 0;
                                 if (
-                                    serverTime &&
-                                    tracker.lastAnnounceTime &&
+                                    typeof tracker.lastAnnounceTime ===
+                                        "number" &&
                                     tracker.lastAnnounceTime > 0
                                 ) {
-                                    const interval = 1800; // Standard announce interval
+                                    const nowMs = serverTime ?? Date.now();
+                                    const interval = 1800;
                                     const elapsed = Math.max(
                                         0,
-                                        Math.floor(serverTime / 1000) -
+                                        Math.floor(nowMs / 1000) -
                                             tracker.lastAnnounceTime
                                     );
                                     nextAnnounceSecs = Math.max(
@@ -141,6 +151,27 @@ export const TrackersTab = ({
                                         interval - elapsed
                                     );
                                 }
+
+                                const unknownLabel = t("labels.unknown", {
+                                    defaultValue: "-",
+                                });
+                                const seededLabel =
+                                    typeof tracker.seederCount === "number" &&
+                                    tracker.seederCount >= 0
+                                        ? String(tracker.seederCount)
+                                        : unknownLabel;
+                                const leechLabel =
+                                    typeof tracker.leecherCount === "number" &&
+                                    tracker.leecherCount >= 0
+                                        ? String(tracker.leecherCount)
+                                        : unknownLabel;
+
+                                const hasAttempt =
+                                    typeof tracker.lastAnnounceTime ===
+                                        "number" &&
+                                    tracker.lastAnnounceTime > 0;
+                                const lastSucceeded =
+                                    tracker.lastAnnounceSucceeded === true;
 
                                 return (
                                     <tr
@@ -178,40 +209,52 @@ export const TrackersTab = ({
                                                     size="sm"
                                                     className="text-foreground/30"
                                                 />
-                                                {t(
-                                                    "torrent_modal.trackers.peer_summary",
-                                                    {
-                                                        seeded: tracker.seederCount,
-                                                        leeching:
-                                                            tracker.leecherCount,
-                                                    }
-                                                )}
+                                                <span>
+                                                    {seededLabel} seeded /{" "}
+                                                    {leechLabel} leeching
+                                                </span>
                                             </div>
                                         </td>
                                         <td className="border-b border-default/5 py-panel pl-tight pr-panel text-right font-sans text-label font-bold uppercase tracking-tight">
-                                            <span
-                                                className={
-                                                    isOnline
-                                                        ? "text-success"
-                                                        : "text-warning"
+                                            {(() => {
+                                                if (!hasAttempt) {
+                                                    return (
+                                                        <span className="text-foreground/50">
+                                                            {t(
+                                                                "torrent_modal.trackers.status_pending",
+                                                                {
+                                                                    defaultValue:
+                                                                        "Pending",
+                                                                }
+                                                            )}
+                                                        </span>
+                                                    );
                                                 }
-                                            >
-                                                {isOnline
-                                                    ? t(
-                                                          "torrent_modal.trackers.status_online",
-                                                          {
-                                                              defaultValue:
-                                                                  "Online",
-                                                          }
-                                                      )
-                                                    : t(
-                                                          "torrent_modal.trackers.status_partial",
-                                                          {
-                                                              defaultValue:
-                                                                  "Warning",
-                                                          }
-                                                      )}
-                                            </span>
+                                                if (lastSucceeded) {
+                                                    return (
+                                                        <span className="text-success">
+                                                            {t(
+                                                                "torrent_modal.trackers.status_online",
+                                                                {
+                                                                    defaultValue:
+                                                                        "Online",
+                                                                }
+                                                            )}
+                                                        </span>
+                                                    );
+                                                }
+                                                return (
+                                                    <span className="text-warning">
+                                                        {t(
+                                                            "torrent_modal.trackers.status_partial",
+                                                            {
+                                                                defaultValue:
+                                                                    "Warning",
+                                                            }
+                                                        )}
+                                                    </span>
+                                                );
+                                            })()}
                                         </td>
                                     </tr>
                                 );
