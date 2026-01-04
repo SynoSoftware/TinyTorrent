@@ -63,6 +63,26 @@
         "subtitle": "Supports .torrent and Magnets",
         "title": "Drop to Add"
     },
+    "general": {
+        "unknown": "Unknown"
+    },
+    "labels": {
+        "on": "On",
+        "off": "Off",
+        "unknown": "Unknown"
+    },
+
+    "inspector": {
+        "panel_label": "Torrent Properties",
+        "tab": {
+            "content": "Content",
+            "general": "General",
+            "peers": "Peers",
+            "pieces": "Pieces",
+            "speed": "Speed",
+            "trackers": "Trackers"
+        }
+    },
     "language": {
         "chinese": "中文",
         "dutch": "Nederlands",
@@ -71,9 +91,8 @@
         "spanish": "Español"
     },
     "modals": {
-        "add_title": "Add Torrent",
-        "add_source_file": "Torrent File",
-        "add_source_magnet": "Magnet Link",
+        "add_error_default": "Unable to add torrent.",
+        "add_error_source_missing": "Select a magnet link or torrent file before downloading.",
         "add_magnet": {
             "confirm": "Resolve",
             "hint": "Paste a magnet link to resolve torrent metadata.",
@@ -81,9 +100,14 @@
             "resolving": "Resolving metadata...",
             "title": "Add Magnet"
         },
+        "add_source_file": "Torrent File",
+        "add_source_magnet": "Magnet Link",
+        "add_title": "Add Torrent",
         "add_torrent": {
             "add_and_start": "Add & Start",
             "add_paused": "Add Paused",
+            "advanced": "Advanced Options",
+            "category": "Category",
             "col_name": "Name",
             "col_priority": "Priority",
             "col_select": "Select",
@@ -92,29 +116,27 @@
             "disk_space_insufficient": "Not enough disk space for the current selection.",
             "file_count": "{{count}} file",
             "file_count_plural": "{{count}} files",
+            "file_hero_priority": "Priority",
+            "file_hero_size": "Size",
+            "file_hero_title": "File Overview",
             "files_title": "FILES",
             "filter_placeholder": "Filter files...",
             "free_space_label": "Free space",
             "free_space_loading": "Refreshing...",
             "free_space_unknown": "Unknown",
-            "name_label": "Name",
-            "advanced": "Advanced Options",
-            "category": "Category",
-            "sequential_download": "Sequential download",
-            "skip_hash_check": "Skip hash check",
-            "smart_select": "Smart Select",
-            "smart_select_videos": "Videos Only",
-            "smart_select_largest": "Largest File Only",
-            "smart_select_invert": "Invert Selection",
             "history": "History",
             "history_empty": "No saved paths",
-            "file_hero_title": "File Overview",
-            "file_hero_priority": "Priority",
-            "file_hero_size": "Size",
+            "name_label": "Name",
             "save_path_placeholder": "Choose a save path",
             "select_all": "Select All",
             "select_none": "Select None",
             "selected_size_label": "Selected size",
+            "sequential_download": "Sequential download",
+            "skip_hash_check": "Skip hash check",
+            "smart_select": "Smart Select",
+            "smart_select_invert": "Invert Selection",
+            "smart_select_largest": "Largest File Only",
+            "smart_select_videos": "Videos Only",
             "start_behavior": "START BEHAVIOR",
             "title": "Add Torrent"
         },
@@ -132,7 +154,6 @@
             "updating": "Refreshing...",
             "used": "Used"
         },
-        "add_error_source_missing": "Select a magnet link or torrent file before downloading.",
         "disk_gauge_error": "Unable to refresh disk usage.",
         "download": "Download",
         "file_browse": "Choose File",
@@ -142,26 +163,43 @@
         "file_label": "TORRENT FILE",
         "file_placeholder": "Select a .torrent file",
         "file_remove": "Clear File",
-        "file_unavailable": "This host cannot access the selected file. Use a magnet link or drag-and-drop instead.",
         "file_tree_description": "Pick which files should download (unchecked files are skipped).",
         "file_tree_empty": "No files detected yet",
         "file_tree_error": "Unable to read the torrent file.",
         "file_tree_loading": "Parsing torrent metadata…",
         "file_tree_title": "Contents",
         "file_tree_waiting": "Waiting for torrent metadata…",
-        "magnet_label": "MAGNET LINK",
+        "file_unavailable": "This host cannot access the selected file. Use a magnet link or drag-and-drop instead.",
         "magnet_help": "Paste a magnet link; the daemon will resolve metadata automatically.",
+        "magnet_label": "MAGNET LINK",
         "magnet_placeholder": "magnet:?xt=urn:btih...",
         "options": "OPTIONS",
         "save_path": "SAVE PATH",
-        "start_now": "Start Immediately",
-        "add_error_default": "Unable to add torrent."
+        "start_now": "Start Immediately"
     },
     "nav": {
         "filter_all": "All",
         "filter_downloading": "Downloading",
         "filter_seeding": "Seeding",
         "search_placeholder": "Filter torrents..."
+    },
+    "peers": {
+        "action_add_peer": "Add Peer",
+        "action_ban_ip": "Ban IP",
+        "action_copy_ip": "Copy IP",
+        "diagnostic_radar": "Diagnostic Radar",
+        "flags": {
+            "choked_remote": "Peer choked us",
+            "dex_discovery": "Discovered via PEX",
+            "dht_discovery": "Discovered via DHT",
+            "downloading": "Downloading from peer",
+            "encrypted": "Encrypted connection",
+            "uninterested_local": "We are uninterested in peer",
+            "uninterested_remote": "Peer is uninterested in us",
+            "unknown": "Unknown flag",
+            "uploading": "Uploading to peer",
+            "utp": "uTP (Micro Transport Protocol)"
+        }
     },
     "settings": {
         "button": {
@@ -199,18 +237,24 @@
             "autorun_title": "Startup Integration",
             "current_connection": "Active connection",
             "default_profile_label": "This PC",
+            "detecting_mode_label": "Detecting server class…",
+            "detecting_mode_summary": "Determining whether the connected engine provides the TinyTorrent host shell.",
             "detecting_signin": "Detecting sign-in options…",
             "edit_credentials": "Edit credentials",
             "endpoint": "Server address",
             "endpoint_preview": "Server: {{endpoint}}",
+            "extended_mock_notice": "TinyTorrent features are on, but this is a Transmission server — showing sample data for desktop helpers.",
             "extended_version_unknown": "unknown",
             "extension_mode_helper": "Unlocks the full desktop experience (TinyTorrent Server required).",
             "extension_mode_helper_tinytorrent": "Unlocks the full desktop experience. Disabling this will reduce the capabilities to a Transmission server.",
             "extension_mode_helper_transmission": "Unlocks the full desktop experience. This server doesn't support extensions. Enabling it will use mock data to show what you could do if you switch to TinyTorrent Server.",
-            "extended_mock_notice": "TinyTorrent features are on, but this is a Transmission server — showing sample data for desktop helpers.",
             "extension_mode_label": "TinyTorrent features",
             "hide_credentials": "Hide credentials",
             "host": "Host",
+            "insecure_basic_auth_warning": "Insecure connection: Basic Auth over HTTP is active.",
+            "mode_label": "Connection Mode",
+            "native_mode_label": "TinyTorrent Host Shell",
+            "native_mode_summary": "Native shell owns dialogs, installer, and clipboard hooks; the UI delegates paths and autorun settings to the host.",
             "offline_warning": "Offline: some features require an active connection.",
             "password": "Password",
             "port": "Port",
@@ -226,15 +270,9 @@
             "server_type_tinytorrent": "TinyTorrent server",
             "server_type_transmission": "Transmission server",
             "token": "Authorization token",
-            "username": "Username",
-            "insecure_basic_auth_warning": "Insecure connection: Basic Auth over HTTP is active.",
-            "mode_label": "Connection Mode",
-            "native_mode_label": "TinyTorrent Host Shell",
             "transmission_mode_label": "Transmission Compatibility",
-            "detecting_mode_label": "Detecting server class…",
-            "native_mode_summary": "Native shell owns dialogs, installer, and clipboard hooks; the UI delegates paths and autorun settings to the host.",
             "transmission_mode_summary": "Standard Transmission server over HTTP RPC; the browser UI handles torrents without native OS privileges.",
-            "detecting_mode_summary": "Determining whether the connected engine provides the TinyTorrent host shell."
+            "username": "Username"
         },
         "descriptions": {
             "config_details": "Includes both engine telemetry and UI preferences in a single snapshot.",
@@ -246,11 +284,11 @@
             "language": "Pick the interface language you prefer.",
             "language_helper": "The HUD updates immediately after you change it.",
             "restore_hud": "Bring back the dismissed HUD cards for instant insights.",
+            "shellStyle": "Choose between the classic panels or the immersive HUD shell. Changes apply instantly.",
+            "startup": "Control whether the HUD opens automatically, stays hidden on autorun, and how the splash screen is shown.",
             "system_integration": "System-level services that affect startup, autorun, and tray helpers.",
             "table_watermark": "Display the ghosted TinyTorrent logo behind the torrent table.",
-            "startup": "Control whether the HUD opens automatically, stays hidden on autorun, and how the splash screen is shown.",
-            "window_behavior": "Decide whether closing the window hides the UI or shuts the daemon down.",
-            "shellStyle": "Choose between the classic panels or the immersive HUD shell. Changes apply instantly."
+            "window_behavior": "Decide whether closing the window hides the UI or shuts the daemon down."
         },
         "headers": {
             "connection": "Connection",
@@ -260,17 +298,17 @@
             "peers": "Peer Limits",
             "privacy": "Privacy",
             "speed": "Speed Limits",
-            "storage": "Storage",
             "startup": "Startup Behavior",
+            "storage": "Storage",
             "system": "System Integration"
         },
         "install": {
             "button": "Run system installer",
             "button_busy": "Running installer...",
+            "handler_requires_elevation": "Handler registration requires administrator privileges.",
             "handlers_header": "Protocol handlers",
             "handlers_not_registered": "Handlers not registered",
             "handlers_registered": "Handlers registered",
-            "handler_requires_elevation": "Handler registration requires administrator privileges.",
             "install_not_requested": "Program Files install was not requested.",
             "installed_path": "Installed to {{path}}.",
             "locations": {
@@ -286,30 +324,17 @@
             "shortcuts_header": "Shortcuts",
             "shortcuts_none": "No shortcuts were created."
         },
-        "system": {
-            "notice": "System integration (autorun, shortcuts) is handled by the native shell and installer.",
-            "instructions": "Use the native installer or OS settings to configure startup and handler integrations.",
-            "handlers_unknown": "Unknown",
-            "checkAssociation": "Check Association",
-            "repairAssociation": "Repair",
-            "power_active": "Active",
-            "power_off": "Off",
-            "update_auto": "Auto",
-            "update_manual": "Manual",
-            "autorun_enabled": "Enabled",
-            "autorun_disabled": "Disabled",
-            "autorun_unknown": "Unknown"
-        },
         "labels": {
-            "shellStyle": "Shell style",
             "altSpeedDays": "Scheduled Days",
             "altSpeedDaysHelp": "Toggle the days Turtle Mode should obey",
             "altSpeedDown": "Download (KB/s)",
             "altSpeedEnd": "End Time",
             "altSpeedStart": "Start Time",
             "altSpeedUp": "Upload (KB/s)",
+            "autorunHidden": "Stay hidden when launched from startup",
             "blocklistToggle": "Enable Blocklist",
             "blocklistUrl": "Blocklist URL",
+            "closeButtonAction": "When clicking the close (x) button",
             "day_friday": "Fri",
             "day_monday": "Mon",
             "day_saturday": "Sat",
@@ -317,6 +342,7 @@
             "day_thursday": "Thu",
             "day_tuesday": "Tue",
             "day_wednesday": "Wed",
+            "defaultTorrentApp": "Default torrent application",
             "dht": "DHT",
             "downloadFolder": "Default Download Folder",
             "downloadLimit": "Download Limit",
@@ -332,55 +358,58 @@
             "installProgramFiles": "Install to Program Files (requires elevation)",
             "installRegisterHandlers": "Register magnet:/.torrent handlers",
             "language": "Language",
+            "launchOnStartup": "Launch TinyTorrent on system startup",
             "lpd": "LPD",
+            "openOnTrayStart": "Open the HUD when the tray app starts",
             "perTorrentPeers": "Peers Per Torrent",
             "pex": "PEX",
+            "preventSleep": "Prevent system sleep while active",
+            "preventSleepHelper": "Keeps the PC awake only while downloading or seeding.",
             "randomizePort": "Randomize Port on Start",
             "raw_config": "Settings JSON",
             "refreshInterval": "Refresh Interval (ms)",
             "renamePartial": "Rename Partial Files",
             "requestTimeout": "Request Timeout (ms)",
+            "restore_hud_immersive": "Restore insights when entering immersive mode",
             "seedRatioLimit": "Seed Ratio Limit",
             "seedRatioToggle": "Enforce Seed Ratio",
-            "startAdded": "Start Added Torrents",
-            "tableWatermark": "Show torrent table watermark",
-            "restore_hud_immersive": "Restore insights when entering immersive mode",
-            "openOnTrayStart": "Open the HUD when the tray app starts",
-            "autorunHidden": "Stay hidden when launched from startup",
-            "defaultTorrentApp": "Default torrent application",
-            "preventSleep": "Prevent system sleep while active",
-            "preventSleepHelper": "Keeps the PC awake only while downloading or seeding.",
-            "updateChecks": "Automatically check for updates",
-            "launchOnStartup": "Launch TinyTorrent on system startup",
+            "shellStyle": "Shell style",
+            "showSplash": "Show the splash screen before the HUD appears",
             "silentStart": "Start minimized to tray",
             "silentStartHelper": "Applies to system startup only. Manual launch always opens the window.",
-            "closeButtonAction": "When clicking the close (x) button",
-            "showSplash": "Show the splash screen before the HUD appears",
             "splashMessage": "Splash screen message",
+            "startAdded": "Start Added Torrents",
+            "tableWatermark": "Show torrent table watermark",
             "turtleMode": "Turtle Mode",
+            "updateChecks": "Automatically check for updates",
             "uploadLimit": "Upload Limit",
             "upnp": "Enable UPnP / NAT-PMP",
             "useIncompleteFolder": "Use Incomplete Folder"
         },
+        "load_error": "Unable to load settings from server.",
         "modal": {
+            "clipboard_failed": "Clipboard copy failed. Please try again.",
+            "clipboard_success": "Configuration JSON copied to clipboard.",
+            "error_browse": "Unable to open the native folder picker.",
+            "error_no_tabs": "No configuration tabs are currently available.",
+            "error_reconnect": "Unable to reconnect to the backend.",
+            "error_restore": "Unable to restore insights at this time.",
+            "error_save": "Unable to save settings. Please try again.",
+            "error_test_port": "Port test failed. Check your connection.",
+            "error_window_state": "Unable to preserve the window state.",
             "footer": {
                 "cancel": "Cancel",
                 "reset": "Reset",
                 "reset_defaults": "Reset to Defaults",
                 "save": "Save Changes"
             },
-            "title": "Settings",
-            "clipboard_success": "Configuration JSON copied to clipboard.",
-            "clipboard_failed": "Clipboard copy failed. Please try again.",
-            "error_save": "Unable to save settings. Please try again.",
-            "error_browse": "Unable to open the native folder picker.",
-            "error_test_port": "Port test failed. Check your connection.",
-            "error_restore": "Unable to restore insights at this time.",
-            "error_reconnect": "Unable to reconnect to the backend.",
-            "error_window_state": "Unable to preserve the window state.",
-            "error_no_tabs": "No configuration tabs are currently available."
+            "title": "Settings"
         },
         "options": {
+            "closeAction": {
+                "minimize": "Minimize to Tray",
+                "quit": "Quit Application"
+            },
             "encryption": {
                 "preferred": "Prefer Encryption",
                 "required": "Require Encryption",
@@ -389,10 +418,6 @@
             "shellStyle": {
                 "classic": "Classic",
                 "immersive": "Immersive"
-            },
-            "closeAction": {
-                "minimize": "Minimize to Tray",
-                "quit": "Quit Application"
             }
         },
         "sections": {
@@ -413,9 +438,23 @@
             "protocol": "Protocol Features",
             "seeding": "Seeding Behavior",
             "system_integration": "System Services",
-            "window_behavior": "Window Behavior",
             "turtle": "Turtle Mode (Scheduled)",
-            "visuals": "Visuals"
+            "visuals": "Visuals",
+            "window_behavior": "Window Behavior"
+        },
+        "system": {
+            "autorun_disabled": "Disabled",
+            "autorun_enabled": "Enabled",
+            "autorun_unknown": "Unknown",
+            "checkAssociation": "Check Association",
+            "handlers_unknown": "Unknown",
+            "instructions": "Use the native installer or OS settings to configure startup and handler integrations.",
+            "notice": "System integration (autorun, shortcuts) is handled by the native shell and installer.",
+            "power_active": "Active",
+            "power_off": "Off",
+            "repairAssociation": "Repair",
+            "update_auto": "Auto",
+            "update_manual": "Manual"
         },
         "tabs": {
             "connection": "Connections",
@@ -431,52 +470,60 @@
         "units": {
             "kbps": "{{value}} KB/s"
         },
-        "unsaved_changes": "Unsaved changes",
-        "load_error": "Unable to load settings from server."
+        "unsaved_changes": "Unsaved changes"
     },
     "status_bar": {
+        ".transport_websocket": "WebSocket (real-time)",
         "active_torrents": "Active",
         "dht_nodes": "{{count}} Nodes",
+        "discovery_tooltip": "Peer discovery\n\nDHT: {{dht}}\nPEX: {{pex}}\nLPD: {{lpd}}\n\nControls whether peers can be found.",
+        "disk_bad": "Insufficient disk space\n\nDownloads cannot finish.",
+        "disk_ok": "Disk OK\n\nEnough space to finish downloads.",
+        "disk_unknown": "Disk state unknown",
+        "disk_warn": "Low disk space\n\nDownloads may slow or pause.",
         "down": "DOWN",
         "engine": "Engine",
         "engine_detecting": "Detecting engine...",
+        "engine_name_tinytorrent": "TinyTorrent",
+        "engine_name_transmission": "Transmission",
+        "engine_tooltip": "Engine status\n\nTransport: {{transport}}\nState: {{status}}\n\nIf degraded, actions may feel delayed.",
+        "engine_telemetry_tooltip": "Engine health & transport\n\nTransport: {{transport}}\nState: {{status}}\n\nShows whether the engine is reachable and how the UI is communicating with it.",
+        "engine_control_tooltip": "Engine controls\n\nConnected to: {{serverType}}\n\nClick to connect/reconnect to the torrent engine.",
         "engine_unknown": "Unknown engine",
         "network": "Network",
         "online": "Online",
+        "ransport_offline_desc": "Disconnected",
         "reconnect": "Reconnect",
         "rpc_connected": "Connected",
         "rpc_error": "Offline",
         "rpc_idle": "Initializing",
         "rpc_status": "Connection",
-        "selected_torrent": "Selected torrent",
         "selected_count": "Selected",
-        "torrents_selected": "Torrents",
+        "selected_torrent": "Selected torrent",
         "stats_loading": "Loading stats...",
+        "swarm_tooltip": "Swarm effectiveness\n\nPeers are reachable and exchanging data.",
+        "torrents_selected": "Torrents",
         "transport_offline": "Offline",
-        "transport_polling": "Polling",
-        "transport_websocket": "WebSocket",
-        "up": "UP",
-        "engine_name_tinytorrent": "TinyTorrent",
-        "engine_name_transmission": "Transmission",
-        "transport_websocket_desc": "Real-time",
+        "transport_polling": "Polling (slower)",
         "transport_polling_desc": "HTTP Polling",
-        "transport_offline_desc": "Disconnected",
-        "engine_tooltip": "Engine: {{engineName}}\nConnection: {{transportDesc}}\nStatus: {{status}}"
+        "transport_websocket": "WebSocket",
+        "transport_websocket_desc": "Real-time",
+        "up": "UP"
     },
     "table": {
         "actions": {
             "confirm_delete_data": "Delete downloaded data?",
             "copy_hash": "Copy Hash",
             "copy_magnet": "Copy Magnet Link",
+            "fit_all_columns": "Fit All Columns",
+            "hide_column": "Hide Column",
+            "hide_column_named": "Hide {{column}}",
             "open_folder": "Open Download Folder",
             "pause": "Pause",
             "recheck": "Force Recheck",
             "remove": "Remove",
             "remove_with_data": "Remove and Delete Files",
-            "hide_column": "Hide Column",
-            "hide_column_named": "Hide {{column}}",
-            "resume": "Resume",
-            "fit_all_columns": "Fit All Columns"
+            "resume": "Resume"
         },
         "column_desc_added": "When the torrent was added",
         "column_desc_eta": "Estimated completion time",
@@ -502,7 +549,7 @@
         "header_name": "NAME",
         "header_peers": "PEERS",
         "header_progress": "PROGRESS",
-        "header_queue": "QUEUE",
+        "header_queue": "Q",
         "header_ratio": "RATIO",
         "header_size": "SIZE",
         "header_speed": "SPEED",
@@ -516,11 +563,11 @@
         },
         "select_all": "Select all",
         "select_item": "Select {{name}}",
-        "status_stalled": "Stalled",
-        "status_queued": "Queued",
         "status_dl": "Downloading",
+        "status_pause": "Paused",
+        "status_queued": "Queued",
         "status_seed": "Seeding",
-        "status_pause": "Paused"
+        "status_stalled": "Stalled"
     },
     "theme": {
         "dark": "Dark",
@@ -530,6 +577,7 @@
     "toolbar": {
         "add_magnet": "Add Magnet",
         "add_torrent": "Add Torrent",
+        "close": "Close",
         "delete_confirm": {
             "description": "Remove {{count}} torrents from the list?",
             "description_with_data": "Remove {{count}} torrents and delete downloaded files?",
@@ -546,6 +594,8 @@
             "resumed": "Resumed {{count}} torrents",
             "resuming": "Resuming {{count}} torrents"
         },
+        "maximize": "Maximize",
+        "minimize": "Minimize",
         "pause": "Pause",
         "recheck": "Recheck",
         "rehash_progress": {
@@ -554,10 +604,7 @@
         },
         "remove": "Remove",
         "resume": "Resume",
-        "settings": "Settings",
-        "minimize": "Minimize",
-        "maximize": "Maximize",
-        "close": "Close"
+        "settings": "Settings"
     },
     "torrent_modal": {
         "actions": {
@@ -568,8 +615,8 @@
             "popout_panel": "Return to modal view"
         },
         "availability": {
-            "empty": "Availability data not available.",
             "backend_missing": "Availability data not provided by the backend.",
+            "empty": "Availability data not available.",
             "label": "Piece Availability",
             "legend_common": "Common",
             "legend_rare": "Rare",
@@ -590,10 +637,10 @@
             }
         },
         "controls": {
+            "capability_probe_pending": "Backend capability not confirmed yet.",
             "description": "Toggle advanced streaming and seeding behaviors when supported.",
             "force_reannounce": "Force Tracker Reannounce",
             "not_supported": "Not supported by this client",
-            "capability_probe_pending": "Backend capability not confirmed yet.",
             "sequential": "Sequential Download",
             "sequential_helper": "Download pieces in order for instant playback.",
             "super_seeding": "Super Seeding",
@@ -634,28 +681,28 @@
         },
         "peer_map": {
             "title": "Peer Map",
-            "total": "{{count}} peers on swarm",
-            "tooltip": "{{address}} • {{dl}} {{download}} / {{ul}} {{upload}}"
+            "tooltip": "{{address}} • {{dl}} {{download}} / {{ul}} {{upload}}",
+            "total": "{{count}} peers on swarm"
         },
         "peers": {
             "download": "DL",
+            "empty_backend": "Backend returned no peers for this torrent.",
             "ip": "IP",
             "progress": "Progress",
-            "upload": "UL",
-            "empty_backend": "Backend returned no peers for this torrent."
+            "upload": "UL"
         },
         "piece_map": {
+            "binary_states_note": "Backend provided only verified/missing piece information.",
             "tooltip": "Piece #{{piece}} - {{status}}",
             "tooltip_progress": "Torrent progress: {{percent}}%",
-            "tooltip_size": "Piece size: {{size}}",
-            "binary_states_note": "Backend provided only verified/missing piece information."
+            "tooltip_size": "Piece size: {{size}}"
         },
         "placeholder": "Select a torrent and open the inspector to see details.",
         "speed": {
             "average": "Average",
+            "collecting_samples": "Collecting samples from backend...",
             "download": "Download Speed",
             "stable": "Steady Connection",
-            "collecting_samples": "Collecting samples from backend...",
             "upload": "Upload Speed"
         },
         "stats": {
@@ -666,11 +713,11 @@
             "downloading": "Downloading",
             "missing": "Missing",
             "piece_size": "Piece Size",
-            "unknown_size": "Unknown size",
             "pieces": "Pieces",
             "ratio": "Ratio: {{ratio}}",
             "time_remaining": "Time Remaining",
             "total_progress": "Total Progress",
+            "unknown_size": "Unknown size",
             "uploaded": "Uploaded",
             "verified": "Verified"
         },
@@ -678,10 +725,10 @@
             "checking": "Checking",
             "downloading": "Downloading",
             "error": "Error",
+            "missing_files": "Missing",
             "paused": "Paused",
             "queued": "Queued",
-            "seeding": "Seeding",
-            "missing_files": "Missing"
+            "seeding": "Seeding"
         },
         "tabs": {
             "content": "Content",
@@ -704,6 +751,15 @@
             "tier": "Tier"
         }
     },
+    "remove_modal": {
+        "title": "Confirm removal",
+        "single_torrent_message": "Remove the selected torrent?",
+        "multiple_torrents_message": "Remove {{count}} selected torrents?",
+        "delete_files_option": "Also delete downloaded files from disk",
+        "cancel": "Cancel",
+        "confirm_delete_files": "Remove and Delete Files",
+        "confirm_remove": "Remove"
+    },
     "workspace": {
         "shell": {
             "toggle_classic": "Switch to classic shell",
@@ -713,38 +769,6 @@
             "dismiss_card": "Dismiss card",
             "hud_dismissed": "Insights hidden. Restore to view connection, drag, and deep-link helpers.",
             "restore_hud": "Restore insights"
-        }
-    },
-    "inspector": {
-        "panel_label": "Torrent Properties",
-        "tab": {
-            "general": "General",
-            "content": "Content",
-            "pieces": "Pieces",
-            "trackers": "Trackers",
-            "peers": "Peers",
-            "speed": "Speed"
-        }
-    },
-    "general": {
-        "unknown": "Unknown"
-    },
-    "peers": {
-        "diagnostic_radar": "Diagnostic Radar",
-        "action_copy_ip": "Copy IP",
-        "action_add_peer": "Add Peer",
-        "action_ban_ip": "Ban IP",
-        "flags": {
-            "downloading": "Downloading from peer",
-            "uploading": "Uploading to peer",
-            "uninterested_remote": "Peer is uninterested in us",
-            "uninterested_local": "We are uninterested in peer",
-            "choked_remote": "Peer choked us",
-            "dex_discovery": "Discovered via PEX",
-            "dht_discovery": "Discovered via DHT",
-            "encrypted": "Encrypted connection",
-            "utp": "uTP (Micro Transport Protocol)",
-            "unknown": "Unknown flag"
         }
     }
 }

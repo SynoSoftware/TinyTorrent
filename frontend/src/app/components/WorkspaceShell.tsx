@@ -235,7 +235,7 @@ export function WorkspaceShell({
     const isImmersiveShell = workspaceStyle === "immersive";
 
     const renderNavbar = () => (
-            <Navbar
+        <Navbar
             filter={filter}
             setFilter={setFilter}
             searchQuery={searchQuery}
@@ -263,23 +263,23 @@ export function WorkspaceShell({
     );
 
     const renderModeLayoutSection = () => (
-            <ModeLayout
-                workspaceStyle={workspaceStyle}
-                torrents={torrents}
-                filter={filter}
-                searchQuery={searchQuery}
-                isTableLoading={isTableLoading}
-                onAction={handleTorrentAction}
-                onRequestDetails={handleRequestDetails}
-                detailData={detailData}
-                onCloseDetail={closeDetail}
-                onFilesToggle={handleFileSelectionChange}
-                onFileContextAction={onFileContextAction}
-                onPeerContextAction={onPeerContextAction}
-                onSequentialToggle={sequentialToggleHandler}
-                onSuperSeedingToggle={superSeedingToggleHandler}
-                onForceTrackerReannounce={handleForceTrackerReannounce}
-                capabilities={capabilities}
+        <ModeLayout
+            workspaceStyle={workspaceStyle}
+            torrents={torrents}
+            filter={filter}
+            searchQuery={searchQuery}
+            isTableLoading={isTableLoading}
+            onAction={handleTorrentAction}
+            onRequestDetails={handleRequestDetails}
+            detailData={detailData}
+            onCloseDetail={closeDetail}
+            onFilesToggle={handleFileSelectionChange}
+            onFileContextAction={onFileContextAction}
+            onPeerContextAction={onPeerContextAction}
+            onSequentialToggle={sequentialToggleHandler}
+            onSuperSeedingToggle={superSeedingToggleHandler}
+            onForceTrackerReannounce={handleForceTrackerReannounce}
+            capabilities={capabilities}
             optimisticStatuses={optimisticStatuses}
             peerSortStrategy={peerSortStrategy}
             inspectorTabCommand={inspectorTabCommand}
@@ -302,6 +302,7 @@ export function WorkspaceShell({
             selectedCount={selectedTorrents.length}
             onEngineClick={handleReconnect}
             engineType={engineType}
+            torrents={torrents}
         />
     );
 
@@ -519,18 +520,18 @@ export function WorkspaceShell({
                                                     </button>
 
                                                     <div className="flex items-start gap-workbench">
-                                                    <div
-                                                        className={cn(
-                                                            "flex size-icon-btn-lg items-center justify-center rounded-2xl",
-                                                            card.iconBgClass
-                                                        )}
-                                                    >
-                                                        <StatusIcon
-                                                            Icon={Icon}
-                                                            size="lg"
-                                                            className="text-current"
-                                                        />
-                                                    </div>
+                                                        <div
+                                                            className={cn(
+                                                                "flex size-icon-btn-lg items-center justify-center rounded-2xl",
+                                                                card.iconBgClass
+                                                            )}
+                                                        >
+                                                            <StatusIcon
+                                                                Icon={Icon}
+                                                                size="lg"
+                                                                className="text-current"
+                                                            />
+                                                        </div>
 
                                                         <div className="flex-1">
                                                             <p className="text-sm text-foreground/60">

@@ -37,6 +37,9 @@ export interface EngineAdapter {
     browseDirectory?(path?: string): Promise<DirectoryBrowseResult>;
     getTorrents(): Promise<TorrentEntity[]>;
     getTorrentDetails(id: string): Promise<TorrentDetailEntity>;
+    fetchNetworkTelemetry?(): Promise<
+        import("./entities").NetworkTelemetry | null
+    >;
     getSessionStats(): Promise<SessionStats>;
     addTorrent(payload: AddTorrentPayload): Promise<AddTorrentResult>;
     pause(ids: string[]): Promise<void>;

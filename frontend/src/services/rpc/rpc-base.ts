@@ -3,7 +3,6 @@ import type {
     TransmissionSessionSettings,
     TransmissionTorrent,
     TransmissionTorrentDetail,
-    TransmissionTorrentFile,
     TransmissionTorrentTracker,
     TransmissionTorrentPeer,
     TransmissionFreeSpace,
@@ -48,7 +47,6 @@ import type {
 import type {
     TorrentEntity,
     TorrentDetailEntity,
-    TorrentFileEntity,
     TorrentTrackerEntity,
     TorrentPeerEntity,
     AddTorrentPayload,
@@ -63,6 +61,7 @@ import type {
 } from "./entities";
 import { normalizeTorrent, normalizeTorrentDetail } from "./normalizers";
 import { RpcCommandError } from "./errors";
+import type { NetworkTelemetry } from "./entities";
 
 type RpcRequest<M extends string> = {
     method: M;
@@ -228,9 +227,31 @@ export class TransmissionAdapter implements EngineAdapter {
             const response = await fetch(this.endpoint, requestInit);
 
             if (response.status === 409) {
-                const token = response.headers.get("X-Transmission-Session-Id");
-                if (token && token !== this.sessionId && retryCount < 1) {
+                // 409 from Transmission is expected for POSTs without the
+                // X-Transmission-Session-Id header. Probe for the header and
+                // retry once. If the probe doesn't yield a token, still retry
+                // once (some Transmission setups accept the second POST).
+                let token = response.headers.get("X-Transmission-Session-Id");
+                if (!token) {
+                    try {
+                        token = await this.retrieveSessionIdFromServer(
+                            controller
+                        );
+                    } catch (err) {
+                        // ignore probe errors; we'll still attempt a retry below
+                    }
+                }
+
+                if (token && token !== this.sessionId) {
                     this.sessionId = token;
+                }
+
+                if (retryCount < 1) {
+                    // eslint-disable-next-line no-console
+                    console.debug(
+                        "[tiny-torrent][rpc] received 409; retrying request",
+                        { token, retryCount }
+                    );
                     return this.send(
                         payload,
                         schema,
@@ -238,6 +259,7 @@ export class TransmissionAdapter implements EngineAdapter {
                         keepalive
                     );
                 }
+                // fallthrough to error handling below if we've already retried
             }
 
             if (response.status === 401) {
@@ -270,15 +292,38 @@ export class TransmissionAdapter implements EngineAdapter {
                 const shouldLog =
                     typeof sessionStorage !== "undefined" &&
                     sessionStorage.getItem("tt-debug-raw-torrent-detail") ===
-                        "1";
+                        "2";
                 if (shouldLog && payload.method === "torrent-get") {
                     // eslint-disable-next-line no-console
                     console.debug("[tiny-torrent][rpc-raw][torrent-get]", args);
+                }
+                // Opt-in debug: set sessionStorage `tt-debug-raw-session-get` to '1'
+                // to log the raw arguments for `session-get` responses once.
+                try {
+                    const shouldLogSessionGet =
+                        typeof sessionStorage !== "undefined" &&
+                        sessionStorage.getItem("tt-debug-raw-session-get") ===
+                            "1";
+                    if (
+                        shouldLogSessionGet &&
+                        payload.method === "session-get"
+                    ) {
+                        // eslint-disable-next-line no-console
+                        console.debug(
+                            "[tiny-torrent][rpc-raw][session-get]",
+                            args
+                        );
+                    }
+                } catch (e) {
+                    // ignore sessionStorage errors for session-get logging
                 }
             } catch (e) {
                 // ignore sessionStorage errors
             }
             return schema.parse(args as unknown) as T;
+        } catch (e) {
+            console.error("[tiny-torrent][rpc] send error:", e);
+            throw e;
         } finally {
             if (timeoutId) {
                 window.clearTimeout(timeoutId);
@@ -296,15 +341,31 @@ export class TransmissionAdapter implements EngineAdapter {
     public destroy(): void {
         try {
             this.heartbeat.disablePolling();
-        } catch {}
+        } catch (err) {
+            // Log destroy errors instead of swallowing silently
+            // eslint-disable-next-line no-console
+            console.warn("[tiny-torrent][rpc] destroy error:", err);
+        }
         try {
             this.closeWebSocketSession();
-        } catch {}
+        } catch (err) {
+            // eslint-disable-next-line no-console
+            console.warn(
+                "[tiny-torrent][rpc] closeWebSocketSession error:",
+                err
+            );
+        }
         try {
             for (const ctrl of Array.from(this.activeControllers)) {
                 try {
                     ctrl.abort();
-                } catch {}
+                } catch (err) {
+                    // eslint-disable-next-line no-console
+                    console.warn(
+                        "[tiny-torrent][rpc] abort controller error:",
+                        err
+                    );
+                }
             }
         } finally {
             this.activeControllers.clear();
@@ -324,6 +385,55 @@ export class TransmissionAdapter implements EngineAdapter {
         } catch {
             return null;
         }
+    }
+
+    /**
+     * Attempt to retrieve the X-Transmission-Session-Id token by probing the
+     * endpoint with OPTIONS, HEAD, and then GET. Some proxy setups return the
+     * token on these requests even when the initial POST's 409 did not expose it.
+     */
+    private async retrieveSessionIdFromServer(
+        controller?: AbortController
+    ): Promise<string | null> {
+        const methods: Array<RequestInit["method"]> = [
+            "OPTIONS",
+            "HEAD",
+            "GET",
+        ];
+        const headersBase: Record<string, string> = {
+            "Content-Type": "application/json",
+        };
+        const ttAuth = this.getTinyTorrentAuthToken();
+        if (ttAuth) headersBase["X-TT-Auth"] = ttAuth;
+        const authHeader = this.getAuthorizationHeader();
+        if (authHeader) headersBase.Authorization = authHeader;
+
+        for (const method of methods) {
+            try {
+                const resp = await fetch(this.endpoint, {
+                    method,
+                    headers: headersBase,
+                    signal: controller?.signal,
+                });
+                const token = resp.headers.get("X-Transmission-Session-Id");
+                if (token) return token;
+                // Fallback: some servers may include diagnostic info in body.
+                try {
+                    const txt = await resp.text();
+                    if (txt) {
+                        const m = txt.match(
+                            /X-Transmission-Session-Id\s*[:=]\s*([A-Za-z0-9_-]+)/i
+                        );
+                        if (m && m[1]) return m[1];
+                    }
+                } catch {
+                    // ignore text read errors
+                }
+            } catch (err) {
+                // ignore probe errors and continue to next method
+            }
+        }
+        return null;
     }
 
     private updateServerClassFromCapabilities(
@@ -612,7 +722,6 @@ export class TransmissionAdapter implements EngineAdapter {
             { method: "session-get" },
             zTransmissionSessionSettings
         );
-        this.sessionSettingsCache = settings;
         return settings;
     }
 
@@ -723,7 +832,7 @@ export class TransmissionAdapter implements EngineAdapter {
             torrentCount: stats.torrentCount,
             activeTorrentCount: stats.activeTorrentCount,
             pausedTorrentCount: stats.pausedTorrentCount,
-            dhtNodes: stats.dhtNodes ?? 0,
+            // DHT node counts are not provided reliably; telemetry indicators live in fetchNetworkTelemetry()
         };
     }
 
@@ -1026,6 +1135,22 @@ export class TransmissionAdapter implements EngineAdapter {
         });
     }
 
+    /**
+     * Remove torrents with optional data deletion.
+     * @param idsOrId - Single torrent ID or array of IDs.
+     * @param deleteData - Whether to delete downloaded files from disk.
+     */
+    public async removeTorrents(
+        idsOrId: string | string[],
+        deleteData: boolean = false
+    ): Promise<void> {
+        const ids = Array.isArray(idsOrId) ? idsOrId : [idsOrId];
+        await this.mutate("torrent-remove", {
+            ids,
+            "delete-local-data": deleteData,
+        });
+    }
+
     public async updateFileSelection(
         id: string,
         indexes: number[],
@@ -1134,6 +1259,61 @@ export class TransmissionAdapter implements EngineAdapter {
         }
         await this.mutate("group-set", args);
     }
+
+    public async fetchNetworkTelemetry(): Promise<NetworkTelemetry> {
+        try {
+            const settings = await this.send(
+                { method: "session-get" },
+                zTransmissionSessionSettings
+            );
+            const asAny = settings as Record<string, unknown>;
+
+            const telemetry: NetworkTelemetry = {
+                dhtEnabled:
+                    typeof asAny["dht-enabled"] === "boolean"
+                        ? asAny["dht-enabled"]
+                        : undefined,
+                pexEnabled:
+                    typeof asAny["pex-enabled"] === "boolean"
+                        ? asAny["pex-enabled"]
+                        : undefined,
+                lpdEnabled:
+                    typeof asAny["lpd-enabled"] === "boolean"
+                        ? asAny["lpd-enabled"]
+                        : undefined,
+                portForwardingEnabled:
+                    typeof asAny["port-forwarding-enabled"] === "boolean"
+                        ? asAny["port-forwarding-enabled"]
+                        : undefined,
+                altSpeedEnabled:
+                    typeof asAny["alt-speed-enabled"] === "boolean"
+                        ? asAny["alt-speed-enabled"]
+                        : undefined,
+                downloadDirFreeSpace:
+                    typeof asAny["download-dir-free-space"] === "number"
+                        ? (asAny["download-dir-free-space"] as number)
+                        : undefined,
+                downloadQueueEnabled:
+                    typeof asAny["download-queue-enabled"] === "boolean"
+                        ? asAny["download-queue-enabled"]
+                        : undefined,
+                seedQueueEnabled:
+                    typeof asAny["seed-queue-enabled"] === "boolean"
+                        ? asAny["seed-queue-enabled"]
+                        : undefined,
+            };
+
+            console.debug(
+                "[telemetry] Normalized NetworkTelemetry:",
+                telemetry
+            );
+
+            return telemetry;
+        } catch (error) {
+            console.warn("Failed to fetch network telemetry:", error);
+            return {};
+        }
+    }
 }
 
 function mapTransmissionSessionStatsToSessionStats(
@@ -1145,7 +1325,8 @@ function mapTransmissionSessionStatsToSessionStats(
         torrentCount: stats.torrentCount,
         activeTorrentCount: stats.activeTorrentCount,
         pausedTorrentCount: stats.pausedTorrentCount,
-        dhtNodes: stats.dhtNodes ?? 0,
+        // Preserve undefined when the engine does not provide DHT telemetry.
+        dhtNodes: stats.dhtNodes === undefined ? undefined : stats.dhtNodes,
     };
 }
 
