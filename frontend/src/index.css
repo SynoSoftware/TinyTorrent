@@ -188,6 +188,8 @@
     --tt-settings-min-h: calc(125 * var(--u));
     /* Increased badge min width so status chips can display text without truncation */
     --tt-badge-min-width: calc(28 * var(--u) * var(--z));
+    --tt-status-chip-w: calc(32 * var(--u) * var(--z));
+    --tt-status-chip-h: calc(6 * var(--u) * var(--z));
     --tt-divider-width: calc(2 * var(--bw));
     --tt-peers-hud-height: calc(45 * var(--u) * var(--z));
     --tt-directory-picker-max-w: calc(40 * var(--u) * var(--z));
@@ -872,8 +874,7 @@ main .torrent-table-watermark {
     }
 
     .h-status-chip {
-        height: var(--tt-h-chip);
-        min-height: var(--tt-h-chip);
+        height: var(--tt-status-chip-h);
     }
 
     .h-resize-h {

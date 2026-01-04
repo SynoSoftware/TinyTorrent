@@ -1,3 +1,5 @@
+// FILE: src/services/rpc/normalizers.ts
+
 import type {
     TransmissionTorrent,
     TransmissionTorrentDetail,
@@ -13,9 +15,10 @@ import type {
     TorrentFileEntity,
     TorrentPeerEntity,
     TorrentTrackerEntity,
+    TorrentStatus,
 } from "./entities";
 
-const STATUS_MAP: Record<number, TorrentEntity["state"]> = {
+const STATUS_MAP: Record<number, TorrentStatus> = {
     0: "paused",
     1: "checking",
     2: "checking",
@@ -27,8 +30,8 @@ const STATUS_MAP: Record<number, TorrentEntity["state"]> = {
 };
 
 const normalizeStatus = (
-    status: number | TorrentEntity["state"] | undefined
-): TorrentEntity["state"] => {
+    status: number | TorrentStatus | undefined
+): TorrentStatus => {
     if (typeof status === "string") {
         return status;
     }
@@ -36,6 +39,80 @@ const normalizeStatus = (
         return STATUS_MAP[status] ?? "paused";
     }
     return "paused";
+};
+
+// Transmission error semantics:
+// error: 0 = OK, 1/2 = tracker warning/error, 3 = local error
+const hasRpcError = (torrent: Pick<TransmissionTorrent, "error">) =>
+    typeof torrent.error === "number" && torrent.error !== 0;
+
+const normalizeErrorString = (value: unknown) => {
+    const s = typeof value === "string" ? value.trim() : "";
+    return s.length > 0 ? s : undefined;
+};
+
+// Keep this intentionally tight. "missing_files" should be a *specific*,
+// actionable state, not a catch-all for "any error text exists".
+const isMissingFilesError = (
+    torrent: Pick<TransmissionTorrent, "error" | "errorString">
+) => {
+    if (torrent.error !== 3) return false; // local error only
+    const msg = (torrent.errorString ?? "").toLowerCase();
+    if (!msg) return false;
+
+    // Known UX path in your UI: "No data found"
+    if (msg.includes("no data found")) return true;
+
+    // A couple of common local-missing patterns (still narrow)
+    if (msg.includes("no such file") || msg.includes("not found")) return true;
+
+    return false;
+};
+
+const numOr = (value: unknown, fallback: number) =>
+    typeof value === "number" && Number.isFinite(value) ? value : fallback;
+
+const deriveTorrentState = (
+    base: TorrentStatus,
+    torrent: Pick<
+        TransmissionTorrent,
+        | "error"
+        | "errorString"
+        | "rateDownload"
+        | "rateUpload"
+        | "peersConnected"
+        | "peersSendingToUs"
+        | "peersGettingFromUs"
+        | "percentDone"
+    >
+): TorrentStatus => {
+    // 1) Error classification (authoritative)
+    if (hasRpcError(torrent)) {
+        return isMissingFilesError(torrent) ? "missing_files" : "error";
+    }
+
+    // 2) Base states that must never be overridden
+    if (base === "paused" || base === "checking" || base === "queued") {
+        return base;
+    }
+
+    // 🔒 3) Completed torrents are NEVER stalled
+    if (torrent.percentDone === 1) {
+        return "seeding";
+    }
+
+    const down = numOr(torrent.rateDownload, 0);
+    const connected = numOr(torrent.peersConnected, 0);
+    const sendingToUs = numOr(torrent.peersSendingToUs, 0);
+
+    // 4) Stalled applies ONLY to downloading
+    if (base === "downloading") {
+        const noTraffic = down === 0;
+        const noUsefulPeers = connected === 0 || sendingToUs === 0;
+        return noTraffic && noUsefulPeers ? "stalled" : "downloading";
+    }
+
+    return base;
 };
 
 const mapPriority = (priority?: number): LibtorrentPriority => {
@@ -73,8 +150,8 @@ const zipFileEntities = (
     }
     const result: TorrentFileEntity[] = [];
     for (let index = 0; index < limit; ++index) {
-        const file = files[index];
-        const stat = stats[index];
+        const file: TransmissionTorrentFile = files[index];
+        const stat: TransmissionTorrentFileStat | undefined = stats[index];
         const length =
             typeof file.length === "number" ? file.length : undefined;
         const bytesCompleted =
@@ -149,47 +226,52 @@ const normalizePeer = (peer: TransmissionTorrentPeer): TorrentPeerEntity => ({
 export const normalizeTorrent = (
     torrent: TransmissionTorrent
 ): TorrentEntity => {
-    const state = normalizeStatus(torrent.status);
+    const baseState = normalizeStatus(torrent.status);
+    const derivedState = deriveTorrentState(baseState, torrent);
+
+    const progress =
+        derivedState === "missing_files" ? undefined : torrent.percentDone;
+
     const verificationProgress =
-        state === "checking"
-            ? torrent.recheckProgress ?? torrent.percentDone
-            : undefined;
+        derivedState === "checking" ? torrent.recheckProgress : undefined;
+
     // Use the hashString when present, otherwise fall back to the numeric RPC id
     // as a string. Some engines may omit or mis-populate hashString which would
     // otherwise cause all entries to collapse to a single map key.
     const primaryId = torrent.hashString || String(torrent.id);
+
     return {
         id: primaryId,
         hash: torrent.hashString ?? String(torrent.id),
         name: torrent.name,
-        progress: torrent.percentDone,
-        state,
-        verificationProgress,
+        progress: progress,
+        state: derivedState,
+        verificationProgress: verificationProgress,
         speed: {
-            down: torrent.rateDownload,
-            up: torrent.rateUpload,
+            down: numOr(torrent.rateDownload, 0),
+            up: numOr(torrent.rateUpload, 0),
         },
         peerSummary: {
-            connected: torrent.peersConnected,
-            total: torrent.peersConnected,
-            sending: torrent.peersSendingToUs,
-            getting: torrent.peersGettingFromUs,
-            seeds: torrent.peersSendingToUs,
+            connected: numOr(torrent.peersConnected, 0),
+            total: numOr(torrent.peersConnected, 0),
+            sending: numOr(torrent.peersSendingToUs, 0),
+            getting: numOr(torrent.peersGettingFromUs, 0),
+            seeds: numOr(torrent.peersSendingToUs, 0),
         },
-        totalSize: torrent.totalSize,
-        eta: torrent.eta,
+        totalSize: numOr(torrent.totalSize, 0),
+        eta: numOr(torrent.eta, -1),
         queuePosition: torrent.queuePosition,
-        ratio: torrent.uploadRatio,
-        uploaded: torrent.uploadedEver,
-        downloaded: torrent.downloadedEver,
+        ratio: numOr(torrent.uploadRatio, 0),
+        uploaded: numOr(torrent.uploadedEver, 0),
+        downloaded: numOr(torrent.downloadedEver, 0),
         leftUntilDone: torrent.leftUntilDone,
         sizeWhenDone: torrent.sizeWhenDone,
         error: torrent.error,
-        errorString: torrent.errorString,
+        errorString: normalizeErrorString(torrent.errorString),
         isFinished: torrent.isFinished,
         sequentialDownload: torrent.sequentialDownload,
         superSeeding: torrent.superSeeding,
-        added: torrent.addedDate,
+        added: numOr(torrent.addedDate, Math.floor(Date.now() / 1000)),
         savePath: torrent.downloadDir,
         rpcId: torrent.id,
     };

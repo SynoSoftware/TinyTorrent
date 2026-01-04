@@ -435,7 +435,7 @@
         "load_error": "Unable to load settings from server."
     },
     "status_bar": {
-        "active_torrents": "Active torrents",
+        "active_torrents": "Active",
         "dht_nodes": "{{count}} Nodes",
         "down": "DOWN",
         "engine": "Engine",
@@ -450,7 +450,7 @@
         "rpc_status": "Connection",
         "selected_torrent": "Selected torrent",
         "selected_count": "Selected",
-        "torrents_selected": "Torrents Selected",
+        "torrents_selected": "Torrents",
         "stats_loading": "Loading stats...",
         "transport_offline": "Offline",
         "transport_polling": "Polling",
@@ -516,10 +516,11 @@
         },
         "select_all": "Select all",
         "select_item": "Select {{name}}",
-        "status_dl": "DL",
-        "status_pause": "PAUSE",
-        "status_queued": "WAIT",
-        "status_seed": "SEED"
+        "status_stalled": "Stalled",
+        "status_queued": "Queued",
+        "status_dl": "Downloading",
+        "status_seed": "Seeding",
+        "status_pause": "Paused"
     },
     "theme": {
         "dark": "Dark",
@@ -679,7 +680,8 @@
             "error": "Error",
             "paused": "Paused",
             "queued": "Queued",
-            "seeding": "Seeding"
+            "seeding": "Seeding",
+            "missing_files": "Missing"
         },
         "tabs": {
             "content": "Content",
