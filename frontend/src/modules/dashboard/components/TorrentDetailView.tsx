@@ -90,9 +90,10 @@ export function TorrentDetailView({
         <div
             className={cn(
                 className,
-                isStandalone ? cn(GLASS_BLOCK_SURFACE, BLOCK_SHADOW) : null,
+
+                cn(GLASS_BLOCK_SURFACE, BLOCK_SHADOW),
                 isStandalone ? "overflow-y-auto" : null,
-                "h-full min-h-0 flex flex-col outline-none"
+                "h-full min-h-0 flex flex-col outline-none rounded-2xl"
             )}
             tabIndex={0}
             onKeyDown={handleKeyDown}
@@ -109,7 +110,7 @@ export function TorrentDetailView({
                 onTabChange={setActive}
             />
 
-            <div className="flex-1 min-h-0 bg-transparent py-tight">
+            <div className="flex-1 min-h-0 bg-transparent py-tight ">
                 {active === "general" && torrent && (
                     <GeneralTab
                         torrent={torrent}

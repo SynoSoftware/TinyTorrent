@@ -54,11 +54,15 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
     return (
         <div
             className={cn(
-                "flex items-center h-row rounded-t-2xl",
+                "flex items-center h-row",
+                HEADER_BASE,
 
-                !isStandalone && "bg-content1"
+                // Header band (content-level)
+                !isStandalone && "bg-content1/80 border-b border-default/10"
             )}
-            style={{ letterSpacing: "var(--tt-tracking-wide)" }}
+            style={{
+                letterSpacing: "var(--tt-tracking-wide)",
+            }}
         >
             {/* LEFT */}
             <div className="flex  items-center w-full gap-tight px-tight">
