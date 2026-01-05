@@ -221,12 +221,7 @@ export function ModeLayout({
                 // gain a green focus line; keep a subtle neutral divider instead.
                 "bg-transparent"
             ),
-            // Apply the shell content style to the outer shell container so
-            // the main area renders consistently with other parts (Navbar/StatusBar)
-            // and the single-source-of-truth tokens control radius/visuals.
-            style: {
-                ...shell.surfaceStyle,
-            },
+            // NOTE: surfaceStyle removed here — workbench PanelGroup is the single surface owner.
         };
     };
 
@@ -238,7 +233,7 @@ export function ModeLayout({
         style: isImmersiveShell
             ? undefined
             : {
-                  ...shell.surfaceStyle,
+                  // Padding remains (geometry token); surfaceStyle removed — parent owns surface.
                   padding: `${shell.gap}px`,
               },
     });
@@ -248,7 +243,6 @@ export function ModeLayout({
             {isDropActive && (
                 <motion.div
                     className="pointer-events-none absolute inset-0 flex items-center justify-center z-50"
-                    style={shell.surfaceStyle}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
@@ -256,7 +250,7 @@ export function ModeLayout({
                 >
                     <motion.div
                         className="absolute inset-2 border border-primary/60"
-                        style={shell.surfaceStyle}
+                        // affordance only — do not apply surfaceStyle here; parent surface is workbench
                         initial={{ scale: 0.96, opacity: 0.4 }}
                         animate={{ scale: 1, opacity: 0.8 }}
                         exit={{ opacity: 0 }}
@@ -303,6 +297,7 @@ export function ModeLayout({
             className={cn(
                 "flex-1 min-h-0 h-full w-full relative overflow-hidden shadow-medium rounded-2xl"
             )}
+            style={shell.surfaceStyle}
         >
             {/* --- MAIN PANEL --- */}
             <Panel className="relative flex-1 min-h-0">

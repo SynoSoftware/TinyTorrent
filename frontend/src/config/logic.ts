@@ -218,6 +218,29 @@ export const SHELL_TOKENS_IMMERSIVE: ShellTokens = {
 export const getShellTokens = (style: ShellStyle): ShellTokens =>
     style === "immersive" ? SHELL_TOKENS_IMMERSIVE : SHELL_TOKENS_CLASSIC;
 
+// ---------------------------------------------------------------------------
+// Surface ownership helpers (geometry-only)
+// ---------------------------------------------------------------------------
+// These helpers are small, explicit aliases to the shell's `surfaceStyle` and
+// exist to document and future-proof surface ownership. They intentionally
+// carry geometry only (radius propagation) and MUST NOT include visual
+// recipes (background, blur, border, shadow) or change runtime styling.
+//
+// Usage guidance (implementation note only):
+// - WORKBENCH_SURFACE applies to the docked workbench frame (the `PanelGroup`
+//   wrapper). Structural children (Panels, headers, tabs, content) must NOT
+//   reapply surface tokens — they are pure structural/content layers.
+// - MODAL_SURFACE applies to floating/standalone surfaces (fullscreen detail
+//   view and modal/dialog overlays). Modal content remains pure content.
+//
+// These helpers simply return the `surfaceStyle` object from the selected
+// shell tokens so future visual recipes can reuse consistent geometry.
+export const WORKBENCH_SURFACE = (style: ShellStyle) =>
+    getShellTokens(style).surfaceStyle;
+
+export const MODAL_SURFACE = (style: ShellStyle) =>
+    getShellTokens(style).surfaceStyle;
+
 export const IS_NATIVE_HOST =
     import.meta.env.VITE_INTERNAL_MODE === "true" ||
     !!(window as any).__TINY_TORRENT_NATIVE__;
