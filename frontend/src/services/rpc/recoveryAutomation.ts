@@ -6,7 +6,13 @@ import type { ErrorEnvelope, TorrentEntity } from "./entities";
 // recoveryState match (requirement #4).
 const autoPausedKeys = new Set<string>();
 const transientTrackerFingerprints = new Set<string>();
-const lastSeenFingerprintMs = new Map<string, number>();
+// firstSeenFingerprintMs: records the first-seen epoch ms for a fingerprint
+// (used to stamp `lastErrorAt`).
+const firstSeenFingerprintMs = new Map<string, number>();
+// lastActionKeyMs: records when automation last acted for a specific
+// action-key composed of fingerprint|errorClass|recoveryState. This is
+// used solely for cooldown/noise suppression.
+const lastActionKeyMs = new Map<string, number>();
 
 // Cool-down for suppressing repeated identical warnings (Tier-1.5).
 let COOL_DOWN_MS = 60_000; // configurable for tests/extensions
@@ -70,42 +76,38 @@ export function processHeartbeat(
 
             // Stamp `lastErrorAt` at the heartbeat (stateful) layer.
             // Rule: only set when an error exists. If errorClass is `none`,
-            // ensure lastErrorAt is null. If the fingerprint is unchanged,
-            // carry forward previous `lastErrorAt` if present; otherwise use
-            // the global first-seen timestamp for this fingerprint, or
-            // initialize it now.
+            // ensure lastErrorAt is null. The builder is pure; we must not
+            // mutate shared envelope objects in-place, so create a shallow
+            // copy with the stamped value and assign it back to `t.errorEnvelope`.
             if (curEnv && curEnv.errorClass !== "none" && curFp) {
-                if (prevEnv && prevFp === curFp) {
-                    if (prevEnv.lastErrorAt != null) {
-                        curEnv.lastErrorAt = prevEnv.lastErrorAt;
-                    } else if (lastSeenFingerprintMs.has(curFp)) {
-                        curEnv.lastErrorAt = Math.floor(
-                            (lastSeenFingerprintMs.get(curFp) as number) / 1000
-                        );
-                    } else {
-                        lastSeenFingerprintMs.set(curFp, now);
-                        curEnv.lastErrorAt = Math.floor(now / 1000);
-                    }
+                let stampedAt: number;
+                if (
+                    prevEnv &&
+                    prevFp === curFp &&
+                    prevEnv.lastErrorAt != null
+                ) {
+                    stampedAt = prevEnv.lastErrorAt;
+                } else if (firstSeenFingerprintMs.has(curFp)) {
+                    stampedAt = firstSeenFingerprintMs.get(curFp) as number;
                 } else {
-                    // fingerprint changed (or no previous) -> new occurrence
-                    if (lastSeenFingerprintMs.has(curFp)) {
-                        curEnv.lastErrorAt = Math.floor(
-                            (lastSeenFingerprintMs.get(curFp) as number) / 1000
-                        );
-                    } else {
-                        lastSeenFingerprintMs.set(curFp, now);
-                        curEnv.lastErrorAt = Math.floor(now / 1000);
-                    }
+                    firstSeenFingerprintMs.set(curFp, now);
+                    stampedAt = now;
                 }
+                const stamped: ErrorEnvelope = {
+                    ...curEnv,
+                    lastErrorAt: stampedAt,
+                };
+                t.errorEnvelope = stamped;
             } else if (curEnv) {
-                // No active error
-                curEnv.lastErrorAt = null;
+                const stamped: ErrorEnvelope = { ...curEnv, lastErrorAt: null };
+                t.errorEnvelope = stamped;
             }
 
-            // Noise control: suppress repeated identical warnings per fingerprint
-            // within COOL_DOWN_MS, except for non-suppressible classes.
-            // Suppression applies only when fingerprint, errorClass, and
-            // recoveryState are all unchanged.
+            // Noise control: suppress repeated identical warnings per
+            // (fingerprint,errorClass,recoveryState) within COOL_DOWN_MS,
+            // except for non-suppressible classes. Suppression is applied
+            // based on the last time we performed automation for that exact
+            // action-key. This does NOT prevent stamping `lastErrorAt`.
             let shouldSuppress = false;
             if (
                 curFp &&
@@ -115,15 +117,16 @@ export function processHeartbeat(
                 curEnv.errorClass === prevEnv.errorClass &&
                 curEnv.recoveryState === prevEnv.recoveryState
             ) {
-                const last = lastSeenFingerprintMs.get(curFp) ?? 0;
-                if (!isNonSuppressible && now - last < COOL_DOWN_MS) {
+                const actionKey = `${curFp}|${curEnv.errorClass}|${curEnv.recoveryState}`;
+                const lastAction = lastActionKeyMs.get(actionKey) ?? 0;
+                if (!isNonSuppressible && now - lastAction < COOL_DOWN_MS) {
                     shouldSuppress = true;
                 }
             }
 
             if (shouldSuppress) {
-                // Avoid performing automation actions, but ensure the
-                // envelope has its stable `lastErrorAt` (done above).
+                // Avoid performing automation actions, but do NOT change
+                // any timing invariants. We already stamped `lastErrorAt`.
                 continue;
             }
 
@@ -134,9 +137,13 @@ export function processHeartbeat(
                 curEnv.recoveryState === "blocked"
             ) {
                 const f = curEnv.fingerprint ?? null;
-                const key = f ? `${f}|${curEnv.recoveryState}` : null;
+                const key = f ? `${t.id}|${f}|${curEnv.recoveryState}` : null;
+                const actionKey = f
+                    ? `${f}|${curEnv.errorClass}|${curEnv.recoveryState}`
+                    : null;
                 if (key && !autoPausedKeys.has(key)) {
                     autoPausedKeys.add(key);
+                    if (actionKey) lastActionKeyMs.set(actionKey, now);
                     if (pauseCallback) {
                         void (async () => {
                             try {
@@ -153,7 +160,11 @@ export function processHeartbeat(
             // Track when a trackerWarning first appears, and remove when cleared.
             if (prevEnv && prevEnv.errorClass === "trackerWarning") {
                 const prevFp = prevEnv.fingerprint;
-                if (prevFp) transientTrackerFingerprints.add(prevFp);
+                if (prevFp) {
+                    transientTrackerFingerprints.add(prevFp);
+                    const actionKey = `${prevFp}|trackerWarning|${prevEnv.recoveryState}`;
+                    lastActionKeyMs.set(actionKey, now);
+                }
             }
 
             if (
@@ -175,7 +186,8 @@ export function processHeartbeat(
 export function _resetForTests() {
     autoPausedKeys.clear();
     transientTrackerFingerprints.clear();
-    lastSeenFingerprintMs.clear();
+    firstSeenFingerprintMs.clear();
+    lastActionKeyMs.clear();
     COOL_DOWN_MS = 60_000;
 }
 
