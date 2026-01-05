@@ -490,6 +490,7 @@
         "engine_telemetry_tooltip": "Engine health & transport\n\nTransport: {{transport}}\nState: {{status}}\n\nShows whether the engine is reachable and how the UI is communicating with it.",
         "engine_control_tooltip": "Engine controls\n\nConnected to: {{serverType}}\n\nClick to connect/reconnect to the torrent engine.",
         "engine_unknown": "Unknown engine",
+        "disk_free": "Free: {{size}}",
         "network": "Network",
         "online": "Online",
         "ransport_offline_desc": "Disconnected",

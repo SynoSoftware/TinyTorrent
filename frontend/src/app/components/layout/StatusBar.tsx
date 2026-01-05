@@ -23,7 +23,7 @@ import { StatusIcon } from "@/shared/ui/components/StatusIcon";
 import { TinyTorrentIcon } from "@/shared/ui/components/TinyTorrentIcon";
 import { NetworkGraph } from "@/shared/ui/graphs/NetworkGraph";
 
-import { formatSpeed } from "@/shared/utils/format";
+import { formatBytes, formatSpeed } from "@/shared/utils/format";
 import { getShellTokens, UI_BASES, STATUS_VISUALS } from "@/config/logic";
 import {
     BLOCK_SHADOW,
@@ -71,7 +71,40 @@ function useNetworkTelemetry() {
 
         const fetchTelemetry = async () => {
             try {
-                const data = await client.fetchNetworkTelemetry?.();
+                let data = await client.fetchNetworkTelemetry?.();
+
+                // If the RPC did not include `downloadDirFreeSpace`, try a
+                // best-effort fallback: fetch session settings to discover
+                // the configured `download-dir` and ask the engine for free
+                // space via `free-space`. This covers Transmission servers
+                // that expose free space through the `free-space` endpoint
+                // even when session-get does not include the free-space field.
+                if (
+                    mounted &&
+                    (data == null || data.downloadDirFreeSpace == null)
+                ) {
+                    try {
+                        const settings = await client.fetchSessionSettings?.();
+                        const downloadDir =
+                            (settings as any)?.["download-dir"] ||
+                            (settings as any)?.downloadDir ||
+                            undefined;
+                        if (downloadDir) {
+                            const fs = await client.checkFreeSpace?.(
+                                downloadDir
+                            );
+                            if (fs && typeof fs.sizeBytes === "number") {
+                                data = {
+                                    ...(data ?? {}),
+                                    downloadDirFreeSpace: fs.sizeBytes,
+                                };
+                            }
+                        }
+                    } catch (err) {
+                        // ignore fallback errors — telemetry remains as initially fetched
+                    }
+                }
+
                 if (mounted) setTelemetry(data ?? null);
             } catch {
                 /* optional */
@@ -242,11 +275,13 @@ function StatusTelemetryGrid({
     transportStatus,
     rpcStatus,
     diskState,
+    freeBytes,
 }: {
     telemetry: NetworkTelemetry | null;
     transportStatus: TransportStatus;
     rpcStatus: RpcStatus;
     diskState: DiskState;
+    freeBytes?: number | null;
 }) {
     const { t } = useTranslation();
 
@@ -261,10 +296,14 @@ function StatusTelemetryGrid({
             : Activity;
 
     const engineTone =
-        rpcStatus === "connected"
-            ? "ok"
+        rpcStatus === "error"
+            ? "bad"
             : rpcStatus === "idle"
             ? "warn"
+            : transportStatus === "polling"
+            ? "warn"
+            : rpcStatus === "connected"
+            ? "ok"
             : "bad";
 
     // NETWORK
@@ -313,7 +352,16 @@ function StatusTelemetryGrid({
                         ? "bad"
                         : "muted"
                 }
-                title={t(`status_bar.disk_${diskState}`)}
+                title={
+                    freeBytes != null
+                        ? `${t(`status_bar.disk_${diskState}`)}\n\n${t(
+                              "status_bar.disk_free",
+                              {
+                                  size: formatBytes(freeBytes),
+                              }
+                          )}`
+                        : t(`status_bar.disk_${diskState}`)
+                }
             />
 
             {/* ROW 2 — NETWORK */}
@@ -494,17 +542,23 @@ export function StatusBar({
 
     let diskState: DiskState = "unknown";
 
-    if (freeBytes != null && activeTorrents.length > 0) {
-        const requiredBytes = activeTorrents.reduce(
-            (sum, t) => sum + (t.leftUntilDone ?? 0),
-            0
-        );
+    if (freeBytes != null) {
+        if (activeTorrents.length > 0) {
+            const requiredBytes = activeTorrents.reduce(
+                (sum, t) => sum + (t.leftUntilDone ?? 0),
+                0
+            );
 
-        if (freeBytes < requiredBytes) {
-            diskState = "bad";
-        } else if (freeBytes < requiredBytes * 1.15) {
-            diskState = "warn";
+            if (freeBytes < requiredBytes) {
+                diskState = "bad";
+            } else if (freeBytes < requiredBytes * 1.15) {
+                diskState = "warn";
+            } else {
+                diskState = "ok";
+            }
         } else {
+            // No active downloads; we still know free space from the server.
+            // Treat presence of a concrete freeBytes value as OK.
             diskState = "ok";
         }
     }
@@ -603,6 +657,7 @@ export function StatusBar({
                         transportStatus={transportStatus}
                         rpcStatus={rpcStatus}
                         diskState={diskState}
+                        freeBytes={freeBytes}
                     />
 
                     <EngineControlChip
