@@ -65,7 +65,16 @@ const areTorrentsEqual = (current: Torrent, next: Torrent) =>
     current.leftUntilDone === next.leftUntilDone &&
     current.sizeWhenDone === next.sizeWhenDone &&
     current.error === next.error &&
-    current.errorString === next.errorString &&
+    (current.errorEnvelope?.errorMessage ?? current.errorString) ===
+        (next.errorEnvelope?.errorMessage ?? next.errorString) &&
+    (current.errorEnvelope?.errorClass ?? null) ===
+        (next.errorEnvelope?.errorClass ?? null) &&
+    (current.errorEnvelope?.recoveryState ?? null) ===
+        (next.errorEnvelope?.recoveryState ?? null) &&
+    (current.errorEnvelope?.fingerprint ?? null) ===
+        (next.errorEnvelope?.fingerprint ?? null) &&
+    (current.errorEnvelope?.primaryAction ?? null) ===
+        (next.errorEnvelope?.primaryAction ?? null) &&
     current.isFinished === next.isFinished &&
     current.sequentialDownload === next.sequentialDownload &&
     current.superSeeding === next.superSeeding &&

@@ -25,6 +25,10 @@ import {
 } from "lucide-react";
 
 import { type TorrentStatus } from "@/services/rpc/entities";
+import {
+    formatRecoveryStatus,
+    formatPrimaryActionHint,
+} from "@/shared/utils/recoveryFormat";
 import { type TFunction } from "i18next";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import { type CSSProperties, type ReactNode, type RefObject } from "react";
@@ -305,7 +309,8 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
             <div className="flex min-w-0 items-center h-full">
                 <span
                     title={
-                        torrent.errorString ? torrent.errorString : undefined
+                        torrent.errorEnvelope?.errorMessage ??
+                        (torrent.errorString ? torrent.errorString : undefined)
                     }
                     className={cn(
                         "font-medium truncate max-w-full transition-colors cap-height-text",
@@ -377,10 +382,22 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
             const conf = statusMap[torrent.state] ?? statusMap.paused;
             const Icon = conf.icon;
 
+            const envelopeMsg = torrent.errorEnvelope?.errorMessage;
+            const primaryHint = formatPrimaryActionHint(
+                torrent.errorEnvelope,
+                t
+            );
+            const statusLabel = formatRecoveryStatus(
+                torrent.errorEnvelope,
+                t,
+                conf.labelKey
+            );
+
             const tooltip =
-                typeof torrent.errorString === "string" &&
-                torrent.errorString.trim()
-                    ? torrent.errorString
+                envelopeMsg && envelopeMsg.trim()
+                    ? envelopeMsg
+                    : primaryHint
+                    ? primaryHint
                     : t(conf.labelKey);
 
             return (
@@ -404,7 +421,7 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
                                 className="text-current"
                             />
                             <span className="truncate" title={tooltip}>
-                                {t(conf.labelKey)}
+                                {statusLabel}
                             </span>
                         </div>
                     </Chip>

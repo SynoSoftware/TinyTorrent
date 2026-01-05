@@ -113,10 +113,12 @@ export const GeneralTab = ({
                         })}
                     </div>
                     <div className="text-label text-warning/80 mb-tight">
-                        {t("torrent_modal.errors.no_data_found_desc", {
-                            defaultValue:
-                                "Ensure your drives are connected or use 'Set Location'. To re-download, remove the torrent and re-add it.",
-                        })}
+                        {torrent.errorEnvelope?.errorMessage
+                            ? torrent.errorEnvelope.errorMessage
+                            : t("torrent_modal.errors.no_data_found_desc", {
+                                  defaultValue:
+                                      "Ensure your drives are connected or use 'Set Location'. To re-download, remove the torrent and re-add it.",
+                              })}
                     </div>
                     <div className="flex gap-tools mt-tight">
                         <Button

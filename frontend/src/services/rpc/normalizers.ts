@@ -16,7 +16,12 @@ import type {
     TorrentPeerEntity,
     TorrentTrackerEntity,
     TorrentStatus,
+    ErrorEnvelope,
+    ErrorClass,
+    RecoveryState,
+    RecoveryAction,
 } from "./entities";
+import { buildErrorEnvelope } from "./recovery";
 
 const STATUS_MAP: Record<number, TorrentStatus> = {
     0: "paused",
@@ -51,23 +56,7 @@ const normalizeErrorString = (value: unknown) => {
     return s.length > 0 ? s : undefined;
 };
 
-// Keep this intentionally tight. "missing_files" should be a *specific*,
-// actionable state, not a catch-all for "any error text exists".
-const isMissingFilesError = (
-    torrent: Pick<TransmissionTorrent, "error" | "errorString">
-) => {
-    if (torrent.error !== 3) return false; // local error only
-    const msg = (torrent.errorString ?? "").toLowerCase();
-    if (!msg) return false;
-
-    // Known UX path in your UI: "No data found"
-    if (msg.includes("no data found")) return true;
-
-    // A couple of common local-missing patterns (still narrow)
-    if (msg.includes("no such file") || msg.includes("not found")) return true;
-
-    return false;
-};
+// Note: classification for recovery is centralized in `buildErrorEnvelope`.
 
 const numOr = (value: unknown, fallback: number) =>
     typeof value === "number" && Number.isFinite(value) ? value : fallback;
@@ -88,7 +77,8 @@ const deriveTorrentState = (
 ): TorrentStatus => {
     // 1) Error classification (authoritative)
     if (hasRpcError(torrent)) {
-        return isMissingFilesError(torrent) ? "missing_files" : "error";
+        const env = buildErrorEnvelope(torrent as TransmissionTorrent);
+        return env.errorClass === "missingFiles" ? "missing_files" : "error";
     }
 
     // 2) Base states that must never be overridden
@@ -114,6 +104,8 @@ const deriveTorrentState = (
 
     return base;
 };
+
+// Error envelope is computed centrally in the recovery domain.
 
 const mapPriority = (priority?: number): LibtorrentPriority => {
     const normalized = typeof priority === "number" ? priority : 0;
@@ -274,6 +266,7 @@ export const normalizeTorrent = (
         added: numOr(torrent.addedDate, Math.floor(Date.now() / 1000)),
         savePath: torrent.downloadDir,
         rpcId: torrent.id,
+        errorEnvelope: buildErrorEnvelope(torrent),
     };
 
     //console.debug("[torrent] Normalized torrent:", normalizedTorrent);
@@ -285,8 +278,11 @@ export const normalizeTorrentDetail = (
     detail: TransmissionTorrentDetail
 ): TorrentDetailEntity => {
     const normalizedFiles = zipFileEntities(detail);
+    const base = normalizeTorrent(detail);
+    // enrich envelope with tracker-aware insights when available
+    const envelope = buildErrorEnvelope(detail, detail);
     return {
-        ...normalizeTorrent(detail),
+        ...base,
         files: normalizedFiles,
         trackers: detail.trackers?.map(normalizeTracker),
         peers: detail.peers?.map(normalizePeer),
@@ -295,5 +291,6 @@ export const normalizeTorrentDetail = (
         pieceStates: detail.pieceStates,
         pieceAvailability: detail.pieceAvailability,
         downloadDir: detail.downloadDir,
+        errorEnvelope: envelope,
     };
 };
