@@ -91,7 +91,6 @@ export function TorrentDetailView({
             className={cn(
                 className,
                 isStandalone ? cn(GLASS_BLOCK_SURFACE, BLOCK_SHADOW) : null,
-                // When standalone, the outer container owns vertical scroll.
                 isStandalone ? "overflow-y-auto" : null,
                 "h-full min-h-0 flex flex-col outline-none"
             )}
@@ -102,6 +101,7 @@ export function TorrentDetailView({
             <TorrentDetailHeader
                 torrent={torrent}
                 isDetailFullscreen={isDetailFullscreen}
+                isStandalone={isStandalone}
                 onDock={onDock}
                 onPopout={onPopout}
                 onClose={onClose}
@@ -109,7 +109,7 @@ export function TorrentDetailView({
                 onTabChange={setActive}
             />
 
-            <div className="flex-1 min-h-0 bg-transparent">
+            <div className="flex-1 min-h-0 bg-transparent py-tight">
                 {active === "general" && torrent && (
                     <GeneralTab
                         torrent={torrent}

@@ -3,6 +3,10 @@ import { Pin, PinOff, X, Info } from "lucide-react";
 import { cn } from "@heroui/react";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
 import { ICON_STROKE_WIDTH, HEADER_BASE } from "@/config/logic";
+import {
+    BLOCK_SHADOW,
+    GLASS_BLOCK_SURFACE,
+} from "@/shared/ui/layout/glass-surface";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
 import type { DetailTab } from "@/modules/dashboard/types/torrentDetail";
 import { DETAIL_TABS } from "./useDetailTabs";
@@ -21,6 +25,7 @@ const truncateTorrentName = (value?: string, fallback?: string) => {
 interface TorrentDetailHeaderProps {
     torrent?: TorrentDetail | null;
     isDetailFullscreen?: boolean;
+    isStandalone?: boolean;
     onDock?: () => void;
     onPopout?: () => void;
     onClose?: () => void;
@@ -32,6 +37,7 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
     const {
         torrent,
         isDetailFullscreen = false,
+        isStandalone = false,
         onDock,
         onPopout,
         onClose,
@@ -47,20 +53,26 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
 
     return (
         <div
-            className={`flex items-center ${HEADER_BASE} h-row`}
-            style={{ letterSpacing: "var(--tt-tracking-ultra)" }}
+            className={cn(
+                "flex items-center h-row rounded-t-2xl",
+
+                !isStandalone && "bg-content1"
+            )}
+            style={{ letterSpacing: "var(--tt-tracking-wide)" }}
         >
             {/* LEFT */}
-            <div className="flex items-center gap-tight min-w-0 px-panel">
+            <div className="flex  items-center w-full gap-tight px-tight">
                 <Info
                     strokeWidth={ICON_STROKE_WIDTH}
                     className="text-foreground/50 shrink-0 toolbar-icon-size-md"
                 />
-                <span className="truncate min-w-0">{renderedName}</span>
+                <span className="truncate min-w-0 text-foreground font-semibold">
+                    {renderedName}
+                </span>
             </div>
 
             {/* CENTER */}
-            <div className="flex-1 flex items-center justify-center">
+            <div className="flex  items-center w-full gap-panel">
                 <div className="flex items-center gap-tight">
                     {DETAIL_TABS.map((tab) => (
                         <button
@@ -69,7 +81,7 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
                             aria-pressed={activeTab === tab}
                             onClick={() => onTabChange(tab)}
                             className={cn(
-                                "px-panel py-tight rounded-full uppercase tracking-tight text-scaled font-bold transition-colors",
+                                "py-tight rounded-full  border  text-scaled font-bold transition-colors px-panel",
                                 activeTab === tab
                                     ? "text-foreground"
                                     : "text-foreground/60 hover:text-foreground"
@@ -82,7 +94,7 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
             </div>
 
             {/* RIGHT */}
-            <div className="flex items-center gap-tight min-w-max px-panel">
+            <div className="flex items-center gap-tight min-w-max px-tight">
                 {!isDetailFullscreen && onPopout && (
                     <ToolbarIconButton
                         Icon={PinOff}

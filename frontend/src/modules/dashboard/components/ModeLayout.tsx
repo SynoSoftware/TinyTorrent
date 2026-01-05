@@ -260,28 +260,14 @@ export function ModeLayout({
                             repeatType: "reverse",
                         }}
                     />
-                    <div
-                        className="relative z-10 flex flex-col items-center rounded-2xl border border-primary/30 bg-background/90 text-center text-foreground/70 shadow-lg backdrop-blur-md"
-                        style={{
-                            gap: "var(--tt-navbar-gap)",
-                            paddingLeft: "var(--tt-drop-overlay-padding-x)",
-                            paddingRight: "var(--tt-drop-overlay-padding-x)",
-                            paddingTop: "var(--tt-drop-overlay-padding-y)",
-                            paddingBottom: "var(--tt-drop-overlay-padding-y)",
-                        }}
-                    >
+                    <div className="relative z-10 tt-drop-overlay">
                         <StatusIcon
                             Icon={FileUp}
                             size="xl"
                             strokeWidth={ICON_STROKE_WIDTH}
                             className="text-primary"
                         />
-                        <span
-                            style={{
-                                fontSize: "var(--tt-drop-title-font-size)",
-                                fontWeight: 600,
-                            }}
-                        >
+                        <span className="tt-drop-overlay__title">
                             {t("drop_overlay.title")}
                         </span>
                     </div>
@@ -396,7 +382,7 @@ export function ModeLayout({
                 <div {...getShellStyles("inspector")}>
                     <div {...getContentStyles()}>
                         <div
-                            className="h-full min-h-0 flex-1 overflow-y-auto"
+                            className="h-full min-h-0 flex-1 "
                             style={{
                                 borderRadius: `${shell.innerRadius}px`,
                             }}
