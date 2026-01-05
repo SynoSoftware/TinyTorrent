@@ -281,12 +281,12 @@ export function ModeLayout({
             direction={splitDirection}
             autoSaveId="tiny-torrent.workbench.layout"
             className={cn(
-                "flex-1 min-h-0 h-full w-full relative overflow-hidden shadow-medium rounded-2xl"
+                "flex-1 min-h-0 h-full w-full relative overflow-hidden  rounded-2xl"
             )}
             style={shell.surfaceStyle}
         >
             {/* --- MAIN PANEL --- */}
-            <Panel className="relative flex-1 min-h-0">
+            <Panel className="relative flex-1 min-h-0 shadow-medium">
                 <div {...getShellStyles("table")} onPointerDown={focusTable}>
                     <div {...getContentStyles()}>
                         <div
@@ -375,7 +375,7 @@ export function ModeLayout({
                 defaultSize={34}
                 onPointerDown={focusInspector}
                 className={cn(
-                    "hidden overflow-hidden lg:flex",
+                    "hidden overflow-hidden lg:flex shadow-medium",
                     isHorizontalSplit ? "h-full" : "w-full"
                 )}
             >
