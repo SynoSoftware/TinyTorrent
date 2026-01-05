@@ -13,7 +13,7 @@ import {
 interface RemoveConfirmationModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onConfirm: (deleteData: boolean) => void;
+    onConfirm: (deleteData: boolean) => Promise<void> | void;
     torrentCount: number;
     defaultDeleteData?: boolean;
 }
@@ -27,15 +27,49 @@ export function RemoveConfirmationModal({
 }: RemoveConfirmationModalProps) {
     const { t } = useTranslation();
     const [deleteData, setDeleteData] = useState(defaultDeleteData);
+    const [loading, setLoading] = useState(false);
+    const confirmRef = React.useRef<HTMLButtonElement | null>(null);
 
     // Keep state deterministic when reopening
     useEffect(() => {
         if (isOpen) setDeleteData(defaultDeleteData);
     }, [isOpen, defaultDeleteData]);
 
-    const handleConfirm = () => {
-        onConfirm(deleteData);
-        onClose();
+    // Focus primary confirm when opened and wire keyboard shortcuts
+    useEffect(() => {
+        if (!isOpen) return;
+        const el = confirmRef.current;
+        // focus the primary action for quick keyboard confirm
+        if (el) {
+            try {
+                el.focus();
+            } catch {}
+        }
+
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === "Escape") {
+                e.preventDefault();
+                onClose();
+            } else if (e.key === "Enter") {
+                e.preventDefault();
+                void handleConfirm();
+            }
+        };
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+    }, [isOpen]);
+
+    const handleConfirm = async () => {
+        if (loading) return;
+        setLoading(true);
+        try {
+            await onConfirm(deleteData);
+        } catch (err) {
+            console.error("RemoveConfirmationModal onConfirm failed:", err);
+        } finally {
+            setLoading(false);
+            onClose();
+        }
     };
 
     return (
@@ -63,14 +97,20 @@ export function RemoveConfirmationModal({
                 </ModalBody>
 
                 <ModalFooter className="flex justify-end gap-2">
-                    <Button variant="light" onPress={onClose}>
+                    <Button
+                        variant="light"
+                        onPress={onClose}
+                        disabled={loading}
+                    >
                         {t("remove_modal.cancel")}
                     </Button>
 
                     <Button
+                        ref={confirmRef}
                         color={deleteData ? "danger" : "primary"}
                         variant={deleteData ? "solid" : "shadow"}
                         onPress={handleConfirm}
+                        disabled={loading}
                     >
                         {deleteData
                             ? t("remove_modal.confirm_delete_files")

@@ -192,7 +192,7 @@ function SpeedModule({
                 <div className="flex items-center shrink-0 gap-tools">
                     <div
                         className={cn(
-                            "flex items-center justify-center rounded-2xl bg-content1/10 text-foreground/50 transition-colors p-tight toolbar-icon-size-xl",
+                            "flex items-center justify-center  rounded-modal bg-content1/10 text-foreground/50 transition-colors  toolbar-icon-size-xl",
                             tone === "success"
                                 ? "group-hover:bg-success/10 group-hover:text-success"
                                 : "group-hover:bg-primary/10 group-hover:text-primary"
@@ -380,7 +380,7 @@ function EngineControlChip({
             type="button"
             onClick={onClick}
             className={cn(
-                "relative flex items-center justify-center rounded-xl border px-panel transition-all",
+                "relative flex items-center justify-center  rounded-modal border px-panel transition-all",
                 "active:scale-95 focus-visible:outline-none focus-visible:ring focus-visible:ring-primary/60 cursor-pointer",
                 statusVisual.bg,
                 statusVisual.border,
@@ -555,8 +555,6 @@ export function StatusBar({
             )}
             style={{
                 ...shell.frameStyle,
-                borderBottomLeftRadius: 0,
-                borderBottomRightRadius: 0,
             }}
         >
             <div
@@ -564,8 +562,6 @@ export function StatusBar({
                 style={{
                     ...shell.contentStyle,
                     height: "var(--tt-statusbar-h)",
-                    paddingLeft: "var(--spacing-panel)",
-                    paddingRight: "var(--tt-navbar-padding)",
                 }}
             >
                 {/* LEFT: SPEEDS */}
@@ -591,8 +587,6 @@ export function StatusBar({
                 <div
                     className="flex shrink-0 items-center border-l border-content1/10 gap-stage"
                     style={{
-                        paddingLeft: "var(--tt-navbar-gap)",
-                        paddingRight: "var(--spacing-panel)",
                         height: "var(--tt-statusbar-h)",
                     }}
                 >

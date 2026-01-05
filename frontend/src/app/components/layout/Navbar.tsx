@@ -88,21 +88,25 @@ export function Navbar({
                 style={{
                     ...shell.contentStyle,
                     height: "var(--tt-navbar-h)",
-                    gap: "var(--tt-navbar-gap)",
+                    // Use the semantic panel spacing as the flex gap between
+                    // the main navbar blocks (left content and right controls).
+                    // This avoids per-component margins and follows the token
+                    // pipeline (no magic numbers).
+                    gap: "var(--spacing-panel)",
                 }}
             >
                 <div
                     className={cn(
                         GLASS_BLOCK_SURFACE,
                         BLOCK_SHADOW,
-                        "flex grow h-full min-w-0 items-center justify-between gap-stage px-panel py-tight relative"
+                        // remove `px-panel` here so horizontal padding is supplied
+                        // centrally by `...shell.frameStyle` (see config/logic.ts)
+                        "flex grow h-full min-w-0 items-center justify-between gap-stage py-tight relative"
                     )}
                     style={{
-                        borderTopLeftRadius: 0,
-                        borderTopRightRadius: `${shell.innerRadius}px`,
-                        borderBottomLeftRadius: `${shell.innerRadius}px`,
-                        borderBottomRightRadius: `${shell.innerRadius}px`,
-                        marginRight: "var(--spacing-panel)",
+                        ...shell.frameStyle,
+                        // rely on shell.frameStyle + parent gap for spacing;
+                        // keeping per-component margin was causing drift.
                     }}
                 >
                     <div className="flex items-center gap-tools min-w-0">
@@ -339,11 +343,7 @@ export function Navbar({
                         "flex h-full items-stretch divide-x divide-default/20 overflow-hidden"
                     )}
                     style={{
-                        borderTopLeftRadius: `${shell.innerRadius}px`,
-                        borderTopRightRadius: 0,
-                        borderBottomLeftRadius: `${shell.innerRadius}px`,
-                        borderBottomRightRadius: `${shell.innerRadius}px`,
-                        marginRight: 0,
+                        ...shell.frameStyle,
                     }}
                 >
                     <WindowControlButton

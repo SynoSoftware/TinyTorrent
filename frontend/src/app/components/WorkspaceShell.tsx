@@ -2,15 +2,8 @@ import { useCallback } from "react";
 import type { HTMLAttributes, InputHTMLAttributes } from "react";
 import { AnimatePresence, motion, type Transition } from "framer-motion";
 import { useTranslation } from "react-i18next";
-import {
-    Button,
-    Modal,
-    ModalBody,
-    ModalContent,
-    ModalFooter,
-    ModalHeader,
-    cn,
-} from "@heroui/react";
+import { Button, cn } from "@heroui/react";
+import RemoveConfirmationModal from "@/modules/torrent-remove/components/RemoveConfirmationModal";
 import { X } from "lucide-react";
 
 import Runtime, { NativeShell } from "@/app/runtime";
@@ -135,7 +128,7 @@ interface WorkspaceShellProps {
     handleReconnect: () => void;
     pendingDelete: DeleteIntent | null;
     clearPendingDelete: () => void;
-    confirmDelete: () => Promise<void>;
+    confirmDelete: (overrideDeleteData?: boolean) => Promise<void>;
     visibleHudCards: AmbientHudCard[];
     dismissHudCard: (cardId: string) => void;
     hasDismissedInsights: boolean;
@@ -307,52 +300,16 @@ export function WorkspaceShell({
     );
 
     const renderDeleteModal = () => (
-        <Modal
+        <RemoveConfirmationModal
             isOpen={Boolean(pendingDelete)}
-            onOpenChange={(open) => {
-                if (!open) clearPendingDelete();
+            onClose={() => clearPendingDelete()}
+            onConfirm={async (deleteData: boolean) => {
+                await confirmDelete(deleteData);
             }}
-            backdrop="blur"
-            motionProps={INTERACTION_CONFIG.modalBloom}
-            classNames={{
-                base: cn(GLASS_MODAL_SURFACE, "shadow-xl"),
-            }}
-        >
-            <ModalContent>
-                {() => (
-                    <>
-                        <ModalHeader>
-                            {t("toolbar.delete_confirm.title")}
-                        </ModalHeader>
-                        <ModalBody className="text-sm text-foreground/70">
-                            {t(
-                                pendingDelete?.deleteData
-                                    ? "toolbar.delete_confirm.description_with_data"
-                                    : "toolbar.delete_confirm.description",
-                                { count: pendingDelete?.torrents.length ?? 0 }
-                            )}
-                        </ModalBody>
-                        <ModalFooter className="flex justify-end gap-tools">
-                            <Button
-                                variant="light"
-                                onPress={() => clearPendingDelete()}
-                            >
-                                {t("modals.cancel")}
-                            </Button>
-                            <Button
-                                color="danger"
-                                onPress={confirmDelete}
-                                className="shadow-danger/30"
-                            >
-                                {pendingDelete?.deleteData
-                                    ? t("table.actions.remove_with_data")
-                                    : t("table.actions.remove")}
-                            </Button>
-                        </ModalFooter>
-                    </>
-                )}
-            </ModalContent>
-        </Modal>
+            torrentIds={pendingDelete?.torrents.map((t) => t.id) ?? []}
+            torrentCount={pendingDelete?.torrents.length ?? 0}
+            defaultDeleteData={Boolean(pendingDelete?.deleteData)}
+        />
     );
 
     return (
