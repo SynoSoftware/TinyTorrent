@@ -371,6 +371,11 @@ export const UI_BASES = {
     },
 };
 
+// Semantic role names for application layer (exported so components/higher-level
+// code can reference the canonical recipe rather than ad-hoc class strings).
+export const DROP_OVERLAY_ROLE = "tt-drop-overlay";
+export const DROP_OVERLAY_TITLE_ROLE = "tt-drop-overlay__title";
+
 export const ICON_SIZE = {
     primary: UI_BASES.statusbar.iconMd,
     secondary: UI_BASES.statusbar.iconSm,

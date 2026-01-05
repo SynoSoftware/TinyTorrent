@@ -155,6 +155,12 @@
     --tt-brand-icon-size: calc(var(--icon) * 3);
     --tt-search-width: calc(40 * var(--u) * var(--z));
 
+    /* Drop overlay semantic tokens (align with UI_BASES.dropOverlay expectations)
+         Use the workbench spacing token so intent remains centralized in logic.ts */
+    --tt-drop-overlay-padding-x: var(--spacing-workbench);
+    --tt-drop-overlay-padding-y: var(--spacing-workbench);
+    --tt-drop-overlay-radius: var(--r-lg);
+    --tt-drop-title-font-size: var(--fz-scaled);
     --tt-status-icon-sm: calc(3 * var(--u) * var(--z));
     --tt-status-icon-md: calc(5 * var(--u) * var(--z));
     --tt-status-icon-lg: calc(8 * var(--u) * var(--z));
@@ -370,6 +376,31 @@
 
     .max-w-tooltip {
         max-width: var(--tt-modal-max-width);
+    }
+
+    /* Drop overlay visual recipe (semantic, token-driven) */
+    .tt-drop-overlay {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        gap: var(--tt-navbar-gap);
+        padding: var(--tt-drop-overlay-padding-y)
+            var(--tt-drop-overlay-padding-x);
+        border-radius: var(--tt-drop-overlay-radius);
+        border: var(--bw) solid rgba(var(--heroui-primary-500), 0.3);
+        background-color: hsl(var(--heroui-background) / 0.9);
+        color: hsl(var(--heroui-foreground) / 0.7);
+        box-shadow: 0 25px 75px rgba(0, 0, 0, 0.35);
+        backdrop-filter: blur(var(--glass-blur));
+        -webkit-backdrop-filter: blur(var(--glass-blur));
+    }
+
+    .tt-drop-overlay__title {
+        font-size: var(--tt-drop-title-font-size);
+        font-weight: 600;
+        color: inherit;
     }
 
     /* LIGHT - emerald paper */
