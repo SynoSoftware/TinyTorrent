@@ -5,6 +5,7 @@ import type {
     TorrentDetailEntity,
     TorrentEntity,
 } from "./entities";
+import { processHeartbeat } from "./recoveryAutomation";
 
 export type HeartbeatMode = "background" | "table" | "detail";
 
@@ -151,8 +152,10 @@ export class HeartbeatManager {
             up: up.slice(ptr).concat(up.slice(0, ptr)),
         };
     }
-    
-    private fetchDetailResponses(detailIds: string[]): Promise<DetailFetchResult[]> {
+
+    private fetchDetailResponses(
+        detailIds: string[]
+    ): Promise<DetailFetchResult[]> {
         if (detailIds.length === 0) {
             return Promise.resolve([]);
         }
@@ -165,18 +168,23 @@ export class HeartbeatManager {
                     return;
                 }
                 try {
-                    const detail = await this.client.getTorrentDetails(detailId);
+                    const detail = await this.client.getTorrentDetails(
+                        detailId
+                    );
                     results.push({ detailId, detail });
                 } catch (error) {
                     results.push({ detailId, error });
                 }
             }
         };
-        const concurrency = Math.min(detailIds.length, DETAIL_FETCH_CONCURRENCY);
+        const concurrency = Math.min(
+            detailIds.length,
+            DETAIL_FETCH_CONCURRENCY
+        );
         const workers = new Array(concurrency).fill(null).map(() => worker());
         return Promise.all(workers).then(() => results);
     }
-    
+
     private hasDetailSubscribers() {
         for (const { params } of this.subscribers.values()) {
             if (params.detailId != null) {
@@ -256,9 +264,7 @@ export class HeartbeatManager {
             timestampMs: this.lastPayloadTimestampMs ?? Date.now(),
             detailId,
             detail:
-                detailId == null
-                    ? undefined
-                    : this.getCachedDetail(detailId),
+                detailId == null ? undefined : this.getCachedDetail(detailId),
             source: this.lastSource,
         };
         params.onUpdate(payload);
@@ -271,7 +277,7 @@ export class HeartbeatManager {
         const prev = this.lastTorrents;
         this.lastTorrents = payload.torrents;
         this.pruneDetailCache(payload.torrents);
-        this.updateEngineState(payload.torrents);
+        this.updateEngineState(payload.torrents, prev);
         payload.changedIds = this.computeChangedIds(payload.torrents, prev);
         this.lastSessionStats = payload.sessionStats;
         this.lastPayloadTimestampMs = timestampMs;
@@ -409,14 +415,15 @@ export class HeartbeatManager {
             let changedIds: string[] = [];
 
             if (shouldFetchSummary || !torrents || !sessionStats) {
-                const [fetchedTorrents, fetchedSessionStats] = await Promise.all([
-                    this.client.getTorrents(),
-                    this.client.getSessionStats(),
-                ]);
+                const [fetchedTorrents, fetchedSessionStats] =
+                    await Promise.all([
+                        this.client.getTorrents(),
+                        this.client.getSessionStats(),
+                    ]);
                 const prevTorrents = this.lastTorrents;
                 torrents = fetchedTorrents;
                 sessionStats = fetchedSessionStats;
-                this.updateEngineState(torrents);
+                this.updateEngineState(torrents, prevTorrents);
                 currentHash = this.computeHash(torrents);
                 changedIds = this.computeChangedIds(torrents, prevTorrents);
                 this.lastTorrents = torrents;
@@ -447,7 +454,10 @@ export class HeartbeatManager {
                     const currentTorrent = torrents.find(
                         (torrent) => torrent.id === detailId
                     );
-                    if (!currentTorrent || currentTorrent.hash !== detail.hash) {
+                    if (
+                        !currentTorrent ||
+                        currentTorrent.hash !== detail.hash
+                    ) {
                         this.detailCache.delete(detailId);
                         detailResults.set(detailId, {
                             error: new Error("Torrent identity mismatch"),
@@ -474,7 +484,9 @@ export class HeartbeatManager {
                 const detailPayload =
                     detailId == null
                         ? undefined
-                        : detailEntry?.data ?? this.getCachedDetail(detailId) ?? null;
+                        : detailEntry?.data ??
+                          this.getCachedDetail(detailId) ??
+                          null;
 
                 const payload: HeartbeatPayload = {
                     torrents,
@@ -513,7 +525,10 @@ export class HeartbeatManager {
         }
     }
     // Deduplicated, O(1) ring buffer update for speed history and pruning
-    private updateEngineState(torrents: TorrentEntity[]) {
+    private updateEngineState(
+        torrents: TorrentEntity[],
+        previous?: TorrentEntity[] | undefined | null
+    ) {
         const size = this.historySize;
         const currentIds = new Set(torrents.map((t) => t.id));
         // Prune history for removed torrents (guaranteed leak-free)
@@ -537,6 +552,29 @@ export class HeartbeatManager {
             entry.down[entry.ptr] = down;
             entry.up[entry.ptr] = up;
             entry.ptr = (entry.ptr + 1) % size;
+        }
+
+        // Invoke conservative automation based strictly on ErrorEnvelope.
+        // Provide a safe pause callback if the underlying client exposes pause().
+        try {
+            const pauseCallback = (ids: string[]) => {
+                const maybe = (this.client as any)?.pause;
+                if (typeof maybe === "function") {
+                    return maybe.call(this.client, ids as string[]);
+                }
+                return Promise.resolve();
+            };
+            try {
+                processHeartbeat(
+                    torrents,
+                    previous ?? undefined,
+                    pauseCallback
+                );
+            } catch {
+                // Never let automation throw into heartbeat loop
+            }
+        } catch {
+            // swallow
         }
     }
 
