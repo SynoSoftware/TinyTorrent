@@ -160,24 +160,33 @@ export function useTorrentWorkflow({
         ]
     );
 
-    const confirmDelete = useCallback(async () => {
-        if (!pendingDelete) return;
-        const { torrents: toDelete, action, deleteData } = pendingDelete;
-        setPendingDelete(null);
-        const count = toDelete.length;
-        const hasFeedback = action in GLOBAL_ACTION_FEEDBACK_CONFIG;
-        const actionKey = action as FeedbackAction;
-        if (hasFeedback) {
-            announceAction(actionKey, "start", count);
-        }
-        for (const torrent of toDelete) {
-            const options = action === "remove" ? { deleteData } : undefined;
-            await executeTorrentAction(action, torrent, options);
-        }
-        if (hasFeedback) {
-            announceAction(actionKey, "done", count);
-        }
-    }, [announceAction, executeTorrentAction, pendingDelete]);
+    const confirmDelete = useCallback(
+        async (overrideDeleteData?: boolean) => {
+            if (!pendingDelete) return;
+            const {
+                torrents: toDelete,
+                action,
+                deleteData: pdDelete,
+            } = pendingDelete;
+            setPendingDelete(null);
+            const deleteData = overrideDeleteData ?? pdDelete;
+            const count = toDelete.length;
+            const hasFeedback = action in GLOBAL_ACTION_FEEDBACK_CONFIG;
+            const actionKey = action as FeedbackAction;
+            if (hasFeedback) {
+                announceAction(actionKey, "start", count);
+            }
+            for (const torrent of toDelete) {
+                const options =
+                    action === "remove" ? { deleteData } : undefined;
+                await executeTorrentAction(action, torrent, options);
+            }
+            if (hasFeedback) {
+                announceAction(actionKey, "done", count);
+            }
+        },
+        [announceAction, executeTorrentAction, pendingDelete]
+    );
 
     return {
         optimisticStatuses,

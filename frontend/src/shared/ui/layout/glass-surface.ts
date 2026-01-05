@@ -9,4 +9,4 @@ export const GLASS_PANEL_SURFACE =
 
 export const BLOCK_SHADOW = "shadow-small";
 export const PANEL_SHADOW = "shadow-medium";
-export const GLASS_BLOCK_SURFACE = "acrylic border-white/5 shadow-inner";
+export const GLASS_BLOCK_SURFACE = "acrylic  shadow-inner";

@@ -159,7 +159,16 @@ export type ShellTokens = {
     handleHitArea: number;
     innerRadius: number;
     insetRadius: number;
-    frameStyle: { borderRadius: string | number; padding: string | number };
+    // frameStyle now carries the container-facing geometry (border radius, padding
+    // and directional padding). Components may spread `...shell.frameStyle` and
+    // optionally override specific corners; this centralizes the container
+    // spacing so the Navbar/StatusBar can rely on consistent left/right padding.
+    frameStyle: {
+        borderRadius: string | number;
+        padding: string | number;
+        paddingLeft?: string | number;
+        paddingRight?: string | number;
+    };
     contentStyle: { borderRadius: string | number };
 };
 
@@ -171,8 +180,15 @@ export const SHELL_TOKENS_CLASSIC: ShellTokens = {
     innerRadius: classicInnerRadius,
     insetRadius: classicInsetRadius,
     frameStyle: {
-        borderRadius: classicOuterRadius,
+        // Use the *inner* radius for the frame so inner block containers
+        // can be controlled from a single token (`innerRadius`).
+        borderRadius: classicInnerRadius,
         padding: classicRingPadding,
+        // Standard left/right padding for block containers. Use the semantic
+        // panel spacing so Navbar/StatusBar and other blocks render consistently
+        // without per-component hacks.
+        paddingLeft: "var(--spacing-panel)",
+        paddingRight: "var(--spacing-panel)",
     },
     contentStyle: {
         borderRadius: classicInnerRadius,
@@ -187,8 +203,12 @@ export const SHELL_TOKENS_IMMERSIVE: ShellTokens = {
     innerRadius: immersiveInnerRadius,
     insetRadius: immersiveInsetRadius,
     frameStyle: {
-        borderRadius: immersiveOuterRadius,
+        // Mirror classic: frame uses innerRadius so a single radius knob controls
+        // all block containers in both shells.
+        borderRadius: immersiveInnerRadius,
         padding: immersiveRingPadding,
+        paddingLeft: "var(--spacing-panel)",
+        paddingRight: "var(--spacing-panel)",
     },
     contentStyle: {
         borderRadius: immersiveInnerRadius,
