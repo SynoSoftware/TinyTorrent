@@ -35,3 +35,24 @@ export const formatPrimaryActionHint = (
 };
 
 export default formatRecoveryStatus;
+
+// Map a primaryAction to a small, subtle emphasis class for existing controls.
+export const getEmphasisClassForAction = (
+    primaryAction: string | null | undefined
+) => {
+    if (!primaryAction) return "";
+    switch (primaryAction) {
+        case "changeLocation":
+        case "openFolder":
+            return "ring-1 ring-primary/30 shadow-sm";
+        case "reannounce":
+            return "ring-1 ring-primary/30 shadow-sm";
+        case "pause":
+            return "ring-1 ring-warning/30 shadow-sm";
+        case "forceRecheck":
+        case "removeReadd":
+            return "ring-1 ring-default/20 shadow-sm";
+        default:
+            return "";
+    }
+};

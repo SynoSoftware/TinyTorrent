@@ -13,6 +13,7 @@ export interface DiskSpaceGaugeProps {
     hint?: string | null;
     onRetry?: () => void;
     isInsufficient?: boolean;
+    emphasisClass?: string;
 }
 
 export function DiskSpaceGauge({
@@ -25,6 +26,7 @@ export function DiskSpaceGauge({
     hint,
     onRetry,
     isInsufficient,
+    emphasisClass,
 }: DiskSpaceGaugeProps) {
     const usedBytes =
         typeof totalBytes === "number" && typeof freeBytes === "number"
@@ -126,6 +128,7 @@ export function DiskSpaceGauge({
                             variant="bordered"
                             onPress={onRetry}
                             isDisabled={isLoading}
+                            className={emphasisClass ?? undefined}
                         >
                             {t("modals.disk_gauge.retry")}
                         </Button>

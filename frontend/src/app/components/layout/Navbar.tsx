@@ -52,6 +52,13 @@ interface NavbarProps {
     };
     workspaceStyle: "classic" | "immersive";
     onWindowCommand: (command: "minimize" | "maximize" | "close") => void;
+    emphasizeActions?: {
+        pause?: boolean;
+        reannounce?: boolean;
+        changeLocation?: boolean;
+        openFolder?: boolean;
+        forceRecheck?: boolean;
+    };
 }
 
 export function Navbar({
@@ -70,6 +77,7 @@ export function Navbar({
     rehashStatus,
     workspaceStyle,
     onWindowCommand,
+    emphasizeActions,
 }: NavbarProps) {
     const { t } = useTranslation();
     const { setActivePart } = useFocusState();
@@ -277,7 +285,12 @@ export function Navbar({
                                 title={t("toolbar.pause")}
                                 onPress={onPauseSelection}
                                 disabled={!hasSelection}
-                                className="text-warning hover:text-warning-600 hover:bg-warning/10"
+                                className={cn(
+                                    "text-warning hover:text-warning-600 hover:bg-warning/10",
+                                    emphasizeActions?.pause
+                                        ? "ring-1 ring-warning/30 shadow-sm"
+                                        : ""
+                                )}
                                 iconSize="lg"
                             />
                             <ToolbarIconButton
@@ -286,7 +299,12 @@ export function Navbar({
                                 title={t("toolbar.recheck")}
                                 onPress={onRecheckSelection}
                                 disabled={!hasSelection}
-                                className="text-default-500 hover:text-foreground hover:bg-default-200"
+                                className={cn(
+                                    "text-default-500 hover:text-foreground hover:bg-default-200",
+                                    emphasizeActions?.forceRecheck
+                                        ? "ring-1 ring-default/20 shadow-sm"
+                                        : ""
+                                )}
                                 iconSize="lg"
                             />
                             <ToolbarIconButton
