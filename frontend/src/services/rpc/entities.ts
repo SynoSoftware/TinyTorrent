@@ -38,6 +38,7 @@ export type RecoveryState =
     | "ok"
     | "transientWaiting"
     | "needsUserAction"
+    | "needsUserConfirmation"
     | "verifying"
     | "blocked";
 
@@ -48,7 +49,10 @@ export type RecoveryAction =
     | "pause"
     | "changeLocation"
     | "openFolder"
-    | "removeReadd";
+    | "removeReadd"
+    | "reDownload"
+    | "setLocation"
+    | "dismiss";
 
 export interface ErrorEnvelope {
     errorClass: ErrorClass;

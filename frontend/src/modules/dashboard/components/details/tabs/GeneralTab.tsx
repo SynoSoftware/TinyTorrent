@@ -1,5 +1,13 @@
 // FILE: src/modules/dashboard/torrent-detail/GeneralTab.tsx
-import { Button, Switch } from "@heroui/react";
+import {
+    Button,
+    Switch,
+    Modal,
+    ModalContent,
+    ModalBody,
+    ModalFooter,
+    ModalHeader,
+} from "@heroui/react";
 import {
     ArrowDownCircle,
     ArrowUpCircle,
@@ -8,6 +16,7 @@ import {
     Hash,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
@@ -87,6 +96,8 @@ export const GeneralTab = ({
     timeRemainingLabel,
 }: GeneralTabProps) => {
     const { t } = useTranslation();
+    const shownFingerprintsRef = useRef<Set<string>>(new Set());
+    const [showConfirm, setShowConfirm] = useState(false);
     const handleCopyHash = () => writeClipboard(torrent.hash);
 
     const renderCapabilityNote = (state: CapabilityState) => {
@@ -103,6 +114,23 @@ export const GeneralTab = ({
 
     // Single source of truth: derived in rpc normalizer
     const showMissingFilesError = torrent.state === "missing_files";
+
+    // Show focused confirmation dialog on first render of the
+    // needsUserConfirmation recovery state (engine-truth-driven).
+    useEffect(() => {
+        const fp = torrent.errorEnvelope?.fingerprint ?? null;
+        const isConfirm =
+            torrent.errorEnvelope?.recoveryState === "needsUserConfirmation";
+        if (isConfirm && fp && !shownFingerprintsRef.current.has(fp)) {
+            shownFingerprintsRef.current.add(fp);
+            setShowConfirm(true);
+            return;
+        }
+        if (!isConfirm) setShowConfirm(false);
+    }, [
+        torrent.errorEnvelope?.recoveryState,
+        torrent.errorEnvelope?.fingerprint,
+    ]);
 
     return (
         <div className="space-y-stage">
@@ -285,6 +313,124 @@ export const GeneralTab = ({
                     </div>
                 </GlassPanel>
             )}
+
+            <Modal isOpen={showConfirm} onOpenChange={setShowConfirm}>
+                <ModalContent className="max-w-modal">
+                    <ModalHeader>
+                        {t("modals.missing_files.title", {
+                            defaultValue: "Files Missing — Re-download?",
+                        })}
+                    </ModalHeader>
+                    <ModalBody className="max-h-modal-body">
+                        <div className="space-y-3">
+                            <div>
+                                {t("modals.missing_files.body", {
+                                    defaultValue:
+                                        "The files for this completed torrent are missing from disk. You can re-download them or locate existing files manually.",
+                                })}
+                            </div>
+                        </div>
+                    </ModalBody>
+                    <ModalFooter>
+                        <div className="flex items-center justify-end gap-tools w-full">
+                            <Button
+                                size="md"
+                                variant="shadow"
+                                color="default"
+                                onPress={() => {
+                                    // Set Location
+                                    if (onSetLocation) {
+                                        void onSetLocation();
+                                    } else {
+                                        try {
+                                            window.dispatchEvent(
+                                                new CustomEvent(
+                                                    "tiny-torrent:set-location",
+                                                    {
+                                                        detail: {
+                                                            id: torrent.id,
+                                                            hash: torrent.hash,
+                                                        },
+                                                    }
+                                                )
+                                            );
+                                        } catch (err) {
+                                            console.error(err);
+                                        }
+                                    }
+                                    setShowConfirm(false);
+                                }}
+                            >
+                                {t("directory_browser.select", {
+                                    name: t("torrent_modal.labels.save_path"),
+                                    defaultValue: "Set Location",
+                                })}
+                            </Button>
+
+                            <Button
+                                size="md"
+                                variant="shadow"
+                                color="danger"
+                                onPress={() => {
+                                    if (onRedownload) {
+                                        void onRedownload();
+                                    } else {
+                                        try {
+                                            window.dispatchEvent(
+                                                new CustomEvent(
+                                                    "tiny-torrent:redownload",
+                                                    {
+                                                        detail: {
+                                                            id: torrent.id,
+                                                            hash: torrent.hash,
+                                                        },
+                                                    }
+                                                )
+                                            );
+                                        } catch (err) {
+                                            console.error(err);
+                                        }
+                                    }
+                                    setShowConfirm(false);
+                                }}
+                            >
+                                {t("modals.download", {
+                                    defaultValue: "Re-download",
+                                })}
+                            </Button>
+
+                            <Button
+                                size="md"
+                                variant="flat"
+                                color="default"
+                                onPress={() => {
+                                    // Dismiss
+                                    try {
+                                        window.dispatchEvent(
+                                            new CustomEvent(
+                                                "tiny-torrent:dismiss-missing-files",
+                                                {
+                                                    detail: {
+                                                        id: torrent.id,
+                                                        hash: torrent.hash,
+                                                    },
+                                                }
+                                            )
+                                        );
+                                    } catch (err) {
+                                        console.error(err);
+                                    }
+                                    setShowConfirm(false);
+                                }}
+                            >
+                                {t("toolbar.cancel", {
+                                    defaultValue: "Cancel",
+                                })}
+                            </Button>
+                        </div>
+                    </ModalFooter>
+                </ModalContent>
+            </Modal>
 
             <GlassPanel className="space-y-3 border border-content1/20 bg-content1/30 p-panel">
                 <div className="flex items-center justify-between gap-panel">

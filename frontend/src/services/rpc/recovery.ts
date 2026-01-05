@@ -104,8 +104,20 @@ export const buildErrorEnvelope = (
         recoveryState = "transientWaiting";
         recoveryActions.push("reannounce");
     } else if (errorClass === "missingFiles") {
-        recoveryState = "needsUserAction";
-        recoveryActions.push("changeLocation", "forceRecheck");
+        // If a finished torrent reports missing files, require explicit
+        // user confirmation to re-download rather than attempting
+        // automated recovery. This is an engine-truth-first decision.
+        if (
+            (torrent as any).isFinished === true ||
+            torrent.isFinished === true
+        ) {
+            recoveryState = "needsUserConfirmation";
+            recoveryActions.push("reDownload", "setLocation", "dismiss");
+        } else {
+            // Non-finished torrents can still offer the prior actions
+            recoveryState = "needsUserAction";
+            recoveryActions.push("changeLocation", "forceRecheck");
+        }
     } else if (errorClass === "permissionDenied") {
         recoveryState = "needsUserAction";
         recoveryActions.push("openFolder", "changeLocation");
@@ -139,7 +151,7 @@ export const buildErrorEnvelope = (
 
     // Priority lists by error class for deterministic selection.
     const preferred: Record<string, RecoveryAction[]> = {
-        missingFiles: ["changeLocation", "forceRecheck"],
+        missingFiles: ["reDownload", "setLocation", "dismiss"],
         permissionDenied: ["openFolder", "changeLocation"],
         trackerWarning: ["reannounce"],
         trackerError: ["reannounce"],
@@ -222,7 +234,7 @@ export const buildErrorEnvelope = (
         localError: ["needsUserAction", "verifying"],
         diskFull: ["blocked"],
         permissionDenied: ["needsUserAction"],
-        missingFiles: ["needsUserAction"],
+        missingFiles: ["needsUserAction", "needsUserConfirmation"],
         metadata: ["needsUserAction"],
         unknown: ["needsUserAction"],
     };
