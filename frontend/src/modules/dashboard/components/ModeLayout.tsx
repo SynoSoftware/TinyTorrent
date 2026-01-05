@@ -401,7 +401,7 @@ export function ModeLayout({
                 <div {...getShellStyles("inspector")}>
                     <div {...getContentStyles()}>
                         <div
-                            className="h-full min-h-0 flex-1 overflow-hidden"
+                            className="h-full min-h-0 flex-1 overflow-y-auto"
                             style={{
                                 borderRadius: `${shell.innerRadius}px`,
                             }}
@@ -488,6 +488,7 @@ export function ModeLayout({
                                 }
                                 capabilities={capabilities}
                                 isDetailFullscreen={isDetailFullscreen}
+                                isStandalone={true}
                                 onDock={handleDetailDock}
                                 onPopout={handleDetailPopout}
                             />

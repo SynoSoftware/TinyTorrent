@@ -15,6 +15,7 @@ interface RemoveConfirmationModalProps {
     onClose: () => void;
     onConfirm: (deleteData: boolean) => Promise<void> | void;
     torrentCount: number;
+    torrentIds?: string[];
     defaultDeleteData?: boolean;
 }
 
