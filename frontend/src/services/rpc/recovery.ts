@@ -84,7 +84,18 @@ export const buildErrorEnvelope = (
     // Reuse a local mapping; keep this pure and deterministic.
     let recoveryState: RecoveryState = "ok";
     const recoveryActions: RecoveryAction[] = [];
-    if (errorClass === "none") {
+
+    // Engine-driven override: if the engine is actively verifying/checking,
+    // reflect that in the recovery state regardless of rpc error codes.
+    const isVerifying =
+        typeof torrent.recheckProgress === "number" &&
+        torrent.recheckProgress > 0;
+    // Transmission numeric status 1/2 correspond to checking states.
+    const statusNum = (torrent as any).status;
+    const statusIndicatesChecking = statusNum === 1 || statusNum === 2;
+    if (isVerifying || statusIndicatesChecking) {
+        recoveryState = "verifying";
+    } else if (errorClass === "none") {
         recoveryState = "ok";
     } else if (
         errorClass === "trackerWarning" ||
@@ -189,6 +200,10 @@ export const buildErrorEnvelope = (
     const envelope: ErrorEnvelope = {
         errorClass,
         errorMessage: msg,
+        // `lastErrorAt` is intentionally not computed here so this builder
+        // remains pure and deterministic. The heartbeat/automation layer
+        // is responsible for stamping the first-seen timestamp on
+        // transitions (see recoveryAutomation.processHeartbeat).
         lastErrorAt: null,
         recoveryState,
         retryCount: null,
