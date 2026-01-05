@@ -6,6 +6,10 @@ import type { ErrorEnvelope, TorrentEntity } from "./entities";
 // recoveryState match (requirement #4).
 const autoPausedKeys = new Set<string>();
 const transientTrackerFingerprints = new Set<string>();
+// dismissedFingerprints: when a user dismisses a missing-files prompt for a
+// fingerprint, we silently suppress needsUserConfirmation for that fingerprint
+// until the fingerprint changes. This is in-memory only.
+const dismissedFingerprints = new Set<string>();
 // firstSeenFingerprintMs: records the first-seen epoch ms for a fingerprint
 // (used to stamp `lastErrorAt`).
 const firstSeenFingerprintMs = new Map<string, number>();
@@ -130,6 +134,27 @@ export function processHeartbeat(
                 continue;
             }
 
+            // If this fingerprint was dismissed for missing-files, coerce
+            // the recoveryState so the UI does not re-prompt. This keeps the
+            // dismissal in-memory and scoped to the fingerprint lifecycle.
+            if (
+                curEnv &&
+                curEnv.errorClass === "missingFiles" &&
+                curEnv.recoveryState === "needsUserConfirmation" &&
+                curEnv.fingerprint &&
+                dismissedFingerprints.has(curEnv.fingerprint)
+            ) {
+                const coerced: ErrorEnvelope = {
+                    ...curEnv,
+                    recoveryState: "needsUserAction",
+                };
+                t.errorEnvelope = coerced;
+                // Record that we've suppressed action for this fingerprint
+                const actionKey = `${curEnv.fingerprint}|${curEnv.errorClass}|needsUserAction`;
+                lastActionKeyMs.set(actionKey, now);
+                continue;
+            }
+
             // Automation #1: auto-pause on disk exhaustion
             if (
                 curEnv &&
@@ -181,6 +206,24 @@ export function processHeartbeat(
             // Defensive: never throw from automation; heartbeat must remain stable
         }
     }
+}
+
+/**
+ * Dismiss a missing-files prompt for a given fingerprint (in-memory).
+ * This suppresses `needsUserConfirmation` for that fingerprint until it
+ * changes.
+ */
+export function dismissFingerprint(fingerprint: string) {
+    if (!fingerprint) return;
+    dismissedFingerprints.add(fingerprint);
+}
+
+/**
+ * Undismiss (remove) a fingerprint from the dismissed set. Useful in tests.
+ */
+export function _undismissFingerprintForTests(fingerprint: string) {
+    if (!fingerprint) return;
+    dismissedFingerprints.delete(fingerprint);
 }
 
 export function _resetForTests() {
