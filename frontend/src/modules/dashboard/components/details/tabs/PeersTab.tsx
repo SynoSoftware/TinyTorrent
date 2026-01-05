@@ -52,6 +52,7 @@ interface PeersTabProps {
     ) => void;
     sortBySpeed?: boolean;
     torrentProgress?: number;
+    isStandalone?: boolean;
 }
 
 export const PeersTab = ({
@@ -59,6 +60,7 @@ export const PeersTab = ({
     onPeerContextAction,
     sortBySpeed = false,
     torrentProgress = 0,
+    isStandalone = false,
 }: PeersTabProps) => {
     const { hoveredPeer, setHoveredPeer } = usePeerHover();
     const { t } = useTranslation();
@@ -70,12 +72,18 @@ export const PeersTab = ({
         useLayoutMetrics();
 
     if (!peers || peers.length === 0) {
-        return (
+        return isStandalone ? (
             <GlassPanel className="flex h-full items-center justify-center border-default/10 text-center">
                 <p className={`${TEXT_ROLES.primary} text-foreground/30`}>
                     {t("torrent_modal.peers.empty_backend")}
                 </p>
             </GlassPanel>
+        ) : (
+            <div className="flex h-full items-center justify-center border-default/10 text-center">
+                <p className={`${TEXT_ROLES.primary} text-foreground/30`}>
+                    {t("torrent_modal.peers.empty_backend")}
+                </p>
+            </div>
         );
     }
 

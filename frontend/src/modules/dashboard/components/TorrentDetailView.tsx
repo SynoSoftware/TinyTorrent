@@ -10,7 +10,7 @@ import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
 import type { PeerContextAction } from "./details/tabs/PeersTab";
 import type { TorrentPeerEntity } from "@/services/rpc/entities";
 import { TorrentDetailHeader } from "./details/TorrentDetailHeader";
-import { useDetailTabs, DETAIL_TABS } from "./details/useDetailTabs";
+import { useDetailTabs } from "./details/useDetailTabs";
 import {
     BLOCK_SHADOW,
     GLASS_BLOCK_SURFACE,
@@ -48,6 +48,7 @@ export interface TorrentDetailViewProps {
     onSuperSeedingToggle?: (enabled: boolean) => void | Promise<void>;
     onForceTrackerReannounce?: () => void | Promise<void>;
     capabilities: CapabilityStore;
+    isStandalone?: boolean;
 }
 
 /**
@@ -69,6 +70,7 @@ export function TorrentDetailView({
     onForceTrackerReannounce,
     capabilities,
     isDetailFullscreen = false,
+    isStandalone = false,
     onDock,
     onPopout,
     onClose,
@@ -88,8 +90,9 @@ export function TorrentDetailView({
         <div
             className={cn(
                 className,
-                GLASS_BLOCK_SURFACE,
-                BLOCK_SHADOW,
+                isStandalone ? cn(GLASS_BLOCK_SURFACE, BLOCK_SHADOW) : null,
+                // When standalone, the outer container owns vertical scroll.
+                isStandalone ? "overflow-y-auto" : null,
                 "h-full min-h-0 flex flex-col outline-none"
             )}
             tabIndex={0}
@@ -106,7 +109,7 @@ export function TorrentDetailView({
                 onTabChange={setActive}
             />
 
-            <div className="flex-1 min-h-0 overflow-y-auto bg-transparent">
+            <div className="flex-1 min-h-0 bg-transparent">
                 {active === "general" && torrent && (
                     <GeneralTab
                         torrent={torrent}
@@ -129,6 +132,7 @@ export function TorrentDetailView({
                         emptyMessage={t("torrent_modal.files_empty")}
                         onFilesToggle={onFilesToggle}
                         onFileContextAction={onFileContextAction}
+                        isStandalone={isStandalone}
                     />
                 )}
                 {active === "pieces" && torrent && (
@@ -144,6 +148,7 @@ export function TorrentDetailView({
                     <TrackersTab
                         trackers={torrent.trackers ?? []}
                         emptyMessage={t("torrent_modal.trackers.empty_backend")}
+                        isStandalone={isStandalone}
                     />
                 )}
                 {active === "peers" && torrent && (
@@ -152,12 +157,14 @@ export function TorrentDetailView({
                         onPeerContextAction={onPeerContextAction}
                         torrentProgress={torrent.progress ?? 0}
                         sortBySpeed={peerSortStrategy === "speed"}
+                        isStandalone={isStandalone}
                     />
                 )}
                 {active === "speed" && torrent && (
                     <SpeedTab
                         // SpeedTab expects engine-driven histories; pass basic props
                         torrent={torrent}
+                        isStandalone={isStandalone}
                     />
                 )}
             </div>

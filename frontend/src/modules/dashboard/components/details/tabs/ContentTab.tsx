@@ -26,6 +26,7 @@ interface ContentTabProps {
         action: FileExplorerContextAction,
         entry: FileExplorerEntry
     ) => void;
+    isStandalone?: boolean;
 }
 
 const NOOP_FILE_TOGGLE: NonNullable<ContentTabProps["onFilesToggle"]> = () => {
@@ -37,6 +38,7 @@ export const ContentTab = ({
     emptyMessage,
     onFilesToggle,
     onFileContextAction,
+    isStandalone = false,
 }: ContentTabProps) => {
     const { t } = useTranslation();
     const fileEntries = useFileTree(files);
@@ -48,7 +50,12 @@ export const ContentTab = ({
     const displayFiles = useMemo(() => {
         if (!Object.keys(optimisticState).length) return fileEntries;
         return fileEntries.map((entry) => {
-            if (Object.prototype.hasOwnProperty.call(optimisticState, entry.index)) {
+            if (
+                Object.prototype.hasOwnProperty.call(
+                    optimisticState,
+                    entry.index
+                )
+            ) {
                 return { ...entry, wanted: optimisticState[entry.index] };
             }
             return entry;
@@ -119,30 +126,42 @@ export const ContentTab = ({
     }
     return (
         <div className="flex h-full min-h-0 flex-col gap-panel">
-            <GlassPanel className="p-panel space-y-3">
-                <div className="flex items-center justify-between gap-panel">
-                    <div className="flex flex-col gap-tight">
-                        <span
-                            className="text-scaled font-semibold uppercase tracking-tight text-foreground/60"
-                        >
-                            {t("torrent_modal.files_title")}
+            {isStandalone ? (
+                <GlassPanel className="p-panel space-y-3">
+                    <div className="flex items-center justify-between gap-panel">
+                        <div className="flex flex-col gap-tight">
+                            <span className="text-scaled font-semibold uppercase tracking-tight text-foreground/60">
+                                {t("torrent_modal.files_title")}
+                            </span>
+                            <p className="text-label text-foreground/60">
+                                {t("torrent_modal.files_description")}
+                            </p>
+                        </div>
+                        <span className="text-label font-semibold uppercase tracking-tight text-foreground/50">
+                            {fileCountLabel}
                         </span>
-                        <p className="text-label text-foreground/60">
-                            {t("torrent_modal.files_description")}
-                        </p>
                     </div>
-                    <span
-                        className="text-label font-semibold uppercase tracking-tight text-foreground/50"
-                    >
-                        {fileCountLabel}
-                    </span>
+                </GlassPanel>
+            ) : (
+                <div className="p-panel space-y-3">
+                    <div className="flex items-center justify-between gap-panel">
+                        <div className="flex flex-col gap-tight">
+                            <span className="text-scaled font-semibold uppercase tracking-tight text-foreground/60">
+                                {t("torrent_modal.files_title")}
+                            </span>
+                            <p className="text-label text-foreground/60">
+                                {t("torrent_modal.files_description")}
+                            </p>
+                        </div>
+                        <span className="text-label font-semibold uppercase tracking-tight text-foreground/50">
+                            {fileCountLabel}
+                        </span>
+                    </div>
                 </div>
-            </GlassPanel>
+            )}
 
             <GlassPanel className="flex flex-1 min-h-0 flex-col border border-default/15">
-                <div
-                    className="border-b border-default/10 px-panel py-panel text-label font-semibold uppercase tracking-tight text-foreground/50"
-                >
+                <div className="border-b border-default/10 px-panel py-panel text-label font-semibold uppercase tracking-tight text-foreground/50">
                     {t("torrent_modal.tabs.content")}
                 </div>
                 <div className="flex-1 min-h-0 overflow-hidden">
