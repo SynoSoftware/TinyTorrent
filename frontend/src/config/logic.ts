@@ -163,13 +163,13 @@ export type ShellTokens = {
     // and directional padding). Components may spread `...shell.frameStyle` and
     // optionally override specific corners; this centralizes the container
     // spacing so the Navbar/StatusBar can rely on consistent left/right padding.
-    frameStyle: {
+    outerStyle: {
         borderRadius: string | number;
         padding: string | number;
         paddingLeft?: string | number;
         paddingRight?: string | number;
     };
-    contentStyle: { borderRadius: string | number };
+    surfaceStyle: { borderRadius: string | number };
 };
 
 export const SHELL_TOKENS_CLASSIC: ShellTokens = {
@@ -179,7 +179,7 @@ export const SHELL_TOKENS_CLASSIC: ShellTokens = {
     handleHitArea: classicHandleHitArea,
     innerRadius: classicInnerRadius,
     insetRadius: classicInsetRadius,
-    frameStyle: {
+    outerStyle: {
         // Use the *inner* radius for the frame so inner block containers
         // can be controlled from a single token (`innerRadius`).
         borderRadius: classicInnerRadius,
@@ -190,7 +190,7 @@ export const SHELL_TOKENS_CLASSIC: ShellTokens = {
         paddingLeft: "var(--spacing-panel)",
         paddingRight: "var(--spacing-panel)",
     },
-    contentStyle: {
+    surfaceStyle: {
         borderRadius: classicInnerRadius,
     },
 };
@@ -202,7 +202,7 @@ export const SHELL_TOKENS_IMMERSIVE: ShellTokens = {
     handleHitArea: immersiveHandleHitArea,
     innerRadius: immersiveInnerRadius,
     insetRadius: immersiveInsetRadius,
-    frameStyle: {
+    outerStyle: {
         // Mirror classic: frame uses innerRadius so a single radius knob controls
         // all block containers in both shells.
         borderRadius: immersiveInnerRadius,
@@ -210,7 +210,7 @@ export const SHELL_TOKENS_IMMERSIVE: ShellTokens = {
         paddingLeft: "var(--spacing-panel)",
         paddingRight: "var(--spacing-panel)",
     },
-    contentStyle: {
+    surfaceStyle: {
         borderRadius: immersiveInnerRadius,
     },
 };
@@ -399,6 +399,17 @@ const iconographyStrokeWidthDense = readNumber(
 
 export const ICON_STROKE_WIDTH = `var(--tt-icon-stroke, ${iconographyStrokeWidth})`;
 export const ICON_STROKE_WIDTH_DENSE = `var(--tt-icon-stroke-dense, ${iconographyStrokeWidthDense})`;
+
+// Shared header visual tokens used across table headers and inspector headers.
+// Components should compose layout-specific classes (grid/flex) with this
+// base so color, padding and typography remain consistent.
+// `HEADER_BASE` is typography-only: casing, scale, tracking and subdued text color.
+// It must NOT include background, padding, grid, border, or rounding.
+export const HEADER_BASE =
+    "text-scaled uppercase tracking-tight text-foreground/50";
+
+// `TABLE_HEADER_CLASS` composes `HEADER_BASE` with table-specific surface, padding and grid.
+export const TABLE_HEADER_CLASS = `${HEADER_BASE} px-panel py-panel bg-background/40 grid grid-cols-torrent gap-tools rounded-modal border border-content1/20`;
 
 // Semantic status visuals used across the app (moved out of components)
 export const STATUS_VISUALS: Record<

@@ -554,13 +554,13 @@ export function StatusBar({
                 BLOCK_SHADOW
             )}
             style={{
-                ...shell.frameStyle,
+                ...shell.outerStyle,
             }}
         >
             <div
                 className="flex items-center justify-between gap-stage"
                 style={{
-                    ...shell.contentStyle,
+                    ...shell.surfaceStyle,
                     height: "var(--tt-statusbar-h)",
                 }}
             >

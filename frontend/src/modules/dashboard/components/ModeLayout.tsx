@@ -217,10 +217,16 @@ export function ModeLayout({
             className: cn(
                 "relative h-full w-full flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden transition-all duration-200",
                 "border-t border-default/10",
-                isActive ? "border-t-primary/40" : "",
+                // remove active top-border color so the main container does not
+                // gain a green focus line; keep a subtle neutral divider instead.
                 "bg-transparent"
             ),
-            style: {},
+            // Apply the shell content style to the outer shell container so
+            // the main area renders consistently with other parts (Navbar/StatusBar)
+            // and the single-source-of-truth tokens control radius/visuals.
+            style: {
+                ...shell.surfaceStyle,
+            },
         };
     };
 
@@ -232,7 +238,7 @@ export function ModeLayout({
         style: isImmersiveShell
             ? undefined
             : {
-                  ...shell.contentStyle,
+                  ...shell.surfaceStyle,
                   padding: `${shell.gap}px`,
               },
     });
@@ -242,7 +248,7 @@ export function ModeLayout({
             {isDropActive && (
                 <motion.div
                     className="pointer-events-none absolute inset-0 flex items-center justify-center z-50"
-                    style={shell.contentStyle}
+                    style={shell.surfaceStyle}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
@@ -250,7 +256,7 @@ export function ModeLayout({
                 >
                     <motion.div
                         className="absolute inset-2 border border-primary/60"
-                        style={shell.contentStyle}
+                        style={shell.surfaceStyle}
                         initial={{ scale: 0.96, opacity: 0.4 }}
                         animate={{ scale: 1, opacity: 0.8 }}
                         exit={{ opacity: 0 }}

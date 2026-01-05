@@ -130,6 +130,28 @@ If an element requires both:
 
 Geometry-owned containers (Sidebars, Navs) impose **Hard Constraints**. If Typography content exceeds the Geometry container, the content must truncate or scroll—the container must **never** grow to fit the text. This preserves the "Command Center" layout stability.
 
+### **§2d. Surface Ownership (Authoritative)**
+
+**Definitions**
+
+- **Surface owner**: a container responsible for glass context, radius, and blur compatibility.
+- **Structural child**: any component rendered inside a surface owner (headers, views, tables, scroll bodies, rows, tabs).
+- **`surfaceStyle`**: the token that establishes a glass surface context.
+- **`outerStyle`**: the token that establishes shell chrome geometry.
+
+**Rules**
+
+1. **`surfaceStyle` may be applied only by surface owners.**
+
+2. **Structural children must never apply `surfaceStyle`.**
+
+3. **Headers are structural children.**
+   Headers must be typography-only and must not apply background, border, radius, blur, or surface tokens.
+
+4. **`outerStyle` may be applied only by shell chrome containers.**
+
+5. **A structural child assumes a surface context is provided by an ancestor.**
+
 ---
 
 # **3. Design System Authority & Token Pipeline**
