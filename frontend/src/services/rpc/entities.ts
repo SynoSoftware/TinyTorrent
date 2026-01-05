@@ -23,6 +23,55 @@ export interface TorrentPeers {
 
 export type LibtorrentPriority = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
+export type ErrorClass =
+    | "none"
+    | "trackerWarning"
+    | "trackerError"
+    | "localError"
+    | "diskFull"
+    | "permissionDenied"
+    | "missingFiles"
+    | "metadata"
+    | "unknown";
+
+export type RecoveryState =
+    | "ok"
+    | "transientWaiting"
+    | "needsUserAction"
+    | "verifying"
+    | "blocked";
+
+export type RecoveryAction =
+    | "reannounce"
+    | "forceRecheck"
+    | "resume"
+    | "pause"
+    | "changeLocation"
+    | "openFolder"
+    | "removeReadd";
+
+export interface ErrorEnvelope {
+    errorClass: ErrorClass;
+    errorMessage: string | null;
+    lastErrorAt: number | null;
+    recoveryState: RecoveryState;
+    retryCount?: number | null;
+    nextRetryAt?: number | null;
+    recoveryActions: RecoveryAction[];
+    // Hint object for future automation (non-op for now). Consumer may use
+    // this to present suggested escalation without performing actions.
+    automationHint?: {
+        recommendedAction?: RecoveryAction | null;
+        reason?: string | null;
+    } | null;
+    // Stable fingerprint suitable as a persistence key for later automation.
+    // Deterministic; do not include transient timestamps. Null if unavailable.
+    fingerprint?: string | null;
+    // Deterministic primary action selected from recoveryActions according to
+    // engine capabilities and recoveryState. Null when no action selected.
+    primaryAction?: RecoveryAction | null;
+}
+
 export interface TorrentFileEntity {
     name: string;
     index: number;
@@ -92,6 +141,7 @@ export interface TorrentEntity {
     isGhost?: boolean;
     ghostLabel?: string;
     ghostState?: string;
+    errorEnvelope?: ErrorEnvelope;
 }
 
 export interface TorrentDetailEntity extends TorrentEntity {

@@ -771,5 +771,33 @@
             "hud_dismissed": "Insights hidden. Restore to view connection, drag, and deep-link helpers.",
             "restore_hud": "Restore insights"
         }
+    },
+    "recovery": {
+        "status": {
+            "ok": "Idle",
+            "transientWaiting": "Waiting",
+            "needsUserAction": "Needs Attention",
+            "blocked": "Blocked",
+            "verifying": "Verifying"
+        },
+        "class": {
+            "trackerWarning": "Tracker",
+            "trackerError": "Tracker Error",
+            "missingFiles": "Missing Files",
+            "permissionDenied": "Permission",
+            "diskFull": "Disk Full",
+            "localError": "Local Error",
+            "metadata": "Metadata",
+            "unknown": "Unknown"
+        },
+        "hint": {
+            "reannounce": "Waiting for tracker retry",
+            "changeLocation": "Needs file relocation",
+            "forceRecheck": "Suggested: force recheck",
+            "openFolder": "Open folder to adjust permissions",
+            "pause": "Paused: disk full",
+            "removeReadd": "Remove and re-add torrent",
+            "unknown": "See details"
+        }
     }
 }

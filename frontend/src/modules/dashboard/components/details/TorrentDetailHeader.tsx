@@ -1,4 +1,8 @@
 import { useTranslation } from "react-i18next";
+import {
+    formatPrimaryActionHint,
+    formatRecoveryStatus,
+} from "@/shared/utils/recoveryFormat";
 import { Pin, PinOff, X, Info } from "lucide-react";
 import { cn } from "@heroui/react";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
@@ -72,6 +76,27 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
                 />
                 <span className="truncate min-w-0 text-foreground font-semibold">
                     {renderedName}
+                    {torrent?.errorEnvelope && (
+                        <span className="text-label text-foreground/60 block">
+                            {formatRecoveryStatus(
+                                torrent.errorEnvelope,
+                                t,
+                                "general.unknown"
+                            )}{" "}
+                            {formatPrimaryActionHint(
+                                torrent.errorEnvelope,
+                                t
+                            ) ? (
+                                <em className="text-label text-foreground/50">
+                                    —{" "}
+                                    {formatPrimaryActionHint(
+                                        torrent.errorEnvelope,
+                                        t
+                                    )}
+                                </em>
+                            ) : null}
+                        </span>
+                    )}
                 </span>
             </div>
 
