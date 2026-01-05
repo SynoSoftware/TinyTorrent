@@ -228,6 +228,8 @@ export function WorkspaceShell({
     const isImmersiveShell = workspaceStyle === "immersive";
 
     const renderNavbar = () => (
+        // Compute selection-based emphasis hints from ErrorEnvelope.primaryAction
+        // (presentational only — no behavior change).
         <Navbar
             filter={filter}
             setFilter={setFilter}
@@ -252,6 +254,23 @@ export function WorkspaceShell({
             rehashStatus={rehashStatus}
             workspaceStyle={workspaceStyle}
             onWindowCommand={handleWindowCommand}
+            emphasizeActions={{
+                pause: selectedTorrents.some(
+                    (t) => t.errorEnvelope?.primaryAction === "pause"
+                ),
+                reannounce: selectedTorrents.some(
+                    (t) => t.errorEnvelope?.primaryAction === "reannounce"
+                ),
+                changeLocation: selectedTorrents.some(
+                    (t) => t.errorEnvelope?.primaryAction === "changeLocation"
+                ),
+                openFolder: selectedTorrents.some(
+                    (t) => t.errorEnvelope?.primaryAction === "openFolder"
+                ),
+                forceRecheck: selectedTorrents.some(
+                    (t) => t.errorEnvelope?.primaryAction === "forceRecheck"
+                ),
+            }}
         />
     );
 

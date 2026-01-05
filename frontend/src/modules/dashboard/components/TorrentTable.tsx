@@ -65,6 +65,7 @@ import React, {
 } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
+import { getEmphasisClassForAction } from "@/shared/utils/recoveryFormat";
 import type { ItemElement } from "@react-types/shared";
 
 import type { OptimisticStatusMap } from "@/modules/dashboard/types/optimistic";
@@ -2790,6 +2791,16 @@ export function TorrentTable({
                                             !onOpenFolder ||
                                             !contextMenu.torrent.savePath
                                         }
+                                        className={cn(
+                                            contextMenu.torrent.errorEnvelope
+                                                ?.primaryAction === "openFolder"
+                                                ? getEmphasisClassForAction(
+                                                      contextMenu.torrent
+                                                          .errorEnvelope
+                                                          ?.primaryAction
+                                                  )
+                                                : ""
+                                        )}
                                     >
                                         {t("table.actions.open_folder")}
                                     </DropdownItem>
