@@ -11,6 +11,10 @@ import type { PeerContextAction } from "./details/tabs/PeersTab";
 import type { TorrentPeerEntity } from "@/services/rpc/entities";
 import { TorrentDetailHeader } from "./details/TorrentDetailHeader";
 import { useDetailTabs, DETAIL_TABS } from "./details/useDetailTabs";
+import {
+    BLOCK_SHADOW,
+    GLASS_BLOCK_SURFACE,
+} from "@/shared/ui/layout/glass-surface";
 import type {
     DetailTab,
     PeerSortStrategy,
@@ -84,6 +88,8 @@ export function TorrentDetailView({
         <div
             className={cn(
                 className,
+                GLASS_BLOCK_SURFACE,
+                BLOCK_SHADOW,
                 "h-full min-h-0 flex flex-col outline-none"
             )}
             tabIndex={0}
@@ -100,17 +106,13 @@ export function TorrentDetailView({
                 onTabChange={setActive}
             />
 
-            <div className="flex-1 min-h-0 overflow-y-auto">
+            <div className="flex-1 min-h-0 overflow-y-auto bg-transparent">
                 {active === "general" && torrent && (
                     <GeneralTab
                         torrent={torrent}
                         downloadDir={torrent.downloadDir ?? ""}
-                        sequentialCapability={
-                            capabilities.sequentialDownload
-                        }
-                        superSeedingCapability={
-                            capabilities.superSeeding
-                        }
+                        sequentialCapability={capabilities.sequentialDownload}
+                        superSeedingCapability={capabilities.superSeeding}
                         onSequentialToggle={onSequentialToggle}
                         onSuperSeedingToggle={onSuperSeedingToggle}
                         onForceTrackerReannounce={onForceTrackerReannounce}
@@ -141,9 +143,7 @@ export function TorrentDetailView({
                 {active === "trackers" && torrent && (
                     <TrackersTab
                         trackers={torrent.trackers ?? []}
-                        emptyMessage={t(
-                            "torrent_modal.trackers.empty_backend"
-                        )}
+                        emptyMessage={t("torrent_modal.trackers.empty_backend")}
                     />
                 )}
                 {active === "peers" && torrent && (

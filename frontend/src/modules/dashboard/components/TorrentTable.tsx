@@ -101,6 +101,7 @@ import {
     UI_BASES,
     CONFIG,
     TABLE_PERSIST_DEBOUNCE_MS,
+    TABLE_HEADER_CLASS,
 } from "@/config/logic";
 
 // --- CONSTANTS ---
@@ -2521,7 +2522,7 @@ export function TorrentTable({
                                     </p>
                                     <div className="w-full max-w-3xl space-y-tight">
                                         <div
-                                            className="grid grid-cols-torrent gap-tools rounded-2xl border border-content1/20 bg-background/40 px-panel py-panel text-scaled uppercase text-foreground/50"
+                                            className={TABLE_HEADER_CLASS}
                                             style={{
                                                 letterSpacing:
                                                     "var(--tt-tracking-ultra)",

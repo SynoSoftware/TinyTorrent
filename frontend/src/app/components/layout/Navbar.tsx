@@ -86,7 +86,7 @@ export function Navbar({
             <div
                 className="app-titlebar flex w-full items-stretch"
                 style={{
-                    ...shell.contentStyle,
+                    ...shell.surfaceStyle,
                     height: "var(--tt-navbar-h)",
                     // Use the semantic panel spacing as the flex gap between
                     // the main navbar blocks (left content and right controls).
@@ -104,7 +104,7 @@ export function Navbar({
                         "flex grow h-full min-w-0 items-center justify-between gap-stage py-tight relative"
                     )}
                     style={{
-                        ...shell.frameStyle,
+                        ...shell.outerStyle,
                         // rely on shell.frameStyle + parent gap for spacing;
                         // keeping per-component margin was causing drift.
                     }}
@@ -343,7 +343,7 @@ export function Navbar({
                         "flex h-full items-stretch divide-x divide-default/20 overflow-hidden"
                     )}
                     style={{
-                        ...shell.frameStyle,
+                        ...shell.outerStyle,
                     }}
                 >
                     <WindowControlButton
