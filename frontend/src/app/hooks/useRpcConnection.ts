@@ -4,11 +4,12 @@ import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import type {
     ReportCommandErrorFn,
     ReportReadErrorFn,
-    RpcStatus,
+    ConnectionStatus,
 } from "@/shared/types/rpc";
+import { STATUS } from "@/shared/status";
 
 type UseRpcConnectionResult = {
-    rpcStatus: RpcStatus;
+    rpcStatus: ConnectionStatus;
     isReady: boolean;
     reconnect: () => void;
     markTransportConnected: () => void;
@@ -22,7 +23,9 @@ export function useRpcConnection(
     // If a client isn't provided, fall back to the app-wide client from context.
     const defaultClient = useTorrentClient();
     const resolvedClient: EngineAdapter = client ?? defaultClient;
-    const [rpcStatus, setRpcStatus] = useState<RpcStatus>("idle");
+    const [rpcStatus, setRpcStatus] = useState<ConnectionStatus>(
+        STATUS.connection.IDLE
+    );
     const [isReady, setIsReady] = useState(false);
     const isMountedRef = useRef(false);
     const isHandshakingRef = useRef(false);
@@ -31,7 +34,7 @@ export function useRpcConnection(
         Promise.resolve()
     );
 
-    const updateStatus = useCallback((next: RpcStatus) => {
+    const updateStatus = useCallback((next: ConnectionStatus) => {
         //        console.log(`[tiny-torrent][rpc] status -> ${next}`);
         if (isMountedRef.current) {
             setRpcStatus(next);
@@ -41,13 +44,13 @@ export function useRpcConnection(
     const reportTransportError = useCallback(
         (error?: unknown) => {
             console.error("[tiny-torrent][rpc] transport error", error);
-            updateStatus("error");
+            updateStatus(STATUS.connection.ERROR);
         },
         [updateStatus]
     );
 
     const markTransportConnected = useCallback(() => {
-        updateStatus("connected");
+        updateStatus(STATUS.connection.CONNECTED);
     }, [updateStatus]);
 
     const reportCommandError = useCallback((error?: unknown) => {
@@ -73,7 +76,7 @@ export function useRpcConnection(
         pendingReconnectRef.current = false;
         console.log("[tiny-torrent][rpc] handshake start");
         setIsReady(false);
-        updateStatus("idle");
+        updateStatus(STATUS.connection.IDLE);
         try {
             if (resolvedClient.handshake) {
                 await resolvedClient.handshake();

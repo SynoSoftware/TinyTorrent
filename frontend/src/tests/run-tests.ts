@@ -1,4 +1,4 @@
-import { runAllTests } from "./recoveryAutomation.test";
+import { runAllTests } from "./recoveryAutomation.test.ts";
 
 async function main() {
     try {

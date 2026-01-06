@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import {
     formatPrimaryActionHint,
     formatRecoveryStatus,
+    formatRecoveryTooltip,
 } from "@/shared/utils/recoveryFormat";
 import { Pin, PinOff, X, Info } from "lucide-react";
 import { cn } from "@heroui/react";
@@ -14,6 +15,15 @@ import {
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
 import type { DetailTab } from "@/modules/dashboard/types/torrentDetail";
 import { DETAIL_TABS } from "./useDetailTabs";
+
+const DETAIL_TAB_LABELS: Record<string, string> = {
+    general: "inspector.tab.general",
+    content: "inspector.tab.content",
+    pieces: "inspector.tab.pieces",
+    trackers: "inspector.tab.trackers",
+    peers: "inspector.tab.peers",
+    speed: "inspector.tab.speed",
+};
 
 const NAME_MAX_LENGTH = 56;
 
@@ -77,10 +87,19 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
                 <span className="truncate min-w-0 text-foreground font-semibold">
                     {renderedName}
                     {torrent?.errorEnvelope && (
-                        <span className="text-label text-foreground/60 block">
+                        <span
+                            className="text-label text-foreground/60 block"
+                            title={formatRecoveryTooltip(
+                                torrent.errorEnvelope,
+                                t,
+                                torrent?.state,
+                                "general.unknown"
+                            )}
+                        >
                             {formatRecoveryStatus(
                                 torrent.errorEnvelope,
                                 t,
+                                torrent?.state,
                                 "general.unknown"
                             )}{" "}
                             {formatPrimaryActionHint(
@@ -116,7 +135,9 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
                                     : "text-foreground/60 hover:text-foreground"
                             )}
                         >
-                            {t(`inspector.tab.${tab}`)}
+                            {t(
+                                DETAIL_TAB_LABELS[tab] ?? `inspector.tab.${tab}`
+                            )}
                         </button>
                     ))}
                 </div>

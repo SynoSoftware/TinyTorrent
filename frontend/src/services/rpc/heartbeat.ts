@@ -4,8 +4,10 @@ import type {
     SessionStats,
     TorrentDetailEntity,
     TorrentEntity,
+    NetworkTelemetry,
 } from "./entities";
 import { processHeartbeat } from "./recoveryAutomation";
+import { enforceStateTransition } from "./normalizers";
 
 export type HeartbeatMode = "background" | "table" | "detail";
 
@@ -38,6 +40,11 @@ type HeartbeatClient = {
     getTorrents(): Promise<TorrentEntity[]>;
     getSessionStats(): Promise<SessionStats>;
     getTorrentDetails(id: string): Promise<TorrentDetailEntity>;
+};
+
+// Extend HeartbeatClient with optional network telemetry fetch support.
+type HeartbeatClientWithTelemetry = HeartbeatClient & {
+    fetchNetworkTelemetry?(): Promise<NetworkTelemetry | null>;
 };
 
 type HeartbeatSubscriber = {
@@ -79,7 +86,7 @@ export class HeartbeatManager {
         string,
         { down: number[]; up: number[]; ptr: number }
     >();
-    private client: HeartbeatClient;
+    private client: HeartbeatClientWithTelemetry;
 
     private readonly historySize: number =
         (CONFIG as any).performance?.history_data_points ?? 60;
@@ -125,7 +132,7 @@ export class HeartbeatManager {
     }
 
     constructor(client: HeartbeatClient) {
-        this.client = client;
+        this.client = client as HeartbeatClientWithTelemetry;
     }
 
     public getSpeedHistory(id: string) {
@@ -258,7 +265,7 @@ export class HeartbeatManager {
     private emitCachedData(params: HeartbeatSubscriberParams) {
         if (!this.lastTorrents || !this.lastSessionStats) return;
         const detailId = params.detailId;
-        const payload: HeartbeatPayload = {
+        const basePayload: any = {
             torrents: this.lastTorrents,
             sessionStats: this.lastSessionStats,
             timestampMs: this.lastPayloadTimestampMs ?? Date.now(),
@@ -267,6 +274,11 @@ export class HeartbeatManager {
                 detailId == null ? undefined : this.getCachedDetail(detailId),
             source: this.lastSource,
         };
+        // If we previously stored telemetry on sessionStats, expose it as a
+        // top-level `networkTelemetry` field for subscribers that consume it.
+        const maybeTelemetry = this.lastSessionStats?.networkTelemetry;
+        if (maybeTelemetry) basePayload.networkTelemetry = maybeTelemetry;
+        const payload: HeartbeatPayload = basePayload;
         params.onUpdate(payload);
     }
 
@@ -281,6 +293,16 @@ export class HeartbeatManager {
         payload.changedIds = this.computeChangedIds(payload.torrents, prev);
         this.lastSessionStats = payload.sessionStats;
         this.lastPayloadTimestampMs = timestampMs;
+        // If incoming payload carries networkTelemetry, preserve it so
+        // subscribers that rely on telemetry can receive it during cached
+        // emissions.
+        if ((payload as any).networkTelemetry) {
+            if (this.lastSessionStats) {
+                this.lastSessionStats.networkTelemetry = (
+                    payload as any
+                ).networkTelemetry;
+            }
+        }
         this.broadcastToSubscribers(payload);
     }
 
@@ -311,12 +333,15 @@ export class HeartbeatManager {
         if (this.lastSource === source) return;
         this.lastSource = source;
         if (!this.lastTorrents || !this.lastSessionStats) return;
-        this.broadcastToSubscribers({
+        const payload: any = {
             torrents: this.lastTorrents,
             sessionStats: this.lastSessionStats,
             timestampMs: this.lastPayloadTimestampMs ?? Date.now(),
             source,
-        });
+        };
+        const telemetry = this.lastSessionStats?.networkTelemetry;
+        if (telemetry) payload.networkTelemetry = telemetry;
+        this.broadcastToSubscribers(payload);
     }
 
     public disablePolling() {
@@ -420,6 +445,24 @@ export class HeartbeatManager {
                         this.client.getTorrents(),
                         this.client.getSessionStats(),
                     ]);
+                // Attempt to fetch optional network telemetry from the adapter.
+                // This is conservative: if the adapter doesn't support it or
+                // the call fails, we silently proceed without telemetry.
+                let fetchedTelemetry: NetworkTelemetry | undefined = undefined;
+                try {
+                    const telemetryClient = this
+                        .client as HeartbeatClientWithTelemetry;
+                    if (
+                        typeof telemetryClient.fetchNetworkTelemetry ===
+                        "function"
+                    ) {
+                        const nt =
+                            await telemetryClient.fetchNetworkTelemetry();
+                        if (nt) fetchedTelemetry = nt;
+                    }
+                } catch (err) {
+                    // ignore telemetry failures
+                }
                 const prevTorrents = this.lastTorrents;
                 torrents = fetchedTorrents;
                 sessionStats = fetchedSessionStats;
@@ -428,6 +471,14 @@ export class HeartbeatManager {
                 changedIds = this.computeChangedIds(torrents, prevTorrents);
                 this.lastTorrents = torrents;
                 this.lastSessionStats = sessionStats;
+                // store telemetry snapshot for broadcast
+                if (fetchedTelemetry) {
+                    // attach to lastSessionStats container if present
+                    if (this.lastSessionStats) {
+                        this.lastSessionStats.networkTelemetry =
+                            fetchedTelemetry;
+                    }
+                }
                 this.lastTorrentHash = currentHash;
                 this.pruneDetailCache(torrents);
             }
@@ -491,6 +542,11 @@ export class HeartbeatManager {
                 const payload: HeartbeatPayload = {
                     torrents,
                     sessionStats,
+                    // include any available telemetry snapshot for consumers
+                    // (backwards-compatible optional field)
+                    ...(sessionStats.networkTelemetry
+                        ? { networkTelemetry: sessionStats.networkTelemetry }
+                        : {}),
                     timestampMs,
                     detailId,
                     detail: detailPayload,
@@ -529,6 +585,26 @@ export class HeartbeatManager {
         torrents: TorrentEntity[],
         previous?: TorrentEntity[] | undefined | null
     ) {
+        // Enforce canonical state-machine transitions deterministically.
+        if (previous && previous.length > 0) {
+            const prevMap = new Map<string, TorrentEntity>();
+            for (const p of previous) prevMap.set(p.id, p);
+            for (const t of torrents) {
+                const prev = prevMap.get(t.id);
+                if (!prev) continue;
+                try {
+                    const sanitized = enforceStateTransition(
+                        prev.state,
+                        t.state
+                    );
+                    if (sanitized !== t.state) {
+                        (t as any).state = sanitized;
+                    }
+                } catch {
+                    // Defensive: if enforcement fails, leave state as-is.
+                }
+            }
+        }
         const size = this.historySize;
         const currentIds = new Set(torrents.map((t) => t.id));
         // Prune history for removed torrents (guaranteed leak-free)

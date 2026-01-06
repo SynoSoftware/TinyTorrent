@@ -6,7 +6,7 @@
     "scripts": {
         "dev": "vite",
         "build": "tsc -b && vite build",
-        "test": "tsc -b && node dist/tests/run-tests.js",
+        "test": "tsc -b && ts-node -r tsconfig-paths/register src/tests/run-tests.ts",
         "lint": "eslint .",
         "enforce:geometry": "node ./scripts/enforce-geometry.cjs",
         "classify:zoom": "node ./scripts/classify_zoom.cjs",
@@ -53,6 +53,7 @@
         "postcss": "^8.5.6",
         "tailwindcss": "^4.1.17",
         "ts-node": "^10.9.2",
+        "tsconfig-paths": "^4.2.0",
         "typescript": "~5.9.3",
         "typescript-eslint": "^8.46.4",
         "vite": "^7.2.7"

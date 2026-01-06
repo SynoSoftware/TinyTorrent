@@ -11,6 +11,7 @@ import { useOptimisticStatuses } from "./useOptimisticStatuses";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
 import type { TorrentStatus } from "@/services/rpc/entities";
+import STATUS from "@/shared/status";
 
 interface UseTorrentWorkflowParams {
     torrents: Torrent[];
@@ -61,13 +62,15 @@ export function useTorrentWorkflow({
             torrent: Torrent
         ): TorrentStatus | undefined => {
             if (action === "pause") {
-                return "paused";
+                return STATUS.torrent.PAUSED;
             }
             if (action === "resume") {
-                return torrent.state === "seeding" ? "seeding" : "downloading";
+                return torrent.state === STATUS.torrent.SEEDING
+                    ? STATUS.torrent.SEEDING
+                    : STATUS.torrent.DOWNLOADING;
             }
             if (action === "recheck") {
-                return "checking";
+                return STATUS.torrent.CHECKING;
             }
             return undefined;
         },

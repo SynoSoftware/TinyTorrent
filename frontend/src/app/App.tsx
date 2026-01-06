@@ -6,6 +6,7 @@ import {
     useState,
     type ChangeEvent,
 } from "react";
+import { STATUS } from "@/shared/status";
 import Runtime, { NativeShell } from "@/app/runtime";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import { useHotkeys } from "react-hotkeys-hook";
@@ -166,7 +167,7 @@ export default function App() {
 
     useEffect(() => {
         let active = true;
-        if (rpcStatus !== "connected") {
+        if (rpcStatus !== STATUS.connection.CONNECTED) {
             if (active) {
                 setServerClass("unknown");
             }
@@ -330,7 +331,7 @@ export default function App() {
             torrentClient,
             reportReadError,
             isMountedRef,
-            sessionReady: rpcStatus === "connected",
+            sessionReady: rpcStatus === STATUS.connection.CONNECTED,
         });
 
     // Workbench zoom: initialize global scale hook
@@ -463,7 +464,7 @@ export default function App() {
         removeGhostTorrent,
     } = useTorrentData({
         client: torrentClient,
-        sessionReady: rpcStatus === "connected",
+        sessionReady: rpcStatus === STATUS.connection.CONNECTED,
         pollingIntervalMs,
         markTransportConnected,
         reportReadError,
@@ -483,7 +484,7 @@ export default function App() {
         torrentClient,
         reportReadError,
         isMountedRef,
-        sessionReady: rpcStatus === "connected",
+        sessionReady: rpcStatus === STATUS.connection.CONNECTED,
     });
     const {
         handleFileSelectionChange,
@@ -628,14 +629,14 @@ export default function App() {
                 description: t(
                     "command_palette.filters.downloading_description"
                 ),
-                onSelect: () => setFilter("downloading"),
+                onSelect: () => setFilter(STATUS.torrent.DOWNLOADING),
             },
             {
                 id: "filter-seeding",
                 group: filterGroup,
                 title: t("nav.filter_seeding"),
                 description: t("command_palette.filters.seeding_description"),
-                onSelect: () => setFilter("seeding"),
+                onSelect: () => setFilter(STATUS.torrent.SEEDING),
             },
         ];
     }, [

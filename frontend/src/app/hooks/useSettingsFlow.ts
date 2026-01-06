@@ -3,8 +3,9 @@ import type { MutableRefObject } from "react";
 
 import type {
     ReportCommandErrorFn,
-    RpcStatus,
+    ConnectionStatus,
 } from "@/shared/types/rpc";
+import { STATUS } from "@/shared/status";
 import type { TransmissionSessionSettings } from "@/services/rpc/types";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import { isRpcCommandError } from "@/services/rpc/errors";
@@ -16,9 +17,7 @@ import {
 const USER_PREFERENCES_KEY = "tiny-torrent.user-preferences";
 type PreferencePayload = Pick<
     SettingsConfig,
-    | "refresh_interval_ms"
-    | "request_timeout_ms"
-    | "table_watermark_enabled"
+    "refresh_interval_ms" | "request_timeout_ms" | "table_watermark_enabled"
 >;
 
 const padTime = (value: number) => String(value).padStart(2, "0");
@@ -220,7 +219,7 @@ interface UseSettingsFlowParams {
     refreshSessionStatsDataRef: MutableRefObject<() => Promise<void>>;
     refreshSessionSettings: () => Promise<TransmissionSessionSettings>;
     reportCommandError: ReportCommandErrorFn;
-    rpcStatus: RpcStatus;
+    rpcStatus: ConnectionStatus;
     isSettingsOpen: boolean;
     isMountedRef: MutableRefObject<boolean>;
     updateRequestTimeout: (timeoutMs: number) => void;
@@ -240,9 +239,8 @@ export function useSettingsFlow({
     const [settingsConfig, setSettingsConfig] = useState<SettingsConfig>(() =>
         mergeWithUserPreferences({ ...DEFAULT_SETTINGS_CONFIG })
     );
-    const [sessionSettings, setSessionSettings] = useState<
-        TransmissionSessionSettings | null
-    >(null);
+    const [sessionSettings, setSessionSettings] =
+        useState<TransmissionSessionSettings | null>(null);
     const [isSettingsSaving, setIsSettingsSaving] = useState(false);
     const [settingsLoadError, setSettingsLoadError] = useState(false);
 
@@ -251,7 +249,8 @@ export function useSettingsFlow({
     }, [settingsConfig.request_timeout_ms, updateRequestTimeout]);
 
     useEffect(() => {
-        if (!isSettingsOpen || rpcStatus !== "connected") return;
+        if (!isSettingsOpen || rpcStatus !== STATUS.connection.CONNECTED)
+            return;
         let active = true;
         const loadSettings = async () => {
             if (active) {
@@ -280,7 +279,8 @@ export function useSettingsFlow({
     const handleSaveSettings = useCallback(
         async (config: SettingsConfig) => {
             setIsSettingsSaving(true);
-            let sessionPayload: Partial<TransmissionSessionSettings> | null = null;
+            let sessionPayload: Partial<TransmissionSessionSettings> | null =
+                null;
             try {
                 if (!torrentClient.updateSessionSettings) {
                     throw new Error(
@@ -338,13 +338,13 @@ export function useSettingsFlow({
             }
             await torrentClient.testPort();
         } catch (error) {
-        if (isMountedRef.current) {
-            if (!isRpcCommandError(error)) {
-                reportCommandError(error);
+            if (isMountedRef.current) {
+                if (!isRpcCommandError(error)) {
+                    reportCommandError(error);
+                }
             }
         }
-    }
-}, [reportCommandError, torrentClient, isMountedRef]);
+    }, [reportCommandError, torrentClient, isMountedRef]);
 
     const applyUserPreferencesPatch = useCallback(
         (patch: Partial<PreferencePayload>) => {

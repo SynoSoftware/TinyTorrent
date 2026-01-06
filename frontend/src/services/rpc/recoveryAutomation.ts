@@ -1,10 +1,42 @@
 import type { ErrorEnvelope, TorrentEntity } from "./entities";
 
-// In-memory state for idempotency and transient tracking.
-// `autoPausedKeys` stores a composite key of `fingerprint|recoveryState`
-// to ensure idempotency is applied only when both fingerprint and
-// recoveryState match (requirement #4).
-const autoPausedKeys = new Set<string>();
+// Idempotency and transient tracking.
+// `autoPausedKeys` stores a composite key of `torrentId|fingerprint|recoveryState`
+// to ensure idempotency is applied only when identity + fingerprint +
+// recoveryState match. Persist this set to localStorage so automation
+// decisions survive UI restarts/reloads and remain idempotent across
+// reconnections.
+const AUTO_PAUSED_STORAGE_KEY = "tt:autoPausedKeys:v1";
+const loadAutoPausedKeys = (): Set<string> => {
+    try {
+        if (typeof localStorage === "undefined") return new Set();
+        const raw = localStorage.getItem(AUTO_PAUSED_STORAGE_KEY);
+        if (!raw) return new Set();
+        const arr = JSON.parse(raw) as string[];
+        return new Set(arr);
+    } catch {
+        return new Set();
+    }
+};
+
+const saveAutoPausedKeys = (s: Set<string>) => {
+    try {
+        if (typeof localStorage === "undefined") return;
+        localStorage.setItem(
+            AUTO_PAUSED_STORAGE_KEY,
+            JSON.stringify(Array.from(s))
+        );
+    } catch {
+        // ignore
+    }
+};
+
+const autoPausedKeys = loadAutoPausedKeys();
+// pendingAutoPausedKeys prevents duplicate in-flight pause actions for the
+// same composite key. We add to this set immediately when scheduling the
+// pause, and move to `autoPausedKeys` on success. This avoids race
+// conditions when multiple heartbeats are processed rapidly.
+const pendingAutoPausedKeys = new Set<string>();
 const transientTrackerFingerprints = new Set<string>();
 // dismissedFingerprints: when a user dismisses a missing-files prompt for a
 // fingerprint, we silently suppress needsUserConfirmation for that fingerprint
@@ -166,19 +198,36 @@ export function processHeartbeat(
                 const actionKey = f
                     ? `${f}|${curEnv.errorClass}|${curEnv.recoveryState}`
                     : null;
-                if (key && !autoPausedKeys.has(key)) {
-                    autoPausedKeys.add(key);
-                    if (actionKey) lastActionKeyMs.set(actionKey, now);
-                    if (pauseCallback) {
-                        void (async () => {
+                if (
+                    key &&
+                    !autoPausedKeys.has(key) &&
+                    !pendingAutoPausedKeys.has(key) &&
+                    pauseCallback
+                ) {
+                    // Mark as pending immediately to prevent duplicate in-flight
+                    // pause attempts. Persist the key into `autoPausedKeys` only
+                    // after successful pause; if the pause fails we remove the
+                    // pending marker so future heartbeats may retry.
+                    pendingAutoPausedKeys.add(key);
+                    void (async () => {
+                        try {
+                            await pauseCallback([t.id]);
+                            pendingAutoPausedKeys.delete(key);
+                            autoPausedKeys.add(key);
+                            // persist updated set so automation remains idempotent across reloads
                             try {
-                                await pauseCallback([t.id]);
+                                saveAutoPausedKeys(autoPausedKeys);
                             } catch {
-                                // Do not escalate; automation is conservative
+                                // ignore persistence failure
                             }
-                        })();
-                    }
+                            if (actionKey) lastActionKeyMs.set(actionKey, now);
+                        } catch {
+                            // On failure, allow future heartbeats to attempt again.
+                            pendingAutoPausedKeys.delete(key);
+                        }
+                    })();
                 }
+                // If no pauseCallback provided, do not attempt automation.
             }
 
             // Automation #2: silent clear of transient tracker warnings
@@ -228,6 +277,13 @@ export function _undismissFingerprintForTests(fingerprint: string) {
 
 export function _resetForTests() {
     autoPausedKeys.clear();
+    try {
+        if (typeof localStorage !== "undefined") {
+            localStorage.removeItem(AUTO_PAUSED_STORAGE_KEY);
+        }
+    } catch {
+        // ignore
+    }
     transientTrackerFingerprints.clear();
     firstSeenFingerprintMs.clear();
     lastActionKeyMs.clear();

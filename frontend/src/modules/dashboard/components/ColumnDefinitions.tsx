@@ -22,11 +22,21 @@ import {
     ArrowDown,
     ArrowUp,
     RefreshCw,
+    CheckCircle,
+    Hourglass,
+    AlertCircle,
+    Lock,
+    Search,
 } from "lucide-react";
 
-import { type TorrentStatus } from "@/services/rpc/entities";
+import {
+    type TorrentStatus,
+    type RecoveryState,
+} from "@/services/rpc/entities";
+import STATUS from "@/shared/status";
 import {
     formatRecoveryStatus,
+    formatRecoveryTooltip,
     formatPrimaryActionHint,
 } from "@/shared/utils/recoveryFormat";
 import { type TFunction } from "i18next";
@@ -115,10 +125,9 @@ const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 
 const getEffectiveProgress = (torrent: Torrent) => {
     switch (torrent.state) {
-        case "checking":
+        case STATUS.torrent.CHECKING:
             return clamp01(torrent.verificationProgress ?? 0);
-
-        case "missing_files":
+        case STATUS.torrent.MISSING_FILES:
             return 0;
 
         default:
@@ -169,8 +178,8 @@ const SpeedColumnCell = ({ torrent, table }: ColumnRendererProps) => {
     const { tick } = useUiClock();
     void tick;
 
-    const isDownloading = torrent.state === "downloading";
-    const isSeeding = torrent.state === "seeding";
+    const isDownloading = torrent.state === STATUS.torrent.DOWNLOADING;
+    const isSeeding = torrent.state === STATUS.torrent.SEEDING;
 
     const speedValue = isDownloading
         ? torrent.speed.down
@@ -252,7 +261,8 @@ const SpeedColumnCell = ({ torrent, table }: ColumnRendererProps) => {
     );
 };
 
-const statusMap: Record<TorrentStatus, StatusMeta> = {
+// Allow both canonical TorrentStatus keys and RecoveryState keys
+const statusMap: Record<TorrentStatus | RecoveryState, StatusMeta> = {
     downloading: {
         color: "success",
         icon: ArrowDown,
@@ -271,7 +281,7 @@ const statusMap: Record<TorrentStatus, StatusMeta> = {
     checking: {
         color: "warning",
         icon: RefreshCw,
-        labelKey: "torrent_modal.statuses.checking",
+        labelKey: "table.status_checking",
     },
     queued: {
         color: "secondary",
@@ -286,12 +296,43 @@ const statusMap: Record<TorrentStatus, StatusMeta> = {
     error: {
         color: "danger",
         icon: Bug,
-        labelKey: "torrent_modal.statuses.error",
+        labelKey: "table.status_error",
     },
     missing_files: {
         color: "warning",
         icon: FileWarning,
-        labelKey: "torrent_modal.statuses.missing_files",
+        labelKey: "table.status_missing_files",
+    },
+    // Recovery / overlay states (these override the base torrent state visually)
+    ok: {
+        color: "success",
+        icon: CheckCircle,
+        labelKey: "recovery.status.ok",
+    },
+    transientWaiting: {
+        color: "secondary",
+        icon: Hourglass,
+        labelKey: "recovery.status.transientWaiting",
+    },
+    needsUserAction: {
+        color: "warning",
+        icon: AlertCircle,
+        labelKey: "recovery.status.needsUserAction",
+    },
+    needsUserConfirmation: {
+        color: "warning",
+        icon: AlertCircle,
+        labelKey: "recovery.status.needsUserConfirmation",
+    },
+    blocked: {
+        color: "danger",
+        icon: Lock,
+        labelKey: "recovery.status.blocked",
+    },
+    verifying: {
+        color: "warning",
+        icon: Search,
+        labelKey: "recovery.status.verifying",
     },
 };
 
@@ -315,7 +356,8 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
                     className={cn(
                         "font-medium truncate max-w-full transition-colors cap-height-text",
                         TABLE_LAYOUT.fontSize,
-                        torrent.state === "paused" && "text-foreground/50"
+                        torrent.state === STATUS.torrent.PAUSED &&
+                            "text-foreground/50"
                     )}
                 >
                     {torrent.name}
@@ -354,9 +396,9 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
                         className="h-indicator"
                         trackClassName="bg-content1/20 h-full"
                         indicatorClassName={cn(
-                            torrent.state === "paused"
+                            torrent.state === STATUS.torrent.PAUSED
                                 ? "bg-gradient-to-r from-warning/50 to-warning"
-                                : torrent.state === "seeding"
+                                : torrent.state === STATUS.torrent.SEEDING
                                 ? "bg-gradient-to-r from-primary/50 to-primary"
                                 : "bg-gradient-to-r from-success/50 to-success"
                         )}
@@ -377,9 +419,15 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
         sortAccessor: (torrent) => torrent.state,
         headerIcon: Activity,
         render: ({ torrent, t }) => {
-            // IMPORTANT: No "errorString => error" override here.
-            // State is derived once in the RPC normalizer.
-            const conf = statusMap[torrent.state] ?? statusMap.paused;
+            // Determine effective state (recovery overlay overrides engine state)
+            const effectiveState =
+                torrent.errorEnvelope &&
+                torrent.errorEnvelope.recoveryState &&
+                torrent.errorEnvelope.recoveryState !== "ok"
+                    ? torrent.errorEnvelope.recoveryState
+                    : torrent.state;
+
+            const conf = statusMap[effectiveState] ?? statusMap.paused;
             const Icon = conf.icon;
 
             const envelopeMsg = torrent.errorEnvelope?.errorMessage;
@@ -390,15 +438,17 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
             const statusLabel = formatRecoveryStatus(
                 torrent.errorEnvelope,
                 t,
+                torrent.state,
                 conf.labelKey
             );
 
             const tooltip =
-                envelopeMsg && envelopeMsg.trim()
-                    ? envelopeMsg
-                    : primaryHint
-                    ? primaryHint
-                    : t(conf.labelKey);
+                formatRecoveryTooltip(
+                    torrent.errorEnvelope,
+                    t,
+                    torrent.state,
+                    conf.labelKey
+                ) || t(conf.labelKey);
 
             return (
                 <div className="min-w-0 w-full flex items-center justify-center h-full">
@@ -490,7 +540,9 @@ export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
         defaultVisible: true,
         descriptionKey: "table.column_desc_speed",
         sortAccessor: (torrent) =>
-            torrent.state === "seeding" ? torrent.speed.up : torrent.speed.down,
+            torrent.state === STATUS.torrent.SEEDING
+                ? torrent.speed.up
+                : torrent.speed.down,
         headerIcon: Gauge,
         render: (ctx) => <SpeedColumnCell {...ctx} />,
     },

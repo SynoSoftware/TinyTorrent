@@ -3,22 +3,22 @@ import { useEffect, useRef } from "react";
 import { CONFIG } from "@/config/logic";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import { subscribeUiClock } from "@/shared/hooks/useUiClock";
+import STATUS from "@/shared/status";
 
 type SpeedHistoryMap = Record<string, number[]>;
 
 const getCurrentSpeed = (torrent: Torrent) => {
-    if (torrent.state === "downloading") {
+    if (torrent.state === STATUS.torrent.DOWNLOADING) {
         return torrent.speed.down;
     }
-    if (torrent.state === "seeding") {
+    if (torrent.state === STATUS.torrent.SEEDING) {
         return torrent.speed.up;
     }
     return 0;
 };
 
 const HISTORY_POINTS = CONFIG.performance.history_data_points;
-const createZeroHistory = () =>
-    new Array(HISTORY_POINTS).fill(0);
+const createZeroHistory = () => new Array(HISTORY_POINTS).fill(0);
 
 export const useTorrentSpeedHistory = (torrents: Torrent[]) => {
     const historyRef = useRef<SpeedHistoryMap>({});

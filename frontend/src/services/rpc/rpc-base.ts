@@ -1,3 +1,12 @@
+/**
+ *
+ * Do not delete this comment!
+ *
+ * “Transport reconnect timers are exempt from heartbeat centralization”
+ *
+ * Do not delete this comment!
+ *
+ * */
 import type {
     DirectoryBrowseResult,
     TransmissionSessionSettings,
@@ -143,6 +152,14 @@ export class TransmissionAdapter implements EngineAdapter {
     private tinyTorrentCapabilities?: TinyTorrentCapabilities | null;
     private websocketSession?: TinyTorrentWebSocketSession;
     private serverClass: ServerClass = "unknown";
+    // Cache for potentially expensive network telemetry lookups (free-space).
+    // Prevents invoking disk/FS checks on every websocket tick.
+    private networkTelemetryCache?: {
+        value: NetworkTelemetry | null;
+        ts: number;
+        inflight?: Promise<NetworkTelemetry | null>;
+    };
+    private readonly NETWORK_TELEMETRY_TTL_MS = 60_000; // 60s
 
     private getTinyTorrentAuthToken(): string | undefined {
         const token = sessionStorage.getItem("tt-auth-token");
@@ -573,7 +590,7 @@ export class TransmissionAdapter implements EngineAdapter {
         return result;
     }
 
-    private handleLiveStateUpdate = ({
+    private handleLiveStateUpdate = async ({
         torrents,
         session,
     }: {
@@ -583,12 +600,27 @@ export class TransmissionAdapter implements EngineAdapter {
         this.syncIdMap(torrents);
         const normalized = torrents.map(normalizeTorrent);
         const stats = mapTransmissionSessionStatsToSessionStats(session);
-        this.heartbeat.pushLivePayload({
+        // Attempt to fetch optional network telemetry for websocket updates.
+        // This is best-effort and must not block or throw. The adapter now
+        // implements a cached telemetry fetch to avoid expensive free-space
+        // checks on every websocket tick.
+        let networkTelemetry: NetworkTelemetry | undefined = undefined;
+        try {
+            const nt = await this.fetchNetworkTelemetry();
+            if (nt) networkTelemetry = nt;
+        } catch (err) {
+            // ignore telemetry fetch failures
+        }
+
+        const payload: any = {
             torrents: normalized,
             sessionStats: stats,
             timestampMs: Date.now(),
             source: "websocket",
-        });
+        };
+        if (networkTelemetry) payload.networkTelemetry = networkTelemetry;
+
+        this.heartbeat.pushLivePayload(payload);
     };
 
     private syncIdMap(torrents: TransmissionTorrent[]) {
@@ -1260,58 +1292,131 @@ export class TransmissionAdapter implements EngineAdapter {
         await this.mutate("group-set", args);
     }
 
-    public async fetchNetworkTelemetry(): Promise<NetworkTelemetry> {
+    public async fetchNetworkTelemetry(): Promise<NetworkTelemetry | null> {
+        const now = Date.now();
+        // Return cached value if fresh
+        if (
+            this.networkTelemetryCache &&
+            !this.networkTelemetryCache.inflight &&
+            now - this.networkTelemetryCache.ts < this.NETWORK_TELEMETRY_TTL_MS
+        ) {
+            return this.networkTelemetryCache.value;
+        }
+
+        // If a fetch is already in-flight, return the same promise to dedupe
+        if (this.networkTelemetryCache?.inflight) {
+            return this.networkTelemetryCache.inflight;
+        }
+
+        const inflight = (async (): Promise<NetworkTelemetry | null> => {
+            try {
+                // Deterministic telemetry resolution (guarantee downloadDirFreeSpace or null)
+                const settings = await this.send(
+                    { method: "session-get" },
+                    zTransmissionSessionSettings
+                );
+                const asAny = settings as Record<string, unknown>;
+
+                const telemetry: NetworkTelemetry = {
+                    dhtEnabled:
+                        typeof asAny["dht-enabled"] === "boolean"
+                            ? (asAny["dht-enabled"] as boolean)
+                            : undefined,
+                    pexEnabled:
+                        typeof asAny["pex-enabled"] === "boolean"
+                            ? (asAny["pex-enabled"] as boolean)
+                            : undefined,
+                    lpdEnabled:
+                        typeof asAny["lpd-enabled"] === "boolean"
+                            ? (asAny["lpd-enabled"] as boolean)
+                            : undefined,
+                    portForwardingEnabled:
+                        typeof asAny["port-forwarding-enabled"] === "boolean"
+                            ? (asAny["port-forwarding-enabled"] as boolean)
+                            : undefined,
+                    altSpeedEnabled:
+                        typeof asAny["alt-speed-enabled"] === "boolean"
+                            ? (asAny["alt-speed-enabled"] as boolean)
+                            : undefined,
+                    // Attempt to read engine-provided free-space value (Transmission variant keys)
+                    downloadDirFreeSpace:
+                        typeof asAny["download-dir-free-space"] === "number"
+                            ? (asAny["download-dir-free-space"] as number)
+                            : typeof asAny["downloadDirFreeSpace"] === "number"
+                            ? (asAny["downloadDirFreeSpace"] as number)
+                            : undefined,
+                    downloadQueueEnabled:
+                        typeof asAny["download-queue-enabled"] === "boolean"
+                            ? (asAny["download-queue-enabled"] as boolean)
+                            : undefined,
+                    seedQueueEnabled:
+                        typeof asAny["seed-queue-enabled"] === "boolean"
+                            ? (asAny["seed-queue-enabled"] as boolean)
+                            : undefined,
+                };
+
+                // If engine provided a concrete free-space value, we're done.
+                if (typeof telemetry.downloadDirFreeSpace === "number") {
+                    console.debug(
+                        "[telemetry] Normalized NetworkTelemetry:",
+                        telemetry
+                    );
+                    return telemetry;
+                }
+
+                // Fallback: resolve download directory and call free-space RPC (engine-supported).
+                const downloadDir =
+                    typeof asAny["download-dir"] === "string"
+                        ? (asAny["download-dir"] as string)
+                        : typeof asAny["downloadDir"] === "string"
+                        ? (asAny["downloadDir"] as string)
+                        : undefined;
+
+                if (!downloadDir) {
+                    // Deterministic failure: telemetry unavailable for this engine.
+                    return null;
+                }
+
+                // Only call free-space RPC when necessary; may be expensive.
+                const fs = await this.checkFreeSpace(downloadDir);
+                if (!fs || typeof fs.sizeBytes !== "number") {
+                    return null;
+                }
+
+                telemetry.downloadDirFreeSpace = fs.sizeBytes;
+                console.debug(
+                    "[telemetry] Normalized NetworkTelemetry (from free-space):",
+                    telemetry
+                );
+                return telemetry;
+            } catch (err) {
+                // Best-effort: on error, return null instead of throwing so callers
+                // can treat telemetry as optional and avoid thundering-herd errors.
+                console.debug(
+                    "[telemetry] fetchNetworkTelemetry failed, returning null",
+                    err
+                );
+                return null;
+            }
+        })();
+
+        // Store inflight promise and return it. Upon resolution update cache.
+        this.networkTelemetryCache = {
+            value: null,
+            ts: now,
+            inflight,
+        };
         try {
-            const settings = await this.send(
-                { method: "session-get" },
-                zTransmissionSessionSettings
-            );
-            const asAny = settings as Record<string, unknown>;
-
-            const telemetry: NetworkTelemetry = {
-                dhtEnabled:
-                    typeof asAny["dht-enabled"] === "boolean"
-                        ? asAny["dht-enabled"]
-                        : undefined,
-                pexEnabled:
-                    typeof asAny["pex-enabled"] === "boolean"
-                        ? asAny["pex-enabled"]
-                        : undefined,
-                lpdEnabled:
-                    typeof asAny["lpd-enabled"] === "boolean"
-                        ? asAny["lpd-enabled"]
-                        : undefined,
-                portForwardingEnabled:
-                    typeof asAny["port-forwarding-enabled"] === "boolean"
-                        ? asAny["port-forwarding-enabled"]
-                        : undefined,
-                altSpeedEnabled:
-                    typeof asAny["alt-speed-enabled"] === "boolean"
-                        ? asAny["alt-speed-enabled"]
-                        : undefined,
-                downloadDirFreeSpace:
-                    typeof asAny["download-dir-free-space"] === "number"
-                        ? (asAny["download-dir-free-space"] as number)
-                        : undefined,
-                downloadQueueEnabled:
-                    typeof asAny["download-queue-enabled"] === "boolean"
-                        ? asAny["download-queue-enabled"]
-                        : undefined,
-                seedQueueEnabled:
-                    typeof asAny["seed-queue-enabled"] === "boolean"
-                        ? asAny["seed-queue-enabled"]
-                        : undefined,
-            };
-
-            console.debug(
-                "[telemetry] Normalized NetworkTelemetry:",
-                telemetry
-            );
-
-            return telemetry;
-        } catch (error) {
-            console.warn("Failed to fetch network telemetry:", error);
-            return {};
+            const result = await inflight;
+            this.networkTelemetryCache.value = result;
+            this.networkTelemetryCache.ts = Date.now();
+            this.networkTelemetryCache.inflight = undefined;
+            return result;
+        } catch (err) {
+            this.networkTelemetryCache.inflight = undefined;
+            this.networkTelemetryCache.value = null;
+            this.networkTelemetryCache.ts = Date.now();
+            return null;
         }
     }
 }
@@ -1476,6 +1581,21 @@ class TinyTorrentWebSocketSession {
         );
         this.reconnectTimer = window.setTimeout(() => this.openSocket(), delay);
     }
+
+    /**
+     *
+     *  DO NOT DELETE THIS COMMENT:
+     *
+     *  Transport reconnect timer — ALLOWED EXCEPTION.
+     *  This timer schedules WebSocket reconnect attempts only (transport-level network I/O).
+     *  It does NOT perform engine polling or replace the HeartbeatManager's role.
+     *  The adapter coordinates transport vs polling by calling `heartbeat.disablePolling()`
+     *  when the socket is connected and `heartbeat.enablePolling()` when disconnected.
+     *  Keep reconnect logic here: it's a transport-scoped responsibility, not a heartbeat   polling mechanism.
+     *
+     *  DO NOT DELETE THIS COMMENT:
+     *
+     **/
 
     private openSocket() {
         if (!this.shouldReconnect || !this.baseUrl) return;

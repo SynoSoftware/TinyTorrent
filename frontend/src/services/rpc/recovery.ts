@@ -80,6 +80,25 @@ export const buildErrorEnvelope = (
         }
     }
 
+    // Detect partial / temporary files (.part and common partial suffixes)
+    // when detail is available. This indicates a partially-written file
+    // artifact that may require user action (do not attempt blind recovery).
+    if (detail && Array.isArray(detail.files) && detail.files.length > 0) {
+        const hasPartial = detail.files.some((f) => {
+            if (!f || typeof (f as any).name !== "string") return false;
+            const name: string = (f as any).name;
+            const lower = name.toLowerCase();
+            return (
+                lower.endsWith(".part") ||
+                lower.includes(".part.") ||
+                lower.endsWith(".partial")
+            );
+        });
+        if (hasPartial) {
+            errorClass = "partialFiles" as ErrorClass;
+        }
+    }
+
     // Map to recovery state + actions deterministically.
     // Reuse a local mapping; keep this pure and deterministic.
     let recoveryState: RecoveryState = "ok";
@@ -235,6 +254,7 @@ export const buildErrorEnvelope = (
         diskFull: ["blocked"],
         permissionDenied: ["needsUserAction"],
         missingFiles: ["needsUserAction", "needsUserConfirmation"],
+        partialFiles: ["needsUserAction"],
         metadata: ["needsUserAction"],
         unknown: ["needsUserAction"],
     };

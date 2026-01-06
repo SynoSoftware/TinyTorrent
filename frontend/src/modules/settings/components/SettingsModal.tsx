@@ -14,7 +14,7 @@ import type {
     SettingsTab,
     SliderDefinition,
 } from "@/modules/settings/data/settings-tabs";
-import type { RpcStatus } from "@/shared/types/rpc";
+import type { ConnectionStatus } from "@/shared/types/rpc";
 import {
     CLIPBOARD_BADGE_DURATION_MS,
     ICON_STROKE_WIDTH,
@@ -71,7 +71,7 @@ interface SettingsModalProps {
     onRestoreInsights?: () => void;
     onToggleWorkspaceStyle?: () => void;
     onReconnect: () => void;
-    rpcStatus: RpcStatus;
+    rpcStatus: ConnectionStatus;
     serverClass: ServerClass;
     isNativeMode: boolean;
     isImmersive?: boolean;

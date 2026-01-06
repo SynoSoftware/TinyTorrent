@@ -5,6 +5,7 @@ import type { HeartbeatPayload } from "@/services/rpc/heartbeat";
 import type { ReportReadErrorFn } from "@/shared/types/rpc";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { TorrentStatus } from "@/services/rpc/entities";
+import STATUS from "@/shared/status";
 import { GHOST_TIMEOUT_MS } from "@/config/logic";
 import { buildUniqueTorrentOrder } from "./utils/torrent-order.ts";
 import { isRpcCommandError } from "@/services/rpc/errors";
@@ -174,7 +175,7 @@ export function useTorrentData({
         name: options.label,
         progress: 0,
         verificationProgress: 0,
-        state: options.state ?? "queued",
+        state: options.state ?? STATUS.torrent.QUEUED,
         speed: { down: 0, up: 0 },
         peerSummary: {
             connected: 0,

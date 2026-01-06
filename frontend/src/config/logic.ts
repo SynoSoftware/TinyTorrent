@@ -1,5 +1,6 @@
 import type { MotionProps, Transition } from "framer-motion";
 import constants from "./constants.json";
+import { STATUS } from "@/shared/status";
 
 // Single-owner export for all config consumers
 export const CONFIG = constants;
@@ -440,8 +441,11 @@ export const HEADER_BASE =
 export const TABLE_HEADER_CLASS = `${HEADER_BASE} px-panel py-panel bg-background/40 grid grid-cols-torrent gap-tools rounded-modal border border-content1/20`;
 
 // Semantic status visuals used across the app (moved out of components)
+export type ConnectionStatus =
+    (typeof STATUS.connection)[keyof typeof STATUS.connection];
+
 export const STATUS_VISUALS: Record<
-    "idle" | "connected" | "error",
+    string,
     {
         bg: string;
         border: string;
@@ -450,21 +454,21 @@ export const STATUS_VISUALS: Record<
         glow: string;
     }
 > = {
-    idle: {
+    [STATUS.connection.IDLE]: {
         bg: "bg-content1/5 hover:bg-content1/10",
         border: "border-default/10",
         text: "text-foreground/40",
         shadow: "shadow-none",
         glow: "bg-content1",
     },
-    connected: {
+    [STATUS.connection.CONNECTED]: {
         bg: "bg-success/5 hover:bg-success/10",
         border: "border-default/20",
         text: "text-success",
         shadow: "shadow-success-glow",
         glow: "bg-success",
     },
-    error: {
+    [STATUS.connection.ERROR]: {
         bg: "bg-danger/5 hover:bg-danger/10",
         border: "border-default/20",
         text: "text-danger",

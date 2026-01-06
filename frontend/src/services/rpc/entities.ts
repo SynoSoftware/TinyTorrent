@@ -1,12 +1,5 @@
-export type TorrentStatus =
-    | "downloading" // moving data down
-    | "seeding" // moving data up
-    | "queued" // blocked by scheduler
-    | "stalled" // active but no transfer
-    | "paused" // user intent
-    | "checking" // integrity work
-    | "error" // fatal (non-missing-files)
-    | "missing_files"; // data missing / cannot find files
+import type { TorrentStatus } from "@/shared/status";
+export type { TorrentStatus } from "@/shared/status";
 
 export interface TorrentSpeed {
     down: number;
@@ -31,6 +24,7 @@ export type ErrorClass =
     | "diskFull"
     | "permissionDenied"
     | "missingFiles"
+    | "partialFiles"
     | "metadata"
     | "unknown";
 
@@ -185,6 +179,13 @@ export interface SessionStats {
     activeTorrentCount: number;
     pausedTorrentCount: number;
     dhtNodes?: number;
+    // Optional free space for the configured download directory. Some
+    // adapters expose this via session-get or telemetry; include here for
+    // backward-compatible reads from `sessionStats`.
+    downloadDirFreeSpace?: number;
+    // Optional network telemetry snapshot. Prefer this over attaching
+    // implementation-specific hidden properties at runtime.
+    networkTelemetry?: NetworkTelemetry;
 }
 
 export type EngineType = "transmission" | "libtorrent" | "unknown";

@@ -69,7 +69,31 @@
     "labels": {
         "on": "On",
         "off": "Off",
-        "unknown": "Unknown"
+        "unknown": "Unknown",
+        "status": {
+            "disk": {
+                "full": "Full",
+                "low": "Low",
+                "ok": "OK",
+                "unknown": "Unknown"
+            },
+            "torrent": {
+                "blocked": "Blocked",
+                "checking": "Checking",
+                "downloading": "Downloading",
+                "error": "Error",
+                "missing_files": "Missing",
+                "needsUserAction": "Action",
+                "needsUserConfirmation": "Confirmation required",
+                "ok": "Idle",
+                "paused": "Paused",
+                "queued": "Queued",
+                "seeding": "Seeding",
+                "stalled": "Stalled",
+                "transientWaiting": "Waiting",
+                "verifying": "Verifying"
+            }
+        }
     },
 
     "inspector": {
@@ -566,6 +590,9 @@
         "select_item": "Select {{name}}",
         "status_dl": "Downloading",
         "status_pause": "Paused",
+        "status_checking": "Checking",
+        "status_error": "Error",
+        "status_missing_files": "Missing",
         "status_queued": "Queued",
         "status_seed": "Seeding",
         "status_stalled": "Stalled"

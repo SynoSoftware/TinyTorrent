@@ -7,8 +7,10 @@ import { useUiClock } from "@/shared/hooks/useUiClock";
 export function useOptimisticStatuses(torrents: Torrent[]) {
     const [optimisticStatuses, setOptimisticStatuses] =
         useState<OptimisticStatusMap>({});
-    const { tick } = useUiClock();
 
+    // Optimistic statuses are a UI-only projection and must be cleared
+    // only by engine-confirmed reconciliation or explicit failure.
+    // Remove time-based expiry to enforce that invariant.
     const updateOptimisticStatuses = useCallback(
         (updates: Array<{ id: string; state?: TorrentStatus }>) => {
             setOptimisticStatuses((prev) => {
@@ -17,8 +19,7 @@ export function useOptimisticStatuses(torrents: Torrent[]) {
                     if (state) {
                         next[id] = {
                             state,
-                            expiresAt: Date.now() + 3000,
-                        };
+                        } as any;
                     } else {
                         delete next[id];
                     }
@@ -28,21 +29,6 @@ export function useOptimisticStatuses(torrents: Torrent[]) {
         },
         []
     );
-
-    useEffect(() => {
-        setOptimisticStatuses((prev) => {
-            let mutated = false;
-            const next = { ...prev };
-            const now = Date.now();
-            for (const [id, entry] of Object.entries(prev)) {
-                if (entry.expiresAt <= now) {
-                    delete next[id];
-                    mutated = true;
-                }
-            }
-            return mutated ? next : prev;
-        });
-    }, [tick]);
 
     useEffect(() => {
         setOptimisticStatuses((prev) => {
