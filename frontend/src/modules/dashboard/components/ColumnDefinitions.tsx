@@ -58,6 +58,7 @@ import { buildSplinePath } from "@/shared/utils/spline";
 import type { Table } from "@tanstack/react-table";
 import type { OptimisticStatusMap } from "@/modules/dashboard/types/optimistic";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
+import { useMemo } from "react";
 
 // --- TYPES ---
 export type ColumnId =
@@ -74,7 +75,7 @@ export type ColumnId =
 
 // We define what we expect in table.options.meta
 export interface DashboardTableMeta {
-    speedHistoryRef: RefObject<Record<string, number[]>>;
+    speedHistoryRef: RefObject<Record<string, Array<number | null>>>;
     optimisticStatuses: OptimisticStatusMap;
 }
 
@@ -175,8 +176,8 @@ const formatQueueOrdinal = (queuePosition?: number) => {
 };
 
 const SpeedColumnCell = ({ torrent, table }: ColumnRendererProps) => {
-    const { tick } = useUiClock();
-    void tick;
+    const { tick } = useUiClock(); // Force periodic re-render to sample external telemetry.
+    void tick; // Force periodic re-render to sample external telemetry.
 
     const isDownloading = torrent.state === STATUS.torrent.DOWNLOADING;
     const isSeeding = torrent.state === STATUS.torrent.SEEDING;
@@ -190,73 +191,87 @@ const SpeedColumnCell = ({ torrent, table }: ColumnRendererProps) => {
     const meta = table.options.meta as DashboardTableMeta | undefined;
     const rawHistory = meta?.speedHistoryRef?.current?.[torrent.id] ?? [];
 
-    const sanitizedHistory = rawHistory.map((v) =>
-        Number.isFinite(v) ? v : 0
+    // Preserve signal integrity: unknown ≠ zero
+    const sanitizedHistory = rawHistory.filter((v): v is number =>
+        Number.isFinite(v)
     );
-    const current = Number.isFinite(speedValue as number)
-        ? (speedValue as number)
-        : 0;
 
-    const sparklineHistory =
-        sanitizedHistory.length > 0
-            ? [...sanitizedHistory, current]
-            : [current, 0];
+    const current = Number.isFinite(speedValue) ? speedValue : NaN;
 
-    const maxHistorySpeed = Math.max(...sparklineHistory, 0);
-    const maxSpeed = Math.max(current, maxHistorySpeed, 1);
+    const sparklineHistory = Number.isFinite(current)
+        ? [...sanitizedHistory, current]
+        : sanitizedHistory;
+
+    const hasSignal = sparklineHistory.length >= 2;
+    const maxSpeed = hasSignal ? Math.max(...sparklineHistory) : 0;
 
     const { rowHeight } = useLayoutMetrics();
     const resolvedRow = Number.isFinite(rowHeight)
         ? rowHeight
         : DEFAULT_SPARKLINE_HEIGHT * 2.5;
 
-    const SPARKLINE_WIDTH = Math.max(24, Math.round(resolvedRow * 2.3));
-    const SPARKLINE_HEIGHT = Math.max(6, Math.round(resolvedRow * 0.45));
-    const sparklineHeight = SPARKLINE_HEIGHT - 1;
+    const { width: SPARKLINE_WIDTH, height: SPARKLINE_HEIGHT } = useMemo(() => {
+        const height = Math.max(6, Math.round(resolvedRow * 0.45));
+        return {
+            width: Math.max(24, Math.round(resolvedRow * 2.3)),
+            height,
+        };
+    }, [resolvedRow]);
 
-    const path = buildSplinePath(
-        sparklineHistory,
-        SPARKLINE_WIDTH,
-        sparklineHeight,
-        maxSpeed
-    );
+    const path = hasSignal
+        ? buildSplinePath(
+              sparklineHistory,
+              SPARKLINE_WIDTH,
+              SPARKLINE_HEIGHT - 1,
+              maxSpeed
+          )
+        : "";
+
+    const speedState = isDownloading ? "down" : isSeeding ? "seed" : "idle";
+
+    const SPEED_COLOR: Record<typeof speedState, string> = {
+        down: "text-success",
+        seed: "text-primary",
+        idle: "text-foreground/60",
+    };
 
     return (
-        <div className="flex items-center justify-end gap-tools min-w-0">
-            <span
-                className={cn(
-                    "shrink-0 text-right min-w-0",
-                    DENSE_NUMERIC,
-                    "font-medium",
-                    isDownloading
-                        ? "text-success"
-                        : isSeeding
-                        ? "text-primary"
-                        : "text-foreground/30"
-                )}
-            >
-                {speedValue !== null ? formatSpeed(speedValue) : "-"}
-            </span>
-            <svg
-                viewBox={`0 0 ${SPARKLINE_WIDTH} ${SPARKLINE_HEIGHT}`}
-                className={cn(
-                    "h-sep w-sparkline flex-none overflow-visible",
-                    isDownloading
-                        ? "text-success"
-                        : isSeeding
-                        ? "text-primary"
-                        : "text-foreground/40"
-                )}
-                preserveAspectRatio="none"
-            >
-                <path
-                    d={path}
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.4"
-                    strokeLinecap="round"
-                />
-            </svg>
+        <div className="relative w-full h-full min-w-0 min-h-0">
+            {/* Sparkline fills entire cell */}
+            {hasSignal && (
+                <svg
+                    className={cn(
+                        "absolute inset-0 w-full h-full overflow-visible",
+                        SPEED_COLOR[speedState],
+                        "opacity-50"
+                    )}
+                    viewBox={`0 0 ${SPARKLINE_WIDTH} ${SPARKLINE_HEIGHT}`}
+                    preserveAspectRatio="none"
+                    aria-hidden
+                >
+                    <path
+                        d={path}
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.4"
+                        strokeLinecap="round"
+                    />
+                </svg>
+            )}
+
+            {/* Text padding wrapper */}
+            <div className="relative z-10 flex items-center h-full pointer-events-none">
+                <span
+                    className={cn(
+                        DENSE_NUMERIC,
+                        "font-medium",
+                        SPEED_COLOR[speedState],
+                        "drop-shadow-[0_1px_1px_rgba(0,0,0,0.25)] dark:drop-shadow-[0_1px_1px_rgba(255,255,255,0.15)]"
+                    )}
+                >
+                    {speedValue !== null ? formatSpeed(speedValue) : "–"}
+                </span>
+            </div>
         </div>
     );
 };
