@@ -925,225 +925,282 @@ export default function App() {
     // Re-download idempotency guard per-fingerprint
     const redownloadInFlight = useRef<Set<string>>(new Set());
 
-    // Handle explicit re-download requests dispatched from UI components.
-    useEffect(() => {
-        const handleRedownload = async (ev: Event) => {
-            try {
-                const ce = ev as CustomEvent & { detail?: any };
-                const detail = ce?.detail ?? {};
-                const idOrHash = detail.id ?? detail.hash;
-                if (!idOrHash) return;
+    const findTorrentById = useCallback(
+        (idOrHash?: string | null) => {
+            if (!idOrHash) return null;
+            const tableMatch =
+                torrents.find(
+                    (t) => t.id === idOrHash || t.hash === idOrHash
+                ) ?? null;
+            if (tableMatch) return tableMatch;
+            if (
+                detailData &&
+                (detailData.id === idOrHash ||
+                    detailData.hash === idOrHash)
+            ) {
+                return detailData;
+            }
+            return null;
+        },
+        [detailData, torrents]
+    );
 
-                // Resolve target torrent from current table or detail view
-                let target: any =
-                    torrents.find(
-                        (t) => t.id === idOrHash || t.hash === idOrHash
-                    ) ?? null;
-                if (!target && detailData) {
-                    if (
-                        detailData.id === idOrHash ||
-                        (detailData as any).hash === idOrHash
-                    ) {
-                        target = detailData;
+    const executeSetLocation = useCallback(
+        async (target: Torrent | TorrentDetail) => {
+            const client = torrentClientRef.current;
+            if (!client) return;
+            let chosen: string | null | undefined;
+            if (client.browseDirectory) {
+                try {
+                    const res = await client.browseDirectory(
+                        target.savePath ?? undefined
+                    );
+                    chosen = res?.path;
+                } catch {
+                    // swallow
+                }
+            }
+            if (!chosen) {
+                const promptMessage = t(
+                    "directory_browser.manual_entry_prompt",
+                    {
+                        defaultValue:
+                            "Enter the server-side path where the torrent's files live.",
+                    }
+                );
+                const defaultValue = target.savePath ?? "";
+                const manualEntry = window.prompt(promptMessage, defaultValue);
+                if (manualEntry === null) return;
+                const trimmedEntry = manualEntry.trim();
+                if (!trimmedEntry) return;
+                chosen = trimmedEntry;
+            }
+            if (!chosen) return;
+
+            try {
+                await client.setTorrentLocation?.(target.id, chosen, false);
+                await refreshTorrentsRef.current?.();
+                if (detailData?.id === target.id) {
+                    await refreshDetailData();
+                }
+            } catch (err) {
+                console.error("setTorrentLocation failed", err);
+            }
+        },
+        [detailData, refreshDetailData, t]
+    );
+
+    const handleSetLocationForDetail = useCallback(
+        (torrent: TorrentDetail) => executeSetLocation(torrent),
+        [executeSetLocation]
+    );
+
+    const executeRedownload = useCallback(
+        async (target: Torrent | TorrentDetail) => {
+            const client = torrentClientRef.current;
+            if (!client) return;
+
+            const fp = target.errorEnvelope?.fingerprint ?? null;
+            const key = fp ?? String(target.id ?? target.hash);
+            if (redownloadInFlight.current.has(key)) {
+                return;
+            }
+            redownloadInFlight.current.add(key);
+
+            try {
+                let det: TorrentDetail | null = null;
+                try {
+                    det = await client.getTorrentDetails(target.id);
+                } catch {
+                    det = detailData ?? null;
+                }
+
+                const hashString = det?.hash ?? target.hash;
+                const trackers = (det?.trackers ?? [])
+                    .map((tr) => tr.announce)
+                    .filter(Boolean);
+                let magnet: string | null = null;
+                if (hashString) {
+                    magnet = `magnet:?xt=urn:btih:${hashString}`;
+                    if (trackers.length) {
+                        magnet += trackers
+                            .map(
+                                (announce) =>
+                                    `&tr=${encodeURIComponent(announce)}`
+                            )
+                            .join("");
                     }
                 }
-                if (!target) return;
 
-                const client = torrentClientRef.current;
-                if (!client) return;
-
-                // Obtain stable fingerprint from existing envelope (if available)
-                const fp = target.errorEnvelope?.fingerprint ?? null;
-                const key = fp ?? String(target.id ?? target.hash);
-                if (redownloadInFlight.current.has(key)) {
-                    // Idempotent: already running
-                    return;
-                }
-                redownloadInFlight.current.add(key);
+                const downloadDir =
+                    det?.downloadDir ??
+                    det?.savePath ??
+                    (target.savePath as string | undefined);
 
                 try {
-                    // Fetch detail early (before removal) to capture trackers/metainfo/downloadDir
-                    let det: any = null;
+                    await client.pause([target.id]);
+                } catch (err) {
+                    console.error("pause failed during redownload", err);
+                }
+
+                try {
+                    await client.remove([target.id], false);
+                } catch (err) {
+                    console.error(
+                        "remove (keep metadata) failed during redownload",
+                        err
+                    );
+                }
+
+                if (magnet) {
                     try {
-                        det = await client.getTorrentDetails(target.id);
-                    } catch {
-                        det = detailData ?? null;
-                    }
-
-                    // Build magnet if possible
-                    const hashString =
-                        (det &&
-                            ((det.hash as string) ||
-                                (det.hashString as string))) ??
-                        (target.hash as string | undefined);
-                    const trackers = (det?.trackers ?? [])
-                        .map((tr: any) => tr.announce)
-                        .filter(Boolean);
-                    let magnet: string | null = null;
-                    if (hashString) {
-                        magnet = `magnet:?xt=urn:btih:${hashString}`;
-                        if (trackers.length) {
-                            magnet += trackers
-                                .map(
-                                    (t: string) =>
-                                        `&tr=${encodeURIComponent(t)}`
-                                )
-                                .join("");
-                        }
-                    }
-
-                    const downloadDir =
-                        (det &&
-                            ((det.downloadDir as string) ??
-                                (det.savePath as string))) ??
-                        (target.savePath as string | undefined);
-
-                    // 1) Stop torrent (best-effort)
-                    try {
-                        await client.pause([target.id]);
-                    } catch (err) {
-                        console.error("pause failed during redownload", err);
-                    }
-
-                    // 2) Remove torrent but keep metadata/data flag false to avoid deleting
-                    try {
-                        await client.remove([target.id], false);
+                        await client.addTorrent({
+                            magnetLink: magnet,
+                            downloadDir,
+                            paused: false,
+                        });
+                        await refreshTorrentsRef.current?.();
                     } catch (err) {
                         console.error(
-                            "remove (keep metadata) failed during redownload",
+                            "addTorrent (magnet) failed during redownload",
                             err
                         );
-                    }
-
-                    // 3) Re-add: prefer magnet, otherwise open add modal for manual .torrent
-                    if (magnet) {
-                        try {
-                            await client.addTorrent({
-                                magnetLink: magnet,
-                                downloadDir,
-                                paused: false,
-                            });
-                            // Refresh view so missing-files clears deterministically
-                            await refreshTorrentsRef.current?.();
-                        } catch (err) {
-                            console.error(
-                                "addTorrent (magnet) failed during redownload",
-                                err
-                            );
-                            try {
-                                window.dispatchEvent(
-                                    new CustomEvent("tiny-torrent:open-add", {
-                                        detail: {
-                                            magnetLink: magnet,
-                                            downloadDir,
-                                        },
-                                    })
-                                );
-                            } catch {
-                                // noop
-                            }
-                        }
-                    } else {
                         try {
                             window.dispatchEvent(
                                 new CustomEvent("tiny-torrent:open-add", {
-                                    detail: { downloadDir },
+                                    detail: {
+                                        magnetLink: magnet,
+                                        downloadDir,
+                                    },
                                 })
                             );
                         } catch {
                             // noop
                         }
                     }
-                } finally {
-                    redownloadInFlight.current.delete(key);
+                } else {
+                    try {
+                        window.dispatchEvent(
+                            new CustomEvent("tiny-torrent:open-add", {
+                                detail: { downloadDir },
+                            })
+                        );
+                    } catch {
+                        // noop
+                    }
                 }
-            } catch (err) {
-                console.error("redownload handler error", err);
+            } finally {
+                redownloadInFlight.current.delete(key);
             }
+        },
+        [detailData]
+    );
+
+    const handleRedownloadForDetail = useCallback(
+        (torrent: TorrentDetail) => executeRedownload(torrent),
+        [executeRedownload]
+    );
+
+    const executeRetryFetch = useCallback(
+        async (target: Torrent | TorrentDetail) => {
+            const client = torrentClientRef.current;
+            if (!client) return;
+
+            const errorClass = target.errorEnvelope?.errorClass;
+            const isTrackerError =
+                errorClass === "trackerWarning" ||
+                errorClass === "trackerError";
+
+            if (
+                isTrackerError &&
+                typeof client.forceTrackerReannounce === "function"
+            ) {
+                try {
+                    await client.forceTrackerReannounce(target.id);
+                } catch (err) {
+                    console.error("retry fetch reannounce failed", err);
+                    return;
+                }
+            } else if (typeof client.verify === "function") {
+                try {
+                    await client.verify([target.id]);
+                } catch (err) {
+                    console.error("retry fetch verify failed", err);
+                    return;
+                }
+            } else {
+                return;
+            }
+
+            await refreshTorrentsRef.current?.();
+            await refreshSessionStatsDataRef.current?.();
+            if (detailData?.id === target.id) {
+                try {
+                    await refreshDetailData();
+                } catch (err) {
+                    console.error("refreshDetailData failed", err);
+                }
+            }
+        },
+        [detailData, refreshDetailData]
+    );
+
+    const handleRetryForDetail = useCallback(
+        (torrent: TorrentDetail) => executeRetryFetch(torrent),
+        [executeRetryFetch]
+    );
+
+    useEffect(() => {
+        const handleRedownload = async (ev: Event) => {
+            const ce = ev as CustomEvent & { detail?: any };
+            const detail = ce?.detail ?? {};
+            const idOrHash = detail.id ?? detail.hash;
+            const target = findTorrentById(idOrHash);
+            if (!target) return;
+            await executeRedownload(target);
         };
 
         const handleSetLocation = async (ev: Event) => {
-            try {
-                const ce = ev as CustomEvent & { detail?: any };
-                const detail = ce?.detail ?? {};
-                const idOrHash = detail.id ?? detail.hash;
-                if (!idOrHash) return;
-                const client = torrentClientRef.current;
-                if (!client) return;
+            const ce = ev as CustomEvent & { detail?: any };
+            const detail = ce?.detail ?? {};
+            const idOrHash = detail.id ?? detail.hash;
+            const target = findTorrentById(idOrHash);
+            if (!target) return;
+            await executeSetLocation(target);
+        };
 
-                const target =
-                    torrents.find(
-                        (t) => t.id === idOrHash || t.hash === idOrHash
-                    ) ?? null;
-                if (!target && detailData) {
-                    if (
-                        detailData.id === idOrHash ||
-                        (detailData as any).hash === idOrHash
-                    ) {
-                        // prefer detailData
-                    }
-                }
-
-                // Ask engine to browse directory if supported
-                let chosen: string | null | undefined = undefined;
-                if (client.browseDirectory) {
-                    try {
-                        const res = await client.browseDirectory(
-                            target?.savePath ?? undefined
-                        );
-                        chosen = res?.path;
-                    } catch (err) {
-                        // ignore
-                    }
-                }
-                if (!chosen || !target) return;
-
-                try {
-                    await client.setTorrentLocation?.(target.id, chosen, false);
-                    await refreshTorrentsRef.current?.();
-                } catch (err) {
-                    console.error("setTorrentLocation failed", err);
-                }
-            } catch (err) {
-                console.error(err);
-            }
+        const handleRetryFetch = async (ev: Event) => {
+            const ce = ev as CustomEvent & { detail?: any };
+            const detail = ce?.detail ?? {};
+            const idOrHash = detail.id ?? detail.hash;
+            const target = findTorrentById(idOrHash);
+            if (!target) return;
+            await executeRetryFetch(target);
         };
 
         const handleDismiss = async (ev: Event) => {
+            const ce = ev as CustomEvent & { detail?: any };
+            const detail = ce?.detail ?? {};
+            const idOrHash = detail.id ?? detail.hash;
+            const target = findTorrentById(idOrHash);
+            const fp = target?.errorEnvelope?.fingerprint ?? null;
+            if (!fp) return;
             try {
-                const ce = ev as CustomEvent & { detail?: any };
-                const detail = ce?.detail ?? {};
-                const idOrHash = detail.id ?? detail.hash;
-                if (!idOrHash) return;
-                const client = torrentClientRef.current;
-                if (!client) return;
-
-                const target =
-                    torrents.find(
-                        (t) => t.id === idOrHash || t.hash === idOrHash
-                    ) ?? null;
-                const fp = target?.errorEnvelope?.fingerprint ?? null;
-                if (!fp) return;
-
-                // Call into recoveryAutomation to dismiss this fingerprint
-                try {
-                    // Import lazily to avoid cycles
-                    const ra = await import(
-                        "@/services/rpc/recoveryAutomation"
-                    );
-                    ra.dismissFingerprint(fp);
-                    await refreshTorrentsRef.current?.();
-                } catch (err) {
-                    console.error("dismiss fingerprint failed", err);
-                }
+                const ra = await import("@/services/rpc/recoveryAutomation");
+                ra.dismissFingerprint(fp);
+                await refreshTorrentsRef.current?.();
             } catch (err) {
-                console.error(err);
+                console.error("dismiss fingerprint failed", err);
             }
         };
 
         window.addEventListener(
             "tiny-torrent:redownload",
             handleRedownload as EventListener
+        );
+        window.addEventListener(
+            "tiny-torrent:retry-fetch",
+            handleRetryFetch as EventListener
         );
         window.addEventListener(
             "tiny-torrent:set-location",
@@ -1159,6 +1216,10 @@ export default function App() {
                 handleRedownload as EventListener
             );
             window.removeEventListener(
+                "tiny-torrent:retry-fetch",
+                handleRetryFetch as EventListener
+            );
+            window.removeEventListener(
                 "tiny-torrent:set-location",
                 handleSetLocation as EventListener
             );
@@ -1167,7 +1228,12 @@ export default function App() {
                 handleDismiss as EventListener
             );
         };
-    }, [torrents, detailData]);
+    }, [
+        executeRedownload,
+        executeRetryFetch,
+        executeSetLocation,
+        findTorrentById,
+    ]);
 
     // legacy redownload handler removed — single idempotent handler exists above
 
@@ -1416,6 +1482,9 @@ export default function App() {
                 sequentialToggleHandler={handleSequentialToggle}
                 superSeedingToggleHandler={handleSuperSeedingToggle}
                 handleForceTrackerReannounce={handleForceTrackerReannounce}
+                onSetLocation={handleSetLocationForDetail}
+                onRedownload={handleRedownloadForDetail}
+                onRetry={handleRetryForDetail}
                 capabilities={capabilities}
                 optimisticStatuses={optimisticStatuses}
                 handleSelectionChange={handleSelectionChange}

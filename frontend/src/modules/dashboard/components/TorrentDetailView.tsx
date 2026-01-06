@@ -47,6 +47,9 @@ export interface TorrentDetailViewProps {
     onSequentialToggle?: (enabled: boolean) => void | Promise<void>;
     onSuperSeedingToggle?: (enabled: boolean) => void | Promise<void>;
     onForceTrackerReannounce?: () => void | Promise<void>;
+    onSetLocation?: (torrent: TorrentDetail) => void | Promise<void>;
+    onRedownload?: (torrent: TorrentDetail) => void | Promise<void>;
+    onRetry?: (torrent: TorrentDetail) => void | Promise<void>;
     capabilities: CapabilityStore;
     isStandalone?: boolean;
 }
@@ -68,6 +71,9 @@ export function TorrentDetailView({
     onSequentialToggle,
     onSuperSeedingToggle,
     onForceTrackerReannounce,
+    onSetLocation,
+    onRedownload,
+    onRetry,
     capabilities,
     isDetailFullscreen = false,
     isStandalone = false,
@@ -112,17 +118,30 @@ export function TorrentDetailView({
 
             <div className="flex-1 min-h-0 bg-transparent py-tight ">
                 {active === "general" && torrent && (
-                    <GeneralTab
-                        torrent={torrent}
-                        downloadDir={torrent.downloadDir ?? ""}
-                        sequentialCapability={capabilities.sequentialDownload}
-                        superSeedingCapability={capabilities.superSeeding}
-                        onSequentialToggle={onSequentialToggle}
-                        onSuperSeedingToggle={onSuperSeedingToggle}
-                        onForceTrackerReannounce={onForceTrackerReannounce}
-                        progressPercent={Math.round(
-                            (torrent.progress ?? 0) * 100
-                        )}
+                <GeneralTab
+                    torrent={torrent}
+                    downloadDir={torrent.downloadDir ?? ""}
+                    sequentialCapability={capabilities.sequentialDownload}
+                    superSeedingCapability={capabilities.superSeeding}
+                    onSequentialToggle={onSequentialToggle}
+                    onSuperSeedingToggle={onSuperSeedingToggle}
+                    onForceTrackerReannounce={onForceTrackerReannounce}
+                    onSetLocation={
+                        onSetLocation
+                            ? () => onSetLocation(torrent)
+                            : undefined
+                    }
+                    onRedownload={
+                        onRedownload
+                            ? () => onRedownload(torrent)
+                            : undefined
+                    }
+                    onRetry={
+                        onRetry ? () => onRetry(torrent) : undefined
+                    }
+                    progressPercent={Math.round(
+                        (torrent.progress ?? 0) * 100
+                    )}
                         timeRemainingLabel={t("general.unknown")}
                         activePeers={torrent.peers?.length ?? 0}
                     />

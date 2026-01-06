@@ -74,6 +74,9 @@ interface ModeLayoutProps {
     onSequentialToggle?: (enabled: boolean) => Promise<void> | void;
     onSuperSeedingToggle?: (enabled: boolean) => Promise<void> | void;
     onForceTrackerReannounce?: () => Promise<void> | void;
+    onSetLocation?: (torrent: TorrentDetail) => Promise<void> | void;
+    onRedownload?: (torrent: TorrentDetail) => Promise<void> | void;
+    onRetry?: (torrent: TorrentDetail) => Promise<void> | void;
     capabilities: CapabilityStore;
     optimisticStatuses?: OptimisticStatusMap;
     peerSortStrategy?: PeerSortStrategy;
@@ -100,6 +103,9 @@ export function ModeLayout({
     onSequentialToggle,
     onSuperSeedingToggle,
     onForceTrackerReannounce,
+    onSetLocation,
+    onRedownload,
+    onRetry,
     onOpenFolder,
     capabilities,
     optimisticStatuses,
@@ -413,6 +419,9 @@ export function ModeLayout({
                                     onForceTrackerReannounce={
                                         onForceTrackerReannounce
                                     }
+                                    onSetLocation={onSetLocation}
+                                    onRedownload={onRedownload}
+                                    onRetry={onRetry}
                                     capabilities={capabilities}
                                     isDetailFullscreen={false}
                                     onDock={handleDetailDock}
@@ -451,23 +460,26 @@ export function ModeLayout({
                             exit={{ opacity: 0, scale: 0.96 }}
                             transition={{ duration: 0.25 }}
                         >
-                            <TorrentDetailView
-                                torrent={detailData}
-                                onClose={handleDetailClose}
-                                onFilesToggle={onFilesToggle}
-                                onFileContextAction={onFileContextAction}
-                                onPeerContextAction={onPeerContextAction}
-                                peerSortStrategy={peerSortStrategy}
-                                inspectorTabCommand={inspectorTabCommand}
-                                onInspectorTabCommandHandled={
-                                    onInspectorTabCommandHandled
-                                }
-                                onSequentialToggle={onSequentialToggle}
-                                onSuperSeedingToggle={onSuperSeedingToggle}
-                                onForceTrackerReannounce={
-                                    onForceTrackerReannounce
-                                }
-                                capabilities={capabilities}
+                                <TorrentDetailView
+                                    torrent={detailData}
+                                    onClose={handleDetailClose}
+                                    onFilesToggle={onFilesToggle}
+                                    onFileContextAction={onFileContextAction}
+                                    onPeerContextAction={onPeerContextAction}
+                                    peerSortStrategy={peerSortStrategy}
+                                    inspectorTabCommand={inspectorTabCommand}
+                                    onInspectorTabCommandHandled={
+                                        onInspectorTabCommandHandled
+                                    }
+                                    onSequentialToggle={onSequentialToggle}
+                                    onSuperSeedingToggle={onSuperSeedingToggle}
+                                    onForceTrackerReannounce={
+                                        onForceTrackerReannounce
+                                    }
+                                    onSetLocation={onSetLocation}
+                                    onRedownload={onRedownload}
+                                    onRetry={onRetry}
+                                    capabilities={capabilities}
                                 isDetailFullscreen={isDetailFullscreen}
                                 isStandalone={true}
                                 onDock={handleDetailDock}

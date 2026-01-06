@@ -115,6 +115,155 @@ export const GeneralTab = ({
     // Single source of truth: derived in rpc normalizer
     const showMissingFilesError = torrent.state === "missing_files";
 
+    const primaryAction = torrent.errorEnvelope?.primaryAction;
+    const dispatchRecoveryEvent = (eventName: string) => {
+        try {
+            window.dispatchEvent(
+                new CustomEvent(eventName, {
+                    detail: { id: torrent.id, hash: torrent.hash },
+                })
+            );
+        } catch (error) {
+            console.error(`Failed to dispatch ${eventName}`, error);
+        }
+    };
+
+    const handleSetLocationAction = () => {
+        if (onSetLocation) return onSetLocation();
+        dispatchRecoveryEvent("tiny-torrent:set-location");
+    };
+
+    const handleRedownloadAction = () => {
+        if (onRedownload) return onRedownload();
+        dispatchRecoveryEvent("tiny-torrent:redownload");
+    };
+
+    const handleRetryAction = () => {
+        if (onRetry) return onRetry();
+        dispatchRecoveryEvent("tiny-torrent:retry-fetch");
+    };
+
+    // Build recovery buttons dynamically from the envelope's recoveryActions
+    const buildRecoveryButtons = () => {
+        const actions = torrent.errorEnvelope?.recoveryActions ?? [];
+        const buttons: {
+            id: string;
+            color: "primary" | "danger" | "default";
+            label: string;
+            tooltip: string;
+            onPress: () => Promise<void> | void;
+        }[] = [];
+
+        for (const a of actions) {
+            if (a === "forceRecheck") {
+                buttons.push({
+                    id: a,
+                    color: "primary",
+                    label: t("torrent_modal.controls.verify", {
+                        defaultValue: "Verify",
+                    }),
+                    tooltip: t("tooltip.verify", {
+                        defaultValue: "Re-scan and verify files on the server.",
+                    }),
+                    onPress: handleRetryAction,
+                });
+            } else if (a === "setLocation") {
+                buttons.push({
+                    id: a,
+                    color: "primary",
+                    label: t("directory_browser.select", {
+                        name: t("torrent_modal.labels.save_path"),
+                        defaultValue: "Set Location",
+                    }),
+                    tooltip: t("tooltip.set_location", {
+                        defaultValue:
+                            "Choose a new directory for the torrent's files.",
+                    }),
+                    onPress: handleSetLocationAction,
+                });
+            } else if (a === "reDownload") {
+                buttons.push({
+                    id: a,
+                    color: "danger",
+                    label: t("modals.download", {
+                        defaultValue: "Re-download",
+                    }),
+                    tooltip: t("tooltip.redownload", {
+                        defaultValue:
+                            "Re-download the torrent's data. This will overwrite existing files.",
+                    }),
+                    onPress: handleRedownloadAction,
+                });
+            } else if (a === "reannounce") {
+                buttons.push({
+                    id: a,
+                    color: "default",
+                    label: t("torrent_modal.controls.force_reannounce", {
+                        defaultValue: "Reannounce",
+                    }),
+                    tooltip: t("tooltip.reannounce", {
+                        defaultValue: "Force a tracker reannounce.",
+                    }),
+                    onPress: () => onForceTrackerReannounce?.(),
+                });
+            } else if (a === "dismiss") {
+                buttons.push({
+                    id: a,
+                    color: "default",
+                    label: t("toolbar.cancel", { defaultValue: "Cancel" }),
+                    tooltip: t("tooltip.dismiss", {
+                        defaultValue: "Dismiss this message.",
+                    }),
+                    onPress: () => {
+                        try {
+                            window.dispatchEvent(
+                                new CustomEvent(
+                                    "tiny-torrent:dismiss-missing-files",
+                                    {
+                                        detail: {
+                                            id: torrent.id,
+                                            hash: torrent.hash,
+                                        },
+                                    }
+                                )
+                            );
+                        } catch (err) {
+                            console.error(err);
+                        }
+                    },
+                });
+            } else {
+                // Fallback to a generic retry
+                buttons.push({
+                    id: a,
+                    color: "default",
+                    label: t("toolbar.feedback.refresh", {
+                        defaultValue: "Retry",
+                    }),
+                    tooltip: t("tooltip.retry", {
+                        defaultValue:
+                            "Retry fetching the torrent's metadata or state.",
+                    }),
+                    onPress: handleRetryAction,
+                });
+            }
+        }
+
+        // Ensure primaryAction is first in the resulting array
+        if (torrent.errorEnvelope?.primaryAction) {
+            const prim = torrent.errorEnvelope.primaryAction;
+            const primIdx = buttons.findIndex((b) => b.id === prim);
+            if (primIdx > 0) {
+                const [p] = buttons.splice(primIdx, 1);
+                buttons.unshift(p);
+            }
+        }
+
+        return buttons;
+    };
+
+    const orderedRecoveryButtons = buildRecoveryButtons();
+
     // Show focused confirmation dialog on first render of the
     // needsUserConfirmation recovery state (engine-truth-driven).
     useEffect(() => {
@@ -150,166 +299,45 @@ export const GeneralTab = ({
                               })}
                     </div>
                     <div className="flex gap-tools mt-tight">
-                        {(() => {
-                            const emphasis = getEmphasisClassForAction(
-                                torrent.errorEnvelope?.primaryAction
-                            );
+                        {orderedRecoveryButtons.map((button) => {
+                            const isPrimary = button.id === primaryAction;
+                            const emphasis = isPrimary
+                                ? getEmphasisClassForAction(button.id)
+                                : "";
                             return (
                                 <Button
+                                    key={button.id}
                                     size="md"
                                     variant="shadow"
-                                    color="primary"
-                                    onPress={() => {
-                                        if (onSetLocation)
-                                            return onSetLocation();
-                                        try {
-                                            window.dispatchEvent(
-                                                new CustomEvent(
-                                                    "tiny-torrent:set-location",
-                                                    {
-                                                        detail: {
-                                                            id: torrent.hash,
-                                                        },
-                                                    }
-                                                )
-                                            );
-                                        } catch (error) {
-                                            console.error(
-                                                "Failed to set location:",
-                                                error
-                                            );
-                                        }
-                                    }}
+                                    color={button.color}
+                                    onPress={button.onPress}
                                     isDisabled={false}
-                                    title={t("tooltip.set_location", {
-                                        defaultValue:
-                                            "Choose a new directory for the torrent's files.",
-                                    })}
+                                    title={button.tooltip}
                                     className={emphasis}
                                 >
-                                    {t("directory_browser.select", {
-                                        name: t(
-                                            "torrent_modal.labels.save_path"
-                                        ),
-                                        defaultValue: "Set Location",
-                                    })}
+                                    {button.label}
                                 </Button>
                             );
-                        })()}
-
-                        {(() => {
-                            const emphasis = getEmphasisClassForAction(
-                                torrent.errorEnvelope?.primaryAction
-                            );
-                            return (
-                                <Button
-                                    size="md"
-                                    variant="shadow"
-                                    color="danger"
-                                    onPress={() => {
-                                        if (onRedownload) return onRedownload();
-                                        try {
-                                            window.dispatchEvent(
-                                                new CustomEvent(
-                                                    "tiny-torrent:redownload",
-                                                    {
-                                                        detail: {
-                                                            id: torrent.hash,
-                                                        },
-                                                    }
-                                                )
-                                            );
-                                        } catch (error) {
-                                            console.error(
-                                                "Failed to re-download torrent:",
-                                                error
-                                            );
-                                        }
-                                    }}
-                                    isDisabled={false}
-                                    title={t("tooltip.redownload", {
-                                        defaultValue:
-                                            "Re-download the torrent's data. This will overwrite existing files.",
-                                    })}
-                                    className={emphasis}
-                                >
-                                    {t("modals.download", {
-                                        defaultValue: "Re-download",
-                                    })}
-                                </Button>
-                            );
-                        })()}
-
-                        {(() => {
-                            const emphasis = getEmphasisClassForAction(
-                                torrent.errorEnvelope?.primaryAction
-                            );
-                            return (
-                                <Button
-                                    size="md"
-                                    variant="shadow"
-                                    color="default"
-                                    onPress={() => {
-                                        if (onRetry) return onRetry();
-                                        try {
-                                            window.dispatchEvent(
-                                                new CustomEvent(
-                                                    "tiny-torrent:retry-fetch",
-                                                    {
-                                                        detail: {
-                                                            id: torrent.hash,
-                                                        },
-                                                    }
-                                                )
-                                            );
-                                        } catch (error) {
-                                            console.error(
-                                                "Failed to retry torrent fetch:",
-                                                error
-                                            );
-                                        }
-                                    }}
-                                    isDisabled={false}
-                                    title={t("tooltip.retry", {
-                                        defaultValue:
-                                            "Retry fetching the torrent's metadata or state.",
-                                    })}
-                                    className={emphasis}
-                                >
-                                    {t("toolbar.feedback.refresh", {
-                                        defaultValue: "Retry",
-                                    })}
-                                </Button>
-                            );
-                        })()}
-
-                        {(() => {
-                            const emphasis = getEmphasisClassForAction(
-                                torrent.errorEnvelope?.primaryAction
-                            );
-                            return (
-                                <Button
-                                    size="md"
-                                    variant="shadow"
-                                    color="primary"
-                                    onPress={() => {
-                                        window.open(
-                                            "https://help.tinytorrent.com/no-data-error",
-                                            "_blank"
-                                        );
-                                    }}
-                                    title={t("tooltip.help", {
-                                        defaultValue:
-                                            "Open the troubleshooting guide for resolving this error.",
-                                    })}
-                                    className={emphasis}
-                                >
-                                    {t("toolbar.help", {
-                                        defaultValue: "Help",
-                                    })}
-                                </Button>
-                            );
-                        })()}
+                        })}
+                        <Button
+                            size="md"
+                            variant="shadow"
+                            color="primary"
+                            onPress={() => {
+                                window.open(
+                                    "https://help.tinytorrent.com/no-data-error",
+                                    "_blank"
+                                );
+                            }}
+                            title={t("tooltip.help", {
+                                defaultValue:
+                                    "Open the troubleshooting guide for resolving this error.",
+                            })}
+                        >
+                            {t("toolbar.help", {
+                                defaultValue: "Help",
+                            })}
+                        </Button>
                     </div>
                 </GlassPanel>
             )}
