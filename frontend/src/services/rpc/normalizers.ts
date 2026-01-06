@@ -15,35 +15,35 @@ import type {
     TorrentFileEntity,
     TorrentPeerEntity,
     TorrentTrackerEntity,
-    TorrentStatus,
     ErrorEnvelope,
     ErrorClass,
     RecoveryState,
     RecoveryAction,
 } from "./entities";
 import { buildErrorEnvelope } from "./recovery";
+import STATUS, { type TorrentStatus } from "@/shared/status";
 
 const STATUS_MAP: Record<number, TorrentStatus> = {
-    0: "paused",
-    1: "checking",
-    2: "checking",
-    3: "queued",
-    4: "downloading",
-    5: "queued",
-    6: "seeding",
-    7: "paused",
+    0: STATUS.torrent.PAUSED,
+    1: STATUS.torrent.CHECKING,
+    2: STATUS.torrent.CHECKING,
+    3: STATUS.torrent.QUEUED,
+    4: STATUS.torrent.DOWNLOADING,
+    5: STATUS.torrent.QUEUED,
+    6: STATUS.torrent.SEEDING,
+    7: STATUS.torrent.PAUSED,
 };
 
 const normalizeStatus = (
     status: number | TorrentStatus | undefined
 ): TorrentStatus => {
     if (typeof status === "string") {
-        return status;
+        return status as TorrentStatus;
     }
     if (typeof status === "number") {
-        return STATUS_MAP[status] ?? "paused";
+        return STATUS_MAP[status] ?? STATUS.torrent.PAUSED;
     }
-    return "paused";
+    return STATUS.torrent.PAUSED;
 };
 
 // Transmission error semantics:
@@ -78,17 +78,23 @@ const deriveTorrentState = (
     // 1) Error classification (authoritative)
     if (hasRpcError(torrent)) {
         const env = buildErrorEnvelope(torrent as TransmissionTorrent);
-        return env.errorClass === "missingFiles" ? "missing_files" : "error";
+        return env.errorClass === "missingFiles"
+            ? STATUS.torrent.MISSING_FILES
+            : STATUS.torrent.ERROR;
     }
 
     // 2) Base states that must never be overridden
-    if (base === "paused" || base === "checking" || base === "queued") {
+    if (
+        base === STATUS.torrent.PAUSED ||
+        base === STATUS.torrent.CHECKING ||
+        base === STATUS.torrent.QUEUED
+    ) {
         return base;
     }
 
     // 🔒 3) Completed torrents are NEVER stalled
     if (torrent.percentDone === 1) {
-        return "seeding";
+        return STATUS.torrent.SEEDING;
     }
 
     const down = numOr(torrent.rateDownload, 0);
@@ -96,10 +102,12 @@ const deriveTorrentState = (
     const sendingToUs = numOr(torrent.peersSendingToUs, 0);
 
     // 4) Stalled applies ONLY to downloading
-    if (base === "downloading") {
+    if (base === STATUS.torrent.DOWNLOADING) {
         const noTraffic = down === 0;
         const noUsefulPeers = connected === 0 || sendingToUs === 0;
-        return noTraffic && noUsefulPeers ? "stalled" : "downloading";
+        return noTraffic && noUsefulPeers
+            ? STATUS.torrent.STALLED
+            : STATUS.torrent.DOWNLOADING;
     }
 
     return base;
@@ -222,10 +230,14 @@ export const normalizeTorrent = (
     const derivedState = deriveTorrentState(baseState, torrent);
 
     const progress =
-        derivedState === "missing_files" ? undefined : torrent.percentDone;
+        derivedState === STATUS.torrent.MISSING_FILES
+            ? undefined
+            : torrent.percentDone;
 
     const verificationProgress =
-        derivedState === "checking" ? torrent.recheckProgress : undefined;
+        derivedState === STATUS.torrent.CHECKING
+            ? torrent.recheckProgress
+            : undefined;
 
     // Use the hashString when present, otherwise fall back to the numeric RPC id
     // as a string. Some engines may omit or mis-populate hashString which would
@@ -294,3 +306,87 @@ export const normalizeTorrentDetail = (
         errorEnvelope: envelope,
     };
 };
+
+/**
+ * Canonical state-machine: allowed transitions for `TorrentStatus`.
+ * This table centralizes allowed state transitions so that downstream
+ * consumers (heartbeat, automation) can enforce deterministic state
+ * evolution and avoid UI-driven illegal transitions.
+ *
+ * Rule: If a transition from `A -> B` is not allowed, the sanitized
+ * result will preserve the previous state `A` until engine truth
+ * moves into a legal state.
+ */
+export const ALLOWED_STATE_TRANSITIONS: Record<TorrentStatus, TorrentStatus[]> =
+    {
+        [STATUS.torrent.PAUSED]: [
+            STATUS.torrent.PAUSED,
+            STATUS.torrent.QUEUED,
+            STATUS.torrent.DOWNLOADING,
+            STATUS.torrent.SEEDING,
+            STATUS.torrent.CHECKING,
+            STATUS.torrent.ERROR,
+            STATUS.torrent.MISSING_FILES,
+        ],
+        [STATUS.torrent.QUEUED]: [
+            STATUS.torrent.QUEUED,
+            STATUS.torrent.DOWNLOADING,
+            STATUS.torrent.SEEDING,
+            STATUS.torrent.PAUSED,
+            STATUS.torrent.CHECKING,
+            STATUS.torrent.ERROR,
+        ],
+        [STATUS.torrent.DOWNLOADING]: [
+            STATUS.torrent.DOWNLOADING,
+            STATUS.torrent.QUEUED,
+            STATUS.torrent.STALLED,
+            STATUS.torrent.SEEDING,
+            STATUS.torrent.PAUSED,
+            STATUS.torrent.ERROR,
+            STATUS.torrent.MISSING_FILES,
+        ],
+        [STATUS.torrent.SEEDING]: [
+            STATUS.torrent.SEEDING,
+            STATUS.torrent.QUEUED,
+            STATUS.torrent.PAUSED,
+            STATUS.torrent.ERROR,
+            STATUS.torrent.MISSING_FILES,
+        ],
+        [STATUS.torrent.CHECKING]: [
+            STATUS.torrent.CHECKING,
+            STATUS.torrent.QUEUED,
+            STATUS.torrent.PAUSED,
+            STATUS.torrent.DOWNLOADING,
+            STATUS.torrent.SEEDING,
+            STATUS.torrent.ERROR,
+        ],
+        [STATUS.torrent.STALLED]: [
+            STATUS.torrent.STALLED,
+            STATUS.torrent.DOWNLOADING,
+            STATUS.torrent.PAUSED,
+            STATUS.torrent.ERROR,
+        ],
+        [STATUS.torrent.ERROR]: [
+            STATUS.torrent.ERROR,
+            STATUS.torrent.PAUSED,
+            STATUS.torrent.DOWNLOADING,
+            STATUS.torrent.SEEDING,
+        ],
+        [STATUS.torrent.MISSING_FILES]: [
+            STATUS.torrent.MISSING_FILES,
+            STATUS.torrent.PAUSED,
+        ],
+    };
+
+/**
+ * Enforce allowed state transitions. If `prev` is undefined, accept `next`.
+ * If transition is illegal, return `prev` to preserve engine-truth continuity.
+ */
+export function enforceStateTransition(
+    prev: TorrentStatus | undefined,
+    next: TorrentStatus
+): TorrentStatus {
+    if (!prev) return next;
+    const allowed = ALLOWED_STATE_TRANSITIONS[prev] ?? [prev];
+    return allowed.includes(next) ? next : prev;
+}

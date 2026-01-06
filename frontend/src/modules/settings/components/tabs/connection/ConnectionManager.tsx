@@ -3,7 +3,8 @@ import { RefreshCw, CheckCircle, XCircle, Download } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ICON_STROKE_WIDTH } from "@/config/logic";
-import type { RpcStatus } from "@/shared/types/rpc";
+import { STATUS } from "@/shared/status";
+import type { ConnectionStatus } from "@/shared/types/rpc";
 import type { ServerClass } from "@/services/rpc/entities";
 import {
     useConnectionConfig,
@@ -14,7 +15,7 @@ import {
 } from "@/app/context/ConnectionConfigContext";
 
 interface ConnectionManagerProps {
-    rpcStatus: RpcStatus;
+    rpcStatus: ConnectionStatus;
     onReconnect: () => void;
     serverClass: ServerClass;
     isNativeMode: boolean;
@@ -28,7 +29,7 @@ interface ConnectionManagerState {
 }
 
 function useConnectionManagerState(
-    rpcStatus: RpcStatus
+    rpcStatus: ConnectionStatus
 ): ConnectionManagerState {
     const { activeProfile, updateProfile } = useConnectionConfig();
     const handleUpdate = useCallback(
@@ -52,11 +53,16 @@ function useConnectionManagerState(
         activeProfile,
         handleUpdate,
         endpointPreview,
-        isOffline: rpcStatus === "error",
+        isOffline: rpcStatus === STATUS.connection.ERROR,
     };
 }
 
 type ServerType = "tinytorrent" | "transmission" | null;
+
+const SERVER_TYPE_LABELS: Record<string, string> = {
+    tinytorrent: "settings.connection.server_type_tinytorrent",
+    transmission: "settings.connection.server_type_transmission",
+};
 
 export function ConnectionCredentialsCard({
     rpcStatus,
@@ -69,21 +75,21 @@ export function ConnectionCredentialsCard({
     const { activeProfile, handleUpdate, isOffline } =
         useConnectionManagerState(rpcStatus);
     const connectionStatusLabel = useMemo(() => {
-        const map: Record<RpcStatus, string> = {
-            connected: t("status_bar.rpc_connected"),
-            error: t("status_bar.rpc_error"),
-            idle: t("status_bar.rpc_idle"),
+        const map: Record<string, string> = {
+            [STATUS.connection.CONNECTED]: t("status_bar.rpc_connected"),
+            [STATUS.connection.ERROR]: t("status_bar.rpc_error"),
+            [STATUS.connection.IDLE]: t("status_bar.rpc_idle"),
         };
         return map[rpcStatus];
     }, [rpcStatus, t]);
     const statusColor = useMemo<"success" | "warning" | "danger">(() => {
-        if (rpcStatus === "connected") return "success";
-        if (rpcStatus === "error") return "danger";
+        if (rpcStatus === STATUS.connection.CONNECTED) return "success";
+        if (rpcStatus === STATUS.connection.ERROR) return "danger";
         return "warning";
     }, [rpcStatus]);
 
     const serverType = useMemo<ServerType>(() => {
-        if (rpcStatus !== "connected") return null;
+        if (rpcStatus !== STATUS.connection.CONNECTED) return null;
         if (serverClass === "tinytorrent") return "tinytorrent";
         return "transmission";
     }, [rpcStatus, serverClass]);
@@ -91,7 +97,10 @@ export function ConnectionCredentialsCard({
     const serverTypeLabel = useMemo(() => {
         if (!serverType) return null;
 
-        return t(`settings.connection.server_type_${serverType}`);
+        return t(
+            SERVER_TYPE_LABELS[serverType] ??
+                `settings.connection.server_type_${serverType}`
+        );
     }, [serverType, t]);
 
     const remoteInputsEnabled = !isNativeMode || showAdvanced;
@@ -111,7 +120,7 @@ export function ConnectionCredentialsCard({
         return t("settings.connection.profile_placeholder");
     }, [activeProfile.id, activeProfile.label, t]);
     const shouldShowAuthControls = true;
-    const isAuthModeResolved = rpcStatus === "connected";
+    const isAuthModeResolved = rpcStatus === STATUS.connection.CONNECTED;
     const isInsecureBasicAuth = (() => {
         const scheme = activeProfile.scheme;
         if (scheme !== "http") return false;
@@ -143,7 +152,9 @@ export function ConnectionCredentialsCard({
                             variant="ghost"
                             onPress={() => setShowAdvanced(true)}
                         >
-                            {t("settings.connection.show_advanced", "Advanced")}
+                            {t("settings.connection.show_advanced", {
+                                defaultValue: "Advanced",
+                            })}
                         </Button>
                     </div>
                 </div>
@@ -339,7 +350,7 @@ export function ConnectionCredentialsCard({
 }
 
 interface ConnectionExtensionCardProps {
-    rpcStatus: RpcStatus;
+    rpcStatus: ConnectionStatus;
     serverClass: ServerClass;
 }
 
@@ -350,7 +361,7 @@ export function ConnectionExtensionCard({
     const { t } = useTranslation();
 
     const modeLabelKey = useMemo(() => {
-        if (rpcStatus !== "connected") {
+        if (rpcStatus !== STATUS.connection.CONNECTED) {
             return "settings.connection.detecting_mode_label";
         }
         if (serverClass === "tinytorrent") {
@@ -360,7 +371,7 @@ export function ConnectionExtensionCard({
     }, [rpcStatus, serverClass]);
 
     const modeDescriptionKey = useMemo(() => {
-        if (rpcStatus !== "connected") {
+        if (rpcStatus !== STATUS.connection.CONNECTED) {
             return "settings.connection.detecting_mode_summary";
         }
         if (serverClass === "tinytorrent") {
@@ -380,7 +391,7 @@ export function ConnectionExtensionCard({
             <p className="text-label text-foreground/60">
                 {t(modeDescriptionKey)}
             </p>
-            {rpcStatus === "error" && (
+            {rpcStatus === STATUS.connection.ERROR && (
                 <p className="text-label text-warning">
                     {t("settings.connection.offline_warning")}
                 </p>

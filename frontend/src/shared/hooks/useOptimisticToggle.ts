@@ -6,9 +6,9 @@ type ToggleCommitCallback = (
 ) => Promise<void> | void;
 
 export function useOptimisticToggle(onCommit: ToggleCommitCallback) {
-    const [optimisticState, setOptimisticState] = useState<Record<number, boolean>>(
-        {}
-    );
+    const [optimisticState, setOptimisticState] = useState<
+        Record<number, boolean>
+    >({});
 
     const toggle = useCallback(
         (indexes: number[], wanted: boolean) => {
@@ -21,8 +21,9 @@ export function useOptimisticToggle(onCommit: ToggleCommitCallback) {
                 return next;
             });
 
-            const result = onCommit(indexes, wanted);
-
+            // Commit the optimistic change via provided callback.
+            // Important: do NOT clear optimistic state on promise completion.
+            // Only clear on explicit failure (sync throw or rejected promise).
             const revert = () => {
                 setOptimisticState((prev) => {
                     const next = { ...prev };
@@ -33,9 +34,18 @@ export function useOptimisticToggle(onCommit: ToggleCommitCallback) {
                 });
             };
 
-            if (result && typeof (result as any).then === "function") {
-                (result as Promise<void>).finally(revert);
-            } else {
+            try {
+                const result = onCommit(indexes, wanted);
+                if (result && typeof (result as any).then === "function") {
+                    // Only revert on rejection.
+                    (result as Promise<void>).catch(() => {
+                        revert();
+                    });
+                }
+                // If onCommit is synchronous and succeeds, keep optimistic state
+                // until engine-confirmed reconciliation (heartbeat) clears it.
+            } catch (err) {
+                // Synchronous failure — revert optimistic state immediately.
                 revert();
             }
         },

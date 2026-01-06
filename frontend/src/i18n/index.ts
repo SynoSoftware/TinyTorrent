@@ -30,3 +30,10 @@ i18n.use(initReactI18next).init({
     supportedLngs: ["en"],
     interpolation: { escapeValue: false },
 });
+
+i18n.on("missingKey", (_lng, _ns, key) => {
+    const proc = (globalThis as any).process;
+    if (proc && proc.env && proc.env.NODE_ENV === "development") {
+        throw new Error(`Missing i18n key: ${key}`);
+    }
+});

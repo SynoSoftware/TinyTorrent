@@ -5,6 +5,8 @@ import { useTranslation } from "react-i18next";
 import { Button, cn } from "@heroui/react";
 import RemoveConfirmationModal from "@/modules/torrent-remove/components/RemoveConfirmationModal";
 import { X } from "lucide-react";
+import { STATUS } from "@/shared/status";
+import type { ConnectionStatus } from "@/shared/types/rpc";
 
 import Runtime, { NativeShell } from "@/app/runtime";
 
@@ -49,7 +51,6 @@ import type {
     ServerClass,
 } from "@/services/rpc/entities";
 import type { HeartbeatSource } from "@/services/rpc/heartbeat";
-import type { RpcStatus } from "@/shared/types/rpc";
 import type { AddTorrentContext } from "@/app/hooks/useAddTorrent";
 import type { CapabilityStore } from "@/app/types/capabilities";
 import type { WorkspaceStyle } from "@/app/hooks/useWorkspaceShell";
@@ -121,7 +122,7 @@ interface WorkspaceShellProps {
     onInspectorTabCommandHandled: () => void;
     sessionStats: SessionStats | null;
     liveTransportStatus: HeartbeatSource;
-    rpcStatus: RpcStatus;
+    rpcStatus: ConnectionStatus;
     engineType: EngineDisplayType;
     serverClass: ServerClass;
     isNativeIntegrationActive: boolean;
@@ -350,7 +351,7 @@ export function WorkspaceShell({
             )}
 
             <AnimatePresence>
-                {rpcStatus === "error" && (
+                {rpcStatus === STATUS.connection.ERROR && (
                     <motion.div
                         initial={{ opacity: 0, y: 6 }}
                         animate={{ opacity: 1, y: 0 }}

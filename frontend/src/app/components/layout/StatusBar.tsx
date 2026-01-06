@@ -25,6 +25,7 @@ import { NetworkGraph } from "@/shared/ui/graphs/NetworkGraph";
 
 import { formatBytes, formatSpeed } from "@/shared/utils/format";
 import { getShellTokens, UI_BASES, STATUS_VISUALS } from "@/config/logic";
+import { STATUS } from "@/shared/status";
 import {
     BLOCK_SHADOW,
     GLASS_BLOCK_SURFACE,
@@ -34,8 +35,27 @@ import { useSessionSpeedHistory } from "@/shared/hooks/useSessionSpeedHistory";
 import type { SessionStats, NetworkTelemetry } from "@/services/rpc/entities";
 import type { TorrentEntity } from "@/services/rpc/entities";
 import type { HeartbeatSource } from "@/services/rpc/heartbeat";
-import type { RpcStatus } from "@/shared/types/rpc";
+import type { ConnectionStatus } from "@/shared/types/rpc";
 import type { WorkspaceStyle } from "@/app/hooks/useWorkspaceShell";
+
+const DISK_LABELS: Record<string, string> = {
+    ok: "status_bar.disk_ok",
+    warn: "status_bar.disk_warn",
+    bad: "status_bar.disk_bad",
+    unknown: "status_bar.disk_unknown",
+};
+
+const TRANSPORT_LABELS: Record<string, string> = {
+    websocket: "status_bar.transport_websocket",
+    polling: "status_bar.transport_polling",
+    offline: "status_bar.transport_offline",
+};
+
+const RPC_STATUS_LABEL: Record<string, string> = {
+    [STATUS.connection.CONNECTED]: "status_bar.rpc_connected",
+    [STATUS.connection.IDLE]: "status_bar.rpc_idle",
+    [STATUS.connection.ERROR]: "status_bar.rpc_error",
+};
 
 /* ------------------------------------------------------------------ */
 /* TYPES */
@@ -48,7 +68,7 @@ type DiskState = "ok" | "warn" | "bad" | "unknown";
 interface StatusBarProps {
     workspaceStyle: WorkspaceStyle;
     sessionStats: SessionStats | null;
-    rpcStatus: RpcStatus;
+    rpcStatus: ConnectionStatus;
     liveTransportStatus: HeartbeatSource;
     selectedCount?: number;
     onEngineClick?: () => void;
@@ -68,55 +88,30 @@ function useNetworkTelemetry() {
 
     React.useEffect(() => {
         let mounted = true;
-
-        const fetchTelemetry = async () => {
-            try {
-                let data = await client.fetchNetworkTelemetry?.();
-
-                // If the RPC did not include `downloadDirFreeSpace`, try a
-                // best-effort fallback: fetch session settings to discover
-                // the configured `download-dir` and ask the engine for free
-                // space via `free-space`. This covers Transmission servers
-                // that expose free space through the `free-space` endpoint
-                // even when session-get does not include the free-space field.
-                if (
-                    mounted &&
-                    (data == null || data.downloadDirFreeSpace == null)
-                ) {
-                    try {
-                        const settings = await client.fetchSessionSettings?.();
-                        const downloadDir =
-                            (settings as any)?.["download-dir"] ||
-                            (settings as any)?.downloadDir ||
-                            undefined;
-                        if (downloadDir) {
-                            const fs = await client.checkFreeSpace?.(
-                                downloadDir
-                            );
-                            if (fs && typeof fs.sizeBytes === "number") {
-                                data = {
-                                    ...(data ?? {}),
-                                    downloadDirFreeSpace: fs.sizeBytes,
-                                };
-                            }
-                        }
-                    } catch (err) {
-                        // ignore fallback errors — telemetry remains as initially fetched
-                    }
-                }
-
-                if (mounted) setTelemetry(data ?? null);
-            } catch {
-                /* optional */
-            }
-        };
-
-        fetchTelemetry();
-        const id = window.setInterval(fetchTelemetry, 60_000);
+        // Subscribe to the central HeartbeatManager via the adapter.
+        // This ensures there is exactly one authoritative scheduler for network polling.
+        const sub = client.subscribeToHeartbeat({
+            mode: "background",
+            onUpdate: (payload) => {
+                if (!mounted) return;
+                // payload.sessionStats is the authoritative session telemetry.
+                // Map it to NetworkTelemetry shape if necessary, otherwise null.
+                // Keep this conservative: avoid issuing any new network calls here.
+                const net: NetworkTelemetry | null =
+                    (payload as any).networkTelemetry ?? null;
+                setTelemetry(net);
+            },
+            onError: () => {
+                if (!mounted) return;
+                setTelemetry(null);
+            },
+        });
 
         return () => {
             mounted = false;
-            clearInterval(id);
+            try {
+                sub.unsubscribe();
+            } catch {}
         };
     }, [client]);
 
@@ -279,7 +274,7 @@ function StatusTelemetryGrid({
 }: {
     telemetry: NetworkTelemetry | null;
     transportStatus: TransportStatus;
-    rpcStatus: RpcStatus;
+    rpcStatus: ConnectionStatus;
     diskState: DiskState;
     freeBytes?: number | null;
 }) {
@@ -287,7 +282,7 @@ function StatusTelemetryGrid({
 
     // ENGINE (combined: state + transport)
     const engineIcon =
-        rpcStatus === "error"
+        rpcStatus === STATUS.connection.ERROR
             ? AlertCircle
             : transportStatus === "websocket"
             ? Zap
@@ -296,13 +291,13 @@ function StatusTelemetryGrid({
             : Activity;
 
     const engineTone =
-        rpcStatus === "error"
+        rpcStatus === STATUS.connection.ERROR
             ? "bad"
-            : rpcStatus === "idle"
+            : rpcStatus === STATUS.connection.IDLE
             ? "warn"
             : transportStatus === "polling"
             ? "warn"
-            : rpcStatus === "connected"
+            : rpcStatus === STATUS.connection.CONNECTED
             ? "ok"
             : "bad";
 
@@ -314,7 +309,7 @@ function StatusTelemetryGrid({
     // If we're not connected, render discovery as muted to avoid showing
     // stale/passive telemetry while disconnected.
     const discoveryTone =
-        rpcStatus !== "connected"
+        rpcStatus !== STATUS.connection.CONNECTED
             ? "muted"
             : telemetry == null
             ? "muted"
@@ -336,8 +331,14 @@ function StatusTelemetryGrid({
                 Icon={engineIcon}
                 tone={engineTone}
                 title={t("status_bar.engine_telemetry_tooltip", {
-                    transport: t(`status_bar.transport_${transportStatus}`),
-                    status: t(`status_bar.rpc_${rpcStatus}`),
+                    transport: t(
+                        TRANSPORT_LABELS[transportStatus] ??
+                            `status_bar.transport_${transportStatus}`
+                    ),
+                    status: t(
+                        RPC_STATUS_LABEL[rpcStatus] ??
+                            `status_bar.rpc_${rpcStatus}`
+                    ),
                 })}
             />
 
@@ -354,13 +355,16 @@ function StatusTelemetryGrid({
                 }
                 title={
                     freeBytes != null
-                        ? `${t(`status_bar.disk_${diskState}`)}\n\n${t(
-                              "status_bar.disk_free",
-                              {
-                                  size: formatBytes(freeBytes),
-                              }
-                          )}`
-                        : t(`status_bar.disk_${diskState}`)
+                        ? `${t(
+                              DISK_LABELS[diskState] ??
+                                  `status_bar.disk_${diskState}`
+                          )}\n\n${t("status_bar.disk_free", {
+                              size: formatBytes(freeBytes),
+                          })}`
+                        : t(
+                              DISK_LABELS[diskState] ??
+                                  `status_bar.disk_${diskState}`
+                          )
                 }
             />
 
@@ -400,22 +404,28 @@ function EngineControlChip({
     onClick,
     tooltip,
 }: {
-    rpcStatus: RpcStatus;
+    rpcStatus: ConnectionStatus;
     engineType: EngineDisplayType;
     onClick?: () => void;
     tooltip: string;
 }) {
-    const statusVisual = STATUS_VISUALS[rpcStatus];
+    // Defensive: STATUS_VISUALS may not contain every possible rpcStatus string
+    // (e.g. legacy/experimental status values). Fall back to a sensible
+    // connected visual when possible so the HUD remains informative.
+    const statusVisual =
+        STATUS_VISUALS[rpcStatus] ??
+        STATUS_VISUALS[STATUS.connection.CONNECTED] ??
+        Object.values(STATUS_VISUALS)[0];
     const EngineIcon =
         engineType === "tinytorrent" ? TinyTorrentIcon : TransmissionIcon;
 
     const renderEngineLogo = () => {
-        if (rpcStatus === "idle") {
+        if (rpcStatus === STATUS.connection.IDLE) {
             return (
                 <StatusIcon Icon={RefreshCw} size="lg" className="opacity-50" />
             );
         }
-        if (rpcStatus === "error") {
+        if (rpcStatus === STATUS.connection.ERROR) {
             return <StatusIcon Icon={AlertCircle} size="lg" />;
         }
         return (
@@ -443,7 +453,7 @@ function EngineControlChip({
         >
             {renderEngineLogo()}
 
-            {rpcStatus === "connected" && (
+            {rpcStatus === STATUS.connection.CONNECTED && (
                 <span className="absolute inset-0 flex items-start justify-end p-tight">
                     <motion.span
                         className={cn(
@@ -503,7 +513,7 @@ export function StatusBar({
     React.useEffect(() => {
         let mounted = true;
         if ((torrents || []).length > 0) return;
-        if (rpcStatus !== "connected") return;
+        if (rpcStatus !== STATUS.connection.CONNECTED) return;
 
         (async () => {
             try {
@@ -521,7 +531,9 @@ export function StatusBar({
     }, [rpcConnection, rpcStatus, torrents]);
 
     const transportStatus: TransportStatus =
-        rpcStatus === "connected" ? liveTransportStatus : "offline";
+        rpcStatus === STATUS.connection.CONNECTED
+            ? liveTransportStatus
+            : "offline";
 
     // Disk safety calculation (canonical logic)
     const freeBytes =
@@ -535,8 +547,8 @@ export function StatusBar({
     const activeTorrents = (sourceTorrents || []).filter(
         (t) =>
             !t.isFinished &&
-            t.state !== "paused" &&
-            t.state !== "missing_files" &&
+            t.state !== STATUS.torrent.PAUSED &&
+            t.state !== STATUS.torrent.MISSING_FILES &&
             !t.isGhost
     );
 
@@ -572,13 +584,16 @@ export function StatusBar({
 
     // Separate tooltips: telemetry (passive) vs control (action)
     const engineTelemetryTooltip = t("status_bar.engine_telemetry_tooltip", {
-        transport: t(`status_bar.transport_${transportStatus}`),
-        status: t(`status_bar.rpc_${rpcStatus}`),
+        transport: t(
+            TRANSPORT_LABELS[transportStatus] ??
+                `status_bar.transport_${transportStatus}`
+        ),
+        status: t(RPC_STATUS_LABEL[rpcStatus] ?? `status_bar.rpc_${rpcStatus}`),
     });
 
     // Determine a localized server type label for the control tooltip.
     const serverTypeLabel =
-        rpcStatus === "connected"
+        rpcStatus === STATUS.connection.CONNECTED
             ? engineType === "tinytorrent"
                 ? t("status_bar.engine_name_tinytorrent")
                 : engineType === "transmission"

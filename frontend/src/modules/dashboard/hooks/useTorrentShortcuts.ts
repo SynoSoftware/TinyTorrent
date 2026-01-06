@@ -2,6 +2,7 @@ import { useHotkeys } from "react-hotkeys-hook";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
 import { KEYMAP, ShortcutIntent } from "@/config/logic";
+import STATUS from "@/shared/status";
 
 interface UseTorrentShortcutsProps {
     scope: string;
@@ -23,7 +24,8 @@ export function useTorrentShortcuts({
     const hasPrimaryTorrent = Boolean(primaryTorrent);
     const isActiveTorrent =
         primaryTorrent &&
-        ["downloading", "seeding"].includes(primaryTorrent.state);
+        (primaryTorrent.state === STATUS.torrent.DOWNLOADING ||
+            primaryTorrent.state === STATUS.torrent.SEEDING);
 
     useHotkeys(
         KEYMAP[ShortcutIntent.SelectAll],

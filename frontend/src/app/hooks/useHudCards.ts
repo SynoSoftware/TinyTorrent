@@ -3,11 +3,12 @@ import { useTranslation } from "react-i18next";
 import { AlertTriangle, Link2, MousePointer, PlugZap } from "lucide-react";
 
 import type { EngineInfo } from "@/services/rpc/entities";
-import type { RpcStatus } from "@/shared/types/rpc";
+import { STATUS } from "@/shared/status";
+import type { ConnectionStatus } from "@/shared/types/rpc";
 import type { AmbientHudCard } from "@/app/types/workspace";
 
 interface UseHudCardsParams {
-    rpcStatus: RpcStatus;
+    rpcStatus: ConnectionStatus;
     engineInfo: EngineInfo | null;
     isDetectingEngine: boolean;
     isDragActive: boolean;
@@ -36,9 +37,10 @@ export function useHudCards({
         let connectionDescription = "";
         let connectionSurface = "";
         let connectionIconBg = "";
-        const connectionIcon = rpcStatus === "error" ? AlertTriangle : PlugZap;
+        const connectionIcon =
+            rpcStatus === STATUS.connection.ERROR ? AlertTriangle : PlugZap;
 
-        if (rpcStatus === "connected") {
+        if (rpcStatus === STATUS.connection.CONNECTED) {
             connectionTitle = t("workspace.stage.connection_online_title", {
                 defaultValue: "Link secured",
             });
@@ -51,7 +53,7 @@ export function useHudCards({
             connectionSurface =
                 "bg-gradient-to-br from-success/15 via-background/30 to-background/10";
             connectionIconBg = "bg-success/15 text-success";
-        } else if (rpcStatus === "idle") {
+        } else if (rpcStatus === STATUS.connection.IDLE) {
             connectionTitle = isDetectingEngine
                 ? t("workspace.stage.connection_detecting_title", {
                       defaultValue: "Detecting client",
@@ -157,13 +159,7 @@ export function useHudCards({
                 icon: Link2,
             },
         ];
-    }, [
-        isDetectingEngine,
-        isDragActive,
-        rpcStatus,
-        engineInfo,
-        t,
-    ]);
+    }, [isDetectingEngine, isDragActive, rpcStatus, engineInfo, t]);
 
     const visibleHudCards = useMemo(
         () => hudCards.filter((card) => !dismissedHudCardSet.has(card.id)),

@@ -5,13 +5,14 @@ import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import type {
     ReportCommandErrorFn,
     ReportReadErrorFn,
-    RpcStatus,
+    ConnectionStatus,
 } from "@/shared/types/rpc";
+import { STATUS } from "@/shared/status";
 import { useRpcConnection } from "./useRpcConnection";
 
 type UseTransmissionSessionResult = {
     client: EngineAdapter;
-    rpcStatus: RpcStatus;
+    rpcStatus: ConnectionStatus;
     isReady: boolean;
     reconnect: () => void;
     sessionSettings: TransmissionSessionSettings | null;
@@ -70,7 +71,7 @@ export function useTransmissionSession(
 
     useEffect(() => {
         let active = true;
-        if (!client.detectEngine || rpcStatus !== "connected") {
+        if (!client.detectEngine || rpcStatus !== STATUS.connection.CONNECTED) {
             if (active) {
                 setEngineInfo(null);
                 setIsDetectingEngine(false);
