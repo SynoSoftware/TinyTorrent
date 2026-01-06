@@ -131,7 +131,12 @@ export const buildErrorEnvelope = (
             torrent.isFinished === true
         ) {
             recoveryState = "needsUserConfirmation";
-            recoveryActions.push("reDownload", "setLocation", "dismiss");
+            recoveryActions.push(
+                "reDownload",
+                "setLocation",
+                "dismiss",
+                "forceRecheck"
+            );
         } else {
             // Non-finished torrents can still offer the prior actions
             recoveryState = "needsUserAction";
@@ -170,7 +175,7 @@ export const buildErrorEnvelope = (
 
     // Priority lists by error class for deterministic selection.
     const preferred: Record<string, RecoveryAction[]> = {
-        missingFiles: ["reDownload", "setLocation", "dismiss"],
+        missingFiles: ["forceRecheck", "reDownload", "setLocation", "dismiss"],
         permissionDenied: ["openFolder", "changeLocation"],
         trackerWarning: ["reannounce"],
         trackerError: ["reannounce"],
