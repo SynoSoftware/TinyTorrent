@@ -71,6 +71,7 @@ import type { ItemElement } from "@react-types/shared";
 import type { OptimisticStatusMap } from "@/modules/dashboard/types/optimistic";
 import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
+
 import {
     BLOCK_SHADOW,
     GLASS_BLOCK_SURFACE,
@@ -920,12 +921,22 @@ export function TorrentTable({
     const tableContainerRef = useRef<HTMLDivElement>(null);
     const measureLayerRef = useRef<HTMLDivElement>(null);
     const focusReturnRef = useRef<HTMLElement | null>(null);
+
+    // IMPORTANT: These refs are the canonical source-of-truth for
+    // distinguishing a click from a marquee (drag-box) gesture.
+    // - `marqueeStateRef` stores the marquee start coordinates and modifier state.
+    // - `isMarqueeDraggingRef` indicates an active drag-box in progress.
+    // - `marqueeClickBlockRef` prevents an immediate click toggle after a drag.
+    // Do not introduce parallel suppression (pointer/mouse) logic elsewhere
+    // without integrating with these refs — duplicating guards can silently
+    // swallow clicks due to event timing with virtualization/DnD.
     const marqueeStateRef = useRef<MarqueeState | null>(null);
     const marqueeClickBlockRef = useRef(false);
     const isMarqueeDraggingRef = useRef(false);
     const marqueeBlockResetRef = useRef<ReturnType<
         typeof window.setTimeout
     > | null>(null);
+
     const [marqueeRect, setMarqueeRect] = useState<MarqueeRect | null>(null);
 
     const overlayPortalHost = useMemo(
@@ -1661,6 +1672,11 @@ export function TorrentTable({
         rowsRef.current = rows;
     }, [rows]);
 
+    // Memoized list of row ids used by selection logic. Placed here so
+    // the marquee mouse handlers (which are registered below) can capture
+    // the up-to-date mapping of rows -> ids.
+    const rowIds = useMemo(() => rows.map((row) => row.id), [rows]);
+
     // Throttle marquee selection updates via requestAnimationFrame to avoid
     // issuing React state updates at mousemove frequency which causes layout jank.
     const pendingSelectionRef = useRef<RowSelectionState | null>(null);
@@ -1861,7 +1877,7 @@ export function TorrentTable({
                 rafHandleRef.current = null;
             }
         };
-    }, [rowVirtualizer]);
+    }, [rowVirtualizer, rowIds]);
 
     const selectAllRows = useCallback(() => {
         const allRows = table.getRowModel().rows;
@@ -1908,7 +1924,7 @@ export function TorrentTable({
         onRequestDetails,
     });
 
-    const rowIds = useMemo(() => rows.map((row) => row.id), [rows]);
+    // `rowIds` is declared earlier (above) so it can be captured by marquee handlers.
     const rowsById = useMemo(() => {
         const map = new Map<string, Row<Torrent>>();
         rows.forEach((row) => {
