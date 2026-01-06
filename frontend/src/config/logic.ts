@@ -429,6 +429,17 @@ const iconographyStrokeWidthDense = readNumber(
 export const ICON_STROKE_WIDTH = `var(--tt-icon-stroke, ${iconographyStrokeWidth})`;
 export const ICON_STROKE_WIDTH_DENSE = `var(--tt-icon-stroke-dense, ${iconographyStrokeWidthDense})`;
 
+export const HANDLE_HITAREA_CLASS = "w-handle";
+export const HANDLE_PADDING_CLASS = "pr-handle";
+
+// Cells should not include extra layout padding for the handle — the handle
+// hit-area is provided by an absolutely-positioned element so it won't
+// require reserved spacing in the layout.
+export const CELL_PADDING_CLASS = `pl-panel pr-panel`;
+
+export const CELL_BASE_CLASS =
+    "flex items-center overflow-hidden h-full truncate whitespace-nowrap text-ellipsis box-border leading-none";
+
 // Shared header visual tokens used across table headers and inspector headers.
 // Components should compose layout-specific classes (grid/flex) with this
 // base so color, padding and typography remain consistent.
@@ -438,7 +449,7 @@ export const HEADER_BASE =
     "text-scaled uppercase tracking-tight text-foreground/50";
 
 // `TABLE_HEADER_CLASS` composes `HEADER_BASE` with table-specific surface, padding and grid.
-export const TABLE_HEADER_CLASS = `${HEADER_BASE} px-panel py-panel bg-background/40 grid grid-cols-torrent gap-tools rounded-modal border border-content1/20`;
+export const TABLE_HEADER_CLASS = `${HEADER_BASE} py-panel ${CELL_PADDING_CLASS} bg-background/40 grid grid-cols-torrent gap-tools rounded-modal border border-content1/20`;
 
 // Semantic status visuals used across the app (moved out of components)
 export type ConnectionStatus =

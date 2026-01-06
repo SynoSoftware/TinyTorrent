@@ -102,15 +102,16 @@ import {
     ICON_STROKE_WIDTH_DENSE,
     UI_BASES,
     CONFIG,
+    HANDLE_HITAREA_CLASS,
+    CELL_PADDING_CLASS,
+    CELL_BASE_CLASS,
     TABLE_PERSIST_DEBOUNCE_MS,
     TABLE_HEADER_CLASS,
+    HANDLE_PADDING_CLASS,
 } from "@/config/logic";
 
 // --- CONSTANTS ---
 const STORAGE_KEY = "tiny-torrent.table-state.v2.8";
-const CELL_PADDING_CLASS = "pl-tight pr-panel";
-const CELL_BASE_CLASSES =
-    "flex items-center overflow-hidden h-full truncate whitespace-nowrap text-ellipsis box-border leading-none";
 
 const DND_OVERLAY_CLASSES = "pointer-events-none fixed inset-0 z-40";
 const TABLE_TOTAL_WIDTH_VAR = "--tt-table-total-w";
@@ -465,7 +466,7 @@ const DraggableHeader = memo(
                 tabIndex={-1}
                 onContextMenu={onContextMenu}
                 className={cn(
-                    "relative flex items-center h-row border-r border-content1/10 transition-colors group select-none overflow-hidden",
+                    "relative flex items-center h-row border-r border-content1/10 transition-colors group select-none overflow-visible",
                     "box-border",
                     "border-l-2 border-l-transparent",
                     canSort
@@ -483,7 +484,7 @@ const DraggableHeader = memo(
                     {...attributes}
                     {...listeners}
                     className={cn(
-                        CELL_BASE_CLASSES,
+                        CELL_BASE_CLASS,
                         "flex-1 gap-tools",
                         "text-scaled font-bold uppercase text-foreground/60",
                         isOverlay && "text-foreground",
@@ -514,7 +515,10 @@ const DraggableHeader = memo(
                         onTouchStart={handleTouchStart}
                         onClick={(e) => e.stopPropagation()}
                         onDoubleClick={handleAutoFit}
-                        className="absolute right-0 top-0 h-full w-4 cursor-col-resize touch-none select-none flex justify-center items-center z-30"
+                        className={cn(
+                            "absolute right-0 top-0 h-full cursor-col-resize touch-none select-none flex items-center justify-end z-30",
+                            HANDLE_HITAREA_CLASS
+                        )}
                     >
                         <div
                             className={cn(
@@ -555,7 +559,7 @@ const ColumnHeaderPreview = ({
         >
             <div
                 className={cn(
-                    CELL_BASE_CLASSES,
+                    CELL_BASE_CLASS,
                     "flex-1 gap-tools text-scaled font-bold uppercase text-foreground/70",
                     CELL_PADDING_CLASS,
                     align === "center" && "justify-center",
@@ -591,13 +595,21 @@ const renderVisibleCells = (row: Row<Torrent>) =>
                     boxSizing: "border-box",
                 }}
                 className={cn(
-                    CELL_BASE_CLASSES,
+                    CELL_BASE_CLASS,
                     CELL_PADDING_CLASS,
+
                     align === "center" && "justify-center",
                     align === "end" && "justify-end"
                 )}
             >
                 {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                <div
+                    aria-hidden="true"
+                    style={{
+                        width: "var(--tt-resize-handle-w)",
+                        flexShrink: 0,
+                    }}
+                />
             </div>
         );
     });
@@ -635,7 +647,7 @@ const ColumnMeasurementLayer = memo(
                                 key={header.id}
                                 data-tt-measure-header={column.id}
                                 className={cn(
-                                    CELL_BASE_CLASSES,
+                                    CELL_BASE_CLASS,
                                     "gap-tools text-scaled font-bold uppercase text-foreground/60",
                                     CELL_PADDING_CLASS,
                                     align === "center" && "justify-center",
@@ -673,7 +685,7 @@ const ColumnMeasurementLayer = memo(
                                     key={cell.id}
                                     data-tt-measure-cell={cell.column.id}
                                     className={cn(
-                                        CELL_BASE_CLASSES,
+                                        CELL_BASE_CLASS,
                                         CELL_PADDING_CLASS,
                                         align === "center" && "justify-center",
                                         align === "end" && "justify-end",
