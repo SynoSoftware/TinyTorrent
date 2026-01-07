@@ -2522,7 +2522,7 @@ export function TorrentTable({
                         >
                             {isLoading && torrents.length === 0 ? (
                                 <div className="w-full">
-                                    {Array.from({ length: 5 }).map((_, i) => (
+                                    {Array.from({ length: 10 }).map((_, i) => (
                                         <div
                                             key={i}
                                             className="flex items-center w-full border-b border-content1/5 px-panel"
