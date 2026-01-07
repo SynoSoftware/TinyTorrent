@@ -26,6 +26,9 @@ interface ContentTabProps {
         action: FileExplorerContextAction,
         entry: FileExplorerEntry
     ) => void;
+    onRedownload?: () => void | Promise<void>;
+    onRetry?: () => void | Promise<void>;
+    onSetLocation?: () => void | Promise<void>;
     isStandalone?: boolean;
 }
 
@@ -38,6 +41,9 @@ export const ContentTab = ({
     emptyMessage,
     onFilesToggle,
     onFileContextAction,
+    onRedownload,
+    onRetry,
+    onSetLocation,
     isStandalone = false,
 }: ContentTabProps) => {
     const { t } = useTranslation();
@@ -88,7 +94,17 @@ export const ContentTab = ({
                             variant="shadow"
                             color="primary"
                             onPress={() => {
-                                /* TODO: trigger recheck */
+                                if (onRetry) {
+                                    void onRetry();
+                                    return;
+                                }
+                                try {
+                                    window.dispatchEvent(
+                                        new CustomEvent(
+                                            "tiny-torrent:retry-fetch"
+                                        )
+                                    );
+                                } catch (err) {}
                             }}
                         >
                             {t("toolbar.recheck", {
@@ -100,7 +116,17 @@ export const ContentTab = ({
                             variant="shadow"
                             color="danger"
                             onPress={() => {
-                                /* TODO: remove and re-add torrent */
+                                if (onRedownload) {
+                                    void onRedownload();
+                                    return;
+                                }
+                                try {
+                                    window.dispatchEvent(
+                                        new CustomEvent(
+                                            "tiny-torrent:redownload"
+                                        )
+                                    );
+                                } catch (err) {}
                             }}
                         >
                             {t("modals.download", {
@@ -112,7 +138,17 @@ export const ContentTab = ({
                             variant="shadow"
                             color="default"
                             onPress={() => {
-                                /* TODO: open folder */
+                                if (onSetLocation) {
+                                    void onSetLocation();
+                                    return;
+                                }
+                                try {
+                                    window.dispatchEvent(
+                                        new CustomEvent(
+                                            "tiny-torrent:set-location"
+                                        )
+                                    );
+                                } catch (err) {}
                             }}
                         >
                             {t("directory_browser.open", {
