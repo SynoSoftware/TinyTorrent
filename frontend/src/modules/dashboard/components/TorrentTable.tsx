@@ -134,11 +134,10 @@ import TorrentTable_Header from "./TorrentTable_Header";
 import TorrentTable_Row from "./TorrentTable_Row";
 import TorrentTable_RowMenu from "./TorrentTable_RowMenu";
 import TorrentTable_HeaderMenu from "./TorrentTable_HeaderMenu";
-import { useTorrentRowDrag } from "@/modules/dashboard/hooks/useTorrentRowDrag";
-import { useTorrentTableKeyboard } from "@/modules/dashboard/hooks/useTorrentTableKeyboard";
 import { useTorrentTableVirtualization } from "@/modules/dashboard/hooks/useTorrentTableVirtualization";
 import TorrentTable_Body from "./TorrentTable_Body";
-import TorrentTable_Headers, {
+import {
+    TorrentTable_Headers,
     ColumnHeaderPreview,
 } from "./TorrentTable_Headers";
 import TorrentTable_ColumnSettingsModal from "./TorrentTable_ColumnSettingsModal";

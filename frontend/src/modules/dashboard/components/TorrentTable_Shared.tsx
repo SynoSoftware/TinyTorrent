@@ -1,4 +1,5 @@
 import React, { memo } from "react";
+import { motion } from "framer-motion";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import {
     flexRender,
@@ -36,9 +37,11 @@ export const TableHeaderContent = memo(
     ({
         header,
         isMeasurement = false,
+        useBaseClass = true,
     }: {
         header: Header<Torrent, unknown>;
         isMeasurement?: boolean;
+        useBaseClass?: boolean;
     }) => {
         const { column } = header;
         const align = column.columnDef.meta?.align || "start";
@@ -47,12 +50,13 @@ export const TableHeaderContent = memo(
         const SortArrowIcon = sortState === "desc" ? ArrowDown : ArrowUp;
         const sortArrowOpacity = sortState ? "opacity-100" : "opacity-0";
         return (
-            <div
+            <motion.div
                 {...(isMeasurement
                     ? { ["data-tt-measure-header"]: column.id }
                     : {})}
+                layout={"position"}
                 className={cn(
-                    CELL_BASE_CLASS,
+                    useBaseClass && CELL_BASE_CLASS,
                     "gap-tools text-scaled font-bold uppercase text-foreground/60",
                     CELL_PADDING_CLASS,
                     align === "center" && "justify-center",
@@ -68,14 +72,16 @@ export const TableHeaderContent = memo(
                 }}
             >
                 {flexRender(column.columnDef.header, header.getContext())}
-                <SortArrowIcon
-                    strokeWidth={ICON_STROKE_WIDTH_DENSE}
-                    className={cn(
-                        "text-primary shrink-0 toolbar-icon-size-sm",
-                        sortArrowOpacity
-                    )}
-                />
-            </div>
+                {useBaseClass && (
+                    <SortArrowIcon
+                        strokeWidth={ICON_STROKE_WIDTH_DENSE}
+                        className={cn(
+                            "text-primary shrink-0 toolbar-icon-size-sm",
+                            sortArrowOpacity
+                        )}
+                    />
+                )}
+            </motion.div>
         );
     }
 );
