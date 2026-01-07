@@ -28,7 +28,7 @@ import { cn } from "@heroui/react";
 // Use Lucide icons to match project style and theme (color via currentColor)
 
 type Point = { x: number; y: number };
-type TimedValue = { ts: number; value: number };
+type TimedValue = { ts: number; value: number; synthetic?: boolean };
 type SpeedWindowKey = (typeof SPEED_WINDOW_OPTIONS)[number]["key"];
 type LayoutMode = "combined" | "split";
 
@@ -599,10 +599,49 @@ export const SpeedChart = ({
     const upMaxRef = useRef(1024);
 
     // Feed Data Effect
+    const seededRef = useRef({ down: false, up: false });
     useEffect(() => {
         const ts = nowMs();
-        // Only push if we actually have data, or strictly on prop change.
-        // NOTE: We don't depend on 'tick' here, only on data arrival.
+
+        // Seed from engine-provided history once (synthetic samples evenly
+        // spread across the current window). This gives an instant filled
+        // chart without claiming backend truth — synthetic points are
+        // visually helpful and will age out naturally.
+        const trySeed = (
+            hist: number[],
+            targetRef: React.MutableRefObject<TimedValue[]>,
+            key: "down" | "up"
+        ) => {
+            if (seededRef.current[key]) return;
+            if (!hist || hist.length === 0) return;
+
+            const N = hist.length;
+            const start = ts - windowMs;
+            const samples: TimedValue[] = [];
+            if (N === 1) {
+                samples.push({
+                    ts: start + Math.floor(windowMs / 2),
+                    value: hist[0],
+                    synthetic: true,
+                });
+            } else {
+                for (let i = 0; i < N; i++) {
+                    const t = start + (i / (N - 1)) * windowMs;
+                    samples.push({
+                        ts: Math.round(t),
+                        value: hist[i],
+                        synthetic: true,
+                    });
+                }
+            }
+            targetRef.current = samples;
+            seededRef.current[key] = true;
+        };
+
+        trySeed(downHistory, downTimed, "down");
+        trySeed(upHistory, upTimed, "up");
+
+        // Always append the newest live sample when available.
         downTimed.current.push({ ts, value: latestDown });
         upTimed.current.push({ ts, value: latestUp });
 
@@ -613,7 +652,7 @@ export const SpeedChart = ({
             downTimed.current = downTimed.current.filter((p) => p.ts >= cutoff);
             upTimed.current = upTimed.current.filter((p) => p.ts >= cutoff);
         }
-    }, [latestDown, latestUp, windowMs]); // ONLY runs when network data changes
+    }, [latestDown, latestUp, windowMs, downHistory, upHistory]); // ONLY runs when network data or engine history changes
 
     const downColor =
         getCssToken(SPEED_CHART_DOWN_STROKE_TOKEN) || palette.primary;
