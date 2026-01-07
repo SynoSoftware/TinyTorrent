@@ -9,7 +9,7 @@ import {
     HISTORY_POINTS,
     getCssToken,
     useCanvasPalette,
-} from "@/modules/dashboard/components/details/visualizations/canvasUtils";
+} from "@/modules/dashboard/hooks/utils/canvasUtils";
 import {
     SPEED_CHART_LINE_WIDTH,
     SPEED_CHART_DOWN_STROKE_TOKEN,

@@ -1,9 +1,9 @@
 import { useTranslation } from "react-i18next";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
-import { SpeedChart } from "@/modules/dashboard/components/details/visualizations/SpeedChart";
+import { SpeedChart } from "@/modules/dashboard/components/TorrentDetails_Speed_Chart";
 import { useEngineSpeedHistory } from "@/shared/hooks/useEngineSpeedHistory";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
-import { TEXT_ROLES } from "./textRoles";
+import { TEXT_ROLES } from "../hooks/utils/textRoles";
 import { cn } from "@heroui/react";
 
 interface SpeedTabProps {

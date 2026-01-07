@@ -1,0 +1,269 @@
+import { useEffect, useRef, useState } from "react";
+import type { Row } from "@tanstack/react-table";
+
+type MarqueeRect = { left: number; top: number; width: number; height: number };
+
+interface UseMarqueeParams<TRow> {
+    parentRef: React.RefObject<HTMLElement | null>;
+    rowHeight: number;
+    rowsRef: React.MutableRefObject<Row<TRow>[]>;
+    rowIds: string[];
+    setRowSelection: (next: Record<string, boolean>) => void;
+    setAnchorIndex: (i: number | null) => void;
+    setFocusIndex: (i: number | null) => void;
+    setHighlightedRowId: (id: string | null) => void;
+    rowSelectionRef: React.MutableRefObject<Record<string, boolean>>;
+}
+
+export function useMarqueeSelection<TRow>({
+    parentRef,
+    rowHeight,
+    rowsRef,
+    rowIds,
+    setRowSelection,
+    setAnchorIndex,
+    setFocusIndex,
+    setHighlightedRowId,
+    rowSelectionRef,
+}: UseMarqueeParams<TRow>) {
+    const marqueeStateRef = useRef<{
+        startClientX: number;
+        startClientY: number;
+        startContentY: number;
+        isAdditive: boolean;
+    } | null>(null);
+    const marqueeClickBlockRef = useRef(false);
+    const isMarqueeDraggingRef = useRef(false);
+    const marqueeBlockResetRef = useRef<ReturnType<
+        typeof window.setTimeout
+    > | null>(null);
+
+    const [marqueeRect, setMarqueeRect] = useState<MarqueeRect | null>(null);
+
+    const pendingSelectionRef = useRef<Record<string, boolean> | null>(null);
+    const rafHandleRef = useRef<number | null>(null);
+
+    useEffect(() => {
+        const container = parentRef.current;
+        if (!container) return;
+
+        const handleMouseDown = (event: MouseEvent) => {
+            if (event.button !== 0) return;
+            const target = event.target as Element | null;
+            if (
+                target?.closest("[data-torrent-row]") ||
+                target?.closest('[role="row"]')
+            ) {
+                return;
+            }
+            const rect = container.getBoundingClientRect();
+            const startClientX = event.clientX - rect.left;
+            const startClientY = event.clientY - rect.top;
+            const startContentY = startClientY + container.scrollTop;
+
+            isMarqueeDraggingRef.current = true;
+
+            marqueeStateRef.current = {
+                startClientX,
+                startClientY,
+                startContentY,
+                isAdditive: event.ctrlKey || event.metaKey,
+            };
+            setMarqueeRect({
+                left: startClientX,
+                top: startClientY,
+                width: 0,
+                height: 0,
+            });
+            event.preventDefault();
+        };
+
+        container.addEventListener("mousedown", handleMouseDown);
+        return () =>
+            container.removeEventListener("mousedown", handleMouseDown);
+    }, [parentRef]);
+
+    useEffect(() => {
+        const handleMouseMove = (event: MouseEvent) => {
+            const state = marqueeStateRef.current;
+            const container = parentRef.current;
+            if (!state || !container) return;
+            const rect = container.getBoundingClientRect();
+            const currentClientX = event.clientX - rect.left;
+            const currentClientY = event.clientY - rect.top;
+            const left = Math.min(state.startClientX, currentClientX);
+            const top = Math.min(state.startClientY, currentClientY);
+            setMarqueeRect({
+                left,
+                top,
+                width: Math.abs(currentClientX - state.startClientX),
+                height: Math.abs(currentClientY - state.startClientY),
+            });
+
+            try {
+                const scrollTop = container.scrollTop;
+                const startContentY = state.startClientY + scrollTop;
+                const currentContentY = currentClientY + scrollTop;
+                const minY = Math.max(
+                    0,
+                    Math.min(startContentY, currentContentY)
+                );
+                const maxY = Math.max(
+                    0,
+                    Math.max(startContentY, currentContentY)
+                );
+                const totalHeight = (rowsRef.current?.length || 0) * rowHeight;
+                const topContent = Math.max(0, minY);
+                const bottomContent = Math.max(0, Math.min(maxY, totalHeight));
+                if (bottomContent > topContent) {
+                    const firstIndex = Math.floor(topContent / rowHeight);
+                    const lastIndex = Math.floor(
+                        (bottomContent - 1) / rowHeight
+                    );
+                    const isAdditive =
+                        state.isAdditive ||
+                        (event as unknown as MouseEvent).shiftKey;
+                    const nextSelection: Record<string, boolean> = isAdditive
+                        ? { ...rowSelectionRef.current }
+                        : {};
+                    const selectionIds = rowIds.slice(
+                        firstIndex,
+                        lastIndex + 1
+                    );
+                    for (const id of selectionIds) nextSelection[id] = true;
+                    pendingSelectionRef.current = nextSelection;
+                    if (rafHandleRef.current === null) {
+                        rafHandleRef.current = window.requestAnimationFrame(
+                            () => {
+                                if (pendingSelectionRef.current) {
+                                    setRowSelection(
+                                        pendingSelectionRef.current
+                                    );
+                                    pendingSelectionRef.current = null;
+                                }
+                                rafHandleRef.current = null;
+                            }
+                        );
+                    }
+                }
+            } catch {
+                // ignore
+            }
+        };
+
+        const handleMouseUp = (event: MouseEvent) => {
+            const state = marqueeStateRef.current;
+            const container = parentRef.current;
+            if (!state || !container) {
+                setMarqueeRect(null);
+                setTimeout(() => {
+                    isMarqueeDraggingRef.current = false;
+                }, 0);
+                return;
+            }
+            const rect = container.getBoundingClientRect();
+            const scrollTop =
+                parentRef.current?.scrollTop ?? container.scrollTop ?? 0;
+            const endClientY = event.clientY - rect.top;
+            const startContentY = state.startClientY + scrollTop;
+            const endContentY = endClientY + scrollTop;
+
+            marqueeStateRef.current = null;
+            setMarqueeRect(null);
+
+            const availableRows = rowsRef.current;
+            if (!availableRows.length) {
+                if (!state.isAdditive) {
+                    setRowSelection({});
+                    setAnchorIndex(null);
+                    setFocusIndex(null);
+                    setHighlightedRowId(null);
+                }
+                return;
+            }
+
+            const totalHeight = availableRows.length * rowHeight;
+            const minY = Math.min(state.startContentY, endContentY);
+            const maxY = Math.max(state.startContentY, endContentY);
+            const topContent = Math.max(0, minY);
+            const bottomContent = Math.max(0, Math.min(maxY, totalHeight));
+
+            if (bottomContent <= topContent) {
+                if (!state.isAdditive) {
+                    setRowSelection({});
+                    setAnchorIndex(null);
+                    setFocusIndex(null);
+                    setHighlightedRowId(null);
+                }
+                return;
+            }
+
+            const firstIndex = Math.floor(topContent / rowHeight);
+            const lastIndex = Math.floor((bottomContent - 1) / rowHeight);
+
+            if (firstIndex > lastIndex) return;
+
+            const isAdditive = state.isAdditive || event.shiftKey;
+            const nextSelection: Record<string, boolean> = isAdditive
+                ? { ...rowSelectionRef.current }
+                : {};
+            const selectionIds = rowIds.slice(firstIndex, lastIndex + 1);
+            for (const id of selectionIds) nextSelection[id] = true;
+            setRowSelection(nextSelection);
+
+            const focusIndexValue = Math.max(
+                0,
+                Math.min(
+                    availableRows.length - 1,
+                    Math.floor(endContentY / rowHeight)
+                )
+            );
+            setAnchorIndex(focusIndexValue);
+            setFocusIndex(focusIndexValue);
+
+            const focusRow = availableRows[focusIndexValue];
+            if (focusRow) {
+                setHighlightedRowId(focusRow.id);
+            }
+            marqueeClickBlockRef.current = true;
+            if (marqueeBlockResetRef.current) {
+                window.clearTimeout(marqueeBlockResetRef.current);
+                marqueeBlockResetRef.current = null;
+            }
+            marqueeBlockResetRef.current = window.setTimeout(() => {
+                marqueeClickBlockRef.current = false;
+                marqueeBlockResetRef.current = null;
+            }, 0);
+            setTimeout(() => {
+                isMarqueeDraggingRef.current = false;
+            }, 0);
+        };
+
+        window.addEventListener("mousemove", handleMouseMove);
+        window.addEventListener("mouseup", handleMouseUp);
+        return () => {
+            window.removeEventListener("mousemove", handleMouseMove);
+            window.removeEventListener("mouseup", handleMouseUp);
+            if (marqueeBlockResetRef.current) {
+                window.clearTimeout(marqueeBlockResetRef.current);
+                marqueeBlockResetRef.current = null;
+            }
+            if (rafHandleRef.current !== null) {
+                window.cancelAnimationFrame(rafHandleRef.current);
+                rafHandleRef.current = null;
+            }
+        };
+    }, [
+        parentRef,
+        rowIds,
+        rowHeight,
+        rowsRef,
+        setRowSelection,
+        setAnchorIndex,
+        setFocusIndex,
+        setHighlightedRowId,
+        rowSelectionRef,
+    ]);
+
+    return { marqueeRect, marqueeClickBlockRef, isMarqueeDraggingRef };
+}

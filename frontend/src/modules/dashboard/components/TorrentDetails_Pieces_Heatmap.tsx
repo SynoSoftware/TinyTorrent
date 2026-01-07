@@ -3,11 +3,11 @@ import type { MouseEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { ZoomIn, ZoomOut } from "lucide-react";
-import { GLASS_TOOLTIP_CLASSNAMES } from "./constants";
+import { GLASS_TOOLTIP_CLASSNAMES } from "../hooks/utils/constants";
 import {
     getAvailabilityColor,
     useCanvasPalette,
-} from "@/modules/dashboard/components/details/visualizations/canvasUtils";
+} from "@/modules/dashboard/hooks/utils/canvasUtils";
 import {
     HEATMAP_CANVAS_CELL_GAP,
     HEATMAP_CANVAS_CELL_SIZE,
@@ -21,7 +21,7 @@ import {
     HEATMAP_USE_UI_SAMPLING_SHIM,
 } from "@/config/logic";
 import { useUiClock } from "@/shared/hooks/useUiClock";
-import { TEXT_ROLES } from "@/modules/dashboard/components/details/tabs/textRoles";
+import { TEXT_ROLES } from "@/modules/dashboard/hooks/utils/textRoles";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 
 interface AvailabilityHeatmapProps {
@@ -259,13 +259,13 @@ export const AvailabilityHeatmap = ({
 
     return (
         <motion.div layout className="flex flex-col gap-tools">
-                <div className="flex items-center justify-between">
-                    <span
-                        className={TEXT_ROLES.label}
-                        style={{ letterSpacing: "var(--tt-tracking-ultra)" }}
-                    >
-                        {label}
-                    </span>
+            <div className="flex items-center justify-between">
+                <span
+                    className={TEXT_ROLES.label}
+                    style={{ letterSpacing: "var(--tt-tracking-ultra)" }}
+                >
+                    {label}
+                </span>
                 <div className="flex items-center gap-tools text-scaled text-foreground/50">
                     <span className="flex items-center gap-tight">
                         <span

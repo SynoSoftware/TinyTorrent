@@ -8,10 +8,10 @@ import {
     scheduleFrame,
     useCanvasPalette,
     normalizeCanvasColor,
-} from "./canvasUtils";
-import type { FrameHandle } from "./canvasUtils";
+} from "../hooks/utils/canvasUtils";
+import type { FrameHandle } from "../hooks/utils/canvasUtils";
 import { DETAILS_PIECE_MAP_CONFIG } from "@/config/logic";
-import { TEXT_ROLES } from "@/modules/dashboard/components/details/tabs/textRoles";
+import { TEXT_ROLES } from "@/modules/dashboard/hooks/utils/textRoles";
 
 // Provide persistent debug helpers on `window` so they exist even if React
 // unmounts/remounts the component. These helpers are intentionally

@@ -351,7 +351,7 @@ const statusMap: Record<TorrentStatus | RecoveryState, StatusMeta> = {
     },
 };
 
-export const COLUMN_DEFINITIONS: Record<ColumnId, ColumnDefinition> = {
+export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
     name: {
         id: "name",
         labelKey: "table.header_name",
@@ -672,5 +672,5 @@ export const DEFAULT_VISIBLE_COLUMN_IDS: ColumnId[] = [
 ];
 
 export const ALL_COLUMN_IDS: ColumnId[] = Object.keys(
-    COLUMN_DEFINITIONS
+    TORRENTTABLE_COLUMN_DEFS
 ) as ColumnId[];
