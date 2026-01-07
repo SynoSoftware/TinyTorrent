@@ -4,10 +4,16 @@ import { useSortable, defaultAnimateLayoutChanges } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@heroui/react";
 import { ArrowDown, ArrowUp } from "lucide-react";
+import { flexRender } from "@tanstack/react-table";
 import type { Column } from "@tanstack/react-table";
 import type { Header } from "@tanstack/react-table";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
-import { ICON_STROKE_WIDTH_DENSE, HANDLE_HITAREA_CLASS } from "@/config/logic";
+import {
+    ICON_STROKE_WIDTH_DENSE,
+    HANDLE_HITAREA_CLASS,
+    CELL_BASE_CLASS,
+    CELL_PADDING_CLASS,
+} from "@/config/logic";
 import { PANEL_SHADOW } from "@/shared/ui/layout/glass-surface";
 import { TableHeaderContent } from "./TorrentTable_Shared";
 import { getColumnWidthCss } from "./TorrentTable_Shared";
@@ -146,12 +152,29 @@ const TorrentTable_Header = memo(
                     ref={setActivatorNodeRef}
                     {...attributes}
                     {...listeners}
-                    className={cn("flex-1")}
+                    className={cn(
+                        CELL_BASE_CLASS,
+                        "flex-1 gap-tools",
+                        "text-scaled font-bold uppercase text-foreground/60",
+                        isOverlay && "text-foreground",
+                        CELL_PADDING_CLASS,
+                        align === "center" && "justify-center",
+                        align === "end" && "justify-end",
+                        isSelection && "justify-center"
+                    )}
+                    style={{ letterSpacing: "var(--tt-tracking-tight)" }}
                     onClick={
                         canSort ? column.getToggleSortingHandler() : undefined
                     }
                 >
-                    <TableHeaderContent header={header} />
+                    {flexRender(column.columnDef.header, header.getContext())}
+                    <SortArrowIcon
+                        strokeWidth={ICON_STROKE_WIDTH_DENSE}
+                        className={cn(
+                            "text-primary shrink-0 toolbar-icon-size-sm",
+                            sortArrowOpacity
+                        )}
+                    />
                 </div>
 
                 {!isOverlay && canResize && (

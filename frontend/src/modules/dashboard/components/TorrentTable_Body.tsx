@@ -1,4 +1,5 @@
 import React from "react";
+import type { Row } from "@tanstack/react-table";
 import {
     DndContext,
     DragOverlay,
@@ -18,7 +19,52 @@ import { PANEL_SHADOW } from "@/shared/ui/layout/glass-surface";
 import { getTableTotalWidthCss } from "./TorrentTable_Shared";
 
 // Props mirror the variables previously used inline in TorrentTable.tsx
-export const TorrentTable_Body: React.FC<any> = (props) => {
+type RowVirtualizerShape = {
+    getTotalSize: () => number;
+    getVirtualItems: () => Array<{ index: number } & Record<string, unknown>>;
+};
+
+export interface TorrentTableBodyProps {
+    parentRef: React.RefObject<HTMLDivElement | null>;
+    isLoading: boolean;
+    torrents: any[];
+    TABLE_LAYOUT: { rowHeight: number };
+    t: (key: string, opts?: any) => string;
+    ADD_TORRENT_SHORTCUT: string;
+    rowSensors: unknown[];
+    handleRowDragStart: (e: DragStartEvent) => void;
+    handleRowDragEnd: (e: DragEndEvent) => void;
+    handleRowDragCancel: () => void;
+    rowIds: string[];
+    rowVirtualizer: RowVirtualizerShape;
+    rows: Row<any>[];
+    table: { getTotalSize: () => number };
+    renderVisibleCells: (row: any) => React.ReactNode;
+    activeDragRow?: any | null;
+    renderOverlayPortal: (node: React.ReactNode) => React.ReactNode;
+    DND_OVERLAY_CLASSES: string;
+    contextMenu?: { torrent: { id: string } } | null;
+    handleRowClick: (row: any) => void;
+    handleRowDoubleClick: (row: any) => void;
+    handleContextMenu: (e: any, row: any) => void;
+    canReorderQueue: boolean;
+    dropTargetRowId?: string | null;
+    activeRowId?: string | null;
+    highlightedRowId?: string | null;
+    handleDropTargetChange: (id?: string | null) => void;
+    isAnyColumnResizing: boolean;
+    columnOrder: string[];
+    suppressLayoutAnimations: boolean;
+    isColumnOrderChanging: boolean;
+    marqueeRect?: {
+        left: number;
+        top: number;
+        width: number;
+        height: number;
+    } | null;
+}
+
+export const TorrentTable_Body: React.FC<TorrentTableBodyProps> = (props) => {
     const {
         parentRef,
         isLoading,
