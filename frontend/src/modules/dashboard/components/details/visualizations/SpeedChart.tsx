@@ -32,6 +32,15 @@ type TimedValue = { ts: number; value: number };
 type SpeedWindowKey = (typeof SPEED_WINDOW_OPTIONS)[number]["key"];
 type LayoutMode = "combined" | "split";
 
+type SeriesChartProps = {
+    color: string;
+    timed: TimedValue[];
+    windowMs: number;
+    maxRef: React.MutableRefObject<number>;
+    className?: string;
+    tick: number; // Render tick: used only to invalidate canvas rendering
+};
+
 interface SpeedChartProps {
     downHistory: number[];
     upHistory: number[];
@@ -188,19 +197,6 @@ const useObservedSize = () => {
     return { ref, size };
 };
 
-/* -------------------------------------------------------------------------- */
-/*                                SUB COMPONENTS                              */
-/* -------------------------------------------------------------------------- */
-
-type SeriesChartProps = {
-    color: string;
-    timed: TimedValue[];
-    windowMs: number;
-    maxRef: React.MutableRefObject<number>;
-    className?: string;
-    tick: number; // Render tick: used only to invalidate canvas rendering
-};
-
 const SeriesChart = ({
     color,
     timed,
@@ -211,6 +207,9 @@ const SeriesChart = ({
 }: SeriesChartProps) => {
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const { ref: containerRef, size } = useObservedSize();
+    const palette = useCanvasPalette();
+    const downMaxRefLocal = useRef(1024);
+    const upMaxRefLocal = useRef(1024);
 
     // We remove useMemo here for values/points because they MUST change on every tick to scroll
     const buckets = useMemo(
@@ -261,6 +260,63 @@ const SeriesChart = ({
         ctx.strokeStyle = color;
         ctx.lineWidth = SPEED_CHART_LINE_WIDTH;
         ctx.stroke();
+
+        // Draw subtle reference guides: horizontal mid-line (~50%),
+        // a near-top line representing recent max, and vertical time anchors.
+        ctx.save();
+        try {
+            ctx.globalAlpha = 0.35;
+            ctx.strokeStyle = palette.placeholder || "rgba(255,255,255,0.08)";
+            ctx.setLineDash([4, 6]);
+
+            // Horizontal: middle (50%)
+            const yMid = size.height / 2;
+            ctx.beginPath();
+            ctx.moveTo(0, yMid + 0.5);
+            ctx.lineTo(size.width, yMid + 0.5);
+            ctx.stroke();
+
+            // Horizontal: per-series MAX line (placed at correct Y based on maxRef)
+            const denom = Math.max(maxRef.current, SPEED_CANVAS_DENOM_FLOOR);
+            const seriesMaxYRaw =
+                size.height - clamp01(maxRef.current / denom) * size.height;
+            const seriesMaxY = Math.min(
+                size.height - 8,
+                Math.max(8, seriesMaxYRaw)
+            );
+            ctx.beginPath();
+            ctx.moveTo(0, seriesMaxY + 0.5);
+            ctx.lineTo(size.width, seriesMaxY + 0.5);
+            ctx.stroke();
+
+            // Vertical time anchors (3 lines evenly spaced; rightmost is 'now')
+            const verticalCount = 3;
+            for (let i = 0; i < verticalCount; i++) {
+                const x = (i / (verticalCount - 1)) * size.width;
+                ctx.beginPath();
+                ctx.moveTo(x + 0.5, 0);
+                ctx.lineTo(x + 0.5, size.height);
+                ctx.stroke();
+            }
+
+            // Labels: MAX at right (for this single series) and Now anchor
+            ctx.setLineDash([]);
+            ctx.globalAlpha = 1;
+            const rootFontSize = parseFloat(
+                getComputedStyle(document.documentElement).fontSize || "16"
+            );
+            const labelFontSize = Math.max(12, Math.round(rootFontSize));
+            ctx.font = `${labelFontSize}px Inter, system-ui, sans-serif`;
+            ctx.textAlign = "right";
+            ctx.textBaseline = "middle";
+            const maxLabel = `MAX ${formatSpeed(maxRef.current)}`;
+            ctx.fillStyle = color; // series color
+            ctx.fillText(maxLabel, size.width - 6, seriesMaxY);
+
+            // 'Now' anchor removed in combined view to avoid overlapping overlay legend
+        } finally {
+            ctx.restore();
+        }
     }, [tick, size, color, windowMs, buckets]); // Re-run on tick
 
     return (
@@ -269,6 +325,7 @@ const SeriesChart = ({
             className={cn("w-full relative min-h-0", className)}
         >
             <canvas ref={canvasRef} className="block w-full h-full" />
+            {/* Legend overlay removed from per-series chart to avoid referencing parent colors; legend is shown in CombinedChart */}
         </div>
     );
 };
@@ -294,7 +351,10 @@ const CombinedChart = ({
 }: CombinedChartProps) => {
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const { ref: containerRef, size } = useObservedSize();
+    const palette = useCanvasPalette();
     const maxRef = useRef(1024);
+    const downMaxRefLocal = useRef(1024);
+    const upMaxRefLocal = useRef(1024);
     const buckets = useMemo(
         () => computeBucketsFromWidth(size.width),
         [size.width]
@@ -314,6 +374,16 @@ const CombinedChart = ({
         const upPeak = Math.max(...upValues, 0);
         const peak = Math.max(downPeak, upPeak, SPEED_CANVAS_DENOM_FLOOR);
         maxRef.current = Math.max(maxRef.current * SPEED_SMOOTH_DECAY, peak);
+
+        // Maintain smoothed per-series max values for labeling
+        downMaxRefLocal.current = Math.max(
+            downMaxRefLocal.current * SPEED_SMOOTH_DECAY,
+            downPeak
+        );
+        upMaxRefLocal.current = Math.max(
+            upMaxRefLocal.current * SPEED_SMOOTH_DECAY,
+            upPeak
+        );
 
         // 3. Points
         const downPoints = buildPoints(
@@ -365,6 +435,99 @@ const CombinedChart = ({
         ctx.strokeStyle = downColor;
         ctx.lineWidth = SPEED_CHART_LINE_WIDTH;
         ctx.stroke();
+
+        // Draw subtle reference guides for combined chart as well
+        ctx.save();
+        try {
+            // Subtle mid-line and vertical time anchors
+            ctx.globalAlpha = 0.35;
+            ctx.strokeStyle = palette.placeholder || "rgba(255,255,255,0.08)";
+            ctx.setLineDash([4, 6]);
+
+            const yMid = size.height / 2;
+            ctx.beginPath();
+            ctx.moveTo(0, yMid + 0.5);
+            ctx.lineTo(size.width, yMid + 0.5);
+            ctx.stroke();
+
+            const verticalCount = 3;
+            for (let i = 0; i < verticalCount; i++) {
+                const x = (i / (verticalCount - 1)) * size.width;
+                ctx.beginPath();
+                ctx.moveTo(x + 0.5, 0);
+                ctx.lineTo(x + 0.5, size.height);
+                ctx.stroke();
+            }
+
+            // Per-series MAX dashed lines (placed at the correct Y position)
+            const denom = Math.max(maxRef.current, SPEED_CANVAS_DENOM_FLOOR);
+            const yDownMaxRaw =
+                size.height -
+                clamp01(downMaxRefLocal.current / denom) * size.height;
+            const yUpMaxRaw =
+                size.height -
+                clamp01(upMaxRefLocal.current / denom) * size.height;
+            const yDownMax = Math.min(
+                size.height - 8,
+                Math.max(8, yDownMaxRaw)
+            );
+            const yUpMax = Math.min(size.height - 8, Math.max(8, yUpMaxRaw));
+
+            ctx.setLineDash([3, 4]);
+            ctx.beginPath();
+            ctx.moveTo(0, yDownMax + 0.5);
+            ctx.lineTo(size.width, yDownMax + 0.5);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(0, yUpMax + 0.5);
+            ctx.lineTo(size.width, yUpMax + 0.5);
+            ctx.stroke();
+
+            // Labels: per-series MAX at right edge, and small 'Now' anchor
+            ctx.setLineDash([]);
+            ctx.globalAlpha = 1;
+            const rootFontSize = parseFloat(
+                getComputedStyle(document.documentElement).fontSize || "16"
+            );
+            const labelFontSize = Math.max(12, Math.round(rootFontSize));
+            ctx.font = `${labelFontSize}px Inter, system-ui, sans-serif`;
+            ctx.textAlign = "right";
+            ctx.textBaseline = "middle";
+
+            const downMaxLabel = `MAX ${formatSpeed(downMaxRefLocal.current)}`;
+            ctx.fillStyle = downColor;
+            ctx.fillText(downMaxLabel, size.width - 6, yDownMax);
+
+            const upMaxLabel = `MAX ${formatSpeed(upMaxRefLocal.current)}`;
+            ctx.fillStyle = upColor;
+            ctx.fillText(upMaxLabel, size.width - 6, yUpMax);
+
+            // Time scale labels: left = full window, middle = halfway point
+            const formatDuration = (ms: number) => {
+                if (ms < 60_000) return `${Math.round(ms / 1000)}s`;
+                const mins = Math.floor(ms / 60_000);
+                const secs = Math.round((ms % 60_000) / 1000);
+                return secs === 0
+                    ? `${mins}m`
+                    : `${mins}:${String(secs).padStart(2, "0")}m`;
+            };
+            const leftLabel = formatDuration(windowMs);
+            const midLabel = formatDuration(Math.floor(windowMs / 2));
+            ctx.textBaseline = "bottom";
+            ctx.globalAlpha = 0.6;
+            ctx.fillStyle = palette.foreground || "rgba(255,255,255,0.6)";
+            ctx.font = `${Math.max(
+                10,
+                labelFontSize - 2
+            )}px Inter, system-ui, sans-serif`;
+            ctx.textAlign = "left";
+            ctx.fillText(leftLabel, 6, size.height - 4);
+            ctx.textAlign = "center";
+            ctx.fillText(midLabel, size.width / 2, size.height - 4);
+            ctx.textAlign = "right";
+        } finally {
+            ctx.restore();
+        }
     }, [tick, size, downColor, upColor, windowMs, buckets]); // Re-run on tick
 
     return (
@@ -577,26 +740,7 @@ export const SpeedChart = ({
                     </>
                 ) : (
                     <div className="flex-1 min-h-0 flex flex-col rounded-2xl border border-content1/20 bg-content1/10 p-panel overflow-hidden relative">
-                        <div
-                            style={{
-                                top: "var(--tt-p-tight)",
-                                left: "var(--tt-p-panel)",
-                            }}
-                            className="absolute flex gap-tools z-10 pointer-events-none"
-                        >
-                            <span
-                                className="text-label uppercase tracking-wider font-bold"
-                                style={{ color: downColor }}
-                            >
-                                Download
-                            </span>
-                            <span
-                                className="text-label uppercase tracking-wider font-bold"
-                                style={{ color: upColor }}
-                            >
-                                Upload
-                            </span>
-                        </div>
+                        {/* legend moved above charts to avoid overlapping MAX labels */}
                         <CombinedChart
                             downTimed={downTimed.current}
                             upTimed={upTimed.current}
