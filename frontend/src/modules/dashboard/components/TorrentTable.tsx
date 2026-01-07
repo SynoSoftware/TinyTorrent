@@ -256,6 +256,14 @@ export function TorrentTable({
     const [anchorIndex, setAnchorIndex] = useState<number | null>(null);
     const [focusIndex, setFocusIndex] = useState<number | null>(null);
 
+    // State to suppress animations during auto-fit operations to prevent text stretching
+    const [isAutoFitting, setIsAutoFitting] = useState(false);
+    const resetAutoFitRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    useEffect(() => {
+        return () => {
+            if (resetAutoFitRef.current) clearTimeout(resetAutoFitRef.current);
+        };
+    }, []);
     const [sorting, setSorting] = useState<any>([]);
     const [columnOrder, setColumnOrder] =
         useState<string[]>(DEFAULT_COLUMN_ORDER);
@@ -485,7 +493,8 @@ export function TorrentTable({
 
     const isAnyColumnResizing =
         Boolean(hookActiveResizeColumnId) ||
-        Boolean(columnSizingInfo.isResizingColumn);
+        Boolean(columnSizingInfo.isResizingColumn) ||
+        isAutoFitting;
 
     const resetColumnResizeState = hookResetColumnResizeState;
     // `resetColumnResizeState` provided by `useColumnResizing` hook below.
@@ -513,6 +522,16 @@ export function TorrentTable({
             if (Math.abs(finalWidth - currentWidth) <= AUTO_FIT_TOLERANCE_PX) {
                 return false;
             }
+
+            // Disable layout animations briefly so the column "snaps" to new width
+            // without stretching the text.
+            setIsAutoFitting(true);
+            if (resetAutoFitRef.current) clearTimeout(resetAutoFitRef.current);
+            resetAutoFitRef.current = setTimeout(
+                () => setIsAutoFitting(false),
+                100
+            );
+
             setColumnSizing((prev: Record<string, number>) =>
                 normalizeColumnSizingState({
                     ...prev,
@@ -996,7 +1015,7 @@ export function TorrentTable({
                             className={DND_OVERLAY_CLASSES}
                         >
                             {activeHeader ? (
-                                <ColumnHeaderPreview header={activeHeader} />
+                                <ColumnHeaderPreview header={activeHeader} isAnyColumnResizing={isAnyColumnResizing} />
                             ) : null}
                         </DragOverlay>
                     )}

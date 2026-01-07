@@ -1,5 +1,8 @@
 import React from "react";
 import type { Row } from "@tanstack/react-table";
+import type { Torrent } from "@/modules/dashboard/types/torrent";
+import type { Virtualizer } from "@tanstack/react-virtual";
+import type { SensorDescriptor } from "@dnd-kit/core";
 import {
     DndContext,
     DragOverlay,
@@ -19,39 +22,36 @@ import { PANEL_SHADOW } from "@/shared/ui/layout/glass-surface";
 import { getTableTotalWidthCss } from "./TorrentTable_Shared";
 
 // Props mirror the variables previously used inline in TorrentTable.tsx
-type RowVirtualizerShape = {
-    getTotalSize: () => number;
-    getVirtualItems: () => Array<{ index: number } & Record<string, unknown>>;
-};
+type RowVirtualizerShape = Virtualizer<any, Element>;
 
 export interface TorrentTableBodyProps {
     parentRef: React.RefObject<HTMLDivElement | null>;
     isLoading: boolean;
-    torrents: any[];
-    TABLE_LAYOUT: { rowHeight: number };
+    torrents: Torrent[];
+    TABLE_LAYOUT: { rowHeight: number | string; overscan: number };
     t: (key: string, opts?: any) => string;
     ADD_TORRENT_SHORTCUT: string;
-    rowSensors: unknown[];
+    rowSensors: SensorDescriptor<any>[];
     handleRowDragStart: (e: DragStartEvent) => void;
     handleRowDragEnd: (e: DragEndEvent) => void;
     handleRowDragCancel: () => void;
     rowIds: string[];
     rowVirtualizer: RowVirtualizerShape;
-    rows: Row<any>[];
+    rows: Row<Torrent>[];
     table: { getTotalSize: () => number };
-    renderVisibleCells: (row: any) => React.ReactNode;
-    activeDragRow?: any | null;
+    renderVisibleCells: (row: Row<Torrent>) => React.ReactNode;
+    activeDragRow?: Row<Torrent> | null;
     renderOverlayPortal: (node: React.ReactNode) => React.ReactNode;
     DND_OVERLAY_CLASSES: string;
     contextMenu?: { torrent: { id: string } } | null;
-    handleRowClick: (row: any) => void;
-    handleRowDoubleClick: (row: any) => void;
-    handleContextMenu: (e: any, row: any) => void;
+    handleRowClick: (e: React.MouseEvent, rowId: string, index: number) => void;
+    handleRowDoubleClick: (row: Torrent) => void;
+    handleContextMenu: (e: React.MouseEvent, row: Torrent) => void;
     canReorderQueue: boolean;
     dropTargetRowId?: string | null;
     activeRowId?: string | null;
     highlightedRowId?: string | null;
-    handleDropTargetChange: (id?: string | null) => void;
+    handleDropTargetChange: (id: string | null) => void;
     isAnyColumnResizing: boolean;
     columnOrder: string[];
     suppressLayoutAnimations: boolean;

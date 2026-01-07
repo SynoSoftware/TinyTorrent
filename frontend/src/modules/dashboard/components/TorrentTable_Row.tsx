@@ -36,8 +36,8 @@ const TorrentTable_Row = memo(
         onDoubleClick: (torrent: Torrent) => void;
         onContextMenu: (e: React.MouseEvent, torrent: Torrent) => void;
         isQueueSortActive: boolean;
-        dropTargetRowId: string | null;
-        activeRowId: string | null;
+        dropTargetRowId: string | null | undefined;
+        activeRowId: string | null | undefined;
         isHighlighted: boolean;
         onDropTargetChange?: (id: string | null) => void;
         isAnyColumnResizing?: boolean;
