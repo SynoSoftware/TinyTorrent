@@ -227,7 +227,10 @@ export const GeneralTab = ({
                     tooltip: t("tooltip.reannounce", {
                         defaultValue: "Force a tracker reannounce.",
                     }),
-                    onPress: () => onForceTrackerReannounce?.(),
+                    onPress: async () => {
+                        if (!onForceTrackerReannounce) return;
+                        await onForceTrackerReannounce();
+                    },
                 });
             } else {
                 console.info(

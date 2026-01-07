@@ -730,7 +730,7 @@ const DEFAULT_DETAILS_VISUALIZATIONS: DetailsVisualizationsConfig = {
         line_width: 3,
         fill_alpha: 0.35,
         down_stroke_token: "--heroui-success",
-        up_stroke_token: "--heroui-primary",
+        up_stroke_token: "--heroui-secondary",
     },
 };
 
@@ -765,6 +765,17 @@ export const SPEED_CHART_FILL_ALPHA = DETAILS_SPEED_CHART.fill_alpha;
 export const SPEED_CHART_DOWN_STROKE_TOKEN =
     DETAILS_SPEED_CHART.down_stroke_token;
 export const SPEED_CHART_UP_STROKE_TOKEN = DETAILS_SPEED_CHART.up_stroke_token;
+
+// Chart geometry & behavior tokens (centralized so layout/behavior can be tuned)
+export const SPEED_CANVAS_DENOM_FLOOR = 1024; // baseline denominator for scaling
+export const SPEED_SMOOTH_DECAY = 0.98; // decay applied to maxRef smoothing
+export const SPEED_RETENTION_MS = 15 * 60_000; // fallback retention for history
+
+// Bucket thresholds used by visualizations to choose sampling resolution
+export const SPEED_BUCKET_WIDTH_SMALL = 240;
+export const SPEED_BUCKET_WIDTH_MED = 520;
+export const SPEED_BUCKET_COUNT_SMALL = 48;
+export const SPEED_BUCKET_COUNT_MED = 96;
 
 // Typography / tracking roles (semantic tokens)
 export const TRACKING_LABEL = "tracking-label";
