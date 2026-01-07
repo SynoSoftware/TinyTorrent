@@ -1,91 +1,17 @@
 import type { ErrorEnvelope, TorrentEntity } from "./entities";
 
-// Idempotency and transient tracking.
-// `autoPausedKeys` stores a composite key of `torrentId|fingerprint|recoveryState`
-// to ensure idempotency is applied only when identity + fingerprint +
-// recoveryState match. Persist this set to localStorage so automation
-// decisions survive UI restarts/reloads and remain idempotent across
-// reconnections.
-const AUTO_PAUSED_STORAGE_KEY = "tt:autoPausedKeys:v1";
-const loadAutoPausedKeys = (): Set<string> => {
-    try {
-        if (typeof localStorage === "undefined") return new Set();
-        const raw = localStorage.getItem(AUTO_PAUSED_STORAGE_KEY);
-        if (!raw) return new Set();
-        const arr = JSON.parse(raw) as string[];
-        return new Set(arr);
-    } catch {
-        return new Set();
-    }
-};
+// Minimal heartbeat processing: stamp `lastErrorAt` based on fingerprint
+// first-seen time. This module MUST NOT perform automation actions or
+// suppress engine-driven prompts — UI automation is removed per contract.
+let FIRST_SEEN_MS = new Map<string, number>();
 
-const saveAutoPausedKeys = (s: Set<string>) => {
-    try {
-        if (typeof localStorage === "undefined") return;
-        localStorage.setItem(
-            AUTO_PAUSED_STORAGE_KEY,
-            JSON.stringify(Array.from(s))
-        );
-    } catch {
-        // ignore
-    }
-};
-
-const autoPausedKeys = loadAutoPausedKeys();
-// pendingAutoPausedKeys prevents duplicate in-flight pause actions for the
-// same composite key. We add to this set immediately when scheduling the
-// pause, and move to `autoPausedKeys` on success. This avoids race
-// conditions when multiple heartbeats are processed rapidly.
-const pendingAutoPausedKeys = new Set<string>();
-const transientTrackerFingerprints = new Set<string>();
-// dismissedFingerprints: when a user dismisses a missing-files prompt for a
-// fingerprint, we silently suppress needsUserConfirmation for that fingerprint
-// until the fingerprint changes. This is in-memory only.
-const dismissedFingerprints = new Set<string>();
-// firstSeenFingerprintMs: records the first-seen epoch ms for a fingerprint
-// (used to stamp `lastErrorAt`).
-const firstSeenFingerprintMs = new Map<string, number>();
-// lastActionKeyMs: records when automation last acted for a specific
-// action-key composed of fingerprint|errorClass|recoveryState. This is
-// used solely for cooldown/noise suppression.
-const lastActionKeyMs = new Map<string, number>();
-
-// Cool-down for suppressing repeated identical warnings (Tier-1.5).
-let COOL_DOWN_MS = 60_000; // configurable for tests/extensions
-
-export type PauseCallback = (ids: string[]) => Promise<void> | void;
-
-/** Non-destructive list: these error classes must never be suppressed. */
-const NON_SUPPRESSIBLE: Set<string> = new Set([
-    "diskFull",
-    "permissionDenied",
-    "missingFiles",
-]);
-
-/**
- * Configure recovery automation runtime knobs (extension point).
- * Tier-2 and persistence hooks can be added later.
- */
-export function configure(opts: { coolDownMs?: number } = {}) {
-    if (typeof opts.coolDownMs === "number" && opts.coolDownMs >= 0) {
-        COOL_DOWN_MS = Math.floor(opts.coolDownMs);
-    }
+export function configure(_opts: { coolDownMs?: number } = {}) {
+    // no-op: automation knobs removed to enforce engine-first recovery
 }
 
-/**
- * Process a heartbeat's torrent list and optionally perform conservative
- * automation actions. This module is Tier-1 only: extremely conservative,
- * engine-agnostic, and driven solely by ErrorEnvelope.
- *
- * Notes:
- * - All state is in-memory only.
- * - Idempotency is based on ErrorEnvelope.fingerprint.
- * - No persistence, no timers; heartbeat-driven only.
- */
 export function processHeartbeat(
     current: TorrentEntity[],
-    previous: TorrentEntity[] | undefined | null,
-    pauseCallback?: PauseCallback
+    previous: TorrentEntity[] | undefined | null
 ) {
     const now = Date.now();
     const prevById = new Map<string, TorrentEntity>();
@@ -94,27 +20,14 @@ export function processHeartbeat(
     }
 
     for (const t of current) {
-        const curEnv: ErrorEnvelope | undefined | null = t.errorEnvelope;
-        const prev = prevById.get(t.id);
-        const prevEnv: ErrorEnvelope | undefined | null = prev?.errorEnvelope;
-
         try {
+            const curEnv: ErrorEnvelope | undefined | null = t.errorEnvelope;
+            const prev = prevById.get(t.id);
+            const prevEnv: ErrorEnvelope | undefined | null =
+                prev?.errorEnvelope;
             const curFp = curEnv?.fingerprint ?? null;
             const prevFp = prevEnv?.fingerprint ?? null;
 
-            // Determine non-suppressible from either envelope when available.
-            const isNonSuppressible =
-                curEnv?.errorClass ?? prevEnv?.errorClass
-                    ? NON_SUPPRESSIBLE.has(
-                          curEnv?.errorClass ?? prevEnv!.errorClass
-                      )
-                    : false;
-
-            // Stamp `lastErrorAt` at the heartbeat (stateful) layer.
-            // Rule: only set when an error exists. If errorClass is `none`,
-            // ensure lastErrorAt is null. The builder is pure; we must not
-            // mutate shared envelope objects in-place, so create a shallow
-            // copy with the stamped value and assign it back to `t.errorEnvelope`.
             if (curEnv && curEnv.errorClass !== "none" && curFp) {
                 let stampedAt: number;
                 if (
@@ -123,10 +36,10 @@ export function processHeartbeat(
                     prevEnv.lastErrorAt != null
                 ) {
                     stampedAt = prevEnv.lastErrorAt;
-                } else if (firstSeenFingerprintMs.has(curFp)) {
-                    stampedAt = firstSeenFingerprintMs.get(curFp) as number;
+                } else if (FIRST_SEEN_MS.has(curFp)) {
+                    stampedAt = FIRST_SEEN_MS.get(curFp) as number;
                 } else {
-                    firstSeenFingerprintMs.set(curFp, now);
+                    FIRST_SEEN_MS.set(curFp, now);
                     stampedAt = now;
                 }
                 const stamped: ErrorEnvelope = {
@@ -138,156 +51,14 @@ export function processHeartbeat(
                 const stamped: ErrorEnvelope = { ...curEnv, lastErrorAt: null };
                 t.errorEnvelope = stamped;
             }
-
-            // Noise control: suppress repeated identical warnings per
-            // (fingerprint,errorClass,recoveryState) within COOL_DOWN_MS,
-            // except for non-suppressible classes. Suppression is applied
-            // based on the last time we performed automation for that exact
-            // action-key. This does NOT prevent stamping `lastErrorAt`.
-            let shouldSuppress = false;
-            if (
-                curFp &&
-                prevFp === curFp &&
-                prevEnv &&
-                curEnv &&
-                curEnv.errorClass === prevEnv.errorClass &&
-                curEnv.recoveryState === prevEnv.recoveryState
-            ) {
-                const actionKey = `${curFp}|${curEnv.errorClass}|${curEnv.recoveryState}`;
-                const lastAction = lastActionKeyMs.get(actionKey) ?? 0;
-                if (!isNonSuppressible && now - lastAction < COOL_DOWN_MS) {
-                    shouldSuppress = true;
-                }
-            }
-
-            if (shouldSuppress) {
-                // Avoid performing automation actions, but do NOT change
-                // any timing invariants. We already stamped `lastErrorAt`.
-                continue;
-            }
-
-            // If this fingerprint was dismissed for missing-files, coerce
-            // the recoveryState so the UI does not re-prompt. This keeps the
-            // dismissal in-memory and scoped to the fingerprint lifecycle.
-            if (
-                curEnv &&
-                curEnv.errorClass === "missingFiles" &&
-                curEnv.recoveryState === "needsUserConfirmation" &&
-                curEnv.fingerprint &&
-                dismissedFingerprints.has(curEnv.fingerprint)
-            ) {
-                const coerced: ErrorEnvelope = {
-                    ...curEnv,
-                    recoveryState: "needsUserAction",
-                };
-                t.errorEnvelope = coerced;
-                // Record that we've suppressed action for this fingerprint
-                const actionKey = `${curEnv.fingerprint}|${curEnv.errorClass}|needsUserAction`;
-                lastActionKeyMs.set(actionKey, now);
-                continue;
-            }
-
-            // Automation #1: auto-pause on disk exhaustion
-            if (
-                curEnv &&
-                curEnv.errorClass === "diskFull" &&
-                curEnv.recoveryState === "blocked"
-            ) {
-                const f = curEnv.fingerprint ?? null;
-                const key = f ? `${t.id}|${f}|${curEnv.recoveryState}` : null;
-                const actionKey = f
-                    ? `${f}|${curEnv.errorClass}|${curEnv.recoveryState}`
-                    : null;
-                if (
-                    key &&
-                    !autoPausedKeys.has(key) &&
-                    !pendingAutoPausedKeys.has(key) &&
-                    pauseCallback
-                ) {
-                    // Mark as pending immediately to prevent duplicate in-flight
-                    // pause attempts. Persist the key into `autoPausedKeys` only
-                    // after successful pause; if the pause fails we remove the
-                    // pending marker so future heartbeats may retry.
-                    pendingAutoPausedKeys.add(key);
-                    void (async () => {
-                        try {
-                            await pauseCallback([t.id]);
-                            pendingAutoPausedKeys.delete(key);
-                            autoPausedKeys.add(key);
-                            // persist updated set so automation remains idempotent across reloads
-                            try {
-                                saveAutoPausedKeys(autoPausedKeys);
-                            } catch {
-                                // ignore persistence failure
-                            }
-                            if (actionKey) lastActionKeyMs.set(actionKey, now);
-                        } catch {
-                            // On failure, allow future heartbeats to attempt again.
-                            pendingAutoPausedKeys.delete(key);
-                        }
-                    })();
-                }
-                // If no pauseCallback provided, do not attempt automation.
-            }
-
-            // Automation #2: silent clear of transient tracker warnings
-            // Track when a trackerWarning first appears, and remove when cleared.
-            if (prevEnv && prevEnv.errorClass === "trackerWarning") {
-                const prevFp = prevEnv.fingerprint;
-                if (prevFp) {
-                    transientTrackerFingerprints.add(prevFp);
-                    const actionKey = `${prevFp}|trackerWarning|${prevEnv.recoveryState}`;
-                    lastActionKeyMs.set(actionKey, now);
-                }
-            }
-
-            if (
-                prevEnv &&
-                prevEnv.errorClass === "trackerWarning" &&
-                (!curEnv || curEnv.errorClass === "none")
-            ) {
-                const prevFp = prevEnv.fingerprint;
-                if (prevFp && transientTrackerFingerprints.has(prevFp)) {
-                    transientTrackerFingerprints.delete(prevFp);
-                }
-            }
         } catch {
-            // Defensive: never throw from automation; heartbeat must remain stable
+            // Defensive: never throw from heartbeat processing
         }
     }
-}
-
-/**
- * Dismiss a missing-files prompt for a given fingerprint (in-memory).
- * This suppresses `needsUserConfirmation` for that fingerprint until it
- * changes.
- */
-export function dismissFingerprint(fingerprint: string) {
-    if (!fingerprint) return;
-    dismissedFingerprints.add(fingerprint);
-}
-
-/**
- * Undismiss (remove) a fingerprint from the dismissed set. Useful in tests.
- */
-export function _undismissFingerprintForTests(fingerprint: string) {
-    if (!fingerprint) return;
-    dismissedFingerprints.delete(fingerprint);
 }
 
 export function _resetForTests() {
-    autoPausedKeys.clear();
-    try {
-        if (typeof localStorage !== "undefined") {
-            localStorage.removeItem(AUTO_PAUSED_STORAGE_KEY);
-        }
-    } catch {
-        // ignore
-    }
-    transientTrackerFingerprints.clear();
-    firstSeenFingerprintMs.clear();
-    lastActionKeyMs.clear();
-    COOL_DOWN_MS = 60_000;
+    FIRST_SEEN_MS = new Map<string, number>();
 }
 
 export default { processHeartbeat, configure, _resetForTests };

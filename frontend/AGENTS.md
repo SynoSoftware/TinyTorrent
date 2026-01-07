@@ -4,6 +4,7 @@
 **Purpose:**
 Single authoritative reference for the architecture, UI/UX rules, design tokens, and development standards for **TinyTorrent** — a modern, world-class successor to µTorrent with a **VS Code–style workbench**.
 
+
 ---
 
 # **1. Brand Identity**
@@ -19,6 +20,10 @@ TinyTorrent = **modern µTorrent** × **glass UI** × **Windows 11 acrylic polis
 - **Native HUD Feel:** Glass, blur, depth, minimal chrome.
 - **Workbench, Not a Webpage:** Split panes, pinned inspectors, OS-level behavior.
 - **Accessibility:** Controls must be visually clear, easy to target, and comfortable. Use intentional whitespace and large hit-targets to create a "premium tool" feel.
+- **No duplicated semantics**
+- **No hidden state**
+- **No generic abstractions**
+- **No opinionated workflows**
 
 ---
 
@@ -1316,3 +1321,4 @@ TinyTorrent must behave like a desktop tool and look better than desktop tools e
 
 6. Never write complex or nested shell one-liners. If a command requires tricky quoting or multiple pipes, move it into a script file instead. All commands must be simple, cross-platform, and Windows-safe.
 
+ABSOLUTE RULE: Never run git restore, git reset, git clean, or checkout -- without explicit confirmation. Preserve all local changes.

@@ -1,4 +1,5 @@
 import { useCallback, type MutableRefObject } from "react";
+import { useTranslation } from "react-i18next";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import type { ReportCommandErrorFn } from "@/shared/types/rpc";
@@ -41,6 +42,7 @@ export function useDetailControls({
     mutateDetail,
     updateCapabilityState,
 }: UseDetailControlsParams) {
+    const { t } = useTranslation();
     const runWithRefresh = useCallback(
         async (operation: () => Promise<void>, options?: RefreshOptions) => {
             try {
@@ -167,16 +169,87 @@ export function useDetailControls({
         ]
     );
 
-    const handleForceTrackerReannounce = useCallback(async () => {
+    const handleForceTrackerReannounce = useCallback(async (): Promise<
+        string | void
+    > => {
         if (!detailData) return;
         const reannounceFn = torrentClient.forceTrackerReannounce;
         if (!reannounceFn) return;
-        await runWithRefresh(() => reannounceFn(detailData.id), {
-            refreshTorrents: false,
-            refreshStats: false,
-            reportRpcError: false,
+
+        const prevTrackers = detailData.trackers ?? [];
+        const snapshot = prevTrackers.map((t) => ({
+            id: t.id,
+            announce: t.announce,
+            lastAnnounceTime:
+                typeof t.lastAnnounceTime === "number" ? t.lastAnnounceTime : 0,
+            lastAnnounceSucceeded: t.lastAnnounceSucceeded === true,
+        }));
+
+        try {
+            // fire the reannounce RPC (do not refresh torrents or stats immediately)
+            await runWithRefresh(() => reannounceFn(detailData.id), {
+                refreshTorrents: false,
+                refreshStats: false,
+                reportRpcError: false,
+            });
+        } catch (err) {
+            throw err;
+        }
+
+        // Poll for tracker state change for a limited time
+        const pollInterval = 500;
+        const timeout = 12_000; // 12s
+        const start = Date.now();
+
+        while (isMountedRef.current && Date.now() - start < timeout) {
+            try {
+                const fresh = await torrentClient.getTorrentDetails(
+                    detailData.id
+                );
+                const freshTrackers = fresh.trackers ?? [];
+
+                const changed = snapshot.some((s) => {
+                    const match = freshTrackers.find(
+                        (ft) => ft.id === s.id || ft.announce === s.announce
+                    );
+                    if (!match) return false;
+                    const ftTime =
+                        typeof match.lastAnnounceTime === "number"
+                            ? match.lastAnnounceTime
+                            : 0;
+                    const ftSucc = match.lastAnnounceSucceeded === true;
+                    return (
+                        ftTime > s.lastAnnounceTime ||
+                        (ftSucc && !s.lastAnnounceSucceeded)
+                    );
+                });
+
+                if (changed) {
+                    // update the detail cache with the fresh detail
+                    mutateDetail(() => fresh as any);
+                    return t("torrent_modal.trackers.reannounce_completed", {
+                        defaultValue: "Reannounce completed",
+                    });
+                }
+            } catch {
+                // ignore transient errors and continue polling
+            }
+
+            // wait
+            await new Promise((r) => setTimeout(r, pollInterval));
+        }
+
+        return t("torrent_modal.trackers.reannounce_timeout", {
+            defaultValue: "Reannounce timed out",
         });
-    }, [detailData, runWithRefresh, torrentClient]);
+    }, [
+        detailData,
+        runWithRefresh,
+        torrentClient,
+        isMountedRef,
+        mutateDetail,
+        t,
+    ]);
 
     const isUnsupportedCapabilityError = (error: unknown) => {
         if (!isRpcCommandError(error)) {

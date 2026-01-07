@@ -641,11 +641,7 @@ export class HeartbeatManager {
                 return Promise.resolve();
             };
             try {
-                processHeartbeat(
-                    torrents,
-                    previous ?? undefined,
-                    pauseCallback
-                );
+                processHeartbeat(torrents, previous ?? undefined);
             } catch {
                 // Never let automation throw into heartbeat loop
             }

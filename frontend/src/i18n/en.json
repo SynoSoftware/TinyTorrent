@@ -85,7 +85,7 @@
                 "error": "Error",
                 "missing_files": "Missing",
                 "needsUserAction": "Action",
-                "needsUserConfirmation": "Confirmation required",
+                "needsUserConfirmation": "Approve?",
                 "ok": "Idle",
                 "paused": "Paused",
                 "queued": "Queued",
@@ -545,6 +545,7 @@
             "hide_column": "Hide Column",
             "hide_column_named": "Hide {{column}}",
             "open_folder": "Open Download Folder",
+            "set_download_path": "Set Download Path",
             "pause": "Pause",
             "recheck": "Force Recheck",
             "remove": "Remove",
@@ -639,6 +640,7 @@
         "verify": "Re-scan and verify the torrent's files on the server.",
         "set_location": "Choose a server directory that already contains this torrent's files.",
         "redownload": "Re-download the torrent's data and overwrite any existing files.",
+        "resume": "Resume downloading this torrent.",
         "retry": "Retry fetching the torrent's metadata or reverify its files.",
         "reannounce": "Force the tracker to re-announce the torrent.",
         "dismiss": "Dismiss this warning."
@@ -683,6 +685,7 @@
             "super_seeding": "Super Seeding",
             "super_seeding_helper": "Upload rare pieces to seed the swarm.",
             "verify": "Verify",
+            "verifying": "Verifying…",
             "title": "Power User Modes"
         },
         "eta_unknown": "Unknown",
@@ -736,6 +739,11 @@
             "tooltip_size": "Piece size: {{size}}"
         },
         "placeholder": "Select a torrent and open the inspector to see details.",
+        "errors": {
+            "no_data_found_title": "No data found!",
+            "no_data_found_desc": "Ensure your drives are connected or use 'Set Location'. To re-download, remove the torrent and re-add it.",
+            "resolve_action": "Resolve"
+        },
         "speed": {
             "average": "Average",
             "collecting_samples": "Collecting samples from backend...",
@@ -755,6 +763,7 @@
             "ratio": "Ratio: {{ratio}}",
             "time_remaining": "Time Remaining",
             "total_progress": "Total Progress",
+            "speed": "Speed",
             "unknown_size": "Unknown size",
             "uploaded": "Uploaded",
             "verified": "Verified"

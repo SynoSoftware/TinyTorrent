@@ -73,10 +73,11 @@ interface ModeLayoutProps {
     ) => void;
     onSequentialToggle?: (enabled: boolean) => Promise<void> | void;
     onSuperSeedingToggle?: (enabled: boolean) => Promise<void> | void;
-    onForceTrackerReannounce?: () => Promise<void> | void;
-    onSetLocation?: (torrent: TorrentDetail) => Promise<void> | void;
+    onForceTrackerReannounce?: () => Promise<string | void> | void;
+    onSetLocation?: (torrent: Torrent | TorrentDetail) => Promise<void> | void;
     onRedownload?: (torrent: TorrentDetail) => Promise<void> | void;
     onRetry?: (torrent: TorrentDetail) => Promise<void> | void;
+    onResume?: (torrent: TorrentDetail) => Promise<void> | void;
     capabilities: CapabilityStore;
     optimisticStatuses?: OptimisticStatusMap;
     peerSortStrategy?: PeerSortStrategy;
@@ -106,6 +107,7 @@ export function ModeLayout({
     onSetLocation,
     onRedownload,
     onRetry,
+    onResume,
     onOpenFolder,
     capabilities,
     optimisticStatuses,
@@ -327,6 +329,7 @@ export function ModeLayout({
                                     optimisticStatuses={optimisticStatuses}
                                     ghostTorrents={ghostTorrents}
                                     onOpenFolder={onOpenFolder}
+                                    onSetLocation={onSetLocation}
                                 />
                             </div>
                         </div>
@@ -422,6 +425,7 @@ export function ModeLayout({
                                     onSetLocation={onSetLocation}
                                     onRedownload={onRedownload}
                                     onRetry={onRetry}
+                                    onResume={onResume}
                                     capabilities={capabilities}
                                     isDetailFullscreen={false}
                                     onDock={handleDetailDock}
@@ -460,26 +464,27 @@ export function ModeLayout({
                             exit={{ opacity: 0, scale: 0.96 }}
                             transition={{ duration: 0.25 }}
                         >
-                                <TorrentDetailView
-                                    torrent={detailData}
-                                    onClose={handleDetailClose}
-                                    onFilesToggle={onFilesToggle}
-                                    onFileContextAction={onFileContextAction}
-                                    onPeerContextAction={onPeerContextAction}
-                                    peerSortStrategy={peerSortStrategy}
-                                    inspectorTabCommand={inspectorTabCommand}
-                                    onInspectorTabCommandHandled={
-                                        onInspectorTabCommandHandled
-                                    }
-                                    onSequentialToggle={onSequentialToggle}
-                                    onSuperSeedingToggle={onSuperSeedingToggle}
-                                    onForceTrackerReannounce={
-                                        onForceTrackerReannounce
-                                    }
-                                    onSetLocation={onSetLocation}
-                                    onRedownload={onRedownload}
-                                    onRetry={onRetry}
-                                    capabilities={capabilities}
+                            <TorrentDetailView
+                                torrent={detailData}
+                                onClose={handleDetailClose}
+                                onFilesToggle={onFilesToggle}
+                                onFileContextAction={onFileContextAction}
+                                onPeerContextAction={onPeerContextAction}
+                                peerSortStrategy={peerSortStrategy}
+                                inspectorTabCommand={inspectorTabCommand}
+                                onInspectorTabCommandHandled={
+                                    onInspectorTabCommandHandled
+                                }
+                                onSequentialToggle={onSequentialToggle}
+                                onSuperSeedingToggle={onSuperSeedingToggle}
+                                onForceTrackerReannounce={
+                                    onForceTrackerReannounce
+                                }
+                                onSetLocation={onSetLocation}
+                                onRedownload={onRedownload}
+                                onRetry={onRetry}
+                                onResume={onResume}
+                                capabilities={capabilities}
                                 isDetailFullscreen={isDetailFullscreen}
                                 isStandalone={true}
                                 onDock={handleDetailDock}

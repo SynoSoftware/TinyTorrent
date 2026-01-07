@@ -88,11 +88,6 @@ type TorrentGetResponse<T> = {
     torrents: T[];
 };
 
-type AddTorrentResponse = {
-    "torrent-added"?: TransmissionTorrent;
-    "torrent-duplicate"?: TransmissionTorrent;
-};
-
 const DEFAULT_ENDPOINT =
     import.meta.env.VITE_RPC_ENDPOINT ?? CONFIG.defaults.rpc_endpoint;
 
@@ -149,6 +144,17 @@ export class TransmissionAdapter implements EngineAdapter {
     private readonly heartbeat = new HeartbeatManager(this);
     // Active in-flight request controllers (for abort on destroy)
     private readonly activeControllers = new Set<AbortController>();
+    // Track an in-flight promise for fetching extended capabilities to
+    // prevent duplicated concurrent requests.
+    private inflightGetCapabilities?: Promise<void>;
+    // Rapid-call detector: tracks recent method call counts to detect
+    // potential race conditions or buggy caller code.
+    private readonly recentMethodCalls = new Map<
+        string,
+        { count: number; firstTs: number }
+    >();
+    private readonly METHOD_CALL_WINDOW_MS = 2000; // 2s
+    private readonly METHOD_CALL_WARNING_THRESHOLD = 3;
     private tinyTorrentCapabilities?: TinyTorrentCapabilities | null;
     private websocketSession?: TinyTorrentWebSocketSession;
     private serverClass: ServerClass = "unknown";
@@ -217,6 +223,31 @@ export class TransmissionAdapter implements EngineAdapter {
             );
         }
         try {
+            // Rapid-call detection for the method name to help surface
+            // potential race conditions where callers repeatedly invoke
+            // the same RPC in quick succession.
+            try {
+                const now = Date.now();
+                const m = payload.method ?? "";
+                const entry = this.recentMethodCalls.get(m);
+                if (
+                    entry &&
+                    now - entry.firstTs <= this.METHOD_CALL_WINDOW_MS
+                ) {
+                    entry.count += 1;
+                } else {
+                    this.recentMethodCalls.set(m, { count: 1, firstTs: now });
+                }
+                const cur = this.recentMethodCalls.get(m)!;
+                if (cur.count >= this.METHOD_CALL_WARNING_THRESHOLD) {
+                    // Log a warning once per burst window to aid debugging.
+                    console.warn(
+                        `[tiny-torrent][rpc] Rapid repeated calls to RPC method '${m}' (${cur.count} times in ${this.METHOD_CALL_WINDOW_MS}ms). This may indicate a race condition or bad caller code.`
+                    );
+                }
+            } catch (e) {
+                // Don't allow diagnostic code to interfere with normal RPC flow.
+            }
             const headers: Record<string, string> = {
                 "Content-Type": "application/json",
             };
@@ -544,18 +575,56 @@ export class TransmissionAdapter implements EngineAdapter {
             this.ensureWebsocketConnection();
             return;
         }
+        // Prevent duplicated concurrent tt-get-capabilities calls. If one is
+        // already in flight, await it instead of firing another request.
+        if (this.inflightGetCapabilities) {
+            try {
+                await this.inflightGetCapabilities;
+            } catch {
+                // swallow here; the inflight promise will have already
+                // logged details if it failed.
+            }
+            return;
+        }
+
+        this.inflightGetCapabilities = (async () => {
+            try {
+                const response = await this.send(
+                    { method: "tt-get-capabilities" },
+                    zTinyTorrentCapabilitiesNormalized
+                );
+                this.applyCapabilities(response);
+            } catch (error) {
+                // If the server doesn't recognize our extension method, it's
+                // almost certainly a plain Transmission server. Treat that as a
+                // non-fatal condition and mark the server class to avoid
+                // repeatedly attempting the same unsupported RPC.
+                if (
+                    error instanceof RpcCommandError &&
+                    typeof error.code === "string" &&
+                    error.code.toLowerCase() === "method name not recognized"
+                ) {
+                    this.tinyTorrentCapabilities = null;
+                    this.serverClass = "transmission";
+                    this.ensureWebsocketConnection();
+                    console.debug(
+                        "[tiny-torrent][rpc] tt-get-capabilities not supported; marking serverClass=transmission"
+                    );
+                    return;
+                }
+
+                console.error(
+                    `[tiny-torrent][rpc] refreshExtendedCapabilities failed`,
+                    error
+                );
+                this.applyCapabilities(null);
+            }
+        })();
+
         try {
-            const response = await this.send(
-                { method: "tt-get-capabilities" },
-                zTinyTorrentCapabilitiesNormalized
-            );
-            this.applyCapabilities(response);
-        } catch (error) {
-            console.error(
-                `[tiny-torrent][rpc] refreshExtendedCapabilities failed`,
-                error
-            );
-            this.applyCapabilities(null);
+            await this.inflightGetCapabilities;
+        } finally {
+            this.inflightGetCapabilities = undefined;
         }
     }
 
@@ -1107,17 +1176,32 @@ export class TransmissionAdapter implements EngineAdapter {
             { method: "torrent-add", arguments: args },
             zTransmissionAddTorrentResponse
         );
-        const parsed = response as AddTorrentResponse;
-        const torrent = parsed["torrent-added"] ?? parsed["torrent-duplicate"];
-        if (!torrent) {
+        const addedTorrent = response["torrent-added"];
+        const duplicateTorrent = response["torrent-duplicate"];
+        const torrentEntry = addedTorrent ?? duplicateTorrent;
+        if (!torrentEntry?.hashString) {
             throw new Error("Torrent add did not return an identifier");
         }
-        this.idMap.set(torrent.hashString, torrent.id);
+
+        const duplicate = Boolean(duplicateTorrent);
+        const rpcId = torrentEntry.id;
+        if (typeof rpcId !== "number" || !Number.isFinite(rpcId)) {
+            throw new Error(
+                "Torrent add did not return a numeric RPC identifier"
+            );
+        }
+
+        try {
+            this.idMap.set(torrentEntry.hashString, rpcId);
+        } catch {
+            // ignore idMap errors
+        }
+
         return {
-            id: torrent.hashString,
-            rpcId: torrent.id,
-            name: torrent.name,
-            duplicate: Boolean(parsed["torrent-duplicate"]),
+            id: torrentEntry.hashString,
+            rpcId,
+            name: torrentEntry.name,
+            duplicate,
         };
     }
 

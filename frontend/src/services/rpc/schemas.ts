@@ -233,10 +233,21 @@ const zTransmissionTorrent = z
     })
     .passthrough();
 
+const zTransmissionTorrentAddResponseEntry = z
+    .object({
+        // Transmission guarantees these three fields in torrent-add responses.
+        id: z.number(),
+        name: z.string(),
+        hashString: z.string(),
+    })
+    .passthrough();
+
+// The daemon may return only the bare fields we care about for a newly
+// added torrent. Parse that shape to keep the RPC layer resilient.
 export const zTransmissionAddTorrentResponse = z
     .object({
-        "torrent-added": zTransmissionTorrent.optional(),
-        "torrent-duplicate": zTransmissionTorrent.optional(),
+        "torrent-added": zTransmissionTorrentAddResponseEntry.optional(),
+        "torrent-duplicate": zTransmissionTorrentAddResponseEntry.optional(),
     })
     .passthrough();
 
