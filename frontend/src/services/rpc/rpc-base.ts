@@ -295,6 +295,24 @@ export class TransmissionAdapter implements EngineAdapter {
         this.requestTimeout = options?.requestTimeout;
     }
 
+    private isAbortError(err: unknown): boolean {
+        if (!err) return false;
+        try {
+            const e = err as any;
+            if (typeof e === "object" && e !== null) {
+                if (e.name === "AbortError") return true;
+                if (
+                    typeof e.message === "string" &&
+                    /abort(ed)?/i.test(e.message)
+                )
+                    return true;
+            }
+            return false;
+        } catch {
+            return false;
+        }
+    }
+
     public updateRequestTimeout(timeout: number) {
         this.requestTimeout = timeout;
     }
@@ -476,7 +494,9 @@ export class TransmissionAdapter implements EngineAdapter {
                 try {
                     return await attemptRequest(0);
                 } catch (e) {
-                    console.error("[tiny-torrent][rpc] send error:", e);
+                    if (!this.isAbortError(e)) {
+                        console.error("[tiny-torrent][rpc] send error:", e);
+                    }
                     throw e;
                 } finally {
                     if (timeoutId) {
@@ -492,7 +512,9 @@ export class TransmissionAdapter implements EngineAdapter {
 
             return requestPromise;
         } catch (e) {
-            console.error("[tiny-torrent][rpc] send error:", e);
+            if (!this.isAbortError(e)) {
+                console.error("[tiny-torrent][rpc] send error:", e);
+            }
             throw e;
         }
     }
@@ -557,11 +579,13 @@ export class TransmissionAdapter implements EngineAdapter {
                 try {
                     ctrl.abort();
                 } catch (err) {
-                    // eslint-disable-next-line no-console
-                    console.warn(
-                        "[tiny-torrent][rpc] abort controller error:",
-                        err
-                    );
+                    if (!this.isAbortError(err)) {
+                        // eslint-disable-next-line no-console
+                        console.warn(
+                            "[tiny-torrent][rpc] abort controller error:",
+                            err
+                        );
+                    }
                 }
             }
         } finally {

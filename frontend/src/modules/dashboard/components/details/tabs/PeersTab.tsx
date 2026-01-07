@@ -71,29 +71,16 @@ export const PeersTab = ({
     const { rowHeight, fileContextMenuMargin, fileContextMenuWidth } =
         useLayoutMetrics();
 
-    if (!peers || peers.length === 0) {
-        return isStandalone ? (
-            <GlassPanel className="flex h-full items-center justify-center border-default/10 text-center">
-                <p className={`${TEXT_ROLES.primary} text-foreground/30`}>
-                    {t("torrent_modal.peers.empty_backend")}
-                </p>
-            </GlassPanel>
-        ) : (
-            <div className="flex h-full items-center justify-center border-default/10 text-center">
-                <p className={`${TEXT_ROLES.primary} text-foreground/30`}>
-                    {t("torrent_modal.peers.empty_backend")}
-                </p>
-            </div>
-        );
-    }
+    const safePeers = peers || [];
+    const isEmpty = safePeers.length === 0;
 
     const orderedPeers = useMemo(() => {
-        if (!sortBySpeed) return peers;
-        return [...peers].sort(
+        if (!sortBySpeed) return safePeers;
+        return [...safePeers].sort(
             (a, b) =>
                 b.rateToClient + b.rateToPeer - (a.rateToClient + a.rateToPeer)
         );
-    }, [peers, sortBySpeed]);
+    }, [safePeers, sortBySpeed]);
 
     const rowVirtualizer = useVirtualizer({
         count: orderedPeers.length,
@@ -157,6 +144,22 @@ export const PeersTab = ({
             ))}
         </div>
     );
+
+    if (isEmpty) {
+        return isStandalone ? (
+            <GlassPanel className="flex h-full items-center justify-center border-default/10 text-center">
+                <p className={`${TEXT_ROLES.primary} text-foreground/30`}>
+                    {t("torrent_modal.peers.empty_backend")}
+                </p>
+            </GlassPanel>
+        ) : (
+            <div className="flex h-full items-center justify-center border-default/10 text-center">
+                <p className={`${TEXT_ROLES.primary} text-foreground/30`}>
+                    {t("torrent_modal.peers.empty_backend")}
+                </p>
+            </div>
+        );
+    }
 
     return (
         <div className="flex flex-col h-full min-h-0 overflow-hidden gap-tools">
@@ -238,7 +241,7 @@ export const PeersTab = ({
 
                                         return (
                                             <div
-                                                key={safeAddr}
+                                                key={`${safeAddr}-${virtualRow.index}`}
                                                 className={cn(
                                                     "absolute left-0 right-0 flex items-center px-panel transition-colors border-b border-content1/5",
                                                     isHovered

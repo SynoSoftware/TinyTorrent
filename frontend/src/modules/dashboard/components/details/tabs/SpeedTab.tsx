@@ -20,22 +20,6 @@ export const SpeedTab = ({ torrent, isStandalone = false }: SpeedTabProps) => {
 
     const Content = (
         <>
-            <div className="flex items-center justify-between mb-tight shrink-0">
-                <div className="flex flex-col">
-                    <span className={`${TEXT_ROLES.label} text-foreground/60`}>
-                        {t("torrent_modal.tabs.speed")}
-                    </span>
-                    <span
-                        className={`${TEXT_ROLES.secondary} text-foreground/60`}
-                    >
-                        {t("torrent_modal.speed.stable")}
-                    </span>
-                </div>
-                <span className={`${TEXT_ROLES.secondary} text-foreground/50`}>
-                    {t("torrent_modal.speed.download")}
-                </span>
-            </div>
-
             {isHistoryEmpty && (
                 <div className="mb-tight shrink-0 rounded-2xl border border-content1/20 bg-background/20 p-panel text-scaled text-foreground/50">
                     {t("torrent_modal.speed.collecting_samples")}
