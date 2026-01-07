@@ -155,6 +155,17 @@ export function TorrentDetails({
                         emptyMessage={t("torrent_modal.files_empty")}
                         onFilesToggle={onFilesToggle}
                         onFileContextAction={onFileContextAction}
+                        onRedownload={
+                            onRedownload
+                                ? () => onRedownload(torrent)
+                                : undefined
+                        }
+                        onRetry={onRetry ? () => onRetry(torrent) : undefined}
+                        onSetLocation={
+                            onSetLocation
+                                ? () => onSetLocation(torrent)
+                                : undefined
+                        }
                         isStandalone={isStandalone}
                     />
                 )}

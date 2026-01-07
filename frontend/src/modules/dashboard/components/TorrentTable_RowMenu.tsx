@@ -21,6 +21,10 @@ export default function TorrentTable_RowMenu({
     queueMenuActions,
     getContextMenuShortcut,
     t,
+    onOpenFolder,
+    onSetLocation,
+    isClipboardSupported,
+    getEmphasisClassForAction,
 }: {
     contextMenu: { virtualElement: any; torrent: Torrent } | null;
     onClose: () => void;
@@ -28,6 +32,10 @@ export default function TorrentTable_RowMenu({
     queueMenuActions: QueueMenuAction[];
     getContextMenuShortcut: (key: string) => string | undefined;
     t: (k: string, opts?: any) => string;
+    onOpenFolder?: (t: Torrent) => Promise<void>;
+    onSetLocation?: (t: Torrent) => Promise<void>;
+    isClipboardSupported?: boolean;
+    getEmphasisClassForAction?: (a?: string) => string;
 }) {
     if (!contextMenu) return null;
     const rect = contextMenu.virtualElement.getBoundingClientRect();
@@ -109,16 +117,64 @@ export default function TorrentTable_RowMenu({
                         {t("table.data.title")}
                     </DropdownItem>
                     <DropdownItem
+                        key="open-folder"
+                        isDisabled={
+                            !onOpenFolder || !contextMenu?.torrent.savePath
+                        }
+                        className={cn(
+                            contextMenu?.torrent.errorEnvelope
+                                ?.primaryAction === "openFolder"
+                                ? getEmphasisClassForAction?.(
+                                      contextMenu?.torrent.errorEnvelope
+                                          ?.primaryAction
+                                  )
+                                : ""
+                        )}
+                    >
+                        {t("table.actions.open_folder")}
+                    </DropdownItem>
+                    <DropdownItem
+                        key="set-download-path"
+                        isDisabled={!onSetLocation}
+                        className={cn(
+                            contextMenu?.torrent.errorEnvelope
+                                ?.primaryAction === "setLocation"
+                                ? getEmphasisClassForAction?.(
+                                      contextMenu?.torrent.errorEnvelope
+                                          ?.primaryAction
+                                  )
+                                : ""
+                        )}
+                    >
+                        {t("table.actions.set_download_path")}
+                    </DropdownItem>
+                    <DropdownItem
                         key="copy-hash"
+                        isDisabled={isClipboardSupported === false}
                         shortcut={getContextMenuShortcut("copy-hash")}
                     >
                         {t("table.actions.copy_hash")}
                     </DropdownItem>
                     <DropdownItem
                         key="copy-magnet"
+                        isDisabled={isClipboardSupported === false}
                         shortcut={getContextMenuShortcut("copy-magnet")}
                     >
                         {t("table.actions.copy_magnet")}
+                    </DropdownItem>
+                    <DropdownItem
+                        key="remove"
+                        color="danger"
+                        shortcut={getContextMenuShortcut("remove")}
+                    >
+                        {t("table.actions.remove")}
+                    </DropdownItem>
+                    <DropdownItem
+                        key="remove-with-data"
+                        color="danger"
+                        shortcut={getContextMenuShortcut("remove-with-data")}
+                    >
+                        {t("table.actions.remove_with_data")}
                     </DropdownItem>
                     <DropdownItem key="cols" showDivider>
                         {t("table.column_picker_title")}
