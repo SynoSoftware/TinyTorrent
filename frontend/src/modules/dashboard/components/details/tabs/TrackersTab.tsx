@@ -1,7 +1,15 @@
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Plus, Activity, Timer, Users, X, Check } from "lucide-react";
-import { Button, Textarea, cn } from "@heroui/react";
+import {
+    Plus,
+    Activity,
+    Timer,
+    Users,
+    X,
+    Check,
+    RefreshCw,
+} from "lucide-react";
+import { Button, Textarea, Spinner, cn } from "@heroui/react";
 
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import { GLASS_PANEL_SURFACE } from "@/shared/ui/layout/glass-surface";
@@ -15,6 +23,7 @@ interface TrackersTabProps {
     emptyMessage: string;
     serverTime?: number;
     isStandalone?: boolean;
+    onForceTrackerReannounce?: () => void | Promise<string | void>;
 }
 
 const formatCountdown = (seconds: number) => {
@@ -24,28 +33,36 @@ const formatCountdown = (seconds: number) => {
     return `${m}:${s.toString().padStart(2, "0")}`;
 };
 
-export const TrackersTab = ({
+export const TrackersTab: React.FC<TrackersTabProps> = ({
     trackers,
     emptyMessage,
     serverTime,
     isStandalone = false,
-}: TrackersTabProps) => {
+    onForceTrackerReannounce,
+}) => {
     const { t } = useTranslation();
+
     const [showAdd, setShowAdd] = useState(false);
     const [newTrackers, setNewTrackers] = useState("");
+    const [isReannouncing, setIsReannouncing] = useState(false);
+    const [reannounceFeedback, setReannounceFeedback] = useState<string | null>(
+        null
+    );
 
     if (!trackers || trackers.length === 0) {
+        const Empty = (
+            <p className={`${TEXT_ROLES.primary} text-foreground/30`}>
+                {emptyMessage}
+            </p>
+        );
+
         return isStandalone ? (
             <GlassPanel className="flex h-lg items-center justify-center border-default/10 text-center">
-                <p className={`${TEXT_ROLES.primary} text-foreground/30`}>
-                    {emptyMessage}
-                </p>
+                {Empty}
             </GlassPanel>
         ) : (
             <div className="flex h-lg items-center justify-center border-default/10 text-center">
-                <p className={`${TEXT_ROLES.primary} text-foreground/30`}>
-                    {emptyMessage}
-                </p>
+                {Empty}
             </div>
         );
     }
@@ -83,11 +100,12 @@ export const TrackersTab = ({
                     </th>
                 </tr>
             </thead>
+
             <tbody className="font-mono text-scaled">
                 {trackers.map((tracker, i) => {
-                    const trackerKeyBase =
+                    const keyBase =
                         tracker.id ?? `${tracker.announce}-${tracker.tier}`;
-                    const trackerKey = `${String(trackerKeyBase)}-${i}`;
+                    const key = `${keyBase}-${i}`;
                     const isOnline = tracker.lastAnnounceSucceeded === true;
 
                     let hostname = t("labels.unknown", {
@@ -95,118 +113,96 @@ export const TrackersTab = ({
                     });
                     try {
                         if (tracker.announce) {
-                            const u = new URL(tracker.announce);
-                            hostname = u.hostname || tracker.announce;
-                        } else {
-                            hostname = tracker.announce || hostname;
+                            hostname = new URL(tracker.announce).hostname;
                         }
                     } catch {
                         hostname = tracker.announce || hostname;
                     }
 
                     let nextAnnounceSecs = 0;
-                    if (
-                        typeof tracker.lastAnnounceTime === "number" &&
-                        tracker.lastAnnounceTime > 0
-                    ) {
-                        const nowMs = serverTime ?? Date.now();
-                        const interval = 1800;
-                        const elapsed = Math.max(
-                            0,
-                            Math.floor(nowMs / 1000) - tracker.lastAnnounceTime
-                        );
-                        nextAnnounceSecs = Math.max(0, interval - elapsed);
+                    if (tracker.lastAnnounceTime) {
+                        const now = serverTime ?? Date.now();
+                        const elapsed =
+                            Math.floor(now / 1000) - tracker.lastAnnounceTime;
+                        nextAnnounceSecs = Math.max(0, 1800 - elapsed);
                     }
 
-                    const unknownLabel = t("labels.unknown", {
-                        defaultValue: "-",
-                    });
-                    const seededLabel =
-                        typeof tracker.seederCount === "number" &&
-                        tracker.seederCount >= 0
+                    const unknown = t("labels.unknown", { defaultValue: "-" });
+                    const seeders =
+                        tracker.seederCount != null
                             ? String(tracker.seederCount)
-                            : unknownLabel;
-                    const leechLabel =
-                        typeof tracker.leecherCount === "number" &&
-                        tracker.leecherCount >= 0
+                            : unknown;
+                    const leechers =
+                        tracker.leecherCount != null
                             ? String(tracker.leecherCount)
-                            : unknownLabel;
+                            : unknown;
 
-                    const hasAttempt =
-                        typeof tracker.lastAnnounceTime === "number" &&
-                        tracker.lastAnnounceTime > 0;
+                    const hasAttempt = tracker.lastAnnounceTime != null;
                     const lastSucceeded =
                         tracker.lastAnnounceSucceeded === true;
 
                     return (
-                        <tr
-                            key={trackerKey}
-                            className="group transition-colors hover:bg-primary/5"
-                        >
+                        <tr key={key} className="group hover:bg-primary/5">
                             <td className="border-b border-default/5 py-panel pl-panel pr-tight">
                                 <div
-                                    className={`size-dot rounded-full shadow-dot ${
+                                    className={cn(
+                                        "size-dot rounded-full shadow-dot",
                                         isOnline
                                             ? "bg-success shadow-success/50"
                                             : "bg-warning shadow-warning/50"
-                                    }`}
+                                    )}
                                 />
                             </td>
-                            <td className="max-w-tracker-name truncate border-b border-default/5 px-tight py-panel font-sans font-medium text-foreground/80">
+
+                            <td className="truncate border-b border-default/5 px-tight py-panel font-sans font-medium text-foreground/80">
                                 {hostname}
                             </td>
-                            <td className="border-b border-default/5 px-tight py-panel tabular-nums text-foreground/50">
+
+                            <td className="border-b border-default/5 px-tight py-panel text-foreground/50 tabular-nums">
                                 <div className="flex items-center gap-tight">
-                                    <StatusIcon
-                                        Icon={Timer}
-                                        size="sm"
-                                        className="text-foreground/50"
-                                    />
+                                    <StatusIcon Icon={Timer} size="sm" />
                                     {formatCountdown(nextAnnounceSecs)}
                                 </div>
                             </td>
+
                             <td className="border-b border-default/5 px-tight py-panel text-foreground/70">
                                 <div className="flex items-center gap-tools">
-                                    <StatusIcon
-                                        Icon={Users}
-                                        size="sm"
-                                        className="text-foreground/30"
-                                    />
-                                    <span>
-                                        {seededLabel} seeded / {leechLabel}{" "}
-                                        leeching
-                                    </span>
+                                    <StatusIcon Icon={Users} size="sm" />
+                                    {seeders} / {leechers}
                                 </div>
                             </td>
-                            <td className="border-b border-default/5 py-panel pl-tight pr-panel text-right font-sans text-label font-bold uppercase tracking-tight">
-                                {(() => {
-                                    if (!hasAttempt)
-                                        return (
-                                            <span className="text-foreground/50">
-                                                {t(
-                                                    "torrent_modal.trackers.status_pending",
-                                                    { defaultValue: "Pending" }
-                                                )}
-                                            </span>
-                                        );
-                                    if (lastSucceeded)
-                                        return (
-                                            <span className="text-success">
-                                                {t(
-                                                    "torrent_modal.trackers.status_online",
-                                                    { defaultValue: "Online" }
-                                                )}
-                                            </span>
-                                        );
-                                    return (
-                                        <span className="text-warning">
-                                            {t(
-                                                "torrent_modal.trackers.status_partial",
-                                                { defaultValue: "Warning" }
-                                            )}
-                                        </span>
-                                    );
-                                })()}
+
+                            <td className="border-b border-default/5 py-panel pl-tight pr-panel text-right font-bold uppercase">
+                                {!hasAttempt && (
+                                    <span className="text-foreground/50">
+                                        {t(
+                                            "torrent_modal.trackers.status_pending",
+                                            {
+                                                defaultValue: "Pending",
+                                            }
+                                        )}
+                                    </span>
+                                )}
+                                {hasAttempt && lastSucceeded && (
+                                    <span className="text-success">
+                                        {t(
+                                            "torrent_modal.trackers.status_online",
+                                            {
+                                                defaultValue: "Online",
+                                            }
+                                        )}
+                                    </span>
+                                )}
+                                {hasAttempt && !lastSucceeded && (
+                                    <span className="text-warning">
+                                        {t(
+                                            "torrent_modal.trackers.status_partial",
+                                            {
+                                                defaultValue: "Warning",
+                                            }
+                                        )}
+                                    </span>
+                                )}
                             </td>
                         </tr>
                     );
@@ -230,50 +226,87 @@ export const TrackersTab = ({
                         })}
                     </span>
                 </div>
-                <ToolbarIconButton
-                    Icon={Plus}
-                    ariaLabel={t("torrent_modal.trackers.toggle_add")}
-                    onPress={() => setShowAdd((v) => !v)}
-                    iconSize="md"
-                    className="text-primary hover:text-primary/80"
-                />
+
+                <div className="flex items-center gap-tools">
+                    <ToolbarIconButton
+                        Icon={Plus}
+                        ariaLabel={t("torrent_modal.trackers.toggle_add")}
+                        onPress={() => setShowAdd((v) => !v)}
+                    />
+
+                    <ToolbarIconButton
+                        ariaLabel={t("torrent_modal.trackers.reannounce", {
+                            defaultValue: "Force Reannounce",
+                        })}
+                        disabled={!onForceTrackerReannounce || isReannouncing}
+                        onPress={async () => {
+                            if (!onForceTrackerReannounce) return;
+                            try {
+                                setIsReannouncing(true);
+                                setReannounceFeedback(null);
+                                await Promise.resolve();
+                                const result = await onForceTrackerReannounce();
+                                setReannounceFeedback(
+                                    result ??
+                                        t(
+                                            "torrent_modal.trackers.reannounce_sent",
+                                            {
+                                                defaultValue:
+                                                    "Reannounce requested",
+                                            }
+                                        )
+                                );
+                            } catch (e: any) {
+                                setReannounceFeedback(
+                                    e?.message ?? String(e ?? "Unknown error")
+                                );
+                            } finally {
+                                setIsReannouncing(false);
+                            }
+                        }}
+                    >
+                        {isReannouncing ? (
+                            <Spinner />
+                        ) : (
+                            <RefreshCw strokeWidth={1.5} />
+                        )}
+                    </ToolbarIconButton>
+                </div>
             </div>
 
             <div className="relative min-h-0 flex-1">
                 {isStandalone ? (
-                    <GlassPanel className="min-h-0 flex-1 overflow-hidden border-default/10 ">
+                    <GlassPanel className="min-h-0 flex-1 overflow-hidden">
                         <div className="h-full overflow-auto">{TableBody}</div>
                     </GlassPanel>
                 ) : (
-                    <div className="min-h-0 flex-1 overflow-hidden border-default/10 ">
-                        <div className="h-full overflow-auto">{TableBody}</div>
-                    </div>
+                    <div className="h-full overflow-auto">{TableBody}</div>
                 )}
 
                 {showAdd && (
                     <div
                         className={cn(
                             GLASS_PANEL_SURFACE,
-                            "absolute inset-0 z-overlay flex flex-col rounded-none bg-background/40 backdrop-blur-xl"
+                            "absolute inset-0 z-overlay flex flex-col bg-background/40 backdrop-blur-xl"
                         )}
                     >
                         <div className="flex items-center justify-between border-b border-default/10 px-panel py-panel">
-                            <span className="text-scaled font-semibold uppercase tracking-tight text-primary">
+                            <span className="font-semibold uppercase text-primary">
                                 {t("torrent_modal.trackers.add", {
                                     defaultValue: "Add Trackers",
                                 })}
                             </span>
                             <ToolbarIconButton
                                 Icon={X}
-                                ariaLabel={t("torrent_modal.trackers.close")}
                                 onPress={() => setShowAdd(false)}
-                                iconSize="md"
-                                className="text-foreground/50 hover:text-foreground"
                             />
                         </div>
+
                         <div className="flex-1 p-panel">
                             <Textarea
-                                variant="bordered"
+                                value={newTrackers}
+                                onValueChange={setNewTrackers}
+                                minRows={6}
                                 placeholder={t(
                                     "torrent_modal.trackers.add_placeholder",
                                     {
@@ -281,37 +314,24 @@ export const TrackersTab = ({
                                             "Paste announce URLs (one per line)...",
                                     }
                                 )}
-                                value={newTrackers}
-                                onValueChange={setNewTrackers}
                                 classNames={{
-                                    input: "font-mono text-scaled",
-                                    inputWrapper:
-                                        "border-default/20 bg-background/40",
+                                    input: "font-mono",
+                                    inputWrapper: "bg-background/40",
                                 }}
-                                minRows={6}
                             />
                         </div>
-                        <div className="flex justify-end gap-tools border-t border-default/10 p-panel bg-background/20">
+
+                        <div className="flex justify-end gap-tools border-t border-default/10 p-panel">
                             <Button
-                                size="md"
                                 variant="shadow"
                                 onPress={() => setShowAdd(false)}
                             >
                                 {t("common.cancel", { defaultValue: "Cancel" })}
                             </Button>
                             <Button
-                                size="md"
                                 color="primary"
-                                startContent={
-                                    <StatusIcon
-                                        Icon={Check}
-                                        size="sm"
-                                        className="text-current"
-                                    />
-                                }
-                                onPress={() => {
-                                    /* Logic here */ setShowAdd(false);
-                                }}
+                                startContent={<Check />}
+                                onPress={() => setShowAdd(false)}
                             >
                                 {t("common.add", {
                                     defaultValue: "Add Trackers",
@@ -321,6 +341,14 @@ export const TrackersTab = ({
                     </div>
                 )}
             </div>
+
+            {reannounceFeedback && (
+                <div className="px-tight text-label font-mono text-foreground/60">
+                    {reannounceFeedback}
+                </div>
+            )}
         </div>
     );
 };
+
+export default TrackersTab;
