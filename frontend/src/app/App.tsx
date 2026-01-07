@@ -935,8 +935,7 @@ export default function App() {
             if (tableMatch) return tableMatch;
             if (
                 detailData &&
-                (detailData.id === idOrHash ||
-                    detailData.hash === idOrHash)
+                (detailData.id === idOrHash || detailData.hash === idOrHash)
             ) {
                 return detailData;
             }
@@ -990,8 +989,8 @@ export default function App() {
         [detailData, refreshDetailData, t]
     );
 
-    const handleSetLocationForDetail = useCallback(
-        (torrent: TorrentDetail) => executeSetLocation(torrent),
+    const handleSetLocation = useCallback(
+        (torrent: Torrent | TorrentDetail) => executeSetLocation(torrent),
         [executeSetLocation]
     );
 
@@ -1101,10 +1100,17 @@ export default function App() {
         [executeRedownload]
     );
 
+    const handleResumeForDetail = useCallback(
+        (torrent: TorrentDetail) => void handleTorrentAction("resume", torrent),
+        [handleTorrentAction]
+    );
+
     const executeRetryFetch = useCallback(
         async (target: Torrent | TorrentDetail) => {
             const client = torrentClientRef.current;
             if (!client) return;
+
+            const fingerprint = target.errorEnvelope?.fingerprint ?? null;
 
             const errorClass = target.errorEnvelope?.errorClass;
             const isTrackerError =
@@ -1117,6 +1123,8 @@ export default function App() {
             ) {
                 try {
                     await client.forceTrackerReannounce(target.id);
+                    // No UI-driven suppression: do not call into recoveryAutomation
+                    // for clearing fingerprints. Engine truth will drive state.
                 } catch (err) {
                     console.error("retry fetch reannounce failed", err);
                     return;
@@ -1178,6 +1186,15 @@ export default function App() {
             await executeRetryFetch(target);
         };
 
+        const handleResumeEvent = async (ev: Event) => {
+            const ce = ev as CustomEvent & { detail?: any };
+            const detail = ce?.detail ?? {};
+            const idOrHash = detail.id ?? detail.hash;
+            const target = findTorrentById(idOrHash);
+            if (!target) return;
+            await handleTorrentAction("resume", target);
+        };
+
         const handleDismiss = async (ev: Event) => {
             const ce = ev as CustomEvent & { detail?: any };
             const detail = ce?.detail ?? {};
@@ -1185,12 +1202,13 @@ export default function App() {
             const target = findTorrentById(idOrHash);
             const fp = target?.errorEnvelope?.fingerprint ?? null;
             if (!fp) return;
+            // Per recovery contract, UI must not suppress engine prompts.
+            // Do not call any dismissal automation; simply refresh torrent list
+            // so UI reflects the current engine state.
             try {
-                const ra = await import("@/services/rpc/recoveryAutomation");
-                ra.dismissFingerprint(fp);
                 await refreshTorrentsRef.current?.();
             } catch (err) {
-                console.error("dismiss fingerprint failed", err);
+                console.error("refresh after dismiss failed", err);
             }
         };
 
@@ -1202,6 +1220,33 @@ export default function App() {
             "tiny-torrent:retry-fetch",
             handleRetryFetch as EventListener
         );
+        const handleRemoveEvent = async (ev: Event) => {
+            try {
+                const ce = ev as CustomEvent;
+                const detail = ce?.detail ?? {};
+                const idOrHash = detail.id ?? detail.hash;
+                const target = findTorrentById(idOrHash);
+                if (!target) return;
+                const client = torrentClientRef.current;
+                if (!client) return;
+                try {
+                    await client.remove([target.id], false);
+                    await refreshTorrentsRef.current?.();
+                    // If the removed torrent is currently inspected, close the detail view
+                    if (activeTorrentId === target.id) {
+                        handleCloseDetail();
+                    }
+                } catch (err) {
+                    console.error("remove failed", err);
+                }
+            } catch (err) {
+                console.error("handleRemoveEvent failed", err);
+            }
+        };
+        window.addEventListener(
+            "tiny-torrent:remove",
+            handleRemoveEvent as EventListener
+        );
         window.addEventListener(
             "tiny-torrent:set-location",
             handleSetLocation as EventListener
@@ -1209,6 +1254,10 @@ export default function App() {
         window.addEventListener(
             "tiny-torrent:dismiss-missing-files",
             handleDismiss as EventListener
+        );
+        window.addEventListener(
+            "tiny-torrent:resume",
+            handleResumeEvent as EventListener
         );
         return () => {
             window.removeEventListener(
@@ -1220,6 +1269,10 @@ export default function App() {
                 handleRetryFetch as EventListener
             );
             window.removeEventListener(
+                "tiny-torrent:remove",
+                handleRemoveEvent as EventListener
+            );
+            window.removeEventListener(
                 "tiny-torrent:set-location",
                 handleSetLocation as EventListener
             );
@@ -1227,12 +1280,19 @@ export default function App() {
                 "tiny-torrent:dismiss-missing-files",
                 handleDismiss as EventListener
             );
+            window.removeEventListener(
+                "tiny-torrent:resume",
+                handleResumeEvent as EventListener
+            );
         };
     }, [
         executeRedownload,
         executeRetryFetch,
         executeSetLocation,
         findTorrentById,
+        handleTorrentAction,
+        handleCloseDetail,
+        activeTorrentId,
     ]);
 
     // legacy redownload handler removed — single idempotent handler exists above
@@ -1482,9 +1542,10 @@ export default function App() {
                 sequentialToggleHandler={handleSequentialToggle}
                 superSeedingToggleHandler={handleSuperSeedingToggle}
                 handleForceTrackerReannounce={handleForceTrackerReannounce}
-                onSetLocation={handleSetLocationForDetail}
+                onSetLocation={handleSetLocation}
                 onRedownload={handleRedownloadForDetail}
                 onRetry={handleRetryForDetail}
+                onResume={handleResumeForDetail}
                 capabilities={capabilities}
                 optimisticStatuses={optimisticStatuses}
                 handleSelectionChange={handleSelectionChange}

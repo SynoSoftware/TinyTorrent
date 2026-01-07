@@ -46,10 +46,11 @@ export interface TorrentDetailViewProps {
     onInspectorTabCommandHandled?: () => void;
     onSequentialToggle?: (enabled: boolean) => void | Promise<void>;
     onSuperSeedingToggle?: (enabled: boolean) => void | Promise<void>;
-    onForceTrackerReannounce?: () => void | Promise<void>;
+    onForceTrackerReannounce?: () => void | Promise<string | void>;
     onSetLocation?: (torrent: TorrentDetail) => void | Promise<void>;
     onRedownload?: (torrent: TorrentDetail) => void | Promise<void>;
     onRetry?: (torrent: TorrentDetail) => void | Promise<void>;
+    onResume?: (torrent: TorrentDetail) => void | Promise<void>;
     capabilities: CapabilityStore;
     isStandalone?: boolean;
 }
@@ -74,6 +75,7 @@ export function TorrentDetailView({
     onSetLocation,
     onRedownload,
     onRetry,
+    onResume,
     capabilities,
     isDetailFullscreen = false,
     isStandalone = false,
@@ -118,30 +120,31 @@ export function TorrentDetailView({
 
             <div className="flex-1 min-h-0 bg-transparent py-tight ">
                 {active === "general" && torrent && (
-                <GeneralTab
-                    torrent={torrent}
-                    downloadDir={torrent.downloadDir ?? ""}
-                    sequentialCapability={capabilities.sequentialDownload}
-                    superSeedingCapability={capabilities.superSeeding}
-                    onSequentialToggle={onSequentialToggle}
-                    onSuperSeedingToggle={onSuperSeedingToggle}
-                    onForceTrackerReannounce={onForceTrackerReannounce}
-                    onSetLocation={
-                        onSetLocation
-                            ? () => onSetLocation(torrent)
-                            : undefined
-                    }
-                    onRedownload={
-                        onRedownload
-                            ? () => onRedownload(torrent)
-                            : undefined
-                    }
-                    onRetry={
-                        onRetry ? () => onRetry(torrent) : undefined
-                    }
-                    progressPercent={Math.round(
-                        (torrent.progress ?? 0) * 100
-                    )}
+                    <GeneralTab
+                        torrent={torrent}
+                        downloadDir={torrent.downloadDir ?? ""}
+                        sequentialCapability={capabilities.sequentialDownload}
+                        superSeedingCapability={capabilities.superSeeding}
+                        onSequentialToggle={onSequentialToggle}
+                        onSuperSeedingToggle={onSuperSeedingToggle}
+                        onForceTrackerReannounce={onForceTrackerReannounce}
+                        onSetLocation={
+                            onSetLocation
+                                ? () => onSetLocation(torrent)
+                                : undefined
+                        }
+                        onRedownload={
+                            onRedownload
+                                ? () => onRedownload(torrent)
+                                : undefined
+                        }
+                        onRetry={onRetry ? () => onRetry(torrent) : undefined}
+                        onResume={
+                            onResume ? () => onResume(torrent) : undefined
+                        }
+                        progressPercent={Math.round(
+                            (torrent.progress ?? 0) * 100
+                        )}
                         timeRemainingLabel={t("general.unknown")}
                         activePeers={torrent.peers?.length ?? 0}
                     />
@@ -169,6 +172,7 @@ export function TorrentDetailView({
                         trackers={torrent.trackers ?? []}
                         emptyMessage={t("torrent_modal.trackers.empty_backend")}
                         isStandalone={isStandalone}
+                        onForceTrackerReannounce={onForceTrackerReannounce}
                     />
                 )}
                 {active === "peers" && torrent && (

@@ -33,6 +33,8 @@ export function useRpcConnection(
     const latestHandshakeRef = useRef<() => Promise<void>>(() =>
         Promise.resolve()
     );
+    const lastHandshakeTs = useRef(0);
+    const HANDSHAKE_MIN_INTERVAL_MS = 800; // coalesce rapid handshake requests
 
     const updateStatus = useCallback((next: ConnectionStatus) => {
         //        console.log(`[tiny-torrent][rpc] status -> ${next}`);
@@ -65,10 +67,24 @@ export function useRpcConnection(
     }, []);
 
     const handshake = useCallback(async () => {
+        const now = Date.now();
         if (isHandshakingRef.current) {
             console.log(
                 "[tiny-torrent][rpc] handshake already running, queuing reconnect"
             );
+            pendingReconnectRef.current = true;
+            return;
+        }
+
+        // If we recently completed a handshake, coalesce additional requests
+        // to avoid a burst of back-to-back handshakes (likely a race).
+        if (now - lastHandshakeTs.current < HANDSHAKE_MIN_INTERVAL_MS) {
+            console.debug(
+                `[tiny-torrent][rpc] handshake suppressed; last handshake ${
+                    now - lastHandshakeTs.current
+                }ms ago`
+            );
+            // ensure a reconnect is scheduled once the current activity finishes
             pendingReconnectRef.current = true;
             return;
         }
@@ -91,7 +107,9 @@ export function useRpcConnection(
                 setIsReady(true);
             }
             isHandshakingRef.current = false;
+            lastHandshakeTs.current = Date.now();
             if (pendingReconnectRef.current) {
+                // consume the pending flag and run a single coalesced reconnect
                 console.log(
                     "[tiny-torrent][rpc] running queued reconnect handshake"
                 );

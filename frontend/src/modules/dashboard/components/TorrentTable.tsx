@@ -348,6 +348,7 @@ interface TorrentTableProps {
     optimisticStatuses?: OptimisticStatusMap;
     disableDetailOpen?: boolean;
     onOpenFolder?: (torrent: Torrent) => Promise<void>;
+    onSetLocation?: (torrent: Torrent) => Promise<void> | void;
     ghostTorrents?: Torrent[];
 }
 
@@ -890,6 +891,7 @@ export function TorrentTable({
     disableDetailOpen = false,
     ghostTorrents,
     onOpenFolder,
+    onSetLocation,
 }: TorrentTableProps) {
     const { t } = useTranslation();
     const [highlightedRowId, setHighlightedRowId] = useState<string | null>(
@@ -1218,6 +1220,10 @@ export function TorrentTable({
                 if (onOpenFolder && torrent.savePath) {
                     await onOpenFolder(torrent);
                 }
+            } else if (key === "set-download-path") {
+                if (onSetLocation) {
+                    await onSetLocation(torrent);
+                }
             } else if (key === "copy-hash") {
                 await copyToClipboard(torrent.hash);
             } else if (key === "copy-magnet") {
@@ -1234,6 +1240,7 @@ export function TorrentTable({
             findRowElement,
             onAction,
             onOpenFolder,
+            onSetLocation,
             openColumnModal,
         ]
     );
@@ -1466,16 +1473,21 @@ export function TorrentTable({
                 measuredMinWidthsRef.current[column.id];
             if (!Number.isFinite(measuredWidth)) return false;
             const computedWidth = Math.ceil(measuredWidth);
+            // Clamp computed width to the table/container width to avoid
+            // expanding a single column past the visible area.
+            const containerWidth =
+                tableContainerRef.current?.getBoundingClientRect().width ??
+                table.getTotalSize();
+            const maxAllowed = Math.max(80, Math.round(containerWidth));
+            const finalWidth = Math.min(computedWidth, maxAllowed);
             const currentWidth = column.getSize();
-            if (
-                Math.abs(computedWidth - currentWidth) <= AUTO_FIT_TOLERANCE_PX
-            ) {
+            if (Math.abs(finalWidth - currentWidth) <= AUTO_FIT_TOLERANCE_PX) {
                 return false;
             }
             setColumnSizing((prev: Record<string, number>) =>
                 normalizeColumnSizingState({
                     ...prev,
-                    [column.id]: computedWidth,
+                    [column.id]: finalWidth,
                 })
             );
             return true;
@@ -1485,6 +1497,8 @@ export function TorrentTable({
             measuredMinWidthsRef,
             resetColumnResizeState,
             setColumnSizing,
+            tableContainerRef,
+            table,
         ]
     );
     const autoFitAllColumns = useCallback(() => {
@@ -2508,7 +2522,7 @@ export function TorrentTable({
                         >
                             {isLoading && torrents.length === 0 ? (
                                 <div className="w-full">
-                                    {Array.from({ length: 15 }).map((_, i) => (
+                                    {Array.from({ length: 5 }).map((_, i) => (
                                         <div
                                             key={i}
                                             className="flex items-center w-full border-b border-content1/5 px-panel"
@@ -2516,7 +2530,9 @@ export function TorrentTable({
                                                 height: TABLE_LAYOUT.rowHeight,
                                             }}
                                         >
-                                            <Skeleton className="h-indicator w-full rounded-md bg-content1/10" />
+                                            <div className="w-full h-indicator">
+                                                <Skeleton className="h-full w-full rounded-md bg-content1/10" />
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
@@ -2831,6 +2847,23 @@ export function TorrentTable({
                                         )}
                                     >
                                         {t("table.actions.open_folder")}
+                                    </DropdownItem>
+                                    <DropdownItem
+                                        key="set-download-path"
+                                        isDisabled={!onSetLocation}
+                                        className={cn(
+                                            contextMenu.torrent.errorEnvelope
+                                                ?.primaryAction ===
+                                                "setLocation"
+                                                ? getEmphasisClassForAction(
+                                                      contextMenu.torrent
+                                                          .errorEnvelope
+                                                          ?.primaryAction
+                                                  )
+                                                : ""
+                                        )}
+                                    >
+                                        {t("table.actions.set_download_path")}
                                     </DropdownItem>
                                     <DropdownItem
                                         key="copy-magnet"

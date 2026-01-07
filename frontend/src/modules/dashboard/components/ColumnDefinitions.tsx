@@ -192,14 +192,14 @@ const SpeedColumnCell = ({ torrent, table }: ColumnRendererProps) => {
     const rawHistory = meta?.speedHistoryRef?.current?.[torrent.id] ?? [];
 
     // Preserve signal integrity: unknown ≠ zero
-    const sanitizedHistory = rawHistory.filter((v): v is number =>
+    const sanitizedHistory: number[] = rawHistory.filter((v): v is number =>
         Number.isFinite(v)
     );
 
     const current = Number.isFinite(speedValue) ? speedValue : NaN;
 
-    const sparklineHistory = Number.isFinite(current)
-        ? [...sanitizedHistory, current]
+    const sparklineHistory: number[] = Number.isFinite(current)
+        ? ([...sanitizedHistory, current] as number[])
         : sanitizedHistory;
 
     const hasSignal = sparklineHistory.length >= 2;

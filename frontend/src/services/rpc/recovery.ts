@@ -123,43 +123,34 @@ export const buildErrorEnvelope = (
         recoveryState = "transientWaiting";
         recoveryActions.push("reannounce");
     } else if (errorClass === "missingFiles") {
-        // If a finished torrent reports missing files, require explicit
-        // user confirmation to re-download rather than attempting
-        // automated recovery. This is an engine-truth-first decision.
-        if (
-            (torrent as any).isFinished === true ||
-            torrent.isFinished === true
-        ) {
-            recoveryState = "needsUserConfirmation";
-            recoveryActions.push(
-                "reDownload",
-                "setLocation",
-                "dismiss",
-                "forceRecheck"
-            );
-        } else {
-            // Non-finished torrents can still offer the prior actions
-            recoveryState = "needsUserAction";
-            recoveryActions.push("changeLocation", "forceRecheck");
-        }
+        recoveryState = "needsUserAction";
+        // Engine-driven recovery actions: Resume is primary; verification,
+        // location change, or re-download may be offered. No UI-only
+        // dismissal/suppression actions are emitted here.
+        recoveryActions.push(
+            "resume",
+            "forceRecheck",
+            "setLocation",
+            "reDownload"
+        );
     } else if (errorClass === "permissionDenied") {
         recoveryState = "needsUserAction";
         recoveryActions.push("openFolder", "changeLocation");
     } else if (errorClass === "diskFull") {
         recoveryState = "blocked";
-        recoveryActions.push("pause");
+        // Non-destructive auto-pause may be applied elsewhere, but the
+        // envelope must not gate `resume`. Surface `resume` as an option
+        // so callers can present it (engine truth still governs success).
+        recoveryActions.push("resume", "pause");
     } else {
         // localError, metadata, unknown, and any future classes map here
         recoveryState = "needsUserAction";
     }
 
-    const automationHint =
-        recoveryActions.length > 0
-            ? {
-                  recommendedAction: recoveryActions[0],
-                  reason: "derived_from_engine",
-              }
-            : null;
+    // Per FINAL RECOVERY CONTRACT: do not emit automation hints that imply
+    // sequencing or recommended UI flows. The envelope must remain a pure
+    // projection of engine truth; UI may decide presentation without hints.
+    const automationHint = null;
 
     // Primary action selection: pure, deterministic selector. Gated by
     // confirmed engine capabilities when applicable.
@@ -175,11 +166,11 @@ export const buildErrorEnvelope = (
 
     // Priority lists by error class for deterministic selection.
     const preferred: Record<string, RecoveryAction[]> = {
-        missingFiles: ["forceRecheck", "reDownload", "setLocation", "dismiss"],
+        missingFiles: ["resume", "forceRecheck", "setLocation", "reDownload"],
         permissionDenied: ["openFolder", "changeLocation"],
         trackerWarning: ["reannounce"],
         trackerError: ["reannounce"],
-        diskFull: ["pause"],
+        diskFull: ["resume", "pause"],
         localError: ["forceRecheck", "removeReadd", "pause"],
         unknown: recoveryActions,
     };
