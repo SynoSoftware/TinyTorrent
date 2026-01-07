@@ -94,6 +94,60 @@ type RpcSendOptions = {
     bypassHandshake?: boolean;
 };
 
+const READ_ONLY_RPC_METHODS = new Set([
+    "torrent-get",
+    "session-get",
+    "session-stats",
+    "tt-get-capabilities",
+]);
+const READ_ONLY_RPC_DEDUP_CACHE = new Map<string, Promise<unknown>>();
+let readOnlyDedupClearScheduled = false;
+
+function stableStringify(value: unknown): string {
+    if (value === undefined) {
+        return "undefined";
+    }
+    if (value === null) {
+        return "null";
+    }
+    if (Array.isArray(value)) {
+        return `[${value.map(stableStringify).join(",")}]`;
+    }
+    if (typeof value === "object") {
+        const record = value as Record<string, unknown>;
+        const keys = Object.keys(record).sort();
+        return `{${keys
+            .map(
+                (key) =>
+                    `${JSON.stringify(key)}:${stableStringify(record[key])}`
+            )
+            .join(",")}}`;
+    }
+    return JSON.stringify(value);
+}
+
+function buildReadRpcDedupKey(
+    method: string,
+    args?: Record<string, unknown>
+): string {
+    const serializedArgs = stableStringify(args ?? null);
+    return `${method}:${serializedArgs}`;
+}
+
+function scheduleReadOnlyDedupClear() {
+    if (readOnlyDedupClearScheduled) {
+        return;
+    }
+    readOnlyDedupClearScheduled = true;
+    queueMicrotask(() => {
+        READ_ONLY_RPC_DEDUP_CACHE.clear();
+        readOnlyDedupClearScheduled = false;
+    });
+}
+
+const WARNING_THROTTLE_MS = 1000;
+const recentWarningTs = new Map<string, number>();
+
 const DEFAULT_ENDPOINT =
     import.meta.env.VITE_RPC_ENDPOINT ?? CONFIG.defaults.rpc_endpoint;
 
@@ -160,7 +214,7 @@ export class TransmissionAdapter implements EngineAdapter {
         { count: number; firstTs: number }
     >();
     private readonly METHOD_CALL_WINDOW_MS = 2000; // 2s
-    private readonly METHOD_CALL_WARNING_THRESHOLD = 3;
+    private readonly METHOD_CALL_WARNING_THRESHOLD = 100;
     private tinyTorrentCapabilities?: TinyTorrentCapabilities | null;
     private websocketSession?: TinyTorrentWebSocketSession;
     private serverClass: ServerClass = "unknown";
@@ -197,11 +251,16 @@ export class TransmissionAdapter implements EngineAdapter {
         const prev = this.handshakeState;
         if (prev === next) return;
         if (prev === "invalid" && next === "handshaking") {
-            console.debug("[tiny-torrent][rpc] session invalid -> handshaking", {
+            console.debug(
+                "[tiny-torrent][rpc] session invalid -> handshaking",
+                {
+                    reason,
+                }
+            );
+        } else if (prev === "handshaking" && next === "ready") {
+            console.debug("[tiny-torrent][rpc] handshaking -> ready", {
                 reason,
             });
-        } else if (prev === "handshaking" && next === "ready") {
-            console.debug("[tiny-torrent][rpc] handshaking -> ready", { reason });
         } else if (prev === "ready" && next === "invalid") {
             console.debug("[tiny-torrent][rpc] ready -> invalid", { reason });
         }
@@ -210,7 +269,10 @@ export class TransmissionAdapter implements EngineAdapter {
 
     private acceptSessionId(token: string) {
         this.sessionId = token;
-        if (this.handshakeState === "invalid" || this.handshakeState === "idle") {
+        if (
+            this.handshakeState === "invalid" ||
+            this.handshakeState === "idle"
+        ) {
             this.handshakeState = "ready";
         }
     }
@@ -245,7 +307,7 @@ export class TransmissionAdapter implements EngineAdapter {
         return `Basic ${btoa(token)}`;
     }
 
-    private async send<T>(
+    private async performSend<T>(
         payload: RpcRequest<string>,
         schema: z.ZodSchema<T>,
         retryCount = 0,
@@ -284,9 +346,13 @@ export class TransmissionAdapter implements EngineAdapter {
                 }
                 const cur = this.recentMethodCalls.get(m)!;
                 if (cur.count >= this.METHOD_CALL_WARNING_THRESHOLD) {
-                    console.warn(
-                        `[tiny-torrent][rpc] Rapid repeated calls to RPC method '${m}' (${cur.count} times in ${this.METHOD_CALL_WINDOW_MS}ms). This may indicate a race condition or bad caller code.`
-                    );
+                    const lastWarn = recentWarningTs.get(m) ?? 0;
+                    if (now - lastWarn >= WARNING_THROTTLE_MS) {
+                        console.warn(
+                            `[tiny-torrent][rpc] Rapid repeated calls to RPC method '${m}' (${cur.count} times in ${this.METHOD_CALL_WINDOW_MS}ms). This may indicate a race condition or bad caller code.`
+                        );
+                        recentWarningTs.set(m, now);
+                    }
                 }
             } catch (e) {
                 // Don't allow diagnostic code to interfere with normal RPC flow.
@@ -429,6 +495,43 @@ export class TransmissionAdapter implements EngineAdapter {
             console.error("[tiny-torrent][rpc] send error:", e);
             throw e;
         }
+    }
+
+    public async send<T>(
+        payload: RpcRequest<string>,
+        schema: z.ZodSchema<T>,
+        retryCount = 0,
+        keepalive = false,
+        options?: RpcSendOptions
+    ): Promise<T> {
+        const method = payload.method ?? "";
+        if (READ_ONLY_RPC_METHODS.has(method)) {
+            const dedupKey = buildReadRpcDedupKey(method, payload.arguments);
+            const existing = READ_ONLY_RPC_DEDUP_CACHE.get(dedupKey);
+            if (existing) {
+                return existing as Promise<T>;
+            }
+            const promise = this.performSend(
+                payload,
+                schema,
+                retryCount,
+                keepalive,
+                options
+            );
+            READ_ONLY_RPC_DEDUP_CACHE.set(dedupKey, promise);
+            promise.finally(() => {
+                READ_ONLY_RPC_DEDUP_CACHE.delete(dedupKey);
+            });
+            scheduleReadOnlyDedupClear();
+            return promise;
+        }
+        return this.performSend(
+            payload,
+            schema,
+            retryCount,
+            keepalive,
+            options
+        );
     }
 
     // Synchronously destroy the adapter and release resources.
