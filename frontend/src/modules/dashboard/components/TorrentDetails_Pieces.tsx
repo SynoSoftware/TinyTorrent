@@ -1,9 +1,9 @@
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { useTranslation } from "react-i18next";
-import { AvailabilityHeatmap } from "@/modules/dashboard/components/details/visualizations/AvailabilityHeatmap";
-import { PiecesMap } from "@/modules/dashboard/components/details/visualizations/PiecesMap";
-import { TEXT_ROLES } from "./textRoles";
+import { AvailabilityHeatmap } from "@/modules/dashboard/components/TorrentDetails_Pieces_Heatmap";
+import { PiecesMap } from "@/modules/dashboard/components/TorrentDetails_Pieces_Map";
+import { TEXT_ROLES } from "../hooks/utils/textRoles";
 
 interface PiecesTabProps {
     piecePercent: number;

@@ -10,7 +10,7 @@ import type { ConnectionStatus } from "@/shared/types/rpc";
 
 import Runtime, { NativeShell } from "@/app/runtime";
 
-import { ModeLayout } from "@/modules/dashboard/components/ModeLayout";
+import { Dashboard_Layout } from "@/modules/dashboard/components/Dashboard_Layout";
 import { SettingsModal } from "@/modules/settings/components/SettingsModal";
 import { Navbar } from "./layout/Navbar";
 import { StatusBar, type EngineDisplayType } from "./layout/StatusBar";
@@ -40,7 +40,7 @@ import type {
 import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
 import type { OptimisticStatusMap } from "@/modules/dashboard/types/optimistic";
 import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
-import type { PeerContextAction } from "@/modules/dashboard/components/details/tabs/PeersTab";
+import type { PeerContextAction } from "@/modules/dashboard/components/TorrentDetails_Peers";
 import type {
     DetailTab,
     PeerSortStrategy,
@@ -283,7 +283,7 @@ export function WorkspaceShell({
     );
 
     const renderModeLayoutSection = () => (
-        <ModeLayout
+        <Dashboard_Layout
             workspaceStyle={workspaceStyle}
             torrents={torrents}
             filter={filter}

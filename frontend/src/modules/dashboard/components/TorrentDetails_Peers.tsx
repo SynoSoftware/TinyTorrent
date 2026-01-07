@@ -15,11 +15,11 @@ import useLayoutMetrics from "@/shared/hooks/useLayoutMetrics";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import { formatSpeed } from "@/shared/utils/format";
 import type { TorrentPeerEntity } from "@/services/rpc/entities";
-import { PeerMap } from "@/modules/dashboard/components/details/visualizations/PeerMap";
+import { PeerMap } from "@/modules/dashboard/components/TorrentDetails_Peers_Map";
 import { usePeerHover } from "@/shared/hooks/usePeerHover";
 import { ICON_STROKE_WIDTH } from "@/config/logic";
-import { GLASS_TOOLTIP_CLASSNAMES } from "@/modules/dashboard/components/details/visualizations/constants";
-import { TEXT_ROLES } from "./textRoles";
+import { GLASS_TOOLTIP_CLASSNAMES } from "@/modules/dashboard/hooks/utils/constants";
+import { TEXT_ROLES } from "../hooks/utils/textRoles";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 import { ShieldCheck, Zap, Ban, Copy, UserPlus, Info } from "lucide-react";
 

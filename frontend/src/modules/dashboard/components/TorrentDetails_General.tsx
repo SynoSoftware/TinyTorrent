@@ -32,7 +32,7 @@ import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import { SmoothProgressBar } from "@/shared/ui/components/SmoothProgressBar";
 import { ICON_STROKE_WIDTH } from "@/config/logic";
 import { writeClipboard } from "@/shared/utils/clipboard";
-import { TEXT_ROLES } from "./textRoles";
+import { TEXT_ROLES } from "../hooks/utils/textRoles";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
 import { getEmphasisClassForAction } from "@/shared/utils/recoveryFormat";

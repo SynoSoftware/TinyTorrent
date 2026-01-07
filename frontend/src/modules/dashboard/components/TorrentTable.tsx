@@ -30,6 +30,7 @@ import {
     type ColumnDef,
     type ColumnSizingInfoState,
     type Header,
+    type Cell,
     type Row,
     type RowSelectionState,
     type SortingState,
@@ -85,11 +86,11 @@ import { useContextMenuPosition } from "@/shared/hooks/ui/useContextMenuPosition
 import type { ContextMenuVirtualElement } from "@/shared/hooks/ui/useContextMenuPosition";
 import { useKeyboardScope } from "@/shared/hooks/useKeyboardScope";
 import {
-    COLUMN_DEFINITIONS,
+    TORRENTTABLE_COLUMN_DEFS,
     DEFAULT_COLUMN_ORDER,
     type ColumnId,
     type DashboardTableMeta,
-} from "@/modules/dashboard/components/ColumnDefinitions";
+} from "@/modules/dashboard/components/TorrentTable_ColumnDefs";
 import { useTorrentShortcuts } from "@/modules/dashboard/hooks/useTorrentShortcuts";
 import { useTorrentSpeedHistory } from "@/modules/dashboard/hooks/useTorrentSpeedHistory";
 import {
@@ -109,26 +110,31 @@ import {
     TABLE_HEADER_CLASS,
     HANDLE_PADDING_CLASS,
 } from "@/config/logic";
+import {
+    TableHeaderContent,
+    TableCellContent,
+    getColumnWidthCss,
+    MEASURE_LAYER_CLASS,
+    MEASURE_HEADER_SELECTOR,
+    MEASURE_CELL_SELECTOR,
+    getColumnWidthVarName,
+    TABLE_TOTAL_WIDTH_VAR,
+    getTableTotalWidthCss,
+    ColumnMeasurementLayer,
+} from "./TorrentTable_Shared";
+import { useMarqueeSelection } from "../hooks/useMarqueeSelection";
+import { useColumnResizing } from "../hooks/useColumnResizing";
+import { useTorrentTableColumns } from "@/modules/dashboard/hooks/useTorrentTableColumns";
+import { useTorrentClipboard } from "@/modules/dashboard/hooks/useTorrentClipboard";
+import TorrentTable_Header from "./TorrentTable_Header";
+import TorrentTable_Row from "./TorrentTable_Row";
+import TorrentTable_RowMenu from "./TorrentTable_RowMenu";
+import TorrentTable_HeaderMenu from "./TorrentTable_HeaderMenu";
 
 // --- CONSTANTS ---
 const STORAGE_KEY = "tiny-torrent.table-state.v2.8";
 
 const DND_OVERLAY_CLASSES = "pointer-events-none fixed inset-0 z-40";
-const TABLE_TOTAL_WIDTH_VAR = "--tt-table-total-w";
-const MEASURE_LAYER_CLASS = "absolute pointer-events-none invisible";
-const MEASURE_HEADER_SELECTOR = "[data-tt-measure-header]";
-const MEASURE_CELL_SELECTOR = "[data-tt-measure-cell]";
-
-const toCssVarSafeId = (value: string) => value.replace(/[^a-zA-Z0-9_-]/g, "-");
-
-const getColumnWidthVarName = (columnId: string) =>
-    `--tt-colw-${toCssVarSafeId(columnId)}`;
-
-const getColumnWidthCss = (columnId: string, fallbackPx: number) =>
-    `var(${getColumnWidthVarName(columnId)}, ${fallbackPx}px)`;
-
-const getTableTotalWidthCss = (fallbackPx: number) =>
-    `var(${TABLE_TOTAL_WIDTH_VAR}, ${fallbackPx}px)`;
 
 // --- TYPES ---
 type ContextMenuKey = TorrentTableAction;
@@ -191,7 +197,7 @@ const normalizeColumnSizingState = (
 ): Record<string, number> => {
     const normalized: Record<string, number> = {};
     Object.entries(sizing).forEach(([id, raw]) => {
-        if (!COLUMN_DEFINITIONS[id as ColumnId]) return;
+        if (!TORRENTTABLE_COLUMN_DEFS[id as ColumnId]) return;
         if (typeof raw === "number" && Number.isFinite(raw)) {
             normalized[id] = raw;
         }
@@ -327,7 +333,7 @@ const CONTEXT_MENU_SHORTCUTS: Partial<
     "queue-move-bottom": "ctrl+end",
 };
 
-const DEFAULT_MAGNET_PREFIX = CONFIG.defaults.magnet_protocol_prefix;
+// magnet prefix provided by config; use hook below
 
 const getContextMenuShortcut = (action: ContextMenuKey) =>
     formatShortcutLabel(CONTEXT_MENU_SHORTCUTS[action]);
@@ -353,188 +359,6 @@ interface TorrentTableProps {
 }
 
 // --- HELPERS ---
-// --- SUB-COMPONENT: DRAGGABLE HEADER ---
-const DraggableHeader = memo(
-    ({
-        header,
-        isOverlay = false,
-        onContextMenu,
-        onAutoFitColumn,
-        onResizeStart,
-        isAnyColumnResizing = false,
-        isResizing = false,
-    }: {
-        header: Header<Torrent, unknown>;
-        isOverlay?: boolean;
-        onContextMenu?: (e: React.MouseEvent) => void;
-        onAutoFitColumn?: (column: Column<Torrent>) => void;
-        onResizeStart?: (column: Column<Torrent>, clientX: number) => void;
-        isAnyColumnResizing?: boolean;
-        isResizing?: boolean;
-    }) => {
-        const { column } = header;
-        const canResize =
-            header.column.id !== "selection" &&
-            (typeof column.getCanResize === "function"
-                ? column.getCanResize()
-                : true);
-        const {
-            setNodeRef,
-            attributes,
-            listeners,
-            setActivatorNodeRef,
-            transform,
-            transition,
-            isDragging,
-        } = useSortable({
-            id: header.column.id,
-            disabled: isAnyColumnResizing,
-            animateLayoutChanges: (args) => {
-                if (isAnyColumnResizing) return false;
-                return defaultAnimateLayoutChanges(args);
-            },
-        });
-        const handleAutoFit = (event: React.MouseEvent) => {
-            event.stopPropagation();
-            if (column.getCanResize()) {
-                onAutoFitColumn?.(column);
-            }
-        };
-        const startManualResize = (clientX?: number) => {
-            if (clientX === undefined || clientX === null) return;
-            onResizeStart?.(column, clientX);
-        };
-        const handlePointerDown = (event: React.PointerEvent) => {
-            event.preventDefault();
-            event.stopPropagation();
-            startManualResize(event.clientX);
-        };
-        const handleMouseDown = (event: React.MouseEvent) => {
-            if (SUPPORTS_POINTER_EVENTS) {
-                event.stopPropagation();
-                return;
-            }
-            event.preventDefault();
-            event.stopPropagation();
-            startManualResize(event.clientX);
-        };
-        const handleTouchStart = (event: React.TouchEvent) => {
-            if (SUPPORTS_POINTER_EVENTS) {
-                event.stopPropagation();
-                return;
-            }
-            const touch = event.touches[0];
-            if (!touch) return;
-            event.preventDefault();
-            event.stopPropagation();
-            startManualResize(touch.clientX);
-        };
-
-        const isColumnResizing =
-            isResizing ||
-            (typeof column.getIsResizing === "function"
-                ? column.getIsResizing()
-                : false);
-
-        const style: CSSProperties = {
-            transform:
-                transform && !isAnyColumnResizing
-                    ? CSS.Translate.toString(transform)
-                    : undefined,
-            transition: !isAnyColumnResizing ? transition : undefined,
-            width: getColumnWidthCss(column.id, column.getSize()),
-            zIndex: isDragging || isOverlay ? 50 : 0,
-            boxSizing: "border-box",
-        };
-
-        const sortState = column.getIsSorted();
-        const canSort = column.getCanSort();
-        const align = column.columnDef.meta?.align || "start";
-        const isSelection = header.id.toString() === "selection";
-        const SortArrowIcon = sortState === "desc" ? ArrowDown : ArrowUp;
-        const sortArrowOpacity = sortState ? "opacity-100" : "opacity-0";
-        const shouldAnimateLayout =
-            !isAnyColumnResizing && !isDragging && !isOverlay;
-
-        return (
-            <motion.div
-                ref={setNodeRef}
-                layout={shouldAnimateLayout}
-                layoutId={`column-header-${header.id}`}
-                initial={false}
-                style={style}
-                role="columnheader"
-                tabIndex={-1}
-                onContextMenu={onContextMenu}
-                className={cn(
-                    "relative flex items-center h-row border-r border-content1/10 transition-colors group select-none overflow-visible",
-                    "box-border",
-                    "border-l-2 border-l-transparent",
-                    canSort
-                        ? "cursor-pointer hover:bg-content1/10"
-                        : "cursor-default",
-                    isOverlay
-                        ? "bg-content1/90 cursor-grabbing"
-                        : "bg-transparent",
-                    isOverlay && PANEL_SHADOW,
-                    isDragging && !isOverlay ? "opacity-30" : "opacity-100"
-                )}
-            >
-                <div
-                    ref={setActivatorNodeRef}
-                    {...attributes}
-                    {...listeners}
-                    className={cn(
-                        CELL_BASE_CLASS,
-                        "flex-1 gap-tools",
-                        "text-scaled font-bold uppercase text-foreground/60",
-                        isOverlay && "text-foreground",
-                        CELL_PADDING_CLASS,
-                        align === "center" && "justify-center",
-                        align === "end" && "justify-end",
-                        isSelection && "justify-center "
-                    )}
-                    style={{ letterSpacing: "var(--tt-tracking-tight)" }}
-                    onClick={
-                        canSort ? column.getToggleSortingHandler() : undefined
-                    }
-                >
-                    {flexRender(column.columnDef.header, header.getContext())}
-                    <SortArrowIcon
-                        strokeWidth={ICON_STROKE_WIDTH_DENSE}
-                        className={cn(
-                            "text-primary shrink-0 toolbar-icon-size-sm",
-                            sortArrowOpacity
-                        )}
-                    />
-                </div>
-
-                {!isOverlay && canResize && (
-                    <div
-                        onPointerDown={handlePointerDown}
-                        onMouseDown={handleMouseDown}
-                        onTouchStart={handleTouchStart}
-                        onClick={(e) => e.stopPropagation()}
-                        onDoubleClick={handleAutoFit}
-                        className={cn(
-                            "absolute right-0 top-0 h-full cursor-col-resize touch-none select-none flex items-center justify-end z-30",
-                            HANDLE_HITAREA_CLASS
-                        )}
-                    >
-                        <div
-                            className={cn(
-                                "bg-foreground/10 transition-colors rounded-full h-resize-h",
-                                "group-hover:bg-primary/50",
-                                isColumnResizing && "bg-primary h-resize-h"
-                            )}
-                            style={{ width: "var(--tt-divider-width)" }}
-                        />
-                    </div>
-                )}
-            </motion.div>
-        );
-    }
-);
 
 const ColumnHeaderPreview = ({
     header,
@@ -558,327 +382,19 @@ const ColumnHeaderPreview = ({
                 boxSizing: "border-box",
             }}
         >
-            <div
-                className={cn(
-                    CELL_BASE_CLASS,
-                    "flex-1 gap-tools text-scaled font-bold uppercase text-foreground/70",
-                    CELL_PADDING_CLASS,
-                    align === "center" && "justify-center",
-                    align === "end" && "justify-end",
-                    isSelection && "justify-center "
-                )}
-                style={{ letterSpacing: "var(--tt-tracking-tight)" }}
-            >
-                {flexRender(column.columnDef.header, header.getContext())}
-                <SortArrowIcon
-                    strokeWidth={ICON_STROKE_WIDTH_DENSE}
-                    className={cn(
-                        "text-primary shrink-0 toolbar-icon-size-sm",
-                        sortArrowOpacity
-                    )}
-                />
-            </div>
+            <TableHeaderContent header={header} />
         </div>
     );
 };
 
-// Shared renderers for headers and cells so measurement layer doesn't duplicate markup.
-const TableHeaderContent = ({
-    header,
-    isMeasurement = false,
-}: {
-    header: Header<Torrent, unknown>;
-    isMeasurement?: boolean;
-}) => {
-    const { column } = header;
-    const align = column.columnDef.meta?.align || "start";
-    const isSelection = header.id.toString() === "selection";
-    const sortState = column.getIsSorted();
-    const SortArrowIcon = sortState === "desc" ? ArrowDown : ArrowUp;
-    const sortArrowOpacity = sortState ? "opacity-100" : "opacity-0";
-    return (
-        <div
-            {...(isMeasurement
-                ? { ["data-tt-measure-header"]: column.id }
-                : {})}
-            className={cn(
-                CELL_BASE_CLASS,
-                "gap-tools text-scaled font-bold uppercase text-foreground/60",
-                CELL_PADDING_CLASS,
-                align === "center" && "justify-center",
-                align === "end" && "justify-end",
-                isSelection && "justify-center"
-            )}
-            style={{
-                letterSpacing: "var(--tt-tracking-tight)",
-                width: isMeasurement
-                    ? "max-content"
-                    : getColumnWidthCss(column.id, column.getSize()),
-                boxSizing: "border-box",
-            }}
-        >
-            {flexRender(column.columnDef.header, header.getContext())}
-            <SortArrowIcon
-                strokeWidth={ICON_STROKE_WIDTH_DENSE}
-                className={cn(
-                    "text-primary shrink-0 toolbar-icon-size-sm",
-                    sortArrowOpacity
-                )}
-            />
-        </div>
-    );
-};
-
-const TableCellContent = ({
-    cell,
-    isMeasurement = false,
-}: {
-    cell: any;
-    isMeasurement?: boolean;
-}) => {
-    const align = cell.column.columnDef.meta?.align || "start";
-    const isSelection = cell.column.id === "selection";
-    return (
-        <div
-            {...(isMeasurement
-                ? { ["data-tt-measure-cell"]: cell.column.id }
-                : {})}
-            className={cn(
-                CELL_BASE_CLASS,
-                CELL_PADDING_CLASS,
-                align === "center" && "justify-center",
-                align === "end" && "justify-end",
-                isSelection && "justify-center"
-            )}
-            style={{
-                width: isMeasurement
-                    ? "max-content"
-                    : getColumnWidthCss(cell.column.id, cell.column.getSize()),
-                boxSizing: "border-box",
-            }}
-        >
-            {flexRender(cell.column.columnDef.cell, cell.getContext())}
-            <div
-                aria-hidden="true"
-                style={{
-                    width: "var(--tt-resize-handle-w)",
-                    flexShrink: 0,
-                }}
-            />
-        </div>
-    );
-};
+// Table header/cell presentation moved to TorrentTable.shared.tsx
 
 const renderVisibleCells = (row: Row<Torrent>) =>
     row
         .getVisibleCells()
         .map((cell) => <TableCellContent key={cell.id} cell={cell} />);
 
-const ColumnMeasurementLayer = memo(
-    ({
-        headers,
-        rows,
-        measureLayerRef,
-    }: {
-        headers: Header<Torrent, unknown>[];
-        rows: Row<Torrent>[];
-        measureLayerRef: React.RefObject<HTMLDivElement | null>;
-    }) => {
-        return (
-            <div
-                ref={measureLayerRef}
-                aria-hidden="true"
-                className={MEASURE_LAYER_CLASS}
-            >
-                <div className="flex">
-                    {headers.map((header) => (
-                        <TableHeaderContent
-                            key={header.id}
-                            header={header}
-                            isMeasurement
-                        />
-                    ))}
-                </div>
-                {rows.map((row) => (
-                    <div key={row.id} className="flex">
-                        {row.getVisibleCells().map((cell) => (
-                            <TableCellContent
-                                key={cell.id}
-                                cell={cell}
-                                isMeasurement
-                            />
-                        ))}
-                    </div>
-                ))}
-            </div>
-        );
-    }
-);
-
-// --- SUB-COMPONENT: VIRTUAL ROW ---
-const VirtualRow = memo(
-    ({
-        row,
-        virtualRow,
-        isSelected,
-        isContext,
-        onClick,
-        onDoubleClick,
-        onContextMenu,
-        isQueueSortActive,
-        dropTargetRowId,
-        activeRowId,
-        isHighlighted,
-        onDropTargetChange,
-        isAnyColumnResizing = false,
-        columnOrder,
-        suppressLayoutAnimations = false,
-    }: {
-        row: Row<Torrent>;
-        virtualRow: VirtualItem;
-        isSelected: boolean;
-        isContext: boolean;
-        onClick: (e: React.MouseEvent, rowId: string, index: number) => void;
-        onDoubleClick: (torrent: Torrent) => void;
-        onContextMenu: (e: React.MouseEvent, torrent: Torrent) => void;
-        isQueueSortActive: boolean;
-        dropTargetRowId: string | null;
-        activeRowId: string | null;
-        isHighlighted: boolean;
-        onDropTargetChange?: (id: string | null) => void;
-        isAnyColumnResizing?: boolean;
-        columnOrder?: string[];
-        suppressLayoutAnimations?: boolean;
-    }) => {
-        void columnOrder;
-        // Inside VirtualRow component
-        const {
-            setNodeRef,
-            attributes,
-            listeners,
-            transform,
-            transition,
-            isDragging,
-            isOver,
-        } = useSortable({
-            id: row.id,
-            disabled: !isQueueSortActive,
-            // FIX: Disable animation when the drag ends (wasDragging) to prevent
-            // the row from animating "back" while the virtualizer moves it "to".
-            animateLayoutChanges: (args) => {
-                if (isAnyColumnResizing) {
-                    return false;
-                }
-                const { wasDragging } = args;
-                if (wasDragging) {
-                    return false;
-                }
-                return defaultAnimateLayoutChanges(args);
-            },
-        });
-
-        const rowStyle = useMemo<CSSProperties>(() => {
-            const style: CSSProperties = {
-                position: "absolute",
-                top: `${virtualRow.start}px`,
-                left: 0,
-                width: "100%",
-                height: TABLE_LAYOUT.rowHeight,
-                boxSizing: "border-box",
-            };
-            if (transform) {
-                style.transform = CSS.Translate.toString(transform);
-            }
-            // Retain drag transition, BUT we will remove highlight transition
-            if (transition && !isAnyColumnResizing) {
-                style.transition = transition;
-            }
-            style.opacity = isDragging ? 0 : 1;
-            if (isDragging) {
-                style.zIndex = 40;
-                style.pointerEvents = "none";
-            }
-            return style;
-        }, [
-            virtualRow.start,
-            transform,
-            transition,
-            isDragging,
-            isAnyColumnResizing,
-        ]);
-
-        const isDropTarget =
-            dropTargetRowId === row.id && activeRowId !== row.id;
-
-        useEffect(() => {
-            if (!isQueueSortActive || !onDropTargetChange) return;
-            if (row.id === activeRowId) return;
-            if (isOver) {
-                onDropTargetChange(row.id);
-                return;
-            }
-            if (dropTargetRowId === row.id) {
-                onDropTargetChange(null);
-            }
-        }, [
-            isOver,
-            row.id,
-            isQueueSortActive,
-            onDropTargetChange,
-            dropTargetRowId,
-            activeRowId,
-        ]);
-
-        return (
-            <div
-                ref={setNodeRef}
-                data-index={virtualRow.index}
-                data-torrent-row={row.original.id}
-                {...(attributes ?? {})}
-                {...(listeners ?? {})}
-                role="row"
-                aria-selected={isSelected}
-                tabIndex={-1}
-                className={cn(
-                    "absolute top-0 left-0 border-b border-default/5",
-                    "box-border",
-                    // Dragging overrides
-                    isQueueSortActive ? "cursor-grab" : "cursor-default",
-                    isDragging &&
-                        "opacity-50 grayscale scale-98 z-50 cursor-grabbing"
-                )}
-                style={rowStyle}
-                onClick={(e) => onClick(e, row.id, virtualRow.index)}
-                onDoubleClick={() => onDoubleClick(row.original)}
-                onContextMenu={(e) => onContextMenu(e, row.original)}
-            >
-                {/* INNER DIV: Handles all visuals. Separating layout from paint prevents glitching. */}
-                <motion.div
-                    layout={!isAnyColumnResizing && !suppressLayoutAnimations}
-                    layoutId={
-                        isAnyColumnResizing || suppressLayoutAnimations
-                            ? undefined
-                            : `torrent-row-${row.id}`
-                    }
-                    initial={false}
-                    className={cn(
-                        "relative flex items-center w-full h-full ",
-                        // SELECTION STATE: Stronger contrast, no border, NO TRANSITION
-                        isSelected ? "bg-primary/20" : "hover:bg-content1/10",
-
-                        // Context Menu Highlight
-                        isContext && !isSelected && "bg-content1/20",
-
-                        // Keyboard Highlight (Focus)
-                        isHighlighted && !isSelected && "bg-foreground/10"
-                    )}
-                >
-                    {renderVisibleCells(row)}
-                </motion.div>
-            </div>
-        );
-    }
-);
+// ColumnMeasurementLayer moved to TorrentTable_Shared.tsx
 
 type QueueMenuAction = { key: TorrentTableAction; label: string };
 
@@ -943,22 +459,7 @@ export function TorrentTable({
     const measureLayerRef = useRef<HTMLDivElement>(null);
     const focusReturnRef = useRef<HTMLElement | null>(null);
 
-    // IMPORTANT: These refs are the canonical source-of-truth for
-    // distinguishing a click from a marquee (drag-box) gesture.
-    // - `marqueeStateRef` stores the marquee start coordinates and modifier state.
-    // - `isMarqueeDraggingRef` indicates an active drag-box in progress.
-    // - `marqueeClickBlockRef` prevents an immediate click toggle after a drag.
-    // Do not introduce parallel suppression (pointer/mouse) logic elsewhere
-    // without integrating with these refs — duplicating guards can silently
-    // swallow clicks due to event timing with virtualization/DnD.
-    const marqueeStateRef = useRef<MarqueeState | null>(null);
-    const marqueeClickBlockRef = useRef(false);
-    const isMarqueeDraggingRef = useRef(false);
-    const marqueeBlockResetRef = useRef<ReturnType<
-        typeof window.setTimeout
-    > | null>(null);
-
-    const [marqueeRect, setMarqueeRect] = useState<MarqueeRect | null>(null);
+    // Marquee selection is handled by `useMarqueeSelection` below.
 
     const overlayPortalHost = useMemo(
         () =>
@@ -1002,70 +503,10 @@ export function TorrentTable({
         [t]
     );
 
-    const isClipboardSupported =
-        typeof navigator !== "undefined" &&
-        typeof navigator.clipboard?.writeText === "function";
-    const copyToClipboard = useCallback(async (value?: string) => {
-        if (!value) return;
-        if (
-            typeof navigator === "undefined" ||
-            typeof navigator.clipboard?.writeText !== "function"
-        ) {
-            return;
-        }
-        try {
-            await navigator.clipboard.writeText(value);
-        } catch {
-            // ignore
-        }
-    }, []);
-    const buildMagnetLink = useCallback(
-        (torrent: Torrent) =>
-            `${DEFAULT_MAGNET_PREFIX}xt=urn:btih:${torrent.hash}`,
-        []
-    );
+    const { isClipboardSupported, copyToClipboard, buildMagnetLink } =
+        useTorrentClipboard();
 
-    useEffect(() => {
-        const container = parentRef.current;
-        if (!container) return;
-
-        const handleMouseDown = (event: MouseEvent) => {
-            if (event.button !== 0) return;
-            const target = event.target as Element | null;
-            if (
-                target?.closest("[data-torrent-row]") ||
-                target?.closest('[role="row"]')
-            ) {
-                return;
-            }
-            const rect = container.getBoundingClientRect();
-            const startClientX = event.clientX - rect.left;
-            const startClientY = event.clientY - rect.top;
-            const startContentY = startClientY + container.scrollTop;
-
-            // mark that a marquee drag is in progress
-            isMarqueeDraggingRef.current = true;
-
-            marqueeStateRef.current = {
-                startClientX,
-                startClientY,
-                startContentY,
-                isAdditive: event.ctrlKey || event.metaKey,
-            };
-            setMarqueeRect({
-                left: startClientX,
-                top: startClientY,
-                width: 0,
-                height: 0,
-            });
-            event.preventDefault();
-        };
-
-        container.addEventListener("mousedown", handleMouseDown);
-        return () => {
-            container.removeEventListener("mousedown", handleMouseDown);
-        };
-    }, []);
+    // Marquee `mousedown` and drag listeners moved to `useMarqueeSelection`.
 
     // --- STATE ---
     const getInitialState = () => {
@@ -1080,7 +521,7 @@ export function TorrentTable({
 
             if (!saved) return defaults;
             const parsed = JSON.parse(saved);
-            const allDefKeys = Object.keys(COLUMN_DEFINITIONS);
+            const allDefKeys = Object.keys(TORRENTTABLE_COLUMN_DEFS);
             const validOrder = (
                 parsed.columnOrder || DEFAULT_COLUMN_ORDER
             ).filter((id: string) => allDefKeys.includes(id));
@@ -1130,24 +571,6 @@ export function TorrentTable({
     const [activeDragHeaderId, setActiveDragHeaderId] = useState<string | null>(
         null
     );
-    const [activeResizeColumnId, setActiveResizeColumnId] = useState<
-        string | null
-    >(null);
-    const isAnyColumnResizing =
-        Boolean(activeResizeColumnId) ||
-        Boolean(columnSizingInfo.isResizingColumn);
-    const resizeStartRef = useRef<{
-        columnId: string;
-        startX: number;
-        startSize: number;
-        startTotal: number;
-    } | null>(null);
-    const pendingColumnResizeRef = useRef<{
-        columnId: string;
-        nextSize: number;
-        nextTotal: number;
-    } | null>(null);
-    const columnResizeRafRef = useRef<number | null>(null);
     const [activeRowId, setActiveRowId] = useState<string | null>(null);
     const [dropTargetRowId, setDropTargetRowId] = useState<string | null>(null);
     const [pendingQueueOrder, setPendingQueueOrder] = useState<string[] | null>(
@@ -1279,7 +702,7 @@ export function TorrentTable({
             sorting,
         };
 
-        if (isAnyColumnResizing) {
+        if (columnSizingInfo.isResizingColumn) {
             if (saveTimeoutRef.current) {
                 window.clearTimeout(saveTimeoutRef.current);
                 saveTimeoutRef.current = null;
@@ -1299,7 +722,6 @@ export function TorrentTable({
             saveTimeoutRef.current = null;
         }, TABLE_PERSIST_DEBOUNCE_MS);
     }, [
-        activeResizeColumnId,
         columnOrder,
         columnSizing,
         columnSizingInfo.isResizingColumn,
@@ -1324,69 +746,13 @@ export function TorrentTable({
     }, []);
 
     // --- COLUMNS ---
-    // Memoized columns based ONLY on translation and stable definitions.
-    // Dynamic data (sparklines) is accessed via meta.
-    const columns = useMemo<ColumnDef<Torrent>[]>(() => {
-        // Build columns in the canonical default order so the table's
-        // initial mapping between header and cell renderers remains stable.
-        const cols = DEFAULT_COLUMN_ORDER.map((colId) => {
-            const id = colId as ColumnId;
-            const def = COLUMN_DEFINITIONS[id];
-            if (!def) return null;
-            const sortAccessor = def.sortAccessor;
-            const accessorKey = sortAccessor ? undefined : def.rpcField;
-            const accessorFn = sortAccessor
-                ? (torrent: Torrent) => sortAccessor(torrent)
-                : undefined;
-            return {
-                id,
-                accessorKey,
-                accessorFn,
-                enableSorting: Boolean(def.sortable),
-                header: () => {
-                    const label = def.labelKey ? t(def.labelKey) : "";
-                    const HeaderIcon = def.headerIcon;
-                    return HeaderIcon ? (
-                        <div
-                            className="flex items-center gap-tight text-scaled font-semibold uppercase text-foreground/60"
-                            style={{
-                                letterSpacing: "var(--tt-tracking-ultra)",
-                            }}
-                        >
-                            <HeaderIcon
-                                strokeWidth={ICON_STROKE_WIDTH_DENSE}
-                                className="text-foreground/50 animate-pulse toolbar-icon-size-md"
-                            />
-                            <span>{label}</span>
-                        </div>
-                    ) : (
-                        label
-                    );
-                },
-                size: def.width ?? 150,
-                enableResizing: true,
-                meta: { align: def.align },
-                cell: ({ row, table }) => {
-                    return def.render({
-                        torrent: row.original,
-                        t,
-                        isSelected: row.getIsSelected(),
-                        table, // Pass table to allow access to meta
-                    });
-                },
-            } as ColumnDef<Torrent>;
-        });
-        return cols.filter(Boolean) as ColumnDef<Torrent>[];
-    }, [t]);
-
-    // We pass dynamic data through meta to avoid column regeneration
-    const tableMeta = useMemo<DashboardTableMeta>(
-        () => ({
-            speedHistoryRef,
-            optimisticStatuses,
-        }),
-        [speedHistoryRef, optimisticStatuses]
-    );
+    // Columns and table meta are provided by a dedicated hook to keep
+    // configuration separate from layout and events.
+    const { columns, tableMeta } = useTorrentTableColumns({
+        t,
+        speedHistoryRef,
+        optimisticStatuses,
+    });
 
     const table = useReactTable({
         data: tableData,
@@ -1453,7 +819,7 @@ export function TorrentTable({
     ]);
     const getColumnLabel = useCallback(
         (column: Column<Torrent>) => {
-            const definition = COLUMN_DEFINITIONS[column.id as ColumnId];
+            const definition = TORRENTTABLE_COLUMN_DEFS[column.id as ColumnId];
             const labelKey = definition?.labelKey;
             if (labelKey) {
                 return t(labelKey);
@@ -1462,11 +828,24 @@ export function TorrentTable({
         },
         [t]
     );
-    const resetColumnResizeState = useCallback(() => {
-        resizeStartRef.current = null;
-        setActiveResizeColumnId(null);
-        setColumnSizingInfo(createColumnSizingInfoState());
-    }, [setActiveResizeColumnId, setColumnSizingInfo]);
+    const {
+        activeResizeColumnId: hookActiveResizeColumnId,
+        handleColumnResizeStart,
+        resetColumnResizeState: hookResetColumnResizeState,
+    } = useColumnResizing({
+        table,
+        setColumnSizing,
+        setColumnSizingInfo,
+        setColumnWidthVar,
+        setTableTotalWidthVar,
+    });
+
+    const isAnyColumnResizing =
+        Boolean(hookActiveResizeColumnId) ||
+        Boolean(columnSizingInfo.isResizingColumn);
+
+    const resetColumnResizeState = hookResetColumnResizeState;
+    // `resetColumnResizeState` provided by `useColumnResizing` hook below.
     const autoFitColumn = useCallback(
         (
             column: Column<Torrent>,
@@ -1530,117 +909,6 @@ export function TorrentTable({
         useContextMenuPosition({
             defaultMargin: fileContextMenuMargin,
         });
-    useEffect(() => {
-        if (typeof window === "undefined") return;
-        if (!activeResizeColumnId) return;
-
-        const applyPendingResizeCss = () => {
-            const pending = pendingColumnResizeRef.current;
-            if (!pending) return;
-            setColumnWidthVar(pending.columnId, pending.nextSize);
-            setTableTotalWidthVar(pending.nextTotal);
-        };
-
-        const scheduleResizeCssUpdate = () => {
-            if (columnResizeRafRef.current !== null) return;
-            columnResizeRafRef.current = window.requestAnimationFrame(() => {
-                columnResizeRafRef.current = null;
-                applyPendingResizeCss();
-            });
-        };
-
-        const handlePointerMove = (event: PointerEvent) => {
-            const resizeState = resizeStartRef.current;
-            if (!resizeState) return;
-            const column = table.getColumn(resizeState.columnId);
-            if (!column) return;
-            const delta = event.clientX - resizeState.startX;
-            const minSize = getMeasuredColumnMinWidth(
-                resizeState.columnId,
-                column.getSize()
-            );
-            const maxSize =
-                typeof column.columnDef.maxSize === "number"
-                    ? column.columnDef.maxSize
-                    : Number.POSITIVE_INFINITY;
-            const nextSize = Math.min(
-                maxSize,
-                Math.max(minSize, Math.round(resizeState.startSize + delta))
-            );
-            const nextTotal =
-                resizeState.startTotal - resizeState.startSize + nextSize;
-            event.preventDefault();
-            pendingColumnResizeRef.current = {
-                columnId: resizeState.columnId,
-                nextSize,
-                nextTotal,
-            };
-            scheduleResizeCssUpdate();
-        };
-
-        const handlePointerUp = () => {
-            if (columnResizeRafRef.current !== null) {
-                window.cancelAnimationFrame(columnResizeRafRef.current);
-                columnResizeRafRef.current = null;
-            }
-            applyPendingResizeCss();
-
-            const pending = pendingColumnResizeRef.current;
-            pendingColumnResizeRef.current = null;
-            if (pending) {
-                setColumnSizing((prev: Record<string, number>) =>
-                    normalizeColumnSizingState({
-                        ...prev,
-                        [pending.columnId]: pending.nextSize,
-                    })
-                );
-            }
-            resetColumnResizeState();
-        };
-
-        window.addEventListener("pointermove", handlePointerMove);
-        window.addEventListener("pointerup", handlePointerUp);
-
-        return () => {
-            window.removeEventListener("pointermove", handlePointerMove);
-            window.removeEventListener("pointerup", handlePointerUp);
-            if (columnResizeRafRef.current !== null) {
-                window.cancelAnimationFrame(columnResizeRafRef.current);
-                columnResizeRafRef.current = null;
-            }
-            pendingColumnResizeRef.current = null;
-        };
-    }, [
-        activeResizeColumnId,
-        resetColumnResizeState,
-        setColumnSizing,
-        setColumnWidthVar,
-        setTableTotalWidthVar,
-        table,
-    ]);
-    const handleColumnResizeStart = useCallback(
-        (column: Column<Torrent>, clientX: number) => {
-            if (!column.getCanResize()) return;
-            const startSize = column.getSize();
-            const startTotal = table.getTotalSize();
-            resizeStartRef.current = {
-                columnId: column.id,
-                startX: clientX,
-                startSize,
-                startTotal,
-            };
-            setActiveResizeColumnId(column.id);
-            setColumnSizingInfo(() => ({
-                columnSizingStart: [[column.id, startSize]],
-                deltaOffset: 0,
-                deltaPercentage: 0,
-                isResizingColumn: column.id,
-                startOffset: clientX,
-                startSize,
-            }));
-        },
-        [setActiveResizeColumnId, setColumnSizingInfo, table]
-    );
 
     const rowVirtualizer = useVirtualizer({
         count: rows.length,
@@ -1710,207 +978,20 @@ export function TorrentTable({
     // the up-to-date mapping of rows -> ids.
     const rowIds = useMemo(() => rows.map((row) => row.id), [rows]);
 
-    // Throttle marquee selection updates via requestAnimationFrame to avoid
-    // issuing React state updates at mousemove frequency which causes layout jank.
-    const pendingSelectionRef = useRef<RowSelectionState | null>(null);
-    const rafHandleRef = useRef<number | null>(null);
+    const { marqueeRect, marqueeClickBlockRef, isMarqueeDraggingRef } =
+        useMarqueeSelection({
+            parentRef,
+            rowHeight,
+            rowsRef,
+            rowIds,
+            setRowSelection,
+            setAnchorIndex,
+            setFocusIndex,
+            setHighlightedRowId,
+            rowSelectionRef,
+        });
 
-    useEffect(() => {
-        const handleMouseMove = (event: MouseEvent) => {
-            const state = marqueeStateRef.current;
-            const container = parentRef.current;
-            if (!state || !container) return;
-            const rect = container.getBoundingClientRect();
-            const currentClientX = event.clientX - rect.left;
-            const currentClientY = event.clientY - rect.top;
-            const left = Math.min(state.startClientX, currentClientX);
-            const top = Math.min(state.startClientY, currentClientY);
-            setMarqueeRect({
-                left,
-                top,
-                width: Math.abs(currentClientX - state.startClientX),
-                height: Math.abs(currentClientY - state.startClientY),
-            });
-
-            // Live selection while dragging: translate viewport coords to content coords
-            // using the current scrollTop so that scrolling during drag updates selection.
-            try {
-                const scrollTop = container.scrollTop;
-                const startContentY = state.startClientY + scrollTop;
-                const currentContentY = currentClientY + scrollTop;
-                const minY = Math.max(
-                    0,
-                    Math.min(startContentY, currentContentY)
-                );
-                const maxY = Math.max(
-                    0,
-                    Math.max(startContentY, currentContentY)
-                );
-                const totalHeight = (rowsRef.current?.length || 0) * rowHeight;
-                const topContent = Math.max(0, minY);
-                const bottomContent = Math.max(0, Math.min(maxY, totalHeight));
-                if (bottomContent > topContent) {
-                    const firstIndex = Math.floor(topContent / rowHeight);
-                    const lastIndex = Math.floor(
-                        (bottomContent - 1) / rowHeight
-                    );
-                    const isAdditive =
-                        state.isAdditive ||
-                        (event as unknown as MouseEvent).shiftKey;
-                    const nextSelection: RowSelectionState = isAdditive
-                        ? { ...rowSelectionRef.current }
-                        : {};
-                    const selectionIds = rowIds.slice(
-                        firstIndex,
-                        lastIndex + 1
-                    );
-                    for (const id of selectionIds) nextSelection[id] = true;
-                    // Schedule commit via rAF instead of updating every mousemove
-                    pendingSelectionRef.current = nextSelection;
-                    if (rafHandleRef.current === null) {
-                        rafHandleRef.current = window.requestAnimationFrame(
-                            () => {
-                                if (pendingSelectionRef.current) {
-                                    setRowSelection(
-                                        pendingSelectionRef.current
-                                    );
-                                    pendingSelectionRef.current = null;
-                                }
-                                rafHandleRef.current = null;
-                            }
-                        );
-                    }
-                }
-            } catch {
-                // ignore selection errors during drag
-            }
-        };
-
-        const handleMouseUp = (event: MouseEvent) => {
-            const state = marqueeStateRef.current;
-            const container = parentRef.current;
-            if (!state || !container) {
-                setMarqueeRect(null);
-                // clear dragging flag after the click event has a chance to fire
-                setTimeout(() => {
-                    isMarqueeDraggingRef.current = false;
-                }, 0);
-                return;
-            }
-            const rect = container.getBoundingClientRect();
-            const scrollTop =
-                parentRef.current?.scrollTop ?? container.scrollTop ?? 0;
-            const endClientY = event.clientY - rect.top;
-            // Recalculate start relative to current scroll to avoid selection jumps
-            const startContentY = state.startClientY + scrollTop;
-            const endContentY = endClientY + scrollTop;
-
-            marqueeStateRef.current = null;
-            setMarqueeRect(null);
-
-            const availableRows = rowsRef.current;
-            if (!availableRows.length) {
-                if (!state.isAdditive) {
-                    setRowSelection({});
-                    // Also clear anchors/focus if clicking empty space without modifiers
-                    setAnchorIndex(null);
-                    setFocusIndex(null);
-                    setHighlightedRowId(null);
-                }
-                return;
-            }
-
-            const totalHeight = availableRows.length * rowHeight;
-
-            // CORRECTED MATH: Calculate absolute Top and Bottom regardless of drag direction
-            const minY = Math.min(state.startContentY, endContentY);
-            const maxY = Math.max(state.startContentY, endContentY);
-
-            // Clamp to content bounds
-            const topContent = Math.max(0, minY);
-            const bottomContent = Math.max(0, Math.min(maxY, totalHeight));
-
-            // If the selection height is 0 (just a click), perform a clearing click logic
-            if (bottomContent <= topContent) {
-                if (!state.isAdditive) {
-                    setRowSelection({});
-                    setAnchorIndex(null);
-                    setFocusIndex(null);
-                    setHighlightedRowId(null);
-                }
-                return;
-            }
-
-            // Map Y-coordinates to Row Indices
-            const firstIndex = Math.floor(topContent / rowHeight);
-            const lastIndex = Math.floor((bottomContent - 1) / rowHeight); // -1 to avoid selecting next row if exactly on border
-
-            if (firstIndex > lastIndex) return; // Should not happen with corrected math, but safety check
-
-            // CORRECTED MODIFIER LOGIC: Include Shift for additive selection
-            const isAdditive = state.isAdditive || event.shiftKey;
-
-            const nextSelection: RowSelectionState = isAdditive
-                ? { ...rowSelectionRef.current }
-                : {};
-            // Use rowIds slice to build selection without iterating the entire row list
-            const selectionIds = rowIds.slice(firstIndex, lastIndex + 1);
-            for (const id of selectionIds) {
-                nextSelection[id] = true;
-            }
-            setRowSelection(nextSelection);
-
-            // Update Focus/Anchor to the item under the mouse release
-            const focusIndexValue = Math.max(
-                0,
-                Math.min(
-                    availableRows.length - 1,
-                    Math.floor(endContentY / rowHeight)
-                )
-            );
-
-            // Only update Anchor if this wasn't an additive operation,
-            // OR if it's a fresh drag. Windows behavior varies, but resetting anchor on Box Select is standard.
-            setAnchorIndex(focusIndexValue);
-            setFocusIndex(focusIndexValue);
-
-            const focusRow = availableRows[focusIndexValue];
-            if (focusRow) {
-                setHighlightedRowId(focusRow.id);
-                // Optional: Don't scroll to it on drag release, it can be jarring
-                // rowVirtualizer.scrollToIndex(focusIndexValue);
-            }
-            marqueeClickBlockRef.current = true;
-            if (marqueeBlockResetRef.current) {
-                window.clearTimeout(marqueeBlockResetRef.current);
-                marqueeBlockResetRef.current = null;
-            }
-            marqueeBlockResetRef.current = window.setTimeout(() => {
-                marqueeClickBlockRef.current = false;
-                marqueeBlockResetRef.current = null;
-            }, 0);
-            // clear marquee dragging flag after release (allow click event to be blocked)
-            setTimeout(() => {
-                isMarqueeDraggingRef.current = false;
-            }, 0);
-        };
-
-        window.addEventListener("mousemove", handleMouseMove);
-        window.addEventListener("mouseup", handleMouseUp);
-        return () => {
-            window.removeEventListener("mousemove", handleMouseMove);
-            window.removeEventListener("mouseup", handleMouseUp);
-            if (marqueeBlockResetRef.current) {
-                window.clearTimeout(marqueeBlockResetRef.current);
-                marqueeBlockResetRef.current = null;
-            }
-            // cancel any pending rAF
-            if (rafHandleRef.current !== null) {
-                window.cancelAnimationFrame(rafHandleRef.current);
-                rafHandleRef.current = null;
-            }
-        };
-    }, [rowVirtualizer, rowIds]);
+    // Marquee move/up handling moved to `useMarqueeSelection`.
 
     const selectAllRows = useCallback(() => {
         const allRows = table.getRowModel().rows;
@@ -2492,13 +1573,15 @@ export function TorrentTable({
                                         }}
                                     >
                                         {headerGroup.headers.map((header) => (
-                                            <DraggableHeader
+                                            <TorrentTable_Header
                                                 key={header.id}
                                                 header={header}
                                                 isAnyColumnResizing={
                                                     isAnyColumnResizing
                                                 }
-                                                onContextMenu={(e) =>
+                                                onContextMenu={(
+                                                    e: React.MouseEvent
+                                                ) =>
                                                     handleHeaderContextMenu(
                                                         e,
                                                         header.column.id
@@ -2513,7 +1596,7 @@ export function TorrentTable({
                                                 isResizing={
                                                     columnSizingInfo.isResizingColumn ===
                                                         header.column.id ||
-                                                    activeResizeColumnId ===
+                                                    hookActiveResizeColumnId ===
                                                         header.column.id
                                                 }
                                             />
@@ -2629,7 +1712,7 @@ export function TorrentTable({
                                                     const row =
                                                         rows[virtualRow.index];
                                                     return (
-                                                        <VirtualRow
+                                                        <TorrentTable_Row
                                                             key={row.id}
                                                             row={row}
                                                             virtualRow={
@@ -2913,112 +1996,16 @@ export function TorrentTable({
                 {headerContextMenu &&
                     headerMenuTriggerRect &&
                     renderOverlayPortal(
-                        <AnimatePresence>
-                            <Dropdown
-                                isOpen
-                                onClose={() => setHeaderContextMenu(null)}
-                                placement="bottom-start"
-                                shouldFlip
-                                closeOnSelect={false}
-                            >
-                                <DropdownTrigger>
-                                    <div
-                                        style={{
-                                            position: "fixed",
-                                            top: headerMenuTriggerRect.top,
-                                            left: headerMenuTriggerRect.left,
-                                            width: 0,
-                                            height: 0,
-                                        }}
-                                    />
-                                </DropdownTrigger>
-                                <DropdownMenu
-                                    variant="shadow"
-                                    classNames={{ list: "overflow-hidden" }}
-                                    className={cn(
-                                        GLASS_MENU_SURFACE,
-                                        "min-w-(--tt-menu-min-width)",
-                                        "overflow-hidden"
-                                    )}
-                                >
-                                    <DropdownItem
-                                        key="hide-column"
-                                        color="danger"
-                                        isDisabled={!isHeaderMenuHideEnabled}
-                                        className="px-panel py-tight text-scaled font-semibold"
-                                        onPress={() =>
-                                            handleHeaderMenuAction(() =>
-                                                headerMenuActiveColumn?.toggleVisibility(
-                                                    false
-                                                )
-                                            )
-                                        }
-                                    >
-                                        {headerMenuHideLabel}
-                                    </DropdownItem>
-                                    <DropdownItem
-                                        key="fit-all-columns"
-                                        className="px-panel py-tight text-scaled font-semibold"
-                                        onPress={() =>
-                                            handleHeaderMenuAction(
-                                                autoFitAllColumns
-                                            )
-                                        }
-                                        showDivider
-                                    >
-                                        {t("table.actions.fit_all_columns")}
-                                    </DropdownItem>
-                                    <DropdownSection
-                                        key="columns-section"
-                                        title={t("table.column_picker_title")}
-                                    >
-                                        {
-                                            headerMenuItems.map((item) => {
-                                                const isVisible =
-                                                    item.column.getIsVisible();
-                                                return (
-                                                    <DropdownItem
-                                                        key={item.column.id}
-                                                        className={cn(
-                                                            "pl-stage text-scaled",
-                                                            item.isPinned &&
-                                                                "font-semibold text-foreground"
-                                                        )}
-                                                        closeOnSelect={false}
-                                                        onPress={() =>
-                                                            handleHeaderMenuAction(
-                                                                () =>
-                                                                    item.column.toggleVisibility(
-                                                                        !isVisible
-                                                                    ),
-                                                                {
-                                                                    keepOpen:
-                                                                        true,
-                                                                }
-                                                            )
-                                                        }
-                                                        startContent={
-                                                            <Checkbox
-                                                                isSelected={
-                                                                    isVisible
-                                                                }
-                                                                size="md"
-                                                                disableAnimation
-                                                                classNames={{
-                                                                    base: "mr-tight",
-                                                                }}
-                                                            />
-                                                        }
-                                                    >
-                                                        {item.label}
-                                                    </DropdownItem>
-                                                );
-                                            }) as ItemElement<object>[]
-                                        }
-                                    </DropdownSection>
-                                </DropdownMenu>
-                            </Dropdown>
-                        </AnimatePresence>
+                        <TorrentTable_HeaderMenu
+                            headerMenuTriggerRect={headerMenuTriggerRect}
+                            onClose={() => setHeaderContextMenu(null)}
+                            headerMenuActiveColumn={headerMenuActiveColumn}
+                            headerMenuItems={headerMenuItems}
+                            headerMenuHideLabel={headerMenuHideLabel}
+                            isHeaderMenuHideEnabled={isHeaderMenuHideEnabled}
+                            autoFitAllColumns={autoFitAllColumns}
+                            handleHeaderMenuAction={handleHeaderMenuAction}
+                        />
                     )}
             </div>
 
@@ -3054,7 +2041,7 @@ export function TorrentTable({
                                         >
                                             <span>
                                                 {t(
-                                                    COLUMN_DEFINITIONS[id]
+                                                    TORRENTTABLE_COLUMN_DEFS[id]
                                                         ?.labelKey ?? id
                                                 )}
                                             </span>

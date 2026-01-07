@@ -7,11 +7,11 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { motion, useMotionValue } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import { ZoomIn, ZoomOut } from "lucide-react";
-import { GLASS_TOOLTIP_CLASSNAMES } from "@/modules/dashboard/components/details/visualizations/constants";
+import { GLASS_TOOLTIP_CLASSNAMES } from "@/modules/dashboard/hooks/utils/constants";
 import {
     clamp,
     useCanvasPalette,
-} from "@/modules/dashboard/components/details/visualizations/canvasUtils";
+} from "@/modules/dashboard/hooks/utils/canvasUtils";
 // All geometry and animation values are local safe defaults. No config imports.
 import { formatSpeed } from "@/shared/utils/format";
 import type { TorrentPeerEntity } from "@/services/rpc/entities";

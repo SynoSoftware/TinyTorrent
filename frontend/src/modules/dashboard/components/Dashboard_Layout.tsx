@@ -14,7 +14,7 @@ import { useFocusState } from "@/app/context/FocusContext";
 import { TorrentTable } from "./TorrentTable";
 import type { OptimisticStatusMap } from "@/modules/dashboard/types/optimistic";
 import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
-import { TorrentDetailView } from "./TorrentDetailView";
+import { TorrentDetails } from "./TorrentDetails";
 import type {
     DetailTab,
     PeerSortStrategy,
@@ -33,7 +33,7 @@ import type {
     FileExplorerContextAction,
     FileExplorerEntry,
 } from "@/shared/ui/workspace/FileExplorerTree";
-import type { PeerContextAction } from "./details/tabs/PeersTab";
+import type { PeerContextAction } from "./TorrentDetails_Peers";
 
 const ANIMATION = {
     spring: {
@@ -44,7 +44,7 @@ const ANIMATION = {
     entry: { duration: 0.2 },
 } as const;
 
-interface ModeLayoutProps {
+interface DashboardLayoutProps {
     workspaceStyle: WorkspaceStyle;
     torrents: Torrent[];
     filter: string;
@@ -87,7 +87,7 @@ interface ModeLayoutProps {
     tableWatermarkEnabled?: boolean;
 }
 
-export function ModeLayout({
+export function Dashboard_Layout({
     workspaceStyle,
     torrents,
     filter,
@@ -119,7 +119,7 @@ export function ModeLayout({
     isDropActive = false,
     detailSplitDirection = "vertical",
     tableWatermarkEnabled = true,
-}: ModeLayoutProps) {
+}: DashboardLayoutProps) {
     const { t } = useTranslation();
     const { activePart, setActivePart } = useFocusState();
 
@@ -406,7 +406,7 @@ export function ModeLayout({
                                 }
                                 transition={ANIMATION.entry}
                             >
-                                <TorrentDetailView
+                                <TorrentDetails
                                     torrent={detailData}
                                     onClose={handleDetailClose}
                                     onFilesToggle={onFilesToggle}
@@ -464,7 +464,7 @@ export function ModeLayout({
                             exit={{ opacity: 0, scale: 0.96 }}
                             transition={{ duration: 0.25 }}
                         >
-                            <TorrentDetailView
+                            <TorrentDetails
                                 torrent={detailData}
                                 onClose={handleDetailClose}
                                 onFilesToggle={onFilesToggle}

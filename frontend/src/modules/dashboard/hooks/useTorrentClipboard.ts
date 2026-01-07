@@ -1,0 +1,34 @@
+import { useCallback } from "react";
+import { CONFIG } from "@/config/logic";
+import type { Torrent } from "@/modules/dashboard/types/torrent";
+
+const DEFAULT_MAGNET_PREFIX = CONFIG.defaults.magnet_protocol_prefix;
+
+export function useTorrentClipboard() {
+    const isClipboardSupported =
+        typeof navigator !== "undefined" &&
+        typeof navigator.clipboard?.writeText === "function";
+
+    const buildMagnetLink = useCallback(
+        (torrent: Torrent) =>
+            `${DEFAULT_MAGNET_PREFIX}xt=urn:btih:${torrent.hash}`,
+        []
+    );
+
+    const copyToClipboard = useCallback(async (value?: string) => {
+        if (!value) return;
+        if (
+            typeof navigator === "undefined" ||
+            typeof navigator.clipboard?.writeText !== "function"
+        ) {
+            return;
+        }
+        try {
+            await navigator.clipboard.writeText(value);
+        } catch {
+            // ignore
+        }
+    }, []);
+
+    return { isClipboardSupported, copyToClipboard, buildMagnetLink };
+}

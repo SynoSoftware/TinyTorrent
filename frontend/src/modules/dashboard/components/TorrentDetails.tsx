@@ -1,16 +1,16 @@
 import { cn } from "@heroui/react";
 import { useTranslation } from "react-i18next";
-import { GeneralTab } from "./details/tabs/GeneralTab";
-import { ContentTab } from "./details/tabs/ContentTab";
-import { PiecesTab } from "./details/tabs/PiecesTab";
-import { SpeedTab } from "./details/tabs/SpeedTab";
-import { PeersTab } from "./details/tabs/PeersTab";
-import { TrackersTab } from "./details/tabs/TrackersTab";
+import { GeneralTab } from "./TorrentDetails_General";
+import { ContentTab } from "./TorrentDetails_Content";
+import { PiecesTab } from "./TorrentDetails_Pieces";
+import { SpeedTab } from "./TorrentDetails_Speed";
+import { PeersTab } from "./TorrentDetails_Peers";
+import { TrackersTab } from "./TorrentDetails_Trackers";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
-import type { PeerContextAction } from "./details/tabs/PeersTab";
+import type { PeerContextAction } from "./TorrentDetails_Peers";
 import type { TorrentPeerEntity } from "@/services/rpc/entities";
-import { TorrentDetailHeader } from "./details/TorrentDetailHeader";
-import { useDetailTabs } from "./details/useDetailTabs";
+import { TorrentDetailHeader } from "./TorrentDetails_Header";
+import { useDetailTabs } from "../hooks/useDetailTabs";
 import {
     BLOCK_SHADOW,
     GLASS_BLOCK_SURFACE,
@@ -25,7 +25,7 @@ import type {
 } from "@/shared/ui/workspace/FileExplorerTree";
 import type { CapabilityStore } from "@/app/types/capabilities";
 
-export interface TorrentDetailViewProps {
+export interface TorrentDetailsProps {
     torrent?: TorrentDetail | null;
     className?: string;
     onClose?: () => void;
@@ -60,7 +60,7 @@ export interface TorrentDetailViewProps {
  * props through. This restores the inspector UI while preserving per-tab
  * components implemented under `details/tabs/`.
  */
-export function TorrentDetailView({
+export function TorrentDetails({
     torrent,
     className,
     onFilesToggle,
@@ -82,7 +82,7 @@ export function TorrentDetailView({
     onDock,
     onPopout,
     onClose,
-}: TorrentDetailViewProps & {
+}: TorrentDetailsProps & {
     isDetailFullscreen?: boolean;
     onDock?: () => void;
     onPopout?: () => void;
@@ -196,4 +196,4 @@ export function TorrentDetailView({
     );
 }
 
-export default TorrentDetailView;
+export default TorrentDetails;
