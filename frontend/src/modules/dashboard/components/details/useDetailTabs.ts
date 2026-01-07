@@ -21,7 +21,37 @@ export const useDetailTabs = ({
     inspectorTabCommand,
     onInspectorTabCommandHandled,
 }: UseDetailTabsParams) => {
-    const [active, setActive] = useState<DetailTab>("general");
+    const STORAGE_KEY = "tt.inspector.active_tab";
+
+    const readStored = (): DetailTab | null => {
+        try {
+            if (typeof window === "undefined") return null;
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (!raw) return null;
+            if (DETAIL_TABS.includes(raw as DetailTab)) return raw as DetailTab;
+            return null;
+        } catch (e) {
+            return null;
+        }
+    };
+
+    const [active, setActiveInternal] = useState<DetailTab>(
+        () => readStored() ?? "general"
+    );
+
+    const setActive = (tab: DetailTab | ((t: DetailTab) => DetailTab)) => {
+        setActiveInternal((prev) => {
+            const next = typeof tab === "function" ? tab(prev) : tab;
+            try {
+                if (typeof window !== "undefined") {
+                    localStorage.setItem(STORAGE_KEY, next);
+                }
+            } catch (e) {
+                // ignore
+            }
+            return next;
+        });
+    };
 
     useEffect(() => {
         if (!inspectorTabCommand) return;
@@ -39,8 +69,13 @@ export const useDetailTabs = ({
         });
     }, [inspectorTabCommand, onInspectorTabCommandHandled]);
 
+    // When the active torrent changes (or inspector opens), restore the
+    // previously-selected inspector tab so the UI feels persistent across
+    // dock/undock/new-instance scenarios. If no stored tab exists, fall back
+    // to "general".
     useEffect(() => {
-        setActive("general");
+        const stored = readStored();
+        setActive(stored ?? "general");
     }, [activeTorrentId]);
 
     const handleKeyDown = useCallback(

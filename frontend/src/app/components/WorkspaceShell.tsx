@@ -111,10 +111,11 @@ interface WorkspaceShellProps {
     ) => void;
     sequentialToggleHandler?: (enabled: boolean) => Promise<void>;
     superSeedingToggleHandler?: (enabled: boolean) => Promise<void>;
-    handleForceTrackerReannounce: () => Promise<void>;
+    handleForceTrackerReannounce: () => Promise<string | void> | void;
     onSetLocation?: (torrent: TorrentDetail) => Promise<void> | void;
     onRedownload?: (torrent: TorrentDetail) => Promise<void> | void;
     onRetry?: (torrent: TorrentDetail) => Promise<void> | void;
+    onResume?: (torrent: TorrentDetail) => Promise<void> | void;
     capabilities: CapabilityStore;
     optimisticStatuses: OptimisticStatusMap;
     handleSelectionChange: (selection: Torrent[]) => void;
@@ -282,7 +283,7 @@ export function WorkspaceShell({
     );
 
     const renderModeLayoutSection = () => (
-            <ModeLayout
+        <ModeLayout
             workspaceStyle={workspaceStyle}
             torrents={torrents}
             filter={filter}

@@ -287,7 +287,7 @@
                 "line_width": 3,
                 "fill_alpha": 0.35,
                 "down_stroke_token": "--heroui-success",
-                "up_stroke_token": "--heroui-primary"
+                "up_stroke_token": "--heroui-secondary"
             }
         }
     },
