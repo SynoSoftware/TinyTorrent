@@ -88,6 +88,12 @@ type TorrentGetResponse<T> = {
     torrents: T[];
 };
 
+type HandshakeState = "idle" | "handshaking" | "ready" | "invalid";
+
+type RpcSendOptions = {
+    bypassHandshake?: boolean;
+};
+
 const DEFAULT_ENDPOINT =
     import.meta.env.VITE_RPC_ENDPOINT ?? CONFIG.defaults.rpc_endpoint;
 
@@ -158,6 +164,9 @@ export class TransmissionAdapter implements EngineAdapter {
     private tinyTorrentCapabilities?: TinyTorrentCapabilities | null;
     private websocketSession?: TinyTorrentWebSocketSession;
     private serverClass: ServerClass = "unknown";
+    private handshakeState: HandshakeState = "invalid";
+    private handshakePromise?: Promise<TransmissionSessionSettings>;
+    private handshakeResult?: TransmissionSessionSettings;
     // Cache for potentially expensive network telemetry lookups (free-space).
     // Prevents invoking disk/FS checks on every websocket tick.
     private networkTelemetryCache?: {
@@ -180,7 +189,36 @@ export class TransmissionAdapter implements EngineAdapter {
 
     private handleUnauthorizedResponse() {
         this.clearTinyTorrentAuthToken();
+        this.invalidateSession("unauthorized");
         this.closeWebSocketSession();
+    }
+
+    private transitionHandshakeState(next: HandshakeState, reason: string) {
+        const prev = this.handshakeState;
+        if (prev === next) return;
+        if (prev === "invalid" && next === "handshaking") {
+            console.debug("[tiny-torrent][rpc] session invalid -> handshaking", {
+                reason,
+            });
+        } else if (prev === "handshaking" && next === "ready") {
+            console.debug("[tiny-torrent][rpc] handshaking -> ready", { reason });
+        } else if (prev === "ready" && next === "invalid") {
+            console.debug("[tiny-torrent][rpc] ready -> invalid", { reason });
+        }
+        this.handshakeState = next;
+    }
+
+    private acceptSessionId(token: string) {
+        this.sessionId = token;
+        if (this.handshakeState === "invalid" || this.handshakeState === "idle") {
+            this.handshakeState = "ready";
+        }
+    }
+
+    private invalidateSession(reason: string) {
+        this.sessionId = undefined;
+        this.handshakeResult = undefined;
+        this.transitionHandshakeState("invalid", reason);
     }
 
     constructor(options?: {
@@ -211,8 +249,13 @@ export class TransmissionAdapter implements EngineAdapter {
         payload: RpcRequest<string>,
         schema: z.ZodSchema<T>,
         retryCount = 0,
-        keepalive = false
+        keepalive = false,
+        options?: RpcSendOptions
     ): Promise<T> {
+        void retryCount;
+        if (!options?.bypassHandshake && !this.sessionId) {
+            await this.handshakeOnce();
+        }
         const controller = new AbortController();
         this.activeControllers.add(controller);
         let timeoutId: number | undefined;
@@ -222,10 +265,8 @@ export class TransmissionAdapter implements EngineAdapter {
                 this.requestTimeout
             );
         }
+
         try {
-            // Rapid-call detection for the method name to help surface
-            // potential race conditions where callers repeatedly invoke
-            // the same RPC in quick succession.
             try {
                 const now = Date.now();
                 const m = payload.method ?? "";
@@ -236,11 +277,13 @@ export class TransmissionAdapter implements EngineAdapter {
                 ) {
                     entry.count += 1;
                 } else {
-                    this.recentMethodCalls.set(m, { count: 1, firstTs: now });
+                    this.recentMethodCalls.set(m, {
+                        count: 1,
+                        firstTs: now,
+                    });
                 }
                 const cur = this.recentMethodCalls.get(m)!;
                 if (cur.count >= this.METHOD_CALL_WARNING_THRESHOLD) {
-                    // Log a warning once per burst window to aid debugging.
                     console.warn(
                         `[tiny-torrent][rpc] Rapid repeated calls to RPC method '${m}' (${cur.count} times in ${this.METHOD_CALL_WINDOW_MS}ms). This may indicate a race condition or bad caller code.`
                     );
@@ -248,140 +291,143 @@ export class TransmissionAdapter implements EngineAdapter {
             } catch (e) {
                 // Don't allow diagnostic code to interfere with normal RPC flow.
             }
-            const headers: Record<string, string> = {
-                "Content-Type": "application/json",
-            };
-            const ttAuth = this.getTinyTorrentAuthToken();
-            if (ttAuth) {
-                headers["X-TT-Auth"] = ttAuth;
-            }
-            if (this.sessionId) {
-                headers["X-Transmission-Session-Id"] = this.sessionId;
-            }
-            const authHeader = this.getAuthorizationHeader();
-            if (authHeader) {
-                headers.Authorization = authHeader;
-            }
 
-            const requestInit: RequestInit = {
-                method: "POST",
-                headers,
-                body: JSON.stringify(payload),
-                signal: controller.signal,
-            };
-            if (keepalive) {
-                requestInit.keepalive = true;
-            }
-            const response = await fetch(this.endpoint, requestInit);
+            const attemptRequest = async (attempt: number): Promise<T> => {
+                const headers: Record<string, string> = {
+                    "Content-Type": "application/json",
+                };
+                const ttAuth = this.getTinyTorrentAuthToken();
+                if (ttAuth) {
+                    headers["X-TT-Auth"] = ttAuth;
+                }
+                if (this.sessionId) {
+                    headers["X-Transmission-Session-Id"] = this.sessionId;
+                }
+                const authHeader = this.getAuthorizationHeader();
+                if (authHeader) {
+                    headers.Authorization = authHeader;
+                }
 
-            if (response.status === 409) {
-                // 409 from Transmission is expected for POSTs without the
-                // X-Transmission-Session-Id header. Probe for the header and
-                // retry once. If the probe doesn't yield a token, still retry
-                // once (some Transmission setups accept the second POST).
-                let token = response.headers.get("X-Transmission-Session-Id");
-                if (!token) {
-                    try {
-                        token = await this.retrieveSessionIdFromServer(
-                            controller
-                        );
-                    } catch (err) {
-                        // ignore probe errors; we'll still attempt a retry below
+                const requestInit: RequestInit = {
+                    method: "POST",
+                    headers,
+                    body: JSON.stringify(payload),
+                    signal: controller.signal,
+                };
+                if (keepalive) {
+                    requestInit.keepalive = true;
+                }
+                const response = await fetch(this.endpoint, requestInit);
+
+                if (response.status === 409) {
+                    let token = response.headers.get(
+                        "X-Transmission-Session-Id"
+                    );
+                    if (!token) {
+                        try {
+                            token = await this.retrieveSessionIdFromServer(
+                                controller
+                            );
+                        } catch {
+                            // ignore probe errors
+                        }
                     }
+                    if (token) {
+                        this.acceptSessionId(token);
+                    }
+                    if (attempt >= 1) {
+                        this.invalidateSession("409-session-conflict");
+                        throw new Error("Transmission RPC session conflict");
+                    }
+                    if (!token) {
+                        this.invalidateSession("409-missing-session-id");
+                        throw new Error("Transmission RPC missing session id");
+                    }
+                    return attemptRequest(attempt + 1);
                 }
 
-                if (token && token !== this.sessionId) {
-                    this.sessionId = token;
+                if (response.status === 401) {
+                    this.handleUnauthorizedResponse();
+                    throw new Error("TinyTorrent RPC unauthorized");
+                }
+                if (response.status === 403) {
+                    this.handleUnauthorizedResponse();
+                    throw new Error("TinyTorrent RPC forbidden");
                 }
 
-                if (retryCount < 1) {
-                    // eslint-disable-next-line no-console
-                    console.debug(
-                        "[tiny-torrent][rpc] received 409; retrying request",
-                        { token, retryCount }
+                if (!response.ok) {
+                    throw new Error(
+                        `Transmission RPC responded with ${response.status}`
                     );
-                    return this.send(
-                        payload,
-                        schema,
-                        retryCount + 1,
-                        keepalive
+                }
+
+                const json = await response.json();
+                const parsed = parseRpcResponse(json);
+                if (parsed.result !== "success") {
+                    throw new RpcCommandError(
+                        `Transmission RPC responded with ${parsed.result}`,
+                        parsed.result
                     );
                 }
-                // fallthrough to error handling below if we've already retried
-            }
-
-            if (response.status === 401) {
-                this.handleUnauthorizedResponse();
-                throw new Error("TinyTorrent RPC unauthorized");
-            }
-            if (response.status === 403) {
-                this.handleUnauthorizedResponse();
-                throw new Error("TinyTorrent RPC forbidden");
-            }
-
-            if (!response.ok) {
-                throw new Error(
-                    `Transmission RPC responded with ${response.status}`
-                );
-            }
-
-            const json = await response.json();
-            const parsed = parseRpcResponse(json);
-            if (parsed.result !== "success") {
-                throw new RpcCommandError(
-                    `Transmission RPC responded with ${parsed.result}`,
-                    parsed.result
-                );
-            }
-            const args = parsed.arguments ?? {};
-            // Opt-in debug: set sessionStorage `tt-debug-raw-torrent-detail` to '1'
-            // to log the raw arguments for `torrent-get` responses once.
-            try {
-                const shouldLog =
-                    typeof sessionStorage !== "undefined" &&
-                    sessionStorage.getItem("tt-debug-raw-torrent-detail") ===
-                        "2";
-                if (shouldLog && payload.method === "torrent-get") {
-                    // eslint-disable-next-line no-console
-                    console.debug("[tiny-torrent][rpc-raw][torrent-get]", args);
-                }
-                // Opt-in debug: set sessionStorage `tt-debug-raw-session-get` to '1'
-                // to log the raw arguments for `session-get` responses once.
+                const args = parsed.arguments ?? {};
                 try {
-                    const shouldLogSessionGet =
+                    const shouldLog =
                         typeof sessionStorage !== "undefined" &&
-                        sessionStorage.getItem("tt-debug-raw-session-get") ===
-                            "1";
-                    if (
-                        shouldLogSessionGet &&
-                        payload.method === "session-get"
-                    ) {
-                        // eslint-disable-next-line no-console
+                        sessionStorage.getItem(
+                            "tt-debug-raw-torrent-detail"
+                        ) === "2";
+                    if (shouldLog && payload.method === "torrent-get") {
                         console.debug(
-                            "[tiny-torrent][rpc-raw][session-get]",
+                            "[tiny-torrent][rpc-raw][torrent-get]",
                             args
                         );
                     }
+                    try {
+                        const shouldLogSessionGet =
+                            typeof sessionStorage !== "undefined" &&
+                            sessionStorage.getItem(
+                                "tt-debug-raw-session-get"
+                            ) === "1";
+                        if (
+                            shouldLogSessionGet &&
+                            payload.method === "session-get"
+                        ) {
+                            console.debug(
+                                "[tiny-torrent][rpc-raw][session-get]",
+                                args
+                            );
+                        }
+                    } catch (e) {
+                        // ignore sessionStorage errors for session-get logging
+                    }
                 } catch (e) {
-                    // ignore sessionStorage errors for session-get logging
+                    // ignore sessionStorage errors
                 }
-            } catch (e) {
-                // ignore sessionStorage errors
-            }
-            return schema.parse(args as unknown) as T;
+                return schema.parse(args as unknown) as T;
+            };
+
+            const requestPromise = (async () => {
+                try {
+                    return await attemptRequest(0);
+                } catch (e) {
+                    console.error("[tiny-torrent][rpc] send error:", e);
+                    throw e;
+                } finally {
+                    if (timeoutId) {
+                        window.clearTimeout(timeoutId);
+                    }
+                    try {
+                        this.activeControllers.delete(controller);
+                    } catch {
+                        // swallow
+                    }
+                }
+            })();
+
+            return requestPromise;
         } catch (e) {
             console.error("[tiny-torrent][rpc] send error:", e);
             throw e;
-        } finally {
-            if (timeoutId) {
-                window.clearTimeout(timeoutId);
-            }
-            // remove controller from active set
-            try {
-                this.activeControllers.delete(controller);
-            } catch {
-                // swallow
-            }
         }
     }
 
@@ -644,18 +690,51 @@ export class TransmissionAdapter implements EngineAdapter {
     }
 
     public async handshake(): Promise<TransmissionSessionSettings> {
+        return this.handshakeOnce();
+    }
+
+    private async handshakeOnce(
+        reason: string = "no-session-id"
+    ): Promise<TransmissionSessionSettings> {
+        if (this.handshakePromise) {
+            return this.handshakePromise;
+        }
+        if (this.sessionId && this.sessionSettingsCache) {
+            return this.sessionSettingsCache;
+        }
+        if (this.handshakeState === "idle") {
+            this.handshakeState = "invalid";
+        }
+        this.transitionHandshakeState("handshaking", reason);
+        const promise = (async () => {
+            try {
+                const result = await this.performHandshake();
+                this.handshakeResult = result;
+                this.transitionHandshakeState("ready", "handshake-ok");
+                return result;
+            } catch (error) {
+                this.transitionHandshakeState("invalid", "handshake-failure");
+                throw error;
+            } finally {
+                this.handshakePromise = undefined;
+            }
+        })();
+        this.handshakePromise = promise;
+        return promise;
+    }
+
+    private async performHandshake(): Promise<TransmissionSessionSettings> {
         const result = await this.send(
             { method: "session-get" },
-            zTransmissionSessionSettings
+            zTransmissionSessionSettings,
+            0,
+            false,
+            { bypassHandshake: true }
         );
         this.sessionSettingsCache = result;
-
         this.engineInfoCache = undefined;
         this.applyCapabilities(null);
-
-        // FIX: Use 'this' instead of 'adapter'.
         await this.refreshExtendedCapabilities(true);
-
         return result;
     }
 
