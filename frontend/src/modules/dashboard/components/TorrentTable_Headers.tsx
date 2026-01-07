@@ -11,7 +11,13 @@ import TorrentTable_Header from "./TorrentTable_Header";
 // Extracted from `TorrentTable.tsx` and made props-driven to avoid
 // referencing outer-scope variables directly.
 
-export const ColumnHeaderPreview = ({ header }: { header: any }) => {
+export const ColumnHeaderPreview = ({
+    header,
+    isAnyColumnResizing = false,
+}: {
+    header: any;
+    isAnyColumnResizing?: boolean;
+}) => {
     const { column } = header;
     const align = column.columnDef.meta?.align || "start";
     const isSelection = header.id.toString() === "selection";
@@ -29,7 +35,12 @@ export const ColumnHeaderPreview = ({ header }: { header: any }) => {
                 boxSizing: "border-box",
             }}
         >
-            <TableHeaderContent header={header} />
+            <TableHeaderContent
+                header={header}
+                useBaseClass={true}
+                isMeasurement={false}
+                layoutEnabled={!isAnyColumnResizing}
+            />
         </div>
     );
 };

@@ -4,7 +4,6 @@ import { useSortable, defaultAnimateLayoutChanges } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@heroui/react";
 import { ArrowDown, ArrowUp } from "lucide-react";
-import { flexRender } from "@tanstack/react-table";
 import type { Column } from "@tanstack/react-table";
 import type { Header } from "@tanstack/react-table";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
@@ -59,6 +58,8 @@ const TorrentTable_Header = memo(
             disabled: isAnyColumnResizing,
             animateLayoutChanges: (args) => {
                 if (isAnyColumnResizing) return false;
+                const { wasDragging } = args;
+                if (wasDragging) return false;
                 return defaultAnimateLayoutChanges(args);
             },
         });
@@ -127,7 +128,7 @@ const TorrentTable_Header = memo(
         return (
             <motion.div
                 ref={setNodeRef}
-                layout={shouldAnimateLayout}
+                layout={shouldAnimateLayout ? "position" : false}
                 layoutId={`column-header-${header.id}`}
                 initial={false}
                 style={style}
@@ -167,7 +168,13 @@ const TorrentTable_Header = memo(
                         canSort ? column.getToggleSortingHandler() : undefined
                     }
                 >
-                    {flexRender(column.columnDef.header, header.getContext())}
+                    <TableHeaderContent
+                        header={header}
+                        useBaseClass={true}
+                        isMeasurement={false}
+                        layoutEnabled={shouldAnimateLayout}
+                        showSortIcon={false}
+                    />
                     <SortArrowIcon
                         strokeWidth={ICON_STROKE_WIDTH_DENSE}
                         className={cn(

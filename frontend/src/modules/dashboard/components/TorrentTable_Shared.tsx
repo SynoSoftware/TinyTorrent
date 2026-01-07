@@ -38,10 +38,14 @@ export const TableHeaderContent = memo(
         header,
         isMeasurement = false,
         useBaseClass = true,
+        layoutEnabled = true,
+        showSortIcon = true,
     }: {
         header: Header<Torrent, unknown>;
         isMeasurement?: boolean;
         useBaseClass?: boolean;
+        layoutEnabled?: boolean;
+        showSortIcon?: boolean;
     }) => {
         const { column } = header;
         const align = column.columnDef.meta?.align || "start";
@@ -54,7 +58,9 @@ export const TableHeaderContent = memo(
                 {...(isMeasurement
                     ? { ["data-tt-measure-header"]: column.id }
                     : {})}
-                layout={"position"}
+                layout={
+                    isMeasurement ? false : layoutEnabled ? "position" : false
+                }
                 className={cn(
                     useBaseClass && CELL_BASE_CLASS,
                     "gap-tools text-scaled font-bold uppercase text-foreground/60",
@@ -72,7 +78,7 @@ export const TableHeaderContent = memo(
                 }}
             >
                 {flexRender(column.columnDef.header, header.getContext())}
-                {useBaseClass && (
+                {useBaseClass && showSortIcon && (
                     <SortArrowIcon
                         strokeWidth={ICON_STROKE_WIDTH_DENSE}
                         className={cn(
