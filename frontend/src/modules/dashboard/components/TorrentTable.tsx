@@ -353,6 +353,16 @@ interface TorrentTableProps {
 }
 
 // --- HELPERS ---
+// Reusable spacer used to account for the resize-handle width inside cells.
+const ResizeHandleSpacer = () => (
+    <div
+        aria-hidden="true"
+        style={{
+            width: "var(--tt-resize-handle-w)",
+            flexShrink: 0,
+        }}
+    />
+);
 // --- SUB-COMPONENT: DRAGGABLE HEADER ---
 const DraggableHeader = memo(
     ({
@@ -698,6 +708,13 @@ const ColumnMeasurementLayer = memo(
                                         cell.column.columnDef.cell,
                                         cell.getContext()
                                     )}
+                                    <div
+                                        aria-hidden="true"
+                                        style={{
+                                            width: "var(--tt-resize-handle-w)",
+                                            flexShrink: 0,
+                                        }}
+                                    />
                                 </div>
                             );
                         })}
