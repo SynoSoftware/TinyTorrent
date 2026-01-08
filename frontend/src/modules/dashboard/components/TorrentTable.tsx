@@ -519,6 +519,7 @@ export function TorrentTable({
             const maxAllowed = Math.max(80, Math.round(containerWidth));
             const finalWidth = Math.min(computedWidth, maxAllowed);
             const currentWidth = column.getSize();
+            // diagnostics removed: auto-fit logging
             if (Math.abs(finalWidth - currentWidth) <= AUTO_FIT_TOLERANCE_PX) {
                 return false;
             }
@@ -1015,7 +1016,10 @@ export function TorrentTable({
                             className={DND_OVERLAY_CLASSES}
                         >
                             {activeHeader ? (
-                                <ColumnHeaderPreview header={activeHeader} isAnyColumnResizing={isAnyColumnResizing} />
+                                <ColumnHeaderPreview
+                                    header={activeHeader}
+                                    isAnyColumnResizing={isAnyColumnResizing}
+                                />
                             ) : null}
                         </DragOverlay>
                     )}

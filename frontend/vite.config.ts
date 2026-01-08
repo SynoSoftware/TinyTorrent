@@ -31,4 +31,13 @@ export default defineConfig({
             },
         },
     },
+    test: {
+        // Use the same DOM-like environment as the project tests expect
+        environment: "happy-dom",
+        // Only run tests placed under `__tests__` to avoid legacy manual runners
+        include: [
+            "src/**/__tests__/**/*.test.ts",
+            "src/**/__tests__/**/*.spec.ts",
+        ],
+    },
 });

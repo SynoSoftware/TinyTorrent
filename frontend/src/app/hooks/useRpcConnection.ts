@@ -93,30 +93,59 @@ export function useRpcConnection(
         console.log("[tiny-torrent][rpc] handshake start");
         setIsReady(false);
         updateStatus(STATUS.connection.IDLE);
+        let succeeded = false;
         try {
             if (resolvedClient.handshake) {
                 await resolvedClient.handshake();
             }
+            succeeded = true;
             markTransportConnected();
+            if (isMountedRef.current) setIsReady(true);
             console.log("[tiny-torrent][rpc] handshake succeeded");
         } catch (error) {
             console.log("[tiny-torrent][rpc] handshake failed");
             reportTransportError(error);
+            if (isMountedRef.current) setIsReady(false);
         } finally {
-            if (isMountedRef.current) {
-                setIsReady(true);
-            }
+            // Only mark `isReady` true when the component is still mounted
+            // and handshake completed successfully above.
             isHandshakingRef.current = false;
             lastHandshakeTs.current = Date.now();
             if (pendingReconnectRef.current) {
-                // consume the pending flag and run a single coalesced reconnect
-                console.log(
-                    "[tiny-torrent][rpc] running queued reconnect handshake"
-                );
+                // Delay the queued reconnect to coalesce rapid requests and
+                // avoid immediately re-entering the handshake path. This
+                // ensures we don't run a reconnect instantly after success
+                // while still honoring the user's request to reconnect.
+                const pending = pendingReconnectRef.current;
                 pendingReconnectRef.current = false;
-                void latestHandshakeRef.current?.();
+                if (pending) {
+                    setTimeout(() => {
+                        try {
+                            latestHandshakeRef
+                                .current?.()
+                                .catch((e) =>
+                                    console.error(
+                                        "[tiny-torrent][rpc] queued handshake error:",
+                                        e
+                                    )
+                                );
+                        } catch (e) {
+                            // swallow
+                        }
+                    }, HANDSHAKE_MIN_INTERVAL_MS);
+                }
             }
         }
+        // Only mark ready if handshake succeeded (no error thrown)
+        try {
+            if (isMountedRef.current && resolvedClient) {
+                setIsReady(
+                    !!resolvedClient &&
+                        !isHandshakingRef.current &&
+                        (resolvedClient as any).handshake !== undefined
+                );
+            }
+        } catch {}
     }, [
         resolvedClient,
         markTransportConnected,

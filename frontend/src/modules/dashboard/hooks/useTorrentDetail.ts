@@ -7,7 +7,6 @@ import {
 } from "react";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import type { ReportReadErrorFn } from "@/shared/types/rpc";
-import { isRpcCommandError } from "@/services/rpc/errors";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
 
 interface UseTorrentDetailParams {
@@ -37,12 +36,9 @@ export function useTorrentDetail({
     sessionReady,
 }: UseTorrentDetailParams): UseTorrentDetailResult {
     const [detailData, setDetailData] = useState<TorrentDetail | null>(null);
-    const detailRequestRef = useRef(0);
     const activeDetailIdRef = useRef<string | null>(null);
     const detailTimestampRef = useRef(0);
-    const detailIdentityRef = useRef<{ id: string; hash: string } | null>(
-        null
-    );
+    const detailIdentityRef = useRef<{ id: string; hash: string } | null>(null);
 
     const commitDetailState = useCallback(
         (detail: TorrentDetail | null, timestamp = Date.now()) => {
@@ -56,35 +52,25 @@ export function useTorrentDetail({
         [isMountedRef]
     );
 
+    // FIX: Removed the direct RPC call.
+    // This forces the data loading to go through the Heartbeat subscription,
+    // which is protected by the global 500ms/1000ms throttle.
+    // This stops the "Row Thrashing" storm.
     const loadDetail = useCallback(
         async (torrentId: string, placeholder?: TorrentDetail) => {
-            const requestId = ++detailRequestRef.current;
             activeDetailIdRef.current = torrentId;
+
+            // If we have a placeholder, use it to set state immediately.
+            // This triggers the useEffect below to subscribe to the Heartbeat.
             if (placeholder) {
                 commitDetailState(placeholder, 0);
-            }
-            try {
-                const detail = await torrentClient.getTorrentDetails(torrentId);
-                if (
-                    detailRequestRef.current !== requestId ||
-                    activeDetailIdRef.current !== torrentId
-                )
-                    return;
-                commitDetailState(detail);
-            } catch (error) {
-                if (
-                    detailRequestRef.current !== requestId ||
-                    activeDetailIdRef.current !== torrentId
-                )
-                    return;
-                if (isMountedRef.current) {
-                    if (!isRpcCommandError(error)) {
-                        reportReadError();
-                    }
-                }
+            } else {
+                // If no placeholder, create a stub so we can subscribe.
+                // The Heartbeat will fill in the real data on the next tick.
+                commitDetailState({ id: torrentId } as TorrentDetail, 0);
             }
         },
-        [torrentClient, reportReadError, isMountedRef, commitDetailState]
+        [commitDetailState]
     );
 
     const refreshDetailData = useCallback(async () => {

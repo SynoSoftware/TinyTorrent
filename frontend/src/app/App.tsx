@@ -1008,10 +1008,55 @@ export default function App() {
 
             try {
                 let det: TorrentDetail | null = null;
-                try {
-                    det = await client.getTorrentDetails(target.id);
-                } catch {
-                    det = detailData ?? null;
+                // Prefer already-loaded detail data from Heartbeat
+                if (detailData && detailData.id === target.id) {
+                    det = detailData;
+                } else {
+                    // Try to wait briefly for Heartbeat to deliver the detail
+                    const waitForHeartbeatDetail = (
+                        id: string,
+                        timeout = 2000
+                    ) =>
+                        new Promise<TorrentDetail | null>((resolve) => {
+                            let settled = false;
+                            const timer = window.setTimeout(() => {
+                                if (settled) return;
+                                settled = true;
+                                try {
+                                    sub.unsubscribe();
+                                } catch {}
+                                resolve(null);
+                            }, timeout);
+
+                            const sub = torrentClient.subscribeToHeartbeat({
+                                mode: "detail",
+                                detailId: id,
+                                onUpdate: (payload) => {
+                                    if (settled) return;
+                                    const d = payload.detail as any;
+                                    if (!d) return;
+                                    settled = true;
+                                    try {
+                                        sub.unsubscribe();
+                                    } catch {}
+                                    window.clearTimeout(timer);
+                                    resolve(d as TorrentDetail);
+                                },
+                                onError: () => {
+                                    // ignore — timeout will resolve
+                                },
+                            });
+                        });
+
+                    det = await waitForHeartbeatDetail(target.id, 2000);
+                    // As a last resort, fall back to direct adapter call.
+                    if (!det) {
+                        try {
+                            det = await client.getTorrentDetails(target.id);
+                        } catch {
+                            det = detailData ?? null;
+                        }
+                    }
                 }
 
                 const hashString = det?.hash ?? target.hash;
@@ -1342,24 +1387,43 @@ export default function App() {
                 });
                 addedId = added.id;
 
-                const deadlineMs = Date.now() + 30000;
-                while (Date.now() < deadlineMs) {
-                    const detail = await torrentClient.getTorrentDetails(
-                        added.id
-                    );
-                    const files = detail.files ?? [];
-                    if (files.length > 0) {
-                        const metadata: TorrentMetadata = {
-                            name: detail.name,
-                            files: files.map((f) => ({
-                                path: f.name,
-                                length: f.length ?? 0,
-                            })),
-                        };
-                        return { torrentId: added.id, metadata };
+                // Wait for metadata via Heartbeat (timeout 30s)
+                const metadata = await new Promise<TorrentMetadata | null>(
+                    (resolve) => {
+                        let timeoutId: number;
+                        const sub = torrentClient.subscribeToHeartbeat({
+                            mode: "detail",
+                            detailId: added.id,
+                            onUpdate: ({ detail }) => {
+                                if (detail && (detail.files?.length ?? 0) > 0) {
+                                    clearTimeout(timeoutId);
+                                    sub.unsubscribe();
+                                    resolve({
+                                        name: detail.name,
+                                        files: detail.files!.map((f) => ({
+                                            path: f.name,
+                                            length: f.length ?? 0,
+                                        })),
+                                    });
+                                }
+                            },
+                            onError: () => {
+                                // Keep waiting on transient errors, or fail?
+                                // Let's keep waiting until timeout.
+                            },
+                        });
+
+                        timeoutId = window.setTimeout(() => {
+                            sub.unsubscribe();
+                            resolve(null);
+                        }, 30_000);
                     }
-                    await new Promise((r) => setTimeout(r, 500));
+                );
+
+                if (metadata) {
+                    return { torrentId: added.id, metadata };
                 }
+
                 if (addedId) {
                     try {
                         await torrentClient.remove([addedId], false);
@@ -1378,7 +1442,6 @@ export default function App() {
             torrentClient,
         ]
     );
-
     useEffect(() => {
         if (
             !addSource ||

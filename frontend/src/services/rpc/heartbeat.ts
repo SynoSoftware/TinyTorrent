@@ -40,11 +40,19 @@ type HeartbeatClient = {
     getTorrents(): Promise<TorrentEntity[]>;
     getSessionStats(): Promise<SessionStats>;
     getTorrentDetails(id: string): Promise<TorrentDetailEntity>;
+    // Optional bulk fetch to retrieve many details in a single RPC call.
+    getTorrentDetailsBulk?(ids: string[]): Promise<TorrentDetailEntity[]>;
 };
 
 // Extend HeartbeatClient with optional network telemetry fetch support.
 type HeartbeatClientWithTelemetry = HeartbeatClient & {
     fetchNetworkTelemetry?(): Promise<NetworkTelemetry | null>;
+    // Optional optimized delta fetch for transmission-daemon: return a
+    // structure with updated torrents and optionally removed ids.
+    getRecentlyActive?: () => Promise<{
+        torrents: TorrentEntity[];
+        removed?: number[];
+    }>;
 };
 
 type HeartbeatSubscriber = {
@@ -81,6 +89,21 @@ export class HeartbeatManager {
         string,
         { hash: string; detail: TorrentDetailEntity }
     >();
+    // Drift correction counters: after a number of delta-only cycles,
+    // force a full sync to prevent ghost rows when deltas are missed.
+    private cycleCount = 0;
+    private readonly MAX_DELTA_CYCLES: number;
+    // Rate-limit immediate tick triggers to avoid UI mount/unmount storms.
+    private lastImmediateTriggerMs = 0;
+    private readonly MIN_IMMEDIATE_TRIGGER_MS: number;
+    // Guard to prevent multiple immediate triggers from starting concurrent
+    // tick tasks before the first one has a chance to record its timestamp.
+    private immediateTickPending = false;
+    // Visibility multiplier: when the page is hidden, increase polling
+    // intervals to reduce CPU/network. Default multiplier chosen conservatively.
+    private visibilityMultiplier = 1;
+    private visibilityHandler?: () => void;
+
     // Per-torrent speed history: true O(1) circular buffer (no shift/push, no leaks)
     private readonly speedHistory = new Map<
         string,
@@ -96,7 +119,6 @@ export class HeartbeatManager {
         // This removes the "Cleverness Trap" of manual property picking.
         return JSON.stringify(torrents);
     }
-
     private computeChangedIds(
         current: TorrentEntity[],
         previous?: TorrentEntity[]
@@ -133,6 +155,47 @@ export class HeartbeatManager {
 
     constructor(client: HeartbeatClient) {
         this.client = client as HeartbeatClientWithTelemetry;
+        // Read MAX_DELTA_CYCLES from CONFIG if present, fall back to 30.
+        try {
+            const cfg = (CONFIG as any)?.performance;
+            const v =
+                typeof cfg?.max_delta_cycles === "number"
+                    ? cfg.max_delta_cycles
+                    : undefined;
+            this.MAX_DELTA_CYCLES = Number.isFinite(v) && v! > 0 ? v! : 30;
+            const mi =
+                typeof cfg?.min_immediate_tick_ms === "number"
+                    ? cfg.min_immediate_tick_ms
+                    : undefined;
+            this.MIN_IMMEDIATE_TRIGGER_MS =
+                Number.isFinite(mi) && mi! >= 0 ? mi! : 1000;
+        } catch {
+            this.MAX_DELTA_CYCLES = 30;
+            this.MIN_IMMEDIATE_TRIGGER_MS = 1000;
+        }
+
+        // Visibility handling: when the document is hidden, increase polling
+        // intervals to reduce background churn. Use a conservative multiplier.
+        try {
+            if (typeof document !== "undefined") {
+                const applyVisibility = () => {
+                    try {
+                        if ((document as any).hidden) {
+                            this.visibilityMultiplier = 15; // hidden -> slower
+                        } else {
+                            this.visibilityMultiplier = 1; // visible -> normal
+                        }
+                        this.rescheduleLoop();
+                    } catch {}
+                };
+                // store handler so we can remove it later to avoid leaks
+                this.visibilityHandler = applyVisibility;
+                applyVisibility();
+                document.addEventListener("visibilitychange", applyVisibility);
+            }
+        } catch {
+            // ignore environment without document
+        }
     }
 
     public getSpeedHistory(id: string) {
@@ -160,20 +223,69 @@ export class HeartbeatManager {
         };
     }
 
-    private fetchDetailResponses(
+    // remove any global listeners and perform cleanup
+    public dispose() {
+        try {
+            if (this.visibilityHandler && typeof document !== "undefined") {
+                document.removeEventListener(
+                    "visibilitychange",
+                    this.visibilityHandler
+                );
+                this.visibilityHandler = undefined;
+            }
+        } catch {
+            // ignore
+        }
+        try {
+            // Ensure any pending timer is cleared to avoid a tick
+            // firing after the client/adapter has been destroyed.
+            this.clearTimer();
+        } catch {
+            // ignore
+        }
+        // Mark not running so any in-progress checks won't treat this
+        // instance as active.
+        this.isRunning = false;
+    }
+
+    private async fetchDetailResponses(
         detailIds: string[]
     ): Promise<DetailFetchResult[]> {
         if (detailIds.length === 0) {
-            return Promise.resolve([]);
+            return [];
         }
+
+        // OPTIMIZATION: Use bulk fetch if available to prevent N+1 request storms
+        if (typeof (this.client as any).getTorrentDetailsBulk === "function") {
+            try {
+                const details = await (
+                    this.client as any
+                ).getTorrentDetailsBulk(detailIds);
+
+                const resultMap = new Map<string, TorrentDetailEntity>();
+                for (const d of details || []) {
+                    if (d && d.id) resultMap.set(d.id, d);
+                }
+
+                return detailIds.map((id) => ({
+                    detailId: id,
+                    detail: resultMap.get(id),
+                    error: resultMap.has(id)
+                        ? undefined
+                        : new Error("Detail not returned in bulk fetch"),
+                }));
+            } catch (error) {
+                return detailIds.map((id) => ({ detailId: id, error }));
+            }
+        }
+
+        // Fallback to original queued/parallel fetching strategy
         const queue = detailIds.slice();
         const results: DetailFetchResult[] = [];
         const worker = async () => {
             while (true) {
                 const detailId = queue.shift();
-                if (!detailId) {
-                    return;
-                }
+                if (!detailId) return;
                 try {
                     const detail = await this.client.getTorrentDetails(
                         detailId
@@ -189,7 +301,8 @@ export class HeartbeatManager {
             DETAIL_FETCH_CONCURRENCY
         );
         const workers = new Array(concurrency).fill(null).map(() => worker());
-        return Promise.all(workers).then(() => results);
+        await Promise.all(workers);
+        return results;
     }
 
     private hasDetailSubscribers() {
@@ -369,6 +482,12 @@ export class HeartbeatManager {
 
     private triggerImmediateTick() {
         if (this.isRunning) return;
+        if (this.immediateTickPending) return;
+        const now = Date.now();
+        if (now - this.lastImmediateTriggerMs < this.MIN_IMMEDIATE_TRIGGER_MS) {
+            return;
+        }
+        this.immediateTickPending = true;
         void this.tick();
     }
 
@@ -408,13 +527,32 @@ export class HeartbeatManager {
     }
 
     private getIntervalForParams(params: HeartbeatSubscriberParams) {
+        let interval: number;
         if (params.mode === "table" && params.pollingIntervalMs !== undefined) {
-            return Math.max(1000, params.pollingIntervalMs);
+            interval = Math.max(1000, params.pollingIntervalMs);
+        } else {
+            interval = MODE_INTERVALS[params.mode];
         }
-        return MODE_INTERVALS[params.mode];
+
+        interval = interval * this.visibilityMultiplier;
+
+        if (!Number.isFinite(interval)) {
+            return 2000;
+        }
+
+        // Enforce a sensible floor to prevent extremely fast polling from
+        // mis-configured clients or NaN propagation. Use 500ms to avoid
+        // sub-500ms polling unless explicitly configured.
+        return Math.max(500, interval);
     }
 
     private async tick() {
+        // Record the execution time of a real tick so throttling reflects
+        // actual work, not just immediate trigger attempts.
+        this.lastImmediateTriggerMs = Date.now();
+        // clear the pending flag since the tick has actually started
+        this.immediateTickPending = false;
+
         if (this.subscribers.size === 0) return;
         const snapshot = Array.from(this.subscribers.values());
         const detailIds = Array.from(
@@ -440,11 +578,85 @@ export class HeartbeatManager {
             let changedIds: string[] = [];
 
             if (shouldFetchSummary || !torrents || !sessionStats) {
-                const [fetchedTorrents, fetchedSessionStats] =
-                    await Promise.all([
+                let fetchedTorrents: TorrentEntity[];
+                let fetchedSessionStats: SessionStats;
+
+                // If we already have an initial snapshot and the client
+                // exposes `getRecentlyActive`, prefer the lightweight delta
+                // fetch to avoid pulling the entire torrent list every tick.
+                // Decide whether to use delta or force a full fetch.
+                const supportsDelta =
+                    Array.isArray(torrents) &&
+                    torrents.length > 0 &&
+                    typeof (this.client as any).getRecentlyActive ===
+                        "function";
+                const forceFull = this.cycleCount >= this.MAX_DELTA_CYCLES;
+
+                if (supportsDelta && !forceFull) {
+                    try {
+                        const telemetryClient = this
+                            .client as HeartbeatClientWithTelemetry;
+                        const recentActiveCall = (
+                            this.client as any
+                        ).getRecentlyActive();
+                        const sessionStatsCall = this.client.getSessionStats();
+                        const telemetryCall =
+                            typeof telemetryClient.fetchNetworkTelemetry ===
+                            "function"
+                                ? telemetryClient.fetchNetworkTelemetry()
+                                : Promise.resolve(undefined);
+
+                        const [delta, stats, maybeTelemetry] =
+                            await Promise.all([
+                                recentActiveCall,
+                                sessionStatsCall,
+                                telemetryCall,
+                            ]);
+                        fetchedSessionStats = stats;
+                        // Merge delta into existing snapshot using string keys
+                        const prevTorrents = this.lastTorrents ?? [];
+                        const map = new Map<string, TorrentEntity>();
+                        for (const t of prevTorrents) map.set(t.id, t);
+                        // Apply removals (normalize removed ids to string)
+                        if (delta && Array.isArray(delta.removed)) {
+                            for (const id of delta.removed)
+                                map.delete(String(id));
+                        }
+                        // Apply updates / inserts
+                        if (delta && Array.isArray(delta.torrents)) {
+                            for (const d of delta.torrents) {
+                                map.set(String(d.id), d as TorrentEntity);
+                            }
+                        }
+                        fetchedTorrents = Array.from(map.values());
+                        // store telemetry if provided
+                        if (maybeTelemetry) {
+                            fetchedTelemetry =
+                                maybeTelemetry as NetworkTelemetry;
+                        }
+                        // successful delta cycle -> bump counter
+                        this.cycleCount += 1;
+                    } catch (err) {
+                        // On failure, fallback to full fetch
+                        const [all, stats] = await Promise.all([
+                            this.client.getTorrents(),
+                            this.client.getSessionStats(),
+                        ]);
+                        fetchedTorrents = all;
+                        fetchedSessionStats = stats;
+                        // on fallback to full fetch, reset delta counter only when delta was supported
+                        this.cycleCount = 0;
+                    }
+                } else {
+                    const [all, stats] = await Promise.all([
                         this.client.getTorrents(),
                         this.client.getSessionStats(),
                     ]);
+                    fetchedTorrents = all;
+                    fetchedSessionStats = stats;
+                    // performed a full fetch: reset delta counter only if client supports delta
+                    if (supportsDelta) this.cycleCount = 0;
+                }
                 // Attempt to fetch optional network telemetry from the adapter.
                 // This is conservative: if the adapter doesn't support it or
                 // the call fails, we silently proceed without telemetry.

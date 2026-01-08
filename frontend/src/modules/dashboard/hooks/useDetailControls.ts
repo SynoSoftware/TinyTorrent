@@ -196,52 +196,81 @@ export function useDetailControls({
             throw err;
         }
 
-        // Poll for tracker state change for a limited time
-        const pollInterval = 500;
+        // Wait for the heartbeat to report an updated detail for this torrent
+        // rather than polling the adapter directly. This avoids creating
+        // additional RPC traffic and relies on the HeartbeatManager to
+        // deliver detail updates written by the engine.
         const timeout = 12_000; // 12s
-        const start = Date.now();
 
-        while (isMountedRef.current && Date.now() - start < timeout) {
-            try {
-                const fresh = await torrentClient.getTorrentDetails(
-                    detailData.id
-                );
-                const freshTrackers = fresh.trackers ?? [];
+        try {
+            return await new Promise<string | undefined>((resolve) => {
+                let settled = false;
+                const timer = window.setTimeout(() => {
+                    if (settled) return;
+                    settled = true;
+                    try {
+                        sub.unsubscribe();
+                    } catch {}
+                    resolve(
+                        t("torrent_modal.trackers.reannounce_timeout", {
+                            defaultValue: "Reannounce timed out",
+                        })
+                    );
+                }, timeout);
 
-                const changed = snapshot.some((s) => {
-                    const match = freshTrackers.find(
-                        (ft) => ft.id === s.id || ft.announce === s.announce
-                    );
-                    if (!match) return false;
-                    const ftTime =
-                        typeof match.lastAnnounceTime === "number"
-                            ? match.lastAnnounceTime
-                            : 0;
-                    const ftSucc = match.lastAnnounceSucceeded === true;
-                    return (
-                        ftTime > s.lastAnnounceTime ||
-                        (ftSucc && !s.lastAnnounceSucceeded)
-                    );
+                const sub = torrentClient.subscribeToHeartbeat({
+                    mode: "detail",
+                    detailId: detailData.id,
+                    onUpdate: (payload) => {
+                        if (settled) return;
+                        const fresh = payload.detail;
+                        if (!fresh) return;
+                        const freshTrackers = fresh.trackers ?? [];
+                        const changed = snapshot.some((s) => {
+                            const match = freshTrackers.find(
+                                (ft) =>
+                                    ft.id === s.id || ft.announce === s.announce
+                            );
+                            if (!match) return false;
+                            const ftTime =
+                                typeof match.lastAnnounceTime === "number"
+                                    ? match.lastAnnounceTime
+                                    : 0;
+                            const ftSucc = match.lastAnnounceSucceeded === true;
+                            return (
+                                ftTime > s.lastAnnounceTime ||
+                                (ftSucc && !s.lastAnnounceSucceeded)
+                            );
+                        });
+
+                        if (changed) {
+                            settled = true;
+                            try {
+                                sub.unsubscribe();
+                            } catch {}
+                            window.clearTimeout(timer);
+                            // update the detail cache with the fresh detail
+                            mutateDetail(() => fresh as any);
+                            resolve(
+                                t(
+                                    "torrent_modal.trackers.reannounce_completed",
+                                    {
+                                        defaultValue: "Reannounce completed",
+                                    }
+                                )
+                            );
+                        }
+                    },
+                    onError: () => {
+                        // ignore errors; the timeout will handle failure
+                    },
                 });
-
-                if (changed) {
-                    // update the detail cache with the fresh detail
-                    mutateDetail(() => fresh as any);
-                    return t("torrent_modal.trackers.reannounce_completed", {
-                        defaultValue: "Reannounce completed",
-                    });
-                }
-            } catch {
-                // ignore transient errors and continue polling
-            }
-
-            // wait
-            await new Promise((r) => setTimeout(r, pollInterval));
+            });
+        } catch {
+            return t("torrent_modal.trackers.reannounce_timeout", {
+                defaultValue: "Reannounce timed out",
+            });
         }
-
-        return t("torrent_modal.trackers.reannounce_timeout", {
-            defaultValue: "Reannounce timed out",
-        });
     }, [
         detailData,
         runWithRefresh,

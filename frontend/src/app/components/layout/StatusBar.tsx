@@ -506,29 +506,12 @@ export function StatusBar({
     const rpcConnection = useRpcConnection();
     const client = useTorrentClient();
 
+    // StatusBar must not independently fetch the full torrent list; prefer
+    // the parent-provided `torrents` (from Heartbeat) to avoid N+1 storms.
+    // Keep a nullable placeholder so `sourceTorrents` logic remains simple.
     const [fetchedTorrents, setFetchedTorrents] = React.useState<
         TorrentEntity[] | null
     >(null);
-
-    React.useEffect(() => {
-        let mounted = true;
-        if ((torrents || []).length > 0) return;
-        if (rpcStatus !== STATUS.connection.CONNECTED) return;
-
-        (async () => {
-            try {
-                const data = await client.getTorrents();
-                if (mounted) setFetchedTorrents(data || []);
-            } catch (err) {
-                // eslint-disable-next-line no-console
-                console.warn("[StatusBar] fetch torrents failed:", err);
-            }
-        })();
-
-        return () => {
-            mounted = false;
-        };
-    }, [rpcConnection, rpcStatus, torrents]);
 
     const transportStatus: TransportStatus =
         rpcStatus === STATUS.connection.CONNECTED
