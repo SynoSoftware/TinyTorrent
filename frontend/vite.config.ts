@@ -40,4 +40,4 @@ export default defineConfig({
             "src/**/__tests__/**/*.spec.ts",
         ],
     },
-});
+} as any);
