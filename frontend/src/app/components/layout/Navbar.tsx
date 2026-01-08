@@ -362,6 +362,8 @@ export function Navbar({
                     )}
                     style={{
                         ...shell.outerStyle,
+                        paddingLeft: 0,
+                        paddingRight: 0,
                     }}
                 >
                     <WindowControlButton
