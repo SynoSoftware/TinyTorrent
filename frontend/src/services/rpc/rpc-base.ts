@@ -245,9 +245,7 @@ export class TransmissionAdapter implements EngineAdapter {
     private handshakeState: HandshakeState = "invalid";
     private handshakePromise?: Promise<TransmissionSessionSettings>;
     private handshakeResult?: TransmissionSessionSettings;
-    // When multiple requests receive 409 at the same time, dedupe the
-    // session-id retrieval so only one probe runs against the server.
-    private sessionIdRefreshPromise?: Promise<string | null>;
+    // (sessionIdRefreshPromise removed — Transport owns session-id probing)
     // Cache for potentially expensive network telemetry lookups (free-space).
     // Prevents invoking disk/FS checks on every websocket tick.
     private networkTelemetryCache?: {
@@ -255,6 +253,9 @@ export class TransmissionAdapter implements EngineAdapter {
         ts: number;
         inflight?: Promise<NetworkTelemetry | null>;
     };
+    // Dedicated inflight lock to avoid races when two callers start telemetry
+    // resolution concurrently before the cache object is installed.
+    private _networkTelemetryInflight?: Promise<NetworkTelemetry | null>;
     private readonly NETWORK_TELEMETRY_TTL_MS = 60_000; // 60s
 
     private getTinyTorrentAuthToken(): string | undefined {
@@ -448,64 +449,20 @@ export class TransmissionAdapter implements EngineAdapter {
                 );
 
                 if (response.status === 409) {
-                    // Flow-control: server is telling us the session ID is
-                    // wrong/missing and provides the correct one.
-                    let token = response.headers.get(
-                        "X-Transmission-Session-Id"
-                    );
-                    if (!token) {
-                        try {
-                            // If another request is already probing for the
-                            // authoritative session id, await that probe
-                            // instead of issuing our own network requests.
-                            if (this.sessionIdRefreshPromise) {
-                                token = await this.sessionIdRefreshPromise;
-                            } else {
-                                this.sessionIdRefreshPromise = (async () => {
-                                    try {
-                                        return await this.retrieveSessionIdFromServer(
-                                            controller
-                                        );
-                                    } finally {
-                                        // clear the promise so subsequent 409s may
-                                        // start a fresh probe if necessary
-                                        this.sessionIdRefreshPromise =
-                                            undefined;
-                                    }
-                                })();
-                                token = await this.sessionIdRefreshPromise;
-                            }
-                        } catch {
-                            // ignore probe errors
-                        }
-                    }
-                    if (!token) {
-                        // Nothing we can do without a token.
-                        this.invalidateSession("409-missing-session-id");
-                        throw new Error("Transmission RPC missing session id");
-                    }
-
-                    // Install the authoritative token.
-                    this.acceptSessionId(token);
-
-                    // If we've already retried once for 409, don't loop.
-                    if (options?._retry409) {
-                        this.invalidateSession("409-session-conflict");
-                        throw new Error("Transmission RPC session conflict");
-                    }
-
-                    // Retry the same request once using the established token.
-                    return this.performSend(
-                        payload,
-                        schema,
-                        retryCount,
-                        keepalive,
-                        {
-                            ...(options ?? {}),
-                            bypassHandshake: true,
-                            _retry409: true,
-                        }
-                    ) as Promise<T> as Promise<any>;
+                    // Defensive: Transport should already handle 409/session-id
+                    // negotiation. If we still observe a 409, attempt to accept
+                    // any token present on the response, then fail fast so the
+                    // caller can decide how to proceed.
+                    try {
+                        const token = (response as any)?.headers?.get
+                            ? (response as any).headers.get(
+                                  "X-Transmission-Session-Id"
+                              )
+                            : null;
+                        if (token) this.acceptSessionId(token);
+                    } catch {}
+                    this.invalidateSession("409-session-conflict");
+                    throw new Error("Transmission RPC session conflict");
                 }
 
                 if (response.status === 401) {
@@ -760,55 +717,6 @@ export class TransmissionAdapter implements EngineAdapter {
         }
     }
 
-    /**
-     * Attempt to retrieve the X-Transmission-Session-Id token by probing the
-     * endpoint with OPTIONS, HEAD, and then GET. Some proxy setups return the
-     * token on these requests even when the initial POST's 409 did not expose it.
-     */
-    private async retrieveSessionIdFromServer(
-        controller?: AbortController
-    ): Promise<string | null> {
-        const methods: Array<RequestInit["method"]> = [
-            "OPTIONS",
-            "HEAD",
-            "GET",
-        ];
-        const headersBase: Record<string, string> = {
-            "Content-Type": "application/json",
-        };
-        const ttAuth = this.getTinyTorrentAuthToken();
-        if (ttAuth) headersBase["X-TT-Auth"] = ttAuth;
-        const authHeader = this.getAuthorizationHeader();
-        if (authHeader) headersBase.Authorization = authHeader;
-
-        for (const method of methods) {
-            try {
-                const resp = await fetch(this.endpoint, {
-                    method,
-                    headers: headersBase,
-                    signal: controller?.signal,
-                });
-                const token = resp.headers.get("X-Transmission-Session-Id");
-                if (token) return token;
-                // Fallback: some servers may include diagnostic info in body.
-                try {
-                    const txt = await resp.text();
-                    if (txt) {
-                        const m = txt.match(
-                            /X-Transmission-Session-Id\s*[:=]\s*([A-Za-z0-9_-]+)/i
-                        );
-                        if (m && m[1]) return m[1];
-                    }
-                } catch {
-                    // ignore text read errors
-                }
-            } catch (err) {
-                // ignore probe errors and continue to next method
-            }
-        }
-        return null;
-    }
-
     private updateServerClassFromCapabilities(
         capabilities: TinyTorrentCapabilities | null
     ) {
@@ -928,6 +836,12 @@ export class TransmissionAdapter implements EngineAdapter {
                 // non-fatal condition and mark the server class to avoid
                 // repeatedly attempting the same unsupported RPC.
                 // If the capabilities RPC failed with a command error, the
+                try {
+                    try {
+                        // Ensure transport aborts any internal fetches it is tracking.
+                        (this.transport as any)?.abortAll?.();
+                    } catch {}
+                } catch {}
                 // server likely does not support our extension. Treat any
                 // RpcCommandError as the server not supporting `tt-get-capabilities`
                 // to avoid failing the handshake flow due to an optional method.
@@ -1042,27 +956,34 @@ export class TransmissionAdapter implements EngineAdapter {
         this.syncIdMap(torrents);
         const normalized = torrents.map(normalizeTorrent);
         const stats = mapTransmissionSessionStatsToSessionStats(session);
-        // Attempt to fetch optional network telemetry for websocket updates.
-        // This is best-effort and must not block or throw. The adapter now
-        // implements a cached telemetry fetch to avoid expensive free-space
-        // checks on every websocket tick.
-        let networkTelemetry: NetworkTelemetry | undefined = undefined;
-        try {
-            const nt = await this.fetchNetworkTelemetry();
-            if (nt) networkTelemetry = nt;
-        } catch (err) {
-            // ignore telemetry fetch failures
-        }
-
+        // Push the live payload immediately to avoid blocking the websocket
+        // processing pipeline on potentially slow free-space checks.
         const payload: any = {
             torrents: normalized,
             sessionStats: stats,
             timestampMs: Date.now(),
             source: "websocket",
         };
-        if (networkTelemetry) payload.networkTelemetry = networkTelemetry;
-
         this.heartbeat.pushLivePayload(payload);
+
+        // Fetch telemetry asynchronously and push a secondary payload when
+        // available. Do not await — best-effort only.
+        (async () => {
+            try {
+                const nt = await this.fetchNetworkTelemetry();
+                if (!nt) return;
+                const telemetryPayload = {
+                    torrents: normalized,
+                    sessionStats: stats,
+                    networkTelemetry: nt,
+                    timestampMs: Date.now(),
+                    source: "websocket-telemetry",
+                } as any;
+                this.heartbeat.pushLivePayload(telemetryPayload);
+            } catch (err) {
+                // ignore telemetry fetch failures
+            }
+        })();
     };
 
     private syncIdMap(torrents: TransmissionTorrent[]) {
@@ -1861,11 +1782,10 @@ export class TransmissionAdapter implements EngineAdapter {
         ) {
             return this.networkTelemetryCache.value;
         }
-
-        // If a fetch is already in-flight, return the same promise to dedupe
-        if (this.networkTelemetryCache?.inflight) {
-            return this.networkTelemetryCache.inflight;
-        }
+        // If a fetch is already in-flight, return the same promise to dedupe.
+        // Use a dedicated lock so callers can't race before `networkTelemetryCache` is installed.
+        if (this._networkTelemetryInflight)
+            return this._networkTelemetryInflight;
 
         const previousCache = this.networkTelemetryCache;
         const inflight = (async (): Promise<NetworkTelemetry | null> => {
@@ -1960,8 +1880,8 @@ export class TransmissionAdapter implements EngineAdapter {
             }
         })();
 
-        // Store inflight promise and return it. Preserve any previous cache
-        // value/ts to avoid poisoning the cache on transient failures.
+        // Install inflight lock and cache shim synchronously to prevent races
+        this._networkTelemetryInflight = inflight;
         this.networkTelemetryCache = {
             value: previousCache?.value ?? null,
             ts: previousCache?.ts ?? 0,
@@ -1974,12 +1894,16 @@ export class TransmissionAdapter implements EngineAdapter {
             this.networkTelemetryCache.inflight = undefined;
             return result;
         } catch (err) {
-            // Do not overwrite the previously-cached value/ts on error; only
-            // clear the inflight marker so a subsequent call may retry sooner.
+            // On error, record the failure time so we don't retry on every
+            // heartbeat tick; preserve previous cached value but enforce a
+            // back-off equal to NETWORK_TELEMETRY_TTL_MS.
             if (this.networkTelemetryCache) {
                 this.networkTelemetryCache.inflight = undefined;
+                this.networkTelemetryCache.ts = Date.now();
             }
             return null;
+        } finally {
+            this._networkTelemetryInflight = undefined;
         }
     }
 }

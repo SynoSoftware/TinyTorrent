@@ -14,6 +14,14 @@ export default defineConfig({
             allow: [".."],
         },
         proxy: {
+            // Explicit RPC proxy to avoid CORS during development. Keep the
+            // broader `/transmission` proxy for other resources.
+            "/transmission/rpc": {
+                target: "http://localhost:9091",
+                changeOrigin: true,
+                secure: false,
+                ws: true,
+            },
             "/transmission": {
                 target: "http://localhost:9091", // Points to your installed daemon
                 changeOrigin: true,
