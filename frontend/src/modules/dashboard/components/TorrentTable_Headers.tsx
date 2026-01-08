@@ -1,7 +1,13 @@
 import React from "react";
 import { SortableContext } from "@dnd-kit/sortable";
 import { ArrowDown, ArrowUp } from "lucide-react";
-import type { Header, Table, Column } from "@tanstack/react-table";
+import type {
+    Header,
+    Table,
+    Column,
+    HeaderGroup,
+    ColumnSizingInfoState,
+} from "@tanstack/react-table";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import { cn } from "@heroui/react";
 import { TableHeaderContent, getColumnWidthCss } from "./TorrentTable_Shared";
@@ -49,14 +55,16 @@ export const ColumnHeaderPreview = ({
 
 interface Props {
     headerContainerClass: string;
-    handleHeaderContainerContextMenu: (e: React.MouseEvent) => void;
+    handleHeaderContainerContextMenu: (
+        e: React.MouseEvent<HTMLDivElement>
+    ) => void;
     headerSortableIds: string[];
     table: Table<Torrent>;
     getTableTotalWidthCss: (n: number) => string;
     handleHeaderContextMenu: (e: React.MouseEvent, id: string | null) => void;
     handleColumnAutoFitRequest: (c: Column<Torrent>) => void;
-    handleColumnResizeStart: (c: Column<Torrent>) => void;
-    columnSizingInfo: any;
+    handleColumnResizeStart: (c: Column<Torrent>, clientX: number) => void;
+    columnSizingInfo: ColumnSizingInfoState;
     hookActiveResizeColumnId: string | null;
     isAnyColumnResizing: boolean;
 }
@@ -83,39 +91,47 @@ export const TorrentTable_Headers: React.FC<Props> = ({
                 items={headerSortableIds}
                 strategy={horizontalListSortingStrategy}
             >
-                {table.getHeaderGroups().map((headerGroup: any) => (
-                    <div
-                        key={headerGroup.id}
-                        className="flex w-full min-w-max"
-                        style={{
-                            width: getTableTotalWidthCss(table.getTotalSize()),
-                        }}
-                    >
-                        {headerGroup.headers.map(
-                            (header: Header<Torrent, unknown>) => (
-                                <TorrentTable_Header
-                                    key={header.id}
-                                    header={header}
-                                    isAnyColumnResizing={isAnyColumnResizing}
-                                    onContextMenu={(e: React.MouseEvent) =>
-                                        handleHeaderContextMenu(
-                                            e,
-                                            header.column.id
-                                        )
-                                    }
-                                    onAutoFitColumn={handleColumnAutoFitRequest}
-                                    onResizeStart={handleColumnResizeStart}
-                                    isResizing={
-                                        columnSizingInfo.isResizingColumn ===
-                                            header.column.id ||
-                                        hookActiveResizeColumnId ===
-                                            header.column.id
-                                    }
-                                />
-                            )
-                        )}
-                    </div>
-                ))}
+                {table
+                    .getHeaderGroups()
+                    .map((headerGroup: HeaderGroup<Torrent>) => (
+                        <div
+                            key={headerGroup.id}
+                            className="flex w-full min-w-max"
+                            style={{
+                                width: getTableTotalWidthCss(
+                                    table.getTotalSize()
+                                ),
+                            }}
+                        >
+                            {headerGroup.headers.map(
+                                (header: Header<Torrent, unknown>) => (
+                                    <TorrentTable_Header
+                                        key={header.id}
+                                        header={header}
+                                        isAnyColumnResizing={
+                                            isAnyColumnResizing
+                                        }
+                                        onContextMenu={(e: React.MouseEvent) =>
+                                            handleHeaderContextMenu(
+                                                e,
+                                                header.column.id
+                                            )
+                                        }
+                                        onAutoFitColumn={
+                                            handleColumnAutoFitRequest
+                                        }
+                                        onResizeStart={handleColumnResizeStart}
+                                        isResizing={
+                                            columnSizingInfo.isResizingColumn ===
+                                                header.column.id ||
+                                            hookActiveResizeColumnId ===
+                                                header.column.id
+                                        }
+                                    />
+                                )
+                            )}
+                        </div>
+                    ))}
             </SortableContext>
         </div>
     );

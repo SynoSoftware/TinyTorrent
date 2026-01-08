@@ -217,6 +217,16 @@ function SpeedModule({
     return (
         <>
             <div className="flex flex-1 items-center h-full min-w-0 group gap-tools">
+                <div
+                    className="flex-1 h-full min-w-0 min-h-0 py-tight overflow-hidden opacity-30 grayscale transition-all duration-500 group-hover:grayscale-0 group-hover:opacity-100"
+                    style={{ minWidth: UI_BASES.statusbar.min100 }}
+                >
+                    <NetworkGraph
+                        data={history}
+                        color={tone as any}
+                        className="h-full w-full"
+                    />
+                </div>
                 <div className="flex items-center shrink-0 gap-tools">
                     <div
                         className={cn(
@@ -237,17 +247,6 @@ function SpeedModule({
                             {formatSpeed(value)}
                         </span>
                     </div>
-                </div>
-
-                <div
-                    className="flex-1 h-full min-w-0 min-h-0 py-tight overflow-hidden opacity-30 grayscale transition-all duration-500 group-hover:grayscale-0 group-hover:opacity-100"
-                    style={{ minWidth: UI_BASES.statusbar.min100 }}
-                >
-                    <NetworkGraph
-                        data={history}
-                        color={tone as any}
-                        className="h-full w-full"
-                    />
                 </div>
             </div>
 
@@ -616,6 +615,14 @@ export function StatusBar({
                     height: "var(--tt-statusbar-h)",
                 }}
             >
+                <StatGroup
+                    label={torrentStatLabel}
+                    value={torrentStatValue}
+                    Icon={isSelection ? Files : Activity}
+                    className="min-w-status-chip"
+                    align="end"
+                />
+
                 {/* LEFT: SPEEDS */}
                 <div className="flex flex-1 items-center h-full py-tight gap-stage min-w-0">
                     <SpeedModule
@@ -642,14 +649,6 @@ export function StatusBar({
                         height: "var(--tt-statusbar-h)",
                     }}
                 >
-                    <StatGroup
-                        label={torrentStatLabel}
-                        value={torrentStatValue}
-                        Icon={isSelection ? Files : Activity}
-                        className="min-w-status-chip"
-                        align="end"
-                    />
-
                     <StatusTelemetryGrid
                         telemetry={telemetry}
                         transportStatus={transportStatus}

@@ -1,11 +1,57 @@
 import React, { useLayoutEffect, useEffect, useMemo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import type { Row } from "@tanstack/react-table";
+import type {
+    Row,
+    Header,
+    Column,
+    SortingState,
+    RowSelectionState,
+} from "@tanstack/react-table";
 import { useMarqueeSelection } from "./useMarqueeSelection";
+import type { Torrent } from "@/modules/dashboard/types/torrent";
+
+// Strongly-typed deps for the virtualization hook. Avoids use of `any` and
+// documents the exact surface the parent must provide.
+export type UseTorrentTableVirtualizationDeps = {
+    rows: Row<Torrent>[];
+    parentRef: React.RefObject<HTMLDivElement | null>;
+    rowHeight: number;
+    TABLE_LAYOUT: { rowHeight: number | string; overscan: number };
+    table: {
+        getTotalSize: () => number;
+        getFlatHeaders: () => Header<Torrent, unknown>[];
+        getAllLeafColumns: () => Column<Torrent>[];
+    };
+    isAnyColumnResizing: boolean;
+    measureColumnMinWidths: () => Record<string, number> | null;
+    columnOrder: string[];
+    columnVisibility: Record<string, boolean>;
+    sorting: SortingState;
+    measuredMinWidths: Record<string, number>;
+    setColumnSizing: (
+        updater: (prev: Record<string, number>) => Record<string, number>
+    ) => void;
+    getMeasuredColumnMinWidth: (
+        columnId: string,
+        fallbackWidth: number
+    ) => number;
+    normalizeColumnSizingState: (
+        s?: Record<string, number>
+    ) => Record<string, number>;
+    AUTO_FIT_TOLERANCE_PX: number;
+    rowsRef: React.MutableRefObject<Row<Torrent>[]>;
+    setRowSelection: (s: RowSelectionState) => void;
+    setAnchorIndex: (n: number | null) => void;
+    setFocusIndex: (n: number | null) => void;
+    setHighlightedRowId: (id: string | null) => void;
+    rowSelectionRef: React.MutableRefObject<RowSelectionState>;
+};
 
 // Wiring-friendly virtualization hook extracted from TorrentTable.tsx.
 // Parent must provide dependencies the original inline code relied on.
-export const useTorrentTableVirtualization = (deps: any) => {
+export const useTorrentTableVirtualization = (
+    deps: UseTorrentTableVirtualizationDeps
+) => {
     const {
         rows,
         parentRef,
@@ -36,6 +82,16 @@ export const useTorrentTableVirtualization = (deps: any) => {
         estimateSize: () => rowHeight,
         overscan: TABLE_LAYOUT.overscan,
     });
+
+    // If the row height token or computed value changes, ensure the virtualizer
+    // refreshes its measurements so total size and virtual items update.
+    React.useEffect(() => {
+        try {
+            rowVirtualizer.measure();
+        } catch {
+            // silently ignore measurement failures in environments without DOM
+        }
+    }, [rowHeight, rowVirtualizer]);
 
     const measurementItems = rowVirtualizer.getVirtualItems();
     const measurementRows = measurementItems

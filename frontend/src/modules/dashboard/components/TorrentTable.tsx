@@ -121,7 +121,10 @@ import {
     getTableTotalWidthCss,
     ColumnMeasurementLayer,
 } from "./TorrentTable_Shared";
-import { useMeasuredColumnWidths } from "./TorrentTable_ColumnMeasurement";
+import {
+    useMeasuredColumnWidths,
+    createColumnSizingInfoState,
+} from "./TorrentTable_ColumnMeasurement";
 import { useMarqueeSelection } from "../hooks/useMarqueeSelection";
 import { useColumnResizing } from "../hooks/useColumnResizing";
 import { useTorrentTableColumns } from "@/modules/dashboard/hooks/useTorrentTableColumns";
@@ -252,29 +255,28 @@ export function TorrentTable({
     const [activeDragHeaderId, setActiveDragHeaderId] = useState<string | null>(
         null
     );
-    const [contextMenu, setContextMenu] = useState<any>(null);
+    type TableContextMenu = {
+        virtualElement: ContextMenuVirtualElement;
+        torrent: Torrent;
+    };
+    const [contextMenu, setContextMenu] = useState<TableContextMenu | null>(
+        null
+    );
     const [anchorIndex, setAnchorIndex] = useState<number | null>(null);
     const [focusIndex, setFocusIndex] = useState<number | null>(null);
 
-    // State to suppress animations during auto-fit operations to prevent text stretching
-    const [isAutoFitting, setIsAutoFitting] = useState(false);
-    const resetAutoFitRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    useEffect(() => {
-        return () => {
-            if (resetAutoFitRef.current) clearTimeout(resetAutoFitRef.current);
-        };
-    }, []);
-    const [sorting, setSorting] = useState<any>([]);
+    const [sorting, setSorting] = useState<SortingState>([]);
     const [columnOrder, setColumnOrder] =
         useState<string[]>(DEFAULT_COLUMN_ORDER);
-    const [columnVisibility, setColumnVisibility] = useState<any>({});
-    const [rowSelection, setRowSelection] = useState<any>({});
+    const [columnVisibility, setColumnVisibility] = useState<
+        Record<string, boolean>
+    >({});
+    const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
     const [columnSizing, setColumnSizing] = useState<Record<string, number>>(
         {}
     );
-    const [columnSizingInfo, setColumnSizingInfo] = useState<any>({
-        isResizingColumn: false,
-    });
+    const [columnSizingInfo, setColumnSizingInfo] =
+        useState<ColumnSizingInfoState>(createColumnSizingInfoState());
     const speedHistoryRef = useTorrentSpeedHistory(torrents);
 
     const getDisplayTorrent = useCallback(
@@ -436,7 +438,7 @@ export function TorrentTable({
     useEffect(() => {
         rowsRef.current = rows;
     }, [rows]);
-    const rowSelectionRef = useRef<any>(rowSelection);
+    const rowSelectionRef = useRef<RowSelectionState>(rowSelection);
     useEffect(() => {
         rowSelectionRef.current = rowSelection;
     }, [rowSelection]);
@@ -489,12 +491,12 @@ export function TorrentTable({
         setColumnSizingInfo,
         setColumnWidthVar,
         setTableTotalWidthVar,
+        getMeasuredColumnMinWidth,
     });
 
     const isAnyColumnResizing =
         Boolean(hookActiveResizeColumnId) ||
-        Boolean(columnSizingInfo.isResizingColumn) ||
-        isAutoFitting;
+        Boolean(columnSizingInfo.isResizingColumn);
 
     const resetColumnResizeState = hookResetColumnResizeState;
     // `resetColumnResizeState` provided by `useColumnResizing` hook below.
@@ -524,15 +526,6 @@ export function TorrentTable({
                 return false;
             }
 
-            // Disable layout animations briefly so the column "snaps" to new width
-            // without stretching the text.
-            setIsAutoFitting(true);
-            if (resetAutoFitRef.current) clearTimeout(resetAutoFitRef.current);
-            resetAutoFitRef.current = setTimeout(
-                () => setIsAutoFitting(false),
-                100
-            );
-
             setColumnSizing((prev: Record<string, number>) =>
                 normalizeColumnSizingState({
                     ...prev,
@@ -546,10 +539,10 @@ export function TorrentTable({
             measuredMinWidthsRef,
             resetColumnResizeState,
             setColumnSizing,
-            tableContainerRef,
-            table,
-        ]
-    );
+        tableContainerRef,
+        table,
+    ]
+);
     const autoFitAllColumns = useCallback(() => {
         const measuredWidths = measureColumnMinWidths();
         table.getAllLeafColumns().forEach((column) => {
@@ -689,7 +682,9 @@ export function TorrentTable({
 
     // Check if we are sorting by queue position
     // If we are, we can enable Drag & Drop reordering
-    const isQueueSort = sorting.some((s: any) => s.id === "queue");
+    const isQueueSort = sorting.some(
+        (s) => typeof s === "object" && (s as { id?: string }).id === "queue"
+    );
     const canReorderQueue = isQueueSort && Boolean(onAction);
 
     useEffect(() => {
@@ -887,7 +882,7 @@ export function TorrentTable({
         "rounded-panel border border-default/10"
     );
     const [headerContextMenu, setHeaderContextMenu] = useState<{
-        virtualElement: any;
+        virtualElement: ContextMenuVirtualElement;
         columnId: string | null;
     } | null>(null);
 
@@ -957,7 +952,7 @@ export function TorrentTable({
                         <TorrentTable_Headers
                             headerContainerClass={headerContainerClass}
                             handleHeaderContainerContextMenu={
-                                handleHeaderContainerContextMenu as any
+                                handleHeaderContainerContextMenu
                             }
                             headerSortableIds={headerSortableIds}
                             table={table}
@@ -966,9 +961,7 @@ export function TorrentTable({
                             handleColumnAutoFitRequest={
                                 handleColumnAutoFitRequest
                             }
-                            handleColumnResizeStart={
-                                handleColumnResizeStart as any
-                            }
+                            handleColumnResizeStart={handleColumnResizeStart}
                             columnSizingInfo={columnSizingInfo}
                             hookActiveResizeColumnId={hookActiveResizeColumnId}
                             isAnyColumnResizing={isAnyColumnResizing}
@@ -979,6 +972,7 @@ export function TorrentTable({
                             isLoading={isLoading}
                             torrents={torrents}
                             TABLE_LAYOUT={TABLE_LAYOUT}
+                            rowHeight={rowHeight}
                             t={t}
                             ADD_TORRENT_SHORTCUT={ADD_TORRENT_SHORTCUT}
                             rowSensors={rowSensors}
@@ -1034,7 +1028,7 @@ export function TorrentTable({
                         getContextMenuShortcut={getContextMenuShortcut}
                         t={t}
                         onOpenFolder={onOpenFolder}
-                        onSetLocation={onSetLocation as any}
+                        onSetLocation={onSetLocation}
                         isClipboardSupported={isClipboardSupported}
                         getEmphasisClassForAction={getEmphasisClassForAction}
                     />

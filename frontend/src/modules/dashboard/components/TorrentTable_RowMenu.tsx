@@ -5,12 +5,14 @@ import {
     DropdownTrigger,
     DropdownMenu,
     DropdownItem,
+    DropdownSection,
     Checkbox,
     cn,
 } from "@heroui/react";
 import { GLASS_MENU_SURFACE } from "@/shared/ui/layout/glass-surface";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { ItemElement } from "@react-types/shared";
+import type { ContextMenuVirtualElement } from "@/shared/hooks/ui/useContextMenuPosition";
 
 type QueueMenuAction = { key: string; label: string };
 
@@ -26,14 +28,17 @@ export default function TorrentTable_RowMenu({
     isClipboardSupported,
     getEmphasisClassForAction,
 }: {
-    contextMenu: { virtualElement: any; torrent: Torrent } | null;
+    contextMenu: {
+        virtualElement: ContextMenuVirtualElement;
+        torrent: Torrent;
+    } | null;
     onClose: () => void;
     handleContextMenuAction: (key?: string) => Promise<void>;
     queueMenuActions: QueueMenuAction[];
     getContextMenuShortcut: (key: string) => string | undefined;
-    t: (k: string, opts?: any) => string;
+    t: (k: string, opts?: Record<string, unknown>) => string;
     onOpenFolder?: (t: Torrent) => Promise<void>;
-    onSetLocation?: (t: Torrent) => Promise<void>;
+    onSetLocation?: (t: Torrent) => Promise<void> | void;
     isClipboardSupported?: boolean;
     getEmphasisClassForAction?: (a?: string) => string;
 }) {
@@ -83,31 +88,20 @@ export default function TorrentTable_RowMenu({
                     >
                         {t("table.actions.recheck")}
                     </DropdownItem>
-                    <DropdownItem
-                        key="queue-title"
-                        isDisabled
-                        className="border-t border-content1/20 mt-tight pt-(--p-tight) px-panel text-scaled font-bold uppercase text-foreground/50"
-                        style={{ letterSpacing: "var(--tt-tracking-ultra)" }}
+                    <DropdownSection
+                        key="queue-section"
+                        title={t("table.queue.title")}
                     >
-                        {t("table.queue.title")}
-                    </DropdownItem>
-                    {
-                        (
-                            <>
-                                {queueMenuActions.map((action) => (
-                                    <DropdownItem
-                                        key={action.key}
-                                        className="pl-stage text-sm"
-                                        shortcut={getContextMenuShortcut(
-                                            action.key as string
-                                        )}
-                                    >
-                                        {action.label}
-                                    </DropdownItem>
-                                ))}
-                            </>
-                        ) as unknown as any
-                    }
+                        {queueMenuActions.map((action) => (
+                            <DropdownItem
+                                key={action.key}
+                                className="pl-stage text-sm"
+                                shortcut={getContextMenuShortcut(action.key)}
+                            >
+                                {action.label}
+                            </DropdownItem>
+                        ))}
+                    </DropdownSection>
                     <DropdownItem
                         key="data-title"
                         isDisabled

@@ -72,6 +72,11 @@ export default function useLayoutMetrics(): LayoutMetrics {
     const [metrics, setMetrics] = useState<LayoutMetrics>(initial);
 
     useEffect(() => {
+        // Schedule reading CSS-derived metrics on the next animation frame so
+        // we read values after the browser has applied the zoom CSS variable
+        // and completed layout/paint. This avoids stale measurements taken in
+        // the same tick that applied the CSS change.
+        let raf = 0;
         const update = () => {
             try {
                 const styles = getComputedStyle(document.documentElement);
@@ -109,7 +114,22 @@ export default function useLayoutMetrics(): LayoutMetrics {
             }
         };
 
-        update();
+        const scheduledUpdate = () => {
+            if (typeof window === "undefined") return;
+            if (raf) cancelAnimationFrame(raf);
+            raf = window.requestAnimationFrame(() => update());
+        };
+
+        const handleZoomChange = () => scheduledUpdate();
+
+        scheduledUpdate();
+        window.addEventListener("resize", scheduledUpdate);
+        window.addEventListener("tt-zoom-change", handleZoomChange);
+        return () => {
+            window.removeEventListener("resize", scheduledUpdate);
+            window.removeEventListener("tt-zoom-change", handleZoomChange);
+            if (raf) cancelAnimationFrame(raf);
+        };
     }, [
         numericBaseRow,
         numericBaseMenuMargin,
