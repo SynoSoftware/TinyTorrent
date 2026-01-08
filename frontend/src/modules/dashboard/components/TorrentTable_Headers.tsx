@@ -22,12 +22,10 @@ import TorrentTable_Header from "./TorrentTable_Header";
 export const ColumnHeaderPreview = ({
     header,
     isAnyColumnResizing = false,
-    isTableResizing = false,
     suppressLayoutAnimations = false,
 }: {
     header: Header<Torrent, unknown>;
     isAnyColumnResizing?: boolean;
-    isTableResizing?: boolean;
     suppressLayoutAnimations?: boolean;
 }) => {
     const { column } = header;
@@ -52,9 +50,7 @@ export const ColumnHeaderPreview = ({
                 useBaseClass={true}
                 isMeasurement={false}
                 layoutEnabled={
-                    !isAnyColumnResizing &&
-                    !isTableResizing &&
-                    !suppressLayoutAnimations
+                    !isAnyColumnResizing && !suppressLayoutAnimations
                 }
             />
         </div>
@@ -79,7 +75,7 @@ interface Props {
 }
 
 export const TorrentTable_Headers: React.FC<
-    Props & { isTableResizing?: boolean }
+    Props & { suppressLayoutAnimations?: boolean }
 > = ({
     headerContainerClass,
     handleHeaderContainerContextMenu,
@@ -92,7 +88,6 @@ export const TorrentTable_Headers: React.FC<
     columnSizingInfo,
     hookActiveResizeColumnId,
     isAnyColumnResizing,
-    isTableResizing,
     suppressLayoutAnimations,
 }) => {
     return (
@@ -124,7 +119,6 @@ export const TorrentTable_Headers: React.FC<
                                         isAnyColumnResizing={
                                             isAnyColumnResizing
                                         }
-                                        isTableResizing={isTableResizing}
                                         suppressLayoutAnimations={
                                             suppressLayoutAnimations
                                         }

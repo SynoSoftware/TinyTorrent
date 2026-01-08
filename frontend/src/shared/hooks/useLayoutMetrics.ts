@@ -77,15 +77,49 @@ export default function useLayoutMetrics(): LayoutMetrics {
         // and completed layout/paint. This avoids stale measurements taken in
         // the same tick that applied the CSS change.
         let raf = 0;
+
+        // Re-usable probe element used to measure resolved CSS heights for
+        // variables that may reference other variables or calc() expressions.
+        let probe: HTMLElement | null = null;
+        const ensureProbe = (): HTMLElement | null => {
+            if (typeof document === "undefined") return null;
+            if (probe && document.body.contains(probe)) return probe;
+            try {
+                probe = document.createElement("div");
+                // Use the same utility so browser resolves the same CSS token
+                // chain that real header elements use.
+                probe.style.height = "var(--tt-row-h)";
+                probe.style.position = "absolute";
+                probe.style.visibility = "hidden";
+                probe.style.pointerEvents = "none";
+                probe.style.width = "1px";
+                probe.style.overflow = "hidden";
+                document.body.appendChild(probe);
+                return probe;
+            } catch {
+                probe = null;
+                return null;
+            }
+        };
+
+        const measureRowHeight = (): number => {
+            try {
+                const el = ensureProbe();
+                if (!el) return numericBaseRow;
+                const h = el.getBoundingClientRect().height;
+                if (!Number.isFinite(h) || h <= 0) return numericBaseRow;
+                return Math.round(h);
+            } catch {
+                return numericBaseRow;
+            }
+        };
+
         const update = () => {
             try {
                 const styles = getComputedStyle(document.documentElement);
                 const next: LayoutMetrics = {
-                    rowHeight: readNumberVar(
-                        styles,
-                        "--tt-row-h",
-                        numericBaseRow
-                    ),
+                    // Use a measured pixel height so zoom and calc() are resolved.
+                    rowHeight: measureRowHeight(),
                     fileContextMenuMargin: readNumberVar(
                         styles,
                         "--tt-file-context-menu-margin",
@@ -129,6 +163,13 @@ export default function useLayoutMetrics(): LayoutMetrics {
             window.removeEventListener("resize", scheduledUpdate);
             window.removeEventListener("tt-zoom-change", handleZoomChange);
             if (raf) cancelAnimationFrame(raf);
+            // Clean up probe element if we created it
+            try {
+                if (probe && probe.parentElement)
+                    probe.parentElement.removeChild(probe);
+            } catch {
+                /* ignore */
+            }
         };
     }, [
         numericBaseRow,
