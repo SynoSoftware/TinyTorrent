@@ -61,7 +61,19 @@ export function useRpcConnection(
         updateStatus(STATUS.connection.IDLE);
         setIsReady(false);
         try {
-            await resolvedClient.getSessionStats();
+            // Prefer a raw session-settings probe which allows errors to
+            // surface (so the UI sees true connection failures). Fall back
+            // to getSessionStats when fetchSessionSettings is not available.
+            const anyClient = resolvedClient as any;
+            if (
+                anyClient &&
+                typeof anyClient.fetchSessionSettings === "function"
+            ) {
+                await anyClient.fetchSessionSettings();
+            } else {
+                await resolvedClient.getSessionStats();
+            }
+
             updateStatus(STATUS.connection.CONNECTED);
             if (isMountedRef.current) setIsReady(true);
         } catch (err) {
