@@ -928,6 +928,7 @@ export function TorrentTable({
                 onKeyDown={handleKeyDown}
                 onFocus={activateDashboardScope}
                 onBlur={deactivateDashboardScope}
+                data-tt-column-resizing={isAnyColumnResizing ? "true" : undefined}
                 style={{ borderRadius: "inherit" }}
                 className={cn(
                     "flex-1 min-h-0 flex flex-col h-full overflow-hidden relative select-none outline-none",

@@ -264,6 +264,11 @@
             );
     }
 
+    [data-tt-column-resizing="true"] * {
+        transition: none !important;
+        animation: none !important;
+    }
+
     .pressable-row:active {
         transform: translateY(1px) scale(0.98);
         filter: brightness(1.08);
