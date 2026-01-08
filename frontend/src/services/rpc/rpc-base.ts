@@ -265,6 +265,9 @@ export class TransmissionAdapter implements EngineAdapter {
     private handshakeState: HandshakeState = "invalid";
     private handshakePromise?: Promise<TransmissionSessionSettings>;
     private handshakeResult?: TransmissionSessionSettings;
+    // When multiple requests receive 409 at the same time, dedupe the
+    // session-id retrieval so only one probe runs against the server.
+    private sessionIdRefreshPromise?: Promise<string | null>;
     // Cache for potentially expensive network telemetry lookups (free-space).
     // Prevents invoking disk/FS checks on every websocket tick.
     private networkTelemetryCache?: {
@@ -429,7 +432,7 @@ export class TransmissionAdapter implements EngineAdapter {
                 // Don't allow diagnostic code to interfere with normal RPC flow.
             }
 
-            const attemptRequest = async (attempt: number): Promise<T> => {
+            const attemptRequest = async (_attempt: number): Promise<T> => {
                 const headers: Record<string, string> = {
                     "Content-Type": "application/json",
                 };
@@ -465,9 +468,26 @@ export class TransmissionAdapter implements EngineAdapter {
                     );
                     if (!token) {
                         try {
-                            token = await this.retrieveSessionIdFromServer(
-                                controller
-                            );
+                            // If another request is already probing for the
+                            // authoritative session id, await that probe
+                            // instead of issuing our own network requests.
+                            if (this.sessionIdRefreshPromise) {
+                                token = await this.sessionIdRefreshPromise;
+                            } else {
+                                this.sessionIdRefreshPromise = (async () => {
+                                    try {
+                                        return await this.retrieveSessionIdFromServer(
+                                            controller
+                                        );
+                                    } finally {
+                                        // clear the promise so subsequent 409s may
+                                        // start a fresh probe if necessary
+                                        this.sessionIdRefreshPromise =
+                                            undefined;
+                                    }
+                                })();
+                                token = await this.sessionIdRefreshPromise;
+                            }
                         } catch {
                             // ignore probe errors
                         }
@@ -532,6 +552,40 @@ export class TransmissionAdapter implements EngineAdapter {
                 const parsed = parseRpcResponse(json);
 
                 if (parsed.result !== "success") {
+                    const code = parsed.result ?? "";
+                    const lower = String(code).toLowerCase();
+                    const methodNotFound =
+                        /method|not\s*found|not\s*recognized/.test(lower);
+
+                    // Special-case: the optional `tt-get-capabilities` extension
+                    // may not be recognized by plain Transmission servers. Treat
+                    // that as a non-fatal condition: mark the server as
+                    // `transmission`, ensure websocket state is consistent, and
+                    // return null so callers that expect capabilities can
+                    // interpret absence as unsupported.
+                    if (
+                        methodNotFound &&
+                        payload.method === "tt-get-capabilities"
+                    ) {
+                        this.tinyTorrentCapabilities = null;
+                        this.serverClass = "transmission";
+                        this.ensureWebsocketConnection();
+                        console.debug(
+                            "[tiny-torrent][rpc] tt-get-capabilities not recognized; marking serverClass=transmission"
+                        );
+                        return null as unknown as T;
+                    }
+
+                    if (methodNotFound) {
+                        console.warn(
+                            `[tiny-torrent][rpc] method not recognized for '${payload.method}': ${code}`
+                        );
+                        throw new RpcCommandError(
+                            `Transmission RPC responded with ${code}`,
+                            code
+                        );
+                    }
+
                     throw new RpcCommandError(
                         `Transmission RPC responded with ${parsed.result}`,
                         parsed.result
@@ -1177,7 +1231,14 @@ export class TransmissionAdapter implements EngineAdapter {
             this.tinyTorrentCapabilities &&
             this.tinyTorrentCapabilities.features?.includes?.("ui-attach")
         ) {
-            await this.mutate("session-ui-attach");
+            try {
+                await this.mutate("session-ui-attach");
+            } catch (err) {
+                console.debug(
+                    "[tiny-torrent][rpc] session-ui-attach failed (ignored)",
+                    err
+                );
+            }
         }
     }
 
@@ -1234,7 +1295,14 @@ export class TransmissionAdapter implements EngineAdapter {
             // fallback to adapter send which supports retries and header logic
         }
 
-        await this.send(request, zRpcSuccess, 0, true);
+        try {
+            await this.send(request, zRpcSuccess, 0, true);
+        } catch (err) {
+            console.debug(
+                "[tiny-torrent][rpc] notifyUiDetached send failed (ignored)",
+                err
+            );
+        }
     }
 
     public async fetchSessionSettings(): Promise<TransmissionSessionSettings> {

@@ -17,7 +17,7 @@ describe("RPC Deduplication (in-flight coalescing)", () => {
 
     it("coalesces concurrent identical read requests into a single network call", async () => {
         const fetchSpy = vi
-            .spyOn(global, "fetch" as any)
+            .spyOn(globalThis as any, "fetch" as any)
             .mockResolvedValueOnce({
                 ok: true,
                 json: async () => ({
@@ -42,13 +42,15 @@ describe("RPC Deduplication (in-flight coalescing)", () => {
     });
 
     it("sends a new request after the first resolves (no stale caching)", async () => {
-        const fetchSpy = vi.spyOn(global, "fetch" as any).mockResolvedValue({
-            ok: true,
-            json: async () => ({
-                result: "success",
-                arguments: { torrents: [] },
-            }),
-        } as unknown as Response);
+        const fetchSpy = vi
+            .spyOn(globalThis as any, "fetch" as any)
+            .mockResolvedValue({
+                ok: true,
+                json: async () => ({
+                    result: "success",
+                    arguments: { torrents: [] },
+                }),
+            } as unknown as Response);
 
         const payload = {
             method: "torrent-get",

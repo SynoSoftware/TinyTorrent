@@ -580,6 +580,7 @@ export class HeartbeatManager {
             if (shouldFetchSummary || !torrents || !sessionStats) {
                 let fetchedTorrents: TorrentEntity[];
                 let fetchedSessionStats: SessionStats;
+                let fetchedTelemetry: NetworkTelemetry | undefined = undefined;
 
                 // If we already have an initial snapshot and the client
                 // exposes `getRecentlyActive`, prefer the lightweight delta
@@ -660,7 +661,6 @@ export class HeartbeatManager {
                 // Attempt to fetch optional network telemetry from the adapter.
                 // This is conservative: if the adapter doesn't support it or
                 // the call fails, we silently proceed without telemetry.
-                let fetchedTelemetry: NetworkTelemetry | undefined = undefined;
                 try {
                     const telemetryClient = this
                         .client as HeartbeatClientWithTelemetry;

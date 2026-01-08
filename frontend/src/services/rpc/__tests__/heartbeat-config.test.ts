@@ -5,7 +5,7 @@ import { HeartbeatManager } from "@/services/rpc/heartbeat";
 const fakeClient = {
     getTorrents: async () => [],
     getSessionStats: async () => ({} as any),
-    getTorrentDetails: async (id: string) => ({} as any),
+    getTorrentDetails: async (_id: string) => ({} as any),
 };
 
 it("reads max_delta_cycles from CONFIG (via constructor)", () => {

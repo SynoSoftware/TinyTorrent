@@ -39,6 +39,7 @@ export function useTorrentDetail({
     const activeDetailIdRef = useRef<string | null>(null);
     const detailTimestampRef = useRef(0);
     const detailIdentityRef = useRef<{ id: string; hash: string } | null>(null);
+    const detailRequestRef = useRef(0);
 
     const commitDetailState = useCallback(
         (detail: TorrentDetail | null, timestamp = Date.now()) => {
