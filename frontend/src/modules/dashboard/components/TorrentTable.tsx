@@ -526,12 +526,23 @@ export function TorrentTable({
                 return false;
             }
 
+            // Temporarily suppress layout animations so rows/headers don't
+            // animate while we programmatically change column sizes (autofit).
+            setSuppressLayoutAnimations(true);
             setColumnSizing((prev: Record<string, number>) =>
                 normalizeColumnSizingState({
                     ...prev,
                     [column.id]: finalWidth,
                 })
             );
+            // Clear suppression after two rAFs to ensure the layout has settled
+            // and the browser completed layout/paint.
+            window.requestAnimationFrame(() => {
+                window.requestAnimationFrame(() => {
+                    setSuppressLayoutAnimations(false);
+                });
+            });
+
             return true;
         },
         [
@@ -539,15 +550,22 @@ export function TorrentTable({
             measuredMinWidthsRef,
             resetColumnResizeState,
             setColumnSizing,
-        tableContainerRef,
-        table,
-    ]
-);
+            tableContainerRef,
+            table,
+        ]
+    );
     const autoFitAllColumns = useCallback(() => {
+        // Suppress animations for the whole batch of autofit changes.
+        setSuppressLayoutAnimations(true);
         const measuredWidths = measureColumnMinWidths();
         table.getAllLeafColumns().forEach((column) => {
             if (!column.getCanResize()) return;
             autoFitColumn(column, measuredWidths);
+        });
+        window.requestAnimationFrame(() => {
+            window.requestAnimationFrame(() =>
+                setSuppressLayoutAnimations(false)
+            );
         });
     }, [autoFitColumn, measureColumnMinWidths, table]);
     const handleColumnAutoFitRequest = useCallback(
@@ -561,6 +579,38 @@ export function TorrentTable({
         [autoFitAllColumns, autoFitColumn]
     );
     const { rowHeight, fileContextMenuMargin } = useLayoutMetrics();
+
+    // Temporarily suppress layout animations while the table container is being
+    // resized by the surrounding panels (react-resizable-panels). We detect
+    // container size changes with a ResizeObserver and debounce the end of
+    // the resize so animations remain disabled while the user is actively
+    // dragging a handle.
+    const [isTableResizing, setIsTableResizing] = useState<boolean>(false);
+    const resizeTimerRef = useRef<number | null>(null);
+
+    useEffect(() => {
+        const el = tableContainerRef.current;
+        if (!el || typeof ResizeObserver === "undefined") return;
+        const observer = new ResizeObserver(() => {
+            if (resizeTimerRef.current !== null) {
+                window.clearTimeout(resizeTimerRef.current);
+            }
+            setIsTableResizing(true);
+            resizeTimerRef.current = window.setTimeout(() => {
+                setIsTableResizing(false);
+                resizeTimerRef.current = null;
+            }, 150);
+        });
+        observer.observe(el);
+        return () => {
+            observer.disconnect();
+            if (resizeTimerRef.current !== null) {
+                window.clearTimeout(resizeTimerRef.current);
+                resizeTimerRef.current = null;
+            }
+        };
+    }, []);
+
     // Persistence: wire persistence hook to keep table layout in localStorage
     useTorrentTablePersistence(
         {
@@ -928,7 +978,9 @@ export function TorrentTable({
                 onKeyDown={handleKeyDown}
                 onFocus={activateDashboardScope}
                 onBlur={deactivateDashboardScope}
-                data-tt-column-resizing={isAnyColumnResizing ? "true" : undefined}
+                data-tt-column-resizing={
+                    isAnyColumnResizing ? "true" : undefined
+                }
                 style={{ borderRadius: "inherit" }}
                 className={cn(
                     "flex-1 min-h-0 flex flex-col h-full overflow-hidden relative select-none outline-none",
@@ -966,6 +1018,8 @@ export function TorrentTable({
                             columnSizingInfo={columnSizingInfo}
                             hookActiveResizeColumnId={hookActiveResizeColumnId}
                             isAnyColumnResizing={isAnyColumnResizing}
+                            isTableResizing={isTableResizing}
+                            suppressLayoutAnimations={suppressLayoutAnimations}
                         />
 
                         <TorrentTable_Body
@@ -998,6 +1052,7 @@ export function TorrentTable({
                             highlightedRowId={highlightedRowId}
                             handleDropTargetChange={handleDropTargetChange}
                             isAnyColumnResizing={isAnyColumnResizing}
+                            isTableResizing={isTableResizing}
                             columnOrder={columnOrder}
                             suppressLayoutAnimations={suppressLayoutAnimations}
                             isColumnOrderChanging={isColumnOrderChanging}
@@ -1014,6 +1069,10 @@ export function TorrentTable({
                                 <ColumnHeaderPreview
                                     header={activeHeader}
                                     isAnyColumnResizing={isAnyColumnResizing}
+                                    isTableResizing={isTableResizing}
+                                    suppressLayoutAnimations={
+                                        suppressLayoutAnimations
+                                    }
                                 />
                             ) : null}
                         </DragOverlay>

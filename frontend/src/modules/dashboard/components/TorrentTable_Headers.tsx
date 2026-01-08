@@ -22,9 +22,13 @@ import TorrentTable_Header from "./TorrentTable_Header";
 export const ColumnHeaderPreview = ({
     header,
     isAnyColumnResizing = false,
+    isTableResizing = false,
+    suppressLayoutAnimations = false,
 }: {
     header: Header<Torrent, unknown>;
     isAnyColumnResizing?: boolean;
+    isTableResizing?: boolean;
+    suppressLayoutAnimations?: boolean;
 }) => {
     const { column } = header;
     const align = column.columnDef.meta?.align || "start";
@@ -47,7 +51,11 @@ export const ColumnHeaderPreview = ({
                 header={header}
                 useBaseClass={true}
                 isMeasurement={false}
-                layoutEnabled={!isAnyColumnResizing}
+                layoutEnabled={
+                    !isAnyColumnResizing &&
+                    !isTableResizing &&
+                    !suppressLayoutAnimations
+                }
             />
         </div>
     );
@@ -67,9 +75,12 @@ interface Props {
     columnSizingInfo: ColumnSizingInfoState;
     hookActiveResizeColumnId: string | null;
     isAnyColumnResizing: boolean;
+    suppressLayoutAnimations?: boolean;
 }
 
-export const TorrentTable_Headers: React.FC<Props> = ({
+export const TorrentTable_Headers: React.FC<
+    Props & { isTableResizing?: boolean }
+> = ({
     headerContainerClass,
     handleHeaderContainerContextMenu,
     headerSortableIds,
@@ -81,6 +92,8 @@ export const TorrentTable_Headers: React.FC<Props> = ({
     columnSizingInfo,
     hookActiveResizeColumnId,
     isAnyColumnResizing,
+    isTableResizing,
+    suppressLayoutAnimations,
 }) => {
     return (
         <div
@@ -110,6 +123,10 @@ export const TorrentTable_Headers: React.FC<Props> = ({
                                         header={header}
                                         isAnyColumnResizing={
                                             isAnyColumnResizing
+                                        }
+                                        isTableResizing={isTableResizing}
+                                        suppressLayoutAnimations={
+                                            suppressLayoutAnimations
                                         }
                                         onContextMenu={(e: React.MouseEvent) =>
                                             handleHeaderContextMenu(
