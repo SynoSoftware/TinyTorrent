@@ -87,4 +87,8 @@ export interface EngineAdapter {
     getSpeedHistory?(id: string): Promise<{ down: number[]; up: number[] }>;
     // Destroy the adapter and synchronously release resources (timers, sockets, controllers)
     destroy?(): void;
+    // Reset local connection state without issuing network mutating RPCs.
+    // This signals the adapter/transport to forget its session token so the
+    // next request will trigger the Session-ID handshake again.
+    resetConnection?(): void;
 }

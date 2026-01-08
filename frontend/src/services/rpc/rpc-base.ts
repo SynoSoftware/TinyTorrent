@@ -70,6 +70,7 @@ import type {
 } from "./entities";
 import { normalizeTorrent, normalizeTorrentDetail } from "./normalizers";
 import { RpcCommandError } from "./errors";
+import { TransmissionRpcTransport } from "../transport";
 import type { NetworkTelemetry } from "./entities";
 
 type RpcRequest<M extends string> = {
@@ -100,18 +101,8 @@ const READ_ONLY_RPC_METHODS = new Set([
     "session-get",
     "session-stats",
     "tt-get-capabilities",
+    "free-space",
 ]);
-const READ_ONLY_RPC_DEDUP_CACHE = new Map<string, Promise<unknown>>();
-// Short-lived response cache for read-only RPCs to protect against rapid
-// repeated identical requests (UI mount/unmount storms). TTL configurable
-// via `CONFIG.performance.read_rpc_cache_ms` (fallback 500ms).
-const READ_ONLY_RPC_RESPONSE_CACHE = new Map<
-    string,
-    { value: unknown; ts: number }
->();
-// Track expiration timers so we can clear pending timeouts when entries
-// are invalidated by mutating RPCs. Keys -> window.setTimeout id.
-const READ_ONLY_RPC_RESPONSE_EXPIRATION_TIMERS = new Map<string, number>();
 const READ_ONLY_RPC_RESPONSE_TTL_MS = Number.isFinite(
     (CONFIG as any)?.performance?.read_rpc_cache_ms as number
 )
@@ -149,18 +140,6 @@ function buildReadRpcDedupKey(
 ): string {
     const serializedArgs = stableStringify(args ?? null);
     return `${method}:${serializedArgs}`;
-}
-
-function clearReadOnlyResponseCache() {
-    try {
-        for (const t of READ_ONLY_RPC_RESPONSE_EXPIRATION_TIMERS.values()) {
-            try {
-                window.clearTimeout(t);
-            } catch {}
-        }
-    } catch {}
-    READ_ONLY_RPC_RESPONSE_EXPIRATION_TIMERS.clear();
-    READ_ONLY_RPC_RESPONSE_CACHE.clear();
 }
 
 const WARNING_THROTTLE_MS = 1000;
@@ -261,6 +240,7 @@ export class TransmissionAdapter implements EngineAdapter {
     private readonly METHOD_CALL_WARNING_THRESHOLD = 100;
     private tinyTorrentCapabilities?: TinyTorrentCapabilities | null;
     private websocketSession?: TinyTorrentWebSocketSession;
+    private transport: TransmissionRpcTransport;
     private serverClass: ServerClass = "unknown";
     private handshakeState: HandshakeState = "invalid";
     private handshakePromise?: Promise<TransmissionSessionSettings>;
@@ -340,6 +320,8 @@ export class TransmissionAdapter implements EngineAdapter {
         this.username = options?.username ?? "";
         this.password = options?.password ?? "";
         this.requestTimeout = options?.requestTimeout;
+        // Transport encapsulates Transmission session id handling and probing
+        this.transport = new TransmissionRpcTransport(this.endpoint);
     }
 
     private isAbortError(err: unknown): boolean {
@@ -441,8 +423,9 @@ export class TransmissionAdapter implements EngineAdapter {
                 if (ttAuth) {
                     headers["X-TT-Auth"] = ttAuth;
                 }
-                if (this.sessionId) {
-                    headers["X-Transmission-Session-Id"] = this.sessionId;
+                const transportSessionId = this.transport.getSessionId();
+                if (transportSessionId) {
+                    headers["X-Transmission-Session-Id"] = transportSessionId;
                 }
                 const authHeader = this.getAuthorizationHeader();
                 if (authHeader) {
@@ -458,7 +441,11 @@ export class TransmissionAdapter implements EngineAdapter {
                 if (keepalive) {
                     requestInit.keepalive = true;
                 }
-                const response = await fetch(this.endpoint, requestInit);
+                const response = await this.transport.fetchWithSession(
+                    requestInit,
+                    controller,
+                    keepalive
+                );
 
                 if (response.status === 409) {
                     // Flow-control: server is telling us the session ID is
@@ -666,86 +653,36 @@ export class TransmissionAdapter implements EngineAdapter {
     ): Promise<T> {
         const method = payload.method ?? "";
         if (READ_ONLY_RPC_METHODS.has(method)) {
-            const dedupKey = buildReadRpcDedupKey(method, payload.arguments);
-            // Optionally serve short-lived cached responses if enabled via config
-            // to limit repeated identical calls from UI churn. Disabled by default.
+            const cacheEnabled = READ_ONLY_RPC_RESPONSE_TTL_MS > 0;
+            const args = payload.arguments ?? {};
             try {
-                if (READ_ONLY_RPC_RESPONSE_TTL_MS > 0) {
-                    const cached = READ_ONLY_RPC_RESPONSE_CACHE.get(dedupKey);
-                    if (
-                        cached &&
-                        Date.now() - cached.ts < READ_ONLY_RPC_RESPONSE_TTL_MS
-                    ) {
-                        return Promise.resolve(cached.value as T);
-                    }
-                }
-            } catch {}
-            const existing = READ_ONLY_RPC_DEDUP_CACHE.get(dedupKey);
-            if (existing) {
-                // If an identical request is in-flight or recently issued, return it.
-                return existing as Promise<T>;
-            }
+                const raw = await this.transport.request(
+                    payload.method!,
+                    args,
+                    { cache: cacheEnabled }
+                );
 
-            // Always send immediately for the first caller.
-            const promise = this.performSend(
-                payload,
-                schema,
-                retryCount,
-                keepalive,
-                options
-            );
-
-            // Store promise in cache so concurrent callers reuse the same in-flight request.
-            READ_ONLY_RPC_DEDUP_CACHE.set(dedupKey, promise);
-
-            // Cleanup immediately when the request settles so we never serve stale data.
-            promise.finally(() => {
+                // Sync transport-owned session id back into adapter state so
+                // subsequent mutating RPCs (which rely on adapter.sessionId)
+                // won't trigger redundant handshakes. Transport may obtain the
+                // authoritative X-Transmission-Session-Id during read-only
+                // requests (e.g. session-get) so propagate it here.
                 try {
-                    READ_ONLY_RPC_DEDUP_CACHE.delete(dedupKey);
-                    // If enabled, store the resolved response for a short TTL.
-                    if (READ_ONLY_RPC_RESPONSE_TTL_MS > 0) {
-                        promise
-                            .then((v) => {
-                                try {
-                                    // Store cached value and schedule expiry.
-                                    READ_ONLY_RPC_RESPONSE_CACHE.set(dedupKey, {
-                                        value: v,
-                                        ts: Date.now(),
-                                    });
-                                    // Clear any existing timer first
-                                    const prevTimer =
-                                        READ_ONLY_RPC_RESPONSE_EXPIRATION_TIMERS.get(
-                                            dedupKey
-                                        );
-                                    if (prevTimer !== undefined) {
-                                        try {
-                                            window.clearTimeout(prevTimer);
-                                        } catch {}
-                                    }
-                                    const timerId = window.setTimeout(() => {
-                                        try {
-                                            READ_ONLY_RPC_RESPONSE_CACHE.delete(
-                                                dedupKey
-                                            );
-                                        } catch {}
-                                        try {
-                                            READ_ONLY_RPC_RESPONSE_EXPIRATION_TIMERS.delete(
-                                                dedupKey
-                                            );
-                                        } catch {}
-                                    }, READ_ONLY_RPC_RESPONSE_TTL_MS);
-                                    READ_ONLY_RPC_RESPONSE_EXPIRATION_TIMERS.set(
-                                        dedupKey,
-                                        timerId
-                                    );
-                                } catch {}
-                            })
-                            .catch(() => {});
+                    const transportToken = this.transport.getSessionId();
+                    if (transportToken && transportToken !== this.sessionId) {
+                        this.acceptSessionId(transportToken);
                     }
                 } catch {}
-            });
 
-            return promise as Promise<T>;
+                return schema.parse(raw as unknown);
+            } catch (e: any) {
+                if (e && (e.status === 401 || e.status === 403)) {
+                    try {
+                        this.handleUnauthorizedResponse();
+                    } catch {}
+                }
+                throw e;
+            }
         }
         const result = await this.performSend(
             payload,
@@ -758,7 +695,9 @@ export class TransmissionAdapter implements EngineAdapter {
         // short-lived read-only response cache to avoid serving stale data
         // that contradicts engine truth.
         try {
-            clearReadOnlyResponseCache();
+            try {
+                this.transport.clearResponseCache();
+            } catch {}
         } catch {}
         return result;
     }
@@ -1276,19 +1215,18 @@ export class TransmissionAdapter implements EngineAdapter {
                 keepalive: true,
             };
 
-            const resp = await fetch(this.endpoint, requestInit);
-            if (resp.status === 409) {
-                const token = resp.headers.get("X-Transmission-Session-Id");
-                if (token && token !== this.sessionId) {
-                    this.sessionId = token;
-                    // retry once with updated session id
-                    headers["X-Transmission-Session-Id"] = this.sessionId;
-                    await fetch(this.endpoint, {
-                        ...requestInit,
-                        headers,
-                    });
+            const resp = await this.transport.fetchWithSession(
+                requestInit,
+                undefined,
+                true
+            );
+            // Sync transport's authoritative session token back to adapter state
+            try {
+                const transportToken = this.transport.getSessionId();
+                if (transportToken && transportToken !== this.sessionId) {
+                    this.acceptSessionId(transportToken);
                 }
-            }
+            } catch {}
             // best-effort; don't throw on non-OK because this is fire-and-forget
             return;
         } catch (e) {
@@ -1449,6 +1387,22 @@ export class TransmissionAdapter implements EngineAdapter {
 
     public async closeSession(): Promise<void> {
         await this.mutate("session-close");
+    }
+
+    /**
+     * Reset local adapter/transport session state without sending a
+     * mutating RPC. This allows the UI to request a light-weight reconnect
+     * without invoking `session-close` on the engine.
+     */
+    public resetConnection(): void {
+        try {
+            this.transport.resetSession();
+        } catch {}
+        try {
+            // Ensure adapter-level session state is considered invalid so
+            // a subsequent handshake/probe will run.
+            this.invalidateSession("reset-connection");
+        } catch {}
     }
 
     public async checkFreeSpace(path: string): Promise<TransmissionFreeSpace> {
