@@ -29,6 +29,9 @@ export interface TorrentTableBodyProps {
     isLoading: boolean;
     torrents: Torrent[];
     TABLE_LAYOUT: { rowHeight: number | string; overscan: number };
+    // numeric row height (from useLayoutMetrics) to keep virtualization and
+    // visual components perfectly aligned.
+    rowHeight: number;
     t: (key: string, opts?: Record<string, unknown>) => string;
     ADD_TORRENT_SHORTCUT: string;
     rowSensors: SensorDescriptor<any>[];
@@ -98,6 +101,7 @@ export const TorrentTable_Body: React.FC<TorrentTableBodyProps> = (props) => {
         suppressLayoutAnimations,
         isColumnOrderChanging,
         marqueeRect,
+        rowHeight,
     } = props;
 
     return (
@@ -184,7 +188,7 @@ export const TorrentTable_Body: React.FC<TorrentTableBodyProps> = (props) => {
                         <div
                             className="relative w-full min-w-max"
                             style={{
-                                height: `${rowVirtualizer.getTotalSize()}px`,
+                                height: rowVirtualizer.getTotalSize(),
                                 width: getTableTotalWidthCss(
                                     table.getTotalSize()
                                 ),
@@ -242,7 +246,7 @@ export const TorrentTable_Body: React.FC<TorrentTableBodyProps> = (props) => {
                                         width: getTableTotalWidthCss(
                                             table.getTotalSize()
                                         ),
-                                        height: TABLE_LAYOUT.rowHeight,
+                                        height: rowHeight,
                                     }}
                                     className={cn(
                                         "pointer-events-none border border-content1/20 bg-background/90 backdrop-blur-3xl",

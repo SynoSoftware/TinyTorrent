@@ -5,7 +5,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { type VirtualItem } from "@tanstack/react-virtual";
 import type { Row } from "@tanstack/react-table";
 import { cn } from "@heroui/react";
-import { TABLE_LAYOUT } from "@/config/logic";
+
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import { TableCellContent } from "./TorrentTable_Shared";
 
@@ -74,11 +74,10 @@ const TorrentTable_Row = memo(
         const rowStyle = useMemo<CSSProperties>(() => {
             const style: CSSProperties = {
                 position: "absolute",
-                top: `${virtualRow.start}px`,
+                top: virtualRow.start,
                 left: 0,
                 width: "100%",
-                height: TABLE_LAYOUT.rowHeight,
-                boxSizing: "border-box",
+                height: virtualRow.size,
             };
             if (transform) {
                 style.transform = CSS.Translate.toString(transform);
@@ -95,14 +94,12 @@ const TorrentTable_Row = memo(
             return style;
         }, [
             virtualRow.start,
+            virtualRow.size,
             transform,
             transition,
             isDragging,
             isAnyColumnResizing,
         ]);
-
-        const isDropTarget =
-            dropTargetRowId === row.id && activeRowId !== row.id;
 
         useEffect(() => {
             if (!isQueueSortActive || !onDropTargetChange) return;

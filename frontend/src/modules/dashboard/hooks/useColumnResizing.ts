@@ -7,6 +7,7 @@ export function useColumnResizing<TData>({
     setColumnSizingInfo,
     setColumnWidthVar,
     setTableTotalWidthVar,
+    getMeasuredColumnMinWidth,
 }: {
     table: Table<TData>;
     setColumnSizing: (
@@ -17,6 +18,7 @@ export function useColumnResizing<TData>({
     setColumnSizingInfo: (info: any) => void;
     setColumnWidthVar: (columnId: string, widthPx: number) => void;
     setTableTotalWidthVar: (widthPx: number) => void;
+    getMeasuredColumnMinWidth: (columnId: string, fallbackWidth: number) => number;
 }) {
     const resizeStartRef = useRef<{
         columnId: string;
@@ -60,7 +62,10 @@ export function useColumnResizing<TData>({
             const column = table.getColumn(resizeState.columnId);
             if (!column) return;
             const delta = event.clientX - resizeState.startX;
-            const minSize = Math.max(0, Math.round(resizeState.startSize));
+            const minSize = getMeasuredColumnMinWidth(
+                resizeState.columnId,
+                column.getSize()
+            );
             const maxSize =
                 typeof column.columnDef.maxSize === "number"
                     ? column.columnDef.maxSize
@@ -123,6 +128,7 @@ export function useColumnResizing<TData>({
     }, [
         activeResizeColumnId,
         applyPendingResizeCss,
+        getMeasuredColumnMinWidth,
         scheduleResizeCssUpdate,
         setColumnSizingInfo,
         setColumnSizing,

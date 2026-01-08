@@ -1877,10 +1877,10 @@ export class TransmissionAdapter implements EngineAdapter {
 
                 // If engine provided a concrete free-space value, we're done.
                 if (typeof telemetry.downloadDirFreeSpace === "number") {
-                    console.debug(
-                        "[telemetry] Normalized NetworkTelemetry:",
-                        telemetry
-                    );
+                    //    console.debug(
+                    //        "[telemetry] Normalized NetworkTelemetry:",
+                    //        telemetry
+                    //    );
                     return telemetry;
                 }
 
