@@ -11,7 +11,7 @@ import { STATUS } from "@/shared/status";
 type UseRpcConnectionResult = {
     rpcStatus: ConnectionStatus;
     isReady: boolean;
-    reconnect: () => void;
+    reconnect: () => Promise<void>;
     markTransportConnected: () => void;
     reportCommandError: ReportCommandErrorFn;
     reportReadError: ReportReadErrorFn;
@@ -28,10 +28,6 @@ export function useRpcConnection(
     );
     const [isReady, setIsReady] = useState(false);
     const isMountedRef = useRef(false);
-    const isHandshakingRef = useRef(false);
-    const pendingReconnectRef = useRef(false);
-    const lastHandshakeTs = useRef(0);
-    const HANDSHAKE_MIN_INTERVAL_MS = 800;
 
     const updateStatus = useCallback((next: ConnectionStatus) => {
         if (isMountedRef.current) setRpcStatus(next);
@@ -60,48 +56,29 @@ export function useRpcConnection(
         );
     }, []);
 
-    const handshake = useCallback(async () => {
-        const now = Date.now();
-        if (isHandshakingRef.current) {
-            pendingReconnectRef.current = true;
-            return;
-        }
-        if (now - lastHandshakeTs.current < HANDSHAKE_MIN_INTERVAL_MS) {
-            pendingReconnectRef.current = true;
-            return;
-        }
-        isHandshakingRef.current = true;
-        pendingReconnectRef.current = false;
-        setIsReady(false);
+    // Probe to verify connectivity. Adapter/Transport handle session handshakes.
+    const connect = useCallback(async () => {
         updateStatus(STATUS.connection.IDLE);
+        setIsReady(false);
         try {
-            if (resolvedClient.handshake) {
-                await resolvedClient.handshake();
-            }
-            markTransportConnected();
+            await resolvedClient.getSessionStats();
+            updateStatus(STATUS.connection.CONNECTED);
             if (isMountedRef.current) setIsReady(true);
         } catch (err) {
-            reportTransportError(err);
+            console.error("[tiny-torrent][rpc] connection failed", err);
+            updateStatus(STATUS.connection.ERROR);
             if (isMountedRef.current) setIsReady(false);
-        } finally {
-            isHandshakingRef.current = false;
-            lastHandshakeTs.current = Date.now();
-            pendingReconnectRef.current = false;
+            throw err;
         }
-    }, [
-        resolvedClient,
-        markTransportConnected,
-        reportTransportError,
-        updateStatus,
-    ]);
+    }, [resolvedClient, updateStatus]);
 
     useEffect(() => {
         isMountedRef.current = true;
-        void handshake();
+        void connect();
         return () => {
             isMountedRef.current = false;
         };
-    }, [handshake]);
+    }, [connect]);
 
     const reconnect = useCallback(async () => {
         console.log("[tiny-torrent][rpc] reconnect requested");
@@ -110,37 +87,24 @@ export function useRpcConnection(
 
         try {
             const anyClient = resolvedClient as any;
-            if (anyClient && typeof anyClient.closeSession === "function") {
+            if (anyClient && typeof anyClient.resetConnection === "function") {
                 try {
-                    await anyClient.closeSession();
+                    anyClient.resetConnection();
                 } catch (err) {
                     console.debug(
-                        "[tiny-torrent][rpc] closeSession failed",
+                        "[tiny-torrent][rpc] resetConnection failed",
                         err
                     );
                 }
             }
 
-            if (anyClient && typeof anyClient.handshake === "function") {
-                await anyClient.handshake();
-                markTransportConnected();
-                if (isMountedRef.current) setIsReady(true);
-            } else {
-                console.debug(
-                    "[tiny-torrent][rpc] reconnect: adapter has no handshake()"
-                );
-            }
+            await connect();
         } catch (err) {
-            console.warn("[tiny-torrent][rpc] reconnect handshake failed", err);
+            console.warn("[tiny-torrent][rpc] reconnect failed", err);
             reportTransportError(err);
             if (isMountedRef.current) setIsReady(false);
         }
-    }, [
-        resolvedClient,
-        updateStatus,
-        markTransportConnected,
-        reportTransportError,
-    ]);
+    }, [resolvedClient, connect, reportTransportError]);
 
     return {
         rpcStatus,
