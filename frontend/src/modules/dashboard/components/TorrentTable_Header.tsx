@@ -4,8 +4,7 @@ import { useSortable, defaultAnimateLayoutChanges } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@heroui/react";
 import { ArrowDown, ArrowUp } from "lucide-react";
-import type { Column } from "@tanstack/react-table";
-import type { Header } from "@tanstack/react-table";
+import { flexRender, type Column, type Header } from "@tanstack/react-table";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import {
     ICON_STROKE_WIDTH_DENSE,
@@ -14,7 +13,6 @@ import {
     CELL_PADDING_CLASS,
 } from "@/config/logic";
 import { PANEL_SHADOW } from "@/shared/ui/layout/glass-surface";
-import { TableHeaderContent } from "./TorrentTable_Shared";
 import { getColumnWidthCss } from "./TorrentTable_Shared";
 
 const SUPPORTS_POINTER_EVENTS =
@@ -168,13 +166,10 @@ const TorrentTable_Header = memo(
                         canSort ? column.getToggleSortingHandler() : undefined
                     }
                 >
-                    <TableHeaderContent
-                        header={header}
-                        useBaseClass={true}
-                        isMeasurement={false}
-                        layoutEnabled={shouldAnimateLayout}
-                        showSortIcon={false}
-                    />
+                    {flexRender(
+                        column.columnDef.header,
+                        header.getContext()
+                    )}
                     <SortArrowIcon
                         strokeWidth={ICON_STROKE_WIDTH_DENSE}
                         className={cn(
