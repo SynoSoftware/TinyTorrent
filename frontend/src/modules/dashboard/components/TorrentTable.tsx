@@ -981,6 +981,11 @@ export function TorrentTable({
                 data-tt-column-resizing={
                     isAnyColumnResizing ? "true" : undefined
                 }
+                data-tt-suppress-layout={
+                    isTableResizing || suppressLayoutAnimations
+                        ? "true"
+                        : undefined
+                }
                 style={{ borderRadius: "inherit" }}
                 className={cn(
                     "flex-1 min-h-0 flex flex-col h-full overflow-hidden relative select-none outline-none",
@@ -1018,8 +1023,6 @@ export function TorrentTable({
                             columnSizingInfo={columnSizingInfo}
                             hookActiveResizeColumnId={hookActiveResizeColumnId}
                             isAnyColumnResizing={isAnyColumnResizing}
-                            isTableResizing={isTableResizing}
-                            suppressLayoutAnimations={suppressLayoutAnimations}
                         />
 
                         <TorrentTable_Body
@@ -1052,7 +1055,6 @@ export function TorrentTable({
                             highlightedRowId={highlightedRowId}
                             handleDropTargetChange={handleDropTargetChange}
                             isAnyColumnResizing={isAnyColumnResizing}
-                            isTableResizing={isTableResizing}
                             columnOrder={columnOrder}
                             suppressLayoutAnimations={suppressLayoutAnimations}
                             isColumnOrderChanging={isColumnOrderChanging}
@@ -1069,7 +1071,6 @@ export function TorrentTable({
                                 <ColumnHeaderPreview
                                     header={activeHeader}
                                     isAnyColumnResizing={isAnyColumnResizing}
-                                    isTableResizing={isTableResizing}
                                     suppressLayoutAnimations={
                                         suppressLayoutAnimations
                                     }

@@ -25,7 +25,6 @@ const TorrentTable_Row = memo(
         isHighlighted,
         onDropTargetChange,
         isAnyColumnResizing = false,
-        isTableResizing = false,
         columnOrder,
         suppressLayoutAnimations = false,
     }: {
@@ -42,7 +41,6 @@ const TorrentTable_Row = memo(
         isHighlighted: boolean;
         onDropTargetChange?: (id: string | null) => void;
         isAnyColumnResizing?: boolean;
-        isTableResizing?: boolean;
         columnOrder?: string[];
         suppressLayoutAnimations?: boolean;
     }) => {
@@ -62,7 +60,7 @@ const TorrentTable_Row = memo(
             // FIX: Disable animation when the drag ends (wasDragging) to prevent
             // the row from animating "back" while the virtualizer moves it "to".
             animateLayoutChanges: (args) => {
-                if (isAnyColumnResizing || isTableResizing) {
+                if (isAnyColumnResizing || suppressLayoutAnimations) {
                     return false;
                 }
                 const { wasDragging } = args;
@@ -85,7 +83,11 @@ const TorrentTable_Row = memo(
                 style.transform = CSS.Translate.toString(transform);
             }
             // Retain drag transition, BUT we will remove highlight transition
-            if (transition && !isAnyColumnResizing && !isTableResizing) {
+            if (
+                transition &&
+                !isAnyColumnResizing &&
+                !suppressLayoutAnimations
+            ) {
                 style.transition = transition;
             }
             style.opacity = isDragging ? 0 : 1;
@@ -147,15 +149,9 @@ const TorrentTable_Row = memo(
             >
                 {/* INNER DIV: Handles all visuals. Separating layout from paint prevents glitching. */}
                 <motion.div
-                    layout={
-                        !isAnyColumnResizing &&
-                        !suppressLayoutAnimations &&
-                        !isTableResizing
-                    }
+                    layout={!isAnyColumnResizing && !suppressLayoutAnimations}
                     layoutId={
-                        isAnyColumnResizing ||
-                        suppressLayoutAnimations ||
-                        isTableResizing
+                        isAnyColumnResizing || suppressLayoutAnimations
                             ? undefined
                             : `torrent-row-${row.id}`
                     }

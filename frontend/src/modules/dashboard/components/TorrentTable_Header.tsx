@@ -27,7 +27,6 @@ const TorrentTable_Header = memo(
         onAutoFitColumn,
         onResizeStart,
         isAnyColumnResizing = false,
-        isTableResizing = false,
         suppressLayoutAnimations = false,
         isResizing = false,
     }: {
@@ -37,7 +36,6 @@ const TorrentTable_Header = memo(
         onAutoFitColumn?: (column: Column<Torrent>) => void;
         onResizeStart?: (column: Column<Torrent>, clientX: number) => void;
         isAnyColumnResizing?: boolean;
-        isTableResizing?: boolean;
         suppressLayoutAnimations?: boolean;
         isResizing?: boolean;
     }) => {
@@ -57,16 +55,9 @@ const TorrentTable_Header = memo(
             isDragging,
         } = useSortable({
             id: header.column.id,
-            disabled:
-                isAnyColumnResizing ||
-                isTableResizing ||
-                suppressLayoutAnimations,
+            disabled: isAnyColumnResizing || suppressLayoutAnimations,
             animateLayoutChanges: (args) => {
-                if (
-                    isAnyColumnResizing ||
-                    isTableResizing ||
-                    suppressLayoutAnimations
-                )
+                if (isAnyColumnResizing || suppressLayoutAnimations)
                     return false;
                 const { wasDragging } = args;
                 if (wasDragging) return false;
@@ -117,16 +108,11 @@ const TorrentTable_Header = memo(
 
         const style: CSSProperties = {
             transform:
-                transform &&
-                !isAnyColumnResizing &&
-                !isTableResizing &&
-                !suppressLayoutAnimations
+                transform && !isAnyColumnResizing && !suppressLayoutAnimations
                     ? CSS.Translate.toString(transform)
                     : undefined,
             transition:
-                !isAnyColumnResizing &&
-                !isTableResizing &&
-                !suppressLayoutAnimations
+                !isAnyColumnResizing && !suppressLayoutAnimations
                     ? transition
                     : undefined,
             width: getColumnWidthCss(column.id, column.getSize()),
@@ -142,7 +128,6 @@ const TorrentTable_Header = memo(
         const sortArrowOpacity = sortState ? "opacity-100" : "opacity-0";
         const shouldAnimateLayout =
             !isAnyColumnResizing &&
-            !isTableResizing &&
             !suppressLayoutAnimations &&
             !isDragging &&
             !isOverlay;
