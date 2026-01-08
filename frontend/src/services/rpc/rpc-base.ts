@@ -104,9 +104,11 @@ const READ_ONLY_RPC_METHODS = new Set([
     "free-space",
 ]);
 const READ_ONLY_RPC_RESPONSE_TTL_MS = Number.isFinite(
-    (CONFIG as any)?.performance?.read_rpc_cache_ms as number
+    (CONFIG as unknown as { performance?: { read_rpc_cache_ms?: number } })
+        ?.performance?.read_rpc_cache_ms as number
 )
-    ? ((CONFIG as any).performance.read_rpc_cache_ms as number)
+    ? ((CONFIG as unknown as { performance?: { read_rpc_cache_ms?: number } })
+          .performance!.read_rpc_cache_ms as number)
     : 0;
 
 // Helper: stable deterministic stringify for request argument hashing
@@ -328,13 +330,12 @@ export class TransmissionAdapter implements EngineAdapter {
     private isAbortError(err: unknown): boolean {
         if (!err) return false;
         try {
-            const e = err as any;
+            const e = err as unknown;
             if (typeof e === "object" && e !== null) {
-                if (e.name === "AbortError") return true;
-                if (
-                    typeof e.message === "string" &&
-                    /abort(ed)?/i.test(e.message)
-                )
+                const name = (e as { name?: unknown }).name;
+                if (name === "AbortError") return true;
+                const message = (e as { message?: unknown }).message;
+                if (typeof message === "string" && /abort(ed)?/i.test(message))
                     return true;
             }
             return false;
@@ -454,11 +455,12 @@ export class TransmissionAdapter implements EngineAdapter {
                     // any token present on the response, then fail fast so the
                     // caller can decide how to proceed.
                     try {
-                        const token = (response as any)?.headers?.get
-                            ? (response as any).headers.get(
-                                  "X-Transmission-Session-Id"
-                              )
-                            : null;
+                        const hdrs = (response as Response | undefined)
+                            ?.headers;
+                        const token =
+                            hdrs && typeof hdrs.get === "function"
+                                ? hdrs.get("X-Transmission-Session-Id")
+                                : null;
                         if (token) this.acceptSessionId(token);
                     } catch {}
                     this.invalidateSession("409-session-conflict");
@@ -613,6 +615,17 @@ export class TransmissionAdapter implements EngineAdapter {
             const cacheEnabled = READ_ONLY_RPC_RESPONSE_TTL_MS > 0;
             const args = payload.arguments ?? {};
             try {
+                // Ensure transport is seeded with any adapter-held session id
+                try {
+                    const transportSession = this.transport.getSessionId();
+                    if (this.sessionId && this.sessionId !== transportSession) {
+                        const t = this.transport as unknown as {
+                            setSessionId?: (token?: string | null) => void;
+                        };
+                        if (typeof t.setSessionId === "function")
+                            t.setSessionId(this.sessionId);
+                    }
+                } catch {}
                 const raw = await this.transport.request(
                     payload.method!,
                     args,
@@ -632,8 +645,9 @@ export class TransmissionAdapter implements EngineAdapter {
                 } catch {}
 
                 return schema.parse(raw as unknown);
-            } catch (e: any) {
-                if (e && (e.status === 401 || e.status === 403)) {
+            } catch (e: unknown) {
+                const status = (e as { status?: unknown })?.status;
+                if (status === 401 || status === 403) {
                     try {
                         this.handleUnauthorizedResponse();
                     } catch {}
@@ -665,8 +679,11 @@ export class TransmissionAdapter implements EngineAdapter {
             this.heartbeat.disablePolling();
             // ensure heartbeat removes any global listeners it installed
             try {
-                if (typeof (this.heartbeat as any).dispose === "function") {
-                    (this.heartbeat as any).dispose();
+                const hb = this.heartbeat as unknown as {
+                    dispose?: () => void;
+                };
+                if (typeof hb.dispose === "function") {
+                    hb.dispose();
                 }
             } catch {}
         } catch (err) {
@@ -787,8 +804,11 @@ export class TransmissionAdapter implements EngineAdapter {
                 onConnected: () => this.heartbeat.disablePolling(),
                 onDisconnected: () => this.heartbeat.enablePolling(),
                 onUiFocus: () => {
-                    if ((this as any).handleUiFocusSignal) {
-                        (this as any).handleUiFocusSignal();
+                    const self = this as unknown as {
+                        handleUiFocusSignal?: () => void;
+                    };
+                    if (typeof self.handleUiFocusSignal === "function") {
+                        self.handleUiFocusSignal();
                     }
                 },
                 onError: (error) => {
@@ -839,7 +859,10 @@ export class TransmissionAdapter implements EngineAdapter {
                 try {
                     try {
                         // Ensure transport aborts any internal fetches it is tracking.
-                        (this.transport as any)?.abortAll?.();
+                        const t = this.transport as unknown as {
+                            abortAll?: () => void;
+                        };
+                        t.abortAll?.();
                     } catch {}
                 } catch {}
                 // server likely does not support our extension. Treat any
@@ -958,13 +981,19 @@ export class TransmissionAdapter implements EngineAdapter {
         const stats = mapTransmissionSessionStatsToSessionStats(session);
         // Push the live payload immediately to avoid blocking the websocket
         // processing pipeline on potentially slow free-space checks.
-        const payload: any = {
+        const payload: Partial<
+            import("./heartbeat").HeartbeatPayload & {
+                networkTelemetry?: NetworkTelemetry;
+            }
+        > = {
             torrents: normalized,
             sessionStats: stats,
             timestampMs: Date.now(),
             source: "websocket",
         };
-        this.heartbeat.pushLivePayload(payload);
+        this.heartbeat.pushLivePayload(
+            payload as import("./heartbeat").HeartbeatPayload
+        );
 
         // Fetch telemetry asynchronously and push a secondary payload when
         // available. Do not await — best-effort only.
@@ -972,14 +1001,20 @@ export class TransmissionAdapter implements EngineAdapter {
             try {
                 const nt = await this.fetchNetworkTelemetry();
                 if (!nt) return;
-                const telemetryPayload = {
+                const telemetryPayload: Partial<
+                    import("./heartbeat").HeartbeatPayload & {
+                        networkTelemetry?: NetworkTelemetry;
+                    }
+                > = {
                     torrents: normalized,
                     sessionStats: stats,
                     networkTelemetry: nt,
                     timestampMs: Date.now(),
                     source: "websocket-telemetry",
-                } as any;
-                this.heartbeat.pushLivePayload(telemetryPayload);
+                };
+                this.heartbeat.pushLivePayload(
+                    telemetryPayload as import("./heartbeat").HeartbeatPayload
+                );
             } catch (err) {
                 // ignore telemetry fetch failures
             }
@@ -1023,9 +1058,14 @@ export class TransmissionAdapter implements EngineAdapter {
             },
             z.any()
         );
-        const args = response as any;
+        const args = response as unknown as { removed?: unknown } & Record<
+            string,
+            unknown
+        >;
         const torrents = getTorrentList(args ?? {});
-        const removed = Array.isArray(args?.removed) ? args.removed : [];
+        const removed = Array.isArray(args?.removed)
+            ? (args.removed as number[])
+            : [];
         return { torrents, removed };
     }
 
@@ -1522,7 +1562,7 @@ export class TransmissionAdapter implements EngineAdapter {
         );
 
         const results: TorrentDetailEntity[] = [];
-        for (const item of response as any[]) {
+        for (const item of response as unknown[]) {
             const detail = item as TransmissionTorrentDetail;
             if (detail.hashString && typeof detail.id === "number") {
                 try {

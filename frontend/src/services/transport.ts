@@ -6,7 +6,7 @@ interface RpcRequest {
     tag?: number;
 }
 
-interface RpcResponse<T = any> {
+interface RpcResponse<T = unknown> {
     result: string;
     arguments: T;
 }
@@ -21,10 +21,10 @@ export class TransmissionRpcTransport {
     private inflightControllers = new Set<AbortController>();
 
     // 1. Request Coalescing Map (Deduplication)
-    private inflightRequests = new Map<string, Promise<any>>();
+    private inflightRequests = new Map<string, Promise<unknown>>();
 
     // 2. Short-lived Cache (TTL)
-    private responseCache = new Map<string, { val: any; ts: number }>();
+    private responseCache = new Map<string, { val: unknown; ts: number }>();
     private readonly CACHE_TTL_MS = 500;
 
     // Helper: stable deterministic stringify for request argument hashing
@@ -123,6 +123,15 @@ export class TransmissionRpcTransport {
         );
     }
 
+    public setSessionId(token: string | null | undefined): void {
+        try {
+            this.sessionId = token ?? null;
+        } catch {}
+        try {
+            TransmissionRpcTransport.sharedSessionId = token ?? null;
+        } catch {}
+    }
+
     public async fetchWithSession(
         requestInit: RequestInit,
         controller?: AbortController,
@@ -151,7 +160,8 @@ export class TransmissionRpcTransport {
         } catch {}
         requestInit.signal = internalController.signal;
         if (keepalive) {
-            (requestInit as any).keepalive = true;
+            (requestInit as RequestInit & { keepalive?: boolean }).keepalive =
+                true;
         }
 
         const attempt = async (retry = false): Promise<Response> => {
@@ -301,22 +311,24 @@ export class TransmissionRpcTransport {
             // that looks like a Response but lacks `status` or `headers`.
             // Be defensive: derive numeric status from `status` when
             // present, otherwise infer from `ok`.
+            const maybeResp = response as Response | undefined | null;
             const status: number =
-                typeof (response as any)?.status === "number"
-                    ? (response as any).status
-                    : (response as any)?.ok
-                    ? 200
+                maybeResp && typeof maybeResp.status === "number"
+                    ? maybeResp.status
+                    : maybeResp && typeof maybeResp.ok === "boolean"
+                    ? maybeResp.ok
+                        ? 200
+                        : 0
                     : 0;
 
             if (status === 409) {
                 // Try to obtain a session token from headers when available
                 let token: string | null | undefined = undefined;
                 try {
-                    token = (response as any)?.headers?.get
-                        ? (response as any).headers.get(
-                              "X-Transmission-Session-Id"
-                          )
-                        : undefined;
+                    const hdrs = (response as Response)?.headers;
+                    if (hdrs && typeof hdrs.get === "function") {
+                        token = hdrs.get("X-Transmission-Session-Id");
+                    }
                 } catch {}
 
                 if (!token) {
@@ -345,9 +357,11 @@ export class TransmissionRpcTransport {
 
             // Update session id if present on response headers (defensive)
             try {
-                const currentToken = (response as any)?.headers?.get
-                    ? (response as any).headers.get("X-Transmission-Session-Id")
-                    : null;
+                const hdrs = (response as Response)?.headers;
+                const currentToken =
+                    hdrs && typeof hdrs.get === "function"
+                        ? hdrs.get("X-Transmission-Session-Id")
+                        : null;
                 if (currentToken && currentToken !== this.sessionId) {
                     this.sessionId = currentToken;
                     try {
@@ -445,14 +459,14 @@ export class TransmissionRpcTransport {
         if (options.cache) {
             const cached = this.responseCache.get(cacheKey);
             if (cached && Date.now() - cached.ts < this.CACHE_TTL_MS) {
-                return cached.val;
+                return cached.val as T;
             }
         }
 
         // B. Coalescing (Deduplication)
         // If this exact request is already flying, return the existing promise
         if (this.inflightRequests.has(cacheKey)) {
-            return this.inflightRequests.get(cacheKey);
+            return this.inflightRequests.get(cacheKey) as Promise<T>;
         }
 
         // If this is a cached/coalesced read-only request, do NOT wire the
@@ -469,7 +483,7 @@ export class TransmissionRpcTransport {
         this.inflightRequests.set(cacheKey, promise);
 
         try {
-            const result = await promise;
+            const result = (await promise) as T;
             // Update Cache on success
             if (options.cache) {
                 this.responseCache.set(cacheKey, {
@@ -489,7 +503,7 @@ export class TransmissionRpcTransport {
      */
     private async executeWithStateLogic<T>(
         method: string,
-        args: any,
+        args: unknown,
         controller?: AbortController
     ): Promise<T> {
         const requestInit: RequestInit = {
@@ -502,19 +516,20 @@ export class TransmissionRpcTransport {
 
         // Handle unauthorized responses explicitly so callers can react.
         if (res.status === 401) {
-            const e: any = new Error("TinyTorrent RPC unauthorized");
-            e.status = 401;
+            const e = new Error("TinyTorrent RPC unauthorized");
+            (e as unknown as { status?: number }).status = 401;
             throw e;
         }
         if (res.status === 403) {
-            const e: any = new Error("TinyTorrent RPC forbidden");
-            e.status = 403;
+            const e = new Error("TinyTorrent RPC forbidden");
+            (e as unknown as { status?: number }).status = 403;
             throw e;
         }
 
         if (!res.ok) throw new Error(`HTTP Error ${res.status}`);
 
-        const json: RpcResponse<T> = await res.json();
+        const jsonRaw = await res.json();
+        const json = jsonRaw as RpcResponse<T>;
         if (json.result !== "success") {
             throw new RpcCommandError(json.result, json.result);
         }
