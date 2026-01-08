@@ -92,6 +92,7 @@ type HandshakeState = "idle" | "handshaking" | "ready" | "invalid";
 
 type RpcSendOptions = {
     bypassHandshake?: boolean;
+    _retry409?: boolean; // internal: guard to prevent infinite 409 retry loops
 };
 
 const READ_ONLY_RPC_METHODS = new Set([
@@ -101,12 +102,28 @@ const READ_ONLY_RPC_METHODS = new Set([
     "tt-get-capabilities",
 ]);
 const READ_ONLY_RPC_DEDUP_CACHE = new Map<string, Promise<unknown>>();
-let readOnlyDedupClearScheduled = false;
+// Short-lived response cache for read-only RPCs to protect against rapid
+// repeated identical requests (UI mount/unmount storms). TTL configurable
+// via `CONFIG.performance.read_rpc_cache_ms` (fallback 500ms).
+const READ_ONLY_RPC_RESPONSE_CACHE = new Map<
+    string,
+    { value: unknown; ts: number }
+>();
+// Track expiration timers so we can clear pending timeouts when entries
+// are invalidated by mutating RPCs. Keys -> window.setTimeout id.
+const READ_ONLY_RPC_RESPONSE_EXPIRATION_TIMERS = new Map<string, number>();
+const READ_ONLY_RPC_RESPONSE_TTL_MS = Number.isFinite(
+    (CONFIG as any)?.performance?.read_rpc_cache_ms as number
+)
+    ? ((CONFIG as any).performance.read_rpc_cache_ms as number)
+    : 0;
 
+// Helper: stable deterministic stringify for request argument hashing
 function stableStringify(value: unknown): string {
     if (value === undefined) {
         return "undefined";
     }
+
     if (value === null) {
         return "null";
     }
@@ -134,15 +151,16 @@ function buildReadRpcDedupKey(
     return `${method}:${serializedArgs}`;
 }
 
-function scheduleReadOnlyDedupClear() {
-    if (readOnlyDedupClearScheduled) {
-        return;
-    }
-    readOnlyDedupClearScheduled = true;
-    queueMicrotask(() => {
-        READ_ONLY_RPC_DEDUP_CACHE.clear();
-        readOnlyDedupClearScheduled = false;
-    });
+function clearReadOnlyResponseCache() {
+    try {
+        for (const t of READ_ONLY_RPC_RESPONSE_EXPIRATION_TIMERS.values()) {
+            try {
+                window.clearTimeout(t);
+            } catch {}
+        }
+    } catch {}
+    READ_ONLY_RPC_RESPONSE_EXPIRATION_TIMERS.clear();
+    READ_ONLY_RPC_RESPONSE_CACHE.clear();
 }
 
 const WARNING_THROTTLE_MS = 1000;
@@ -178,6 +196,32 @@ const SUMMARY_FIELDS: Array<keyof TransmissionTorrent> = [
     "superSeeding",
     "isFinished",
     "downloadDir",
+];
+
+// Fields that change frequently and are safe to request on a delta poll.
+const VOLATILE_FIELDS: Array<keyof TransmissionTorrent> = [
+    "id",
+    "status",
+    "rateDownload",
+    "rateUpload",
+    "peersConnected",
+    "percentDone",
+    "eta",
+    "queuePosition",
+    "error",
+    "errorString",
+];
+
+// A compact set of fields to request for recently-active deltas. We include
+// a small subset of static fields (name, totalSize) so newly-added torrents
+// look reasonable in the UI without requiring an immediate full fetch.
+const DELTA_FIELDS: Array<keyof TransmissionTorrent> = [
+    ...VOLATILE_FIELDS,
+    // `hashString` is required by `normalizeTorrent` and by UI identity
+    // (React keys). Include it so delta fetches supply a valid hash.
+    "hashString",
+    "name",
+    "totalSize",
 ];
 
 const DETAIL_FIELDS = [
@@ -333,7 +377,15 @@ export class TransmissionAdapter implements EngineAdapter {
         options?: RpcSendOptions
     ): Promise<T> {
         void retryCount;
-        if (!options?.bypassHandshake && !this.sessionId) {
+        // Hard gate: do not send RPCs unless we have completed a handshake
+        // and hold a valid session ID. This prevents callers from racing
+        // handshakes and issuing requests that lack the proper session
+        // context (which leads to empty results or 409 churn). Bypass when
+        // explicitly requested (session-get etc.).
+        if (
+            !options?.bypassHandshake &&
+            (this.handshakeState !== "ready" || !this.sessionId)
+        ) {
             await this.handshakeOnce();
         }
         const controller = new AbortController();
@@ -372,6 +424,7 @@ export class TransmissionAdapter implements EngineAdapter {
                         recentWarningTs.set(m, now);
                     }
                 }
+                // diagnostics removed: stack-trace logging for torrent-get storms
             } catch (e) {
                 // Don't allow diagnostic code to interfere with normal RPC flow.
             }
@@ -380,6 +433,7 @@ export class TransmissionAdapter implements EngineAdapter {
                 const headers: Record<string, string> = {
                     "Content-Type": "application/json",
                 };
+
                 const ttAuth = this.getTinyTorrentAuthToken();
                 if (ttAuth) {
                     headers["X-TT-Auth"] = ttAuth;
@@ -404,6 +458,8 @@ export class TransmissionAdapter implements EngineAdapter {
                 const response = await fetch(this.endpoint, requestInit);
 
                 if (response.status === 409) {
+                    // Flow-control: server is telling us the session ID is
+                    // wrong/missing and provides the correct one.
                     let token = response.headers.get(
                         "X-Transmission-Session-Id"
                     );
@@ -416,18 +472,33 @@ export class TransmissionAdapter implements EngineAdapter {
                             // ignore probe errors
                         }
                     }
-                    if (token) {
-                        this.acceptSessionId(token);
-                    }
-                    if (attempt >= 1) {
-                        this.invalidateSession("409-session-conflict");
-                        throw new Error("Transmission RPC session conflict");
-                    }
                     if (!token) {
+                        // Nothing we can do without a token.
                         this.invalidateSession("409-missing-session-id");
                         throw new Error("Transmission RPC missing session id");
                     }
-                    return attemptRequest(attempt + 1);
+
+                    // Install the authoritative token.
+                    this.acceptSessionId(token);
+
+                    // If we've already retried once for 409, don't loop.
+                    if (options?._retry409) {
+                        this.invalidateSession("409-session-conflict");
+                        throw new Error("Transmission RPC session conflict");
+                    }
+
+                    // Retry the same request once using the established token.
+                    return this.performSend(
+                        payload,
+                        schema,
+                        retryCount,
+                        keepalive,
+                        {
+                            ...(options ?? {}),
+                            bypassHandshake: true,
+                            _retry409: true,
+                        }
+                    ) as Promise<T> as Promise<any>;
                 }
 
                 if (response.status === 401) {
@@ -444,9 +515,22 @@ export class TransmissionAdapter implements EngineAdapter {
                         `Transmission RPC responded with ${response.status}`
                     );
                 }
+                // Accept session ID from any response that provides it. Per
+                // Transmission semantics the `X-Transmission-Session-Id` header
+                // can be present on 200 OK responses; treat it as authoritative
+                // and install it so subsequent requests carry the correct
+                // session context. This prevents handshake churn when servers
+                // don't issue 409 for every new session token.
+                const currentToken = response.headers.get(
+                    "X-Transmission-Session-Id"
+                );
+                if (currentToken && currentToken !== this.sessionId) {
+                    this.acceptSessionId(currentToken);
+                }
 
                 const json = await response.json();
                 const parsed = parseRpcResponse(json);
+
                 if (parsed.result !== "success") {
                     throw new RpcCommandError(
                         `Transmission RPC responded with ${parsed.result}`,
@@ -529,10 +613,26 @@ export class TransmissionAdapter implements EngineAdapter {
         const method = payload.method ?? "";
         if (READ_ONLY_RPC_METHODS.has(method)) {
             const dedupKey = buildReadRpcDedupKey(method, payload.arguments);
+            // Optionally serve short-lived cached responses if enabled via config
+            // to limit repeated identical calls from UI churn. Disabled by default.
+            try {
+                if (READ_ONLY_RPC_RESPONSE_TTL_MS > 0) {
+                    const cached = READ_ONLY_RPC_RESPONSE_CACHE.get(dedupKey);
+                    if (
+                        cached &&
+                        Date.now() - cached.ts < READ_ONLY_RPC_RESPONSE_TTL_MS
+                    ) {
+                        return Promise.resolve(cached.value as T);
+                    }
+                }
+            } catch {}
             const existing = READ_ONLY_RPC_DEDUP_CACHE.get(dedupKey);
             if (existing) {
+                // If an identical request is in-flight or recently issued, return it.
                 return existing as Promise<T>;
             }
+
+            // Always send immediately for the first caller.
             const promise = this.performSend(
                 payload,
                 schema,
@@ -540,26 +640,85 @@ export class TransmissionAdapter implements EngineAdapter {
                 keepalive,
                 options
             );
+
+            // Store promise in cache so concurrent callers reuse the same in-flight request.
             READ_ONLY_RPC_DEDUP_CACHE.set(dedupKey, promise);
+
+            // Cleanup immediately when the request settles so we never serve stale data.
             promise.finally(() => {
-                READ_ONLY_RPC_DEDUP_CACHE.delete(dedupKey);
+                try {
+                    READ_ONLY_RPC_DEDUP_CACHE.delete(dedupKey);
+                    // If enabled, store the resolved response for a short TTL.
+                    if (READ_ONLY_RPC_RESPONSE_TTL_MS > 0) {
+                        promise
+                            .then((v) => {
+                                try {
+                                    // Store cached value and schedule expiry.
+                                    READ_ONLY_RPC_RESPONSE_CACHE.set(dedupKey, {
+                                        value: v,
+                                        ts: Date.now(),
+                                    });
+                                    // Clear any existing timer first
+                                    const prevTimer =
+                                        READ_ONLY_RPC_RESPONSE_EXPIRATION_TIMERS.get(
+                                            dedupKey
+                                        );
+                                    if (prevTimer !== undefined) {
+                                        try {
+                                            window.clearTimeout(prevTimer);
+                                        } catch {}
+                                    }
+                                    const timerId = window.setTimeout(() => {
+                                        try {
+                                            READ_ONLY_RPC_RESPONSE_CACHE.delete(
+                                                dedupKey
+                                            );
+                                        } catch {}
+                                        try {
+                                            READ_ONLY_RPC_RESPONSE_EXPIRATION_TIMERS.delete(
+                                                dedupKey
+                                            );
+                                        } catch {}
+                                    }, READ_ONLY_RPC_RESPONSE_TTL_MS);
+                                    READ_ONLY_RPC_RESPONSE_EXPIRATION_TIMERS.set(
+                                        dedupKey,
+                                        timerId
+                                    );
+                                } catch {}
+                            })
+                            .catch(() => {});
+                    }
+                } catch {}
             });
-            scheduleReadOnlyDedupClear();
-            return promise;
+
+            return promise as Promise<T>;
         }
-        return this.performSend(
+        const result = await this.performSend(
             payload,
             schema,
             retryCount,
             keepalive,
             options
         );
+        // Deterministic invalidation: any mutating RPC must invalidate
+        // short-lived read-only response cache to avoid serving stale data
+        // that contradicts engine truth.
+        try {
+            clearReadOnlyResponseCache();
+        } catch {}
+        return result;
     }
 
     // Synchronously destroy the adapter and release resources.
     public destroy(): void {
         try {
             this.heartbeat.disablePolling();
+            // ensure heartbeat removes any global listeners it installed
+            try {
+                if (typeof (this.heartbeat as any).dispose === "function") {
+                    (this.heartbeat as any).dispose();
+                }
+            } catch {}
         } catch (err) {
             // Log destroy errors instead of swallowing silently
             // eslint-disable-next-line no-console
@@ -764,7 +923,10 @@ export class TransmissionAdapter implements EngineAdapter {
             try {
                 const response = await this.send(
                     { method: "tt-get-capabilities" },
-                    zTinyTorrentCapabilitiesNormalized
+                    zTinyTorrentCapabilitiesNormalized,
+                    0,
+                    false,
+                    { bypassHandshake: true }
                 );
                 this.applyCapabilities(response);
             } catch (error) {
@@ -772,16 +934,17 @@ export class TransmissionAdapter implements EngineAdapter {
                 // almost certainly a plain Transmission server. Treat that as a
                 // non-fatal condition and mark the server class to avoid
                 // repeatedly attempting the same unsupported RPC.
-                if (
-                    error instanceof RpcCommandError &&
-                    typeof error.code === "string" &&
-                    error.code.toLowerCase() === "method name not recognized"
-                ) {
+                // If the capabilities RPC failed with a command error, the
+                // server likely does not support our extension. Treat any
+                // RpcCommandError as the server not supporting `tt-get-capabilities`
+                // to avoid failing the handshake flow due to an optional method.
+                if (error instanceof RpcCommandError) {
                     this.tinyTorrentCapabilities = null;
                     this.serverClass = "transmission";
                     this.ensureWebsocketConnection();
                     console.debug(
-                        "[tiny-torrent][rpc] tt-get-capabilities not supported; marking serverClass=transmission"
+                        "[tiny-torrent][rpc] tt-get-capabilities not supported; marking serverClass=transmission",
+                        error.code
                     );
                     return;
                 }
@@ -861,7 +1024,18 @@ export class TransmissionAdapter implements EngineAdapter {
         this.sessionSettingsCache = result;
         this.engineInfoCache = undefined;
         this.applyCapabilities(null);
-        await this.refreshExtendedCapabilities(true);
+        try {
+            await this.refreshExtendedCapabilities(true);
+        } catch (err) {
+            // Defensive: refreshExtendedCapabilities should handle expected
+            // RpcCommandError cases, but if anything unexpected bubbles up
+            // ensure handshake still succeeds using conservative defaults.
+            console.debug(
+                "[tiny-torrent][rpc] refreshExtendedCapabilities error (ignored):",
+                err
+            );
+            this.applyCapabilities(null);
+        }
         return result;
     }
 
@@ -914,6 +1088,45 @@ export class TransmissionAdapter implements EngineAdapter {
     private async refreshIdMap() {
         const torrents = await this.fetchTransmissionTorrents();
         this.syncIdMap(torrents);
+    }
+
+    /**
+     * Fetch a lightweight delta of recently-active torrents using
+     * Transmission's `ids: "recently-active"` feature. Returns the array
+     * of transmission-format torrents and an optional `removed` array.
+     */
+    public async fetchRecentlyActiveTransmission(): Promise<{
+        torrents: TransmissionTorrent[];
+        removed?: number[];
+    }> {
+        const response = await this.performSend(
+            {
+                method: "torrent-get",
+                arguments: {
+                    ids: "recently-active",
+                    fields: DELTA_FIELDS,
+                },
+            },
+            z.any()
+        );
+        const args = response as any;
+        const torrents = getTorrentList(args ?? {});
+        const removed = Array.isArray(args?.removed) ? args.removed : [];
+        return { torrents, removed };
+    }
+
+    /**
+     * Adapter-level helper for HeartbeatManager: return a normalized delta
+     * payload (TorrentEntity[]) and removed ids when supported.
+     */
+    public async getRecentlyActive(): Promise<{
+        torrents: TorrentEntity[];
+        removed?: number[];
+    }> {
+        const { torrents, removed } =
+            await this.fetchRecentlyActiveTransmission();
+        const normalized = torrents.map(normalizeTorrent);
+        return { torrents: normalized, removed };
     }
 
     private async resolveRpcId(id: string) {
@@ -1344,6 +1557,40 @@ export class TransmissionAdapter implements EngineAdapter {
         return normalizeTorrentDetail(detail);
     }
 
+    /**
+     * Bulk fetch details to prevent N+1 request storms when multiple rows
+     * subscribe to details simultaneously.
+     */
+    public async getTorrentDetailsBulk(
+        ids: string[]
+    ): Promise<TorrentDetailEntity[]> {
+        const rpcIds = await this.resolveIds(ids);
+        if (rpcIds.length === 0) return [];
+
+        const response = await this.send(
+            {
+                method: "torrent-get",
+                arguments: {
+                    fields: DETAIL_FIELDS,
+                    ids: rpcIds,
+                },
+            },
+            zTransmissionTorrentArray
+        );
+
+        const results: TorrentDetailEntity[] = [];
+        for (const item of response as any[]) {
+            const detail = item as TransmissionTorrentDetail;
+            if (detail.hashString && typeof detail.id === "number") {
+                try {
+                    this.idMap.set(detail.hashString, detail.id);
+                } catch {}
+            }
+            results.push(normalizeTorrentDetail(detail));
+        }
+        return results;
+    }
+
     public async addTorrent(
         payload: AddTorrentPayload
     ): Promise<AddTorrentResult> {
@@ -1598,6 +1845,7 @@ export class TransmissionAdapter implements EngineAdapter {
             return this.networkTelemetryCache.inflight;
         }
 
+        const previousCache = this.networkTelemetryCache;
         const inflight = (async (): Promise<NetworkTelemetry | null> => {
             try {
                 // Deterministic telemetry resolution (guarantee downloadDirFreeSpace or null)
@@ -1690,10 +1938,11 @@ export class TransmissionAdapter implements EngineAdapter {
             }
         })();
 
-        // Store inflight promise and return it. Upon resolution update cache.
+        // Store inflight promise and return it. Preserve any previous cache
+        // value/ts to avoid poisoning the cache on transient failures.
         this.networkTelemetryCache = {
-            value: null,
-            ts: now,
+            value: previousCache?.value ?? null,
+            ts: previousCache?.ts ?? 0,
             inflight,
         };
         try {
@@ -1703,9 +1952,11 @@ export class TransmissionAdapter implements EngineAdapter {
             this.networkTelemetryCache.inflight = undefined;
             return result;
         } catch (err) {
-            this.networkTelemetryCache.inflight = undefined;
-            this.networkTelemetryCache.value = null;
-            this.networkTelemetryCache.ts = Date.now();
+            // Do not overwrite the previously-cached value/ts on error; only
+            // clear the inflight marker so a subsequent call may retry sooner.
+            if (this.networkTelemetryCache) {
+                this.networkTelemetryCache.inflight = undefined;
+            }
             return null;
         }
     }

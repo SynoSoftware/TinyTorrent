@@ -1,8 +1,8 @@
 import React from "react";
 import type { Row } from "@tanstack/react-table";
-import type { Torrent } from "@/modules/dashboard/types/torrent";
-import type { Virtualizer } from "@tanstack/react-virtual";
+import type { VirtualItem, Virtualizer } from "@tanstack/react-virtual";
 import type { SensorDescriptor } from "@dnd-kit/core";
+import type { Torrent } from "@/modules/dashboard/types/torrent";
 import {
     DndContext,
     DragOverlay,
@@ -29,7 +29,7 @@ export interface TorrentTableBodyProps {
     isLoading: boolean;
     torrents: Torrent[];
     TABLE_LAYOUT: { rowHeight: number | string; overscan: number };
-    t: (key: string, opts?: any) => string;
+    t: (key: string, opts?: Record<string, unknown>) => string;
     ADD_TORRENT_SHORTCUT: string;
     rowSensors: SensorDescriptor<any>[];
     handleRowDragStart: (e: DragStartEvent) => void;
@@ -192,7 +192,7 @@ export const TorrentTable_Body: React.FC<TorrentTableBodyProps> = (props) => {
                         >
                             {rowVirtualizer
                                 .getVirtualItems()
-                                .map((virtualRow: any) => {
+                                .map((virtualRow: VirtualItem) => {
                                     const row = rows[virtualRow.index];
                                     return (
                                         <TorrentTable_Row

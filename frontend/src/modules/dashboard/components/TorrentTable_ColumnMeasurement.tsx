@@ -37,13 +37,34 @@ export const useMeasuredColumnWidths = (
         const headerWidths: Record<string, number> = {};
         const cellWidths: Record<string, number> = {};
 
+        const winWidth = typeof window !== "undefined" ? window.innerWidth : 0;
+        const maxPlausibleWidth = Math.max(2000, winWidth * 2);
+
+        const shouldSkipElement = (el: HTMLElement, width: number) => {
+            // skip obviously invalid enormous widths
+            if (!Number.isFinite(width) || width > maxPlausibleWidth)
+                return true;
+            // skip measurement elements that are part of ghost/pooled rows
+            const row = el.closest("[data-tt-row], .tt-row");
+            if (!row) return false;
+            const ds = (row as HTMLElement).dataset;
+            if (ds.ttGhost !== undefined || ds.ttPooled !== undefined)
+                return true;
+            if (
+                row.classList.contains("tt-ghost") ||
+                row.classList.contains("tt-pooled")
+            )
+                return true;
+            return false;
+        };
+
         layer
             .querySelectorAll<HTMLElement>(MEASURE_HEADER_SELECTOR)
             .forEach((element) => {
                 const columnId = element.dataset.ttMeasureHeader;
                 if (!columnId) return;
                 const width = readMeasuredWidth(element);
-                if (!Number.isFinite(width)) return;
+                if (shouldSkipElement(element, width)) return;
                 const current = headerWidths[columnId];
                 if (!Number.isFinite(current) || width > current) {
                     headerWidths[columnId] = width;
@@ -56,7 +77,7 @@ export const useMeasuredColumnWidths = (
                 const columnId = element.dataset.ttMeasureCell;
                 if (!columnId) return;
                 const width = readMeasuredWidth(element);
-                if (!Number.isFinite(width)) return;
+                if (shouldSkipElement(element, width)) return;
                 const current = cellWidths[columnId];
                 if (!Number.isFinite(current) || width > current) {
                     cellWidths[columnId] = width;
@@ -83,6 +104,8 @@ export const useMeasuredColumnWidths = (
                 nextMinWidths[columnId] = cellWidth;
             }
         });
+
+        // diagnostics removed: measurement logging
 
         setMinWidths((prev) => {
             const nextIds = Object.keys(nextMinWidths);
