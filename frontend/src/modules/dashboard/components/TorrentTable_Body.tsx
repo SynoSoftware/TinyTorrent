@@ -56,6 +56,8 @@ export interface TorrentTableBodyProps {
     highlightedRowId?: string | null;
     handleDropTargetChange: (id: string | null) => void;
     isAnyColumnResizing: boolean;
+    /** True while the table container is actively being resized (panel/window) */
+    isTableResizing?: boolean;
     columnOrder: string[];
     suppressLayoutAnimations: boolean;
     isColumnOrderChanging: boolean;
@@ -97,6 +99,7 @@ export const TorrentTable_Body: React.FC<TorrentTableBodyProps> = (props) => {
         highlightedRowId,
         handleDropTargetChange,
         isAnyColumnResizing,
+        isTableResizing,
         columnOrder,
         suppressLayoutAnimations,
         isColumnOrderChanging,
@@ -229,6 +232,7 @@ export const TorrentTable_Body: React.FC<TorrentTableBodyProps> = (props) => {
                                                 suppressLayoutAnimations ||
                                                 isColumnOrderChanging
                                             }
+                                            isTableResizing={isTableResizing}
                                         />
                                     );
                                 })}
