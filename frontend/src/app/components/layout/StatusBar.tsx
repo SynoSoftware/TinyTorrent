@@ -619,12 +619,12 @@ export function StatusBar({
                     label={torrentStatLabel}
                     value={torrentStatValue}
                     Icon={isSelection ? Files : Activity}
-                    className="min-w-status-chip"
+                    className="hidden sm:flex"
                     align="end"
                 />
 
-                {/* LEFT: SPEEDS */}
-                <div className="flex flex-1 items-center h-full py-tight gap-stage min-w-0">
+                {/* LEFT: SPEEDS - full (shown at sm+) */}
+                <div className="hidden sm:flex flex-1 items-center h-full py-tight gap-stage min-w-0">
                     <SpeedModule
                         labelKey="status_bar.down"
                         value={downSpeed}
@@ -640,6 +640,58 @@ export function StatusBar({
                         tone="primary"
                         history={uploadHistory}
                     />
+                </div>
+
+                {/* LEFT: SPEEDS - compact (xs) */}
+                <div className="flex sm:hidden flex-1 items-center h-full py-tight min-w-0">
+                    <div className="relative flex-1 h-full min-h-0">
+                        <div className="absolute inset-0">
+                            <div className="absolute inset-0">
+                                <NetworkGraph
+                                    data={downloadHistory}
+                                    color="success"
+                                    className="h-full w-full "
+                                />
+                            </div>
+                            <div className="absolute inset-0 z-10">
+                                <NetworkGraph
+                                    data={uploadHistory}
+                                    color="primary"
+                                    className="h-full w-full opacity-60 mix-blend-screen"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="relative z-30 flex items-center justify-center h-full pointer-events-none">
+                            <div className="flex items-center gap-tight text-center">
+                                <div className="flex flex-col items-center">
+                                    <ArrowDown
+                                        className="toolbar-icon-size-md text-success"
+                                        aria-hidden="true"
+                                    />
+                                    <span className="sr-only">
+                                        {t("status_bar.down")}
+                                    </span>
+                                    <span className="font-bold tracking-tight leading-none text-foreground">
+                                        {formatSpeed(downSpeed)}
+                                    </span>
+                                </div>
+                                <div className="w-px h-nav bg-content1/10 mx-tight" />
+                                <div className="flex flex-col items-center">
+                                    <ArrowUp
+                                        className="toolbar-icon-size-md text-primary"
+                                        aria-hidden="true"
+                                    />
+                                    <span className="sr-only">
+                                        {t("status_bar.up")}
+                                    </span>
+                                    <span className="font-bold tracking-tight leading-none text-foreground">
+                                        {formatSpeed(upSpeed)}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 {/* RIGHT: HUD */}

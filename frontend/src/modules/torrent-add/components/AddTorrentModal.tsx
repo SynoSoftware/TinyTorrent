@@ -157,9 +157,8 @@ const HISTORY_LIMIT = 6;
 const FILE_GRID_TEMPLATE = "var(--tt-file-grid-template)";
 
 const MODAL_CLASSES =
-    "w-full overflow-hidden flex flex-col shadow-2xl border border-default/10 transition-all";
-const PANE_SURFACE =
-    "h-full flex flex-col min-h-0 bg-transparent transition-all";
+    "w-full overflow-hidden flex flex-col shadow-2xl border border-default/10";
+const PANE_SURFACE = "h-full flex flex-col min-h-0 bg-transparent";
 const SECTION_LABEL =
     "text-label font-bold tracking-widest text-foreground/40 uppercase mb-panel flex items-center gap-tools";
 
@@ -559,7 +558,7 @@ export function AddTorrentModal({
             <div
                 key={file.index}
                 className={cn(
-                    "grid items-center border-b border-default/5 transition-colors cursor-pointer group select-none",
+                    "grid items-center border-b border-default/5 cursor-pointer group select-none box-border",
                     isSelected
                         ? "bg-primary/5 hover:bg-primary/10"
                         : "bg-transparent hover:bg-content1/5",
@@ -568,7 +567,9 @@ export function AddTorrentModal({
                 style={{
                     gridTemplateColumns: FILE_GRID_TEMPLATE,
                     height: rowHeight,
+                    minHeight: rowHeight,
                 }}
+                ref={virtualizer.measureElement}
                 onClick={(e) => {
                     if ((e.target as HTMLElement).closest(".priority-trigger"))
                         return;
@@ -594,10 +595,8 @@ export function AddTorrentModal({
                     />
                     <span
                         className={cn(
-                            "truncate select-text transition-colors",
-                            isSelected
-                                ? "text-foreground"
-                                : "text-foreground/60"
+                            "truncate select-text transition-colors text-foreground",
+                            isSelected ? "opacity-100" : "opacity-90"
                         )}
                         title={file.path}
                     >
@@ -633,7 +632,7 @@ export function AddTorrentModal({
                         </div>
 
                         <Select
-                            aria-label="Priority"
+                            aria-label={t("modals.add_torrent.col_priority")}
                             selectedKeys={[priority]}
                             onSelectionChange={(k) =>
                                 setPriority(
@@ -703,9 +702,9 @@ export function AddTorrentModal({
                         ? "h-full rounded-none border-0"
                         : "max-h-modal-body"
                 ),
-                body: "p-0",
-                header: "p-panel select-none",
-                footer: "p-panel select-none",
+                body: "p-0 bg-content1/10",
+                header: "p-0 border-b border-default/10 select-none",
+                footer: "p-0 border-t border-default/10 select-none",
             }}
         >
             <ModalContent>
@@ -738,12 +737,12 @@ export function AddTorrentModal({
                     }}
                 >
                     {/* --- HEADER --- */}
-                    <ModalHeader className="flex justify-between items-center gap-panel">
-                        <div className="flex flex-col overflow-hidden">
+                    <ModalHeader className="flex justify-between items-center gap-panel px-stage py-panel">
+                        <div className="flex flex-col overflow-hidden gap-tight">
                             <h2 className="text-label font-bold tracking-widest uppercase text-foreground">
                                 {t("modals.add_torrent.title")}
                             </h2>
-                            <span className="text-label text-foreground/40 truncate font-mono mt-0.5">
+                            <span className="text-scaled text-foreground/50 truncate font-mono leading-tight">
                                 {source?.label}
                             </span>
                         </div>
@@ -775,32 +774,34 @@ export function AddTorrentModal({
                                         : t("modals.add_torrent.fullscreen")
                                 }
                             >
-                                <Button
-                                    isIconOnly
-                                    size="md"
-                                    variant="light"
+                                <ToolbarIconButton
+                                    Icon={isFullscreen ? Minimize2 : Maximize2}
+                                    ariaLabel={
+                                        isFullscreen
+                                            ? t(
+                                                  "modals.add_torrent.exit_fullscreen"
+                                              )
+                                            : t("modals.add_torrent.fullscreen")
+                                    }
                                     onPress={() =>
                                         setIsFullscreen(!isFullscreen)
                                     }
-                                    className="text-foreground/60"
-                                >
-                                    {isFullscreen ? (
-                                        <Minimize2 className="toolbar-icon-size-md" />
-                                    ) : (
-                                        <Maximize2 className="toolbar-icon-size-md" />
-                                    )}
-                                </Button>
+                                    iconSize="lg"
+                                    className="text-foreground/60 hover:text-foreground"
+                                />
                             </Tooltip>
                             <ToolbarIconButton
                                 Icon={X}
                                 onPress={onCancel}
-                                ariaLabel="Close"
+                                ariaLabel={t("torrent_modal.actions.close")}
+                                iconSize="lg"
+                                className="text-foreground/60 hover:text-foreground"
                             />
                         </div>
                     </ModalHeader>
 
                     {/* --- SPLIT VIEW BODY --- */}
-                    <ModalBody className="flex-1 min-h-0 bg-content1/5 relative">
+                    <ModalBody className="flex-1 min-h-0 relative">
                         {dropActive && (
                             <div className="absolute inset-0 z-drop-overlay bg-primary/20 backdrop-blur-sm border-(--tt-divider-width) border-primary border-dashed m-panel rounded-xl flex items-center justify-center pointer-events-none">
                                 <div className="bg-background px-stage py-tight rounded-full shadow-xl flex items-center gap-tools animate-pulse">
@@ -825,7 +826,7 @@ export function AddTorrentModal({
                                 onExpand={() => setIsSettingsCollapsed(false)}
                                 className={cn(
                                     PANE_SURFACE,
-                                    "bg-content1/20 transition-all ease-in-out",
+                                    "bg-content1/20",
                                     isSettingsCollapsed &&
                                         "min-w-0 w-0 border-none"
                                 )}
@@ -860,9 +861,14 @@ export function AddTorrentModal({
                                                         </div>
                                                     </div>
                                                     <Tooltip
-                                                        content={`${formatBytes(
-                                                            selectedSize
-                                                        )} Selected`}
+                                                        content={t(
+                                                            "modals.add_torrent.selected_size_tooltip",
+                                                            {
+                                                                size: formatBytes(
+                                                                    selectedSize
+                                                                ),
+                                                            }
+                                                        )}
                                                     >
                                                         <Progress
                                                             value={Math.min(
@@ -877,7 +883,9 @@ export function AddTorrentModal({
                                                                     : "success"
                                                             }
                                                             className="w-status-chip"
-                                                            aria-label="Disk Usage"
+                                                            aria-label={t(
+                                                                "modals.add_torrent.free_space_label"
+                                                            )}
                                                         />
                                                     </Tooltip>
                                                 </div>
@@ -930,7 +938,9 @@ export function AddTorrentModal({
                                                             k.toString()
                                                         )
                                                     }
-                                                    aria-label="Recent Paths"
+                                                    aria-label={t(
+                                                        "modals.add_torrent.history"
+                                                    )}
                                                 >
                                                     {recentPaths.length > 0 ? (
                                                         recentPaths.map((p) => (
@@ -1186,7 +1196,9 @@ export function AddTorrentModal({
                                                         k as SmartSelectCommand
                                                     )
                                                 }
-                                                aria-label="Smart Select"
+                                                aria-label={t(
+                                                    "modals.add_torrent.smart_select"
+                                                )}
                                             >
                                                 <DropdownItem
                                                     key="all"
@@ -1279,11 +1291,10 @@ export function AddTorrentModal({
                                             <>
                                                 {/* Sticky Table Header */}
                                                 <div
-                                                    className="grid border-b border-default/5 bg-content1/5 backdrop-blur-md uppercase font-bold tracking-wider text-foreground/40 select-none z-sticky"
+                                                    className="grid border-b border-default/5 bg-content1/5 backdrop-blur-md uppercase font-bold tracking-wider text-foreground/40 select-none z-sticky box-border h-row"
                                                     style={{
                                                         gridTemplateColumns:
                                                             FILE_GRID_TEMPLATE,
-                                                        height: "var(--tt-h-row)", // uses token-driven row height (geometry only)
                                                     }}
                                                 >
                                                     <div className="flex items-center justify-center h-full">
@@ -1378,7 +1389,7 @@ export function AddTorrentModal({
                     </ModalBody>
 
                     {/* --- FOOTER --- */}
-                    <ModalFooter className="flex justify-between items-center gap-panel">
+                    <ModalFooter className="flex justify-between items-center gap-panel px-stage py-panel">
                         <div className="flex items-center gap-tools overflow-hidden">
                             <div className="h-status-chip w-status-chip rounded-panel bg-content1/5 flex items-center justify-center shrink-0">
                                 <HardDrive className="toolbar-icon-size-md text-foreground/50" />

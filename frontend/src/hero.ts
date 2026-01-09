@@ -16,8 +16,8 @@ export default heroui({
             colors: {
                 // Brand primaries
                 primary: {
-                    DEFAULT: "#009F6B",
-                    foreground: "#FFFFFF",
+                    DEFAULT: "#00E5FF",
+                    foreground: "#002B33",
                     50: "#E6F6EF", // Useful for subtle hover states
                     100: "#C0E8D6",
                     200: "#99D9BD",
@@ -31,7 +31,10 @@ export default heroui({
                 },
 
                 // Functional
-                success: "#00A86B",
+                success: {
+                    DEFAULT: "#16A34A",
+                    foreground: "#FFFFFF",
+                },
                 warning: "#F5A623",
                 danger: "#D64545",
 
@@ -41,7 +44,7 @@ export default heroui({
 
                 // REVISED: Desaturated divider to prevent "Cartoonish" look
                 divider: "#D1E0D6",
-                focus: "#009F6B",
+                focus: "#4DF1FF",
 
                 // Surface levels
                 content1: "#FFFFFF", // Pure white cards
@@ -74,8 +77,8 @@ export default heroui({
             colors: {
                 // Neon Primary
                 primary: {
-                    DEFAULT: "#00DFA2",
-                    foreground: "#000000",
+                    DEFAULT: "#00E5FF",
+                    foreground: "#001A1F",
                     50: "#E0FCF5",
                     100: "#B3F8E4",
                     200: "#80F3D2",
@@ -88,7 +91,10 @@ export default heroui({
                     900: "#004431",
                 },
 
-                success: "#1FD18C",
+                success: {
+                    DEFAULT: "#22C55E",
+                    foreground: "#052E16",
+                },
                 warning: "#E6A11B",
                 danger: "#FF4545", // Slightly brighter danger for dark mode visibility
 
@@ -105,7 +111,7 @@ export default heroui({
                 content3: "#3f3f46", // Zinc-700
                 content4: "#52525b", // Zinc-600
 
-                focus: "#00DFA2",
+                focus: "#66F4FF",
 
                 // Neutral Grays (Matches the Zinc scale)
                 default: {
