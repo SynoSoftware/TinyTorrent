@@ -63,6 +63,17 @@ export const useQueueReorderController = (deps: QueueControllerDeps) => {
             beginAnimationSuppression,
             endAnimationSuppression,
         });
+    if (import.meta.env.DEV) {
+        if (
+            !Array.isArray(rowIds) ||
+            rowIds.length !== rowsLength ||
+            rowsLength !== rowsById.size
+        ) {
+            throw new Error(
+                "Queue controller invariant violated: rowIds/rowsLength/rowsById must describe the same row set"
+            );
+        }
+    }
 
     useEffect(() => {
         if (!canReorderQueue) {
