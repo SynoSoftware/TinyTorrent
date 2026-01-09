@@ -4,6 +4,7 @@ import {
     Button,
     Checkbox,
     Chip,
+    Divider,
     Dropdown,
     DropdownItem,
     DropdownMenu,
@@ -19,12 +20,17 @@ import {
     SelectItem,
     Spinner,
     cn,
+    Tooltip,
 } from "@heroui/react";
-import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import {
+    Panel,
+    PanelGroup,
+    PanelResizeHandle,
+    type ImperativePanelHandle,
+} from "react-resizable-panels";
 import {
     type DragEvent,
-    type FormEvent,
-    type KeyboardEvent,
+    type KeyboardEvent as ReactKeyboardEvent,
     useCallback,
     useEffect,
     useMemo,
@@ -52,6 +58,13 @@ import {
     CheckCircle2,
     PlayCircle,
     PauseCircle,
+    Tag,
+    Hash,
+    ListOrdered,
+    Maximize2,
+    Minimize2,
+    SidebarClose,
+    SidebarOpen,
 } from "lucide-react";
 
 import { formatBytes } from "@/shared/utils/format";
@@ -122,22 +135,21 @@ type FileRow = {
     length: number;
 };
 
-type SmartSelectCommand = "videos" | "largest" | "invert";
+type SmartSelectCommand = "videos" | "largest" | "invert" | "all" | "none";
 
 // --- CONSTANTS & HELPERS ---
 
 const HISTORY_KEY = "tt-add-save-history";
 const HISTORY_LIMIT = 6;
 
-// A strict grid template to ensure headers align perfectly with rows
-// [Checkbox] [Icon+Name] [Size] [Priority]
 const FILE_GRID_TEMPLATE = "40px minmax(0, 1fr) 90px 110px";
 
 const MODAL_CLASSES =
-    "w-full h-[85vh] overflow-hidden flex flex-col shadow-2xl border border-white/10";
-const PANE_SURFACE = "h-full flex flex-col min-h-0 bg-transparent";
-const SECTION_HEADER =
-    "text-xs font-bold tracking-widest text-foreground/50 uppercase mb-2";
+    "w-full overflow-hidden flex flex-col shadow-2xl border border-white/10 transition-all duration-300";
+const PANE_SURFACE =
+    "h-full flex flex-col min-h-0 bg-transparent transition-all";
+const SECTION_LABEL =
+    "text-[10px] font-bold tracking-widest text-foreground/40 uppercase mb-3 flex items-center gap-2";
 
 function detectDriveKind(path: string): "SSD" | "HDD" | "Network" | "Unknown" {
     if (!path) return "Unknown";
@@ -228,6 +240,10 @@ export function AddTorrentModal({
     const [sequential, setSequential] = useState(false);
     const [skipHashCheck, setSkipHashCheck] = useState(false);
 
+    // View State (New)
+    const [isFullscreen, setIsFullscreen] = useState(false);
+    const [isSettingsCollapsed, setIsSettingsCollapsed] = useState(false);
+
     // Free Space Logic
     const [freeSpace, setFreeSpace] = useState<TransmissionFreeSpace | null>(
         null
@@ -250,6 +266,7 @@ export function AddTorrentModal({
 
     const scrollParentRef = useRef<HTMLDivElement | null>(null);
     const formRef = useRef<HTMLFormElement | null>(null);
+    const settingsPanelRef = useRef<ImperativePanelHandle>(null);
 
     // -- Keyboard Scope --
     const { activate: activateModal, deactivate: deactivateModal } =
@@ -287,7 +304,10 @@ export function AddTorrentModal({
         setCategory(null);
         setSelected(new Set(files.map((f) => f.index)));
 
-        // Persist download dir history
+        // Reset View modes
+        setIsFullscreen(false);
+        setIsSettingsCollapsed(false);
+
         if (typeof window !== "undefined") {
             window.localStorage.setItem(
                 HISTORY_KEY,
@@ -299,6 +319,19 @@ export function AddTorrentModal({
     useEffect(() => {
         setDownloadDir(initialDownloadDir);
     }, [initialDownloadDir, isOpen]);
+
+    // -- Logic: Toggle Views --
+    const toggleSettingsPanel = useCallback(() => {
+        const panel = settingsPanelRef.current;
+        if (!panel) return;
+
+        if (isSettingsCollapsed) {
+            panel.expand();
+        } else {
+            panel.collapse();
+        }
+        // State updates via onCollapse/onExpand callback in Panel component
+    }, [isSettingsCollapsed]);
 
     // -- Logic: History & Drops --
     const pushRecentPath = useCallback((path: string) => {
@@ -372,7 +405,11 @@ export function AddTorrentModal({
 
     const handleSmartSelect = useCallback(
         (command: SmartSelectCommand) => {
-            if (command === "invert") {
+            if (command === "all") {
+                setSelected(new Set(files.map((f) => f.index)));
+            } else if (command === "none") {
+                setSelected(new Set());
+            } else if (command === "invert") {
                 setSelected((prev) => {
                     const next = new Set<number>();
                     files.forEach(
@@ -418,6 +455,17 @@ export function AddTorrentModal({
         []
     );
 
+    const cyclePriority = useCallback((index: number) => {
+        setPriorities((prev) => {
+            const current = prev.get(index) ?? "normal";
+            const nextMap = new Map(prev);
+            if (current === "normal") nextMap.set(index, "high");
+            else if (current === "high") nextMap.set(index, "low");
+            else nextMap.delete(index);
+            return nextMap;
+        });
+    }, []);
+
     // -- Logic: Free Space --
     useEffect(() => {
         if (!checkFreeSpace || !downloadDir.trim()) {
@@ -439,7 +487,7 @@ export function AddTorrentModal({
         };
     }, [checkFreeSpace, downloadDir, t]);
 
-    // -- Validation --
+    // -- Validation & Logic --
     const resolvedState = useMemo(() => {
         if (source?.kind === "magnet" && !source.metadata) {
             if (source.status === "error") return "error";
@@ -448,13 +496,17 @@ export function AddTorrentModal({
         return files.length ? "ready" : "pending";
     }, [files.length, source]);
 
+    const isDiskSpaceCritical = freeSpace
+        ? selectedSize > freeSpace.sizeBytes
+        : false;
+    const isSelectionEmpty = selected.size === 0;
+    const effectiveCommitMode = isDiskSpaceCritical ? "paused" : commitMode;
     const canConfirm =
-        files.length > 0 &&
+        !isSelectionEmpty &&
         !!downloadDir.trim() &&
         !isSubmitting &&
         resolvedState === "ready";
 
-    // -- Virtualization --
     const virtualizer = useVirtualizer({
         count: filteredFiles.length,
         getScrollElement: () => scrollParentRef.current,
@@ -462,9 +514,21 @@ export function AddTorrentModal({
         overscan: 10,
     });
 
+    const handleFilesKeyDown = useCallback(
+        (e: ReactKeyboardEvent) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === "a") {
+                e.preventDefault();
+                handleSmartSelect("all");
+            } else if ((e.ctrlKey || e.metaKey) && e.key === "i") {
+                e.preventDefault();
+                handleSmartSelect("invert");
+            }
+        },
+        [handleSmartSelect]
+    );
+
     // -- Renderers --
 
-    // 1. File Row Renderer
     const renderFileRow = (file: FileRow) => {
         const priority = priorities.get(file.index) ?? "normal";
         const fileType = classifyFile(file.path);
@@ -475,8 +539,10 @@ export function AddTorrentModal({
             <div
                 key={file.index}
                 className={cn(
-                    "grid items-center border-b border-default/5 hover:bg-white/5 transition-colors cursor-pointer group select-none",
-                    isSelected ? "bg-primary/5" : "bg-transparent",
+                    "grid items-center border-b border-default/5 transition-colors cursor-pointer group select-none",
+                    isSelected
+                        ? "bg-primary/5 hover:bg-primary/10"
+                        : "bg-transparent hover:bg-white/5",
                     "text-xs"
                 )}
                 style={{
@@ -484,7 +550,6 @@ export function AddTorrentModal({
                     height: rowHeight,
                 }}
                 onClick={(e) => {
-                    // Avoid toggling when clicking the Select dropdown
                     if ((e.target as HTMLElement).closest(".priority-trigger"))
                         return;
                     toggleSelection(file.index);
@@ -526,53 +591,73 @@ export function AddTorrentModal({
                 </div>
 
                 <div className="pr-4 flex justify-end">
-                    <Select
-                        aria-label="Priority"
-                        selectedKeys={[priority]}
-                        onSelectionChange={(k) =>
-                            setPriority(file.index, Array.from(k)[0] as any)
-                        }
-                        size="sm"
-                        variant="flat"
-                        disallowEmptySelection
-                        classNames={{
-                            trigger:
-                                "h-6 min-h-6 w-24 bg-transparent data-[hover=true]:bg-white/10 priority-trigger",
-                            value: "text-[10px] uppercase font-bold text-right",
-                            popoverContent: "w-28",
-                        }}
-                    >
-                        <SelectItem
-                            key="high"
-                            startContent={
+                    <div className="flex items-center">
+                        <div
+                            className="priority-trigger mr-1 cursor-pointer active:scale-95 transition-transform"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                cyclePriority(file.index);
+                            }}
+                            title="Click to cycle priority"
+                        >
+                            {priority === "high" && (
                                 <ArrowDown className="rotate-180 size-3 text-success" />
-                            }
-                        >
-                            High
-                        </SelectItem>
-                        <SelectItem
-                            key="normal"
-                            startContent={
-                                <span className="size-2 block bg-foreground/20 rounded-full ml-0.5" />
-                            }
-                        >
-                            Normal
-                        </SelectItem>
-                        <SelectItem
-                            key="low"
-                            startContent={
+                            )}
+                            {priority === "low" && (
                                 <ArrowDown className="size-3 text-warning" />
+                            )}
+                            {priority === "normal" && (
+                                <span className="size-1.5 block bg-foreground/20 rounded-full mx-0.5" />
+                            )}
+                        </div>
+
+                        <Select
+                            aria-label="Priority"
+                            selectedKeys={[priority]}
+                            onSelectionChange={(k) =>
+                                setPriority(file.index, Array.from(k)[0] as any)
                             }
+                            size="sm"
+                            variant="flat"
+                            disallowEmptySelection
+                            classNames={{
+                                trigger:
+                                    "h-6 min-h-6 w-20 bg-transparent data-[hover=true]:bg-white/10 priority-trigger pl-1",
+                                value: "text-[10px] uppercase font-bold text-right",
+                                popoverContent: "w-28",
+                            }}
                         >
-                            Low
-                        </SelectItem>
-                    </Select>
+                            <SelectItem
+                                key="high"
+                                startContent={
+                                    <ArrowDown className="rotate-180 size-3 text-success" />
+                                }
+                            >
+                                High
+                            </SelectItem>
+                            <SelectItem
+                                key="normal"
+                                startContent={
+                                    <span className="size-2 block bg-foreground/20 rounded-full ml-0.5" />
+                                }
+                            >
+                                Normal
+                            </SelectItem>
+                            <SelectItem
+                                key="low"
+                                startContent={
+                                    <ArrowDown className="size-3 text-warning" />
+                                }
+                            >
+                                Low
+                            </SelectItem>
+                        </Select>
+                    </div>
                 </div>
             </div>
         );
     };
 
-    // 2. Main Modal Render
     return (
         <Modal
             isOpen={isOpen}
@@ -582,13 +667,17 @@ export function AddTorrentModal({
             motionProps={INTERACTION_CONFIG.modalBloom}
             hideCloseButton
             isDismissable={!isSubmitting}
+            size={isFullscreen ? "full" : "5xl"} // 1. Dynamic Size
             classNames={{
-                base: cn(GLASS_MODAL_SURFACE, MODAL_CLASSES),
+                base: cn(
+                    GLASS_MODAL_SURFACE,
+                    MODAL_CLASSES,
+                    isFullscreen ? "h-screen rounded-none border-0" : "h-[85vh]"
+                ),
                 body: "p-0",
-                header: "border-b border-white/5 bg-black/40 p-4",
-                footer: "border-t border-white/5 bg-black/40 p-4",
+                header: "border-b border-white/5 bg-black/40 p-4 select-none",
+                footer: "border-t border-white/5 bg-black/40 p-4 select-none",
             }}
-            size="5xl"
         >
             <ModalContent>
                 <form
@@ -599,7 +688,7 @@ export function AddTorrentModal({
                             onConfirm({
                                 downloadDir,
                                 name,
-                                commitMode,
+                                commitMode: effectiveCommitMode,
                                 filesUnwanted: [],
                                 priorityHigh: [],
                                 priorityNormal: [],
@@ -627,16 +716,41 @@ export function AddTorrentModal({
                                 {source?.label}
                             </span>
                         </div>
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
                             <Chip
                                 size="sm"
                                 variant="flat"
-                                color="primary"
+                                color={isSelectionEmpty ? "default" : "primary"}
                                 startContent={<Inbox size={12} />}
                                 classNames={{ content: "font-mono font-bold" }}
                             >
                                 {files.length} FILE{files.length !== 1 && "S"}
                             </Chip>
+                            <div className="h-6 w-px bg-white/10 mx-2" />
+                            {/* 2. Fullscreen Toggle */}
+                            <Tooltip
+                                content={
+                                    isFullscreen
+                                        ? "Exit Fullscreen"
+                                        : "Fullscreen"
+                                }
+                            >
+                                <Button
+                                    isIconOnly
+                                    variant="light"
+                                    size="sm"
+                                    onPress={() =>
+                                        setIsFullscreen(!isFullscreen)
+                                    }
+                                    className="text-foreground/60"
+                                >
+                                    {isFullscreen ? (
+                                        <Minimize2 size={18} />
+                                    ) : (
+                                        <Maximize2 size={18} />
+                                    )}
+                                </Button>
+                            </Tooltip>
                             <ToolbarIconButton
                                 Icon={X}
                                 onPress={onCancel}
@@ -647,7 +761,6 @@ export function AddTorrentModal({
 
                     {/* --- SPLIT VIEW BODY --- */}
                     <ModalBody className="flex-1 min-h-0 bg-content1/5 relative">
-                        {/* Drop Zone Overlay */}
                         {dropActive && (
                             <div className="absolute inset-0 z-50 bg-primary/20 backdrop-blur-sm border-2 border-primary border-dashed m-4 rounded-xl flex items-center justify-center pointer-events-none">
                                 <div className="bg-background px-6 py-4 rounded-full shadow-xl flex items-center gap-3 animate-pulse">
@@ -665,25 +778,32 @@ export function AddTorrentModal({
                         <PanelGroup direction="horizontal">
                             {/* === LEFT PANEL: CONFIGURATION === */}
                             <Panel
-                                defaultSize={50}
-                                minSize={30}
-                                className={cn(PANE_SURFACE, "bg-content1/20")}
+                                ref={settingsPanelRef}
+                                defaultSize={40}
+                                minSize={25}
+                                collapsible
+                                onCollapse={() => setIsSettingsCollapsed(true)}
+                                onExpand={() => setIsSettingsCollapsed(false)}
+                                className={cn(
+                                    PANE_SURFACE,
+                                    "bg-content1/20 transition-all duration-300 ease-in-out",
+                                    isSettingsCollapsed &&
+                                        "min-w-0 w-0 border-none"
+                                )}
                             >
-                                <div className="p-6 flex flex-col gap-8 h-full overflow-y-auto custom-scrollbar">
-                                    {/* Group 1: Destination */}
+                                <div className="p-6 flex flex-col h-full overflow-y-auto custom-scrollbar">
+                                    {/* ... [Content of Left Panel same as before] ... */}
                                     <div
-                                        className="flex flex-col gap-3"
+                                        className="flex flex-col gap-3 mb-6"
                                         onDragOver={handleDragOver}
                                         onDragLeave={handleDragLeave}
                                         onDrop={handleDrop}
                                     >
                                         <div className="flex justify-between items-center">
-                                            <label className={SECTION_HEADER}>
-                                                {t(
-                                                    "modals.add_torrent.destination"
-                                                )}
+                                            <label className={SECTION_LABEL}>
+                                                <HardDrive size={12} />{" "}
+                                                DESTINATION
                                             </label>
-                                            {/* Free Space Micro-Gauge */}
                                             {freeSpace && (
                                                 <div className="flex items-center gap-3">
                                                     <div className="text-[10px] font-mono text-right">
@@ -694,23 +814,28 @@ export function AddTorrentModal({
                                                             FREE
                                                         </div>
                                                     </div>
-                                                    <Progress
-                                                        value={Math.min(
-                                                            100,
-                                                            (selectedSize /
-                                                                freeSpace.sizeBytes) *
-                                                                100
-                                                        )}
-                                                        color={
-                                                            selectedSize >
-                                                            freeSpace.sizeBytes
-                                                                ? "danger"
-                                                                : "success"
-                                                        }
-                                                        size="sm"
-                                                        className="w-24"
-                                                        aria-label="Disk Usage"
-                                                    />
+                                                    <Tooltip
+                                                        content={`${formatBytes(
+                                                            selectedSize
+                                                        )} Selected`}
+                                                    >
+                                                        <Progress
+                                                            value={Math.min(
+                                                                100,
+                                                                (selectedSize /
+                                                                    freeSpace.sizeBytes) *
+                                                                    100
+                                                            )}
+                                                            color={
+                                                                isDiskSpaceCritical
+                                                                    ? "danger"
+                                                                    : "success"
+                                                            }
+                                                            size="sm"
+                                                            className="w-24"
+                                                            aria-label="Disk Usage"
+                                                        />
+                                                    </Tooltip>
                                                 </div>
                                             )}
                                         </div>
@@ -790,37 +915,35 @@ export function AddTorrentModal({
                                                         ))
                                                     ) : (
                                                         <DropdownItem
-                                                            key="history-empty"
                                                             isDisabled
                                                         >
-                                                            {t(
-                                                                "modals.add_torrent.history_empty"
-                                                            )}
+                                                            No history yet
                                                         </DropdownItem>
                                                     )}
                                                 </DropdownMenu>
                                             </Dropdown>
                                         </div>
 
-                                        {/* Space Warning */}
-                                        {freeSpace &&
-                                            selectedSize >
-                                                freeSpace.sizeBytes && (
-                                                <div className="flex items-center gap-2 text-danger text-xs bg-danger/10 p-2 rounded-md border border-danger/20">
-                                                    <AlertTriangle size={14} />
-                                                    <span>
-                                                        Insufficient disk space
-                                                    </span>
-                                                </div>
-                                            )}
+                                        {isDiskSpaceCritical && (
+                                            <div className="flex items-center gap-2 text-danger text-xs bg-danger/10 p-2 rounded-md border border-danger/20 animate-pulse">
+                                                <AlertTriangle size={14} />
+                                                <span className="font-bold">
+                                                    Disk Full &mdash; Torrent
+                                                    will be added PAUSED.
+                                                </span>
+                                            </div>
+                                        )}
                                     </div>
 
-                                    {/* Group 2: Metadata */}
-                                    <div className="flex flex-col gap-3">
-                                        <label className={SECTION_HEADER}>
-                                            {t("modals.add_torrent.name_label")}
+                                    <Divider className="bg-white/5 mb-6" />
+
+                                    <div className="flex flex-col gap-4 mb-6">
+                                        <label className={SECTION_LABEL}>
+                                            <Tag size={12} /> METADATA
                                         </label>
                                         <Input
+                                            label="Name"
+                                            labelPlacement="outside"
                                             value={name}
                                             onChange={(e) =>
                                                 setName(e.target.value)
@@ -831,16 +954,10 @@ export function AddTorrentModal({
                                                     "border-white/10 hover:border-white/20 bg-transparent",
                                             }}
                                         />
-                                    </div>
-
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="flex flex-col gap-3">
-                                            <label className={SECTION_HEADER}>
-                                                {t(
-                                                    "modals.add_torrent.start_behavior"
-                                                )}
-                                            </label>
+                                        <div className="grid grid-cols-2 gap-4">
                                             <Select
+                                                label="Start Behavior"
+                                                labelPlacement="outside"
                                                 selectedKeys={[commitMode]}
                                                 onChange={(e) =>
                                                     setCommitMode(
@@ -876,97 +993,118 @@ export function AddTorrentModal({
                                                     Add Paused
                                                 </SelectItem>
                                             </Select>
+                                            <Input
+                                                label="Category"
+                                                labelPlacement="outside"
+                                                placeholder="None"
+                                                value={category || ""}
+                                                onChange={(e) =>
+                                                    setCategory(e.target.value)
+                                                }
+                                                variant="bordered"
+                                                classNames={{
+                                                    inputWrapper:
+                                                        "border-white/10 hover:border-white/20 bg-transparent",
+                                                }}
+                                            />
                                         </div>
                                     </div>
 
-                                    {/* Group 3: Advanced */}
-                                    <Accordion
-                                        variant="light"
-                                        className="px-0 border-t border-white/5 pt-2"
-                                        itemClasses={{
-                                            title: "text-sm text-foreground/80",
-                                            trigger: "py-2",
-                                        }}
-                                    >
-                                        <AccordionItem
-                                            key="1"
-                                            aria-label="Options"
-                                            title="Transfer Options"
-                                            subtitle={
-                                                <span className="text-xs text-foreground/40">
-                                                    Category, Sequential, Hash
-                                                    Check
-                                                </span>
-                                            }
-                                        >
-                                            <div className="space-y-4 pt-2 pb-2 pl-1">
-                                                <Input
-                                                    label="Category"
-                                                    labelPlacement="outside"
-                                                    placeholder="No category"
-                                                    value={category || ""}
-                                                    onChange={(e) =>
-                                                        setCategory(
-                                                            e.target.value
-                                                        )
-                                                    }
-                                                    size="sm"
-                                                    variant="bordered"
-                                                />
-                                                <div className="flex flex-col gap-3">
-                                                    <Checkbox
-                                                        isSelected={sequential}
-                                                        onValueChange={
-                                                            setSequential
-                                                        }
-                                                        size="sm"
-                                                        classNames={{
-                                                            label: "text-foreground/70",
-                                                        }}
-                                                    >
-                                                        Sequential Download
-                                                    </Checkbox>
-                                                    <Checkbox
-                                                        isSelected={
-                                                            skipHashCheck
-                                                        }
-                                                        onValueChange={
-                                                            setSkipHashCheck
-                                                        }
-                                                        size="sm"
-                                                        classNames={{
-                                                            label: "text-foreground/70",
-                                                        }}
-                                                    >
-                                                        Skip Hash Check
-                                                    </Checkbox>
-                                                </div>
-                                            </div>
-                                        </AccordionItem>
-                                    </Accordion>
+                                    <Divider className="bg-white/5 mb-6" />
+
+                                    <div className="flex flex-col gap-3">
+                                        <label className={SECTION_LABEL}>
+                                            <Hash size={12} /> TRANSFER FLAGS
+                                        </label>
+                                        <div className="flex flex-col gap-3 bg-black/10 p-3 rounded-lg border border-white/5">
+                                            <Checkbox
+                                                isSelected={sequential}
+                                                onValueChange={setSequential}
+                                                size="sm"
+                                                classNames={{
+                                                    label: "text-foreground/70 text-xs",
+                                                }}
+                                                startContent={
+                                                    <ListOrdered
+                                                        size={14}
+                                                        className="mr-2 text-foreground/50"
+                                                    />
+                                                }
+                                            >
+                                                Sequential Download
+                                            </Checkbox>
+                                            <Divider className="bg-white/5" />
+                                            <Checkbox
+                                                isSelected={skipHashCheck}
+                                                onValueChange={setSkipHashCheck}
+                                                size="sm"
+                                                classNames={{
+                                                    label: "text-foreground/70 text-xs",
+                                                }}
+                                                startContent={
+                                                    <CheckCircle2
+                                                        size={14}
+                                                        className="mr-2 text-foreground/50"
+                                                    />
+                                                }
+                                            >
+                                                Skip Hash Check
+                                            </Checkbox>
+                                        </div>
+                                    </div>
                                 </div>
                             </Panel>
 
                             {/* === RESIZE HANDLE === */}
-                            <PanelResizeHandle className="w-4 flex items-center justify-center bg-transparent -ml-2 z-10 hover:bg-primary/5 transition-colors cursor-col-resize group focus:outline-none relative">
-                                <div className="absolute inset-y-0 left-1/2 w-[1px] bg-white/5 group-hover:bg-primary/50 transition-colors" />
-                                <div className="relative bg-content1 border border-white/10 rounded-full p-0.5 shadow-xl opacity-0 group-hover:opacity-100 transition-opacity transform scale-75 group-hover:scale-100 duration-200">
-                                    <GripVertical
-                                        size={12}
-                                        className="text-foreground"
-                                    />
-                                </div>
-                            </PanelResizeHandle>
+                            {/* Hide handle when collapsed to make space usage cleaner */}
+                            {!isSettingsCollapsed && (
+                                <PanelResizeHandle className="w-4 flex items-center justify-center bg-transparent -ml-2 z-10 hover:bg-primary/5 transition-colors cursor-col-resize group focus:outline-none relative">
+                                    <div className="absolute inset-y-0 left-1/2 w-[1px] bg-white/5 group-hover:bg-primary/50 transition-colors" />
+                                    <div className="relative bg-content1 border border-white/10 rounded-full p-0.5 shadow-xl opacity-0 group-hover:opacity-100 transition-opacity transform scale-75 group-hover:scale-100 duration-200">
+                                        <GripVertical
+                                            size={12}
+                                            className="text-foreground"
+                                        />
+                                    </div>
+                                </PanelResizeHandle>
+                            )}
 
                             {/* === RIGHT PANEL: FILE MANAGER === */}
                             <Panel
-                                defaultSize={50}
+                                defaultSize={60}
                                 minSize={30}
                                 className={PANE_SURFACE}
                             >
-                                <div className="flex flex-col h-full bg-black/10">
+                                <div
+                                    className="flex flex-col h-full bg-black/10 outline-none"
+                                    tabIndex={0}
+                                    onKeyDown={handleFilesKeyDown}
+                                >
                                     {/* Toolbar */}
                                     <div className="p-3 border-b border-white/5 flex gap-2 items-center bg-white/5 backdrop-blur-sm">
+                                        {/* 3. Panel Toggle Button */}
+                                        <Tooltip
+                                            content={
+                                                isSettingsCollapsed
+                                                    ? "Show Settings"
+                                                    : "Maximize Files"
+                                            }
+                                        >
+                                            <Button
+                                                isIconOnly
+                                                size="sm"
+                                                variant="light"
+                                                onPress={toggleSettingsPanel}
+                                                className="mr-1 text-foreground/50 hover:text-foreground"
+                                            >
+                                                {isSettingsCollapsed ? (
+                                                    <SidebarOpen size={18} />
+                                                ) : (
+                                                    <SidebarClose size={18} />
+                                                )}
+                                            </Button>
+                                        </Tooltip>
+
                                         <Input
                                             value={filter}
                                             onChange={(e) =>
@@ -1009,6 +1147,12 @@ export function AddTorrentModal({
                                                 aria-label="Smart Select"
                                             >
                                                 <DropdownItem
+                                                    key="all"
+                                                    shortcut="Ctrl+A"
+                                                >
+                                                    Select All
+                                                </DropdownItem>
+                                                <DropdownItem
                                                     key="videos"
                                                     startContent={
                                                         <FileVideo size={14} />
@@ -1027,8 +1171,15 @@ export function AddTorrentModal({
                                                 <DropdownItem
                                                     key="invert"
                                                     showDivider
+                                                    shortcut="Ctrl+I"
                                                 >
                                                     Invert Selection
+                                                </DropdownItem>
+                                                <DropdownItem
+                                                    key="none"
+                                                    className="text-danger"
+                                                >
+                                                    Select None
                                                 </DropdownItem>
                                             </DropdownMenu>
                                         </Dropdown>
@@ -1142,11 +1293,16 @@ export function AddTorrentModal({
                                                 </div>
 
                                                 {/* Selection Footer Stats */}
-                                                <div className="border-t border-white/5 p-2 text-xs font-mono text-center text-foreground/30 bg-black/20">
-                                                    {selected.size} /{" "}
-                                                    {files.length} files
-                                                    selected (
-                                                    {formatBytes(selectedSize)})
+                                                <div className="border-t border-white/5 p-2 text-xs font-mono text-center text-foreground/30 bg-black/20 flex justify-between px-4">
+                                                    <span>
+                                                        {selected.size} /{" "}
+                                                        {files.length} items
+                                                    </span>
+                                                    <span>
+                                                        {formatBytes(
+                                                            selectedSize
+                                                        )}
+                                                    </span>
                                                 </div>
                                             </>
                                         )}
@@ -1186,21 +1342,46 @@ export function AddTorrentModal({
                             >
                                 {t("modals.cancel")}
                             </Button>
-                            <Button
-                                color="primary"
-                                variant="shadow"
-                                onPress={() => formRef.current?.requestSubmit()}
-                                isLoading={isSubmitting}
-                                isDisabled={!canConfirm}
-                                startContent={
-                                    !isSubmitting && <ArrowDown size={16} />
+
+                            <Tooltip
+                                content={
+                                    isSelectionEmpty
+                                        ? "Select at least one file"
+                                        : isDiskSpaceCritical
+                                        ? "Disk full - will add paused"
+                                        : ""
                                 }
-                                className="font-bold px-6"
                             >
-                                {commitMode === "paused"
-                                    ? "Add Paused"
-                                    : "Add & Start"}
-                            </Button>
+                                <div className="inline-block">
+                                    <Button
+                                        color={
+                                            isDiskSpaceCritical
+                                                ? "warning"
+                                                : "primary"
+                                        }
+                                        variant="shadow"
+                                        onPress={() =>
+                                            formRef.current?.requestSubmit()
+                                        }
+                                        isLoading={isSubmitting}
+                                        isDisabled={!canConfirm}
+                                        startContent={
+                                            !isSubmitting &&
+                                            (effectiveCommitMode ===
+                                            "paused" ? (
+                                                <PauseCircle size={16} />
+                                            ) : (
+                                                <PlayCircle size={16} />
+                                            ))
+                                        }
+                                        className="font-bold px-6 min-w-[140px]"
+                                    >
+                                        {effectiveCommitMode === "paused"
+                                            ? "Add Paused"
+                                            : "Add & Start"}
+                                    </Button>
+                                </div>
+                            </Tooltip>
                         </div>
                     </ModalFooter>
                 </form>
