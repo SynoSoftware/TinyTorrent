@@ -79,24 +79,16 @@ export const TrackersTab: React.FC<TrackersTabProps> = ({
                         />
                     </th>
                     <th className="border-b border-default/10 px-tight py-panel">
-                        {t("torrent_modal.trackers.hostname", {
-                            defaultValue: "Host",
-                        })}
+                        {t("torrent_modal.trackers.hostname")}
                     </th>
                     <th className="border-b border-default/10 px-tight py-panel">
-                        {t("torrent_modal.trackers.next_announce", {
-                            defaultValue: "Next",
-                        })}
+                        {t("torrent_modal.trackers.next_announce")}
                     </th>
                     <th className="border-b border-default/10 px-tight py-panel">
-                        {t("torrent_modal.trackers.peers_label", {
-                            defaultValue: "Peers",
-                        })}
+                        {t("torrent_modal.trackers.peers_label")}
                     </th>
                     <th className="border-b border-default/10 py-panel pl-tight pr-panel text-right">
-                        {t("torrent_modal.trackers.status", {
-                            defaultValue: "Status",
-                        })}
+                        {t("torrent_modal.trackers.status")}
                     </th>
                 </tr>
             </thead>
@@ -108,9 +100,7 @@ export const TrackersTab: React.FC<TrackersTabProps> = ({
                     const key = `${keyBase}-${i}`;
                     const isOnline = tracker.lastAnnounceSucceeded === true;
 
-                    let hostname = t("labels.unknown", {
-                        defaultValue: "Unknown",
-                    });
+                    let hostname = t("labels.unknown");
                     try {
                         if (tracker.announce) {
                             hostname = new URL(tracker.announce).hostname;
@@ -127,7 +117,7 @@ export const TrackersTab: React.FC<TrackersTabProps> = ({
                         nextAnnounceSecs = Math.max(0, 1800 - elapsed);
                     }
 
-                    const unknown = t("labels.unknown", { defaultValue: "-" });
+                    const unknown = t("labels.unknown");
                     const seeders =
                         tracker.seederCount != null
                             ? String(tracker.seederCount)
@@ -176,30 +166,21 @@ export const TrackersTab: React.FC<TrackersTabProps> = ({
                                 {!hasAttempt && (
                                     <span className="text-foreground/50">
                                         {t(
-                                            "torrent_modal.trackers.status_pending",
-                                            {
-                                                defaultValue: "Pending",
-                                            }
+                                            "torrent_modal.trackers.status_pending"
                                         )}
                                     </span>
                                 )}
                                 {hasAttempt && lastSucceeded && (
                                     <span className="text-success">
                                         {t(
-                                            "torrent_modal.trackers.status_online",
-                                            {
-                                                defaultValue: "Online",
-                                            }
+                                            "torrent_modal.trackers.status_online"
                                         )}
                                     </span>
                                 )}
                                 {hasAttempt && !lastSucceeded && (
                                     <span className="text-warning">
                                         {t(
-                                            "torrent_modal.trackers.status_partial",
-                                            {
-                                                defaultValue: "Warning",
-                                            }
+                                            "torrent_modal.trackers.status_partial"
                                         )}
                                     </span>
                                 )}
@@ -221,9 +202,7 @@ export const TrackersTab: React.FC<TrackersTabProps> = ({
                         className="text-primary"
                     />
                     <span className="text-label uppercase tracking-tight text-foreground/60">
-                        {t("torrent_modal.trackers.title", {
-                            defaultValue: "Trackers",
-                        })}
+                        {t("torrent_modal.trackers.title")}
                     </span>
                 </div>
 
@@ -235,9 +214,7 @@ export const TrackersTab: React.FC<TrackersTabProps> = ({
                     />
 
                     <ToolbarIconButton
-                        ariaLabel={t("torrent_modal.trackers.reannounce", {
-                            defaultValue: "Force Reannounce",
-                        })}
+                        ariaLabel={t("torrent_modal.trackers.reannounce")}
                         disabled={!onForceTrackerReannounce || isReannouncing}
                         onPress={async () => {
                             if (!onForceTrackerReannounce) return;
@@ -249,11 +226,7 @@ export const TrackersTab: React.FC<TrackersTabProps> = ({
                                 setReannounceFeedback(
                                     result ??
                                         t(
-                                            "torrent_modal.trackers.reannounce_sent",
-                                            {
-                                                defaultValue:
-                                                    "Reannounce requested",
-                                            }
+                                            "torrent_modal.trackers.reannounce_sent"
                                         )
                                 );
                             } catch (e: any) {
@@ -292,9 +265,7 @@ export const TrackersTab: React.FC<TrackersTabProps> = ({
                     >
                         <div className="flex items-center justify-between border-b border-default/10 px-panel py-panel">
                             <span className="font-semibold uppercase text-primary">
-                                {t("torrent_modal.trackers.add", {
-                                    defaultValue: "Add Trackers",
-                                })}
+                                {t("torrent_modal.trackers.add")}
                             </span>
                             <ToolbarIconButton
                                 Icon={X}
@@ -308,11 +279,7 @@ export const TrackersTab: React.FC<TrackersTabProps> = ({
                                 onValueChange={setNewTrackers}
                                 minRows={6}
                                 placeholder={t(
-                                    "torrent_modal.trackers.add_placeholder",
-                                    {
-                                        defaultValue:
-                                            "Paste announce URLs (one per line)...",
-                                    }
+                                    "torrent_modal.trackers.add_placeholder"
                                 )}
                                 classNames={{
                                     input: "font-mono",
@@ -326,16 +293,14 @@ export const TrackersTab: React.FC<TrackersTabProps> = ({
                                 variant="shadow"
                                 onPress={() => setShowAdd(false)}
                             >
-                                {t("common.cancel", { defaultValue: "Cancel" })}
+                                {t("common.cancel")}
                             </Button>
                             <Button
                                 color="primary"
                                 startContent={<Check />}
                                 onPress={() => setShowAdd(false)}
                             >
-                                {t("common.add", {
-                                    defaultValue: "Add Trackers",
-                                })}
+                                {t("common.add")}
                             </Button>
                         </div>
                     </div>

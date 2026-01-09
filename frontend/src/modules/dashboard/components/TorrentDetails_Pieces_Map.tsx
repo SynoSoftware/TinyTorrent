@@ -1128,10 +1128,7 @@ export const PiecesMap = ({
                     {/* minimal inline affordance (non-intrusive, fades into the UI) */}
                     <div className="absolute right-2 bottom-2 flex gap-2">
                         <div className="text-[11px] text-foreground/60 bg-content1/40 backdrop-blur-xl border border-content1/25 rounded-full px-3 py-1">
-                            {t("torrent_modal.piece_map.hint_interact", {
-                                defaultValue:
-                                    "Drag to pan • Wheel to inspect • Alt+Wheel to widen",
-                            })}
+                            {t("torrent_modal.piece_map.hint_interact")}
                         </div>
                     </div>
                 </div>

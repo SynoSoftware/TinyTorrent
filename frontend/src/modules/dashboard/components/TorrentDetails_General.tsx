@@ -23,6 +23,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import RemoveConfirmationModal from "@/modules/torrent-remove/components/RemoveConfirmationModal";
+import TorrentRecoveryModal from "@/modules/dashboard/components/TorrentRecoveryModal";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
@@ -49,6 +50,18 @@ interface GeneralTabProps {
     onRedownload?: () => Promise<void> | void;
     onRetry?: () => Promise<void> | void;
     onResume?: () => Promise<void> | void;
+    // Recovery integration
+    recoveryPlan?:
+        | import("@/services/recovery/recovery-controller").RecoveryPlan
+        | null;
+    recoveryCallbacks?:
+        | import("@/modules/dashboard/hooks/useRecoveryController").RecoveryCallbacks
+        | null;
+    isRecoveryBusy?: boolean;
+    lastRecoveryOutcome?:
+        | import("@/services/recovery/recovery-controller").RecoveryOutcome
+        | null;
+    recoveryRequestBrowse?: (currentPath?: string) => Promise<string | null>;
     progressPercent: number;
     timeRemainingLabel: string;
     activePeers: number;
@@ -100,8 +113,14 @@ export const GeneralTab = ({
     onRedownload: _onRedownload,
     onRetry,
     onResume,
-    progressPercent,
-    timeRemainingLabel,
+    // Recovery props
+    recoveryPlan,
+    recoveryCallbacks,
+    isRecoveryBusy,
+    lastRecoveryOutcome,
+    recoveryRequestBrowse,
+    progressPercent: _progressPercent,
+    timeRemainingLabel: _timeRemainingLabel,
     activePeers,
 }: GeneralTabProps) => {
     const { t } = useTranslation();
@@ -122,36 +141,32 @@ export const GeneralTab = ({
     // Single source of truth: derived in rpc normalizer
     const showMissingFilesError = torrent.state === "missing_files";
 
-    const dispatchRecoveryEvent = (eventName: string) => {
-        try {
-            window.dispatchEvent(
-                new CustomEvent(eventName, {
-                    detail: { id: torrent.id, hash: torrent.hash },
-                })
-            );
-        } catch (error) {
-            console.error(`Failed to dispatch ${eventName}`, error);
-        }
-    };
-
     const handleSetLocationAction = () => {
         if (onSetLocation) return onSetLocation();
-        dispatchRecoveryEvent("tiny-torrent:set-location");
+        console.warn(
+            "set-location action requires a typed onSetLocation handler; global events removed"
+        );
     };
 
     const handleRedownloadAction = () => {
         if (_onRedownload) return _onRedownload();
-        dispatchRecoveryEvent("tiny-torrent:redownload");
+        console.warn(
+            "redownload action requires a typed onRedownload handler; global events removed"
+        );
     };
 
     const handleForceRecheckAction = () => {
         if (onRetry) return onRetry();
-        dispatchRecoveryEvent("tiny-torrent:retry-fetch");
+        console.warn(
+            "retry/verify action requires a typed onRetry handler; global events removed"
+        );
     };
 
     const handleResumeAction = () => {
         if (onResume) return onResume();
-        dispatchRecoveryEvent("tiny-torrent:resume");
+        console.warn(
+            "resume action requires a typed onResume handler; global events removed"
+        );
     };
 
     // Build recovery buttons dynamically from the envelope's recoveryActions
@@ -170,10 +185,8 @@ export const GeneralTab = ({
                 buttons.push({
                     id: a,
                     color: "primary",
-                    label: t("toolbar.resume", { defaultValue: "Resume" }),
-                    tooltip: t("tooltip.resume", {
-                        defaultValue: "Resume downloading the torrent.",
-                    }),
+                    label: t("toolbar.resume"),
+                    tooltip: t("tooltip.resume"),
                     onPress: handleResumeAction,
                 });
                 continue;
@@ -182,12 +195,8 @@ export const GeneralTab = ({
                 buttons.push({
                     id: a,
                     color: "primary",
-                    label: t("torrent_modal.controls.verify", {
-                        defaultValue: "Verify",
-                    }),
-                    tooltip: t("tooltip.verify", {
-                        defaultValue: "Re-scan and verify files on the server.",
-                    }),
+                    label: t("torrent_modal.controls.verify"),
+                    tooltip: t("tooltip.verify"),
                     onPress: handleForceRecheckAction,
                 });
             } else if (a === "setLocation" || a === "changeLocation") {
@@ -196,37 +205,24 @@ export const GeneralTab = ({
                     color: "primary",
                     label: t("directory_browser.select", {
                         name: t("torrent_modal.labels.save_path"),
-                        defaultValue: "Set Location",
                     }),
-                    tooltip: t("tooltip.set_location", {
-                        defaultValue:
-                            "Choose a new directory for the torrent's files.",
-                    }),
+                    tooltip: t("tooltip.set_location"),
                     onPress: handleSetLocationAction,
                 });
             } else if (a === "reDownload") {
                 buttons.push({
                     id: a,
                     color: "danger",
-                    label: t("modals.download", {
-                        defaultValue: "Re-download",
-                    }),
-                    tooltip: t("tooltip.redownload", {
-                        defaultValue:
-                            "Re-download the torrent's data. This will overwrite existing files.",
-                    }),
+                    label: t("modals.download"),
+                    tooltip: t("tooltip.redownload"),
                     onPress: handleRedownloadAction,
                 });
             } else if (a === "reannounce") {
                 buttons.push({
                     id: a,
                     color: "default",
-                    label: t("torrent_modal.controls.force_reannounce", {
-                        defaultValue: "Reannounce",
-                    }),
-                    tooltip: t("tooltip.reannounce", {
-                        defaultValue: "Force a tracker reannounce.",
-                    }),
+                    label: t("torrent_modal.controls.force_reannounce"),
+                    tooltip: t("tooltip.reannounce"),
                     onPress: async () => {
                         if (!onForceTrackerReannounce) return;
                         await onForceTrackerReannounce();
@@ -262,9 +258,7 @@ export const GeneralTab = ({
         (torrent.verificationProgress ?? 0) > 0;
     const isForceRecheckPrimary = modalPrimaryAction?.id === "forceRecheck";
     const isVerifying = isForceRecheckPrimary && isEngineVerifying;
-    const verifyingLabel = t("torrent_modal.controls.verifying", {
-        defaultValue: "Verifying…",
-    });
+    const verifyingLabel = t("torrent_modal.controls.verifying");
     const showPrimaryLabel = modalPrimaryAction
         ? isVerifying
             ? verifyingLabel
@@ -277,15 +271,16 @@ export const GeneralTab = ({
         setShowConfirm(needsUserConfirmation);
     }, [needsUserConfirmation]);
 
+    // Local modal state for recovery flow
+    const [showRecoveryModal, setShowRecoveryModal] = useState(false);
+
     const statusLabelKey = `table.status_${torrent.state}`;
     const statusLabel = t(statusLabelKey, {
         defaultValue: torrent.state.replace("_", " "),
     });
 
     const recoveryStateLabel = torrent.errorEnvelope?.errorClass
-        ? t(`recovery.class.${torrent.errorEnvelope.errorClass}`, {
-              defaultValue: statusLabel,
-          })
+        ? t(`recovery.class.${torrent.errorEnvelope.errorClass}`)
         : statusLabel;
     const statusIconClass = showMissingFilesError
         ? "text-warning/70"
@@ -294,12 +289,14 @@ export const GeneralTab = ({
     const mainAction = modalPrimaryAction?.onPress ?? handleResumeAction;
     const mainLabel =
         modalPrimaryAction?.label ??
-        t("toolbar.resume", { defaultValue: "Resume" });
+        t("toolbar.resume");
     const downloadRate = torrent.speed?.down ?? 0;
     const uploadRate = torrent.speed?.up ?? 0;
 
     const handlePauseAction = () => {
-        dispatchRecoveryEvent("tiny-torrent:pause");
+        console.warn(
+            "pause action requires a typed onPause handler; global events removed"
+        );
     };
 
     const [showRemoveModal, setShowRemoveModal] = useState(false);
@@ -346,25 +343,20 @@ export const GeneralTab = ({
     const isActive =
         torrent.state === "downloading" || torrent.state === "seeding";
     const mainActionLabel = isActive
-        ? t("toolbar.pause", { defaultValue: "Pause" })
-        : t("toolbar.resume", { defaultValue: "Resume" });
+        ? t("toolbar.pause")
+        : t("toolbar.resume");
 
     return (
         <div className="space-y-stage">
             <Modal isOpen={showConfirm} onOpenChange={setShowConfirm}>
                 <ModalContent className="max-w-modal">
                     <ModalHeader>
-                        {t("modals.missing_files.title", {
-                            defaultValue: "Files Missing — Re-download?",
-                        })}
+                        {t("modals.missing_files.title")}
                     </ModalHeader>
                     <ModalBody className="max-h-modal-body">
                         <div className="space-y-3">
                             <div>
-                                {t("modals.missing_files.body", {
-                                    defaultValue:
-                                        "The files for this completed torrent are missing from disk. You can re-download them or locate existing files manually.",
-                                })}
+                                {t("modals.missing_files.body")}
                             </div>
                             {isVerifying && (
                                 <div className="text-label text-foreground/60">
@@ -383,13 +375,44 @@ export const GeneralTab = ({
                                     title={
                                         modalPrimaryAction.tooltip || undefined
                                     }
-                                    onPress={() => {
-                                        void modalPrimaryAction.onPress();
-                                        if (
-                                            modalPrimaryAction.id !==
-                                            "forceRecheck"
-                                        ) {
-                                            setShowConfirm(false);
+                                    onPress={async () => {
+                                        try {
+                                            if (recoveryCallbacks) {
+                                                const outcome =
+                                                    await recoveryCallbacks.handlePrimaryRecovery();
+                                                // If controller asks for a path or reports noop, show recovery modal to let user pick or see guidance
+                                                if (
+                                                    outcome.kind ===
+                                                        "path-needed" ||
+                                                    outcome.kind === "noop"
+                                                ) {
+                                                    setShowConfirm(false);
+                                                    setShowRecoveryModal(true);
+                                                    return;
+                                                }
+                                                if (outcome.kind === "error") {
+                                                    // Surface via console and require user action
+                                                    console.error(
+                                                        "recovery primary action failed",
+                                                        outcome.message
+                                                    );
+                                                    setShowConfirm(false);
+                                                    return;
+                                                }
+                                            }
+                                            // Fallback to existing action
+                                            void modalPrimaryAction.onPress();
+                                            if (
+                                                modalPrimaryAction.id !==
+                                                "forceRecheck"
+                                            ) {
+                                                setShowConfirm(false);
+                                            }
+                                        } catch (err) {
+                                            console.error(
+                                                "primary recovery action failed",
+                                                err
+                                            );
                                         }
                                     }}
                                     isDisabled={isVerifying}
@@ -416,6 +439,19 @@ export const GeneralTab = ({
                                     })()}
                                 </Button>
                             )}
+
+                            <Button
+                                size="md"
+                                variant="flat"
+                                color="default"
+                                onPress={() => {
+                                    // Do not suppress engine-driven prompts. Close modal
+                                    // and allow the engine to continue driving recovery.
+                                    setShowConfirm(false);
+                                }}
+                            >
+                                {t("toolbar.cancel")}
+                            </Button>
                             {modalSecondaryActions.map((action) => (
                                 <Button
                                     key={action.id}
@@ -460,94 +496,64 @@ export const GeneralTab = ({
                                     setShowConfirm(false);
                                 }}
                             >
-                                {t("toolbar.cancel", {
-                                    defaultValue: "Cancel",
-                                })}
+                                {t("toolbar.cancel")}
                             </Button>
                         </div>
                     </ModalFooter>
                 </ModalContent>
             </Modal>
 
-            <GlassPanel className="p-panel space-y-4 border border-content1/20 bg-content1/30">
-                <div className="flex items-center justify-between gap-panel">
-                    <div className="space-y-3">
-                        <div className="flex items-center gap-tools">
-                            <StatusIcon
-                                Icon={
-                                    torrent.state === "missing_files"
-                                        ? Folder
-                                        : Hash
-                                }
-                                size="sm"
-                                strokeWidth={ICON_STROKE_WIDTH}
-                                className={statusIconClass}
-                            />
-                            <div className="flex flex-col leading-tight">
-                                <span className="text-scaled font-semibold uppercase tracking-tight text-warning/80">
-                                    {recoveryStateLabel}
-                                </span>
-                                <span className="text-label font-semibold text-foreground/70">
-                                    {torrent.name}
-                                </span>
-                            </div>
-                        </div>
-                        <span className="text-label text-foreground/60 uppercase tracking-tight">
-                            {statusLabel}
-                        </span>
-                    </div>
-                    <div className="flex flex-col items-end gap-tight text-right">
-                        <span className="text-scaled font-mono font-semibold text-foreground">
-                            {formatPercent(progressPercent, 1)}
-                        </span>
-                        <span className="text-label text-foreground/60 uppercase tracking-tight">
-                            {t("torrent_modal.stats.total_progress")}
-                        </span>
-                    </div>
-                </div>
-                <div className="grid gap-panel sm:grid-cols-3">
-                    <div className="flex flex-col gap-tight">
-                        <span className="text-label text-foreground/60 uppercase tracking-tight">
-                            {t("torrent_modal.stats.time_remaining")}
-                        </span>
-                        <span className="text-scaled font-semibold text-foreground">
-                            {timeRemainingLabel}
-                        </span>
-                    </div>
-                    <div className="flex flex-col gap-tight">
-                        <span className="text-label text-foreground/60 uppercase tracking-tight">
-                            {t("torrent_modal.stats.active")}
-                        </span>
-                        <span className="text-scaled font-semibold text-foreground">
-                            {peerCount}
-                        </span>
-                    </div>
-                    <div className="flex flex-col gap-tight">
-                        <span className="text-label text-foreground/60 uppercase tracking-tight">
-                            {t("torrent_modal.stats.speed")}
-                        </span>
-                        <span className="text-scaled font-semibold text-foreground font-mono">
-                            {formatBytes(downloadRate)}/s ·{" "}
-                            {formatBytes(uploadRate)}/s
-                        </span>
-                    </div>
-                </div>
-                <div className="h-sep rounded-full bg-background/30">
-                    <SmoothProgressBar
-                        value={progressPercent}
-                        trackClassName="h-full bg-transparent"
-                        indicatorClassName="h-full bg-gradient-to-r from-success/60 via-success to-primary"
-                    />
-                </div>
-            </GlassPanel>
+            {/* Recovery modal (controller-driven) */}
+            <TorrentRecoveryModal
+                isOpen={showRecoveryModal}
+                plan={recoveryPlan ?? null}
+                outcome={lastRecoveryOutcome ?? null}
+                onClose={() => setShowRecoveryModal(false)}
+                onPrimary={async () => {
+                    if (!recoveryCallbacks) return;
+                    await recoveryCallbacks.handlePrimaryRecovery();
+                    setShowRecoveryModal(false);
+                }}
+                onPickPath={async (path: string) => {
+                    if (!recoveryCallbacks) return;
+                    await recoveryCallbacks.handlePickPath(path);
+                    setShowRecoveryModal(false);
+                }}
+                onVerify={async () => {
+                    if (!recoveryCallbacks) return;
+                    await recoveryCallbacks.handleVerify();
+                    setShowRecoveryModal(false);
+                }}
+                onBrowse={async () => {
+                    // Prefer engine-native browse if available via parent prop
+                    if (recoveryRequestBrowse) {
+                        try {
+                            const p = await recoveryRequestBrowse(
+                                torrent.downloadDir ?? undefined
+                            );
+                            return p;
+                        } catch {
+                            // fallback to prompt
+                        }
+                    }
+                    // Fallback: prompt
+                    const pick = window.prompt(
+                        t("recovery.prompt.enter_new_path"),
+                        torrent.downloadDir ?? ""
+                    );
+                    if (pick === null) return null;
+                    const trimmed = pick.trim();
+                    if (!trimmed) return null;
+                    return trimmed;
+                }}
+                isBusy={isRecoveryBusy ?? false}
+            />
 
             <GlassPanel className="p-panel space-y-3 bg-content1/30 border border-content1/20">
                 <div className="flex items-center justify-between">
                     <div className="flex-1">
                         <div className="text-label text-foreground/60">
-                            {t("torrent_modal.labels.save_path", {
-                                defaultValue: "Location",
-                            })}
+                            {t("torrent_modal.labels.save_path")}
                         </div>
                         <code className="font-mono text-scaled text-foreground/70 bg-content1/20 px-tight py-tight rounded wrap-break-word mt-2">
                             {downloadDir ??
@@ -558,9 +564,7 @@ export const GeneralTab = ({
                     </div>
                     <div className="w-1/3 pl-4">
                         <div className="text-label text-foreground/60">
-                            {t("torrent_modal.controls.verify", {
-                                defaultValue: "Verify",
-                            })}
+                            {t("torrent_modal.controls.verify")}
                         </div>
                         <div className="mt-2">
                             {(() => {
@@ -584,19 +588,13 @@ export const GeneralTab = ({
                     <div className="flex items-start justify-between gap-panel">
                         <div className="space-y-tight">
                             <span className="text-scaled font-semibold uppercase tracking-tight text-warning">
-                                {t("torrent_modal.errors.no_data_found_title", {
-                                    defaultValue: "No data found!",
-                                })}
+                                {t("torrent_modal.errors.no_data_found_title")}
                             </span>
                             <p className="text-label text-warning/80">
                                 {torrent.errorEnvelope?.errorMessage
                                     ? torrent.errorEnvelope.errorMessage
                                     : t(
-                                          "torrent_modal.errors.no_data_found_desc",
-                                          {
-                                              defaultValue:
-                                                  "Ensure your drives are connected or use 'Set Location'. To re-download, remove the torrent and re-add it.",
-                                          }
+                                          "torrent_modal.errors.no_data_found_desc"
                                       )}
                             </p>
                         </div>
@@ -711,9 +709,7 @@ export const GeneralTab = ({
                                             strokeWidth={ICON_STROKE_WIDTH}
                                             className="mr-2"
                                         />
-                                        {t("torrent_modal.controls.verify", {
-                                            defaultValue: "Verify",
-                                        })}
+                                        {t("torrent_modal.controls.verify")}
                                     </>
                                 </Button>
                                 <Button
@@ -734,7 +730,6 @@ export const GeneralTab = ({
                                             name: t(
                                                 "torrent_modal.labels.save_path"
                                             ),
-                                            defaultValue: "Set Folder",
                                         })}
                                     </>
                                 </Button>
@@ -750,9 +745,7 @@ export const GeneralTab = ({
                                             strokeWidth={ICON_STROKE_WIDTH}
                                             className="mr-2"
                                         />
-                                        {t("toolbar.remove", {
-                                            defaultValue: "Remove",
-                                        })}
+                                        {t("toolbar.remove")}
                                     </>
                                 </Button>
                             </div>
@@ -774,3 +767,5 @@ export const GeneralTab = ({
 };
 
 export default GeneralTab;
+
+// Recovery modal: keep at module bottom to avoid cluttering main render logic

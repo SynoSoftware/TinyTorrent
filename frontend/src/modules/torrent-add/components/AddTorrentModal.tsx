@@ -272,12 +272,10 @@ export function AddTorrentModal({
     );
 
     // Keyboard scope: disable dashboard and enable modal while this modal is mounted
-    const { activate: activateModal, deactivate: deactivateModal } = useKeyboardScope(
-        KEY_SCOPE.Modal
-    );
-    const { activate: activateDashboard, deactivate: deactivateDashboard } = useKeyboardScope(
-        KEY_SCOPE.Dashboard
-    );
+    const { activate: activateModal, deactivate: deactivateModal } =
+        useKeyboardScope(KEY_SCOPE.Modal);
+    const { activate: activateDashboard, deactivate: deactivateDashboard } =
+        useKeyboardScope(KEY_SCOPE.Dashboard);
 
     useEffect(() => {
         // On mount: disable dashboard scope, enable modal scope
@@ -288,7 +286,12 @@ export function AddTorrentModal({
             deactivateModal();
             activateDashboard();
         };
-    }, [activateDashboard, activateModal, deactivateDashboard, deactivateModal]);
+    }, [
+        activateDashboard,
+        activateModal,
+        deactivateDashboard,
+        deactivateModal,
+    ]);
     const tableOverscan =
         typeof TABLE_LAYOUT.overscan === "number" ? TABLE_LAYOUT.overscan : 12;
 
@@ -612,7 +615,9 @@ export function AddTorrentModal({
                 (form as any).requestSubmit();
             } else {
                 // Fallback: click the primary submit button if present
-                const submitBtn = form.querySelector('button[type="submit"]') as HTMLButtonElement | null;
+                const submitBtn = form.querySelector(
+                    'button[type="submit"]'
+                ) as HTMLButtonElement | null;
                 if (submitBtn) submitBtn.click();
             }
         },
@@ -1090,7 +1095,9 @@ export function AddTorrentModal({
                                                             </Button>
                                                         </DropdownTrigger>
                                                         <DropdownMenu
-                                                            aria-label="Commit mode"
+                                                            aria-label={t(
+                                                                "modals.add_torrent.commit_mode_aria"
+                                                            )}
                                                             disallowEmptySelection
                                                             selectionMode="single"
                                                             selectedKeys={[
@@ -1133,7 +1140,9 @@ export function AddTorrentModal({
                                                 >
                                                     <AccordionItem
                                                         key="advanced"
-                                                        aria-label="Advanced Options"
+                                                        aria-label={t(
+                                                            "modals.add_torrent.advanced_options_aria"
+                                                        )}
                                                         title={t(
                                                             "modals.add_torrent.advanced"
                                                         )}
@@ -1250,9 +1259,18 @@ export function AddTorrentModal({
                                                         data-modal-skip-submit="true"
                                                         onKeyDown={(e) => {
                                                             // Prevent Enter in the filter input from submitting the form
-                                                            if ((e as React.KeyboardEvent<HTMLInputElement>).key === "Enter") {
-                                                                (e as React.KeyboardEvent<HTMLInputElement>).preventDefault();
-                                                                (e as React.KeyboardEvent<HTMLInputElement>).stopPropagation();
+                                                            if (
+                                                                (
+                                                                    e as React.KeyboardEvent<HTMLInputElement>
+                                                                ).key ===
+                                                                "Enter"
+                                                            ) {
+                                                                (
+                                                                    e as React.KeyboardEvent<HTMLInputElement>
+                                                                ).preventDefault();
+                                                                (
+                                                                    e as React.KeyboardEvent<HTMLInputElement>
+                                                                ).stopPropagation();
                                                             }
                                                         }}
                                                     />
@@ -1277,7 +1295,9 @@ export function AddTorrentModal({
                                                             </Button>
                                                         </DropdownTrigger>
                                                         <DropdownMenu
-                                                            aria-label="Smart select"
+                                                            aria-label={t(
+                                                                "modals.add_torrent.smart_select_aria"
+                                                            )}
                                                             onAction={(key) =>
                                                                 handleSmartSelect(
                                                                     key as SmartSelectCommand

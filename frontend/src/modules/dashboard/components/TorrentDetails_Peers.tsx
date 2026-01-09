@@ -191,16 +191,20 @@ export const PeersTab = ({
                 <Panel defaultSize={60} minSize={10}>
                     <div className="flex-1 min-h-0 relative overflow-hidden rounded-2xl border border-content1/30 bg-content1/10 flex flex-col">
                         <div className="flex items-center gap-panel px-panel py-tight text-label uppercase tracking-tight text-foreground/30 border-b border-content1/10">
-                            <span className="w-col-id">Flags</span>
-                            <span className="flex-1">Endpoint</span>
+                            <span className="w-col-id">
+                                {t("peers.columns.flags")}
+                            </span>
+                            <span className="flex-1">
+                                {t("peers.columns.endpoint")}
+                            </span>
                             <span className="w-col-client">
-                                Client Identification
+                                {t("peers.columns.client_identification")}
                             </span>
                             <span className="w-col-speed text-right">
-                                Downstream
+                                {t("peers.columns.downstream")}
                             </span>
                             <span className="w-col-speed text-right">
-                                Upstream
+                                {t("peers.columns.upstream")}
                             </span>
                         </div>
 

@@ -78,6 +78,18 @@ interface DashboardLayoutProps {
     onRedownload?: (torrent: TorrentDetail) => Promise<void> | void;
     onRetry?: (torrent: TorrentDetail) => Promise<void> | void;
     onResume?: (torrent: TorrentDetail) => Promise<void> | void;
+    // Recovery props
+    recoveryPlan?:
+        | import("@/services/recovery/recovery-controller").RecoveryPlan
+        | null;
+    recoveryCallbacks?:
+        | import("@/modules/dashboard/hooks/useRecoveryController").RecoveryCallbacks
+        | null;
+    isRecoveryBusy?: boolean;
+    lastRecoveryOutcome?:
+        | import("@/services/recovery/recovery-controller").RecoveryOutcome
+        | null;
+    recoveryRequestBrowse?: (currentPath?: string) => Promise<string | null>;
     capabilities: CapabilityStore;
     optimisticStatuses?: OptimisticStatusMap;
     peerSortStrategy?: PeerSortStrategy;
@@ -108,6 +120,12 @@ export function Dashboard_Layout({
     onRedownload,
     onRetry,
     onResume,
+    // Recovery forwarding
+    recoveryPlan,
+    recoveryCallbacks,
+    isRecoveryBusy,
+    lastRecoveryOutcome,
+    recoveryRequestBrowse,
     onOpenFolder,
     capabilities,
     optimisticStatuses,
@@ -426,6 +444,14 @@ export function Dashboard_Layout({
                                     onRedownload={onRedownload}
                                     onRetry={onRetry}
                                     onResume={onResume}
+                                    // Recovery forwarding
+                                    recoveryPlan={recoveryPlan}
+                                    recoveryCallbacks={recoveryCallbacks}
+                                    isRecoveryBusy={isRecoveryBusy}
+                                    lastRecoveryOutcome={lastRecoveryOutcome}
+                                    recoveryRequestBrowse={
+                                        recoveryRequestBrowse
+                                    }
                                     capabilities={capabilities}
                                     isDetailFullscreen={false}
                                     onDock={handleDetailDock}
@@ -487,6 +513,7 @@ export function Dashboard_Layout({
                                 capabilities={capabilities}
                                 isDetailFullscreen={isDetailFullscreen}
                                 isStandalone={true}
+                                recoveryRequestBrowse={recoveryRequestBrowse}
                                 onDock={handleDetailDock}
                                 onPopout={handleDetailPopout}
                             />

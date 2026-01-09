@@ -67,9 +67,7 @@ const buildFileTree = (entries: FileExplorerEntry[]): FileExplorerNode[] => {
         const safeName = entry.name?.trim()
             ? entry.name
             : `file-${entry.index ?? "unknown"}`;
-        const normalizedPath = safeName
-            .replace(/\\/g, "/")
-            .replace(/^\/+/, "");
+        const normalizedPath = safeName.replace(/\\/g, "/").replace(/^\/+/, "");
         const rawSegments = normalizedPath.split("/");
         const segments =
             rawSegments.filter(Boolean).length > 0
@@ -106,16 +104,6 @@ const buildFileTree = (entries: FileExplorerEntry[]): FileExplorerNode[] => {
 
 // priority badge base classes (visuals) - font size & padding come from CSS tokens
 const PRIORITY_BADGE_BASE = "font-semibold uppercase rounded-full";
-const PRIORITY_LABELS: Record<LibtorrentPriority, string> = {
-    0: "Do Not Download",
-    1: "Low Priority",
-    2: "Priority 2",
-    3: "Priority 3",
-    4: "Default",
-    5: "Priority 5",
-    6: "Priority 6",
-    7: "Top Priority",
-};
 const PRIORITY_BADGE_CLASSES: Record<LibtorrentPriority, string> = {
     0: "bg-danger/10 text-danger border border-danger/40",
     1: "bg-foreground/5 text-foreground/70 border border-content1/20",
@@ -449,9 +437,7 @@ export function FileExplorerTree({
                     type="text"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    placeholder={t("torrent_modal.files_search_placeholder", {
-                        defaultValue: "Search files...",
-                    })}
+                    placeholder={t("torrent_modal.files_search_placeholder")}
                     className="flex-1 px-tight py-tight rounded bg-content1/20 text-foreground outline-none"
                     style={{ minWidth: 0 }}
                 />
@@ -466,9 +452,7 @@ export function FileExplorerTree({
                         className="px-tight py-tight rounded bg-content1/20 text-foreground outline-none"
                     >
                         <option value="">
-                            {t("torrent_modal.files_select_extension", {
-                                defaultValue: "Select by extension...",
-                            })}
+                            {t("torrent_modal.files_select_extension")}
                         </option>
                         {allExtensions.map((ext) => (
                             <option key={ext} value={ext}>
@@ -609,7 +593,9 @@ export function FileExplorerTree({
                             selectionMap.get(node.file.index) ?? true;
                         const priorityLabel =
                             node.file.priority !== undefined
-                                ? PRIORITY_LABELS[node.file.priority]
+                                ? t(
+                                      `inspector.file_priorities.${node.file.priority}`
+                                  )
                                 : null;
                         const priorityBadgeClass =
                             node.file.priority !== undefined

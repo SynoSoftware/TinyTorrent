@@ -27,9 +27,7 @@ export function useHudCards({
     const hudCards = useMemo<AmbientHudCard[]>(() => {
         const engineLabel = engineInfo?.name
             ? engineInfo.name
-            : t("workspace.stage.engine_fallback", {
-                  defaultValue: "Torrent engine",
-              });
+            : t("workspace.stage.engine_fallback");
         const engineVersionLabel = engineInfo?.version
             ? ` v${engineInfo.version}`
             : "";
@@ -41,13 +39,12 @@ export function useHudCards({
             rpcStatus === STATUS.connection.ERROR ? AlertTriangle : PlugZap;
 
         if (rpcStatus === STATUS.connection.CONNECTED) {
-            connectionTitle = t("workspace.stage.connection_online_title", {
-                defaultValue: "Link secured",
-            });
+            connectionTitle = t("workspace.stage.connection_online_title");
             connectionDescription = t(
                 "workspace.stage.connection_online_description",
                 {
-                    defaultValue: `Talking to ${engineLabel}${engineVersionLabel}`,
+                    engine: engineLabel,
+                    version: engineVersionLabel,
                 }
             );
             connectionSurface =
@@ -55,32 +52,18 @@ export function useHudCards({
             connectionIconBg = "bg-success/15 text-success";
         } else if (rpcStatus === STATUS.connection.IDLE) {
             connectionTitle = isDetectingEngine
-                ? t("workspace.stage.connection_detecting_title", {
-                      defaultValue: "Detecting client",
-                  })
-                : t("workspace.stage.connection_idle_title", {
-                      defaultValue: "Waiting for engine",
-                  });
+                ? t("workspace.stage.connection_detecting_title")
+                : t("workspace.stage.connection_idle_title");
             connectionDescription = isDetectingEngine
-                ? t("workspace.stage.connection_detecting_description", {
-                      defaultValue: "Scanning your local adapters...",
-                  })
-                : t("workspace.stage.connection_idle_description", {
-                      defaultValue: "Open your client or tap reconnect.",
-                  });
+                ? t("workspace.stage.connection_detecting_description")
+                : t("workspace.stage.connection_idle_description");
             connectionSurface =
                 "bg-gradient-to-br from-warning/15 via-background/30 to-background/5";
             connectionIconBg = "bg-warning/15 text-warning";
         } else {
-            connectionTitle = t("workspace.stage.connection_error_title", {
-                defaultValue: "Connection interrupted",
-            });
+            connectionTitle = t("workspace.stage.connection_error_title");
             connectionDescription = t(
-                "workspace.stage.connection_error_description",
-                {
-                    defaultValue:
-                        "We're retrying automatically--use Reconnect for a manual nudge.",
-                }
+                "workspace.stage.connection_error_description"
             );
             connectionSurface =
                 "bg-gradient-to-br from-danger/20 via-background/25 to-background/5";
@@ -88,21 +71,11 @@ export function useHudCards({
         }
 
         const dragTitle = isDragActive
-            ? t("workspace.stage.drop_active_title", {
-                  defaultValue: "Release to queue",
-              })
-            : t("workspace.stage.drop_idle_title", {
-                  defaultValue: "Drop torrents anywhere",
-              });
+            ? t("workspace.stage.drop_active_title")
+            : t("workspace.stage.drop_idle_title");
         const dragDescription = isDragActive
-            ? t("workspace.stage.drop_active_description", {
-                  defaultValue:
-                      "We'll parse and schedule this payload instantly.",
-              })
-            : t("workspace.stage.drop_idle_description", {
-                  defaultValue:
-                      "Drag .torrent files or folders across the stage to fast-track importing.",
-              });
+            ? t("workspace.stage.drop_active_description")
+            : t("workspace.stage.drop_idle_description");
         const dragSurface = isDragActive
             ? "bg-gradient-to-br from-primary/20 via-primary/5 to-transparent"
             : "bg-gradient-to-br from-content1/10 via-content1/5 to-transparent";
@@ -110,15 +83,9 @@ export function useHudCards({
             ? "bg-primary/15 text-primary"
             : "bg-foreground/10 text-foreground/60";
 
-        const deepLinkTitle = t("workspace.stage.deeplink_idle_title", {
-            defaultValue: "Deep links armed",
-        });
+        const deepLinkTitle = t("workspace.stage.deeplink_idle_title");
         const deepLinkDescription = t(
-            "workspace.stage.deeplink_idle_description",
-            {
-                defaultValue:
-                    "Share any magnet:? URL or magnet query to auto-open the Add modal.",
-            }
+            "workspace.stage.deeplink_idle_description"
         );
         const deepSurface =
             "bg-gradient-to-br from-foreground/10 via-background/30 to-transparent";
@@ -127,9 +94,7 @@ export function useHudCards({
         return [
             {
                 id: "connection",
-                label: t("workspace.stage.connection_label", {
-                    defaultValue: "Connection health",
-                }),
+                label: t("workspace.stage.connection_label"),
                 title: connectionTitle,
                 description: connectionDescription,
                 surfaceClass: connectionSurface,
@@ -138,9 +103,7 @@ export function useHudCards({
             },
             {
                 id: "drop",
-                label: t("workspace.stage.drop_label", {
-                    defaultValue: "Drag & drop",
-                }),
+                label: t("workspace.stage.drop_label"),
                 title: dragTitle,
                 description: dragDescription,
                 surfaceClass: dragSurface,
@@ -149,9 +112,7 @@ export function useHudCards({
             },
             {
                 id: "deeplink",
-                label: t("workspace.stage.deeplink_label", {
-                    defaultValue: "Deep-link submissions",
-                }),
+                label: t("workspace.stage.deeplink_label"),
                 title: deepLinkTitle,
                 description: deepLinkDescription,
                 surfaceClass: deepSurface,
