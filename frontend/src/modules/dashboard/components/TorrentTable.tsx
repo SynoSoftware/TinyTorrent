@@ -73,6 +73,7 @@ import {
     ColumnHeaderPreview,
 } from "./TorrentTable_Headers";
 import TorrentTable_ColumnSettingsModal from "./TorrentTable_ColumnSettingsModal";
+import { useQueueReorderController } from "@/modules/dashboard/hooks/useQueueReorderController";
 
 // Small helpers / stubs added during wiring to restore behavior
 const formatShortcutLabel = (value?: string | string[]) =>
@@ -168,9 +169,11 @@ export function TorrentTable({
         begin: beginAnimationSuppression,
         end: endAnimationSuppression,
     } = useTableAnimationGuard();
-    const [pendingQueueOrder, setPendingQueueOrder] = useState<string[] | null>(
-        null
-    );
+    const [queueRowIds, setQueueRowIds] = useState<string[]>([]);
+    const [queueRowsById, setQueueRowsById] = useState<
+        Map<string, Row<Torrent>>
+    >(new Map());
+    const [queueRowsLength, setQueueRowsLength] = useState<number>(0);
     const [isColumnOrderChanging, setIsColumnOrderChanging] =
         useState<boolean>(false);
     const [isColumnModalOpen, setIsColumnModalOpen] = useState<boolean>(false);
@@ -315,13 +318,26 @@ export function TorrentTable({
         optimisticStatuses,
     });
 
-    // Effective order: authoritative source for ordering. If a pending optimistic
-    // queue order exists, use it as the canonical order for the table + DnD items.
-    // Otherwise the server `data` order is authoritative. All downstream consumers
-    // (React Table rows, virtualizer, SortableContext) must derive from this to
-    // avoid divergent ordering pipelines.
     const serverOrder = useMemo(() => data.map((d) => d.id), [data]);
-    const effectiveOrder = pendingQueueOrder ?? serverOrder;
+    const {
+        effectiveOrder,
+        pendingQueueOrder,
+        canReorderQueue,
+        handleRowDragStart: queueHandleRowDragStart,
+        handleRowDragEnd: queueHandleRowDragEnd,
+        handleRowDragCancel: queueHandleRowDragCancel,
+    } = useQueueReorderController({
+        serverOrder,
+        sorting,
+        onAction,
+        rowIds: queueRowIds,
+        rowsById: queueRowsById,
+        rowsLength: queueRowsLength,
+        beginAnimationSuppression,
+        endAnimationSuppression,
+        setActiveRowId,
+        setDropTargetRowId,
+    });
 
     // Rebuild table data in the exact order of `effectiveOrder` so React Table
     // receives a newly constructed array with the canonical ordering. Do not
@@ -380,6 +396,7 @@ export function TorrentTable({
     // row model order. Do not derive rowIds from server order, pending order, or
     // any cached list, or DnD/virtualization will diverge.
     const rowIds = useMemo(() => rows.map((row) => row.id), [rows]);
+
     const {
         measuredMinWidths,
         measuredMinWidthsRef,
@@ -563,6 +580,13 @@ export function TorrentTable({
         });
         return map;
     }, [rows]);
+
+    useEffect(() => {
+        setQueueRowIds(rowIds);
+        setQueueRowsLength(rows.length);
+        setQueueRowsById(rowsById);
+    }, [rowIds, rows.length, rowsById]);
+
     const lastActiveRowIdRef = useRef<string | null>(null);
 
     useEffect(() => {
@@ -574,39 +598,6 @@ export function TorrentTable({
             : null;
         onActiveRowChange(activeRow?.original ?? null);
     }, [highlightedRowId, onActiveRowChange, rowsById]);
-
-    // Check if we are sorting by queue position
-    // If we are, we can enable Drag & Drop reordering
-    const isQueueSort = sorting.some(
-        (s) => typeof s === "object" && (s as { id?: string }).id === "queue"
-    );
-    const canReorderQueue = isQueueSort && Boolean(onAction);
-
-    useEffect(() => {
-        if (!canReorderQueue) {
-            setActiveRowId(null);
-            setDropTargetRowId(null);
-            setPendingQueueOrder(null);
-            endAnimationSuppression(ANIMATION_SUPPRESSION_KEYS.rowDrag);
-            endAnimationSuppression(ANIMATION_SUPPRESSION_KEYS.queueReorder);
-        }
-    }, [canReorderQueue, endAnimationSuppression]);
-
-    useEffect(() => {
-        if (!pendingQueueOrder) return;
-        if (rowIds.length !== pendingQueueOrder.length) return;
-        for (let i = 0; i < rowIds.length; i += 1) {
-            if (rowIds[i] !== pendingQueueOrder[i]) {
-                return;
-            }
-        }
-        setPendingQueueOrder(null);
-    }, [pendingQueueOrder, rowIds]);
-
-    useEffect(() => {
-        if (pendingQueueOrder) return;
-        endAnimationSuppression(ANIMATION_SUPPRESSION_KEYS.queueReorder);
-    }, [pendingQueueOrder, endAnimationSuppression]);
 
     useEffect(() => {
         if (typeof window === "undefined") return;
@@ -652,7 +643,6 @@ export function TorrentTable({
         onAction,
         sorting,
         rows,
-        setPendingQueueOrder,
         setRowSelection,
         setAnchorIndex,
         setFocusIndex,
@@ -661,6 +651,9 @@ export function TorrentTable({
         selectAllRows,
         anchorIndex,
         focusIndex,
+        handleRowDragStart: queueHandleRowDragStart,
+        handleRowDragEnd: queueHandleRowDragEnd,
+        handleRowDragCancel: queueHandleRowDragCancel,
     });
 
     // extracted to TorrentTable_Interactions.tsx
