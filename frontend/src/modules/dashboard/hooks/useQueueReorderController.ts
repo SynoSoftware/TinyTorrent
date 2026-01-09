@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import {
     ANIMATION_SUPPRESSION_KEYS,
     type AnimationSuppressionKey,
@@ -9,12 +9,13 @@ import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
 
 type QueueControllerDeps = {
-    serverOrder: string[];
     sorting: SortingState;
     onAction?: (
         action: TorrentTableAction,
         torrent: Torrent
     ) => Promise<void> | void | undefined;
+    pendingQueueOrder: string[] | null;
+    setPendingQueueOrder: (order: string[] | null) => void;
     rowIds: string[];
     rowsById: Map<string, Row<Torrent>>;
     rowsLength: number;
@@ -26,9 +27,10 @@ type QueueControllerDeps = {
 
 export const useQueueReorderController = (deps: QueueControllerDeps) => {
     const {
-        serverOrder,
         sorting,
         onAction,
+        pendingQueueOrder,
+        setPendingQueueOrder,
         rowIds,
         rowsById,
         rowsLength,
@@ -37,15 +39,6 @@ export const useQueueReorderController = (deps: QueueControllerDeps) => {
         setActiveRowId,
         setDropTargetRowId,
     } = deps;
-
-    const [pendingQueueOrder, setPendingQueueOrder] = useState<string[] | null>(
-        null
-    );
-
-    const effectiveOrder = useMemo(
-        () => pendingQueueOrder ?? serverOrder,
-        [pendingQueueOrder, serverOrder]
-    );
 
     const isQueueSort = useMemo(
         () =>
@@ -103,13 +96,10 @@ export const useQueueReorderController = (deps: QueueControllerDeps) => {
     }, [pendingQueueOrder, endAnimationSuppression]);
 
     return {
-        effectiveOrder,
-        pendingQueueOrder,
         canReorderQueue,
         handleRowDragStart,
         handleRowDragEnd,
         handleRowDragCancel,
-        setPendingQueueOrder,
     };
 };
 

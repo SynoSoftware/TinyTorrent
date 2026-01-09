@@ -164,16 +164,14 @@ export function TorrentTable({
     // Wiring state required by the extracted hooks/components
     const [activeRowId, setActiveRowId] = useState<string | null>(null);
     const [dropTargetRowId, setDropTargetRowId] = useState<string | null>(null);
+    const [pendingQueueOrder, setPendingQueueOrder] = useState<
+        string[] | null
+    >(null);
     const {
         isSuppressed: animationSuppressionActive,
         begin: beginAnimationSuppression,
         end: endAnimationSuppression,
     } = useTableAnimationGuard();
-    const [queueRowIds, setQueueRowIds] = useState<string[]>([]);
-    const [queueRowsById, setQueueRowsById] = useState<
-        Map<string, Row<Torrent>>
-    >(new Map());
-    const [queueRowsLength, setQueueRowsLength] = useState<number>(0);
     const [isColumnOrderChanging, setIsColumnOrderChanging] =
         useState<boolean>(false);
     const [isColumnModalOpen, setIsColumnModalOpen] = useState<boolean>(false);
@@ -319,25 +317,10 @@ export function TorrentTable({
     });
 
     const serverOrder = useMemo(() => data.map((d) => d.id), [data]);
-    const {
-        effectiveOrder,
-        pendingQueueOrder,
-        canReorderQueue,
-        handleRowDragStart: queueHandleRowDragStart,
-        handleRowDragEnd: queueHandleRowDragEnd,
-        handleRowDragCancel: queueHandleRowDragCancel,
-    } = useQueueReorderController({
-        serverOrder,
-        sorting,
-        onAction,
-        rowIds: queueRowIds,
-        rowsById: queueRowsById,
-        rowsLength: queueRowsLength,
-        beginAnimationSuppression,
-        endAnimationSuppression,
-        setActiveRowId,
-        setDropTargetRowId,
-    });
+    const effectiveOrder = useMemo(
+        () => pendingQueueOrder ?? serverOrder,
+        [pendingQueueOrder, serverOrder]
+    );
 
     // Rebuild table data in the exact order of `effectiveOrder` so React Table
     // receives a newly constructed array with the canonical ordering. Do not
@@ -581,11 +564,24 @@ export function TorrentTable({
         return map;
     }, [rows]);
 
-    useEffect(() => {
-        setQueueRowIds(rowIds);
-        setQueueRowsLength(rows.length);
-        setQueueRowsById(rowsById);
-    }, [rowIds, rows.length, rowsById]);
+    const {
+        canReorderQueue,
+        handleRowDragStart: queueHandleRowDragStart,
+        handleRowDragEnd: queueHandleRowDragEnd,
+        handleRowDragCancel: queueHandleRowDragCancel,
+    } = useQueueReorderController({
+        sorting,
+        onAction,
+        pendingQueueOrder,
+        setPendingQueueOrder,
+        rowIds,
+        rowsById,
+        rowsLength: rows.length,
+        beginAnimationSuppression,
+        endAnimationSuppression,
+        setActiveRowId,
+        setDropTargetRowId,
+    });
 
     const lastActiveRowIdRef = useRef<string | null>(null);
 
