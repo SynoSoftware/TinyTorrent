@@ -9,7 +9,6 @@ import {
     type DragEndEvent,
 } from "@dnd-kit/core";
 import { useTorrentTableKeyboard } from "./useTorrentTableKeyboard";
-import { useTorrentRowDrag } from "./useTorrentRowDrag";
 
 // Hook: provide DnD sensors and table interaction handlers.
 // Extracted from `TorrentTable.tsx` and parameterized via a deps object.
@@ -58,8 +57,11 @@ export const useTorrentTableInteractions = (deps: any = {}) => {
 
     // Delegate row-drag and keyboard to specialized hooks. Forward the
     // full deps object so those hooks can pick what they need.
-    const { handleRowDragStart, handleRowDragEnd, handleRowDragCancel } =
-        useTorrentRowDrag(deps);
+    const {
+        handleRowDragStart,
+        handleRowDragEnd,
+        handleRowDragCancel,
+    } = deps;
 
     const { handleKeyDown } = useTorrentTableKeyboard(deps);
 
