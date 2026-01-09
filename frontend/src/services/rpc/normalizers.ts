@@ -28,6 +28,9 @@ const STATUS_MAP: Record<number, TorrentStatus> = {
     7: STATUS.torrent.PAUSED,
 };
 
+// qBittorrent’s “Stalled torrent timeout” defaults to 60 seconds, so keep the grace window identical.
+const STALLED_GRACE_SECONDS = 60;
+
 const normalizeStatus = (
     status: number | TorrentStatus | undefined
 ): TorrentStatus => {
@@ -63,9 +66,8 @@ export const deriveTorrentState = (
         | "errorString"
         | "rateDownload"
         | "rateUpload"
-        | "peersConnected"
         | "peersSendingToUs"
-        | "peersGettingFromUs"
+        | "addedDate"
         | "percentDone"
     >
 ): TorrentStatus => {
@@ -92,14 +94,31 @@ export const deriveTorrentState = (
     }
 
     const down = numOr(torrent.rateDownload, 0);
-    const connected = numOr(torrent.peersConnected, 0);
     const sendingToUs = numOr(torrent.peersSendingToUs, 0);
+    const addedDate =
+        typeof torrent.addedDate === "number" &&
+        Number.isFinite(torrent.addedDate)
+            ? Math.max(0, Math.floor(torrent.addedDate))
+            : undefined;
+    const torrentAgeSeconds =
+        typeof addedDate === "number"
+            ? Math.max(
+                  0,
+                  Math.floor(Date.now() / 1000) - Math.floor(addedDate)
+              )
+            : undefined;
+    const isWithinStallGrace =
+        typeof torrentAgeSeconds === "number" &&
+        torrentAgeSeconds < STALLED_GRACE_SECONDS;
 
     // 4) Stalled applies ONLY to downloading
     if (base === STATUS.torrent.DOWNLOADING) {
+        if (isWithinStallGrace) {
+            return STATUS.torrent.DOWNLOADING;
+        }
         const noTraffic = down === 0;
-        const noUsefulPeers = connected === 0 || sendingToUs === 0;
-        return noTraffic && noUsefulPeers
+        const noUploadingPeers = sendingToUs === 0;
+        return noTraffic && noUploadingPeers
             ? STATUS.torrent.STALLED
             : STATUS.torrent.DOWNLOADING;
     }
