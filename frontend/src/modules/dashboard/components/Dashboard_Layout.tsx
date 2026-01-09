@@ -52,6 +52,7 @@ interface DashboardLayoutProps {
     isTableLoading: boolean;
     detailSplitDirection?: "horizontal" | "vertical";
     onAction?: (action: TorrentTableAction, torrent: Torrent) => void;
+    handleBulkAction?: (action: TorrentTableAction) => Promise<void>;
     onRequestDetails?: (torrent: Torrent) => void;
     onSelectionChange?: (selection: Torrent[]) => void;
     onActiveRowChange?: (torrent: Torrent | null) => void;
@@ -95,6 +96,7 @@ export function Dashboard_Layout({
     searchQuery,
     isTableLoading,
     onAction,
+    handleBulkAction,
     onRequestDetails,
     detailData,
     onCloseDetail,
@@ -322,6 +324,7 @@ export function Dashboard_Layout({
                                     searchQuery={searchQuery}
                                     isLoading={isTableLoading}
                                     onAction={onAction}
+                                    handleBulkAction={handleBulkAction}
                                     onRequestDetails={handleDetailRequest}
                                     onRequestDetailsFullscreen={
                                         handleDetailFullscreenRequest

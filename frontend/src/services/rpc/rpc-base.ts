@@ -8,12 +8,9 @@
  *
  * */
 import type {
-    DirectoryBrowseResult,
     TransmissionSessionSettings,
     TransmissionTorrent,
     TransmissionTorrentDetail,
-    TransmissionTorrentTracker,
-    TransmissionTorrentPeer,
     TransmissionFreeSpace,
     TransmissionSessionStats,
     TransmissionBandwidthGroupOptions,
@@ -56,13 +53,10 @@ import type {
 import type {
     TorrentEntity,
     TorrentDetailEntity,
-    TorrentTrackerEntity,
-    TorrentPeerEntity,
     AddTorrentPayload,
     AddTorrentResult,
     SessionStats,
     EngineInfo,
-    LibtorrentPriority,
     TinyTorrentCapabilities,
     AutorunStatus,
     SystemHandlerStatus,
@@ -79,21 +73,9 @@ type RpcRequest<M extends string> = {
     tag?: number;
 };
 
-type RpcResponse<T> = {
-    result: string;
-    arguments: T;
-    tag?: number;
-};
-
-type TorrentGetResponse<T> = {
-    torrents: T[];
-};
-
-type HandshakeState = "idle" | "handshaking" | "ready" | "invalid";
-
 type RpcSendOptions = {
     bypassHandshake?: boolean;
-    _retry409?: boolean; // internal: guard to prevent infinite 409 retry loops
+    _retry409?: boolean;
 };
 
 const READ_ONLY_RPC_METHODS = new Set([
@@ -110,39 +92,6 @@ const READ_ONLY_RPC_RESPONSE_TTL_MS = Number.isFinite(
     ? ((CONFIG as unknown as { performance?: { read_rpc_cache_ms?: number } })
           .performance!.read_rpc_cache_ms as number)
     : 0;
-
-// Helper: stable deterministic stringify for request argument hashing
-function stableStringify(value: unknown): string {
-    if (value === undefined) {
-        return "undefined";
-    }
-
-    if (value === null) {
-        return "null";
-    }
-    if (Array.isArray(value)) {
-        return `[${value.map(stableStringify).join(",")}]`;
-    }
-    if (typeof value === "object") {
-        const record = value as Record<string, unknown>;
-        const keys = Object.keys(record).sort();
-        return `{${keys
-            .map(
-                (key) =>
-                    `${JSON.stringify(key)}:${stableStringify(record[key])}`
-            )
-            .join(",")}}`;
-    }
-    return JSON.stringify(value);
-}
-
-function buildReadRpcDedupKey(
-    method: string,
-    args?: Record<string, unknown>
-): string {
-    const serializedArgs = stableStringify(args ?? null);
-    return `${method}:${serializedArgs}`;
-}
 
 const WARNING_THROTTLE_MS = 1000;
 const recentWarningTs = new Map<string, number>();
@@ -179,32 +128,6 @@ const SUMMARY_FIELDS: Array<keyof TransmissionTorrent> = [
     "downloadDir",
 ];
 
-// Fields that change frequently and are safe to request on a delta poll.
-const VOLATILE_FIELDS: Array<keyof TransmissionTorrent> = [
-    "id",
-    "status",
-    "rateDownload",
-    "rateUpload",
-    "peersConnected",
-    "percentDone",
-    "eta",
-    "queuePosition",
-    "error",
-    "errorString",
-];
-
-// A compact set of fields to request for recently-active deltas. We include
-// a small subset of static fields (name, totalSize) so newly-added torrents
-// look reasonable in the UI without requiring an immediate full fetch.
-const DELTA_FIELDS: Array<keyof TransmissionTorrent> = [
-    ...VOLATILE_FIELDS,
-    // `hashString` is required by `normalizeTorrent` and by UI identity
-    // (React keys). Include it so delta fetches supply a valid hash.
-    "hashString",
-    "name",
-    "totalSize",
-];
-
 const DETAIL_FIELDS = [
     ...SUMMARY_FIELDS,
     "files",
@@ -238,7 +161,7 @@ export class TransmissionAdapter implements EngineAdapter {
         string,
         { count: number; firstTs: number }
     >();
-    private readonly METHOD_CALL_WINDOW_MS = 2000; // 2s
+    private readonly METHOD_CALL_WINDOW_MS = 2000;
     private readonly METHOD_CALL_WARNING_THRESHOLD = 100;
     private tinyTorrentCapabilities?: TinyTorrentCapabilities | null;
     private websocketSession?: TinyTorrentWebSocketSession;
@@ -250,6 +173,7 @@ export class TransmissionAdapter implements EngineAdapter {
     // (sessionIdRefreshPromise removed — Transport owns session-id probing)
     // Cache for potentially expensive network telemetry lookups (free-space).
     // Prevents invoking disk/FS checks on every websocket tick.
+
     private networkTelemetryCache?: {
         value: NetworkTelemetry | null;
         ts: number;
@@ -258,7 +182,7 @@ export class TransmissionAdapter implements EngineAdapter {
     // Dedicated inflight lock to avoid races when two callers start telemetry
     // resolution concurrently before the cache object is installed.
     private _networkTelemetryInflight?: Promise<NetworkTelemetry | null>;
-    private readonly NETWORK_TELEMETRY_TTL_MS = 60_000; // 60s
+    private readonly NETWORK_TELEMETRY_TTL_MS = 60_000;
 
     private getTinyTorrentAuthToken(): string | undefined {
         const token = sessionStorage.getItem("tt-auth-token");
@@ -411,9 +335,8 @@ export class TransmissionAdapter implements EngineAdapter {
                         recentWarningTs.set(m, now);
                     }
                 }
-                // diagnostics removed: stack-trace logging for torrent-get storms
             } catch (e) {
-                // Don't allow diagnostic code to interfere with normal RPC flow.
+                // Ignore diagnostics errors
             }
 
             const attemptRequest = async (_attempt: number): Promise<T> => {
@@ -516,9 +439,6 @@ export class TransmissionAdapter implements EngineAdapter {
                         this.tinyTorrentCapabilities = null;
                         this.serverClass = "transmission";
                         this.ensureWebsocketConnection();
-                        console.debug(
-                            "[tiny-torrent][rpc] tt-get-capabilities not recognized; marking serverClass=transmission"
-                        );
                         return null as unknown as T;
                     }
 
@@ -687,8 +607,6 @@ export class TransmissionAdapter implements EngineAdapter {
                 }
             } catch {}
         } catch (err) {
-            // Log destroy errors instead of swallowing silently
-            // eslint-disable-next-line no-console
             console.warn("[tiny-torrent][rpc] destroy error:", err);
         }
         try {
@@ -834,8 +752,7 @@ export class TransmissionAdapter implements EngineAdapter {
             try {
                 await this.inflightGetCapabilities;
             } catch {
-                // swallow here; the inflight promise will have already
-                // logged details if it failed.
+                // swallow
             }
             return;
         }
@@ -878,7 +795,6 @@ export class TransmissionAdapter implements EngineAdapter {
                     );
                     return;
                 }
-
                 console.error(
                     `[tiny-torrent][rpc] refreshExtendedCapabilities failed`,
                     error
@@ -964,6 +880,7 @@ export class TransmissionAdapter implements EngineAdapter {
                 "[tiny-torrent][rpc] refreshExtendedCapabilities error (ignored):",
                 err
             );
+
             this.applyCapabilities(null);
         }
         return result;
@@ -1016,7 +933,7 @@ export class TransmissionAdapter implements EngineAdapter {
                     telemetryPayload as import("./heartbeat").HeartbeatPayload
                 );
             } catch (err) {
-                // ignore telemetry fetch failures
+                // ignore
             }
         })();
     };
@@ -1053,20 +970,16 @@ export class TransmissionAdapter implements EngineAdapter {
                 method: "torrent-get",
                 arguments: {
                     ids: "recently-active",
-                    fields: DELTA_FIELDS,
+                    fields: SUMMARY_FIELDS,
                 },
             },
             z.any()
         );
-        const args = response as unknown as { removed?: unknown } & Record<
-            string,
-            unknown
-        >;
-        const torrents = getTorrentList(args ?? {});
-        const removed = Array.isArray(args?.removed)
-            ? (args.removed as number[])
-            : [];
-        return { torrents, removed };
+
+        return {
+            torrents: response?.torrents ?? [],
+            removed: Array.isArray(response?.removed) ? response.removed : [],
+        };
     }
 
     /**
@@ -1134,10 +1047,7 @@ export class TransmissionAdapter implements EngineAdapter {
             try {
                 await this.mutate("session-ui-attach");
             } catch (err) {
-                console.debug(
-                    "[tiny-torrent][rpc] session-ui-attach failed (ignored)",
-                    err
-                );
+                // ignore
             }
         }
     }
@@ -1176,11 +1086,7 @@ export class TransmissionAdapter implements EngineAdapter {
                 keepalive: true,
             };
 
-            const resp = await this.transport.fetchWithSession(
-                requestInit,
-                undefined,
-                true
-            );
+            await this.transport.fetchWithSession(requestInit, undefined, true);
             // Sync transport's authoritative session token back to adapter state
             try {
                 const transportToken = this.transport.getSessionId();
@@ -1319,6 +1225,7 @@ export class TransmissionAdapter implements EngineAdapter {
             torrentCount: stats.torrentCount,
             activeTorrentCount: stats.activeTorrentCount,
             pausedTorrentCount: stats.pausedTorrentCount,
+            dhtNodes: stats.dhtNodes === undefined ? undefined : stats.dhtNodes,
             // DHT node counts are not provided reliably; telemetry indicators live in fetchNetworkTelemetry()
         };
     }
@@ -1349,7 +1256,6 @@ export class TransmissionAdapter implements EngineAdapter {
     public async closeSession(): Promise<void> {
         await this.mutate("session-close");
     }
-
     /**
      * Reset local adapter/transport session state without sending a
      * mutating RPC. This allows the UI to request a light-weight reconnect
@@ -2084,14 +1990,12 @@ class TinyTorrentWebSocketSession {
     }
 
     public stop() {
-        console.log(`${this.logPrefix} stop invoked`);
         this.shouldReconnect = false;
         if (this.reconnectTimer) {
             window.clearTimeout(this.reconnectTimer);
             this.reconnectTimer = undefined;
         }
         if (this.socket) {
-            console.log(`${this.logPrefix} closing socket`);
             this.socket.close();
             this.socket = undefined;
         }
@@ -2103,9 +2007,6 @@ class TinyTorrentWebSocketSession {
         if (this.reconnectTimer) {
             window.clearTimeout(this.reconnectTimer);
         }
-        console.log(
-            `${this.logPrefix} scheduling connect in ${delay}ms (shouldReconnect=${this.shouldReconnect})`
-        );
         this.reconnectTimer = window.setTimeout(() => this.openSocket(), delay);
     }
 

@@ -120,6 +120,7 @@ interface TorrentTableProps {
     isLoading?: boolean;
     embedded?: boolean;
     onAction?: (action: TorrentTableAction, torrent: Torrent) => void;
+    handleBulkAction?: (action: TorrentTableAction) => Promise<void>;
     onRequestDetails?: (torrent: Torrent) => void;
     onRequestDetailsFullscreen?: (torrent: Torrent) => void;
     onSelectionChange?: (selection: Torrent[]) => void;
@@ -154,6 +155,7 @@ export function TorrentTable({
     isLoading = false,
     embedded = false,
     onAction,
+    handleBulkAction,
     onRequestDetails,
     onRequestDetailsFullscreen,
     onSelectionChange,
@@ -600,6 +602,7 @@ export function TorrentTable({
         selectedTorrents: selection.selectedTorrents,
         selectAll: selection.selectAllRows,
         onAction,
+        onBulkAction: handleBulkAction,
         onRequestDetails,
     });
 

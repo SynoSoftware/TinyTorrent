@@ -216,40 +216,51 @@ function SpeedModule({
 
     return (
         <>
-            <div className="flex flex-1 items-center h-full min-w-0 group gap-tools">
-                <div
-                    className="flex-1 h-full min-w-0 min-h-0 py-tight overflow-hidden opacity-30 grayscale transition-all duration-500 group-hover:grayscale-0 group-hover:opacity-100"
-                    style={{ minWidth: UI_BASES.statusbar.min100 }}
-                >
-                    <NetworkGraph
-                        data={history}
-                        color={tone as any}
-                        className="h-full w-full"
-                    />
-                </div>
-                <div className="flex items-center shrink-0 gap-tools">
+            <div
+                className={cn(
+                    "flex flex-1 items-center h-full min-w-0 gap-tools group",
+                    "rounded-modal",
+                    "border border-content1/20",
+                    "bg-content1/5 backdrop-blur-sm",
+                    "transition-all duration-300",
+                    "group-hover:border-content1/40",
+                    "group-hover:bg-content1/10"
+                )}
+            >
+                <div className="flex flex-1 items-center h-full min-w-0  gap-tools">
                     <div
-                        className={cn(
-                            "flex items-center justify-center  rounded-modal bg-content1/10 text-foreground/50 transition-colors  toolbar-icon-size-xl",
-                            tone === "success"
-                                ? "group-hover:bg-success/10 group-hover:text-success"
-                                : "group-hover:bg-primary/10 group-hover:text-primary"
-                        )}
+                        className="flex-1 h-full min-w-0 min-h-0 py-tight overflow-hidden opacity-30 grayscale transition-all duration-500 group-hover:grayscale-0 group-hover:opacity-100"
+                        style={{ minWidth: UI_BASES.statusbar.min100 }}
                     >
-                        <StatusIcon Icon={Icon} size="lg" />
+                        <NetworkGraph
+                            data={history}
+                            color={tone as any}
+                            className="h-full w-full"
+                        />
                     </div>
+                    <div className="flex items-center shrink-0 gap-tools">
+                        <div
+                            className={cn(
+                                "flex items-center justify-center  rounded-modal bg-content1/10 text-foreground/50 transition-colors  toolbar-icon-size-xl",
+                                tone === "success"
+                                    ? "group-hover:bg-success/10 group-hover:text-success"
+                                    : "group-hover:bg-primary/10 group-hover:text-primary"
+                            )}
+                        >
+                            <StatusIcon Icon={Icon} size="lg" />
+                        </div>
 
-                    <div className="flex flex-col justify-center gap-tight">
-                        <span className="font-bold uppercase tracking-0-2 text-foreground/40">
-                            {t(labelKey)}
-                        </span>
-                        <span className="font-bold tracking-tight leading-none text-foreground">
-                            {formatSpeed(value)}
-                        </span>
+                        <div className="flex flex-col justify-center gap-tight">
+                            <span className="font-bold uppercase tracking-0-2 text-foreground/40">
+                                {t(labelKey)}
+                            </span>
+                            <span className="font-bold tracking-tight leading-none text-foreground">
+                                {formatSpeed(value)}
+                            </span>
+                        </div>
                     </div>
                 </div>
             </div>
-
             {separator && (
                 <div
                     className="w-px bg-content1/10"
