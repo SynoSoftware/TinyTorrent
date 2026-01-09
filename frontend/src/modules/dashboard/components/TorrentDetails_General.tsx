@@ -1,13 +1,5 @@
 // FILE: src/modules/dashboard/torrent-detail/GeneralTab.tsx
-import {
-    Button,
-    Switch,
-    Modal,
-    ModalContent,
-    ModalBody,
-    ModalFooter,
-    ModalHeader,
-} from "@heroui/react";
+import { Button, Switch } from "@heroui/react";
 import {
     ArrowDownCircle,
     ArrowUpCircle,
@@ -21,9 +13,8 @@ import {
     Trash2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import RemoveConfirmationModal from "@/modules/torrent-remove/components/RemoveConfirmationModal";
-import TorrentRecoveryModal from "@/modules/dashboard/components/TorrentRecoveryModal";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
@@ -50,21 +41,10 @@ interface GeneralTabProps {
     onRedownload?: () => Promise<void> | void;
     onRetry?: () => Promise<void> | void;
     onResume?: () => Promise<void> | void;
-    // Recovery integration
-    recoveryPlan?:
-        | import("@/services/recovery/recovery-controller").RecoveryPlan
-        | null;
-    recoveryCallbacks?:
-        | import("@/modules/dashboard/hooks/useRecoveryController").RecoveryCallbacks
-        | null;
-    isRecoveryBusy?: boolean;
-    lastRecoveryOutcome?:
-        | import("@/services/recovery/recovery-controller").RecoveryOutcome
-        | null;
-    recoveryRequestBrowse?: (currentPath?: string) => Promise<string | null>;
     progressPercent: number;
     timeRemainingLabel: string;
     activePeers: number;
+    isRecoveryBlocked?: boolean;
 }
 
 interface GeneralInfoCardProps {
@@ -112,15 +92,10 @@ export const GeneralTab = ({
     onRedownload: _onRedownload,
     onRetry,
     onResume,
-    // Recovery props
-    recoveryPlan,
-    recoveryCallbacks,
-    isRecoveryBusy,
-    lastRecoveryOutcome,
-    recoveryRequestBrowse,
     progressPercent: _progressPercent,
     timeRemainingLabel: _timeRemainingLabel,
     activePeers,
+    isRecoveryBlocked,
 }: GeneralTabProps) => {
     const { t } = useTranslation();
     const [showConfirm, setShowConfirm] = useState(false);
@@ -180,26 +155,13 @@ export const GeneralTab = ({
         ? "text-warning/70"
         : "text-foreground/60";
 
-    // Auto-open recovery modal for error classes
-    const errorClasses = [
-        "missingFiles",
-        "permissionDenied",
-        "diskFull",
-        "partialFiles",
-        "trackerWarning",
-        "trackerError",
-    ];
-    useEffect(() => {
-        const hasError =
-            torrent.errorEnvelope?.errorClass &&
-            errorClasses.includes(torrent.errorEnvelope.errorClass);
-        setShowRecoveryModal(Boolean(hasError && recoveryPlan));
-    }, [torrent.errorEnvelope?.errorClass, recoveryPlan]);
-
     const mainAction = handleResumeAction;
     const mainLabel = t("toolbar.resume");
     const downloadRate = torrent.speed?.down ?? 0;
     const uploadRate = torrent.speed?.up ?? 0;
+    const recoveryBlockedMessage = isRecoveryBlocked
+        ? t("recovery.status.blocked")
+        : null;
 
     const handlePauseAction = () => {
         console.warn(
@@ -208,8 +170,6 @@ export const GeneralTab = ({
     };
 
     const [showRemoveModal, setShowRemoveModal] = useState(false);
-
-    const [showRecoveryModal, setShowRecoveryModal] = useState(false);
 
     const handleRemoveAction = () => {
         setShowRemoveModal(true);
@@ -256,56 +216,6 @@ export const GeneralTab = ({
 
     return (
         <div className="space-y-stage">
-            <TorrentRecoveryModal
-                isOpen={showRecoveryModal}
-                plan={recoveryPlan ?? null}
-                outcome={lastRecoveryOutcome ?? null}
-                onClose={() => setShowRecoveryModal(false)}
-                onPrimary={async () => {
-                    if (!recoveryCallbacks) return;
-                    await recoveryCallbacks.handlePrimaryRecovery();
-                    setShowRecoveryModal(false);
-                }}
-                onPickPath={async (path: string) => {
-                    if (!recoveryCallbacks) return;
-                    await recoveryCallbacks.handlePickPath(path);
-                    setShowRecoveryModal(false);
-                }}
-                onVerify={async () => {
-                    if (!recoveryCallbacks) return;
-                    await recoveryCallbacks.handleVerify();
-                    setShowRecoveryModal(false);
-                }}
-                onReannounce={async () => {
-                    if (!recoveryCallbacks) return;
-                    await recoveryCallbacks.handleReannounce();
-                    setShowRecoveryModal(false);
-                }}
-                onBrowse={async () => {
-                    // Prefer engine-native browse if available via parent prop
-                    if (recoveryRequestBrowse) {
-                        try {
-                            const p = await recoveryRequestBrowse(
-                                torrent.downloadDir ?? undefined
-                            );
-                            return p;
-                        } catch {
-                            // fallback to prompt
-                        }
-                    }
-                    // Fallback: prompt
-                    const pick = window.prompt(
-                        t("recovery.prompt.enter_new_path"),
-                        torrent.downloadDir ?? ""
-                    );
-                    if (pick === null) return null;
-                    const trimmed = pick.trim();
-                    if (!trimmed) return null;
-                    return trimmed;
-                }}
-                isBusy={isRecoveryBusy ?? false}
-            />
-
             <GlassPanel className="p-panel space-y-3 bg-content1/30 border border-content1/20">
                 <div className="flex items-center justify-between">
                     <div className="flex-1">
@@ -362,7 +272,7 @@ export const GeneralTab = ({
                             onPress={() => {
                                 void mainAction();
                             }}
-                            isDisabled={!mainAction}
+                            isDisabled={!mainAction || Boolean(isRecoveryBlocked)}
                         >
                             {(() => {
                                 const Icon = getIconForAction(
@@ -382,6 +292,11 @@ export const GeneralTab = ({
                                 );
                             })()}
                         </Button>
+                        {recoveryBlockedMessage && (
+                            <div className="text-label text-warning/80 mt-tight">
+                                {recoveryBlockedMessage}
+                            </div>
+                        )}
                     </div>
                 </GlassPanel>
             )}
@@ -426,6 +341,7 @@ export const GeneralTab = ({
                                         if (isActive) handlePauseAction();
                                         else handleResumeAction();
                                     }}
+                                    isDisabled={Boolean(isRecoveryBlocked)}
                                 >
                                     {(() => {
                                         const Icon = getIconForAction(

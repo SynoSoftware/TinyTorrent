@@ -78,18 +78,7 @@ interface DashboardLayoutProps {
     onRedownload?: (torrent: TorrentDetail) => Promise<void> | void;
     onRetry?: (torrent: TorrentDetail) => Promise<void> | void;
     onResume?: (torrent: TorrentDetail) => Promise<void> | void;
-    // Recovery props
-    recoveryPlan?:
-        | import("@/services/recovery/recovery-controller").RecoveryPlan
-        | null;
-    recoveryCallbacks?:
-        | import("@/modules/dashboard/hooks/useRecoveryController").RecoveryCallbacks
-        | null;
-    isRecoveryBusy?: boolean;
-    lastRecoveryOutcome?:
-        | import("@/services/recovery/recovery-controller").RecoveryOutcome
-        | null;
-    recoveryRequestBrowse?: (currentPath?: string) => Promise<string | null>;
+    isDetailRecoveryBlocked?: boolean;
     capabilities: CapabilityStore;
     optimisticStatuses?: OptimisticStatusMap;
     peerSortStrategy?: PeerSortStrategy;
@@ -120,12 +109,7 @@ export function Dashboard_Layout({
     onRedownload,
     onRetry,
     onResume,
-    // Recovery forwarding
-    recoveryPlan,
-    recoveryCallbacks,
-    isRecoveryBusy,
-    lastRecoveryOutcome,
-    recoveryRequestBrowse,
+    isDetailRecoveryBlocked,
     onOpenFolder,
     capabilities,
     optimisticStatuses,
@@ -444,16 +428,9 @@ export function Dashboard_Layout({
                                     onRedownload={onRedownload}
                                     onRetry={onRetry}
                                     onResume={onResume}
-                                    // Recovery forwarding
-                                    recoveryPlan={recoveryPlan}
-                                    recoveryCallbacks={recoveryCallbacks}
-                                    isRecoveryBusy={isRecoveryBusy}
-                                    lastRecoveryOutcome={lastRecoveryOutcome}
-                                    recoveryRequestBrowse={
-                                        recoveryRequestBrowse
-                                    }
                                     capabilities={capabilities}
                                     isDetailFullscreen={false}
+                                    isRecoveryBlocked={isDetailRecoveryBlocked}
                                     onDock={handleDetailDock}
                                     onPopout={handleDetailPopout}
                                 />
@@ -490,33 +467,33 @@ export function Dashboard_Layout({
                             exit={{ opacity: 0, scale: 0.96 }}
                             transition={{ duration: 0.25 }}
                         >
-                            <TorrentDetails
-                                torrent={detailData}
-                                onClose={handleDetailClose}
-                                onFilesToggle={onFilesToggle}
-                                onFileContextAction={onFileContextAction}
-                                onPeerContextAction={onPeerContextAction}
-                                peerSortStrategy={peerSortStrategy}
-                                inspectorTabCommand={inspectorTabCommand}
-                                onInspectorTabCommandHandled={
-                                    onInspectorTabCommandHandled
-                                }
-                                onSequentialToggle={onSequentialToggle}
-                                onSuperSeedingToggle={onSuperSeedingToggle}
-                                onForceTrackerReannounce={
-                                    onForceTrackerReannounce
-                                }
-                                onSetLocation={onSetLocation}
-                                onRedownload={onRedownload}
-                                onRetry={onRetry}
-                                onResume={onResume}
-                                capabilities={capabilities}
-                                isDetailFullscreen={isDetailFullscreen}
-                                isStandalone={true}
-                                recoveryRequestBrowse={recoveryRequestBrowse}
-                                onDock={handleDetailDock}
-                                onPopout={handleDetailPopout}
-                            />
+                                <TorrentDetails
+                                    torrent={detailData}
+                                    onClose={handleDetailClose}
+                                    onFilesToggle={onFilesToggle}
+                                    onFileContextAction={onFileContextAction}
+                                    onPeerContextAction={onPeerContextAction}
+                                    peerSortStrategy={peerSortStrategy}
+                                    inspectorTabCommand={inspectorTabCommand}
+                                    onInspectorTabCommandHandled={
+                                        onInspectorTabCommandHandled
+                                    }
+                                    onSequentialToggle={onSequentialToggle}
+                                    onSuperSeedingToggle={onSuperSeedingToggle}
+                                    onForceTrackerReannounce={
+                                        onForceTrackerReannounce
+                                    }
+                                    onSetLocation={onSetLocation}
+                                    onRedownload={onRedownload}
+                                    onRetry={onRetry}
+                                    onResume={onResume}
+                                    capabilities={capabilities}
+                                    isDetailFullscreen={isDetailFullscreen}
+                                    isRecoveryBlocked={isDetailRecoveryBlocked}
+                                    isStandalone={true}
+                                    onDock={handleDetailDock}
+                                    onPopout={handleDetailPopout}
+                                />
                         </motion.div>
                     </motion.div>
                 )}

@@ -27,12 +27,15 @@ import { useTorrentDetail } from "@/modules/dashboard/hooks/useTorrentDetail";
 import { useDetailControls } from "@/modules/dashboard/hooks/useDetailControls";
 import { useRecoveryController } from "@/modules/dashboard/hooks/useRecoveryController";
 import { useTorrentActions } from "@/modules/dashboard/hooks/useTorrentActions";
+import { planRecovery } from "@/services/recovery/recovery-controller";
+import type { RecoveryOutcome } from "@/services/recovery/recovery-controller";
 import { CommandPalette } from "./components/CommandPalette";
 import type {
     CommandAction,
     CommandPaletteContext,
 } from "./components/CommandPalette";
 import { WorkspaceShell } from "./components/WorkspaceShell";
+import TorrentRecoveryModal from "@/modules/dashboard/components/TorrentRecoveryModal";
 import type { EngineDisplayType } from "./components/layout/StatusBar";
 import type {
     CapabilityKey,
@@ -43,6 +46,11 @@ import { DEFAULT_CAPABILITY_STORE } from "@/app/types/capabilities";
 import { useTorrentClient } from "./providers/TorrentClientProvider";
 import { FocusProvider, useFocusState } from "./context/FocusContext";
 import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
+import type {
+    RecoveryGateAction,
+    RecoveryGateCallback,
+    RecoveryGateOutcome,
+} from "@/app/types/recoveryGate";
 import type { RehashStatus } from "./types/workspace";
 import type {
     DetailTab,
@@ -116,6 +124,12 @@ function FocusController({
     // FocusController does not register app-global hotkeys.
     return null;
 }
+
+const getRecoveryFingerprint = (torrent: Torrent | TorrentDetail) =>
+    torrent.errorEnvelope?.fingerprint ??
+    torrent.hash ??
+    torrent.id ??
+    "<no-recovery-fingerprint>";
 
 const LAST_DOWNLOAD_DIR_KEY = "tt-add-last-download-dir";
 
@@ -504,7 +518,18 @@ export default function App() {
         updateCapabilityState,
     });
 
-    // Recovery controller hook for UI-driven recovery flows
+    const [recoverySession, setRecoverySession] = useState<{
+        torrent: Torrent | TorrentDetail;
+        action: RecoveryGateAction;
+    } | null>(null);
+    const recoveryResolverRef = useRef<
+        ((result: RecoveryGateOutcome) => void) | null
+    >(null);
+    const recoveryFingerprintRef = useRef<string | null>(null);
+    const recoveryPromiseRef = useRef<Promise<RecoveryGateOutcome> | null>(
+        null
+    );
+
     const {
         plan: recoveryPlan,
         recoveryCallbacks,
@@ -512,9 +537,165 @@ export default function App() {
         lastOutcome: lastRecoveryOutcome,
     } = useRecoveryController({
         client: torrentClient,
-        detail: detailData,
-        envelope: detailData?.errorEnvelope,
+        detail: recoverySession?.torrent ?? null,
+        envelope: recoverySession?.torrent?.errorEnvelope ?? null,
     });
+
+    const finalizeRecovery = useCallback((result: RecoveryGateOutcome) => {
+        const resolver = recoveryResolverRef.current;
+        recoveryResolverRef.current = null;
+        recoveryFingerprintRef.current = null;
+        recoveryPromiseRef.current = null;
+        setRecoverySession(null);
+        resolver?.(result);
+    }, []);
+
+    const interpretRecoveryOutcome = useCallback(
+        (
+            action: RecoveryGateAction,
+            outcome: RecoveryOutcome | null | undefined
+        ): RecoveryGateOutcome | null => {
+            if (!outcome) return null;
+            switch (outcome.kind) {
+                case "resolved":
+                case "noop":
+                    return { status: "continue" };
+                case "verify-started":
+                    return action === "recheck"
+                        ? { status: "handled" }
+                        : { status: "continue" };
+                case "reannounce-started":
+                    return { status: "continue" };
+                case "path-needed":
+                    return null;
+                case "error":
+                    return { status: "cancelled" };
+                default:
+                    return { status: "continue" };
+            }
+        },
+        []
+    );
+
+    const handleRecoveryOutcome = useCallback(
+        (outcome: RecoveryOutcome | null | undefined) => {
+            if (!recoverySession) return;
+            const result = interpretRecoveryOutcome(
+                recoverySession.action,
+                outcome
+            );
+            if (result) {
+                finalizeRecovery(result);
+            }
+        },
+        [finalizeRecovery, interpretRecoveryOutcome, recoverySession]
+    );
+
+    const runRecoveryOperation = useCallback(
+        async (operation?: () => Promise<RecoveryOutcome>) => {
+            if (!operation) return;
+            const outcome = await operation();
+            handleRecoveryOutcome(outcome);
+        },
+        [handleRecoveryOutcome]
+    );
+
+    const handleRecoveryClose = useCallback(() => {
+        if (!recoveryResolverRef.current) return;
+        finalizeRecovery({ status: "cancelled" });
+    }, [finalizeRecovery]);
+
+    const requestRecovery: RecoveryGateCallback = useCallback(
+        async ({ torrent, action }) => {
+            const envelope = torrent.errorEnvelope;
+            if (!envelope) return null;
+            const plan = planRecovery(envelope, torrent);
+            if (plan.primaryAction === "none") {
+                return null;
+            }
+            const fingerprint = getRecoveryFingerprint(torrent);
+            const activeFingerprint = recoveryFingerprintRef.current;
+            if (activeFingerprint) {
+                if (activeFingerprint === fingerprint) {
+                    return recoveryPromiseRef.current ?? null;
+                }
+                return { status: "cancelled" };
+            }
+            if (recoveryResolverRef.current) {
+                return { status: "cancelled" };
+            }
+            const promise = new Promise<RecoveryGateOutcome>((resolve) => {
+                recoveryResolverRef.current = resolve;
+                setRecoverySession({ torrent, action });
+            });
+            recoveryFingerprintRef.current = fingerprint;
+            recoveryPromiseRef.current = promise;
+            return promise;
+        },
+        []
+    );
+
+    const isDetailRecoveryBlocked = useMemo(() => {
+        if (!detailData || !recoverySession) return false;
+        return (
+            getRecoveryFingerprint(detailData) ===
+            getRecoveryFingerprint(recoverySession.torrent)
+        );
+    }, [detailData, recoverySession]);
+
+    const recoveryRequestBrowse = useCallback(
+        async (currentPath?: string | null) => {
+            if (!torrentClient) return null;
+            if (typeof torrentClient.browseDirectory === "function") {
+                try {
+                    const res = await torrentClient.browseDirectory(
+                        currentPath ?? undefined
+                    );
+                    return res?.path ?? null;
+                } catch {
+                    // fallback to manual prompt
+                }
+            }
+            const pick = window.prompt(
+                t("recovery.prompt.enter_new_path"),
+                currentPath ?? ""
+            );
+            if (pick === null) return null;
+            const trimmed = pick.trim();
+            if (!trimmed) return null;
+            return trimmed;
+        },
+        [torrentClient, t]
+    );
+
+    const handleRecoveryPrimary = useCallback(async () => {
+        if (!recoveryCallbacks?.handlePrimaryRecovery) return;
+        await runRecoveryOperation(() =>
+            recoveryCallbacks.handlePrimaryRecovery()
+        );
+    }, [recoveryCallbacks?.handlePrimaryRecovery, runRecoveryOperation]);
+
+    const handleRecoveryPickPath = useCallback(
+        async (path: string) => {
+            if (!recoveryCallbacks?.handlePickPath) return;
+            await runRecoveryOperation(() =>
+                recoveryCallbacks.handlePickPath(path)
+            );
+        },
+        [recoveryCallbacks?.handlePickPath, runRecoveryOperation]
+    );
+
+    const handleRecoveryVerify = useCallback(async () => {
+        if (!recoveryCallbacks?.handleVerify) return;
+        await runRecoveryOperation(() => recoveryCallbacks.handleVerify());
+    }, [recoveryCallbacks?.handleVerify, runRecoveryOperation]);
+
+    const handleRecoveryReannounce = useCallback(async () => {
+        if (!recoveryCallbacks?.handleReannounce) return;
+        await runRecoveryOperation(() =>
+            recoveryCallbacks.handleReannounce()
+        );
+    }, [recoveryCallbacks?.handleReannounce, runRecoveryOperation]);
 
     const { handleTorrentAction: executeTorrentAction, handleOpenFolder } =
         useTorrentActions({
@@ -525,6 +706,7 @@ export default function App() {
             refreshSessionStatsData,
             reportCommandError,
             isMountedRef,
+            requestRecovery,
         });
 
     const { handleAddTorrent, isAddingTorrent } = useAddTorrent({
@@ -961,6 +1143,13 @@ export default function App() {
         async (target: Torrent | TorrentDetail) => {
             const client = torrentClientRef.current;
             if (!client) return;
+            const gateResult = await requestRecovery({
+                torrent: target,
+                action: "setLocation",
+            });
+            if (gateResult && gateResult.status !== "continue") {
+                return;
+            }
             let chosen: string | null | undefined;
             if (client.browseDirectory) {
                 try {
@@ -1016,7 +1205,7 @@ export default function App() {
                 console.error("setTorrentLocation failed", err);
             }
         },
-        [detailData, refreshDetailData, t]
+        [detailData, refreshDetailData, t, requestRecovery]
     );
 
     const handleSetLocation = useCallback(
@@ -1028,6 +1217,13 @@ export default function App() {
         async (target: Torrent | TorrentDetail) => {
             const client = torrentClientRef.current;
             if (!client) return;
+            const gateResult = await requestRecovery({
+                torrent: target,
+                action: "redownload",
+            });
+            if (gateResult && gateResult.status !== "continue") {
+                return;
+            }
 
             const fp = target.errorEnvelope?.fingerprint ?? null;
             const key = fp ?? String(target.id ?? target.hash);
@@ -1196,7 +1392,7 @@ export default function App() {
                 redownloadInFlight.current.delete(key);
             }
         },
-        [detailData]
+        [detailData, requestRecovery]
     );
 
     const handleRedownloadForDetail = useCallback(
@@ -1213,6 +1409,13 @@ export default function App() {
         async (target: Torrent | TorrentDetail) => {
             const client = torrentClientRef.current;
             if (!client) return;
+            const gateResult = await requestRecovery({
+                torrent: target,
+                action: "recheck",
+            });
+            if (gateResult && gateResult.status !== "continue") {
+                return;
+            }
 
             const fingerprint = target.errorEnvelope?.fingerprint ?? null;
 
@@ -1258,7 +1461,7 @@ export default function App() {
                 }
             }
         },
-        [detailData, refreshDetailData]
+        [detailData, refreshDetailData, requestRecovery]
     );
 
     const handleRetryForDetail = useCallback(
@@ -1634,32 +1837,6 @@ export default function App() {
                 onRedownload={handleRedownloadForDetail}
                 onRetry={handleRetryForDetail}
                 onResume={handleResumeForDetail}
-                // Recovery props
-                recoveryPlan={recoveryPlan}
-                recoveryCallbacks={recoveryCallbacks}
-                isRecoveryBusy={isRecoveryBusy}
-                lastRecoveryOutcome={lastRecoveryOutcome}
-                recoveryRequestBrowse={async (currentPath?: string) => {
-                    const client = torrentClientRef.current;
-                    if (!client) return null;
-                    if (typeof client.browseDirectory === "function") {
-                        try {
-                            const res = await client.browseDirectory(
-                                currentPath
-                            );
-                            return res?.path ?? null;
-                        } catch {
-                            // fallthrough to manual prompt
-                        }
-                    }
-                    const pick = window.prompt(
-                        t("directory_browser.enter_path"),
-                        currentPath ?? ""
-                    );
-                    if (pick === null) return null;
-                    const trimmed = pick.trim();
-                    return trimmed || null;
-                }}
                 capabilities={capabilities}
                 optimisticStatuses={optimisticStatuses}
                 handleSelectionChange={handleSelectionChange}
@@ -1695,6 +1872,19 @@ export default function App() {
                 tableWatermarkEnabled={
                     settingsFlow.settingsConfig.table_watermark_enabled
                 }
+                isDetailRecoveryBlocked={isDetailRecoveryBlocked}
+            />
+            <TorrentRecoveryModal
+                isOpen={Boolean(recoverySession)}
+                plan={recoveryPlan ?? null}
+                outcome={lastRecoveryOutcome ?? null}
+                onClose={handleRecoveryClose}
+                onPrimary={handleRecoveryPrimary}
+                onPickPath={handleRecoveryPickPath}
+                onVerify={handleRecoveryVerify}
+                onReannounce={handleRecoveryReannounce}
+                onBrowse={recoveryRequestBrowse}
+                isBusy={isRecoveryBusy}
             />
             <CommandPalette
                 isOpen={isCommandPaletteOpen}

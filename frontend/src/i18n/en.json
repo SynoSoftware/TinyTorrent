@@ -869,8 +869,26 @@
     },
     "recovery": {
         "modal": {
-            "title": "Recovery — {{action}}",
-            "reason": "Reason: {{reason}}"
+            "title": "Recovery",
+            "title_idle": "Recovery",
+            "reason": "Reason: {{reason}}",
+            "problem_heading": "Problem",
+            "next_heading": "Next",
+            "path_heading": "Location",
+            "path_label": "Download folder",
+            "path_placeholder": "Select a folder…",
+            "no_path_available": "No folder available",
+            "in_progress": "Working…",
+            "primary_desc": {
+                "redownload_here": "Re-download missing files into the current folder.",
+                "create_and_redownload": "Create the folder if needed, then re-download missing files.",
+                "pick_path": "Choose a different folder, then resume.",
+                "verify": "Verify existing data without re-downloading.",
+                "resume": "Try resuming with the current settings.",
+                "reannounce": "Ask the tracker for an updated peer list.",
+                "open_folder": "Open the current folder to fix permissions.",
+                "none": "Review the available actions."
+            }
         },
         "prompt": {
             "enter_new_path": "Enter new path:",
@@ -918,11 +936,16 @@
             "verify": "Verify",
             "reannounce": "Reannounce",
             "redownload_here": "Re-download",
+            "create_and_redownload_here": "Create folder & re-download",
             "pick_path": "Set Location",
             "open_folder": "Open Folder"
         },
         "rationale": {
-            "missing_files": "Some files are missing from the download location."
+            "missing_files": "Some files are missing from the download location.",
+            "permission_denied": "The current folder is not writable.",
+            "disk_full": "The current disk is full.",
+            "partial_files": "Some files may be incomplete or corrupted.",
+            "tracker_issue": "The tracker reported an error."
         },
         "message": {
             "insufficient_free_space": "Insufficient free space on disk",
