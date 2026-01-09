@@ -154,8 +154,15 @@ export function useTorrentActions({
         [reportCommandError, torrentClient, isMountedRef]
     );
 
+    const executeBulkRemove = useCallback(
+        (ids: string[], deleteData: boolean) =>
+            runWithRefresh(() => torrentClient.remove(ids, deleteData)),
+        [runWithRefresh, torrentClient]
+    );
+
     return {
         handleTorrentAction,
         handleOpenFolder,
+        executeBulkRemove,
     };
 }
