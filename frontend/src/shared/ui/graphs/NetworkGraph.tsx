@@ -2,7 +2,7 @@
 
 import { motion, type Transition } from "framer-motion";
 import { cn } from "@heroui/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useId } from "react";
 
 import {
     buildSplinePathFromPoints,
@@ -14,7 +14,6 @@ import { useUiClock } from "@/shared/hooks/useUiClock";
 const { networkGraph } = INTERACTION_CONFIG;
 const GRAPH_WIDTH = networkGraph.width;
 const GRAPH_HEIGHT = networkGraph.height;
-const BASELINE_Y = GRAPH_HEIGHT - 0.5;
 
 interface NetworkGraphProps {
     data: number[];
@@ -29,6 +28,26 @@ export const NetworkGraph = ({ data, color, className }: NetworkGraphProps) => {
         height: GRAPH_HEIGHT,
     });
 
+    // Stable unique suffix for SVG defs to avoid id collisions across instances
+    const idSuffix = useId();
+
+    // HeroUI semantic color names (text-* exists for all of these)
+    const colorClass =
+        typeof color === "string"
+            ? color.startsWith("text-")
+                ? color
+                : color === "muted"
+                ? "text-foreground/30"
+                : `text-${color}`
+            : "text-primary";
+
+    // Sanitize color string to build safe ids for SVG defs (avoid invalid id chars)
+    const safeColorId = String(color)
+        .replace(/[^a-z0-9]+/gi, "-")
+        .toLowerCase();
+    const glowId = `glow-${safeColorId}-${idSuffix}`;
+    const gradId = `grad-${safeColorId}-${idSuffix}`;
+
     useEffect(() => {
         const updateDimensions = () => {
             if (containerRef.current) {
@@ -38,15 +57,18 @@ export const NetworkGraph = ({ data, color, className }: NetworkGraphProps) => {
         };
 
         const observer = new ResizeObserver(updateDimensions);
-        if (containerRef.current) {
-            observer.observe(containerRef.current);
-        }
+        const node = containerRef.current;
+        if (node) observer.observe(node);
 
         updateDimensions(); // Initial update
 
         return () => {
-            if (containerRef.current) {
-                observer.unobserve(containerRef.current);
+            if (node) {
+                try {
+                    observer.unobserve(node);
+                } catch {
+                    // node may have been removed before cleanup; ignore
+                }
             }
         };
     }, []);
@@ -87,7 +109,12 @@ export const NetworkGraph = ({ data, color, className }: NetworkGraphProps) => {
             height="100%"
             viewBox={`0 0 ${dimensions.width} ${dimensions.height}`}
             preserveAspectRatio="none"
-            className={cn("overflow-visible", className)}
+            className={cn(
+                "overflow-visible",
+                // Apply resolved HeroUI color class (supports tokens and text-* values)
+                colorClass,
+                className
+            )}
         >
             <line
                 x1={0}
@@ -98,6 +125,7 @@ export const NetworkGraph = ({ data, color, className }: NetworkGraphProps) => {
                 strokeWidth={1}
                 className="opacity-10"
             />
+
             {data.every((value) => value === 0) && (
                 <line
                     x1={0}
@@ -106,15 +134,12 @@ export const NetworkGraph = ({ data, color, className }: NetworkGraphProps) => {
                     y2={dimensions.height - 0.5}
                     stroke="currentColor"
                     strokeWidth={2}
-                    className={cn(
-                        "opacity-60",
-                        color === "success" ? "text-success" : "text-primary"
-                    )}
+                    className={cn("opacity-60", colorClass)}
                 />
             )}
             <defs>
                 <filter
-                    id={`glow-${color}`}
+                    id={glowId}
                     x="-20%"
                     y="-20%"
                     width="140%"
@@ -127,13 +152,7 @@ export const NetworkGraph = ({ data, color, className }: NetworkGraphProps) => {
                         operator="over"
                     />
                 </filter>
-                <linearGradient
-                    id={`grad-${color}`}
-                    x1="0"
-                    y1="0"
-                    x2="0"
-                    y2="1"
-                >
+                <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
                     <stop
                         offset="0%"
                         stopColor="currentColor"
@@ -148,11 +167,8 @@ export const NetworkGraph = ({ data, color, className }: NetworkGraphProps) => {
             </defs>
             <motion.path
                 d={areaPath}
-                className={cn(
-                    "opacity-20",
-                    color === "success" ? "text-success" : "text-primary"
-                )}
-                fill={`url(#grad-${color})`}
+                className={cn("opacity-20", colorClass)}
+                fill={`url(#${gradId})`}
                 animate={{ d: areaPath }}
                 transition={areaTransition}
             />
@@ -163,10 +179,8 @@ export const NetworkGraph = ({ data, color, className }: NetworkGraphProps) => {
                 strokeWidth="1.5"
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                className={cn(
-                    color === "success" ? "text-success" : "text-primary"
-                )}
-                filter={`url(#glow-${color})`}
+                className={cn(colorClass)}
+                filter={`url(#${glowId})`}
                 animate={{ d: safeLinePath }}
                 transition={lineTransition}
             />

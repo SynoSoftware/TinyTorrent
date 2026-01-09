@@ -1,4 +1,4 @@
-import { Button, Input, Tab, Tabs, cn } from "@heroui/react";
+import { Input, Tab, Tabs, cn } from "@heroui/react";
 import {
     DownloadCloud,
     ListChecks,
@@ -30,7 +30,7 @@ import {
     BLOCK_SHADOW,
     GLASS_BLOCK_SURFACE,
 } from "@/shared/ui/layout/glass-surface";
-import { ICON_STROKE_WIDTH, getShellTokens } from "@/config/logic";
+import { getShellTokens } from "@/config/logic";
 
 interface NavbarProps {
     filter: string;
@@ -128,7 +128,7 @@ export function Navbar({
                             >
                                 <TinyTorrentIcon title={t("brand.name")} />
                             </div>
-                            <div className="hidden  flex-col md:flex justify-center ml-tight">
+                            <div className="hidden xl:flex flex-col justify-center ml-tight">
                                 <span className="font-bold tracking-tight text-foreground text-base leading-none  text-navbar">
                                     {t("brand.name")}
                                 </span>
@@ -142,7 +142,7 @@ export function Navbar({
 
                         <div className="h-sep w-px bg-default-200/50 mx-tight" />
 
-                        <div className="hidden lg:flex text-navbar">
+                        <div className="hidden lg:flex text-navbar min-w-0">
                             <Tabs
                                 aria-label={t("nav.filter_aria")}
                                 variant="light"
@@ -169,7 +169,9 @@ export function Navbar({
                                                 size="lg"
                                                 className="text-default-400"
                                             />
-                                            {t("nav.filter_all")}
+                                            <span className="hidden xl:inline">
+                                                {t("nav.filter_all")}
+                                            </span>
                                         </div>
                                     }
                                 />
@@ -182,7 +184,9 @@ export function Navbar({
                                                 size="lg"
                                                 className="text-default-400"
                                             />
-                                            {t("nav.filter_downloading")}
+                                            <span className="hidden xl:inline">
+                                                {t("nav.filter_downloading")}
+                                            </span>
                                         </div>
                                     }
                                 />
@@ -195,13 +199,15 @@ export function Navbar({
                                                 size="lg"
                                                 className="text-default-400"
                                             />
-                                            {t("nav.filter_seeding")}
+                                            <span className="hidden xl:inline">
+                                                {t("nav.filter_seeding")}
+                                            </span>
                                         </div>
                                     }
                                 />
                             </Tabs>
                         </div>
-                        <div className="hidden lg:flex">
+                        <div className="hidden xl:flex">
                             <Input
                                 classNames={{
                                     base: "transition-all",
@@ -231,10 +237,22 @@ export function Navbar({
                                 }
                             />
                         </div>
+
+                        {/* compact search for xs */}
+                        <div className="sm:hidden ml-tight">
+                            <ToolbarIconButton
+                                Icon={Search}
+                                ariaLabel={t("toolbar.search")}
+                                title={t("toolbar.search")}
+                                onPress={() => setActivePart("search")}
+                                className="text-default-400 hover:text-foreground"
+                                iconSize="lg"
+                            />
+                        </div>
                     </div>
                     <div
                         className={cn(
-                            "flex items-center gap-tools transition-opacity duration-200",
+                            "flex items-center gap-tools transition-opacity duration-200 shrink-0",
                             "opacity-100"
                         )}
                     >
