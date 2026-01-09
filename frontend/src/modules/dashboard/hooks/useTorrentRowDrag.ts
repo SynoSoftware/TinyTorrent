@@ -1,6 +1,7 @@
-import React, { useCallback } from "react";
+import { useCallback } from "react";
 import type { DragEndEvent, DragStartEvent } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
+import { ANIMATION_SUPPRESSION_KEYS } from "@/modules/dashboard/hooks/useTableAnimationGuard";
 
 // Parameterized wiring-friendly hook. Provide the dependencies that
 // previously lived in `TorrentTable.tsx` as a single object so the
@@ -13,26 +14,29 @@ export const useTorrentRowDrag = (deps: any) => {
         rowsById,
         onAction,
         sorting,
-        rowsLength,
         setActiveRowId,
         setDropTargetRowId,
         setPendingQueueOrder,
-        setSuppressLayoutAnimations,
+        beginAnimationSuppression,
+        endAnimationSuppression,
     } = deps;
+    const rowsLength =
+        typeof deps.rowsLength === "number" ? deps.rowsLength : rowIds.length;
 
     const handleRowDragStart = useCallback(
         (event: DragStartEvent) => {
             if (!canReorderQueue) return;
-            setSuppressLayoutAnimations(true);
+            beginAnimationSuppression(ANIMATION_SUPPRESSION_KEYS.rowDrag);
             setActiveRowId(event.active.id as string);
         },
-        [canReorderQueue, setSuppressLayoutAnimations, setActiveRowId]
+        [beginAnimationSuppression, canReorderQueue, setActiveRowId]
     );
 
     const handleRowDragEnd = useCallback(
         async (event: DragEndEvent) => {
             setActiveRowId(null);
             setDropTargetRowId(null);
+            endAnimationSuppression(ANIMATION_SUPPRESSION_KEYS.rowDrag);
             if (!canReorderQueue) return;
             const { active, over } = event;
             if (!active || !over || active.id === over.id) return;
@@ -55,6 +59,7 @@ export const useTorrentRowDrag = (deps: any) => {
             if (delta === 0) return;
 
             const nextOrder = arrayMove(rowIds, draggedIndex, targetIndex);
+            beginAnimationSuppression(ANIMATION_SUPPRESSION_KEYS.queueReorder);
             setPendingQueueOrder(nextOrder);
 
             const actionKey = delta > 0 ? "queue-move-down" : "queue-move-up";
@@ -66,7 +71,9 @@ export const useTorrentRowDrag = (deps: any) => {
             }
         },
         [
+            beginAnimationSuppression,
             canReorderQueue,
+            endAnimationSuppression,
             onAction,
             sorting,
             rowIds,
@@ -82,12 +89,13 @@ export const useTorrentRowDrag = (deps: any) => {
         setActiveRowId(null);
         setDropTargetRowId(null);
         setPendingQueueOrder(null);
-        setSuppressLayoutAnimations(false);
+        endAnimationSuppression(ANIMATION_SUPPRESSION_KEYS.rowDrag);
+        endAnimationSuppression(ANIMATION_SUPPRESSION_KEYS.queueReorder);
     }, [
+        endAnimationSuppression,
         setActiveRowId,
         setDropTargetRowId,
         setPendingQueueOrder,
-        setSuppressLayoutAnimations,
     ]);
 
     return {

@@ -21,12 +21,10 @@ import TorrentTable_Header from "./TorrentTable_Header";
 
 export const ColumnHeaderPreview = ({
     header,
-    isAnyColumnResizing = false,
-    suppressLayoutAnimations = false,
+    isAnimationSuppressed: isAnimationSuppressed = false,
 }: {
     header: Header<Torrent, unknown>;
-    isAnyColumnResizing?: boolean;
-    suppressLayoutAnimations?: boolean;
+    isAnimationSuppressed?: boolean;
 }) => {
     const { column } = header;
     const align = column.columnDef.meta?.align || "start";
@@ -49,9 +47,7 @@ export const ColumnHeaderPreview = ({
                 header={header}
                 useBaseClass={true}
                 isMeasurement={false}
-                layoutEnabled={
-                    !isAnyColumnResizing && !suppressLayoutAnimations
-                }
+                layoutEnabled={!isAnimationSuppressed}
             />
         </div>
     );
@@ -70,12 +66,11 @@ interface Props {
     handleColumnResizeStart: (c: Column<Torrent>, clientX: number) => void;
     columnSizingInfo: ColumnSizingInfoState;
     hookActiveResizeColumnId: string | null;
-    isAnyColumnResizing: boolean;
-    suppressLayoutAnimations?: boolean;
+    isAnimationSuppressed?: boolean;
 }
 
 export const TorrentTable_Headers: React.FC<
-    Props & { suppressLayoutAnimations?: boolean }
+    Props & { isAnimationSuppressed?: boolean }
 > = ({
     headerContainerClass,
     handleHeaderContainerContextMenu,
@@ -87,8 +82,7 @@ export const TorrentTable_Headers: React.FC<
     handleColumnResizeStart,
     columnSizingInfo,
     hookActiveResizeColumnId,
-    isAnyColumnResizing,
-    suppressLayoutAnimations,
+    isAnimationSuppressed: isAnimationSuppressed,
 }) => {
     return (
         <div
@@ -116,11 +110,8 @@ export const TorrentTable_Headers: React.FC<
                                     <TorrentTable_Header
                                         key={header.id}
                                         header={header}
-                                        isAnyColumnResizing={
-                                            isAnyColumnResizing
-                                        }
-                                        suppressLayoutAnimations={
-                                            suppressLayoutAnimations
+                                        isAnimationSuppressed={
+                                            isAnimationSuppressed
                                         }
                                         onContextMenu={(e: React.MouseEvent) =>
                                             handleHeaderContextMenu(

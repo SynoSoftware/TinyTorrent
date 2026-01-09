@@ -924,7 +924,8 @@ main .torrent-table-watermark {
        (autofit), suppress layout animations inside the table to avoid
        distracting enlargement/shrink effects. This uses a scoped attribute
        selector so the suppression is reversible and easy to test. */
-    [data-tt-suppress-layout] * {
+    /* Suppress transitions when the layout is purposely frozen (autofit, resize, drag) */
+    [data-tt-layout-suppressed] * {
         transition: none !important;
         animation: none !important;
     }

@@ -57,7 +57,7 @@ export interface TorrentTableBodyProps {
     handleDropTargetChange: (id: string | null) => void;
     isAnyColumnResizing: boolean;
     columnOrder: string[];
-    suppressLayoutAnimations: boolean;
+    isAnimationSuppressed: boolean;
     isColumnOrderChanging: boolean;
     marqueeRect?: {
         left: number;
@@ -98,7 +98,7 @@ export const TorrentTable_Body: React.FC<TorrentTableBodyProps> = (props) => {
         handleDropTargetChange,
         isAnyColumnResizing,
         columnOrder,
-        suppressLayoutAnimations,
+        isAnimationSuppressed: isAnimationSuppressed,
         isColumnOrderChanging,
         marqueeRect,
         rowHeight,
@@ -225,8 +225,8 @@ export const TorrentTable_Body: React.FC<TorrentTableBodyProps> = (props) => {
                                                 isAnyColumnResizing
                                             }
                                             columnOrder={columnOrder}
-                                            suppressLayoutAnimations={
-                                                suppressLayoutAnimations ||
+                                            isAnimationSuppressed={
+                                                isAnimationSuppressed ||
                                                 isColumnOrderChanging
                                             }
                                         />
