@@ -26,7 +26,6 @@ import {
     zSessionStats,
     zTransmissionSessionSettings,
     zTransmissionFreeSpace,
-    zDirectoryBrowseResponse,
     zTinyTorrentCapabilitiesNormalized,
     zSystemAutorunStatus,
     zSystemHandlerStatus,
@@ -72,6 +71,8 @@ type RpcRequest<M extends string> = {
     arguments?: Record<string, unknown>;
     tag?: number;
 };
+
+type HandshakeState = "idle" | "handshaking" | "ready" | "invalid";
 
 type RpcSendOptions = {
     bypassHandshake?: boolean;
@@ -1281,34 +1282,6 @@ export class TransmissionAdapter implements EngineAdapter {
             zTransmissionFreeSpace
         );
         return fs;
-    }
-
-    private supportsFsBrowse(): boolean {
-        return Boolean(
-            this.tinyTorrentCapabilities?.features.includes("fs-browse")
-        );
-    }
-
-    public async browseDirectory(
-        path?: string
-    ): Promise<DirectoryBrowseResult> {
-        if (!this.supportsFsBrowse()) {
-            throw new Error(
-                "fs-browse is not supported by the connected engine"
-            );
-        }
-        const result = await this.send(
-            { method: "fs-browse", arguments: path ? { path } : undefined },
-            zDirectoryBrowseResponse
-        );
-        return result;
-    }
-
-    public async createDirectory(path: string): Promise<void> {
-        if (!path) {
-            return;
-        }
-        await this.mutate("fs-create-dir", { path });
     }
 
     public async openPath(path: string): Promise<void> {

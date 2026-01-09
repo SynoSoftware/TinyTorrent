@@ -1,6 +1,5 @@
 import { z } from "zod";
 import type {
-    DirectoryBrowseResult,
     RpcTorrentStatus,
     TransmissionFreeSpace,
     TransmissionSessionSettings,
@@ -461,23 +460,6 @@ export const zTransmissionFreeSpace = z.preprocess(
     })
 );
 
-const zDirectoryEntryType = z.enum(["drive", "folder"]);
-
-const zDirectoryEntry = z.object({
-    name: z.string(),
-    path: z.string(),
-    type: zDirectoryEntryType,
-    totalBytes: z.number().optional(),
-    freeBytes: z.number().optional(),
-});
-
-export const zDirectoryBrowseResponse = z.object({
-    path: z.string(),
-    parentPath: z.string().optional(),
-    separator: z.string().optional(),
-    entries: z.array(zDirectoryEntry),
-});
-
 export const parseRpcResponse = (payload: unknown) => {
     try {
         return zRpcResponse.parse(payload);
@@ -543,17 +525,6 @@ export const getFreeSpace = (payload: unknown): TransmissionFreeSpace => {
         return zTransmissionFreeSpace.parse(payload) as TransmissionFreeSpace;
     } catch (error) {
         logValidationIssue("getFreeSpace", payload, error);
-        throw error;
-    }
-};
-
-export const parseDirectoryBrowseResult = (
-    payload: unknown
-): DirectoryBrowseResult => {
-    try {
-        return zDirectoryBrowseResponse.parse(payload);
-    } catch (error) {
-        logValidationIssue("parseDirectoryBrowseResult", payload, error);
         throw error;
     }
 };

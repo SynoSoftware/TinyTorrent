@@ -11,7 +11,6 @@ import type {
     ServerClass,
 } from "./entities";
 import type {
-    DirectoryBrowseResult,
     TransmissionSessionSettings,
     TransmissionFreeSpace,
     SystemInstallOptions,
@@ -33,7 +32,6 @@ export interface EngineAdapter {
     ): Promise<void>;
     testPort?(): Promise<boolean>;
     checkFreeSpace?(path: string): Promise<TransmissionFreeSpace>;
-    browseDirectory?(path?: string): Promise<DirectoryBrowseResult>;
     getTorrents(): Promise<TorrentEntity[]>;
     getTorrentDetails(id: string): Promise<TorrentDetailEntity>;
     fetchNetworkTelemetry?(): Promise<
