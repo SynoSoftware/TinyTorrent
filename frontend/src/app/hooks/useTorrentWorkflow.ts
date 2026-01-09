@@ -21,6 +21,7 @@ interface UseTorrentWorkflowParams {
         torrent: Torrent,
         options?: { deleteData?: boolean }
     ) => Promise<void>;
+    executeBulkRemove: (ids: string[], deleteData: boolean) => Promise<void>;
 }
 
 export function useTorrentWorkflow({
@@ -179,16 +180,33 @@ export function useTorrentWorkflow({
             if (hasFeedback) {
                 announceAction(actionKey, "start", count);
             }
-            for (const torrent of toDelete) {
-                const options =
-                    action === "remove" ? { deleteData } : undefined;
-                await executeTorrentAction(action, torrent, options);
+
+            if (
+                toDelete.length > 1 &&
+                (action === "remove" || action === "remove-with-data")
+            ) {
+                const ids = toDelete.map((torrent) => torrent.id);
+                const shouldDeleteData =
+                    action === "remove-with-data" ? true : deleteData;
+                await executeBulkRemove(ids, shouldDeleteData);
+            } else {
+                for (const torrent of toDelete) {
+                    const options =
+                        action === "remove" ? { deleteData } : undefined;
+                    await executeTorrentAction(action, torrent, options);
+                }
             }
+
             if (hasFeedback) {
                 announceAction(actionKey, "done", count);
             }
         },
-        [announceAction, executeTorrentAction, pendingDelete]
+        [
+            announceAction,
+            executeBulkRemove,
+            executeTorrentAction,
+            pendingDelete,
+        ]
     );
 
     return {

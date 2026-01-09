@@ -697,7 +697,7 @@ export default function App() {
         );
     }, [recoveryCallbacks?.handleReannounce, runRecoveryOperation]);
 
-    const { handleTorrentAction: executeTorrentAction, handleOpenFolder } =
+    const { handleTorrentAction: executeTorrentAction, handleOpenFolder, executeBulkRemove } =
         useTorrentActions({
             torrentClient,
             queueActions,
@@ -855,6 +855,7 @@ export default function App() {
         torrents,
         selectedTorrents,
         executeTorrentAction,
+        executeBulkRemove,
     });
 
     const {
