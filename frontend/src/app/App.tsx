@@ -643,19 +643,28 @@ export default function App() {
         );
     }, [detailData, recoverySession]);
 
+    const choosePathViaNativeShell = useCallback(
+        async (initialPath?: string | null) => {
+            if (!NativeShell.isAvailable) {
+                return null;
+            }
+            try {
+                return (
+                    (await NativeShell.openFolderDialog(
+                        initialPath ?? undefined
+                    )) ?? null
+                );
+            } catch {
+                return null;
+            }
+        },
+        []
+    );
+
     const recoveryRequestBrowse = useCallback(
         async (currentPath?: string | null) => {
-            if (!torrentClient) return null;
-            if (typeof torrentClient.browseDirectory === "function") {
-                try {
-                    const res = await torrentClient.browseDirectory(
-                        currentPath ?? undefined
-                    );
-                    return res?.path ?? null;
-                } catch {
-                    // fallback to manual prompt
-                }
-            }
+            const nativePath = await choosePathViaNativeShell(currentPath);
+            if (nativePath) return nativePath;
             const pick = window.prompt(
                 t("recovery.prompt.enter_new_path"),
                 currentPath ?? ""
@@ -665,7 +674,7 @@ export default function App() {
             if (!trimmed) return null;
             return trimmed;
         },
-        [torrentClient, t]
+        [choosePathViaNativeShell, t]
     );
 
     const handleRecoveryPrimary = useCallback(async () => {
@@ -1151,17 +1160,9 @@ export default function App() {
             if (gateResult && gateResult.status !== "continue") {
                 return;
             }
-            let chosen: string | null | undefined;
-            if (client.browseDirectory) {
-                try {
-                    const res = await client.browseDirectory(
-                        target.savePath ?? undefined
-                    );
-                    chosen = res?.path;
-                } catch {
-                    // swallow
-                }
-            }
+            let chosen: string | null | undefined = await choosePathViaNativeShell(
+                target.savePath ?? undefined
+            );
             if (!chosen) {
                 const promptMessage = t(
                     "directory_browser.manual_entry_prompt"
@@ -1206,7 +1207,7 @@ export default function App() {
                 console.error("setTorrentLocation failed", err);
             }
         },
-        [detailData, refreshDetailData, t, requestRecovery]
+        [detailData, refreshDetailData, t, requestRecovery, choosePathViaNativeShell]
     );
 
     const handleSetLocation = useCallback(

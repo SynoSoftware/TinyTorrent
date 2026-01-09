@@ -523,7 +523,7 @@ When running as a desktop app, the UI must bypass browser-layer limitations:
     - **Fallback Path:** UI → Daemon (RPC) → Logic (for remote/standard browser use).
 
 3. **Window Lifecycle**
- The window is a "View." Closing the window must **Hide** the window, not terminate the process. Termination is only handled via the Tray's "Exit" or `app-shutdown` command.
+ The window is a "View." Closing the window must **Hide** the window, not terminate the process. Termination is only handled via the Tray's "Exit".
 
 ---
 

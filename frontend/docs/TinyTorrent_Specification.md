@@ -17,10 +17,10 @@ The daemon operates in two modes to ensure broad compatibility while enabling mo
 {
   "result": "success",
   "arguments": {
-    "version": "TinyTorrent 1.0.0",
+    "version": "TinyTorrent 1.1.0",
     "rpc-version": 17,
     "websocket-path": "/ws",
-    "features": ["fs-browse", "system-reveal", "proxy-support", "sequential-download"]
+    "features": [ "proxy-support", "sequential-download"]
   }
 }
 ```
@@ -36,31 +36,24 @@ The daemon operates in two modes to ensure broad compatibility while enabling mo
 
 ---
 
-## **2. Extended RPC: System & Filesystem (`fs-*`, `system-*`)**
+## **2. Native Shell Responsibilities (Filesystem & Shutdown)**
 
-These methods provide the "Desktop Agent" capabilities.
+All user-interactive filesystem and lifecycle controls are now owned by the WebView
+host (Native Shell). The RPC methods `fs-*`, `system-reveal`, and `app-shutdown` are
+no longer exposed by the daemon. Instead:
 
-### **2.1 Filesystem Browsing**
+* **Filesystem browsing & directory selection** happen through the host shell
+  (`NativeShell.openFolderDialog`), and the daemon accepts only the pre-validated
+  paths it receives from that trusted UI boundary.
+* **System reveal** is implemented by the Native Shell via `open-path` helpers, not
+  via an RPC call.
+* **Application shutdown** is handled by the host/tray shell, so the RPC channel
+  does not expose an `app-shutdown` command anymore.
 
-* **`fs-browse`**: Returns directory tree. Critical for "Save Path" dialogs.
+The daemon continues to report the features it supports (see §1.1), but it assumes
+that every filesystem path and shutdown request has already been mediated by the
+native host.
 
-  * *Input:* `path` (string).
-  * *Output:* `entries` (array of name/type/size), `parent`, `separator`.
-* **`fs-space`**: Returns `free-bytes` and `total-bytes` for a path.
-
-### **2.2 System Integration**
-
-* **`system-reveal`**: Opens OS file explorer.
-
-  * *Logic:* If target is file, highlight it. If dir, open it.
-* **`system-open`**: Launches file (double-click behavior).
-* **`system-register-handler`**: Associates `magnet:` and `.torrent` with TinyTorrent (requires Admin on Windows).
-
-### **2.3 Application Lifecycle**
-
-* **`app-shutdown`**: Graceful exit.
-
-  * *Must:* Pause session, save resume data, save state, terminate.
 
 ---
 
@@ -402,4 +395,3 @@ These concepts may only exist **globally**, or not at all.
 > **Warnings are not moved between modes — they are deleted from item-level UI entirely.**
 
 Once this is enforced, consistency is automatic and hacks disappear.
-

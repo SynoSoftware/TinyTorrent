@@ -180,7 +180,6 @@ To ensure type safety in the frontend, the `event` message type uses strict nami
 | `torrent-added`     | `{ "id": int }`                        | External add (e.g., Watch Dir). |
 | `torrent-finished`  | `{ "id": int }`                        | Download completes.             |
 | `blocklist-updated` | `{ "count": int }`                     | Blocklist reload complete.      |
-| `app-shutdown`      | `null`                                 | Daemon is shutting down.        |
 
 ---
 
