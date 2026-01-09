@@ -333,10 +333,6 @@ export function TorrentTable({
             .filter(Boolean) as typeof data;
     }, [data, effectiveOrder]);
 
-    // DnD and SortableContext must receive the exact same `items` order; expose
-    // that as `rowIds`. Use a shallow copy to avoid accidental mutation.
-    const rowIds = useMemo(() => Array.from(effectiveOrder), [effectiveOrder]);
-
     const table = useReactTable({
         data: tableData,
         columns,
@@ -378,6 +374,7 @@ export function TorrentTable({
     useEffect(() => {
         rowSelectionRef.current = rowSelection;
     }, [rowSelection]);
+    const rowIds = useMemo(() => rows.map((row) => row.id), [rows]);
     const {
         measuredMinWidths,
         measuredMinWidthsRef,
@@ -592,14 +589,14 @@ export function TorrentTable({
 
     useEffect(() => {
         if (!pendingQueueOrder) return;
-        if (data.length !== pendingQueueOrder.length) return;
-        for (let i = 0; i < data.length; i += 1) {
-            if (data[i].id !== pendingQueueOrder[i]) {
+        if (rowIds.length !== pendingQueueOrder.length) return;
+        for (let i = 0; i < rowIds.length; i += 1) {
+            if (rowIds[i] !== pendingQueueOrder[i]) {
                 return;
             }
         }
         setPendingQueueOrder(null);
-    }, [data, pendingQueueOrder]);
+    }, [pendingQueueOrder, rowIds]);
 
     useEffect(() => {
         if (pendingQueueOrder) return;
