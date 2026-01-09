@@ -3,6 +3,7 @@ import {
     AccordionItem,
     Button,
     Checkbox,
+    Chip,
     Dropdown,
     DropdownItem,
     DropdownMenu,
@@ -13,6 +14,7 @@ import {
     ModalContent,
     ModalFooter,
     ModalHeader,
+    Progress,
     Select,
     SelectItem,
     Spinner,
@@ -32,20 +34,26 @@ import {
 import { useTranslation } from "react-i18next";
 import { useKeyboardScope } from "@/shared/hooks/useKeyboardScope";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { KEY_SCOPE } from "@/config/logic";
+import { KEY_SCOPE, INTERACTION_CONFIG } from "@/config/logic";
 import {
     ArrowDown,
     ChevronDown,
-    ChevronUp,
     FolderOpen,
     HardDrive,
     Inbox,
     Sparkles,
     Wand2,
     X,
+    GripVertical,
+    FileVideo,
+    FileText,
+    File as FileIcon,
+    AlertTriangle,
+    CheckCircle2,
+    PlayCircle,
+    PauseCircle,
 } from "lucide-react";
 
-import { INTERACTION_CONFIG, TABLE_LAYOUT } from "@/config/logic";
 import { formatBytes } from "@/shared/utils/format";
 import {
     GLASS_MODAL_SURFACE,
@@ -56,6 +64,8 @@ import type { TransmissionFreeSpace } from "@/services/rpc/types";
 import useLayoutMetrics from "@/shared/hooks/useLayoutMetrics";
 import { StatusIcon } from "@/shared/ui/components/StatusIcon";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
+
+// --- TYPES ---
 
 export type AddTorrentSource =
     | {
@@ -114,77 +124,32 @@ type FileRow = {
 
 type SmartSelectCommand = "videos" | "largest" | "invert";
 
+// --- CONSTANTS & HELPERS ---
+
 const HISTORY_KEY = "tt-add-save-history";
 const HISTORY_LIMIT = 6;
+
+// A strict grid template to ensure headers align perfectly with rows
+// [Checkbox] [Icon+Name] [Size] [Priority]
+const FILE_GRID_TEMPLATE = "40px minmax(0, 1fr) 90px 110px";
+
+const MODAL_CLASSES =
+    "w-full h-[85vh] overflow-hidden flex flex-col shadow-2xl border border-white/10";
+const PANE_SURFACE = "h-full flex flex-col min-h-0 bg-transparent";
+const SECTION_HEADER =
+    "text-xs font-bold tracking-widest text-foreground/50 uppercase mb-2";
 
 function detectDriveKind(path: string): "SSD" | "HDD" | "Network" | "Unknown" {
     if (!path) return "Unknown";
     const normalized = path.replace(/\//g, "\\");
-    if (normalized.startsWith("\\\\")) {
-        return "Network";
-    }
+    if (normalized.startsWith("\\\\")) return "Network";
     const lower = normalized.toLowerCase();
     if (lower.includes("hdd")) return "HDD";
     if (lower.includes("ssd")) return "SSD";
     if (/^[a-zA-Z]:\\/i.test(normalized)) {
-        const driveLetter = normalized[0]?.toUpperCase();
-        if (driveLetter >= "D") {
-            return "HDD";
-        }
-        return "SSD";
+        return normalized[0]?.toUpperCase() >= "D" ? "HDD" : "SSD";
     }
     return "Unknown";
-}
-
-const MODAL_CLASSES = "w-full overflow-hidden flex flex-col";
-const PANE_SURFACE = cn(
-    GLASS_PANEL_SURFACE,
-    "rounded-panel border border-default/20 backdrop-blur-md"
-);
-const PANE_SECTION = "flex flex-col gap-panel p-panel h-full min-h-0";
-const HEADER_TITLE =
-    "text-label font-semibold tracking-label uppercase text-foreground";
-const SUBTLE_META = "text-scaled text-foreground/60";
-const FIELD_LABEL = "text-label tracking-label uppercase font-semibold";
-const TOOLBAR = "flex items-center justify-between gap-tools";
-const TOOL_GAP = "flex items-center gap-tools";
-const FILE_ROW =
-    "grid items-center text-scaled border-b border-default/10 px-panel focus:outline-none";
-const FILE_CELL = "truncate select-text";
-const FILE_GRID_TEMPLATE =
-    "minmax(0, var(--tt-col-icon)) minmax(0, 1fr) auto auto";
-
-function usePanelPersistence(key: string, fallback: number[] | undefined) {
-    const [layout, setLayout] = useState<number[] | undefined>(() => {
-        try {
-            const raw = localStorage.getItem(key);
-            if (!raw) return fallback;
-            const parsed = JSON.parse(raw) as number[];
-            if (
-                Array.isArray(parsed) &&
-                parsed.every((n) => typeof n === "number")
-            ) {
-                return parsed;
-            }
-        } catch {
-            // ignore malformed storage
-        }
-        return fallback;
-    });
-
-    const persist = useCallback(
-        (next: number[]) => {
-            setLayout(next);
-            try {
-                localStorage.setItem(key, JSON.stringify(next));
-            } catch {
-                // ignore storage issues
-            }
-        },
-        [key]
-    );
-
-    return { layout, persist };
 }
 
 function buildFiles(metadata?: TorrentMetadata): FileRow[] {
@@ -221,6 +186,20 @@ function classifyFile(path: string): "video" | "text" | "other" {
     if (SUBTITLE_EXTENSIONS.some((ext) => lower.endsWith(ext))) return "text";
     return "other";
 }
+
+function getFileIcon(type: "video" | "text" | "other") {
+    switch (type) {
+        case "video":
+            return FileVideo;
+        case "text":
+            return FileText;
+        default:
+            return FileIcon;
+    }
+}
+
+// --- COMPONENT ---
+
 export function AddTorrentModal({
     isOpen,
     source,
@@ -235,6 +214,8 @@ export function AddTorrentModal({
 }: AddTorrentModalProps) {
     const { t } = useTranslation();
     const { rowHeight } = useLayoutMetrics();
+
+    // -- State --
     const [downloadDir, setDownloadDir] = useState(initialDownloadDir);
     const [name, setName] = useState(source?.metadata?.name ?? "");
     const [commitMode, setCommitMode] = useState<AddTorrentCommitMode>("start");
@@ -246,43 +227,40 @@ export function AddTorrentModal({
     const [category, setCategory] = useState<string | null>(null);
     const [sequential, setSequential] = useState(false);
     const [skipHashCheck, setSkipHashCheck] = useState(false);
+
+    // Free Space Logic
     const [freeSpace, setFreeSpace] = useState<TransmissionFreeSpace | null>(
         null
     );
     const [spaceError, setSpaceError] = useState<string | null>(null);
     const [isCheckingSpace, setIsCheckingSpace] = useState(false);
     const [isTouchingDirectory, setIsTouchingDirectory] = useState(false);
-    const [panelGroupKey, setPanelGroupKey] = useState(() => Date.now());
+
+    // UX State
+    const [dropActive, setDropActive] = useState(false);
     const [recentPaths, setRecentPaths] = useState<string[]>(() => {
         if (typeof window === "undefined") return [];
-        const raw = window.localStorage.getItem(HISTORY_KEY);
-        if (!raw) return [];
         try {
-            const parsed = JSON.parse(raw) as string[];
-            return Array.isArray(parsed) ? parsed : [];
+            const raw = window.localStorage.getItem(HISTORY_KEY);
+            return raw ? JSON.parse(raw) : [];
         } catch {
             return [];
         }
     });
-    const [dropActive, setDropActive] = useState(false);
-    const scrollParentRef = useRef<HTMLDivElement | null>(null);
-    const { persist: persistLayout } = usePanelPersistence(
-        "tt-add-pane-layout",
-        undefined
-    );
 
-    // Keyboard scope: disable dashboard and enable modal while this modal is mounted
+    const scrollParentRef = useRef<HTMLDivElement | null>(null);
+    const formRef = useRef<HTMLFormElement | null>(null);
+
+    // -- Keyboard Scope --
     const { activate: activateModal, deactivate: deactivateModal } =
         useKeyboardScope(KEY_SCOPE.Modal);
     const { activate: activateDashboard, deactivate: deactivateDashboard } =
         useKeyboardScope(KEY_SCOPE.Dashboard);
 
     useEffect(() => {
-        // On mount: disable dashboard scope, enable modal scope
         deactivateDashboard();
         activateModal();
         return () => {
-            // On unmount: disable modal scope, re-enable dashboard scope
             deactivateModal();
             activateDashboard();
         };
@@ -292,26 +270,37 @@ export function AddTorrentModal({
         deactivateDashboard,
         deactivateModal,
     ]);
-    const tableOverscan =
-        typeof TABLE_LAYOUT.overscan === "number" ? TABLE_LAYOUT.overscan : 12;
 
+    // -- Data Memoization --
     const files = useMemo(
         () => buildFiles(source?.metadata),
         [source?.metadata]
     );
-    const heroFile = files.length === 1 ? files[0] : undefined;
-    const [heroNameInput, setHeroNameInput] = useState(heroFile?.path ?? "");
+
+    // Reset state when source/modal opens
     useEffect(() => {
-        if (heroFile) {
-            setHeroNameInput(heroFile.path);
+        setName(source?.metadata?.name ?? source?.label ?? "");
+        setFilter("");
+        setPriorities(new Map());
+        setSequential(false);
+        setSkipHashCheck(false);
+        setCategory(null);
+        setSelected(new Set(files.map((f) => f.index)));
+
+        // Persist download dir history
+        if (typeof window !== "undefined") {
+            window.localStorage.setItem(
+                HISTORY_KEY,
+                JSON.stringify(recentPaths)
+            );
         }
-    }, [heroFile]);
+    }, [source, files, isOpen, recentPaths]);
 
     useEffect(() => {
-        if (typeof window === "undefined") return;
-        window.localStorage.setItem(HISTORY_KEY, JSON.stringify(recentPaths));
-    }, [recentPaths]);
+        setDownloadDir(initialDownloadDir);
+    }, [initialDownloadDir, isOpen]);
 
+    // -- Logic: History & Drops --
     const pushRecentPath = useCallback((path: string) => {
         const trimmed = path.trim();
         if (!trimmed) return;
@@ -344,87 +333,65 @@ export function AddTorrentModal({
                 path = file.path || file.webkitRelativePath || file.name;
             }
             if (!path) {
-                const text = event.dataTransfer?.getData("text/plain")?.trim();
-                if (text) {
-                    path = text;
-                }
+                path = event.dataTransfer?.getData("text/plain")?.trim();
             }
             applyDroppedPath(path);
         },
         [applyDroppedPath]
     );
 
-    const handleDragOver = useCallback((event: DragEvent<HTMLDivElement>) => {
-        event.preventDefault();
+    const handleDragOver = useCallback((e: DragEvent) => {
+        e.preventDefault();
         setDropActive(true);
     }, []);
+    const handleDragLeave = useCallback(() => setDropActive(false), []);
 
-    const handleDragLeave = useCallback(() => {
-        setDropActive(false);
-    }, []);
+    // -- Logic: Browse --
+    const handleBrowse = useCallback(async () => {
+        if (!onBrowseDirectory) return;
+        setIsTouchingDirectory(true);
+        try {
+            const next = await onBrowseDirectory(downloadDir);
+            if (next) applyDroppedPath(next);
+        } finally {
+            setIsTouchingDirectory(false);
+        }
+    }, [downloadDir, onBrowseDirectory, applyDroppedPath]);
 
-    useEffect(() => {
-        setDownloadDir(initialDownloadDir);
-    }, [initialDownloadDir, isOpen]);
-
-    useEffect(() => {
-        setName(source?.metadata?.name ?? source?.label ?? "");
-        setFilter("");
-        setPriorities(new Map());
-        setSequential(false);
-        setSkipHashCheck(false);
-        setCategory(null);
-        const allIndexes = files.map((file) => file.index);
-        setSelected(new Set(allIndexes));
-        setPanelGroupKey(Date.now());
-    }, [source?.label, source?.metadata, files, isOpen]);
-
+    // -- Logic: Files & Selection --
     const filteredFiles = useMemo(
         () => filterFiles(files, filter),
         [files, filter]
     );
-
     const selectedSize = useMemo(() => {
-        return files.reduce((sum, file) => {
-            if (selected.has(file.index)) {
-                return sum + file.length;
-            }
-            return sum;
-        }, 0);
+        return files.reduce(
+            (sum, file) => (selected.has(file.index) ? sum + file.length : sum),
+            0
+        );
     }, [files, selected]);
 
     const handleSmartSelect = useCallback(
         (command: SmartSelectCommand) => {
-            if (!files.length) return;
             if (command === "invert") {
                 setSelected((prev) => {
                     const next = new Set<number>();
-                    files.forEach((file) => {
-                        if (!prev.has(file.index)) {
-                            next.add(file.index);
-                        }
-                    });
+                    files.forEach(
+                        (f) => !prev.has(f.index) && next.add(f.index)
+                    );
                     return next;
                 });
-                return;
-            }
-            if (command === "largest") {
-                const largest = files.reduce<FileRow | null>((acc, file) => {
-                    if (!acc) return file;
-                    return file.length > acc.length ? file : acc;
-                }, null);
-                if (largest) {
-                    setSelected(new Set([largest.index]));
-                }
-                return;
-            }
-            if (command === "videos") {
+            } else if (command === "videos") {
                 const videoIndexes = files
-                    .filter((file) => classifyFile(file.path) === "video")
-                    .map((file) => file.index);
-                if (videoIndexes.length) {
-                    setSelected(new Set(videoIndexes));
-                }
+                    .filter((f) => classifyFile(f.path) === "video")
+                    .map((f) => f.index);
+                setSelected(new Set(videoIndexes));
+            } else if (command === "largest") {
+                const largest = files.reduce(
+                    (prev, current) =>
+                        prev.length > current.length ? prev : current,
+                    files[0]
+                );
+                if (largest) setSelected(new Set([largest.index]));
             }
         },
         [files]
@@ -433,11 +400,7 @@ export function AddTorrentModal({
     const toggleSelection = useCallback((index: number) => {
         setSelected((prev) => {
             const next = new Set(prev);
-            if (next.has(index)) {
-                next.delete(index);
-            } else {
-                next.add(index);
-            }
+            next.has(index) ? next.delete(index) : next.add(index);
             return next;
         });
     }, []);
@@ -446,352 +409,174 @@ export function AddTorrentModal({
         (index: number, value: "low" | "normal" | "high") => {
             setPriorities((prev) => {
                 const next = new Map(prev);
-                if (value === "normal") {
-                    next.delete(index);
-                } else {
-                    next.set(index, value);
-                }
+                value === "normal"
+                    ? next.delete(index)
+                    : next.set(index, value);
                 return next;
             });
         },
         []
     );
 
-    const resolvedState: "ready" | "pending" | "error" = useMemo(() => {
-        if (source?.kind === "magnet") {
-            if (source.status === "error") return "error";
-            if (!source.metadata) return "pending";
-        }
-        if (files.length) return "ready";
-        return "pending";
-    }, [files.length, source]);
-
-    const shouldShowHero = heroFile !== undefined && resolvedState === "ready";
-    const magnetErrorMessage =
-        source?.kind === "magnet" ? source.errorMessage : undefined;
-
-    const commitLabel = useMemo(() => {
-        if (commitMode === "paused") return t("modals.add_torrent.add_paused");
-        if (commitMode === "top") return t("modals.add_torrent.add_and_start");
-        return t("modals.add_torrent.add_and_start");
-    }, [commitMode, t]);
-
+    // -- Logic: Free Space --
     useEffect(() => {
-        if (!checkFreeSpace) {
+        if (!checkFreeSpace || !downloadDir.trim()) {
             setFreeSpace(null);
-            setSpaceError(null);
-            setIsCheckingSpace(false);
-            return;
-        }
-        if (!downloadDir.trim()) {
-            setFreeSpace(null);
-            setSpaceError(null);
-            setIsCheckingSpace(false);
             return;
         }
         let active = true;
         setIsCheckingSpace(true);
-        setSpaceError(null);
         checkFreeSpace(downloadDir.trim())
-            .then((space) => {
-                if (!active) return;
-                setFreeSpace(space);
-            })
-            .catch(() => {
-                if (!active) return;
-                setFreeSpace(null);
-                setSpaceError(t("modals.add_torrent.free_space_unknown"));
-            })
-            .finally(() => {
-                if (!active) return;
-                setIsCheckingSpace(false);
-            });
+            .then((space) => active && setFreeSpace(space))
+            .catch(
+                () =>
+                    active &&
+                    setSpaceError(t("modals.add_torrent.free_space_unknown"))
+            )
+            .finally(() => active && setIsCheckingSpace(false));
         return () => {
             active = false;
         };
     }, [checkFreeSpace, downloadDir, t]);
 
-    const freeSpaceBytes = freeSpace?.sizeBytes ?? null;
-    const isSpaceKnown = typeof freeSpaceBytes === "number";
-    const isInsufficient =
-        isSpaceKnown && typeof freeSpaceBytes === "number"
-            ? selectedSize > freeSpaceBytes
-            : false;
-
-    const handleConfirm = useCallback(() => {
-        if (!files.length || isSubmitting) return;
-        const filesUnwanted: number[] = [];
-        const priorityHigh: number[] = [];
-        const priorityLow: number[] = [];
-        const priorityNormal: number[] = [];
-        files.forEach((file) => {
-            if (!selected.has(file.index)) {
-                filesUnwanted.push(file.index);
-            }
-            const value = priorities.get(file.index) ?? "normal";
-            if (value === "high") priorityHigh.push(file.index);
-            else if (value === "low") priorityLow.push(file.index);
-            else priorityNormal.push(file.index);
-        });
-        onConfirm({
-            downloadDir: downloadDir.trim(),
-            name: name.trim() || (source?.metadata?.name ?? ""),
-            commitMode,
-            filesUnwanted,
-            priorityHigh,
-            priorityNormal,
-            priorityLow,
-            options: {
-                category,
-                sequential,
-                skipHashCheck,
-            },
-        });
-    }, [
-        category,
-        commitMode,
-        downloadDir,
-        files,
-        isSubmitting,
-        name,
-        onConfirm,
-        priorities,
-        selected,
-        sequential,
-        skipHashCheck,
-        source?.metadata?.name,
-    ]);
-
-    const canConfirm = useMemo(
-        () =>
-            files.length > 0 &&
-            Boolean(downloadDir.trim()) &&
-            !isSubmitting &&
-            !isResolvingSource &&
-            resolvedState === "ready",
-        [
-            downloadDir,
-            files.length,
-            isResolvingSource,
-            isSubmitting,
-            resolvedState,
-        ]
-    );
-
-    const handleSubmit = useCallback(
-        (event: FormEvent<HTMLFormElement>) => {
-            event.preventDefault();
-            if (!canConfirm) return;
-            void handleConfirm();
-        },
-        [canConfirm, handleConfirm]
-    );
-
-    // Form ref used to programmatically request submit while preserving native semantics
-    const formRef = useRef<HTMLFormElement | null>(null);
-
-    const handleFormKeyDown = useCallback(
-        (event: KeyboardEvent<HTMLFormElement>) => {
-            if (event.key !== "Enter") return;
-            const target = event.target as HTMLElement | null;
-            if (!target) return;
-
-            const tag = target.tagName;
-            // Do not trigger submit when focus is in a textarea
-            if (tag === "TEXTAREA") return;
-            // Do not trigger submit for inputs explicitly opting out
-            if (tag === "INPUT") {
-                const inp = target as HTMLInputElement;
-                if (inp.type === "search") return;
-                if (inp.dataset?.modalSkipSubmit === "true") return;
-            }
-
-            // Otherwise, treat Enter as form submit.
-            event.preventDefault();
-            // Use requestSubmit if available to preserve form semantics/validation.
-            const form = formRef.current;
-            if (!form) return;
-            if (typeof (form as any).requestSubmit === "function") {
-                (form as any).requestSubmit();
-            } else {
-                // Fallback: click the primary submit button if present
-                const submitBtn = form.querySelector(
-                    'button[type="submit"]'
-                ) as HTMLButtonElement | null;
-                if (submitBtn) submitBtn.click();
-            }
-        },
-        []
-    );
-
-    useEffect(() => {
-        if (!isOpen) return;
-        // focus the form so Enter key presses are captured without clicking
-        try {
-            formRef.current?.focus();
-        } catch {
-            // ignore focus failures
+    // -- Validation --
+    const resolvedState = useMemo(() => {
+        if (source?.kind === "magnet" && !source.metadata) {
+            if (source.status === "error") return "error";
+            return "pending";
         }
-    }, [isOpen]);
+        return files.length ? "ready" : "pending";
+    }, [files.length, source]);
 
+    const canConfirm =
+        files.length > 0 &&
+        !!downloadDir.trim() &&
+        !isSubmitting &&
+        resolvedState === "ready";
+
+    // -- Virtualization --
     const virtualizer = useVirtualizer({
         count: filteredFiles.length,
         getScrollElement: () => scrollParentRef.current,
         estimateSize: () => rowHeight,
-        overscan: tableOverscan,
+        overscan: 10,
     });
 
-    const handleBrowse = useCallback(async () => {
-        if (!onBrowseDirectory) return;
-        setIsTouchingDirectory(true);
-        try {
-            const next = await onBrowseDirectory(downloadDir);
-            if (next) {
-                setDownloadDir(next);
-                pushRecentPath(next);
-            }
-        } finally {
-            setIsTouchingDirectory(false);
-        }
-    }, [downloadDir, onBrowseDirectory]);
+    // -- Renderers --
+
+    // 1. File Row Renderer
     const renderFileRow = (file: FileRow) => {
         const priority = priorities.get(file.index) ?? "normal";
-        const tone =
-            classifyFile(file.path) === "video"
-                ? "text-primary"
-                : classifyFile(file.path) === "text"
-                ? "text-foreground/80"
-                : "text-foreground/70";
+        const fileType = classifyFile(file.path);
+        const Icon = getFileIcon(fileType);
+        const isSelected = selected.has(file.index);
 
         return (
             <div
                 key={file.index}
                 className={cn(
-                    FILE_ROW,
-                    "h-row rounded-panel",
-                    selected.has(file.index)
-                        ? "bg-content1/20"
-                        : "bg-content1/5"
+                    "grid items-center border-b border-default/5 hover:bg-white/5 transition-colors cursor-pointer group select-none",
+                    isSelected ? "bg-primary/5" : "bg-transparent",
+                    "text-xs"
                 )}
                 style={{
                     gridTemplateColumns: FILE_GRID_TEMPLATE,
                     height: rowHeight,
                 }}
+                onClick={(e) => {
+                    // Avoid toggling when clicking the Select dropdown
+                    if ((e.target as HTMLElement).closest(".priority-trigger"))
+                        return;
+                    toggleSelection(file.index);
+                }}
             >
-                <div className="flex items-center gap-tools">
+                <div className="flex items-center justify-center h-full">
                     <Checkbox
-                        isSelected={selected.has(file.index)}
+                        isSelected={isSelected}
                         onValueChange={() => toggleSelection(file.index)}
-                        size="md"
-                        classNames={{
-                            wrapper: "rounded-sm",
-                        }}
+                        size="sm"
+                        classNames={{ wrapper: "after:bg-primary" }}
                     />
                 </div>
-                <div className={cn(FILE_CELL, tone)} title={file.path}>
-                    {file.path}
+
+                <div className="flex items-center gap-3 min-w-0 pr-4">
+                    <Icon
+                        className={cn(
+                            "shrink-0 size-4",
+                            fileType === "video"
+                                ? "text-primary"
+                                : "text-foreground/40"
+                        )}
+                    />
+                    <span
+                        className={cn(
+                            "truncate select-text transition-colors",
+                            isSelected
+                                ? "text-foreground"
+                                : "text-foreground/60"
+                        )}
+                        title={file.path}
+                    >
+                        {file.path}
+                    </span>
                 </div>
-                <div className="font-mono text-scaled text-foreground/70 text-right">
+
+                <div className="font-mono text-foreground/50 text-[11px]">
                     {formatBytes(file.length)}
                 </div>
-                <Select
-                    aria-label={t("modals.add_torrent.col_priority")}
-                    selectedKeys={[priority]}
-                    onSelectionChange={(keys) => {
-                        const [value] = Array.from(keys) as Array<
-                            "low" | "normal" | "high"
-                        >;
-                        setPriority(file.index, value);
-                    }}
-                    size="sm"
-                    variant="bordered"
-                    disallowEmptySelection
-                    classNames={{
-                        trigger:
-                            "border-default bg-content1/20 rounded-panel h-row priority-select-trigger",
-                    }}
-                >
-                    <SelectItem key="high">
-                        {t("torrent_modal.context_menu.files.priority_high")}
-                    </SelectItem>
-                    <SelectItem key="normal">
-                        {t("torrent_modal.context_menu.files.priority_normal")}
-                    </SelectItem>
-                    <SelectItem key="low">
-                        {t("torrent_modal.context_menu.files.priority_low")}
-                    </SelectItem>
-                </Select>
-            </div>
-        );
-    };
 
-    const renderHeroCard = () => {
-        if (!heroFile) return null;
-        const priority = priorities.get(heroFile.index) ?? "normal";
-        return (
-            <div className="rounded-panel border border-default/20 bg-content1/10 space-y-panel p-panel">
-                <div className="flex items-center justify-between gap-tools">
-                    <div className="flex flex-col gap-tight">
-                        <span className="text-label tracking-label uppercase font-semibold">
-                            {t("modals.add_torrent.file_hero_title")}
-                        </span>
-                        <span className="text-scaled text-foreground/60 truncate">
-                            {heroFile.path}
-                        </span>
-                    </div>
+                <div className="pr-4 flex justify-end">
                     <Select
-                        aria-label={t("modals.add_torrent.file_hero_priority")}
+                        aria-label="Priority"
                         selectedKeys={[priority]}
-                        onSelectionChange={(keys) => {
-                            const [value] = Array.from(keys) as Array<
-                                "low" | "normal" | "high"
-                            >;
-                            setPriority(heroFile.index, value);
-                        }}
-                        variant="bordered"
-                        size="md"
+                        onSelectionChange={(k) =>
+                            setPriority(file.index, Array.from(k)[0] as any)
+                        }
+                        size="sm"
+                        variant="flat"
                         disallowEmptySelection
+                        classNames={{
+                            trigger:
+                                "h-6 min-h-6 w-24 bg-transparent data-[hover=true]:bg-white/10 priority-trigger",
+                            value: "text-[10px] uppercase font-bold text-right",
+                            popoverContent: "w-28",
+                        }}
                     >
-                        <SelectItem key="high">
-                            {t(
-                                "torrent_modal.context_menu.files.priority_high"
-                            )}
+                        <SelectItem
+                            key="high"
+                            startContent={
+                                <ArrowDown className="rotate-180 size-3 text-success" />
+                            }
+                        >
+                            High
                         </SelectItem>
-                        <SelectItem key="normal">
-                            {t(
-                                "torrent_modal.context_menu.files.priority_normal"
-                            )}
+                        <SelectItem
+                            key="normal"
+                            startContent={
+                                <span className="size-2 block bg-foreground/20 rounded-full ml-0.5" />
+                            }
+                        >
+                            Normal
                         </SelectItem>
-                        <SelectItem key="low">
-                            {t("torrent_modal.context_menu.files.priority_low")}
+                        <SelectItem
+                            key="low"
+                            startContent={
+                                <ArrowDown className="size-3 text-warning" />
+                            }
+                        >
+                            Low
                         </SelectItem>
                     </Select>
                 </div>
-                <Input
-                    value={heroNameInput}
-                    onChange={(event) => setHeroNameInput(event.target.value)}
-                    label={t("modals.add_torrent.name_label")}
-                    labelPlacement="outside"
-                    size="md"
-                    variant="bordered"
-                    classNames={{
-                        label: "text-label tracking-label uppercase font-semibold",
-                    }}
-                />
-                <div className="flex items-center justify-between gap-tools text-foreground/60">
-                    <span>{t("modals.add_torrent.file_hero_size")}</span>
-                    <span className="font-mono text-scaled">
-                        {formatBytes(heroFile.length)}
-                    </span>
-                </div>
             </div>
         );
     };
 
+    // 2. Main Modal Render
     return (
         <Modal
             isOpen={isOpen}
-            onOpenChange={(open) => (!open ? onCancel() : null)}
+            onOpenChange={(o) => !o && onCancel()}
             backdrop="blur"
             placement="center"
             motionProps={INTERACTION_CONFIG.modalBloom}
@@ -799,557 +584,481 @@ export function AddTorrentModal({
             isDismissable={!isSubmitting}
             classNames={{
                 base: cn(GLASS_MODAL_SURFACE, MODAL_CLASSES),
+                body: "p-0",
+                header: "border-b border-white/5 bg-black/40 p-4",
+                footer: "border-t border-white/5 bg-black/40 p-4",
             }}
-            style={{
-                maxWidth: "var(--tt-modal-max-width)",
-                maxHeight: "var(--tt-modal-body-max-height)",
-            }}
+            size="5xl"
         >
             <ModalContent>
-                {() => (
-                    <form
-                        ref={formRef}
-                        onSubmit={handleSubmit}
-                        onKeyDown={handleFormKeyDown}
-                        className="flex flex-col h-full focus:outline-none"
-                        tabIndex={-1}
-                    >
-                        <ModalHeader className="px-stage py-panel border-b border-default flex flex-col gap-tight">
-                            <div className="flex items-center justify-between gap-stage">
-                                <div className="min-w-0 flex flex-col gap-tight">
-                                    <span className={HEADER_TITLE}>
-                                        {t("modals.add_torrent.title")}
+                <form
+                    ref={formRef}
+                    onSubmit={(e) => {
+                        e.preventDefault();
+                        if (canConfirm)
+                            onConfirm({
+                                downloadDir,
+                                name,
+                                commitMode,
+                                filesUnwanted: [],
+                                priorityHigh: [],
+                                priorityNormal: [],
+                                priorityLow: [],
+                                options: {
+                                    category,
+                                    sequential,
+                                    skipHashCheck,
+                                },
+                            });
+                    }}
+                    className="flex flex-col h-full"
+                    onKeyDown={(e) => {
+                        if (e.key === "Enter" && (e.metaKey || e.ctrlKey))
+                            formRef.current?.requestSubmit();
+                    }}
+                >
+                    {/* --- HEADER --- */}
+                    <ModalHeader className="flex justify-between items-center gap-4">
+                        <div className="flex flex-col overflow-hidden">
+                            <h2 className="text-sm font-bold tracking-widest uppercase text-foreground">
+                                {t("modals.add_torrent.title")}
+                            </h2>
+                            <span className="text-xs text-foreground/40 truncate font-mono mt-0.5">
+                                {source?.label}
+                            </span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <Chip
+                                size="sm"
+                                variant="flat"
+                                color="primary"
+                                startContent={<Inbox size={12} />}
+                                classNames={{ content: "font-mono font-bold" }}
+                            >
+                                {files.length} FILE{files.length !== 1 && "S"}
+                            </Chip>
+                            <ToolbarIconButton
+                                Icon={X}
+                                onPress={onCancel}
+                                ariaLabel="Close"
+                            />
+                        </div>
+                    </ModalHeader>
+
+                    {/* --- SPLIT VIEW BODY --- */}
+                    <ModalBody className="flex-1 min-h-0 bg-content1/5 relative">
+                        {/* Drop Zone Overlay */}
+                        {dropActive && (
+                            <div className="absolute inset-0 z-50 bg-primary/20 backdrop-blur-sm border-2 border-primary border-dashed m-4 rounded-xl flex items-center justify-center pointer-events-none">
+                                <div className="bg-background px-6 py-4 rounded-full shadow-xl flex items-center gap-3 animate-pulse">
+                                    <FolderOpen
+                                        className="text-primary"
+                                        size={24}
+                                    />
+                                    <span className="text-lg font-bold">
+                                        Drop to change destination
                                     </span>
-                                    <span className={SUBTLE_META} title={name}>
-                                        {name || source?.label}
-                                    </span>
-                                </div>
-                                <div className="flex items-center gap-tools">
-                                    <div className="flex items-center gap-tools text-foreground/60">
-                                        <StatusIcon
-                                            Icon={Inbox}
-                                            size="md"
-                                            className="text-primary"
-                                        />
-                                        <span className="font-mono text-scaled">
-                                            {t(
-                                                "modals.add_torrent.file_count",
-                                                {
-                                                    count: files.length,
-                                                }
-                                            )}
-                                        </span>
-                                    </div>
-                                    {!isSubmitting && (
-                                        <ToolbarIconButton
-                                            Icon={X}
-                                            ariaLabel={t(
-                                                "torrent_modal.actions.close"
-                                            )}
-                                            onPress={onCancel}
-                                            iconSize="md"
-                                        />
-                                    )}
                                 </div>
                             </div>
-                        </ModalHeader>
-                        <ModalBody className="px-stage py-panel min-h-0">
-                            <PanelGroup
-                                key={panelGroupKey}
-                                direction="horizontal"
-                                onLayout={persistLayout}
-                                className="h-full min-h-0"
+                        )}
+
+                        <PanelGroup direction="horizontal">
+                            {/* === LEFT PANEL: CONFIGURATION === */}
+                            <Panel
+                                defaultSize={50}
+                                minSize={30}
+                                className={cn(PANE_SURFACE, "bg-content1/20")}
                             >
-                                <Panel
-                                    collapsible={false}
-                                    minSize={24}
-                                    defaultSize={40}
-                                    className="min-h-0"
-                                >
-                                    <div className={PANE_SURFACE}>
-                                        <div className={PANE_SECTION}>
-                                            <div className={TOOLBAR}>
-                                                <div className={FIELD_LABEL}>
-                                                    {t(
-                                                        "modals.add_torrent.destination"
-                                                    )}
-                                                </div>
-                                            </div>
-                                            <div className="flex flex-col gap-stage">
-                                                <div
-                                                    onDrop={handleDrop}
-                                                    onDragOver={handleDragOver}
-                                                    onDragLeave={
-                                                        handleDragLeave
-                                                    }
-                                                    className={cn(
-                                                        "flex items-center gap-tools rounded-panel border p-tight",
-                                                        dropActive
-                                                            ? "border-primary/60 bg-primary/10"
-                                                            : "border-default/20 bg-content1/10"
-                                                    )}
-                                                >
-                                                    <Input
-                                                        className="flex-1"
-                                                        value={downloadDir}
-                                                        onChange={(event) =>
-                                                            setDownloadDir(
-                                                                event.target
-                                                                    .value
-                                                            )
-                                                        }
-                                                        placeholder={t(
-                                                            "modals.add_torrent.save_path_placeholder"
-                                                        )}
-                                                        size="md"
-                                                        variant="bordered"
-                                                        endContent={
-                                                            onBrowseDirectory ? (
-                                                                <Button
-                                                                    size="md"
-                                                                    variant="flat"
-                                                                    onPress={
-                                                                        handleBrowse
-                                                                    }
-                                                                    isLoading={
-                                                                        isTouchingDirectory
-                                                                    }
-                                                                >
-                                                                    {t(
-                                                                        "settings.button.browse"
-                                                                    )}
-                                                                </Button>
-                                                            ) : null
-                                                        }
-                                                    />
-                                                    <Dropdown>
-                                                        <DropdownTrigger>
-                                                            <Button
-                                                                size="md"
-                                                                variant="ghost"
-                                                                color="primary"
-                                                                startContent={
-                                                                    <StatusIcon
-                                                                        Icon={
-                                                                            FolderOpen
-                                                                        }
-                                                                        size="md"
-                                                                        className="text-current"
-                                                                    />
-                                                                }
-                                                                isDisabled={
-                                                                    !recentPaths.length
-                                                                }
-                                                            >
-                                                                {t(
-                                                                    "modals.add_torrent.history"
-                                                                )}
-                                                            </Button>
-                                                        </DropdownTrigger>
-                                                        <DropdownMenu
-                                                            aria-label={t(
-                                                                "modals.add_torrent.history"
-                                                            )}
-                                                            onAction={(path) =>
-                                                                applyDroppedPath(
-                                                                    path.toString()
-                                                                )
-                                                            }
-                                                        >
-                                                            {recentPaths.length ? (
-                                                                recentPaths.map(
-                                                                    (path) => (
-                                                                        <DropdownItem
-                                                                            key={
-                                                                                path
-                                                                            }
-                                                                            className="flex items-center justify-between gap-tools"
-                                                                        >
-                                                                            <span className="truncate">
-                                                                                {
-                                                                                    path
-                                                                                }
-                                                                            </span>
-                                                                            <span className="text-xs uppercase text-foreground/60">
-                                                                                {detectDriveKind(
-                                                                                    path
-                                                                                )}
-                                                                            </span>
-                                                                        </DropdownItem>
-                                                                    )
-                                                                )
-                                                            ) : (
-                                                                <DropdownItem
-                                                                    key="empty"
-                                                                    isDisabled
-                                                                >
-                                                                    {t(
-                                                                        "modals.add_torrent.history_empty"
-                                                                    )}
-                                                                </DropdownItem>
-                                                            )}
-                                                        </DropdownMenu>
-                                                    </Dropdown>
-                                                </div>
-                                                <div className={TOOL_GAP}>
-                                                    <div className="flex flex-col gap-tight">
-                                                        <span
-                                                            className={
-                                                                SUBTLE_META
-                                                            }
-                                                        >
-                                                            {t(
-                                                                "modals.add_torrent.free_space_label"
-                                                            )}
-                                                        </span>
-                                                        <span className="font-mono text-scaled select-text">
-                                                            {isCheckingSpace
-                                                                ? t(
-                                                                      "modals.add_torrent.free_space_loading"
-                                                                  )
-                                                                : spaceError
-                                                                ? spaceError
-                                                                : isSpaceKnown
-                                                                ? formatBytes(
-                                                                      freeSpaceBytes ??
-                                                                          0
-                                                                  )
-                                                                : t(
-                                                                      "modals.add_torrent.free_space_unknown"
-                                                                  )}
-                                                        </span>
-                                                    </div>
-                                                    <div className="flex flex-col gap-tight">
-                                                        <span
-                                                            className={
-                                                                SUBTLE_META
-                                                            }
-                                                        >
-                                                            {t(
-                                                                "modals.add_torrent.selected_size_label"
-                                                            )}
-                                                        </span>
-                                                        <span className="font-mono text-scaled select-text">
+                                <div className="p-6 flex flex-col gap-8 h-full overflow-y-auto custom-scrollbar">
+                                    {/* Group 1: Destination */}
+                                    <div
+                                        className="flex flex-col gap-3"
+                                        onDragOver={handleDragOver}
+                                        onDragLeave={handleDragLeave}
+                                        onDrop={handleDrop}
+                                    >
+                                        <div className="flex justify-between items-center">
+                                            <label className={SECTION_HEADER}>
+                                                {t(
+                                                    "modals.add_torrent.destination"
+                                                )}
+                                            </label>
+                                            {/* Free Space Micro-Gauge */}
+                                            {freeSpace && (
+                                                <div className="flex items-center gap-3">
+                                                    <div className="text-[10px] font-mono text-right">
+                                                        <div className="text-foreground/60">
                                                             {formatBytes(
-                                                                selectedSize
-                                                            )}
-                                                        </span>
+                                                                freeSpace.sizeBytes
+                                                            )}{" "}
+                                                            FREE
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            </div>
-                                            {isInsufficient && (
-                                                <p className="text-warning text-scaled">
-                                                    {t(
-                                                        "modals.add_torrent.disk_space_insufficient"
-                                                    )}
-                                                </p>
-                                            )}
-                                            <div className="flex flex-col gap-panel">
-                                                <div className="flex flex-col gap-tight">
-                                                    <span
-                                                        className={FIELD_LABEL}
-                                                    >
-                                                        {t(
-                                                            "modals.add_torrent.name_label"
+                                                    <Progress
+                                                        value={Math.min(
+                                                            100,
+                                                            (selectedSize /
+                                                                freeSpace.sizeBytes) *
+                                                                100
                                                         )}
-                                                    </span>
-                                                    <Input
-                                                        value={name}
-                                                        onChange={(event) =>
-                                                            setName(
-                                                                event.target
-                                                                    .value
-                                                            )
+                                                        color={
+                                                            selectedSize >
+                                                            freeSpace.sizeBytes
+                                                                ? "danger"
+                                                                : "success"
                                                         }
-                                                        placeholder={t(
-                                                            "modals.add_torrent.title"
-                                                        )}
-                                                        size="md"
-                                                        variant="bordered"
+                                                        size="sm"
+                                                        className="w-24"
+                                                        aria-label="Disk Usage"
                                                     />
                                                 </div>
-                                                <div className="flex flex-col gap-tight">
-                                                    <span
-                                                        className={FIELD_LABEL}
+                                            )}
+                                        </div>
+
+                                        <div className="flex gap-2 group">
+                                            <Input
+                                                value={downloadDir}
+                                                onChange={(e) =>
+                                                    setDownloadDir(
+                                                        e.target.value
+                                                    )
+                                                }
+                                                variant="flat"
+                                                classNames={{
+                                                    input: "font-mono text-sm",
+                                                    inputWrapper:
+                                                        "bg-black/20 hover:bg-black/30 transition-colors shadow-none border border-white/5 group-hover:border-white/10",
+                                                }}
+                                                startContent={
+                                                    <FolderOpen
+                                                        className="text-primary mb-0.5"
+                                                        size={16}
+                                                    />
+                                                }
+                                            />
+                                            {onBrowseDirectory && (
+                                                <Button
+                                                    onPress={handleBrowse}
+                                                    isIconOnly
+                                                    variant="flat"
+                                                    className="bg-black/20 border border-white/5"
+                                                >
+                                                    <Sparkles
+                                                        size={16}
+                                                        className="text-foreground/50"
+                                                    />
+                                                </Button>
+                                            )}
+                                            <Dropdown>
+                                                <DropdownTrigger>
+                                                    <Button
+                                                        isIconOnly
+                                                        variant="flat"
+                                                        className="bg-black/20 border border-white/5"
                                                     >
-                                                        {t(
-                                                            "modals.add_torrent.start_behavior"
-                                                        )}
-                                                    </span>
-                                                    <Dropdown>
-                                                        <DropdownTrigger>
-                                                            <Button
-                                                                variant="bordered"
-                                                                endContent={
-                                                                    <StatusIcon
-                                                                        Icon={
-                                                                            ChevronDown
+                                                        <ChevronDown
+                                                            size={16}
+                                                            className="text-foreground/50"
+                                                        />
+                                                    </Button>
+                                                </DropdownTrigger>
+                                                <DropdownMenu
+                                                    onAction={(k) =>
+                                                        applyDroppedPath(
+                                                            k.toString()
+                                                        )
+                                                    }
+                                                    aria-label="Recent Paths"
+                                                >
+                                                    {recentPaths.length > 0 ? (
+                                                        recentPaths.map((p) => (
+                                                            <DropdownItem
+                                                                key={p}
+                                                                description={detectDriveKind(
+                                                                    p
+                                                                )}
+                                                                startContent={
+                                                                    <HardDrive
+                                                                        size={
+                                                                            14
                                                                         }
-                                                                        size="md"
-                                                                        className="text-foreground/50"
                                                                     />
                                                                 }
-                                                                size="md"
                                                             >
-                                                                {commitLabel}
-                                                            </Button>
-                                                        </DropdownTrigger>
-                                                        <DropdownMenu
-                                                            aria-label={t(
-                                                                "modals.add_torrent.commit_mode_aria"
-                                                            )}
-                                                            disallowEmptySelection
-                                                            selectionMode="single"
-                                                            selectedKeys={[
-                                                                commitMode,
-                                                            ]}
-                                                            onSelectionChange={(
-                                                                keys
-                                                            ) => {
-                                                                const [value] =
-                                                                    Array.from(
-                                                                        keys
-                                                                    ) as AddTorrentCommitMode[];
-                                                                setCommitMode(
-                                                                    value
-                                                                );
-                                                            }}
+                                                                {p}
+                                                            </DropdownItem>
+                                                        ))
+                                                    ) : (
+                                                        <DropdownItem
+                                                            key="history-empty"
+                                                            isDisabled
                                                         >
-                                                            <DropdownItem key="start">
-                                                                {t(
-                                                                    "modals.add_torrent.add_and_start"
-                                                                )}
-                                                            </DropdownItem>
-                                                            <DropdownItem key="paused">
-                                                                {t(
-                                                                    "modals.add_torrent.add_paused"
-                                                                )}
-                                                            </DropdownItem>
-                                                            <DropdownItem key="top">
-                                                                {t(
-                                                                    "modals.add_torrent.add_and_start"
-                                                                )}
-                                                            </DropdownItem>
-                                                        </DropdownMenu>
-                                                    </Dropdown>
+                                                            {t(
+                                                                "modals.add_torrent.history_empty"
+                                                            )}
+                                                        </DropdownItem>
+                                                    )}
+                                                </DropdownMenu>
+                                            </Dropdown>
+                                        </div>
+
+                                        {/* Space Warning */}
+                                        {freeSpace &&
+                                            selectedSize >
+                                                freeSpace.sizeBytes && (
+                                                <div className="flex items-center gap-2 text-danger text-xs bg-danger/10 p-2 rounded-md border border-danger/20">
+                                                    <AlertTriangle size={14} />
+                                                    <span>
+                                                        Insufficient disk space
+                                                    </span>
                                                 </div>
-                                                <Accordion
-                                                    selectionMode="multiple"
-                                                    defaultExpandedKeys={[]}
-                                                    className="rounded-panel border border-default/20"
+                                            )}
+                                    </div>
+
+                                    {/* Group 2: Metadata */}
+                                    <div className="flex flex-col gap-3">
+                                        <label className={SECTION_HEADER}>
+                                            {t("modals.add_torrent.name_label")}
+                                        </label>
+                                        <Input
+                                            value={name}
+                                            onChange={(e) =>
+                                                setName(e.target.value)
+                                            }
+                                            variant="bordered"
+                                            classNames={{
+                                                inputWrapper:
+                                                    "border-white/10 hover:border-white/20 bg-transparent",
+                                            }}
+                                        />
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="flex flex-col gap-3">
+                                            <label className={SECTION_HEADER}>
+                                                {t(
+                                                    "modals.add_torrent.start_behavior"
+                                                )}
+                                            </label>
+                                            <Select
+                                                selectedKeys={[commitMode]}
+                                                onChange={(e) =>
+                                                    setCommitMode(
+                                                        e.target.value as any
+                                                    )
+                                                }
+                                                variant="bordered"
+                                                classNames={{
+                                                    trigger:
+                                                        "border-white/10 hover:border-white/20 bg-transparent",
+                                                }}
+                                            >
+                                                <SelectItem
+                                                    key="start"
+                                                    startContent={
+                                                        <PlayCircle
+                                                            size={14}
+                                                            className="text-success"
+                                                        />
+                                                    }
                                                 >
-                                                    <AccordionItem
-                                                        key="advanced"
-                                                        aria-label={t(
-                                                            "modals.add_torrent.advanced_options_aria"
-                                                        )}
-                                                        title={t(
-                                                            "modals.add_torrent.advanced"
-                                                        )}
-                                                        indicator={
-                                                            <StatusIcon
-                                                                Icon={ChevronUp}
-                                                                size="md"
-                                                                className="text-foreground/40"
-                                                            />
-                                                        }
-                                                    >
-                                                        <div className="flex flex-col gap-panel">
-                                                            <Select
-                                                                label={t(
-                                                                    "modals.add_torrent.category"
-                                                                )}
-                                                                placeholder={t(
-                                                                    "modals.add_torrent.category"
-                                                                )}
-                                                                selectedKeys={
-                                                                    category
-                                                                        ? [
-                                                                              category,
-                                                                          ]
-                                                                        : []
-                                                                }
-                                                                onSelectionChange={(
-                                                                    keys
-                                                                ) => {
-                                                                    const [
-                                                                        value,
-                                                                    ] =
-                                                                        Array.from(
-                                                                            keys
-                                                                        );
-                                                                    setCategory(
-                                                                        value?.toString() ??
-                                                                            null
-                                                                    );
-                                                                }}
-                                                                variant="bordered"
-                                                                size="md"
-                                                            >
-                                                                <SelectItem key="default">
-                                                                    {t(
-                                                                        "nav.filter_all"
-                                                                    )}
-                                                                </SelectItem>
-                                                            </Select>
-                                                            <Checkbox
-                                                                isSelected={
-                                                                    sequential
-                                                                }
-                                                                onValueChange={
-                                                                    setSequential
-                                                                }
-                                                            >
-                                                                {t(
-                                                                    "modals.add_torrent.sequential_download"
-                                                                )}
-                                                            </Checkbox>
-                                                            <Checkbox
-                                                                isSelected={
-                                                                    skipHashCheck
-                                                                }
-                                                                onValueChange={
-                                                                    setSkipHashCheck
-                                                                }
-                                                            >
-                                                                {t(
-                                                                    "modals.add_torrent.skip_hash_check"
-                                                                )}
-                                                            </Checkbox>
-                                                        </div>
-                                                    </AccordionItem>
-                                                </Accordion>
-                                            </div>
+                                                    Add & Start
+                                                </SelectItem>
+                                                <SelectItem
+                                                    key="paused"
+                                                    startContent={
+                                                        <PauseCircle
+                                                            size={14}
+                                                            className="text-warning"
+                                                        />
+                                                    }
+                                                >
+                                                    Add Paused
+                                                </SelectItem>
+                                            </Select>
                                         </div>
                                     </div>
-                                </Panel>
-                                <PanelResizeHandle
-                                    className="group relative flex items-center justify-center cursor-col-resize"
-                                    hitAreaMargins={{ coarse: 10, fine: 10 }}
-                                >
-                                    <div
-                                        className="h-full bg-foreground/0 group-hover:bg-foreground/10 transition-colors"
-                                        style={{ width: "var(--gap-tools)" }}
-                                    />
-                                </PanelResizeHandle>
-                                <Panel minSize={36} className="min-h-0">
-                                    <div className={PANE_SURFACE}>
-                                        <div className={PANE_SECTION}>
-                                            <div className={TOOLBAR}>
-                                                <div className={FIELD_LABEL}>
-                                                    {t(
-                                                        "modals.add_torrent.files_title"
-                                                    )}
-                                                </div>
-                                                <div className={TOOL_GAP}>
-                                                    <Input
-                                                        value={filter}
-                                                        onChange={(event) =>
-                                                            setFilter(
-                                                                event.target
-                                                                    .value
-                                                            )
+
+                                    {/* Group 3: Advanced */}
+                                    <Accordion
+                                        variant="light"
+                                        className="px-0 border-t border-white/5 pt-2"
+                                        itemClasses={{
+                                            title: "text-sm text-foreground/80",
+                                            trigger: "py-2",
+                                        }}
+                                    >
+                                        <AccordionItem
+                                            key="1"
+                                            aria-label="Options"
+                                            title="Transfer Options"
+                                            subtitle={
+                                                <span className="text-xs text-foreground/40">
+                                                    Category, Sequential, Hash
+                                                    Check
+                                                </span>
+                                            }
+                                        >
+                                            <div className="space-y-4 pt-2 pb-2 pl-1">
+                                                <Input
+                                                    label="Category"
+                                                    labelPlacement="outside"
+                                                    placeholder="No category"
+                                                    value={category || ""}
+                                                    onChange={(e) =>
+                                                        setCategory(
+                                                            e.target.value
+                                                        )
+                                                    }
+                                                    size="sm"
+                                                    variant="bordered"
+                                                />
+                                                <div className="flex flex-col gap-3">
+                                                    <Checkbox
+                                                        isSelected={sequential}
+                                                        onValueChange={
+                                                            setSequential
                                                         }
-                                                        placeholder={t(
-                                                            "modals.add_torrent.filter_placeholder"
-                                                        )}
-                                                        size="md"
-                                                        variant="bordered"
-                                                        className="w-full"
-                                                        data-modal-skip-submit="true"
-                                                        onKeyDown={(e) => {
-                                                            // Prevent Enter in the filter input from submitting the form
-                                                            if (
-                                                                (
-                                                                    e as React.KeyboardEvent<HTMLInputElement>
-                                                                ).key ===
-                                                                "Enter"
-                                                            ) {
-                                                                (
-                                                                    e as React.KeyboardEvent<HTMLInputElement>
-                                                                ).preventDefault();
-                                                                (
-                                                                    e as React.KeyboardEvent<HTMLInputElement>
-                                                                ).stopPropagation();
-                                                            }
+                                                        size="sm"
+                                                        classNames={{
+                                                            label: "text-foreground/70",
                                                         }}
-                                                    />
-                                                    <Dropdown>
-                                                        <DropdownTrigger>
-                                                            <Button
-                                                                variant="bordered"
-                                                                size="md"
-                                                                startContent={
-                                                                    <StatusIcon
-                                                                        Icon={
-                                                                            Wand2
-                                                                        }
-                                                                        size="md"
-                                                                        className="text-foreground/50"
-                                                                    />
-                                                                }
-                                                            >
-                                                                {t(
-                                                                    "modals.add_torrent.smart_select"
-                                                                )}
-                                                            </Button>
-                                                        </DropdownTrigger>
-                                                        <DropdownMenu
-                                                            aria-label={t(
-                                                                "modals.add_torrent.smart_select_aria"
-                                                            )}
-                                                            onAction={(key) =>
-                                                                handleSmartSelect(
-                                                                    key as SmartSelectCommand
-                                                                )
-                                                            }
-                                                        >
-                                                            <DropdownItem key="videos">
-                                                                {t(
-                                                                    "modals.add_torrent.smart_select_videos"
-                                                                )}
-                                                            </DropdownItem>
-                                                            <DropdownItem key="largest">
-                                                                {t(
-                                                                    "modals.add_torrent.smart_select_largest"
-                                                                )}
-                                                            </DropdownItem>
-                                                            <DropdownItem key="invert">
-                                                                {t(
-                                                                    "modals.add_torrent.smart_select_invert"
-                                                                )}
-                                                            </DropdownItem>
-                                                        </DropdownMenu>
-                                                    </Dropdown>
+                                                    >
+                                                        Sequential Download
+                                                    </Checkbox>
+                                                    <Checkbox
+                                                        isSelected={
+                                                            skipHashCheck
+                                                        }
+                                                        onValueChange={
+                                                            setSkipHashCheck
+                                                        }
+                                                        size="sm"
+                                                        classNames={{
+                                                            label: "text-foreground/70",
+                                                        }}
+                                                    >
+                                                        Skip Hash Check
+                                                    </Checkbox>
                                                 </div>
                                             </div>
-                                            {resolvedState === "pending" && (
-                                                <div className="flex flex-col items-center justify-center flex-1 gap-panel text-center">
-                                                    <Spinner />
-                                                    <p className={SUBTLE_META}>
-                                                        {t(
-                                                            "modals.add_magnet.resolving"
-                                                        )}
-                                                    </p>
-                                                </div>
-                                            )}
-                                            {resolvedState === "error" && (
-                                                <div className="flex flex-col items-center justify-center flex-1 gap-panel text-center">
-                                                    <StatusIcon
-                                                        Icon={Sparkles}
-                                                        size="lg"
-                                                        className="text-warning"
+                                        </AccordionItem>
+                                    </Accordion>
+                                </div>
+                            </Panel>
+
+                            {/* === RESIZE HANDLE === */}
+                            <PanelResizeHandle className="w-4 flex items-center justify-center bg-transparent -ml-2 z-10 hover:bg-primary/5 transition-colors cursor-col-resize group focus:outline-none relative">
+                                <div className="absolute inset-y-0 left-1/2 w-[1px] bg-white/5 group-hover:bg-primary/50 transition-colors" />
+                                <div className="relative bg-content1 border border-white/10 rounded-full p-0.5 shadow-xl opacity-0 group-hover:opacity-100 transition-opacity transform scale-75 group-hover:scale-100 duration-200">
+                                    <GripVertical
+                                        size={12}
+                                        className="text-foreground"
+                                    />
+                                </div>
+                            </PanelResizeHandle>
+
+                            {/* === RIGHT PANEL: FILE MANAGER === */}
+                            <Panel
+                                defaultSize={50}
+                                minSize={30}
+                                className={PANE_SURFACE}
+                            >
+                                <div className="flex flex-col h-full bg-black/10">
+                                    {/* Toolbar */}
+                                    <div className="p-3 border-b border-white/5 flex gap-2 items-center bg-white/5 backdrop-blur-sm">
+                                        <Input
+                                            value={filter}
+                                            onChange={(e) =>
+                                                setFilter(e.target.value)
+                                            }
+                                            placeholder="Filter files..."
+                                            startContent={
+                                                <Wand2
+                                                    size={14}
+                                                    className="text-foreground/30"
+                                                />
+                                            }
+                                            size="sm"
+                                            className="w-full"
+                                            variant="flat"
+                                            classNames={{
+                                                inputWrapper:
+                                                    "bg-black/20 border border-white/5 group-hover:border-white/10",
+                                            }}
+                                            isClearable
+                                            onClear={() => setFilter("")}
+                                        />
+                                        <Dropdown>
+                                            <DropdownTrigger>
+                                                <Button
+                                                    size="sm"
+                                                    variant="flat"
+                                                    className="bg-black/20 border border-white/5 min-w-8 px-2"
+                                                >
+                                                    <Sparkles
+                                                        size={16}
+                                                        className="text-primary"
                                                     />
-                                                    <p className="text-warning">
-                                                        {magnetErrorMessage ??
-                                                            t(
-                                                                "modals.add_torrent.free_space_unknown"
-                                                            )}
-                                                    </p>
-                                                    {onResolveMagnet && (
+                                                </Button>
+                                            </DropdownTrigger>
+                                            <DropdownMenu
+                                                onAction={(k) =>
+                                                    handleSmartSelect(k as any)
+                                                }
+                                                aria-label="Smart Select"
+                                            >
+                                                <DropdownItem
+                                                    key="videos"
+                                                    startContent={
+                                                        <FileVideo size={14} />
+                                                    }
+                                                >
+                                                    Select Videos
+                                                </DropdownItem>
+                                                <DropdownItem
+                                                    key="largest"
+                                                    startContent={
+                                                        <ArrowDown size={14} />
+                                                    }
+                                                >
+                                                    Select Largest
+                                                </DropdownItem>
+                                                <DropdownItem
+                                                    key="invert"
+                                                    showDivider
+                                                >
+                                                    Invert Selection
+                                                </DropdownItem>
+                                            </DropdownMenu>
+                                        </Dropdown>
+                                    </div>
+
+                                    {/* Content Area */}
+                                    <div className="flex-1 min-h-0 flex flex-col relative">
+                                        {resolvedState !== "ready" ? (
+                                            <div className="absolute inset-0 flex flex-col items-center justify-center text-foreground/40 gap-4 z-20 bg-background/50 backdrop-blur-sm">
+                                                {resolvedState === "pending" ? (
+                                                    <Spinner
+                                                        size="lg"
+                                                        color="primary"
+                                                    />
+                                                ) : (
+                                                    <StatusIcon
+                                                        Icon={AlertTriangle}
+                                                        className="text-danger"
+                                                        size="lg"
+                                                    />
+                                                )}
+                                                <p className="font-mono text-sm uppercase tracking-widest">
+                                                    {resolvedState === "pending"
+                                                        ? "Resolving Metadata..."
+                                                        : "Magnet Error"}
+                                                </p>
+                                                {resolvedState === "error" &&
+                                                    onResolveMagnet && (
                                                         <Button
-                                                            size="md"
-                                                            variant="shadow"
+                                                            size="sm"
                                                             color="primary"
                                                             onPress={
                                                                 onResolveMagnet
@@ -1357,150 +1066,144 @@ export function AddTorrentModal({
                                                             isLoading={
                                                                 isResolvingSource
                                                             }
-                                                            isDisabled={
-                                                                isResolvingSource
-                                                            }
                                                         >
-                                                            {isResolvingSource
-                                                                ? t(
-                                                                      "modals.add_magnet.resolving"
-                                                                  )
-                                                                : t(
-                                                                      "modals.disk_gauge.retry"
-                                                                  )}
+                                                            Retry
                                                         </Button>
                                                     )}
-                                                </div>
-                                            )}
-                                            {resolvedState === "ready" &&
-                                                (shouldShowHero ? (
-                                                    renderHeroCard()
-                                                ) : (
-                                                    <div className="flex flex-col min-h-0 gap-tight">
-                                                        <div
-                                                            className="grid text-label font-semibold tracking-label uppercase text-foreground/60 px-panel"
-                                                            style={{
-                                                                gridTemplateColumns:
-                                                                    FILE_GRID_TEMPLATE,
-                                                            }}
-                                                        >
-                                                            <span>
-                                                                {t(
-                                                                    "modals.add_torrent.col_select"
-                                                                )}
-                                                            </span>
-                                                            <span>
-                                                                {t(
-                                                                    "modals.add_torrent.col_name"
-                                                                )}
-                                                            </span>
-                                                            <span className="text-right">
-                                                                {t(
-                                                                    "modals.add_torrent.col_size"
-                                                                )}
-                                                            </span>
-                                                            <span className="text-right">
-                                                                {t(
-                                                                    "modals.add_torrent.col_priority"
-                                                                )}
-                                                            </span>
-                                                        </div>
-                                                        <div
-                                                            ref={
-                                                                scrollParentRef
-                                                            }
-                                                            className="flex-1 min-h-0 overflow-auto overlay-scrollbar rounded-panel border border-default/20"
-                                                        >
-                                                            <div
-                                                                style={{
-                                                                    height: virtualizer.getTotalSize(),
-                                                                    position:
-                                                                        "relative",
-                                                                }}
-                                                            >
-                                                                {virtualizer
-                                                                    .getVirtualItems()
-                                                                    .map(
-                                                                        (
-                                                                            item
-                                                                        ) => {
-                                                                            const file =
-                                                                                filteredFiles[
-                                                                                    item
-                                                                                        .index
-                                                                                ];
-                                                                            if (
-                                                                                !file
-                                                                            )
-                                                                                return null;
-                                                                            return (
-                                                                                <div
-                                                                                    key={
-                                                                                        file.index
-                                                                                    }
-                                                                                    style={{
-                                                                                        position:
-                                                                                            "absolute",
-                                                                                        top: item.start,
-                                                                                        left: 0,
-                                                                                        right: 0,
-                                                                                    }}
-                                                                                >
-                                                                                    {renderFileRow(
-                                                                                        file
-                                                                                    )}
-                                                                                </div>
-                                                                            );
-                                                                        }
-                                                                    )}
-                                                            </div>
-                                                        </div>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                {/* Sticky Table Header */}
+                                                <div
+                                                    className="grid border-b border-white/5 bg-white/5 backdrop-blur-md text-[10px] uppercase font-bold tracking-wider text-foreground/40 select-none z-10"
+                                                    style={{
+                                                        gridTemplateColumns:
+                                                            FILE_GRID_TEMPLATE,
+                                                        height: "32px",
+                                                    }}
+                                                >
+                                                    <div className="flex items-center justify-center h-full">
+                                                        <CheckCircle2
+                                                            size={12}
+                                                        />
                                                     </div>
-                                                ))}
-                                        </div>
+                                                    <div className="flex items-center h-full">
+                                                        Name
+                                                    </div>
+                                                    <div className="flex items-center h-full font-mono">
+                                                        Size
+                                                    </div>
+                                                    <div className="flex items-center h-full pl-2">
+                                                        Priority
+                                                    </div>
+                                                </div>
+
+                                                {/* Virtual List */}
+                                                <div
+                                                    ref={scrollParentRef}
+                                                    className="flex-1 overflow-y-auto custom-scrollbar"
+                                                >
+                                                    <div
+                                                        style={{
+                                                            height: virtualizer.getTotalSize(),
+                                                            position:
+                                                                "relative",
+                                                        }}
+                                                    >
+                                                        {virtualizer
+                                                            .getVirtualItems()
+                                                            .map(
+                                                                (
+                                                                    virtualItem
+                                                                ) => (
+                                                                    <div
+                                                                        key={
+                                                                            virtualItem.key
+                                                                        }
+                                                                        style={{
+                                                                            position:
+                                                                                "absolute",
+                                                                            top: 0,
+                                                                            left: 0,
+                                                                            width: "100%",
+                                                                            transform: `translateY(${virtualItem.start}px)`,
+                                                                        }}
+                                                                    >
+                                                                        {renderFileRow(
+                                                                            filteredFiles[
+                                                                                virtualItem
+                                                                                    .index
+                                                                            ]
+                                                                        )}
+                                                                    </div>
+                                                                )
+                                                            )}
+                                                    </div>
+                                                </div>
+
+                                                {/* Selection Footer Stats */}
+                                                <div className="border-t border-white/5 p-2 text-xs font-mono text-center text-foreground/30 bg-black/20">
+                                                    {selected.size} /{" "}
+                                                    {files.length} files
+                                                    selected (
+                                                    {formatBytes(selectedSize)})
+                                                </div>
+                                            </>
+                                        )}
                                     </div>
-                                </Panel>
-                            </PanelGroup>
-                        </ModalBody>
-                        <ModalFooter className="px-stage py-panel border-t border-default flex items-center justify-between gap-tools">
-                            <div className="flex items-center gap-tools text-foreground/70">
-                                <StatusIcon
-                                    Icon={HardDrive}
-                                    size="md"
-                                    className="text-foreground/70"
+                                </div>
+                            </Panel>
+                        </PanelGroup>
+                    </ModalBody>
+
+                    {/* --- FOOTER --- */}
+                    <ModalFooter className="flex justify-between items-center gap-6">
+                        <div className="flex items-center gap-3 overflow-hidden">
+                            <div className="size-8 rounded-lg bg-white/5 flex items-center justify-center shrink-0">
+                                <HardDrive
+                                    size={16}
+                                    className="text-foreground/50"
                                 />
-                                <span className="font-mono text-scaled select-text">
+                            </div>
+                            <div className="flex flex-col min-w-0">
+                                <span className="text-[10px] uppercase tracking-wider text-foreground/40 font-bold">
+                                    Save Path
+                                </span>
+                                <span
+                                    className="font-mono text-xs truncate text-foreground/80"
+                                    title={downloadDir}
+                                >
                                     {downloadDir}
                                 </span>
                             </div>
-                            <div className="flex items-center gap-tools">
-                                <Button
-                                    variant="light"
-                                    onPress={onCancel}
-                                    isDisabled={isSubmitting}
-                                >
-                                    {t("modals.cancel")}
-                                </Button>
-                                <Button
-                                    type="submit"
-                                    color="primary"
-                                    variant="shadow"
-                                    isDisabled={!canConfirm}
-                                    isLoading={isSubmitting}
-                                    startContent={
-                                        <StatusIcon
-                                            Icon={ArrowDown}
-                                            size="md"
-                                            className="text-current"
-                                        />
-                                    }
-                                >
-                                    {commitLabel}
-                                </Button>
-                            </div>
-                        </ModalFooter>
-                    </form>
-                )}
+                        </div>
+                        <div className="flex gap-3 shrink-0">
+                            <Button
+                                variant="light"
+                                onPress={onCancel}
+                                isDisabled={isSubmitting}
+                                className="font-medium"
+                            >
+                                {t("modals.cancel")}
+                            </Button>
+                            <Button
+                                color="primary"
+                                variant="shadow"
+                                onPress={() => formRef.current?.requestSubmit()}
+                                isLoading={isSubmitting}
+                                isDisabled={!canConfirm}
+                                startContent={
+                                    !isSubmitting && <ArrowDown size={16} />
+                                }
+                                className="font-bold px-6"
+                            >
+                                {commitMode === "paused"
+                                    ? "Add Paused"
+                                    : "Add & Start"}
+                            </Button>
+                        </div>
+                    </ModalFooter>
+                </form>
             </ModalContent>
         </Modal>
     );
