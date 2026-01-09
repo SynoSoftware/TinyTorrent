@@ -5,6 +5,10 @@ import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import type { ReportCommandErrorFn } from "@/shared/types/rpc";
 import { isRpcCommandError } from "@/services/rpc/errors";
+import type {
+    RecoveryGateAction,
+    RecoveryGateCallback,
+} from "@/app/types/recoveryGate";
 
 interface UseTorrentActionsParams {
     torrentClient: EngineAdapter;
@@ -14,6 +18,7 @@ interface UseTorrentActionsParams {
     refreshSessionStatsData: () => Promise<void>;
     reportCommandError: ReportCommandErrorFn;
     isMountedRef: MutableRefObject<boolean>;
+    requestRecovery?: RecoveryGateCallback;
 }
 
 interface RefreshOptions {
@@ -31,6 +36,7 @@ export function useTorrentActions({
     refreshSessionStatsData,
     reportCommandError,
     isMountedRef,
+    requestRecovery,
 }: UseTorrentActionsParams) {
     const runWithRefresh = useCallback(
         async (operation: () => Promise<void>, options?: RefreshOptions) => {
@@ -62,6 +68,37 @@ export function useTorrentActions({
         ]
     );
 
+    const shouldRunRecovery = useCallback(
+        async (action: TorrentTableAction, target: Torrent) => {
+            if (!requestRecovery) {
+                if (
+                    import.meta.env.DEV &&
+                    target.errorEnvelope
+                ) {
+                    console.error(
+                        "Recovery gate missing for action",
+                        action,
+                        target.errorEnvelope.errorClass
+                    );
+                }
+                return true;
+            }
+            if (action !== "resume" && action !== "recheck") {
+                return true;
+            }
+            const gateAction = (action === "resume"
+                ? "resume"
+                : "recheck") as RecoveryGateAction;
+            const result = await requestRecovery({
+                torrent: target,
+                action: gateAction,
+            });
+            if (!result) return true;
+            return result.status === "continue";
+        },
+        [requestRecovery]
+    );
+
     const handleTorrentAction = useCallback(
         async (
             action: TorrentTableAction,
@@ -74,8 +111,10 @@ export function useTorrentActions({
             if (action === "pause") {
                 await runWithRefresh(() => torrentClient.pause(ids));
             } else if (action === "resume") {
+                if (!(await shouldRunRecovery(action, torrent))) return;
                 await runWithRefresh(() => torrentClient.resume(ids));
             } else if (action === "recheck") {
+                if (!(await shouldRunRecovery(action, torrent))) return;
                 await runWithRefresh(() => torrentClient.verify(ids));
             } else if (action === "remove") {
                 await runWithRefresh(() =>
@@ -93,7 +132,7 @@ export function useTorrentActions({
                 await runWithRefresh(() => queueActions.moveToBottom(ids));
             }
         },
-        [queueActions, runWithRefresh, torrentClient]
+        [queueActions, runWithRefresh, torrentClient, shouldRunRecovery]
     );
 
     const handleOpenFolder = useCallback(

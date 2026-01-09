@@ -118,18 +118,7 @@ interface WorkspaceShellProps {
     onResume?: (torrent: TorrentDetail) => Promise<void> | void;
     capabilities: CapabilityStore;
     optimisticStatuses: OptimisticStatusMap;
-    // Recovery props
-    recoveryPlan?:
-        | import("@/services/recovery/recovery-controller").RecoveryPlan
-        | null;
-    recoveryCallbacks?:
-        | import("@/modules/dashboard/hooks/useRecoveryController").RecoveryCallbacks
-        | null;
-    isRecoveryBusy?: boolean;
-    lastRecoveryOutcome?:
-        | import("@/services/recovery/recovery-controller").RecoveryOutcome
-        | null;
-    recoveryRequestBrowse?: (currentPath?: string) => Promise<string | null>;
+    isDetailRecoveryBlocked?: boolean;
     handleSelectionChange: (selection: Torrent[]) => void;
     handleActiveRowChange: (torrent: Torrent | null) => void;
     handleOpenFolder: (torrent: Torrent) => Promise<void>;
@@ -202,12 +191,7 @@ export function WorkspaceShell({
     onSetLocation,
     onRedownload,
     onRetry,
-    // Recovery props forwarded from host
-    recoveryPlan,
-    recoveryCallbacks,
-    isRecoveryBusy,
-    lastRecoveryOutcome,
-    recoveryRequestBrowse,
+    isDetailRecoveryBlocked,
     capabilities,
     optimisticStatuses,
     handleSelectionChange,
@@ -320,12 +304,6 @@ export function WorkspaceShell({
             onSetLocation={onSetLocation}
             onRedownload={onRedownload}
             onRetry={onRetry}
-            // Recovery wiring (controller-driven)
-            recoveryPlan={recoveryPlan}
-            recoveryCallbacks={recoveryCallbacks}
-            isRecoveryBusy={isRecoveryBusy}
-            lastRecoveryOutcome={lastRecoveryOutcome}
-            recoveryRequestBrowse={recoveryRequestBrowse}
             capabilities={capabilities}
             optimisticStatuses={optimisticStatuses}
             peerSortStrategy={peerSortStrategy}
@@ -337,6 +315,7 @@ export function WorkspaceShell({
             onActiveRowChange={handleActiveRowChange}
             onOpenFolder={handleOpenFolder}
             tableWatermarkEnabled={tableWatermarkEnabled}
+            isDetailRecoveryBlocked={isDetailRecoveryBlocked}
         />
     );
 
