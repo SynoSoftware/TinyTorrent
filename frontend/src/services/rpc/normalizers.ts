@@ -1,5 +1,3 @@
-// FILE: src/services/rpc/normalizers.ts
-
 import type {
     TransmissionTorrent,
     TransmissionTorrentDetail,
@@ -15,10 +13,6 @@ import type {
     TorrentFileEntity,
     TorrentPeerEntity,
     TorrentTrackerEntity,
-    ErrorEnvelope,
-    ErrorClass,
-    RecoveryState,
-    RecoveryAction,
 } from "./entities";
 import { buildErrorEnvelope } from "./recovery";
 import STATUS, { type TorrentStatus } from "@/shared/status";
@@ -61,7 +55,7 @@ const normalizeErrorString = (value: unknown) => {
 const numOr = (value: unknown, fallback: number) =>
     typeof value === "number" && Number.isFinite(value) ? value : fallback;
 
-const deriveTorrentState = (
+export const deriveTorrentState = (
     base: TorrentStatus,
     torrent: Pick<
         TransmissionTorrent,

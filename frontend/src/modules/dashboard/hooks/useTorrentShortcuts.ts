@@ -9,6 +9,7 @@ interface UseTorrentShortcutsProps {
     selectedTorrents: Torrent[];
     selectAll: () => void;
     onAction?: (action: TorrentTableAction, torrent: Torrent) => void;
+    onBulkAction?: (action: TorrentTableAction) => void;
     onRequestDetails?: (torrent: Torrent) => void;
 }
 
@@ -17,6 +18,7 @@ export function useTorrentShortcuts({
     selectedTorrents,
     selectAll,
     onAction,
+    onBulkAction,
     onRequestDetails,
 }: UseTorrentShortcutsProps) {
     const hasSelection = selectedTorrents.length > 0;
@@ -41,13 +43,17 @@ export function useTorrentShortcuts({
         KEYMAP[ShortcutIntent.Delete],
         (event) => {
             event.preventDefault();
+            if (onBulkAction && hasSelection) {
+                void onBulkAction("remove");
+                return;
+            }
             if (!onAction || !hasSelection) return;
             selectedTorrents.forEach((torrent) => {
                 onAction("remove", torrent);
             });
         },
-        { scopes: scope, enabled: hasSelection && Boolean(onAction) },
-        [hasSelection, onAction, selectedTorrents]
+        { scopes: scope, enabled: hasSelection && Boolean(onAction || onBulkAction) },
+        [hasSelection, onAction, onBulkAction, selectedTorrents]
     );
 
     useHotkeys(
@@ -96,12 +102,16 @@ export function useTorrentShortcuts({
         KEYMAP[ShortcutIntent.RemoveWithData],
         (event) => {
             event.preventDefault();
+            if (onBulkAction && hasSelection) {
+                void onBulkAction("remove-with-data");
+                return;
+            }
             if (!onAction || !hasSelection) return;
             selectedTorrents.forEach((torrent) => {
                 onAction("remove-with-data", torrent);
             });
         },
-        { scopes: scope, enabled: hasSelection && Boolean(onAction) },
-        [hasSelection, onAction, selectedTorrents]
+        { scopes: scope, enabled: hasSelection && Boolean(onAction || onBulkAction) },
+        [hasSelection, onAction, onBulkAction, selectedTorrents]
     );
 }

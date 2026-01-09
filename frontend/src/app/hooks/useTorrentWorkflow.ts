@@ -28,6 +28,7 @@ export function useTorrentWorkflow({
     torrents,
     selectedTorrents,
     executeTorrentAction,
+    executeBulkRemove,
 }: UseTorrentWorkflowParams) {
     const { t } = useTranslation();
     const { announceAction, showFeedback } = useActionFeedback();

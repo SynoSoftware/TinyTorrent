@@ -17,7 +17,6 @@ import type {
     SystemInstallOptions,
     SystemInstallResult,
 } from "./types";
-import { HeartbeatManager } from "./heartbeat";
 import type {
     HeartbeatSubscriberParams,
     HeartbeatSubscription,
@@ -80,15 +79,7 @@ export interface EngineAdapter {
     systemHandlerEnable?(): Promise<void>;
     systemHandlerDisable?(): Promise<void>;
     createDirectory?(path: string): Promise<void>;
-    /**
-     * Retrieve the recent speed history buffer for a torrent.
-     * Implementations should return arrays with a fixed length (history points).
-     */
     getSpeedHistory?(id: string): Promise<{ down: number[]; up: number[] }>;
-    // Destroy the adapter and synchronously release resources (timers, sockets, controllers)
     destroy?(): void;
-    // Reset local connection state without issuing network mutating RPCs.
-    // This signals the adapter/transport to forget its session token so the
-    // next request will trigger the Session-ID handshake again.
     resetConnection?(): void;
 }

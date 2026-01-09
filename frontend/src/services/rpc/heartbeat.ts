@@ -108,6 +108,7 @@ export class HeartbeatManager {
     // intervals to reduce CPU/network. Default multiplier chosen conservatively.
     // Short-term cache of recently-removed ids to dedupe repeated server deltas
     // that may re-send the same `removed` ids until a full-sync completes.
+
     private recentRemoved = new Map<string, number>();
     private visibilityMultiplier = 1;
     private visibilityHandler?: () => void;
@@ -125,7 +126,6 @@ export class HeartbeatManager {
                 performance?: { history_data_points?: number };
             }
         )?.performance?.history_data_points ?? 60;
-
     private computeHash(torrents: TorrentEntity[]) {
         // Stringify is the absolute authority on data changes.
         // This removes the "Cleverness Trap" of manual property picking.
@@ -219,7 +219,7 @@ export class HeartbeatManager {
         }
     }
 
-    public getSpeedHistory(id: string) {
+    public getSpeedHistory(id: string): { down: number[]; up: number[] } {
         const size = this.historySize;
         const entry = this.speedHistory.get(id);
         if (!entry) {
@@ -625,17 +625,20 @@ export class HeartbeatManager {
                     typeof clientDelta.getRecentlyActive === "function";
                 const forceFull = this.cycleCount >= this.MAX_DELTA_CYCLES;
 
+                // --- 1. Fetch Global Stats ---
+                const sessionStatsCall = this.client.getSessionStats();
+
                 if (supportsDelta && !forceFull) {
                     try {
                         const telemetryClient = this
                             .client as HeartbeatClientWithTelemetry;
+
                         const recentActiveCall = (
                             clientDelta.getRecentlyActive as () => Promise<{
                                 torrents: TorrentEntity[];
                                 removed?: number[];
                             }>
                         )();
-                        const sessionStatsCall = this.client.getSessionStats();
                         const telemetryCall =
                             typeof telemetryClient.fetchNetworkTelemetry ===
                             "function"
@@ -650,53 +653,26 @@ export class HeartbeatManager {
                             ]);
                         fetchedSessionStats = stats;
 
-                        // Diagnostic: indicate whether we used a delta and its size
+                        // --- 2. Structural Merge (Delta) ---
+                        const prevTorrents = this.lastTorrents ?? [];
+                        const map = new Map<string, TorrentEntity>();
+                        for (const t of prevTorrents) map.set(String(t.id), t);
+                        let leftoverResyncTriggered = false;
+                        let shouldDiag = false;
                         try {
-                            const shouldDiagLocal =
+                            if (
                                 typeof sessionStorage !== "undefined" &&
                                 sessionStorage.getItem(
                                     "tt-debug-removed-diagnostics"
-                                ) === "1";
-                            if (shouldDiagLocal) {
-                                // prevTorrents is declared just below; reference safely
-                                const prevCount = (this.lastTorrents ?? [])
-                                    .length;
-                                console.debug(
-                                    "[tiny-torrent][heartbeat][delta-response]",
-                                    {
-                                        prevCount,
-                                        deltaTorrents:
-                                            delta?.torrents?.length ?? 0,
-                                        deltaRemoved:
-                                            delta?.removed?.length ?? 0,
-                                    }
-                                );
+                                ) === "1"
+                            ) {
+                                shouldDiag = true;
                             }
                         } catch {
-                            /* ignore sessionStorage errors */
+                            // ignore
                         }
-                        // Merge delta into existing snapshot using string keys
-                        const prevTorrents = this.lastTorrents ?? [];
-                        const map = new Map<string, TorrentEntity>();
-                        // Canonicalize keys to string so removal ids (which
-                        // may be numeric or string) delete reliably.
-                        for (const t of prevTorrents) map.set(String(t.id), t);
-                        // Diagnostic flag for optional logs
-                        let shouldDiag = false;
-                        // Apply removals (normalize removed ids to string)
-                        if (delta && Array.isArray(delta.removed)) {
-                            try {
-                                shouldDiag =
-                                    typeof sessionStorage !== "undefined" &&
-                                    sessionStorage.getItem(
-                                        "tt-debug-removed-diagnostics"
-                                    ) === "1";
-                            } catch {
-                                /* ignore sessionStorage errors */
-                            }
 
-                            // Compute whether all removals will be no-ops (either skipped
-                            // due to recent handling or absent from the prior snapshot).
+                        if (delta && Array.isArray(delta.removed)) {
                             const now = Date.now();
                             const removedWillBeNoop = delta.removed.every(
                                 (id) => {
@@ -708,9 +684,7 @@ export class HeartbeatManager {
                                         now - lastSeen < RECENT_REMOVED_TTL_MS
                                     )
                                         return true;
-                                    // Present in current map (derived from prevTorrents)
                                     if (map.has(key)) return false;
-                                    // Present by rpcId in map
                                     for (const v of map.values()) {
                                         if (
                                             v.rpcId != null &&
@@ -723,29 +697,19 @@ export class HeartbeatManager {
                                             return false;
                                         }
                                     }
-                                    // If not present, it's an absent removal (no-op)
                                     return true;
                                 }
                             );
-
                             if (shouldDiag) {
-                                if (!removedWillBeNoop) {
-                                    console.debug(
-                                        "[tiny-torrent][heartbeat][removed]",
-                                        { removed: delta.removed }
-                                    );
-                                } else {
-                                    console.debug(
-                                        "[tiny-torrent][heartbeat][removed-quiet]",
-                                        { removed: delta.removed }
-                                    );
-                                }
+                                console.debug(
+                                    removedWillBeNoop
+                                        ? "[tiny-torrent][heartbeat][removed-quiet]"
+                                        : "[tiny-torrent][heartbeat][removed]",
+                                    { removed: delta.removed }
+                                );
                             }
-
                             for (const id of delta.removed) {
                                 const key = String(id);
-
-                                // Ignore if we've seen and handled this removed id recently.
                                 const lastSeen = this.recentRemoved.get(key);
                                 if (
                                     lastSeen &&
@@ -759,11 +723,9 @@ export class HeartbeatManager {
                                     }
                                     continue;
                                 }
-
                                 let deleted = map.delete(key);
                                 if (!deleted) {
                                     for (const [k, v] of map.entries()) {
-                                        // v.rpcId is the numeric RPC id from the server
                                         if (
                                             (v.rpcId != null &&
                                                 v.rpcId ===
@@ -777,16 +739,9 @@ export class HeartbeatManager {
                                         }
                                     }
                                 }
-
-                                // If deletion actually succeeded, record that we've handled it.
                                 if (deleted) {
                                     this.recentRemoved.set(key, now);
                                 } else {
-                                    // If deletion did not succeed, check whether the id
-                                    // was actually present in the prior snapshot. If it
-                                    // wasn't present, treat it as implicitly handled
-                                    // (the server is telling us something already removed)
-                                    // so we don't repeatedly log/attempt deletion.
                                     const wasPresentInPrev = prevTorrents.some(
                                         (t) => {
                                             if (String(t.id) === key)
@@ -808,7 +763,6 @@ export class HeartbeatManager {
                                         }
                                     );
                                     if (!wasPresentInPrev) {
-                                        // record as handled to suppress repeated attempts
                                         this.recentRemoved.set(key, now);
                                         if (shouldDiag) {
                                             console.debug(
@@ -818,7 +772,6 @@ export class HeartbeatManager {
                                         }
                                     }
                                 }
-
                                 if (shouldDiag) {
                                     console.debug(
                                         "[tiny-torrent][heartbeat][removed-deleted]",
@@ -826,8 +779,6 @@ export class HeartbeatManager {
                                     );
                                 }
                             }
-
-                            // Prune old entries from recentRemoved
                             for (const [
                                 k,
                                 ts,
@@ -836,132 +787,92 @@ export class HeartbeatManager {
                                     this.recentRemoved.delete(k);
                             }
                         }
-                        // Apply updates / inserts
+
                         if (delta && Array.isArray(delta.torrents)) {
                             for (const d of delta.torrents) {
-                                // Diagnostic: if a torrent announces `seeding` but
-                                // progress < 1 or has download speed, log it for
-                                // investigation.
-                                try {
-                                    const suspiciousSeeding =
-                                        d.state === STATUS.torrent.SEEDING &&
-                                        ((typeof d.progress === "number" &&
-                                            d.progress < 1) ||
-                                            d.speed?.down > 0);
-                                    if (suspiciousSeeding && shouldDiag) {
-                                        console.debug(
-                                            "[tiny-torrent][heartbeat][suspicious-state]",
-                                            {
-                                                id: d.id,
-                                                state: d.state,
-                                                progress: d.progress,
-                                                speed: d.speed,
-                                                peerSummary: d.peerSummary,
-                                            }
-                                        );
-                                    }
-                                } catch {
-                                    /* swallow diagnostics errors */
-                                }
-
                                 map.set(String(d.id), d as TorrentEntity);
                             }
                         }
-                        fetchedTorrents = Array.from(map.values());
 
-                        // Diagnostic: if any id in `delta.removed` still appears
-                        // in the resulting snapshot, log it for inspection.
-                        try {
-                            if (
-                                Array.isArray(delta.removed) &&
-                                delta.removed.length > 0
-                            ) {
-                                // Avoid O(N*M) scans: check the map keys and an rpcId set
-                                // derived from the map for O(1) membership tests.
-                                const keySet = new Set<string>(
-                                    Array.from(map.keys())
-                                );
-                                const rpcIdSet = new Set<string>();
-                                for (const v of map.values()) {
-                                    if (v.rpcId != null)
-                                        rpcIdSet.add(String(v.rpcId));
+                        const deltaSnapshot = Array.from(map.values());
+                        fetchedTorrents = deltaSnapshot;
+
+                        if (
+                            delta &&
+                            Array.isArray(delta.removed) &&
+                            delta.removed.length > 0
+                        ) {
+                            const keySet = new Set<string>(
+                                Array.from(map.keys())
+                            );
+                            const rpcIdSet = new Set<string>();
+                            for (const v of map.values()) {
+                                if (v.rpcId != null)
+                                    rpcIdSet.add(String(v.rpcId));
+                            }
+                            const leftover = delta.removed.filter((rid) => {
+                                const s = String(rid);
+                                return keySet.has(s) || rpcIdSet.has(s);
+                            });
+                            if (leftover.length > 0) {
+                                if (shouldDiag) {
+                                    console.debug(
+                                        "[tiny-torrent][heartbeat][removed-leftover]",
+                                        { leftover }
+                                    );
                                 }
-                                const leftover = delta.removed.filter((rid) => {
-                                    const s = String(rid);
-                                    return keySet.has(s) || rpcIdSet.has(s);
-                                });
-                                if (leftover.length > 0) {
-                                    if (shouldDiag) {
-                                        console.debug(
-                                            "[tiny-torrent][heartbeat][removed-leftover]",
-                                            { leftover }
-                                        );
-                                    }
-
-                                    // If leftover IDs are present after merge, the
-                                    // server's delta view and the client's snapshot
-                                    // disagree. As a recovery step, perform a
-                                    // rate-limited full sync to re-synchronize
-                                    // the snapshot with the server.
-                                    const nowResync = Date.now();
-                                    if (
-                                        nowResync - this.lastResyncAt >
-                                        RESYNC_MIN_INTERVAL_MS
-                                    ) {
-                                        try {
-                                            if (shouldDiag) {
-                                                console.debug(
-                                                    "[tiny-torrent][heartbeat][leftover-resync]",
-                                                    { leftover }
-                                                );
-                                            }
-                                            const [all, stats] =
-                                                await Promise.all([
-                                                    this.client.getTorrents(),
-                                                    this.client.getSessionStats(),
-                                                ]);
-                                            fetchedTorrents = all;
-                                            fetchedSessionStats = stats;
-                                            // Reset delta cycle because we forced a full fetch
-                                            this.cycleCount = 0;
-                                            this.lastResyncAt = nowResync;
-                                        } catch (err) {
-                                            console.error(
-                                                "[tiny-torrent][heartbeat][resync-failed]",
-                                                err
+                                const nowResync = Date.now();
+                                if (
+                                    nowResync - this.lastResyncAt >
+                                    RESYNC_MIN_INTERVAL_MS
+                                ) {
+                                    try {
+                                        if (shouldDiag) {
+                                            console.debug(
+                                                "[tiny-torrent][heartbeat][leftover-resync]",
+                                                { leftover }
                                             );
                                         }
-                                    } else if (shouldDiag) {
-                                        console.debug(
-                                            "[tiny-torrent][heartbeat][leftover-resync-skipped]",
-                                            {
-                                                leftover,
-                                                lastResyncAt: this.lastResyncAt,
-                                            }
+                                        const [all, stats] = await Promise.all([
+                                            this.client.getTorrents(),
+                                            this.client.getSessionStats(),
+                                        ]);
+                                        fetchedTorrents = all;
+                                        fetchedSessionStats = stats;
+                                        this.cycleCount = 0;
+                                        this.lastResyncAt = nowResync;
+                                        leftoverResyncTriggered = true;
+                                    } catch (err) {
+                                        console.error(
+                                            "[tiny-torrent][heartbeat][resync-failed]",
+                                            err
                                         );
                                     }
+                                } else if (shouldDiag) {
+                                    console.debug(
+                                        "[tiny-torrent][heartbeat][leftover-resync-skipped]",
+                                        {
+                                            leftover,
+                                            lastResyncAt: this.lastResyncAt,
+                                        }
+                                    );
                                 }
                             }
-                        } catch {
-                            /* swallow diag errors */
                         }
 
-                        // store telemetry if provided
+
                         if (maybeTelemetry) {
                             fetchedTelemetry =
                                 maybeTelemetry as NetworkTelemetry;
                         }
-                        // successful delta cycle -> bump counter
                         this.cycleCount += 1;
                     } catch (err) {
-                        // On failure, fallback to full fetch
                         const [all, stats] = await Promise.all([
                             this.client.getTorrents(),
                             this.client.getSessionStats(),
                         ]);
                         fetchedTorrents = all;
                         fetchedSessionStats = stats;
-                        // on fallback to full fetch, reset delta counter only when delta was supported
                         this.cycleCount = 0;
                     }
                 } else {
@@ -971,12 +882,9 @@ export class HeartbeatManager {
                     ]);
                     fetchedTorrents = all;
                     fetchedSessionStats = stats;
-                    // performed a full fetch: reset delta counter only if client supports delta
                     if (supportsDelta) this.cycleCount = 0;
                 }
-                // Attempt to fetch optional network telemetry from the adapter.
-                // This is conservative: if the adapter doesn't support it or
-                // the call fails, we silently proceed without telemetry.
+
                 try {
                     const telemetryClient = this
                         .client as HeartbeatClientWithTelemetry;
@@ -989,7 +897,7 @@ export class HeartbeatManager {
                         if (nt) fetchedTelemetry = nt;
                     }
                 } catch (err) {
-                    // ignore telemetry failures
+                    // ignore
                 }
                 const prevTorrents = this.lastTorrents;
                 torrents = fetchedTorrents;
@@ -999,9 +907,7 @@ export class HeartbeatManager {
                 changedIds = this.computeChangedIds(torrents, prevTorrents);
                 this.lastTorrents = torrents;
                 this.lastSessionStats = sessionStats;
-                // store telemetry snapshot for broadcast
                 if (fetchedTelemetry) {
-                    // attach to lastSessionStats container if present
                     if (this.lastSessionStats) {
                         this.lastSessionStats.networkTelemetry =
                             fetchedTelemetry;
@@ -1070,8 +976,6 @@ export class HeartbeatManager {
                 const payload: HeartbeatPayload = {
                     torrents,
                     sessionStats,
-                    // include any available telemetry snapshot for consumers
-                    // (backwards-compatible optional field)
                     ...(sessionStats.networkTelemetry
                         ? { networkTelemetry: sessionStats.networkTelemetry }
                         : {}),
@@ -1093,7 +997,7 @@ export class HeartbeatManager {
                         if (stored) stored.lastSeenHash = currentHash;
                     }
                 } catch {
-                    // swallow subscriber errors
+                    // swallow
                 }
                 if (detailEntry?.error) {
                     params.onError?.(detailEntry.error);
@@ -1108,12 +1012,11 @@ export class HeartbeatManager {
             }
         }
     }
-    // Deduplicated, O(1) ring buffer update for speed history and pruning
+
     private updateEngineState(
         torrents: TorrentEntity[],
         previous?: TorrentEntity[] | undefined | null
     ) {
-        // Enforce canonical state-machine transitions deterministically.
         if (previous && previous.length > 0) {
             const prevMap = new Map<string, TorrentEntity>();
             for (const p of previous) prevMap.set(p.id, p);
@@ -1132,17 +1035,15 @@ export class HeartbeatManager {
                         mutable.state = sanitized;
                     }
                 } catch {
-                    // Defensive: if enforcement fails, leave state as-is.
+                    // ignore
                 }
             }
         }
         const size = this.historySize;
         const currentIds = new Set(torrents.map((t) => t.id));
-        // Prune history for removed torrents (guaranteed leak-free)
         for (const key of this.speedHistory.keys()) {
             if (!currentIds.has(key)) this.speedHistory.delete(key);
         }
-        // O(1) circular buffer update for each torrent
         for (const t of torrents) {
             const id = t.id;
             const down = typeof t.speed?.down === "number" ? t.speed.down : 0;
@@ -1161,26 +1062,17 @@ export class HeartbeatManager {
             entry.ptr = (entry.ptr + 1) % size;
         }
 
-        // Invoke conservative automation based strictly on ErrorEnvelope.
-        // Provide a safe pause callback if the underlying client exposes pause().
         try {
             const clientPause = this.client as HeartbeatClientWithTelemetry & {
                 pause?: (ids: string[]) => Promise<void>;
             };
-            const pauseCallback = (ids: string[]) => {
-                const maybe = clientPause.pause;
-                if (typeof maybe === "function") {
-                    return maybe.call(this.client, ids as string[]);
-                }
-                return Promise.resolve();
-            };
             try {
                 processHeartbeat(torrents, previous ?? undefined);
             } catch {
-                // Never let automation throw into heartbeat loop
+                // ignore
             }
         } catch {
-            // swallow
+            // ignore
         }
     }
 

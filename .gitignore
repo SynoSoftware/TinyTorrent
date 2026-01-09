@@ -51,3 +51,4 @@ frontend/scripts/zoom_report.json
 scripts/zoom_report.json
 frontend/forensic-tailwind-mapping-after.txt
 frontend/src/modules/torrent-add/components/AddTorrentModal-original.tsx
+3rdParty/

@@ -1,5 +1,5 @@
 
-# **AGENTS_CORE.md — TinyTorrent Hard Law**
+# **AGENTS.md — TinyTorrent Hard Law**
 
 > **Authority:**
 > This document is the **highest enforcement layer**.

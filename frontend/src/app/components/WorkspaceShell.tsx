@@ -285,38 +285,39 @@ export function WorkspaceShell({
     );
 
     const renderModeLayoutSection = () => (
-        <Dashboard_Layout
-            workspaceStyle={workspaceStyle}
-            torrents={torrents}
-            filter={filter}
-            searchQuery={searchQuery}
-            isTableLoading={isTableLoading}
-            onAction={handleTorrentAction}
-            onRequestDetails={handleRequestDetails}
-            detailData={detailData}
-            onCloseDetail={closeDetail}
-            onFilesToggle={handleFileSelectionChange}
-            onFileContextAction={onFileContextAction}
-            onPeerContextAction={onPeerContextAction}
-            onSequentialToggle={sequentialToggleHandler}
-            onSuperSeedingToggle={superSeedingToggleHandler}
-            onForceTrackerReannounce={handleForceTrackerReannounce}
-            onSetLocation={onSetLocation}
-            onRedownload={onRedownload}
-            onRetry={onRetry}
-            capabilities={capabilities}
-            optimisticStatuses={optimisticStatuses}
-            peerSortStrategy={peerSortStrategy}
-            inspectorTabCommand={inspectorTabCommand}
-            onInspectorTabCommandHandled={onInspectorTabCommandHandled}
-            ghostTorrents={ghostTorrents}
-            isDropActive={isDragActive}
-            onSelectionChange={handleSelectionChange}
-            onActiveRowChange={handleActiveRowChange}
-            onOpenFolder={handleOpenFolder}
-            tableWatermarkEnabled={tableWatermarkEnabled}
-            isDetailRecoveryBlocked={isDetailRecoveryBlocked}
-        />
+            <Dashboard_Layout
+                workspaceStyle={workspaceStyle}
+                torrents={torrents}
+                filter={filter}
+                searchQuery={searchQuery}
+                isTableLoading={isTableLoading}
+                onAction={handleTorrentAction}
+                handleBulkAction={handleBulkAction}
+                onRequestDetails={handleRequestDetails}
+                detailData={detailData}
+                onCloseDetail={closeDetail}
+                onFilesToggle={handleFileSelectionChange}
+                onFileContextAction={onFileContextAction}
+                onPeerContextAction={onPeerContextAction}
+                onSequentialToggle={sequentialToggleHandler}
+                onSuperSeedingToggle={superSeedingToggleHandler}
+                onForceTrackerReannounce={handleForceTrackerReannounce}
+                onSetLocation={onSetLocation}
+                onRedownload={onRedownload}
+                onRetry={onRetry}
+                capabilities={capabilities}
+                optimisticStatuses={optimisticStatuses}
+                peerSortStrategy={peerSortStrategy}
+                inspectorTabCommand={inspectorTabCommand}
+                onInspectorTabCommandHandled={onInspectorTabCommandHandled}
+                ghostTorrents={ghostTorrents}
+                isDropActive={isDragActive}
+                onSelectionChange={handleSelectionChange}
+                onActiveRowChange={handleActiveRowChange}
+                onOpenFolder={handleOpenFolder}
+                tableWatermarkEnabled={tableWatermarkEnabled}
+                isDetailRecoveryBlocked={isDetailRecoveryBlocked}
+            />
     );
 
     const renderStatusBarSection = () => (
