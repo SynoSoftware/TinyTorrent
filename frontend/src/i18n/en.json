@@ -551,7 +551,7 @@
         "disk_ok": "Disk OK\n\nEnough space to finish downloads.",
         "disk_unknown": "Disk state unknown",
         "disk_warn": "Low disk space\n\nDownloads may slow or pause.",
-        "down": "DOWN",
+        "down": "Download",
         "engine": "Engine",
         "engine_detecting": "Detecting engine...",
         "engine_name_tinytorrent": "TinyTorrent",
@@ -579,7 +579,7 @@
         "transport_polling_desc": "HTTP Polling",
         "transport_websocket": "WebSocket",
         "transport_websocket_desc": "Real-time",
-        "up": "UP"
+        "up": "Upload"
     },
     "table": {
         "actions": {
