@@ -317,7 +317,9 @@ export function TorrentTable({
 
     // Effective order: authoritative source for ordering. If a pending optimistic
     // queue order exists, use it as the canonical order for the table + DnD items.
-    // Otherwise the server `data` order is authoritative.
+    // Otherwise the server `data` order is authoritative. All downstream consumers
+    // (React Table rows, virtualizer, SortableContext) must derive from this to
+    // avoid divergent ordering pipelines.
     const serverOrder = useMemo(() => data.map((d) => d.id), [data]);
     const effectiveOrder = pendingQueueOrder ?? serverOrder;
 
@@ -374,6 +376,9 @@ export function TorrentTable({
     useEffect(() => {
         rowSelectionRef.current = rowSelection;
     }, [rowSelection]);
+    // Single ordering authority: rowIds always mirrors the current React Table
+    // row model order. Do not derive rowIds from server order, pending order, or
+    // any cached list, or DnD/virtualization will diverge.
     const rowIds = useMemo(() => rows.map((row) => row.id), [rows]);
     const {
         measuredMinWidths,

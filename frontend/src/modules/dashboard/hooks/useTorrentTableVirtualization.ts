@@ -152,6 +152,9 @@ export const useTorrentTableVirtualization = (
         rowsRef.current = rows;
     }, [rows, rowsRef]);
 
+    // This hook owns no alternate ordering: rowIds is derived directly from the
+    // provided React Table rows and must stay aligned with the parent's rowIds
+    // so DnD/virtualization share a single ordering authority.
     const rowIds = useMemo(() => rows.map((row: any) => row.id), [rows]);
 
     const { marqueeRect, marqueeClickBlockRef, isMarqueeDraggingRef } =
