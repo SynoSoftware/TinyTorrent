@@ -50,16 +50,10 @@ import {
 } from "@/config/logic";
 import {
     TableCellContent,
-    getColumnWidthVarName,
-    TABLE_TOTAL_WIDTH_VAR,
     getTableTotalWidthCss,
     ColumnMeasurementLayer,
 } from "./TorrentTable_Shared";
-import {
-    useMeasuredColumnWidths,
-    createColumnSizingInfoState,
-} from "./TorrentTable_ColumnMeasurement";
-import { useColumnResizing } from "../hooks/useColumnResizing";
+import { createColumnSizingInfoState } from "./TorrentTable_ColumnMeasurement";
 import { useTorrentTableColumns } from "@/modules/dashboard/hooks/useTorrentTableColumns";
 import { useTorrentClipboard } from "@/modules/dashboard/hooks/useTorrentClipboard";
 import { useTorrentTablePersistence } from "@/modules/dashboard/hooks/useTorrentTablePersistence";
@@ -69,6 +63,7 @@ import { useTorrentTableInteractions } from "@/modules/dashboard/hooks/useTorren
 import useTableAnimationGuard, {
     ANIMATION_SUPPRESSION_KEYS,
 } from "@/modules/dashboard/hooks/useTableAnimationGuard";
+import { useColumnSizingController } from "@/modules/dashboard/hooks/useColumnSizingController";
 import TorrentTable_RowMenu from "./TorrentTable_RowMenu";
 import TorrentTable_HeaderMenu from "./TorrentTable_HeaderMenu";
 import { useTorrentTableVirtualization } from "@/modules/dashboard/hooks/useTorrentTableVirtualization";
@@ -86,16 +81,6 @@ const formatShortcutLabel = (value?: string | string[]) =>
 type ContextMenuKey = string;
 
 const DND_OVERLAY_CLASSES = "pointer-events-none fixed inset-0 z-40";
-
-const normalizeColumnSizingState = (s?: Record<string, number>) => {
-    if (!s) return {};
-    const out: Record<string, number> = {};
-    for (const k in s) {
-        const v = Number(s[k]);
-        if (Number.isFinite(v)) out[k] = Math.max(1, Math.round(v));
-    }
-    return out;
-};
 
 const ADD_TORRENT_SHORTCUT = formatShortcutLabel(["ctrl+o", "meta+o"]);
 
@@ -208,12 +193,25 @@ export function TorrentTable({
     const [columnVisibility, setColumnVisibility] = useState<
         Record<string, boolean>
     >({});
-    const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
     const [columnSizing, setColumnSizing] = useState<Record<string, number>>(
         {}
     );
     const [columnSizingInfo, setColumnSizingInfo] =
         useState<ColumnSizingInfoState>(createColumnSizingInfoState());
+    const handleColumnSizingChangeRef = useRef<
+        | ((
+              updater:
+                  | Record<string, number>
+                  | ((
+                        prev: Record<string, number>
+                    ) => Record<string, number>)
+          ) => void)
+        | null
+    >(null);
+    const handleColumnSizingInfoChangeRef = useRef<
+        ((info: ColumnSizingInfoState | ((info: ColumnSizingInfoState) => ColumnSizingInfoState)) => void) | null
+    >(null);
+    const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
     const speedHistoryRef = useTorrentSpeedHistory(torrents);
 
     const getDisplayTorrent = useCallback(
@@ -270,24 +268,6 @@ export function TorrentTable({
         },
         [overlayPortalHost]
     );
-    const setTableCssVar = useCallback((name: string, value: string) => {
-        const container = tableContainerRef.current;
-        if (!container) return;
-        container.style.setProperty(name, value);
-    }, []);
-    const setColumnWidthVar = useCallback(
-        (columnId: string, widthPx: number) => {
-            setTableCssVar(getColumnWidthVarName(columnId), `${widthPx}px`);
-        },
-        [setTableCssVar]
-    );
-    const setTableTotalWidthVar = useCallback(
-        (widthPx: number) => {
-            setTableCssVar(TABLE_TOTAL_WIDTH_VAR, `${widthPx}px`);
-        },
-        [setTableCssVar]
-    );
-
     const queueMenuActions = useMemo<QueueMenuAction[]>(
         () => [
             { key: "queue-move-top", label: t("table.queue.move_top") },
@@ -379,14 +359,10 @@ export function TorrentTable({
         onSortingChange: setSorting,
         onColumnOrderChange: setColumnOrder,
         onColumnVisibilityChange: setColumnVisibility,
-        onColumnSizingChange: (updater) => {
-            setColumnSizing((prev) =>
-                normalizeColumnSizingState(
-                    typeof updater === "function" ? updater(prev) : updater
-                )
-            );
-        },
-        onColumnSizingInfoChange: setColumnSizingInfo,
+        onColumnSizingChange: (updater) =>
+            handleColumnSizingChangeRef.current?.(updater),
+        onColumnSizingInfoChange: (info) =>
+            handleColumnSizingInfoChangeRef.current?.(info),
         onRowSelectionChange: setRowSelection,
         enableRowSelection: true,
         autoResetAll: false,
@@ -403,33 +379,35 @@ export function TorrentTable({
         rowSelectionRef.current = rowSelection;
     }, [rowSelection]);
     const {
-        minWidths: measuredMinWidths,
-        minWidthsRef: measuredMinWidthsRef,
-        measure: measureColumnMinWidths,
-    } = useMeasuredColumnWidths(measureLayerRef, AUTO_FIT_TOLERANCE_PX);
-    const getMeasuredColumnMinWidth = useCallback(
-        (columnId: string, fallbackWidth: number) => {
-            const measured = measuredMinWidthsRef.current[columnId];
-            return Number.isFinite(measured) ? measured : fallbackWidth;
-        },
-        [measuredMinWidthsRef]
-    );
-    useEffect(() => {
-        const container = tableContainerRef.current;
-        if (!container) return;
-        setTableTotalWidthVar(table.getTotalSize());
-        table.getAllLeafColumns().forEach((column) => {
-            setColumnWidthVar(column.id, column.getSize());
-        });
-    }, [
-        columnOrder,
-        columnSizing,
-        columnVisibility,
-        setColumnWidthVar,
-        setTableTotalWidthVar,
+        measuredMinWidths,
+        measuredMinWidthsRef,
+        measureColumnMinWidths,
+        getMeasuredColumnMinWidth,
+        autoFitColumn,
+        autoFitAllColumns,
+        handleColumnAutoFitRequest,
+        handleColumnResizeStart,
+        hookActiveResizeColumnId,
+        isAnyColumnResizing,
+        normalizeColumnSizingState,
+        handleColumnSizingChange,
+        handleColumnSizingInfoChange,
+    } = useColumnSizingController({
         table,
+        columnSizing,
+        setColumnSizing,
+        columnSizingInfo,
+        setColumnSizingInfo,
         tableContainerRef,
-    ]);
+        measureLayerRef,
+        columnOrder,
+        columnVisibility,
+        autoFitTolerancePx: AUTO_FIT_TOLERANCE_PX,
+        beginAnimationSuppression,
+        endAnimationSuppression,
+    });
+    handleColumnSizingChangeRef.current = handleColumnSizingChange;
+    handleColumnSizingInfoChangeRef.current = handleColumnSizingInfoChange;
     const getColumnLabel = useCallback(
         (column: Column<Torrent>) => {
             const definition = TORRENTTABLE_COLUMN_DEFS[column.id as ColumnId];
@@ -441,121 +419,8 @@ export function TorrentTable({
         },
         [t]
     );
-    const {
-        activeResizeColumnId: hookActiveResizeColumnId,
-        handleColumnResizeStart,
-        resetColumnResizeState: hookResetColumnResizeState,
-    } = useColumnResizing({
-        table,
-        setColumnSizing,
-        setColumnSizingInfo,
-        setColumnWidthVar,
-        setTableTotalWidthVar,
-        getMeasuredColumnMinWidth,
-    });
-
-    const isAnyColumnResizing =
-        Boolean(hookActiveResizeColumnId) ||
-        Boolean(columnSizingInfo.isResizingColumn);
     const isAnimationSuppressed =
         isAnyColumnResizing || animationSuppressionActive;
-
-    const resetColumnResizeState = hookResetColumnResizeState;
-    // `resetColumnResizeState` provided by `useColumnResizing` hook below.
-    const autoFitColumn = useCallback(
-        (
-            column: Column<Torrent>,
-            measurements?: Record<string, number> | null,
-            options?: { suppress?: boolean }
-        ) => {
-            if (!column.getCanResize()) return false;
-            const shouldSuppress = options?.suppress !== false;
-            resetColumnResizeState();
-            const measuredWidths = measurements ?? measureColumnMinWidths();
-            const measuredWidth =
-                (measuredWidths && measuredWidths[column.id]) ??
-                measuredMinWidthsRef.current[column.id];
-            if (!Number.isFinite(measuredWidth)) return false;
-            const computedWidth = Math.ceil(measuredWidth);
-            // Clamp computed width to the table/container width to avoid
-            // expanding a single column past the visible area.
-            const containerWidth =
-                tableContainerRef.current?.getBoundingClientRect().width ??
-                table.getTotalSize();
-            const maxAllowed = Math.max(80, Math.round(containerWidth));
-            const finalWidth = Math.min(computedWidth, maxAllowed);
-            const currentWidth = column.getSize();
-            // diagnostics removed: auto-fit logging
-            if (Math.abs(finalWidth - currentWidth) <= AUTO_FIT_TOLERANCE_PX) {
-                return false;
-            }
-
-            // Temporarily suppress layout animations so rows/headers don't
-            // animate while we programmatically change column sizes (autofit).
-            if (shouldSuppress) {
-                beginAnimationSuppression(ANIMATION_SUPPRESSION_KEYS.autoFit);
-            }
-            setColumnSizing((prev: Record<string, number>) =>
-                normalizeColumnSizingState({
-                    ...prev,
-                    [column.id]: finalWidth,
-                })
-            );
-            // Clear suppression after two rAFs to ensure the layout has settled
-            // and the browser completed layout/paint.
-            if (shouldSuppress) {
-                window.requestAnimationFrame(() => {
-                    window.requestAnimationFrame(() => {
-                        endAnimationSuppression(
-                            ANIMATION_SUPPRESSION_KEYS.autoFit
-                        );
-                    });
-                });
-            }
-
-            return true;
-        },
-        [
-            beginAnimationSuppression,
-            endAnimationSuppression,
-            measureColumnMinWidths,
-            measuredMinWidthsRef,
-            resetColumnResizeState,
-            setColumnSizing,
-            tableContainerRef,
-            table,
-        ]
-    );
-    const autoFitAllColumns = useCallback(() => {
-        // Suppress animations for the whole batch of autofit changes.
-        beginAnimationSuppression(ANIMATION_SUPPRESSION_KEYS.autoFitAll);
-        const measuredWidths = measureColumnMinWidths();
-        table.getAllLeafColumns().forEach((column) => {
-            if (!column.getCanResize()) return;
-            autoFitColumn(column, measuredWidths, { suppress: false });
-        });
-        window.requestAnimationFrame(() => {
-            window.requestAnimationFrame(() =>
-                endAnimationSuppression(ANIMATION_SUPPRESSION_KEYS.autoFitAll)
-            );
-        });
-    }, [
-        autoFitColumn,
-        beginAnimationSuppression,
-        endAnimationSuppression,
-        measureColumnMinWidths,
-        table,
-    ]);
-    const handleColumnAutoFitRequest = useCallback(
-        (column: Column<Torrent>) => {
-            if (!column.getCanResize()) return;
-            const didResize = autoFitColumn(column);
-            if (!didResize) {
-                autoFitAllColumns();
-            }
-        },
-        [autoFitAllColumns, autoFitColumn]
-    );
     const { rowHeight, fileContextMenuMargin } = useLayoutMetrics();
 
     // Temporarily suppress layout animations while the table container is being
