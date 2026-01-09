@@ -8,6 +8,8 @@ import {
     ModalHeader,
     Spinner,
     cn,
+    Divider,
+    Chip,
 } from "@heroui/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -19,7 +21,18 @@ import {
     Play,
     Radio,
     X,
+    AlertTriangle,
+    ArrowRight,
+    HardDrive,
+    ShieldCheck,
+    Search,
+    Activity,
+    FileWarning,
+    Ban,
+    Info,
     type LucideIcon,
+    AlertOctagon,
+    Waypoints,
 } from "lucide-react";
 import type { TFunction } from "i18next";
 
@@ -31,6 +44,8 @@ import type {
     RecoveryOutcome,
     RecoveryPlan,
 } from "@/services/recovery/recovery-controller";
+
+// --- TYPES ---
 
 export interface TorrentRecoveryModalProps {
     isOpen: boolean;
@@ -47,10 +62,12 @@ export interface TorrentRecoveryModalProps {
 
 type ModalTone = "neutral" | "success" | "warning" | "danger";
 
-const HEADER_TITLE =
-    "text-label tracking-label uppercase font-semibold text-foreground";
-const SUBTLE_META = "text-scaled text-foreground/60";
-const FIELD_LABEL = "text-label tracking-label uppercase font-semibold";
+// --- STYLING ---
+
+const MODAL_CLASSES =
+    "w-full max-w-xl overflow-hidden flex flex-col shadow-2xl border border-white/10";
+const SECTION_TITLE =
+    "text-xs font-bold tracking-widest text-foreground/40 uppercase mb-3 flex items-center gap-2";
 
 const RECOVERY_ACTION_LABEL_KEY: Record<
     RecoveryPlan["primaryAction"],
@@ -66,16 +83,17 @@ const RECOVERY_ACTION_LABEL_KEY: Record<
     none: null,
 };
 
-const PRIMARY_ACTION_ICON: Partial<Record<RecoveryPlan["primaryAction"], LucideIcon>> =
-    {
-        reDownloadHere: Download,
-        createAndDownloadHere: Download,
-        pickPath: FolderOpen,
-        verify: CheckCircle2,
-        resume: Play,
-        reannounce: Radio,
-        openFolder: FolderOpen,
-    };
+const PRIMARY_ACTION_ICON: Partial<
+    Record<RecoveryPlan["primaryAction"], LucideIcon>
+> = {
+    reDownloadHere: Download,
+    createAndDownloadHere: Download,
+    pickPath: FolderOpen,
+    verify: ShieldCheck,
+    resume: Play,
+    reannounce: Radio,
+    openFolder: FolderOpen,
+};
 
 const PRIMARY_DESC_KEY: Record<RecoveryPlan["primaryAction"], string> = {
     reDownloadHere: "recovery.modal.primary_desc.redownload_here",
@@ -116,6 +134,8 @@ const RECOVERY_MESSAGE_LABEL_KEY: Record<string, string> = {
         "recovery.message.filesystem_probing_not_supported",
 };
 
+// --- LOGIC ---
+
 function getOutcomeTone(outcome: RecoveryOutcome | null): ModalTone {
     if (!outcome) return "neutral";
     switch (outcome.kind) {
@@ -127,22 +147,41 @@ function getOutcomeTone(outcome: RecoveryOutcome | null): ModalTone {
             return "warning";
         case "error":
             return "danger";
-        case "noop":
         default:
             return "neutral";
     }
 }
 
-function getToneClasses(tone: ModalTone) {
+function getToneStyles(tone: ModalTone) {
     switch (tone) {
         case "success":
-            return "border-success/40 bg-success/10 text-success";
+            return {
+                bg: "bg-success/10",
+                border: "border-success/20",
+                icon: CheckCircle2,
+                text: "text-success",
+            };
         case "warning":
-            return "border-warning/40 bg-warning/10 text-warning";
+            return {
+                bg: "bg-warning/10",
+                border: "border-warning/20",
+                icon: AlertTriangle,
+                text: "text-warning",
+            };
         case "danger":
-            return "border-danger/40 bg-danger/10 text-danger";
+            return {
+                bg: "bg-danger/10",
+                border: "border-danger/20",
+                icon: Ban,
+                text: "text-danger",
+            };
         default:
-            return "border-default/20 bg-content1/10 text-foreground/80";
+            return {
+                bg: "bg-content1/20",
+                border: "border-white/5",
+                icon: Info,
+                text: "text-foreground/70",
+            };
     }
 }
 
@@ -152,10 +191,12 @@ function resolveOutcomeMessage(
 ): string | null {
     const raw = outcome?.message;
     if (!raw) return null;
-    const key = RECOVERY_MESSAGE_LABEL_KEY[raw];
-    if (key) return t(key);
-    return raw;
+    return RECOVERY_MESSAGE_LABEL_KEY[raw]
+        ? t(RECOVERY_MESSAGE_LABEL_KEY[raw])
+        : raw;
 }
+
+// --- COMPONENT ---
 
 export default function TorrentRecoveryModal({
     isOpen,
@@ -188,20 +229,20 @@ export default function TorrentRecoveryModal({
 
     const title = useMemo(() => t("recovery.modal.title"), [t]);
 
+    const [isManuallyEditing, setIsManuallyEditing] = useState(false);
+
     const requiresUserPath = Boolean(
         outcome?.kind === "path-needed" ||
             plan?.requiresPath ||
-            plan?.primaryAction === "pickPath"
+            plan?.primaryAction === "pickPath" ||
+            isManuallyEditing // <--- The override
     );
-
-    const showPathEditor = requiresUserPath;
-
     const outcomeMessage = useMemo(
         () => resolveOutcomeMessage(outcome, t),
         [outcome, t]
     );
-
     const outcomeTone = useMemo(() => getOutcomeTone(outcome), [outcome]);
+    const toneStyles = getToneStyles(outcomeTone);
 
     const primaryDescription = useMemo(() => {
         const key = plan ? PRIMARY_DESC_KEY[plan.primaryAction] : null;
@@ -209,6 +250,7 @@ export default function TorrentRecoveryModal({
         return t(key, { action: actionLabel });
     }, [actionLabel, plan, t]);
 
+    // Handlers
     const handleBrowse = useCallback(async () => {
         if (!onBrowse || busy) return;
         setIsBrowsing(true);
@@ -226,16 +268,16 @@ export default function TorrentRecoveryModal({
         await onPickPath(trimmed);
     }, [busy, onPickPath, pathDraft]);
 
+    // Primary Action Configuration
     const primary = useMemo(() => {
-        if (!plan) {
+        if (!plan)
             return {
                 key: "none",
                 label: t("modals.cancel"),
                 onPress: onClose,
                 isDisabled: busy,
-                icon: undefined as LucideIcon | undefined,
+                icon: X,
             };
-        }
 
         if (requiresUserPath) {
             return {
@@ -253,7 +295,7 @@ export default function TorrentRecoveryModal({
                 label: t("recovery.action.verify"),
                 onPress: onVerify,
                 isDisabled: busy,
-                icon: CheckCircle2,
+                icon: ShieldCheck,
             };
         }
 
@@ -299,203 +341,298 @@ export default function TorrentRecoveryModal({
             onOpenChange={(open) => (!open ? onClose() : undefined)}
             backdrop="blur"
             placement="center"
-            size="2xl"
             motionProps={INTERACTION_CONFIG.modalBloom}
             hideCloseButton
             isDismissable={!busy}
             classNames={{
-                base: cn(
-                    GLASS_MODAL_SURFACE,
-                    "w-full overflow-hidden flex flex-col"
-                ),
-                wrapper: "overflow-hidden",
-            }}
-            style={{
-                maxWidth: "var(--tt-modal-max-width)",
-                maxHeight: "var(--tt-modal-body-max-height)",
+                base: cn(GLASS_MODAL_SURFACE, MODAL_CLASSES),
+                body: "p-0",
+                header: "border-b border-white/5 bg-black/40 px-6 py-5",
+                footer: "border-t border-white/5 bg-black/40 px-6 py-5",
             }}
         >
             <ModalContent>
                 {() => (
                     <>
-                        <ModalHeader className="border-b border-default/20 px-stage py-panel">
-                            <div className="flex flex-col gap-panel w-full">
-                                <div className="flex items-start justify-between gap-tools w-full">
-                                    <div className="min-w-0 flex items-center gap-tools">
-                                        <StatusIcon
-                                            Icon={LifeBuoy}
-                                            size="md"
-                                            className="text-warning"
+                        {/* --- HEADER --- */}
+                        <ModalHeader className="flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-4 min-w-0">
+                                <div className="p-3 rounded-full bg-danger/10 border border-danger/20 shrink-0">
+                                    <StatusIcon
+                                        Icon={LifeBuoy}
+                                        size="lg"
+                                        className="text-danger animate-pulse-slow"
+                                    />
+                                </div>
+                                <div className="flex flex-col min-w-0">
+                                    <h2 className="text-base font-bold tracking-wide uppercase text-foreground">
+                                        {title}
+                                    </h2>
+                                    {/* Action Label Context */}
+                                    <div className="flex items-center gap-2 mt-0.5 text-xs text-foreground/50 font-medium">
+                                        <ArrowRight
+                                            size={12}
+                                            className="text-primary"
                                         />
-                                        <span className={HEADER_TITLE}>
-                                            {title}
-                                        </span>
+                                        <span>{actionLabel}</span>
                                     </div>
-                                    <ToolbarIconButton
-                                        Icon={X}
-                                        ariaLabel={t(
-                                            "torrent_modal.actions.close"
-                                        )}
-                                        onPress={onClose}
-                                        iconSize="md"
-                                        className="text-foreground/40 hover:text-foreground hidden sm:flex ml-auto"
-                                        isDisabled={busy}
-                                    />
-                                </div>
-                                <div className="min-w-0 flex flex-col gap-tight">
-                                    <span className={SUBTLE_META}>
-                                        {actionLabel}
-                                    </span>
-                                    {plan?.suggestedPath ? (
-                                        <span
-                                            className={cn(
-                                                SUBTLE_META,
-                                                "truncate select-text font-mono"
-                                            )}
-                                            title={plan.suggestedPath}
-                                        >
-                                            {plan.suggestedPath}
-                                        </span>
-                                    ) : (
-                                        <span className={SUBTLE_META}>
-                                            {t(
-                                                "recovery.modal.no_path_available"
-                                            )}
-                                        </span>
-                                    )}
                                 </div>
                             </div>
+                            <ToolbarIconButton
+                                Icon={X}
+                                ariaLabel={t("torrent_modal.actions.close")}
+                                onPress={onClose}
+                                isDisabled={busy}
+                            />
                         </ModalHeader>
-                        <ModalBody className="px-stage py-panel flex flex-col gap-panel">
-                            <div className="flex flex-col gap-tight">
-                                <div className={FIELD_LABEL}>
+
+                        {/* --- BODY --- */}
+                        <ModalBody className="p-8 flex flex-col gap-8 bg-content1/5">
+                            {/* SECTION 1: THE DIAGNOSIS (Problem) */}
+                            <div className="relative">
+                                {/* Vertical Line connecting Diagnosis to Solution */}
+                                <div className="absolute left-[19px] top-8 bottom-[-40px] w-[2px] bg-gradient-to-b from-danger/20 to-primary/20" />
+
+                                <span className={SECTION_TITLE}>
+                                    <Activity
+                                        size={12}
+                                        className="text-danger"
+                                    />{" "}
                                     {t("recovery.modal.problem_heading")}
-                                </div>
-                                <div className="text-foreground/80">
-                                    {plan?.rationale
-                                        ? t(plan.rationale)
-                                        : t(
-                                              "recovery.no_primary_recovery_for_error_class"
-                                          )}
+                                </span>
+
+                                <div className="flex items-start gap-4">
+                                    <div className="shrink-0 mt-1 size-10 rounded-xl bg-black/40 border border-white/10 flex items-center justify-center z-10">
+                                        <AlertOctagon
+                                            size={20}
+                                            className="text-danger"
+                                        />
+                                    </div>
+                                    <div className="pt-1">
+                                        <p className="text-lg font-light text-foreground/90 leading-relaxed">
+                                            {plan?.rationale
+                                                ? t(plan.rationale)
+                                                : t(
+                                                      "recovery.no_primary_recovery_for_error_class"
+                                                  )}
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
 
-                            {primaryDescription ? (
-                                <div className="flex flex-col gap-tight">
-                                    <div className={FIELD_LABEL}>
+                            {/* SECTION 2: THE TREATMENT (Solution) */}
+                            {primaryDescription && (
+                                <div className="relative z-10">
+                                    <span className={SECTION_TITLE}>
+                                        <Waypoints
+                                            size={12}
+                                            className="text-primary"
+                                        />{" "}
                                         {t("recovery.modal.next_heading")}
-                                    </div>
-                                    <div className="text-foreground/80">
-                                        {primaryDescription}
-                                    </div>
-                                </div>
-                            ) : null}
+                                    </span>
 
-                            {showPathEditor && (
-                                <div className="flex flex-col gap-tight">
-                                    <div className={FIELD_LABEL}>
-                                        {t("recovery.modal.path_heading")}
+                                    <div className="flex items-start gap-4">
+                                        <div className="shrink-0 mt-1 size-10 rounded-xl bg-black/40 border border-white/10 flex items-center justify-center">
+                                            <StatusIcon
+                                                Icon={primary.icon || Play}
+                                                size="md"
+                                                className="text-primary"
+                                            />
+                                        </div>
+                                        <div className="pt-1 flex-1">
+                                            <p className="text-base text-foreground/70 leading-relaxed mb-4">
+                                                {primaryDescription}
+                                            </p>
+                                            {/* Path Context */}
+                                            {!requiresUserPath &&
+                                                plan?.suggestedPath && (
+                                                    <div className="flex items-center gap-2 mt-4">
+                                                        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-black/20 border border-white/5 w-fit max-w-full">
+                                                            <HardDrive
+                                                                size={14}
+                                                                className="text-foreground/40 shrink-0"
+                                                            />
+                                                            <span
+                                                                className="font-mono text-xs text-foreground/60 truncate max-w-[200px]"
+                                                                title={
+                                                                    plan.suggestedPath
+                                                                }
+                                                            >
+                                                                {
+                                                                    plan.suggestedPath
+                                                                }
+                                                            </span>
+                                                        </div>
+                                                        {/* The "Let me choose" button */}
+                                                        <Button
+                                                            size="sm"
+                                                            variant="light"
+                                                            isIconOnly
+                                                            onPress={() =>
+                                                                setIsManuallyEditing(
+                                                                    true
+                                                                )
+                                                            }
+                                                            className="text-foreground/40 hover:text-primary"
+                                                        >
+                                                            <FolderOpen
+                                                                size={16}
+                                                            />
+                                                        </Button>
+                                                    </div>
+                                                )}
+                                        </div>
                                     </div>
-                                    <Input
-                                        value={pathDraft}
-                                        onChange={(event) =>
-                                            setPathDraft(
-                                                event.target.value ?? ""
-                                            )
-                                        }
-                                        label={t("recovery.modal.path_label")}
-                                        labelPlacement="outside"
-                                        placeholder={t(
-                                            "recovery.modal.path_placeholder"
-                                        )}
-                                        size="md"
-                                        variant="bordered"
-                                        isDisabled={busy}
-                                        endContent={
-                                            onBrowse ? (
-                                                <Button
-                                                    size="md"
-                                                    variant="flat"
-                                                    onPress={handleBrowse}
-                                                    isLoading={isBrowsing}
-                                                    isDisabled={busy}
-                                                >
-                                                    {t("settings.button.browse")}
-                                                </Button>
-                                            ) : null
-                                        }
-                                        classNames={{
-                                            label: FIELD_LABEL,
-                                            input: "font-mono text-scaled select-text",
-                                        }}
-                                    />
                                 </div>
                             )}
 
+                            {/* SECTION 3: INTERVENTION (Input) */}
+                            {requiresUserPath && (
+                                <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 pl-[56px]">
+                                    <div className="flex gap-3">
+                                        <Input
+                                            value={pathDraft}
+                                            onChange={(e) =>
+                                                setPathDraft(
+                                                    e.target.value ?? ""
+                                                )
+                                            }
+                                            placeholder={t(
+                                                "recovery.modal.path_placeholder"
+                                            )}
+                                            startContent={
+                                                <FolderOpen
+                                                    size={18}
+                                                    className="text-foreground/40 mr-1"
+                                                />
+                                            }
+                                            size="lg"
+                                            variant="faded"
+                                            isDisabled={busy}
+                                            classNames={{
+                                                input: "font-mono text-sm",
+                                                inputWrapper:
+                                                    "bg-black/20 hover:bg-black/30 border-white/10 active:border-primary/50",
+                                            }}
+                                            className="shadow-lg"
+                                        />
+                                        {onBrowse && (
+                                            <Button
+                                                isIconOnly
+                                                size="lg"
+                                                variant="flat"
+                                                onPress={handleBrowse}
+                                                isLoading={isBrowsing}
+                                                isDisabled={busy}
+                                                className="bg-white/5 border border-white/10 shrink-0"
+                                            >
+                                                <Search
+                                                    size={20}
+                                                    className="text-foreground/60"
+                                                />
+                                            </Button>
+                                        )}
+                                        {isManuallyEditing && (
+                                            <Button
+                                                size="lg"
+                                                variant="flat"
+                                                className="bg-white/5 border border-white/10 shrink-0"
+                                                onPress={() =>
+                                                    setIsManuallyEditing(false)
+                                                }
+                                            >
+                                                Cancel path edit
+                                            </Button>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* SECTION 4: LIVE STATUS */}
                             {(busy || outcomeMessage) && (
                                 <div
                                     className={cn(
-                                        "rounded-panel border px-panel py-tight text-label",
-                                        busy
-                                            ? "border-default/20 bg-content1/10 text-foreground/70"
-                                            : getToneClasses(outcomeTone)
+                                        "ml-[56px] rounded-lg border p-4 flex items-center gap-4 transition-all duration-300",
+                                        toneStyles.bg,
+                                        toneStyles.border
                                     )}
                                 >
-                                    <div className="flex items-center gap-tools">
-                                        {busy && <Spinner size="sm" />}
-                                        <span>
-                                            {busy
-                                                ? t(
-                                                      "recovery.modal.in_progress"
-                                                  )
-                                                : outcomeMessage}
-                                        </span>
-                                    </div>
+                                    {busy ? (
+                                        <Spinner size="md" color="current" />
+                                    ) : (
+                                        <StatusIcon
+                                            Icon={toneStyles.icon}
+                                            size="md"
+                                            className={toneStyles.text}
+                                        />
+                                    )}
+                                    <span
+                                        className={cn(
+                                            "text-sm font-medium",
+                                            toneStyles.text
+                                        )}
+                                    >
+                                        {busy
+                                            ? t("recovery.modal.in_progress")
+                                            : outcomeMessage}
+                                    </span>
                                 </div>
                             )}
                         </ModalBody>
-                        <ModalFooter className="border-t border-default/20 px-stage py-panel flex items-center justify-end gap-tools">
-                            {showSecondaryVerify &&
-                                plan?.primaryAction !== "verify" && (
-                                    <Button
-                                        variant="flat"
-                                        onPress={onVerify}
-                                        isDisabled={busy}
-                                        startContent={
-                                            <StatusIcon
-                                                Icon={CheckCircle2}
-                                                size="md"
-                                                className="text-current"
-                                            />
-                                        }
-                                    >
-                                        {t("recovery.action.verify")}
-                                    </Button>
-                                )}
-                            <Button
-                                variant="light"
-                                onPress={onClose}
-                                isDisabled={busy}
-                            >
-                                {t("modals.cancel")}
-                            </Button>
-                            <Button
-                                color="primary"
-                                variant="shadow"
-                                onPress={primary.onPress}
-                                isDisabled={primary.isDisabled}
-                                startContent={
-                                    primary.icon ? (
-                                        <StatusIcon
-                                            Icon={primary.icon}
+
+                        {/* --- FOOTER --- */}
+                        <ModalFooter className="flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-2">
+                                {showSecondaryVerify &&
+                                    plan?.primaryAction !== "verify" && (
+                                        <Button
+                                            variant="ghost"
                                             size="md"
-                                            className="text-current"
-                                        />
-                                    ) : null
-                                }
-                            >
-                                {primary.label}
-                            </Button>
+                                            onPress={onVerify}
+                                            isDisabled={busy}
+                                            startContent={
+                                                <FileWarning size={18} />
+                                            }
+                                            className="text-foreground/50 hover:text-foreground"
+                                        >
+                                            {t("recovery.action.verify")}
+                                        </Button>
+                                    )}
+                            </div>
+
+                            <div className="flex items-center gap-4">
+                                <Button
+                                    variant="light"
+                                    onPress={onClose}
+                                    isDisabled={busy}
+                                    className="font-medium text-foreground/60"
+                                >
+                                    {t("modals.cancel")}
+                                </Button>
+                                <Button
+                                    color={
+                                        outcomeTone === "danger"
+                                            ? "danger"
+                                            : "primary"
+                                    }
+                                    variant="shadow"
+                                    size="lg"
+                                    onPress={primary.onPress}
+                                    isDisabled={primary.isDisabled}
+                                    isLoading={busy}
+                                    startContent={
+                                        !busy && primary.icon ? (
+                                            <StatusIcon
+                                                Icon={primary.icon}
+                                                size="md"
+                                            />
+                                        ) : null
+                                    }
+                                    className="font-bold px-8 shadow-xl shadow-primary/10"
+                                >
+                                    {primary.label}
+                                </Button>
+                            </div>
                         </ModalFooter>
                     </>
                 )}
