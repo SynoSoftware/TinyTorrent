@@ -74,6 +74,13 @@ import {
 } from "./TorrentTable_Headers";
 import TorrentTable_ColumnSettingsModal from "./TorrentTable_ColumnSettingsModal";
 import { useQueueReorderController } from "@/modules/dashboard/hooks/useQueueReorderController";
+import { useRowSelectionController } from "@/modules/dashboard/hooks/useRowSelectionController";
+
+const assertDev = (condition: boolean, message: string) => {
+    if (import.meta.env.DEV && !condition) {
+        throw new Error(message);
+    }
+};
 
 // Small helpers / stubs added during wiring to restore behavior
 const formatShortcutLabel = (value?: string | string[]) =>
@@ -158,9 +165,6 @@ export function TorrentTable({
     onSetLocation,
 }: TorrentTableProps) {
     const { t } = useTranslation();
-    const [highlightedRowId, setHighlightedRowId] = useState<string | null>(
-        null
-    );
     // Wiring state required by the extracted hooks/components
     const [activeRowId, setActiveRowId] = useState<string | null>(null);
     const [dropTargetRowId, setDropTargetRowId] = useState<string | null>(null);
@@ -178,6 +182,11 @@ export function TorrentTable({
     const [activeDragHeaderId, setActiveDragHeaderId] = useState<string | null>(
         null
     );
+    const [anchorIndex, setAnchorIndex] = useState<number | null>(null);
+    const [focusIndex, setFocusIndex] = useState<number | null>(null);
+    const [highlightedRowId, setHighlightedRowId] = useState<string | null>(
+        null
+    );
     type TableContextMenu = {
         virtualElement: ContextMenuVirtualElement;
         torrent: Torrent;
@@ -185,8 +194,6 @@ export function TorrentTable({
     const [contextMenu, setContextMenu] = useState<TableContextMenu | null>(
         null
     );
-    const [anchorIndex, setAnchorIndex] = useState<number | null>(null);
-    const [focusIndex, setFocusIndex] = useState<number | null>(null);
 
     const [sorting, setSorting] = useState<SortingState>([]);
     const [columnOrder, setColumnOrder] =
@@ -213,6 +220,7 @@ export function TorrentTable({
         ((info: ColumnSizingInfoState | ((info: ColumnSizingInfoState) => ColumnSizingInfoState)) => void) | null
     >(null);
     const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+    const rowSelectionRef = useRef<RowSelectionState>(rowSelection);
     const speedHistoryRef = useTorrentSpeedHistory(torrents);
 
     const getDisplayTorrent = useCallback(
@@ -371,14 +379,18 @@ export function TorrentTable({
     useEffect(() => {
         rowsRef.current = rows;
     }, [rows]);
-    const rowSelectionRef = useRef<RowSelectionState>(rowSelection);
-    useEffect(() => {
-        rowSelectionRef.current = rowSelection;
-    }, [rowSelection]);
     // Single ordering authority: rowIds always mirrors the current React Table
     // row model order. Do not derive rowIds from server order, pending order, or
     // any cached list, or DnD/virtualization will diverge.
     const rowIds = useMemo(() => rows.map((row) => row.id), [rows]);
+    if (import.meta.env.DEV) {
+        const modelIds = rows.map((row) => row.id);
+        assertDev(
+            rowIds.length === modelIds.length &&
+                rowIds.every((id, idx) => id === modelIds[idx]),
+            "TorrentTable invariant violated: rowIds must match React Table row order"
+        );
+    }
 
     const {
         measuredMinWidths,
@@ -510,37 +522,25 @@ export function TorrentTable({
         rowSelectionRef,
     });
 
-    const selectAllRows = useCallback(() => {
-        const allRows = table.getRowModel().rows;
-        const nextSelection: RowSelectionState = {};
-        allRows.forEach((row) => {
-            if (row.original.isGhost) return;
-            nextSelection[row.id] = true;
-        });
-        setRowSelection(nextSelection);
-        if (allRows.length) {
-            const bottomIndex = allRows.length - 1;
-            const bottomRow = allRows[bottomIndex];
-            setAnchorIndex(bottomIndex);
-            setFocusIndex(bottomIndex);
-            setHighlightedRowId(bottomRow?.id ?? null);
-            rowVirtualizer.scrollToIndex(bottomIndex);
-        }
-    }, [rowVirtualizer, table]);
-
-    const rowSelectionState = table.getState().rowSelection;
-    const selectedTorrents = useMemo(
-        () =>
-            table
-                .getSelectedRowModel()
-                .rows.map((row) => row.original)
-                .filter((torrent) => !torrent.isGhost),
-        [table, rowSelectionState]
-    );
-
-    useEffect(() => {
-        onSelectionChange?.(selectedTorrents);
-    }, [onSelectionChange, selectedTorrents]);
+    const selection = useRowSelectionController({
+        table,
+        rows,
+        rowIds,
+        rowVirtualizer,
+        isMarqueeDraggingRef,
+        marqueeClickBlockRef,
+        rowSelectionRef,
+        rowSelection,
+        setRowSelection,
+        anchorIndex,
+        setAnchorIndex,
+        focusIndex,
+        setFocusIndex,
+        highlightedRowId,
+        setHighlightedRowId,
+        onSelectionChange,
+        onActiveRowChange,
+    });
 
     const {
         activate: activateDashboardScope,
@@ -549,8 +549,8 @@ export function TorrentTable({
 
     useTorrentShortcuts({
         scope: KEY_SCOPE.Dashboard,
-        selectedTorrents,
-        selectAll: selectAllRows,
+        selectedTorrents: selection.selectedTorrents,
+        selectAll: selection.selectAllRows,
         onAction,
         onRequestDetails,
     });
@@ -582,18 +582,6 @@ export function TorrentTable({
         setActiveRowId,
         setDropTargetRowId,
     });
-
-    const lastActiveRowIdRef = useRef<string | null>(null);
-
-    useEffect(() => {
-        if (!onActiveRowChange) return;
-        if (lastActiveRowIdRef.current === highlightedRowId) return;
-        lastActiveRowIdRef.current = highlightedRowId ?? null;
-        const activeRow = highlightedRowId
-            ? rowsById.get(highlightedRowId)
-            : null;
-        onActiveRowChange(activeRow?.original ?? null);
-    }, [highlightedRowId, onActiveRowChange, rowsById]);
 
     useEffect(() => {
         if (typeof window === "undefined") return;
@@ -644,68 +632,13 @@ export function TorrentTable({
         setFocusIndex,
         setHighlightedRowId,
         rowVirtualizer,
-        selectAllRows,
-        anchorIndex,
-        focusIndex,
+        selectAllRows: selection.selectAllRows,
+        anchorIndex: selection.anchorIndex,
+        focusIndex: selection.focusIndex,
         handleRowDragStart: queueHandleRowDragStart,
         handleRowDragEnd: queueHandleRowDragEnd,
         handleRowDragCancel: queueHandleRowDragCancel,
     });
-
-    // extracted to TorrentTable_Interactions.tsx
-    const handleRowClick = useCallback(
-        (e: React.MouseEvent, rowId: string, originalIndex: number) => {
-            // Prevent row click from firing while marquee-dragging
-            if (isMarqueeDraggingRef.current) return;
-            const target = e.target as HTMLElement;
-            if (marqueeClickBlockRef.current) {
-                marqueeClickBlockRef.current = false;
-                return;
-            }
-            const rowData = table.getRow(rowId)?.original;
-            if (rowData?.isGhost) return;
-            if (
-                target.closest("button") ||
-                target.closest("label") ||
-                target.closest("[data-no-select]")
-            )
-                return;
-
-            const isMultiSelect = e.ctrlKey || e.metaKey;
-            const isRangeSelect = e.shiftKey;
-            const rangeAnchor = anchorIndex ?? focusIndex;
-
-            if (isRangeSelect && rangeAnchor !== null) {
-                const allRows = table.getRowModel().rows;
-                const actualAnchorIndex = Math.max(
-                    0,
-                    Math.min(allRows.length - 1, rangeAnchor)
-                );
-                const [start, end] =
-                    actualAnchorIndex < originalIndex
-                        ? [actualAnchorIndex, originalIndex]
-                        : [originalIndex, actualAnchorIndex];
-                const newSel: RowSelectionState = {};
-                const ids = rowIds.slice(start, end + 1);
-                for (const id of ids) newSel[id] = true;
-                setRowSelection(newSel);
-                setFocusIndex(originalIndex);
-                setHighlightedRowId(rowId);
-                return;
-            }
-
-            if (isMultiSelect) {
-                table.getRow(rowId).toggleSelected();
-            } else {
-                setRowSelection({ [rowId]: true });
-            }
-
-            setAnchorIndex(originalIndex);
-            setFocusIndex(originalIndex);
-            setHighlightedRowId(rowId);
-        },
-        [anchorIndex, focusIndex, table]
-    );
 
     const handleRowDoubleClick = useCallback(
         (torrent: Torrent) => {
@@ -728,14 +661,9 @@ export function TorrentTable({
             const allRows = table.getRowModel().rows;
             const row = allRows.find((r) => r.original.id === torrent.id);
             if (!row) return;
-            if (!rowSelection[row.id]) {
-                setRowSelection({ [row.id]: true });
-            }
-            setHighlightedRowId(row.id);
-            setAnchorIndex(row.index);
-            setFocusIndex(row.index);
+            selection.ensureContextSelection(row.id, row.index, rowSelection);
         },
-        [rowSelection, table]
+        [rowSelection, selection, table]
     );
 
     // header context/menu logic extracted to TorrentTable_HeaderContext.tsx
@@ -879,7 +807,7 @@ export function TorrentTable({
                             renderOverlayPortal={renderOverlayPortal}
                             DND_OVERLAY_CLASSES={DND_OVERLAY_CLASSES}
                             contextMenu={contextMenu}
-                            handleRowClick={handleRowClick}
+                            handleRowClick={selection.handleRowClick}
                             handleRowDoubleClick={handleRowDoubleClick}
                             handleContextMenu={handleContextMenu}
                             canReorderQueue={canReorderQueue}

@@ -156,6 +156,17 @@ export const useTorrentTableVirtualization = (
     // provided React Table rows and must stay aligned with the parent's rowIds
     // so DnD/virtualization share a single ordering authority.
     const rowIds = useMemo(() => rows.map((row: any) => row.id), [rows]);
+    if (import.meta.env.DEV) {
+        const modelIds = rows.map((row: any) => row.id);
+        if (
+            rowIds.length !== modelIds.length ||
+            !rowIds.every((id: string, idx: number) => id === modelIds[idx])
+        ) {
+            throw new Error(
+                "Virtualization invariant violated: rowIds must match provided rows"
+            );
+        }
+    }
 
     const { marqueeRect, marqueeClickBlockRef, isMarqueeDraggingRef } =
         useMarqueeSelection({
