@@ -2,6 +2,7 @@ import { Button, ButtonGroup } from "@heroui/react";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
 import { Columns, Layers } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { formatSpeed } from "@/shared/utils/format";
 import { SPEED_WINDOW_OPTIONS } from "@/config/logic";
 import { useUiClock } from "@/shared/hooks/useUiClock";
@@ -551,6 +552,7 @@ export const SpeedChart = ({
     upHistory,
     isStandalone = false,
 }: SpeedChartProps) => {
+    const { t } = useTranslation();
     // NOTE:
     // `tick` is used ONLY to invalidate canvas rendering.
     // Time semantics (sample timestamps, retention windows, and bucket math)
@@ -687,7 +689,9 @@ export const SpeedChart = ({
                                     : "bg-transparent text-foreground/50"
                             )}
                             onPress={() => setLayout("split")}
-                            ariaLabel="Split View"
+                            ariaLabel={t(
+                                "inspector.speed_chart.split_view_aria"
+                            )}
                         />
                         <ToolbarIconButton
                             Icon={Layers}
@@ -699,7 +703,9 @@ export const SpeedChart = ({
                                     : "bg-transparent text-foreground/50"
                             )}
                             onPress={() => setLayout("combined")}
-                            ariaLabel="Combined View"
+                            ariaLabel={t(
+                                "inspector.speed_chart.combined_view_aria"
+                            )}
                         />
                     </ButtonGroup>
 

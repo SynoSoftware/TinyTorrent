@@ -230,11 +230,12 @@ Literals are forbidden.
 
 ---
 
-## **11. Internationalization Law**
+**11. Internationalization Law (Hard Gate)**
 
-* No inline English
-* All UI text via `t("key")`
-* Only `i18n/en.json` is authoritative
+ * No inline English or user-visible strings in JSX/TSX.
+ * All UI text **must** be referenced via `t("key")` backed by `i18n/en.json`.
+ * Using `defaultValue` in i18n calls is FORBIDDEN.
+ * **If inline text is introduced, the change is invalid and must be rewritten before completion.**
 
 ---
 
@@ -246,6 +247,8 @@ Required:
 * Strict TypeScript
 * No console noise
 * No unused imports
+* **i18n check:** scan touched files for string literals in JSX/TSX; any visible text must be replaced with `t("key")` and added to `en.json`.
+* coding stardard upheld: no rgb colors, no 'any' usage, etc. see the relevant section.
 * Absolute imports (`@/`)
 * `npm run build` must pass
 

@@ -54,6 +54,7 @@
         "open": "Open",
         "path_helper": "Type a path; the daemon will create missing folders when you confirm.",
         "manual_entry_prompt": "Enter the server-side folder path that already contains this torrent's data.",
+        "enter_path": "Enter path:",
         "path_label": "Path",
         "root_label": "File System",
         "select": "Use this folder",
@@ -163,6 +164,9 @@
             "smart_select_largest": "Largest File Only",
             "smart_select_videos": "Videos Only",
             "start_behavior": "START BEHAVIOR",
+            "commit_mode_aria": "Commit mode",
+            "advanced_options_aria": "Advanced Options",
+            "smart_select_aria": "Smart select",
             "title": "Add Torrent"
         },
         "cancel": "Cancel",
@@ -200,18 +204,40 @@
         "magnet_placeholder": "magnet:?xt=urn:btih...",
         "options": "OPTIONS",
         "save_path": "SAVE PATH",
-        "start_now": "Start Immediately"
+        "start_now": "Start Immediately",
+        "file_priorities": {
+            "0": "Do Not Download",
+            "1": "Low Priority",
+            "2": "Priority 2",
+            "3": "Priority 3",
+            "4": "Default",
+            "5": "Priority 5",
+            "6": "Priority 6",
+            "7": "Top Priority"
+        },
+        "speed_chart": {
+            "split_view_aria": "Split View",
+            "combined_view_aria": "Combined View"
+        }
     },
     "nav": {
         "filter_all": "All",
         "filter_downloading": "Downloading",
         "filter_seeding": "Seeding",
+        "filter_aria": "Filter",
         "search_placeholder": "Filter torrents..."
     },
     "peers": {
         "action_add_peer": "Add Peer",
         "action_ban_ip": "Ban IP",
         "action_copy_ip": "Copy IP",
+        "columns": {
+            "client_identification": "Client Identification",
+            "downstream": "Downstream",
+            "endpoint": "Endpoint",
+            "flags": "Flags",
+            "upstream": "Upstream"
+        },
         "diagnostic_radar": "Diagnostic Radar",
         "flags": {
             "choked_remote": "Peer choked us",
@@ -285,6 +311,8 @@
             "port": "Port",
             "profile_label": "Profile Name",
             "profile_placeholder": "Unnamed Connection",
+            "show_advanced": "Advanced",
+            "local_mode_info": "Using bundled local daemon - remote settings are disabled.",
             "profile_title": "Connection {{index}}",
             "reconnect": "Reconnect",
             "remove": "Remove",
@@ -738,11 +766,38 @@
             "tooltip_progress": "Torrent progress: {{percent}}%",
             "tooltip_size": "Piece size: {{size}}"
         },
+        "files_search_placeholder": "Search files...",
+        "files_select_extension": "Select by extension...",
+        "files_recovery_desc": "This torrent may be missing file metadata. Try rechecking or re-downloading.",
         "placeholder": "Select a torrent and open the inspector to see details.",
         "errors": {
             "no_data_found_title": "No data found!",
             "no_data_found_desc": "Ensure your drives are connected or use 'Set Location'. To re-download, remove the torrent and re-add it.",
             "resolve_action": "Resolve"
+        },
+        "recovery": {
+            "modal": {
+                "title": "Recovery — {{action}}",
+                "reason": "Reason: {{reason}}"
+            },
+            "choose_another_folder": "Choose another folder",
+            "prompt": {
+                "enter_new_path": "Enter new path:"
+            },
+            "outcome_message": "{{message}}",
+            "primary": "Primary",
+            "no_recovery_performed": "No recovery performed",
+            "no_primary_recovery_for_error_class": "No primary recovery for this error class",
+            "errors": {
+                "missing_client_detail_envelope": "Missing client, detail, or envelope",
+                "missing_client_or_detail": "Missing client or detail",
+                "set_torrent_location_failed": "{{message}}"
+            },
+            "reason": {
+                "missing": "Missing",
+                "unwritable": "Unwritable",
+                "disk_full": "Disk full"
+            }
         },
         "speed": {
             "average": "Average",
@@ -795,7 +850,9 @@
             "peers_label": "Peers",
             "status_online": "Online",
             "status_partial": "Partial",
-            "tier": "Tier"
+            "tier": "Tier",
+            "reannounce_timeout": "Reannounce timed out",
+            "reannounce_completed": "Reannounce completed"
         }
     },
     "remove_modal": {
@@ -815,10 +872,45 @@
         "stage": {
             "dismiss_card": "Dismiss card",
             "hud_dismissed": "Insights hidden. Restore to view connection, drag, and deep-link helpers.",
-            "restore_hud": "Restore insights"
+            "restore_hud": "Restore insights",
+            "engine_fallback": "Torrent engine",
+            "connection_label": "Connection health",
+            "connection_online_title": "Link secured",
+            "connection_online_description": "Talking to {{engine}}{{version}}",
+            "connection_detecting_title": "Detecting client",
+            "connection_idle_title": "Waiting for engine",
+            "connection_detecting_description": "Scanning your local adapters...",
+            "connection_idle_description": "Open your client or tap reconnect.",
+            "connection_error_title": "Connection interrupted",
+            "connection_error_description": "We're retrying automatically--use Reconnect for a manual nudge.",
+            "drop_active_title": "Release to queue",
+            "drop_idle_title": "Drop torrents anywhere",
+            "drop_active_description": "We'll parse and schedule this payload instantly.",
+            "drop_idle_description": "Drag .torrent files or folders across the stage to fast-track importing.",
+            "deeplink_idle_title": "Deep links armed",
+            "deeplink_idle_description": "Share any magnet:? URL or magnet query to auto-open the Add modal."
         }
     },
     "recovery": {
+        "modal": {
+            "title": "Recovery — {{action}}",
+            "reason": "Reason: {{reason}}"
+        },
+        "prompt": {
+            "enter_new_path": "Enter new path:",
+            "path_required": "Path required — enter a new path:"
+        },
+        "choose_another_folder": "Choose another folder",
+        "outcome_message": "{{message}}",
+        "primary": "Primary",
+        "no_recovery_performed": "No recovery performed",
+        "no_primary_recovery_for_error_class": "No primary recovery for this error class",
+        "errors": {
+            "missing_client_detail_envelope": "Missing client, detail, or envelope",
+            "missing_client_or_detail": "Missing client or detail",
+            "set_torrent_location_failed": "{{message}}",
+            "set_torrent_location_failed_default": "Failed to set location"
+        },
         "status": {
             "ok": "Idle",
             "transientWaiting": "Waiting",
@@ -844,6 +936,14 @@
             "pause": "Paused: disk full",
             "removeReadd": "Remove and re-add torrent",
             "unknown": "See details"
+        },
+        "action": {
+            "resume": "Resume",
+            "verify": "Verify",
+            "reannounce": "Reannounce",
+            "redownload_here": "Re-download",
+            "pick_path": "Set Location",
+            "open_folder": "Open Folder"
         }
     }
 }

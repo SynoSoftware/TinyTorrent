@@ -144,7 +144,7 @@ export function Navbar({
 
                         <div className="hidden lg:flex text-navbar">
                             <Tabs
-                                aria-label="Filter"
+                                aria-label={t("nav.filter_aria")}
                                 variant="light"
                                 size="lg"
                                 radius="full"

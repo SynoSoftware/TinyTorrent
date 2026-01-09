@@ -211,11 +211,7 @@ export function useDetailControls({
                     try {
                         sub.unsubscribe();
                     } catch {}
-                    resolve(
-                        t("torrent_modal.trackers.reannounce_timeout", {
-                            defaultValue: "Reannounce timed out",
-                        })
-                    );
+                    resolve(t("torrent_modal.trackers.reannounce_timeout"));
                 }, timeout);
 
                 const sub = torrentClient.subscribeToHeartbeat({
@@ -252,12 +248,7 @@ export function useDetailControls({
                             // update the detail cache with the fresh detail
                             mutateDetail(() => fresh as any);
                             resolve(
-                                t(
-                                    "torrent_modal.trackers.reannounce_completed",
-                                    {
-                                        defaultValue: "Reannounce completed",
-                                    }
-                                )
+                                t("torrent_modal.trackers.reannounce_completed")
                             );
                         }
                     },
@@ -267,9 +258,7 @@ export function useDetailControls({
                 });
             });
         } catch {
-            return t("torrent_modal.trackers.reannounce_timeout", {
-                defaultValue: "Reannounce timed out",
-            });
+            return t("torrent_modal.trackers.reannounce_timeout");
         }
     }, [
         detailData,

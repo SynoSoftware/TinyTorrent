@@ -64,9 +64,7 @@ export const formatRecoveryStatus = (
     const stateLabelKey =
         RECOVERY_STATE_LABEL_KEY[String(effectiveState)] ??
         `labels.status.torrent.${effectiveState}`;
-    const stateLabel = t(stateLabelKey, {
-        defaultValue: effectiveState,
-    });
+    const stateLabel = t(stateLabelKey);
     return stateLabel;
 };
 
@@ -90,10 +88,8 @@ export const formatRecoveryTooltip = (
         RECOVERY_CLASS_LABEL_KEY[String(envelope.errorClass)] ??
         `recovery.class.${envelope.errorClass}`;
 
-    const stateLabel = t(stateLabelKey, {
-        defaultValue: effectiveState,
-    });
-    const classLabel = t(classLabelKey, { defaultValue: envelope.errorClass });
+    const stateLabel = t(stateLabelKey);
+    const classLabel = t(classLabelKey);
 
     const parts: string[] = [];
     parts.push(stateLabel);
@@ -106,7 +102,7 @@ export const formatRecoveryTooltip = (
     if (envelope.automationHint?.recommendedAction) {
         const action = envelope.automationHint.recommendedAction;
         const hintKey = RECOVERY_HINT_KEY[action] ?? `recovery.hint.${action}`;
-        const hint = t(hintKey, { defaultValue: action });
+        const hint = t(hintKey);
         parts.push(hint);
     }
 
@@ -120,7 +116,7 @@ export const formatPrimaryActionHint = (
     if (!envelope?.primaryAction) return null;
     const action = envelope.primaryAction;
     const key = RECOVERY_HINT_KEY[action] ?? `recovery.hint.${action}`;
-    return t(key, { defaultValue: action });
+    return t(key);
 };
 
 export default formatRecoveryStatus;

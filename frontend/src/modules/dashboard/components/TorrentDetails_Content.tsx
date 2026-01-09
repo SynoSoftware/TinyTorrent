@@ -83,10 +83,7 @@ export const ContentTab = ({
                         {t("torrent_modal.files_empty")}
                     </div>
                     <div className="text-label text-warning/80 mb-tight">
-                        {t("torrent_modal.files_recovery_desc", {
-                            defaultValue:
-                                "This torrent may be missing file metadata. Try rechecking or re-downloading.",
-                        })}
+                        {t("torrent_modal.files_recovery_desc")}
                     </div>
                     <div className="flex gap-tools mt-tight">
                         <Button
@@ -98,18 +95,13 @@ export const ContentTab = ({
                                     void onRetry();
                                     return;
                                 }
-                                try {
-                                    window.dispatchEvent(
-                                        new CustomEvent(
-                                            "tiny-torrent:retry-fetch"
-                                        )
-                                    );
-                                } catch (err) {}
+                                // Recovery-related fallback removed: require typed handler
+                                console.warn(
+                                    "retry fallback removed; pass onRetry prop to handle verify/reannounce"
+                                );
                             }}
                         >
-                            {t("toolbar.recheck", {
-                                defaultValue: "Recheck Torrent",
-                            })}
+                            {t("toolbar.recheck")}
                         </Button>
                         <Button
                             size="md"
@@ -120,6 +112,10 @@ export const ContentTab = ({
                                     void onRedownload();
                                     return;
                                 }
+                                // Deprecated fallback: prefer typed callback
+                                console.warn(
+                                    "tiny-torrent: redownload fallback used; prefer passing onRedownload prop"
+                                );
                                 try {
                                     window.dispatchEvent(
                                         new CustomEvent(
@@ -129,9 +125,7 @@ export const ContentTab = ({
                                 } catch (err) {}
                             }}
                         >
-                            {t("modals.download", {
-                                defaultValue: "Re-download",
-                            })}
+                            {t("modals.download")}
                         </Button>
                         <Button
                             size="md"
@@ -142,18 +136,13 @@ export const ContentTab = ({
                                     void onSetLocation();
                                     return;
                                 }
-                                try {
-                                    window.dispatchEvent(
-                                        new CustomEvent(
-                                            "tiny-torrent:set-location"
-                                        )
-                                    );
-                                } catch (err) {}
+                                // Recovery-related fallback removed: require typed handler
+                                console.warn(
+                                    "set-location fallback removed; pass onSetLocation prop"
+                                );
                             }}
                         >
-                            {t("directory_browser.open", {
-                                defaultValue: "Open Folder",
-                            })}
+                            {t("directory_browser.open")}
                         </Button>
                     </div>
                 </GlassPanel>

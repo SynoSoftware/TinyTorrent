@@ -25,6 +25,7 @@ import { useHudCards } from "./hooks/useHudCards";
 import { useTorrentData } from "@/modules/dashboard/hooks/useTorrentData";
 import { useTorrentDetail } from "@/modules/dashboard/hooks/useTorrentDetail";
 import { useDetailControls } from "@/modules/dashboard/hooks/useDetailControls";
+import { useRecoveryController } from "@/modules/dashboard/hooks/useRecoveryController";
 import { useTorrentActions } from "@/modules/dashboard/hooks/useTorrentActions";
 import { CommandPalette } from "./components/CommandPalette";
 import type {
@@ -503,6 +504,18 @@ export default function App() {
         updateCapabilityState,
     });
 
+    // Recovery controller hook for UI-driven recovery flows
+    const {
+        plan: recoveryPlan,
+        recoveryCallbacks,
+        isBusy: isRecoveryBusy,
+        lastOutcome: lastRecoveryOutcome,
+    } = useRecoveryController({
+        client: torrentClient,
+        detail: detailData,
+        envelope: detailData?.errorEnvelope,
+    });
+
     const { handleTorrentAction: executeTorrentAction, handleOpenFolder } =
         useTorrentActions({
             torrentClient,
@@ -961,11 +974,7 @@ export default function App() {
             }
             if (!chosen) {
                 const promptMessage = t(
-                    "directory_browser.manual_entry_prompt",
-                    {
-                        defaultValue:
-                            "Enter the server-side path where the torrent's files live.",
-                    }
+                    "directory_browser.manual_entry_prompt"
                 );
                 const defaultValue = target.savePath ?? "";
                 const manualEntry = window.prompt(promptMessage, defaultValue);
@@ -977,7 +986,28 @@ export default function App() {
             if (!chosen) return;
 
             try {
-                await client.setTorrentLocation?.(target.id, chosen, false);
+                if (recoveryCallbacks?.handlePickPath) {
+                    const out = await recoveryCallbacks.handlePickPath(chosen);
+                    if (out.kind === "error") {
+                        reportCommandError?.(
+                            out.message ??
+                                "setTorrentLocation failed via controller"
+                        );
+                        // abort further operations when pick path failed
+                        return;
+                    }
+                } else {
+                    try {
+                        await client.setTorrentLocation?.(
+                            target.id,
+                            chosen,
+                            false
+                        );
+                    } catch (err) {
+                        reportCommandError?.(err);
+                        return;
+                    }
+                }
                 await refreshTorrentsRef.current?.();
                 if (detailData?.id === target.id) {
                     await refreshDetailData();
@@ -1082,18 +1112,50 @@ export default function App() {
                     (target.savePath as string | undefined);
 
                 try {
+                    // Consult recovery controller before performing destructive actions
+                    if (recoveryCallbacks?.handlePrimaryRecovery) {
+                        const pre =
+                            await recoveryCallbacks.handlePrimaryRecovery();
+                        if (pre.kind === "path-needed") {
+                            // Ask user for alternate path
+                            const pick = window.prompt(
+                                t("recovery.prompt.path_required"),
+                                target.savePath ?? ""
+                            );
+                            if (pick === null) {
+                                // User cancelled; abort
+                                return;
+                            }
+                            const trimmed = pick.trim();
+                            if (!trimmed) return;
+                            const pickOutcome =
+                                await recoveryCallbacks.handlePickPath(trimmed);
+                            if (pickOutcome.kind !== "resolved") {
+                                // Path resolution failed; surface error and abort destructive action
+                                reportCommandError?.(
+                                    pickOutcome.message ??
+                                        "Path resolution failed"
+                                );
+                                return;
+                            }
+                        } else if (pre.kind === "error") {
+                            reportCommandError?.(
+                                pre.message ?? "Recovery preflight failed"
+                            );
+                            return;
+                        }
+                    }
+
                     await client.pause([target.id]);
                 } catch (err) {
-                    console.error("pause failed during redownload", err);
+                    reportCommandError?.(err);
                 }
 
                 try {
                     await client.remove([target.id], false);
                 } catch (err) {
-                    console.error(
-                        "remove (keep metadata) failed during redownload",
-                        err
-                    );
+                    reportCommandError?.(err);
+                    return;
                 }
 
                 if (magnet) {
@@ -1105,10 +1167,7 @@ export default function App() {
                         });
                         await refreshTorrentsRef.current?.();
                     } catch (err) {
-                        console.error(
-                            "addTorrent (magnet) failed during redownload",
-                            err
-                        );
+                        reportCommandError?.(err);
                         try {
                             window.dispatchEvent(
                                 new CustomEvent("tiny-torrent:open-add", {
@@ -1176,7 +1235,11 @@ export default function App() {
                 }
             } else if (typeof client.verify === "function") {
                 try {
-                    await client.verify([target.id]);
+                    if (recoveryCallbacks?.handleVerify) {
+                        await recoveryCallbacks.handleVerify();
+                    } else {
+                        await client.verify([target.id]);
+                    }
                 } catch (err) {
                     console.error("retry fetch verify failed", err);
                     return;
@@ -1257,14 +1320,8 @@ export default function App() {
             }
         };
 
-        window.addEventListener(
-            "tiny-torrent:redownload",
-            handleRedownload as EventListener
-        );
-        window.addEventListener(
-            "tiny-torrent:retry-fetch",
-            handleRetryFetch as EventListener
-        );
+        // NOTE: Recovery-related global event handlers removed to enforce
+        // typed callbacks through the recovery controller and hook.
         const handleRemoveEvent = async (ev: Event) => {
             try {
                 const ce = ev as CustomEvent;
@@ -1282,52 +1339,20 @@ export default function App() {
                         handleCloseDetail();
                     }
                 } catch (err) {
-                    console.error("remove failed", err);
+                    reportCommandError?.(err);
                 }
             } catch (err) {
-                console.error("handleRemoveEvent failed", err);
+                reportCommandError?.(err);
             }
         };
         window.addEventListener(
             "tiny-torrent:remove",
             handleRemoveEvent as EventListener
         );
-        window.addEventListener(
-            "tiny-torrent:set-location",
-            handleSetLocation as EventListener
-        );
-        window.addEventListener(
-            "tiny-torrent:dismiss-missing-files",
-            handleDismiss as EventListener
-        );
-        window.addEventListener(
-            "tiny-torrent:resume",
-            handleResumeEvent as EventListener
-        );
         return () => {
-            window.removeEventListener(
-                "tiny-torrent:redownload",
-                handleRedownload as EventListener
-            );
-            window.removeEventListener(
-                "tiny-torrent:retry-fetch",
-                handleRetryFetch as EventListener
-            );
             window.removeEventListener(
                 "tiny-torrent:remove",
                 handleRemoveEvent as EventListener
-            );
-            window.removeEventListener(
-                "tiny-torrent:set-location",
-                handleSetLocation as EventListener
-            );
-            window.removeEventListener(
-                "tiny-torrent:dismiss-missing-files",
-                handleDismiss as EventListener
-            );
-            window.removeEventListener(
-                "tiny-torrent:resume",
-                handleResumeEvent as EventListener
             );
         };
     }, [
@@ -1609,6 +1634,32 @@ export default function App() {
                 onRedownload={handleRedownloadForDetail}
                 onRetry={handleRetryForDetail}
                 onResume={handleResumeForDetail}
+                // Recovery props
+                recoveryPlan={recoveryPlan}
+                recoveryCallbacks={recoveryCallbacks}
+                isRecoveryBusy={isRecoveryBusy}
+                lastRecoveryOutcome={lastRecoveryOutcome}
+                recoveryRequestBrowse={async (currentPath?: string) => {
+                    const client = torrentClientRef.current;
+                    if (!client) return null;
+                    if (typeof client.browseDirectory === "function") {
+                        try {
+                            const res = await client.browseDirectory(
+                                currentPath
+                            );
+                            return res?.path ?? null;
+                        } catch {
+                            // fallthrough to manual prompt
+                        }
+                    }
+                    const pick = window.prompt(
+                        t("directory_browser.enter_path"),
+                        currentPath ?? ""
+                    );
+                    if (pick === null) return null;
+                    const trimmed = pick.trim();
+                    return trimmed || null;
+                }}
                 capabilities={capabilities}
                 optimisticStatuses={optimisticStatuses}
                 handleSelectionChange={handleSelectionChange}

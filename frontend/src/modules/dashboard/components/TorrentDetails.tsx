@@ -51,6 +51,18 @@ export interface TorrentDetailsProps {
     onRedownload?: (torrent: TorrentDetail) => void | Promise<void>;
     onRetry?: (torrent: TorrentDetail) => void | Promise<void>;
     onResume?: (torrent: TorrentDetail) => void | Promise<void>;
+    // Recovery forwarding
+    recoveryPlan?:
+        | import("@/services/recovery/recovery-controller").RecoveryPlan
+        | null;
+    recoveryCallbacks?:
+        | import("@/modules/dashboard/hooks/useRecoveryController").RecoveryCallbacks
+        | null;
+    isRecoveryBusy?: boolean;
+    lastRecoveryOutcome?:
+        | import("@/services/recovery/recovery-controller").RecoveryOutcome
+        | null;
+    recoveryRequestBrowse?: (currentPath?: string) => Promise<string | null>;
     capabilities: CapabilityStore;
     isStandalone?: boolean;
 }
@@ -76,6 +88,12 @@ export function TorrentDetails({
     onRedownload,
     onRetry,
     onResume,
+    // Recovery props
+    recoveryPlan,
+    recoveryCallbacks,
+    isRecoveryBusy,
+    lastRecoveryOutcome,
+    recoveryRequestBrowse,
     capabilities,
     isDetailFullscreen = false,
     isStandalone = false,
@@ -142,6 +160,12 @@ export function TorrentDetails({
                         onResume={
                             onResume ? () => onResume(torrent) : undefined
                         }
+                        // Recovery props forwarded from parent
+                        recoveryPlan={recoveryPlan}
+                        recoveryCallbacks={recoveryCallbacks}
+                        isRecoveryBusy={isRecoveryBusy}
+                        lastRecoveryOutcome={lastRecoveryOutcome}
+                        recoveryRequestBrowse={recoveryRequestBrowse}
                         progressPercent={Math.round(
                             (torrent.progress ?? 0) * 100
                         )}

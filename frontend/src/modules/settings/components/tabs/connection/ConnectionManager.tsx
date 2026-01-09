@@ -152,17 +152,12 @@ export function ConnectionCredentialsCard({
                             variant="ghost"
                             onPress={() => setShowAdvanced(true)}
                         >
-                            {t("settings.connection.show_advanced", {
-                                defaultValue: "Advanced",
-                            })}
+                            {t("settings.connection.show_advanced")}
                         </Button>
                     </div>
                 </div>
                 <p className="text-label text-foreground/60">
-                    {t(
-                        "settings.connection.local_mode_info",
-                        "Using bundled local daemon - remote settings are disabled."
-                    )}
+                    {t("settings.connection.local_mode_info")}
                 </p>
             </div>
         );

@@ -9,6 +9,7 @@ import {
     Checkbox,
     cn,
 } from "@heroui/react";
+import { useTranslation } from "react-i18next";
 import { GLASS_MENU_SURFACE } from "@/shared/ui/layout/glass-surface";
 import type { Column } from "@tanstack/react-table";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
@@ -42,6 +43,7 @@ export default function TorrentTable_HeaderMenu({
     ) => void;
 }) {
     if (!headerMenuTriggerRect) return null;
+    const { t } = useTranslation();
     return (
         <AnimatePresence>
             <Dropdown
@@ -92,9 +94,12 @@ export default function TorrentTable_HeaderMenu({
                         }
                         showDivider
                     >
-                        Fit all columns
+                        {t("table.actions.fit_all_columns")}
                     </DropdownItem>
-                    <DropdownSection key="columns-section" title="Columns">
+                    <DropdownSection
+                        key="columns-section"
+                        title={t("table.column_picker_title")}
+                    >
                         {headerMenuItems.map((item) => {
                             const isVisible = item.column.getIsVisible();
                             return (
