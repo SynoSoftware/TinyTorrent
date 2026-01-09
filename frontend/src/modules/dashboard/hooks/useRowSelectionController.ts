@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import {
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    type MutableRefObject,
+} from "react";
 import type { Row } from "@tanstack/react-table";
 import type { RowSelectionState } from "@tanstack/react-table";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
@@ -12,7 +18,7 @@ type RowSelectionControllerDeps = {
     };
     rows?: Row<Torrent>[];
     rowIds: string[];
-    rowVirtualizer?: { scrollToIndex: (index: number) => void } | null;
+    rowVirtualizerRef?: MutableRefObject<{ scrollToIndex: (index: number) => void } | null>;
     isMarqueeDraggingRef: React.MutableRefObject<boolean>;
     marqueeClickBlockRef: React.MutableRefObject<boolean>;
     rowSelectionRef: React.MutableRefObject<RowSelectionState>;
@@ -35,7 +41,7 @@ export const useRowSelectionController = (
         table,
         rows,
         rowIds,
-        rowVirtualizer,
+        rowVirtualizerRef,
         isMarqueeDraggingRef,
         marqueeClickBlockRef,
         rowSelectionRef,
@@ -82,9 +88,9 @@ export const useRowSelectionController = (
             setAnchorIndex(bottomIndex);
             setFocusIndex(bottomIndex);
             setHighlightedRowId(bottomRow?.id ?? null);
-            rowVirtualizer?.scrollToIndex(bottomIndex);
+            rowVirtualizerRef?.current?.scrollToIndex(bottomIndex);
         }
-    }, [rowVirtualizer, table]);
+    }, [rowVirtualizerRef, table]);
 
     const selectedTorrents = useMemo(() => {
         if (!table) return [];
@@ -93,6 +99,41 @@ export const useRowSelectionController = (
             .rows.map((row) => row.original)
             .filter((torrent) => !torrent.isGhost);
     }, [table, rowSelection]);
+
+    const getSelectionSnapshot = useCallback(
+        () => rowSelectionRef.current,
+        [rowSelectionRef]
+    );
+
+    const previewSelection = useCallback(
+        (next: RowSelectionState) => {
+            setRowSelection(next);
+        },
+        [setRowSelection]
+    );
+
+    const commitSelection = useCallback(
+        (
+            next: RowSelectionState,
+            focusIndexValue: number | null,
+            focusRowId: string | null
+        ) => {
+            setRowSelection(next);
+            if (focusIndexValue !== null) {
+                setAnchorIndex(focusIndexValue);
+                setFocusIndex(focusIndexValue);
+            }
+            setHighlightedRowId(focusRowId ?? null);
+        },
+        [setAnchorIndex, setFocusIndex, setHighlightedRowId, setRowSelection]
+    );
+
+    const clearSelection = useCallback(() => {
+        setRowSelection({});
+        setAnchorIndex(null);
+        setFocusIndex(null);
+        setHighlightedRowId(null);
+    }, [setAnchorIndex, setFocusIndex, setHighlightedRowId, setRowSelection]);
 
     useEffect(() => {
         onSelectionChange?.(selectedTorrents);
@@ -196,8 +237,13 @@ export const useRowSelectionController = (
         setHighlightedRowId,
         selectAllRows,
         selectedTorrents,
+        getSelectionSnapshot,
+        previewSelection,
+        commitSelection,
+        clearSelection,
         handleRowClick,
         ensureContextSelection,
+        handleTableRowSelectionChange: setRowSelection,
     };
 };
 
