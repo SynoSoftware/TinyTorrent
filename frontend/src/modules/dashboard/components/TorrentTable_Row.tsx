@@ -122,7 +122,7 @@ const TorrentTable_Row = memo(
         ]);
 
         return (
-            <div
+            <motion.div
                 ref={setNodeRef}
                 data-index={virtualRow.index}
                 data-torrent-row={row.original.id}
@@ -131,6 +131,12 @@ const TorrentTable_Row = memo(
                 role="row"
                 aria-selected={isSelected}
                 tabIndex={-1}
+                layout={!isAnimationSuppressed}
+                layoutId={
+                    isAnimationSuppressed
+                        ? undefined
+                        : `torrent-row-shell-${row.id}`
+                }
                 className={cn(
                     "absolute top-0 left-0 border-b border-default/5",
                     "box-border",
@@ -169,7 +175,7 @@ const TorrentTable_Row = memo(
                         <TableCellContent key={cell.id} cell={cell} />
                     ))}
                 </motion.div>
-            </div>
+            </motion.div>
         );
     }
 );
