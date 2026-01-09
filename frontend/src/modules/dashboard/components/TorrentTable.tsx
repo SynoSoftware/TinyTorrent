@@ -1,86 +1,36 @@
 // All imports use '@/...' aliases. Clipboard logic and magic numbers flagged for follow-up refactor.
 
-import {
-    DndContext,
-    DragOverlay,
-    KeyboardSensor,
-    MouseSensor,
-    TouchSensor,
-    closestCenter,
-    useSensor,
-    useSensors,
-    type DragEndEvent,
-    type DragStartEvent,
-} from "@dnd-kit/core";
-import {
-    SortableContext,
-    arrayMove,
-    horizontalListSortingStrategy,
-    verticalListSortingStrategy,
-    useSortable,
-    defaultAnimateLayoutChanges,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
+import { DndContext, DragOverlay, closestCenter } from "@dnd-kit/core";
+import { arrayMove } from "@dnd-kit/sortable";
 import {
     getCoreRowModel,
     getSortedRowModel,
     useReactTable,
-    flexRender,
     type Column,
-    type ColumnDef,
     type ColumnSizingInfoState,
-    type Header,
-    type Cell,
     type Row,
     type RowSelectionState,
     type SortingState,
 } from "@tanstack/react-table";
-import {
-    Checkbox,
-    Dropdown,
-    DropdownItem,
-    DropdownMenu,
-    DropdownSection,
-    DropdownTrigger,
-    Modal,
-    ModalBody,
-    ModalContent,
-    ModalHeader,
-    Skeleton,
-    cn,
-} from "@heroui/react";
-import { type VirtualItem, useVirtualizer } from "@tanstack/react-virtual";
-import { AnimatePresence, motion } from "framer-motion";
-import { ArrowDown, ArrowUp, FileUp } from "lucide-react";
+import { cn } from "@heroui/react";
 import React, {
-    memo,
     useCallback,
     useEffect,
-    useLayoutEffect,
     useMemo,
     useRef,
     useState,
-    type CSSProperties,
     type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { getEmphasisClassForAction } from "@/shared/utils/recoveryFormat";
-import type { ItemElement } from "@react-types/shared";
 
 import type { OptimisticStatusMap } from "@/modules/dashboard/types/optimistic";
 import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 
-import {
-    BLOCK_SHADOW,
-    GLASS_BLOCK_SURFACE,
-    GLASS_MENU_SURFACE,
-    GLASS_MODAL_SURFACE,
-    PANEL_SHADOW,
-} from "@/shared/ui/layout/glass-surface";
+import { BLOCK_SHADOW } from "@/shared/ui/layout/glass-surface";
 import useLayoutMetrics from "@/shared/hooks/useLayoutMetrics";
-import StatusIcon from "@/shared/ui/components/StatusIcon";
 import { useContextMenuPosition } from "@/shared/hooks/ui/useContextMenuPosition";
 import type { ContextMenuVirtualElement } from "@/shared/hooks/ui/useContextMenuPosition";
 import { useKeyboardScope } from "@/shared/hooks/useKeyboardScope";
@@ -94,28 +44,12 @@ import { useTorrentShortcuts } from "@/modules/dashboard/hooks/useTorrentShortcu
 import { useTorrentSpeedHistory } from "@/modules/dashboard/hooks/useTorrentSpeedHistory";
 import {
     TABLE_LAYOUT,
-    INTERACTION_CONFIG,
     KEY_SCOPE,
     KEYMAP,
     ShortcutIntent,
-    ICON_STROKE_WIDTH,
-    ICON_STROKE_WIDTH_DENSE,
-    UI_BASES,
-    CONFIG,
-    HANDLE_HITAREA_CLASS,
-    CELL_PADDING_CLASS,
-    CELL_BASE_CLASS,
-    TABLE_PERSIST_DEBOUNCE_MS,
-    TABLE_HEADER_CLASS,
-    HANDLE_PADDING_CLASS,
 } from "@/config/logic";
 import {
-    TableHeaderContent,
     TableCellContent,
-    getColumnWidthCss,
-    MEASURE_LAYER_CLASS,
-    MEASURE_HEADER_SELECTOR,
-    MEASURE_CELL_SELECTOR,
     getColumnWidthVarName,
     TABLE_TOTAL_WIDTH_VAR,
     getTableTotalWidthCss,
@@ -125,7 +59,6 @@ import {
     useMeasuredColumnWidths,
     createColumnSizingInfoState,
 } from "./TorrentTable_ColumnMeasurement";
-import { useMarqueeSelection } from "../hooks/useMarqueeSelection";
 import { useColumnResizing } from "../hooks/useColumnResizing";
 import { useTorrentTableColumns } from "@/modules/dashboard/hooks/useTorrentTableColumns";
 import { useTorrentClipboard } from "@/modules/dashboard/hooks/useTorrentClipboard";
@@ -133,8 +66,9 @@ import { useTorrentTablePersistence } from "@/modules/dashboard/hooks/useTorrent
 import { useTorrentTableContextActions } from "@/modules/dashboard/hooks/useTorrentTableContextActions";
 import { useTorrentTableHeaderContext } from "@/modules/dashboard/hooks/useTorrentTableHeaderContext";
 import { useTorrentTableInteractions } from "@/modules/dashboard/hooks/useTorrentTableInteractions";
-import TorrentTable_Header from "./TorrentTable_Header";
-import TorrentTable_Row from "./TorrentTable_Row";
+import useTableAnimationGuard, {
+    ANIMATION_SUPPRESSION_KEYS,
+} from "@/modules/dashboard/hooks/useTableAnimationGuard";
 import TorrentTable_RowMenu from "./TorrentTable_RowMenu";
 import TorrentTable_HeaderMenu from "./TorrentTable_HeaderMenu";
 import { useTorrentTableVirtualization } from "@/modules/dashboard/hooks/useTorrentTableVirtualization";
@@ -244,8 +178,11 @@ export function TorrentTable({
     // Wiring state required by the extracted hooks/components
     const [activeRowId, setActiveRowId] = useState<string | null>(null);
     const [dropTargetRowId, setDropTargetRowId] = useState<string | null>(null);
-    const [suppressLayoutAnimations, setSuppressLayoutAnimations] =
-        useState<boolean>(false);
+    const {
+        isSuppressed: animationSuppressionActive,
+        begin: beginAnimationSuppression,
+        end: endAnimationSuppression,
+    } = useTableAnimationGuard();
     const [pendingQueueOrder, setPendingQueueOrder] = useState<string[] | null>(
         null
     );
@@ -317,7 +254,7 @@ export function TorrentTable({
     const focusReturnRef = useRef<HTMLElement | null>(null);
     const AUTO_FIT_TOLERANCE_PX = 8;
 
-    // Marquee selection is handled by `useMarqueeSelection` below.
+    // Marquee selection is handled by the virtualization hook below.
 
     const overlayPortalHost = useMemo(
         () =>
@@ -385,7 +322,7 @@ export function TorrentTable({
         setContextMenu,
     });
 
-    // Marquee `mousedown` and drag listeners moved to `useMarqueeSelection`.
+    // Marquee `mousedown` and drag listeners moved to the virtualization hook.
 
     // Persistence: logic extracted to `useTorrentTablePersistence`.
 
@@ -398,8 +335,30 @@ export function TorrentTable({
         optimisticStatuses,
     });
 
+    // Effective order: authoritative source for ordering. If a pending optimistic
+    // queue order exists, use it as the canonical order for the table + DnD items.
+    // Otherwise the server `data` order is authoritative.
+    const serverOrder = useMemo(() => data.map((d) => d.id), [data]);
+    const effectiveOrder = pendingQueueOrder ?? serverOrder;
+
+    // Rebuild table data in the exact order of `effectiveOrder` so React Table
+    // receives a newly constructed array with the canonical ordering. Do not
+    // sort the array in-place — mapping by id ensures a fresh array and stable
+    // index identities.
+    const tableData = useMemo(() => {
+        if (!effectiveOrder) return data;
+        const byId = new Map(data.map((t) => [t.id, t]));
+        return effectiveOrder
+            .map((id) => byId.get(id))
+            .filter(Boolean) as typeof data;
+    }, [data, effectiveOrder]);
+
+    // DnD and SortableContext must receive the exact same `items` order; expose
+    // that as `rowIds`. Use a shallow copy to avoid accidental mutation.
+    const rowIds = useMemo(() => Array.from(effectiveOrder), [effectiveOrder]);
+
     const table = useReactTable({
-        data: data,
+        data: tableData,
         columns,
         getRowId: (torrent) => torrent.id,
         state: {
@@ -411,6 +370,7 @@ export function TorrentTable({
             columnSizingInfo,
         },
         meta: tableMeta,
+        manualSorting: !!pendingQueueOrder,
         columnResizeMode: "onChange",
         enableColumnResizing: true,
         enableSortingRemoval: true,
@@ -433,7 +393,7 @@ export function TorrentTable({
     });
 
     const { rows } = table.getRowModel();
-    const rowIds = useMemo(() => rows.map((r) => r.id), [rows]);
+
     const rowsRef = useRef<Row<Torrent>[]>([]);
     useEffect(() => {
         rowsRef.current = rows;
@@ -497,15 +457,19 @@ export function TorrentTable({
     const isAnyColumnResizing =
         Boolean(hookActiveResizeColumnId) ||
         Boolean(columnSizingInfo.isResizingColumn);
+    const isAnimationSuppressed =
+        isAnyColumnResizing || animationSuppressionActive;
 
     const resetColumnResizeState = hookResetColumnResizeState;
     // `resetColumnResizeState` provided by `useColumnResizing` hook below.
     const autoFitColumn = useCallback(
         (
             column: Column<Torrent>,
-            measurements?: Record<string, number> | null
+            measurements?: Record<string, number> | null,
+            options?: { suppress?: boolean }
         ) => {
             if (!column.getCanResize()) return false;
+            const shouldSuppress = options?.suppress !== false;
             resetColumnResizeState();
             const measuredWidths = measurements ?? measureColumnMinWidths();
             const measuredWidth =
@@ -528,7 +492,9 @@ export function TorrentTable({
 
             // Temporarily suppress layout animations so rows/headers don't
             // animate while we programmatically change column sizes (autofit).
-            setSuppressLayoutAnimations(true);
+            if (shouldSuppress) {
+                beginAnimationSuppression(ANIMATION_SUPPRESSION_KEYS.autoFit);
+            }
             setColumnSizing((prev: Record<string, number>) =>
                 normalizeColumnSizingState({
                     ...prev,
@@ -537,15 +503,21 @@ export function TorrentTable({
             );
             // Clear suppression after two rAFs to ensure the layout has settled
             // and the browser completed layout/paint.
-            window.requestAnimationFrame(() => {
+            if (shouldSuppress) {
                 window.requestAnimationFrame(() => {
-                    setSuppressLayoutAnimations(false);
+                    window.requestAnimationFrame(() => {
+                        endAnimationSuppression(
+                            ANIMATION_SUPPRESSION_KEYS.autoFit
+                        );
+                    });
                 });
-            });
+            }
 
             return true;
         },
         [
+            beginAnimationSuppression,
+            endAnimationSuppression,
             measureColumnMinWidths,
             measuredMinWidthsRef,
             resetColumnResizeState,
@@ -556,18 +528,24 @@ export function TorrentTable({
     );
     const autoFitAllColumns = useCallback(() => {
         // Suppress animations for the whole batch of autofit changes.
-        setSuppressLayoutAnimations(true);
+        beginAnimationSuppression(ANIMATION_SUPPRESSION_KEYS.autoFitAll);
         const measuredWidths = measureColumnMinWidths();
         table.getAllLeafColumns().forEach((column) => {
             if (!column.getCanResize()) return;
-            autoFitColumn(column, measuredWidths);
+            autoFitColumn(column, measuredWidths, { suppress: false });
         });
         window.requestAnimationFrame(() => {
             window.requestAnimationFrame(() =>
-                setSuppressLayoutAnimations(false)
+                endAnimationSuppression(ANIMATION_SUPPRESSION_KEYS.autoFitAll)
             );
         });
-    }, [autoFitColumn, measureColumnMinWidths, table]);
+    }, [
+        autoFitColumn,
+        beginAnimationSuppression,
+        endAnimationSuppression,
+        measureColumnMinWidths,
+        table,
+    ]);
     const handleColumnAutoFitRequest = useCallback(
         (column: Column<Torrent>) => {
             if (!column.getCanResize()) return;
@@ -582,22 +560,24 @@ export function TorrentTable({
 
     // Temporarily suppress layout animations while the table container is being
     // resized by the surrounding panels (react-resizable-panels). We detect
-    // container size changes with a ResizeObserver and debounce the end of
-    // the resize so animations remain disabled while the user is actively
-    // dragging a handle.
-    const [isTableResizing, setIsTableResizing] = useState<boolean>(false);
+    // container size changes with a ResizeObserver, set the global
+    // layout suppression flag during active resize, and debounce
+    // turning it off so animations remain disabled while the user is
+    // actively dragging a handle.
     const resizeTimerRef = useRef<number | null>(null);
 
     useEffect(() => {
         const el = tableContainerRef.current;
         if (!el || typeof ResizeObserver === "undefined") return;
         const observer = new ResizeObserver(() => {
+            // Cancel any pending clear
             if (resizeTimerRef.current !== null) {
                 window.clearTimeout(resizeTimerRef.current);
             }
-            setIsTableResizing(true);
+            // Signal suppression while resizing
+            beginAnimationSuppression(ANIMATION_SUPPRESSION_KEYS.panelResize);
             resizeTimerRef.current = window.setTimeout(() => {
-                setIsTableResizing(false);
+                endAnimationSuppression(ANIMATION_SUPPRESSION_KEYS.panelResize);
                 resizeTimerRef.current = null;
             }, 150);
         });
@@ -608,8 +588,9 @@ export function TorrentTable({
                 window.clearTimeout(resizeTimerRef.current);
                 resizeTimerRef.current = null;
             }
+            endAnimationSuppression(ANIMATION_SUPPRESSION_KEYS.panelResize);
         };
-    }, []);
+    }, [beginAnimationSuppression, endAnimationSuppression]);
 
     // Persistence: wire persistence hook to keep table layout in localStorage
     useTorrentTablePersistence(
@@ -638,7 +619,6 @@ export function TorrentTable({
         marqueeRect,
         marqueeClickBlockRef,
         isMarqueeDraggingRef,
-        rowIds: virtualizationRowIds,
     } = useTorrentTableVirtualization({
         rows,
         parentRef,
@@ -662,8 +642,6 @@ export function TorrentTable({
         setHighlightedRowId,
         rowSelectionRef,
     });
-
-    const tableData = data;
 
     const selectAllRows = useCallback(() => {
         const allRows = table.getRowModel().rows;
@@ -741,10 +719,11 @@ export function TorrentTable({
         if (!canReorderQueue) {
             setActiveRowId(null);
             setDropTargetRowId(null);
-            setSuppressLayoutAnimations(false);
             setPendingQueueOrder(null);
+            endAnimationSuppression(ANIMATION_SUPPRESSION_KEYS.rowDrag);
+            endAnimationSuppression(ANIMATION_SUPPRESSION_KEYS.queueReorder);
         }
-    }, [canReorderQueue]);
+    }, [canReorderQueue, endAnimationSuppression]);
 
     useEffect(() => {
         if (!pendingQueueOrder) return;
@@ -759,9 +738,8 @@ export function TorrentTable({
 
     useEffect(() => {
         if (pendingQueueOrder) return;
-        if (!suppressLayoutAnimations) return;
-        setSuppressLayoutAnimations(false);
-    }, [pendingQueueOrder, suppressLayoutAnimations]);
+        endAnimationSuppression(ANIMATION_SUPPRESSION_KEYS.queueReorder);
+    }, [pendingQueueOrder, endAnimationSuppression]);
 
     useEffect(() => {
         if (typeof window === "undefined") return;
@@ -798,7 +776,8 @@ export function TorrentTable({
         arrayMove,
         table,
         canReorderQueue,
-        setSuppressLayoutAnimations,
+        beginAnimationSuppression: beginAnimationSuppression,
+        endAnimationSuppression: endAnimationSuppression,
         setActiveRowId,
         setDropTargetRowId,
         rowIds,
@@ -981,10 +960,8 @@ export function TorrentTable({
                 data-tt-column-resizing={
                     isAnyColumnResizing ? "true" : undefined
                 }
-                data-tt-suppress-layout={
-                    isTableResizing || suppressLayoutAnimations
-                        ? "true"
-                        : undefined
+                data-tt-layout-suppressed={
+                    isAnimationSuppressed ? "true" : undefined
                 }
                 style={{ borderRadius: "inherit" }}
                 className={cn(
@@ -1022,7 +999,7 @@ export function TorrentTable({
                             handleColumnResizeStart={handleColumnResizeStart}
                             columnSizingInfo={columnSizingInfo}
                             hookActiveResizeColumnId={hookActiveResizeColumnId}
-                            isAnyColumnResizing={isAnyColumnResizing}
+                            isAnimationSuppressed={isAnimationSuppressed}
                         />
 
                         <TorrentTable_Body
@@ -1056,7 +1033,7 @@ export function TorrentTable({
                             handleDropTargetChange={handleDropTargetChange}
                             isAnyColumnResizing={isAnyColumnResizing}
                             columnOrder={columnOrder}
-                            suppressLayoutAnimations={suppressLayoutAnimations}
+                            isAnimationSuppressed={isAnimationSuppressed}
                             isColumnOrderChanging={isColumnOrderChanging}
                             marqueeRect={marqueeRect}
                         />
@@ -1070,9 +1047,8 @@ export function TorrentTable({
                             {activeHeader ? (
                                 <ColumnHeaderPreview
                                     header={activeHeader}
-                                    isAnyColumnResizing={isAnyColumnResizing}
-                                    suppressLayoutAnimations={
-                                        suppressLayoutAnimations
+                                    isAnimationSuppressed={
+                                        isAnimationSuppressed
                                     }
                                 />
                             ) : null}

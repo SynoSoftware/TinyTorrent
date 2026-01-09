@@ -26,7 +26,7 @@ const TorrentTable_Row = memo(
         onDropTargetChange,
         isAnyColumnResizing = false,
         columnOrder,
-        suppressLayoutAnimations = false,
+        isAnimationSuppressed: isAnimationSuppressed = false,
     }: {
         row: Row<Torrent>;
         virtualRow: VirtualItem;
@@ -42,7 +42,7 @@ const TorrentTable_Row = memo(
         onDropTargetChange?: (id: string | null) => void;
         isAnyColumnResizing?: boolean;
         columnOrder?: string[];
-        suppressLayoutAnimations?: boolean;
+        isAnimationSuppressed?: boolean;
     }) => {
         void columnOrder;
         // Inside VirtualRow component
@@ -60,7 +60,7 @@ const TorrentTable_Row = memo(
             // FIX: Disable animation when the drag ends (wasDragging) to prevent
             // the row from animating "back" while the virtualizer moves it "to".
             animateLayoutChanges: (args) => {
-                if (isAnyColumnResizing || suppressLayoutAnimations) {
+                if (isAnimationSuppressed) {
                     return false;
                 }
                 const { wasDragging } = args;
@@ -83,11 +83,7 @@ const TorrentTable_Row = memo(
                 style.transform = CSS.Translate.toString(transform);
             }
             // Retain drag transition, BUT we will remove highlight transition
-            if (
-                transition &&
-                !isAnyColumnResizing &&
-                !suppressLayoutAnimations
-            ) {
+            if (transition && !isAnimationSuppressed) {
                 style.transition = transition;
             }
             style.opacity = isDragging ? 0 : 1;
@@ -103,6 +99,7 @@ const TorrentTable_Row = memo(
             transition,
             isDragging,
             isAnyColumnResizing,
+            isAnimationSuppressed,
         ]);
 
         useEffect(() => {
@@ -149,9 +146,9 @@ const TorrentTable_Row = memo(
             >
                 {/* INNER DIV: Handles all visuals. Separating layout from paint prevents glitching. */}
                 <motion.div
-                    layout={!isAnyColumnResizing && !suppressLayoutAnimations}
+                    layout={!isAnimationSuppressed}
                     layoutId={
-                        isAnyColumnResizing || suppressLayoutAnimations
+                        isAnimationSuppressed
                             ? undefined
                             : `torrent-row-${row.id}`
                     }
