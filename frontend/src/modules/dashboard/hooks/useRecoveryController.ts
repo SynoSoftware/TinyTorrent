@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
@@ -28,16 +28,36 @@ export function useRecoveryController(params: {
 }) {
     const { client, detail, envelope } = params;
     const { t } = useTranslation();
-    const [isBusy, setBusy] = useState(false);
     const [lastOutcome, setLastOutcome] = useState<RecoveryOutcome | null>(
         null
     );
+    const [, forceUpdate] = useState(0);
 
     // Per-fingerprint in-flight map to dedupe and serialize recovery calls.
     const inFlight = useMemo(
         () => new Map<string, Promise<RecoveryOutcome>>(),
         []
     ) as Map<string, Promise<RecoveryOutcome>>;
+
+    // Per-fingerprint busy states
+    const busyStates = useMemo(() => new Map<string, number>(), []);
+
+    // Clear in-flight and busy when torrent changes
+    useEffect(() => {
+        inFlight.clear();
+        busyStates.clear();
+        forceUpdate(Math.random());
+    }, [detail?.id]);
+
+    // Clear lastOutcome when envelope changes
+    useEffect(() => {
+        setLastOutcome(null);
+    }, [envelope?.fingerprint]);
+
+    const currentFp =
+        envelope?.fingerprint ??
+        String(detail?.id ?? detail?.hash ?? "<no-fp>");
+    const isBusy = (busyStates.get(currentFp) ?? 0) > 0;
 
     const plan: RecoveryPlan | null = useMemo(() => {
         if (!detail || !envelope) return null;
@@ -68,12 +88,13 @@ export function useRecoveryController(params: {
             }
 
             const promise = (async () => {
-                setBusy(true);
+                busyStates.set(fp, (busyStates.get(fp) ?? 0) + 1);
+                forceUpdate(Math.random());
                 try {
                     const ec = envelope.errorClass;
                     let out: RecoveryOutcome = {
                         kind: "noop",
-                        message: t("recovery.no_recovery_performed"),
+                        message: "no_recovery_performed",
                     };
                     if (ec === "missingFiles") {
                         out = await controller.runMissingFilesRecovery({
@@ -119,7 +140,8 @@ export function useRecoveryController(params: {
                     setLastOutcome(out);
                     return out;
                 } finally {
-                    setBusy(false);
+                    busyStates.set(fp, (busyStates.get(fp) ?? 1) - 1);
+                    forceUpdate(Math.random());
                     inFlight.delete(fp);
                 }
             })();
@@ -146,7 +168,8 @@ export function useRecoveryController(params: {
             if (existing) return existing;
 
             const promise = (async () => {
-                setBusy(true);
+                busyStates.set(fp, (busyStates.get(fp) ?? 0) + 1);
+                forceUpdate(Math.random());
                 try {
                     try {
                         await client.setTorrentLocation?.(
@@ -172,16 +195,19 @@ export function useRecoveryController(params: {
                         setLastOutcome(r);
                         return r;
                     }
-                    // After setting location, revalidate existence/writable via controller if possible
-                    const recheck = await controller.runMissingFilesRecovery({
-                        client,
-                        detail: detail as any,
-                        envelope: undefined,
-                    });
-                    setLastOutcome(recheck);
-                    return recheck;
+                    // After setting location, resume the torrent
+                    try {
+                        await client.resume([detail.id]);
+                    } catch {}
+                    const out: RecoveryOutcome = {
+                        kind: "resolved",
+                        message: "location_updated",
+                    };
+                    setLastOutcome(out);
+                    return out;
                 } finally {
-                    setBusy(false);
+                    busyStates.set(fp, (busyStates.get(fp) ?? 1) - 1);
+                    forceUpdate(Math.random());
                     inFlight.delete(fp);
                 }
             })();
@@ -204,7 +230,8 @@ export function useRecoveryController(params: {
         const existing = inFlight.get(fp);
         if (existing) return existing;
         const promise = (async () => {
-            setBusy(true);
+            busyStates.set(fp, (busyStates.get(fp) ?? 0) + 1);
+            forceUpdate(Math.random());
             try {
                 const out = await controller.runPartialFilesRecovery({
                     client,
@@ -214,7 +241,8 @@ export function useRecoveryController(params: {
                 setLastOutcome(out);
                 return out;
             } finally {
-                setBusy(false);
+                busyStates.set(fp, (busyStates.get(fp) ?? 1) - 1);
+                forceUpdate(Math.random());
                 inFlight.delete(fp);
             }
         })();
@@ -234,7 +262,8 @@ export function useRecoveryController(params: {
         const existing = inFlight.get(fp);
         if (existing) return existing;
         const promise = (async () => {
-            setBusy(true);
+            busyStates.set(fp, (busyStates.get(fp) ?? 0) + 1);
+            forceUpdate(Math.random());
             try {
                 const out = await controller.runReannounce({
                     client,
@@ -244,7 +273,8 @@ export function useRecoveryController(params: {
                 setLastOutcome(out);
                 return out;
             } finally {
-                setBusy(false);
+                busyStates.set(fp, (busyStates.get(fp) ?? 1) - 1);
+                forceUpdate(Math.random());
                 inFlight.delete(fp);
             }
         })();

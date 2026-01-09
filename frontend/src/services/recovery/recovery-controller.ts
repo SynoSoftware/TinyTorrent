@@ -91,36 +91,31 @@ export function planRecovery(
 
     if (errorClass === "missingFiles") {
         planBase.primaryAction = "reDownloadHere";
-        planBase.rationale = downloadDir
-            ? "Path present — try re-download or recheck"
-            : "No path known — user must pick a location";
+        planBase.rationale = "recovery.rationale.missing_files";
         planBase.requiresPath = !downloadDir;
         return planBase;
     }
     if (errorClass === "permissionDenied") {
         planBase.primaryAction = "pickPath";
-        planBase.rationale =
-            "Permission denied for current path — pick another folder or open folder to fix permissions";
+        planBase.rationale = "recovery.rationale.permission_denied";
         planBase.requiresPath = true;
         return planBase;
     }
     if (errorClass === "diskFull") {
         planBase.primaryAction = "pickPath";
-        planBase.rationale =
-            "Disk full — check free space or pick another path";
+        planBase.rationale = "recovery.rationale.disk_full";
         planBase.requiresPath = true;
         return planBase;
     }
     if (errorClass === "partialFiles") {
         planBase.primaryAction = "verify";
-        planBase.rationale =
-            "Partial files present — verify before re-download";
+        planBase.rationale = "recovery.rationale.partial_files";
         planBase.requiresPath = false;
         return planBase;
     }
     if (errorClass === "trackerWarning" || errorClass === "trackerError") {
         planBase.primaryAction = "reannounce";
-        planBase.rationale = "Tracker issues detected — reannounce to trackers";
+        planBase.rationale = "recovery.rationale.tracker_issue";
         planBase.requiresPath = false;
         return planBase;
     }
@@ -136,16 +131,15 @@ export async function runMissingFilesRecovery(
         return {
             kind: "path-needed",
             reason: "missing",
-            message: "No download path known for torrent",
+            message: "no_download_path_known",
         };
     }
 
     if (!client.checkFreeSpace) {
-        // Cannot validate — ask user to confirm path
+        // Cannot validate — assume path is ready
         return {
-            kind: "noop",
-            message:
-                "Filesystem probing not supported by engine; user must confirm path",
+            kind: "resolved",
+            message: "filesystem_probing_not_supported",
         };
     }
 
@@ -158,63 +152,63 @@ export async function runMissingFilesRecovery(
                 return {
                     kind: "path-needed",
                     reason: "disk-full",
-                    message: `Available bytes: ${free}`,
+                    message: "insufficient_free_space",
                 };
             }
             return {
-                kind: "noop",
-                message: `Path exists and has ${free} free bytes`,
+                kind: "resolved",
+                message: "path_ready",
             };
         }
-        return { kind: "noop", message: "Path check returned unknown result" };
+        return { kind: "error", message: "path_check_unknown" };
     } catch (err) {
         const kind = interpretFsError(err);
         if (kind === "enoent") {
             if (typeof client.createDirectory === "function") {
                 try {
                     await client.createDirectory(downloadDir);
-                    return { kind: "resolved", message: "Directory created" };
+                    return { kind: "resolved", message: "directory_created" };
                 } catch (createErr) {
                     const i = interpretFsError(createErr);
                     if (i === "eacces") {
                         return {
                             kind: "path-needed",
                             reason: "unwritable",
-                            message: String(createErr),
+                            message: "directory_creation_denied",
                         };
                     }
                     return {
                         kind: "path-needed",
                         reason: "missing",
-                        message: String(createErr),
+                        message: "directory_creation_failed",
                     };
                 }
             }
             return {
                 kind: "path-needed",
                 reason: "missing",
-                message: "Path does not exist and creation is not supported",
+                message: "directory_creation_not_supported",
             };
         }
         if (kind === "eacces") {
             return {
                 kind: "path-needed",
                 reason: "unwritable",
-                message: String(err),
+                message: "path_access_denied",
             };
         }
         if (kind === "enospc") {
             return {
                 kind: "path-needed",
                 reason: "disk-full",
-                message: String(err),
+                message: "disk_full",
             };
         }
         // Fail-safe for unknown errors: require user intervention with full message
         return {
             kind: "path-needed",
             reason: "missing",
-            message: String(err ?? "Unknown error during path check"),
+            message: "path_check_failed",
         };
     }
 }
@@ -226,7 +220,7 @@ export async function runPermissionDeniedRecovery(
     return {
         kind: "path-needed",
         reason: "unwritable",
-        message: "Permission denied for current path",
+        message: "permission_denied",
     };
 }
 
@@ -239,14 +233,14 @@ export async function runDiskFullRecovery(
         return {
             kind: "path-needed",
             reason: "disk-full",
-            message: "No download path known",
+            message: "no_download_path_known",
         };
     }
     if (!client.checkFreeSpace) {
         return {
             kind: "path-needed",
             reason: "disk-full",
-            message: "Cannot check free space (capability missing)",
+            message: "free_space_check_not_supported",
         };
     }
     try {
@@ -255,12 +249,12 @@ export async function runDiskFullRecovery(
         return {
             kind: "path-needed",
             reason: "disk-full",
-            message: `Available bytes: ${free ?? "unknown"}`,
+            message: "insufficient_free_space",
         };
     } catch (err) {
         return {
             kind: "error",
-            message: String(err ?? "Failed to check free space"),
+            message: "free_space_check_failed",
         };
     }
 }
@@ -270,15 +264,15 @@ export async function runPartialFilesRecovery(
 ): Promise<RecoveryOutcome> {
     const { client, detail } = deps;
     if (!client.verify) {
-        return { kind: "error", message: "Verify not supported by engine" };
+        return { kind: "error", message: "verify_not_supported" };
     }
     try {
         await client.verify([detail.id]);
-        return { kind: "verify-started", message: "Verify requested" };
+        return { kind: "verify-started", message: "verify_started" };
     } catch (err) {
         return {
             kind: "error",
-            message: String(err ?? "Failed to start verify"),
+            message: "verify_failed",
         };
     }
 }
@@ -288,14 +282,14 @@ export async function runReannounce(
 ): Promise<RecoveryOutcome> {
     const { client, detail } = deps;
     if (!client.forceTrackerReannounce)
-        return { kind: "error", message: "Reannounce not supported" };
+        return { kind: "error", message: "reannounce_not_supported" };
     try {
         await client.forceTrackerReannounce(detail.id);
-        return { kind: "reannounce-started", message: "Reannounce requested" };
+        return { kind: "reannounce-started", message: "reannounce_started" };
     } catch (err) {
         return {
             kind: "error",
-            message: String(err ?? "Failed to reannounce"),
+            message: "reannounce_failed",
         };
     }
 }

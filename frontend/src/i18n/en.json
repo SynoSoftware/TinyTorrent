@@ -775,30 +775,6 @@
             "no_data_found_desc": "Ensure your drives are connected or use 'Set Location'. To re-download, remove the torrent and re-add it.",
             "resolve_action": "Resolve"
         },
-        "recovery": {
-            "modal": {
-                "title": "Recovery — {{action}}",
-                "reason": "Reason: {{reason}}"
-            },
-            "choose_another_folder": "Choose another folder",
-            "prompt": {
-                "enter_new_path": "Enter new path:"
-            },
-            "outcome_message": "{{message}}",
-            "primary": "Primary",
-            "no_recovery_performed": "No recovery performed",
-            "no_primary_recovery_for_error_class": "No primary recovery for this error class",
-            "errors": {
-                "missing_client_detail_envelope": "Missing client, detail, or envelope",
-                "missing_client_or_detail": "Missing client or detail",
-                "set_torrent_location_failed": "{{message}}"
-            },
-            "reason": {
-                "missing": "Missing",
-                "unwritable": "Unwritable",
-                "disk_full": "Disk full"
-            }
-        },
         "speed": {
             "average": "Average",
             "collecting_samples": "Collecting samples from backend...",
@@ -944,6 +920,33 @@
             "redownload_here": "Re-download",
             "pick_path": "Set Location",
             "open_folder": "Open Folder"
+        },
+        "rationale": {
+            "missing_files": "Some files are missing from the download location."
+        },
+        "message": {
+            "insufficient_free_space": "Insufficient free space on disk",
+            "path_ready": "Path is ready for download",
+            "path_check_unknown": "Path check returned unknown result",
+            "directory_created": "Directory created successfully",
+            "directory_creation_denied": "Directory creation denied",
+            "directory_creation_failed": "Directory creation failed",
+            "directory_creation_not_supported": "Directory creation not supported",
+            "path_access_denied": "Path access denied",
+            "disk_full": "Disk is full",
+            "path_check_failed": "Path check failed",
+            "permission_denied": "Permission denied for current path",
+            "no_download_path_known": "No download path known for torrent",
+            "free_space_check_not_supported": "Free space check not supported",
+            "free_space_check_failed": "Free space check failed",
+            "verify_not_supported": "Verify not supported by engine",
+            "verify_started": "Verify requested",
+            "verify_failed": "Failed to start verify",
+            "reannounce_not_supported": "Reannounce not supported",
+            "reannounce_started": "Reannounce requested",
+            "reannounce_failed": "Failed to reannounce",
+            "location_updated": "Location updated successfully",
+            "filesystem_probing_not_supported": "Filesystem probing not supported"
         }
     }
 }
