@@ -70,7 +70,11 @@
             "add_width": 180,
             "body_max_height": 70,
             "settings_height": 200,
-            "settings_min_height": 125
+            "settings_min_height": 125,
+            "add_settings_default_size": 40,
+            "add_settings_min_size": 25,
+            "add_filepanel_default_size": 60,
+            "add_filepanel_min_size": 30
         },
         "details": {
             "tab_content_max_height": 360
