@@ -8,8 +8,6 @@ import {
     ModalHeader,
     Spinner,
     cn,
-    Divider,
-    Chip,
 } from "@heroui/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -65,9 +63,7 @@ type ModalTone = "neutral" | "success" | "warning" | "danger";
 // --- STYLING ---
 
 const MODAL_CLASSES =
-    "w-full max-w-xl overflow-hidden flex flex-col shadow-2xl border border-white/10";
-const SECTION_TITLE =
-    "text-xs font-bold tracking-widest text-foreground/40 uppercase mb-3 flex items-center gap-2";
+    "w-full max-w-modal-compact flex flex-col overflow-hidden";
 
 const RECOVERY_ACTION_LABEL_KEY: Record<
     RecoveryPlan["primaryAction"],
@@ -81,29 +77,6 @@ const RECOVERY_ACTION_LABEL_KEY: Record<
     reannounce: "recovery.action.reannounce",
     openFolder: "recovery.action.open_folder",
     none: null,
-};
-
-const PRIMARY_ACTION_ICON: Partial<
-    Record<RecoveryPlan["primaryAction"], LucideIcon>
-> = {
-    reDownloadHere: Download,
-    createAndDownloadHere: Download,
-    pickPath: FolderOpen,
-    verify: ShieldCheck,
-    resume: Play,
-    reannounce: Radio,
-    openFolder: FolderOpen,
-};
-
-const PRIMARY_DESC_KEY: Record<RecoveryPlan["primaryAction"], string> = {
-    reDownloadHere: "recovery.modal.primary_desc.redownload_here",
-    createAndDownloadHere: "recovery.modal.primary_desc.create_and_redownload",
-    pickPath: "recovery.modal.primary_desc.pick_path",
-    verify: "recovery.modal.primary_desc.verify",
-    resume: "recovery.modal.primary_desc.resume",
-    reannounce: "recovery.modal.primary_desc.reannounce",
-    openFolder: "recovery.modal.primary_desc.open_folder",
-    none: "recovery.modal.primary_desc.none",
 };
 
 const RECOVERY_MESSAGE_LABEL_KEY: Record<string, string> = {
@@ -134,6 +107,29 @@ const RECOVERY_MESSAGE_LABEL_KEY: Record<string, string> = {
         "recovery.message.filesystem_probing_not_supported",
 };
 
+const PRIMARY_ACTION_ICON: Partial<
+    Record<RecoveryPlan["primaryAction"], LucideIcon>
+> = {
+    reDownloadHere: Download,
+    createAndDownloadHere: Download,
+    pickPath: FolderOpen,
+    verify: ShieldCheck,
+    resume: Play,
+    reannounce: Radio,
+    openFolder: FolderOpen,
+};
+
+const PRIMARY_DESC_KEY: Record<RecoveryPlan["primaryAction"], string> = {
+    reDownloadHere: "recovery.modal.primary_desc.redownload_here",
+    createAndDownloadHere: "recovery.modal.primary_desc.create_and_redownload",
+    pickPath: "recovery.modal.primary_desc.pick_path",
+    verify: "recovery.modal.primary_desc.verify",
+    resume: "recovery.modal.primary_desc.resume",
+    reannounce: "recovery.modal.primary_desc.reannounce",
+    openFolder: "recovery.modal.primary_desc.open_folder",
+    none: "recovery.modal.primary_desc.none",
+};
+
 // --- LOGIC ---
 
 function getOutcomeTone(outcome: RecoveryOutcome | null): ModalTone {
@@ -156,31 +152,23 @@ function getToneStyles(tone: ModalTone) {
     switch (tone) {
         case "success":
             return {
-                bg: "bg-success/10",
-                border: "border-success/20",
-                icon: CheckCircle2,
                 text: "text-success",
+                icon: CheckCircle2,
             };
         case "warning":
             return {
-                bg: "bg-warning/10",
-                border: "border-warning/20",
-                icon: AlertTriangle,
                 text: "text-warning",
+                icon: AlertTriangle,
             };
         case "danger":
             return {
-                bg: "bg-danger/10",
-                border: "border-danger/20",
-                icon: Ban,
                 text: "text-danger",
+                icon: Ban,
             };
         default:
             return {
-                bg: "bg-content1/20",
-                border: "border-white/5",
+                text: "text-foreground",
                 icon: Info,
-                text: "text-foreground/70",
             };
     }
 }
@@ -191,9 +179,8 @@ function resolveOutcomeMessage(
 ): string | null {
     const raw = outcome?.message;
     if (!raw) return null;
-    return RECOVERY_MESSAGE_LABEL_KEY[raw]
-        ? t(RECOVERY_MESSAGE_LABEL_KEY[raw])
-        : raw;
+    const key = RECOVERY_MESSAGE_LABEL_KEY[raw];
+    return key ? t(key) : raw;
 }
 
 // --- COMPONENT ---
@@ -346,35 +333,29 @@ export default function TorrentRecoveryModal({
             isDismissable={!busy}
             classNames={{
                 base: cn(GLASS_MODAL_SURFACE, MODAL_CLASSES),
-                body: "p-0",
-                header: "border-b border-white/5 bg-black/40 px-6 py-5",
-                footer: "border-t border-white/5 bg-black/40 px-6 py-5",
             }}
         >
             <ModalContent>
                 {() => (
                     <>
-                        {/* --- HEADER --- */}
-                        <ModalHeader className="flex items-center justify-between gap-4">
-                            <div className="flex items-center gap-4 min-w-0">
-                                <div className="p-3 rounded-full bg-danger/10 border border-danger/20 shrink-0">
+                        <ModalHeader className="flex items-center justify-between gap-tools px-panel py-panel border-b border-divider">
+                            <div className="flex items-center gap-tools min-w-0">
+                                <div className="surface-layer-1 rounded-full p-tight shrink-0">
                                     <StatusIcon
                                         Icon={LifeBuoy}
                                         size="lg"
-                                        className="text-danger animate-pulse-slow"
+                                        className="text-danger"
                                     />
                                 </div>
                                 <div className="flex flex-col min-w-0">
-                                    <h2 className="text-base font-bold tracking-wide uppercase text-foreground">
+                                    <h2 className="text-label font-bold uppercase tracking-label text-foreground py-panel">
                                         {title}
                                     </h2>
-                                    {/* Action Label Context */}
-                                    <div className="flex items-center gap-2 mt-0.5 text-xs text-foreground/50 font-medium">
-                                        <ArrowRight
-                                            size={12}
-                                            className="text-primary"
-                                        />
-                                        <span>{actionLabel}</span>
+                                    <div className="flex items-center gap-tools text-label uppercase tracking-label text-foreground">
+                                        <ArrowRight className="toolbar-icon-size-md text-primary" />
+                                        <span className="truncate">
+                                            {actionLabel}
+                                        </span>
                                     </div>
                                 </div>
                             </div>
@@ -386,30 +367,18 @@ export default function TorrentRecoveryModal({
                             />
                         </ModalHeader>
 
-                        {/* --- BODY --- */}
-                        <ModalBody className="p-8 flex flex-col gap-8 bg-content1/5">
-                            {/* SECTION 1: THE DIAGNOSIS (Problem) */}
-                            <div className="relative">
-                                {/* Vertical Line connecting Diagnosis to Solution */}
-                                <div className="absolute left-[19px] top-8 bottom-[-40px] w-[2px] bg-gradient-to-b from-danger/20 to-primary/20" />
-
-                                <span className={SECTION_TITLE}>
-                                    <Activity
-                                        size={12}
-                                        className="text-danger"
-                                    />{" "}
+                        <ModalBody className="relative flex flex-col gap-stage p-panel">
+                            <div className="flex flex-col gap-tools">
+                                <span className="text-label font-semibold uppercase tracking-label text-foreground flex items-center gap-tools">
+                                    <Activity className="toolbar-icon-size-md text-danger" />
                                     {t("recovery.modal.problem_heading")}
                                 </span>
-
-                                <div className="flex items-start gap-4">
-                                    <div className="shrink-0 mt-1 size-10 rounded-xl bg-black/40 border border-white/10 flex items-center justify-center z-10">
-                                        <AlertOctagon
-                                            size={20}
-                                            className="text-danger"
-                                        />
+                                <div className="flex items-center gap-tools">
+                                    <div className="surface-layer-1 rounded-panel p-tight shrink-0">
+                                        <AlertOctagon className="toolbar-icon-size-md text-danger" />
                                     </div>
-                                    <div className="pt-1">
-                                        <p className="text-lg font-light text-foreground/90 leading-relaxed">
+                                    <div className="flex flex-col gap-tight text-scaled">
+                                        <p className="text-scaled text-foreground">
                                             {plan?.rationale
                                                 ? t(plan.rationale)
                                                 : t(
@@ -420,40 +389,31 @@ export default function TorrentRecoveryModal({
                                 </div>
                             </div>
 
-                            {/* SECTION 2: THE TREATMENT (Solution) */}
                             {primaryDescription && (
-                                <div className="relative z-10">
-                                    <span className={SECTION_TITLE}>
-                                        <Waypoints
-                                            size={12}
-                                            className="text-primary"
-                                        />{" "}
+                                <div className="flex flex-col gap-tools">
+                                    <span className="text-label font-semibold uppercase tracking-label text-foreground flex items-center gap-tools">
+                                        <Waypoints className="toolbar-icon-size-md text-primary" />
                                         {t("recovery.modal.next_heading")}
                                     </span>
-
-                                    <div className="flex items-start gap-4">
-                                        <div className="shrink-0 mt-1 size-10 rounded-xl bg-black/40 border border-white/10 flex items-center justify-center">
+                                    <div className="flex items-center  gap-tools">
+                                        <div className="surface-layer-1  rounded-panel p-tight shrink-0">
                                             <StatusIcon
                                                 Icon={primary.icon || Play}
                                                 size="md"
                                                 className="text-primary"
                                             />
                                         </div>
-                                        <div className="pt-1 flex-1">
-                                            <p className="text-base text-foreground/70 leading-relaxed mb-4">
+                                        <div className="flex flex-col gap-tight text-scaled">
+                                            <p className="text-scaled text-foreground">
                                                 {primaryDescription}
                                             </p>
-                                            {/* Path Context */}
                                             {!requiresUserPath &&
                                                 plan?.suggestedPath && (
-                                                    <div className="flex items-center gap-2 mt-4">
-                                                        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-black/20 border border-white/5 w-fit max-w-full">
-                                                            <HardDrive
-                                                                size={14}
-                                                                className="text-foreground/40 shrink-0"
-                                                            />
+                                                    <div className="flex items-center gap-tools">
+                                                        <div className="surface-layer-1 rounded-panel px-panel py-tight flex items-center gap-tools max-w-dir-picker">
+                                                            <HardDrive className="toolbar-icon-size-md text-foreground" />
                                                             <span
-                                                                className="font-mono text-xs text-foreground/60 truncate max-w-[200px]"
+                                                                className="text-label font-mono truncate"
                                                                 title={
                                                                     plan.suggestedPath
                                                                 }
@@ -463,22 +423,18 @@ export default function TorrentRecoveryModal({
                                                                 }
                                                             </span>
                                                         </div>
-                                                        {/* The "Let me choose" button */}
-                                                        <Button
-                                                            size="sm"
-                                                            variant="light"
-                                                            isIconOnly
+                                                        <ToolbarIconButton
+                                                            Icon={FolderOpen}
+                                                            ariaLabel={t(
+                                                                "recovery.action.pick_path"
+                                                            )}
                                                             onPress={() =>
                                                                 setIsManuallyEditing(
                                                                     true
                                                                 )
                                                             }
-                                                            className="text-foreground/40 hover:text-primary"
-                                                        >
-                                                            <FolderOpen
-                                                                size={16}
-                                                            />
-                                                        </Button>
+                                                            isDisabled={busy}
+                                                        />
                                                     </div>
                                                 )}
                                         </div>
@@ -486,79 +442,62 @@ export default function TorrentRecoveryModal({
                                 </div>
                             )}
 
-                            {/* SECTION 3: INTERVENTION (Input) */}
                             {requiresUserPath && (
-                                <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 pl-[56px]">
-                                    <div className="flex gap-3">
-                                        <Input
-                                            value={pathDraft}
-                                            onChange={(e) =>
-                                                setPathDraft(
-                                                    e.target.value ?? ""
-                                                )
-                                            }
-                                            placeholder={t(
-                                                "recovery.modal.path_placeholder"
-                                            )}
-                                            startContent={
-                                                <FolderOpen
-                                                    size={18}
-                                                    className="text-foreground/40 mr-1"
-                                                />
-                                            }
-                                            size="lg"
-                                            variant="faded"
-                                            isDisabled={busy}
-                                            classNames={{
-                                                input: "font-mono text-sm",
-                                                inputWrapper:
-                                                    "bg-black/20 hover:bg-black/30 border-white/10 active:border-primary/50",
-                                            }}
-                                            className="shadow-lg"
-                                        />
-                                        {onBrowse && (
-                                            <Button
-                                                isIconOnly
-                                                size="lg"
-                                                variant="flat"
-                                                onPress={handleBrowse}
-                                                isLoading={isBrowsing}
+                                <div className="flex flex-col gap-tools">
+                                    <div className="flex items-start gap-tools">
+                                        <div className="flex-1 min-w-0">
+                                            <Input
+                                                value={pathDraft}
+                                                onChange={(e) =>
+                                                    setPathDraft(
+                                                        e.target.value ?? ""
+                                                    )
+                                                }
+                                                placeholder={t(
+                                                    "recovery.modal.path_placeholder"
+                                                )}
+                                                startContent={
+                                                    <FolderOpen className="toolbar-icon-size-md text-foreground" />
+                                                }
+                                                variant="faded"
                                                 isDisabled={busy}
-                                                className="bg-white/5 border border-white/10 shrink-0"
-                                            >
-                                                <Search
-                                                    size={20}
-                                                    className="text-foreground/60"
-                                                />
-                                            </Button>
+                                                classNames={{
+                                                    input: "font-mono text-label",
+                                                }}
+                                            />
+                                        </div>
+                                        {onBrowse && (
+                                            <ToolbarIconButton
+                                                Icon={Search}
+                                                ariaLabel={t(
+                                                    "recovery.action.pick_path"
+                                                )}
+                                                onPress={handleBrowse}
+                                                isDisabled={busy}
+                                                isLoading={isBrowsing}
+                                            />
                                         )}
                                         {isManuallyEditing && (
                                             <Button
-                                                size="lg"
-                                                variant="flat"
-                                                className="bg-white/5 border border-white/10 shrink-0"
+                                                variant="ghost"
                                                 onPress={() =>
                                                     setIsManuallyEditing(false)
                                                 }
+                                                isDisabled={busy}
                                             >
-                                                Cancel path edit
+                                                {t(
+                                                    "recovery.modal.cancel_path_edit"
+                                                )}
                                             </Button>
                                         )}
                                     </div>
                                 </div>
                             )}
 
-                            {/* SECTION 4: LIVE STATUS */}
                             {(busy || outcomeMessage) && (
-                                <div
-                                    className={cn(
-                                        "ml-[56px] rounded-lg border p-4 flex items-center gap-4 transition-all duration-300",
-                                        toneStyles.bg,
-                                        toneStyles.border
-                                    )}
-                                >
+                                <div className="flex items-center gap-tools p-panel rounded-panel border border-divider">
                                     {busy ? (
-                                        <Spinner size="md" color="current" />
+                                        <Spinner color="current" />
                                     ) : (
                                         <StatusIcon
                                             Icon={toneStyles.icon}
@@ -568,7 +507,7 @@ export default function TorrentRecoveryModal({
                                     )}
                                     <span
                                         className={cn(
-                                            "text-sm font-medium",
+                                            "text-label font-semibold",
                                             toneStyles.text
                                         )}
                                     >
@@ -580,32 +519,28 @@ export default function TorrentRecoveryModal({
                             )}
                         </ModalBody>
 
-                        {/* --- FOOTER --- */}
-                        <ModalFooter className="flex items-center justify-between gap-4">
-                            <div className="flex items-center gap-2">
+                        <ModalFooter className="flex items-center justify-between gap-tools px-panel py-panel border-t border-divider">
+                            <div className="flex items-center gap-tools">
                                 {showSecondaryVerify &&
                                     plan?.primaryAction !== "verify" && (
                                         <Button
                                             variant="ghost"
-                                            size="md"
                                             onPress={onVerify}
                                             isDisabled={busy}
                                             startContent={
-                                                <FileWarning size={18} />
+                                                <FileWarning className="toolbar-icon-size-md text-foreground" />
                                             }
-                                            className="text-foreground/50 hover:text-foreground"
                                         >
                                             {t("recovery.action.verify")}
                                         </Button>
                                     )}
                             </div>
-
-                            <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-tools">
                                 <Button
                                     variant="light"
                                     onPress={onClose}
                                     isDisabled={busy}
-                                    className="font-medium text-foreground/60"
+                                    className="font-medium text-foreground"
                                 >
                                     {t("modals.cancel")}
                                 </Button>
@@ -628,7 +563,7 @@ export default function TorrentRecoveryModal({
                                             />
                                         ) : null
                                     }
-                                    className="font-bold px-8 shadow-xl shadow-primary/10"
+                                    className="font-bold"
                                 >
                                     {primary.label}
                                 </Button>

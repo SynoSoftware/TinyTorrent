@@ -137,6 +137,8 @@
     --z-sticky: 20;
     --z-overlay: 30;
     --z-modal: 40;
+    --z-modal-internal: 41; /* modal-internal overlay, above modal but below toasts */
+    --z-drop-overlay: 55; /* drop overlay should float above most UI but can be adjusted */
     --z-toast: 50;
     --z-cursor: 999;
 
@@ -188,7 +190,10 @@
     --tt-file-checkbox-padding: var(--p-1);
 
     /* Added semantic tokens for previously inline arbitrary Tailwind calcs */
+    --tt-file-grid-template: calc(40 * var(--u) * var(--z)) minmax(0, 1fr)
+        calc(90 * var(--u) * var(--z)) calc(110 * var(--u) * var(--z)); /* FLAG: maps previous "40px minmax(0,1fr) 90px 110px" */
     --tt-modal-max-width: calc(300 * var(--u) * var(--z));
+    --tt-modal-max-width-compact: calc(var(--tt-modal-max-width) / 2);
     --tt-modal-body-max-height: calc(400 * var(--u) * var(--z));
     --tt-settings-h: calc(200 * var(--u));
     --tt-settings-max-h: calc(200 * var(--u));
@@ -238,6 +243,17 @@
 @layer components {
     button:not(:disabled) {
         transition: transform 0.16s ease, filter 0.16s ease;
+    }
+
+    /* Semantic z-role classes */
+    .z-drop-overlay {
+        z-index: var(--z-drop-overlay);
+    }
+    .z-modal-internal {
+        z-index: var(--z-modal-internal);
+    }
+
+    button:not(:disabled) {
         transform-origin: center center;
         will-change: transform, filter;
         touch-action: manipulation;
@@ -262,6 +278,26 @@
         grid-template-columns: var(--tt-col-icon) var(--tt-col-main) var(
                 --tt-col-meta
             );
+    }
+
+    /* Semantic helpers for token-driven sizes (avoid arbitrary Tailwind brackets) */
+    .min-w-badge {
+        min-width: var(--tt-badge-min-width);
+    }
+    .min-w-status-chip {
+        min-width: var(--tt-status-chip-w);
+    }
+    .w-status-chip {
+        width: var(--tt-status-chip-w);
+    }
+    .w-resize-handle {
+        width: var(--tt-resize-handle-w);
+    }
+    .w-divider {
+        width: var(--tt-divider-width);
+    }
+    .min-w-button {
+        min-width: var(--tt-button-min-w);
     }
 
     [data-tt-column-resizing="true"] * {
@@ -972,6 +1008,10 @@ main .torrent-table-watermark {
 
     .max-w-modal {
         max-width: var(--tt-modal-max-width);
+    }
+
+    .max-w-modal-compact {
+        max-width: var(--tt-modal-max-width-compact);
     }
 
     .max-h-modal-body {
