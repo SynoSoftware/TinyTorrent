@@ -637,3 +637,5 @@ Renaming is a high-signal refactor best performed interactively.
 Reporting candidates preserves velocity while improving correctness.
 
 Failure to report obvious rename candidates is a spec violation.
+
+ABSOLUTE RULE: Never run git restore, git reset, git clean, or checkout -- without explicit confirmation. Preserve all local changes.
