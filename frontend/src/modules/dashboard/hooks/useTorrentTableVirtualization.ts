@@ -40,11 +40,14 @@ export type UseTorrentTableVirtualizationDeps = {
     ) => Record<string, number>;
     AUTO_FIT_TOLERANCE_PX: number;
     rowsRef: React.MutableRefObject<Row<Torrent>[]>;
-    setRowSelection: (s: RowSelectionState) => void;
-    setAnchorIndex: (n: number | null) => void;
-    setFocusIndex: (n: number | null) => void;
-    setHighlightedRowId: (id: string | null) => void;
-    rowSelectionRef: React.MutableRefObject<RowSelectionState>;
+    getSelectionSnapshot: () => RowSelectionState;
+    previewSelection: (s: RowSelectionState) => void;
+    commitSelection: (
+        s: RowSelectionState,
+        focusIndex: number | null,
+        focusRowId: string | null
+    ) => void;
+    clearSelection: () => void;
 };
 
 // Wiring-friendly virtualization hook extracted from TorrentTable.tsx.
@@ -69,11 +72,10 @@ export const useTorrentTableVirtualization = (
         normalizeColumnSizingState,
         AUTO_FIT_TOLERANCE_PX,
         rowsRef,
-        setRowSelection,
-        setAnchorIndex,
-        setFocusIndex,
-        setHighlightedRowId,
-        rowSelectionRef,
+        getSelectionSnapshot,
+        previewSelection,
+        commitSelection,
+        clearSelection,
     } = deps;
 
     const rowVirtualizer = useVirtualizer({
@@ -174,11 +176,10 @@ export const useTorrentTableVirtualization = (
             rowHeight,
             rowsRef,
             rowIds,
-            setRowSelection,
-            setAnchorIndex,
-            setFocusIndex,
-            setHighlightedRowId,
-            rowSelectionRef,
+            getBaseSelection: getSelectionSnapshot,
+            previewSelection,
+            commitSelection,
+            clearSelection,
         });
 
     return {

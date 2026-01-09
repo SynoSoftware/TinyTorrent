@@ -8,11 +8,14 @@ interface UseMarqueeParams<TRow> {
     rowHeight: number;
     rowsRef: React.MutableRefObject<Row<TRow>[]>;
     rowIds: string[];
-    setRowSelection: (next: Record<string, boolean>) => void;
-    setAnchorIndex: (i: number | null) => void;
-    setFocusIndex: (i: number | null) => void;
-    setHighlightedRowId: (id: string | null) => void;
-    rowSelectionRef: React.MutableRefObject<Record<string, boolean>>;
+    getBaseSelection: () => Record<string, boolean>;
+    previewSelection: (next: Record<string, boolean>) => void;
+    commitSelection: (
+        next: Record<string, boolean>,
+        focusIndex: number | null,
+        focusRowId: string | null
+    ) => void;
+    clearSelection: () => void;
 }
 
 export function useMarqueeSelection<TRow>({
@@ -20,11 +23,10 @@ export function useMarqueeSelection<TRow>({
     rowHeight,
     rowsRef,
     rowIds,
-    setRowSelection,
-    setAnchorIndex,
-    setFocusIndex,
-    setHighlightedRowId,
-    rowSelectionRef,
+    getBaseSelection,
+    previewSelection,
+    commitSelection,
+    clearSelection,
 }: UseMarqueeParams<TRow>) {
     const marqueeStateRef = useRef<{
         startClientX: number;
@@ -124,7 +126,7 @@ export function useMarqueeSelection<TRow>({
                         state.isAdditive ||
                         (event as unknown as MouseEvent).shiftKey;
                     const nextSelection: Record<string, boolean> = isAdditive
-                        ? { ...rowSelectionRef.current }
+                        ? { ...getBaseSelection() }
                         : {};
                     const selectionIds = rowIds.slice(
                         firstIndex,
@@ -136,7 +138,7 @@ export function useMarqueeSelection<TRow>({
                         rafHandleRef.current = window.requestAnimationFrame(
                             () => {
                                 if (pendingSelectionRef.current) {
-                                    setRowSelection(
+                                    previewSelection(
                                         pendingSelectionRef.current
                                     );
                                     pendingSelectionRef.current = null;
@@ -174,10 +176,7 @@ export function useMarqueeSelection<TRow>({
             const availableRows = rowsRef.current;
             if (!availableRows.length) {
                 if (!state.isAdditive) {
-                    setRowSelection({});
-                    setAnchorIndex(null);
-                    setFocusIndex(null);
-                    setHighlightedRowId(null);
+                    clearSelection();
                 }
                 return;
             }
@@ -190,10 +189,7 @@ export function useMarqueeSelection<TRow>({
 
             if (bottomContent <= topContent) {
                 if (!state.isAdditive) {
-                    setRowSelection({});
-                    setAnchorIndex(null);
-                    setFocusIndex(null);
-                    setHighlightedRowId(null);
+                    clearSelection();
                 }
                 return;
             }
@@ -205,12 +201,10 @@ export function useMarqueeSelection<TRow>({
 
             const isAdditive = state.isAdditive || event.shiftKey;
             const nextSelection: Record<string, boolean> = isAdditive
-                ? { ...rowSelectionRef.current }
+                ? { ...getBaseSelection() }
                 : {};
             const selectionIds = rowIds.slice(firstIndex, lastIndex + 1);
             for (const id of selectionIds) nextSelection[id] = true;
-            setRowSelection(nextSelection);
-
             const focusIndexValue = Math.max(
                 0,
                 Math.min(
@@ -218,13 +212,9 @@ export function useMarqueeSelection<TRow>({
                     Math.floor(endContentY / rowHeight)
                 )
             );
-            setAnchorIndex(focusIndexValue);
-            setFocusIndex(focusIndexValue);
-
             const focusRow = availableRows[focusIndexValue];
-            if (focusRow) {
-                setHighlightedRowId(focusRow.id);
-            }
+            const focusRowId = focusRow ? focusRow.id : null;
+            commitSelection(nextSelection, focusIndexValue, focusRowId);
             marqueeClickBlockRef.current = true;
             if (marqueeBlockResetRef.current) {
                 window.clearTimeout(marqueeBlockResetRef.current);
@@ -258,11 +248,10 @@ export function useMarqueeSelection<TRow>({
         rowIds,
         rowHeight,
         rowsRef,
-        setRowSelection,
-        setAnchorIndex,
-        setFocusIndex,
-        setHighlightedRowId,
-        rowSelectionRef,
+        getBaseSelection,
+        previewSelection,
+        commitSelection,
+        clearSelection,
     ]);
 
     return { marqueeRect, marqueeClickBlockRef, isMarqueeDraggingRef };

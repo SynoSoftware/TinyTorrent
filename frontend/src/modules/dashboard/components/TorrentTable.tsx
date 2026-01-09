@@ -221,6 +221,22 @@ export function TorrentTable({
     >(null);
     const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
     const rowSelectionRef = useRef<RowSelectionState>(rowSelection);
+    const rowVirtualizerRef = useRef<any>(null);
+    const selectionBridgeRef = useRef<{
+        getSelectionSnapshot: () => RowSelectionState;
+        previewSelection: (s: RowSelectionState) => void;
+        commitSelection: (
+            s: RowSelectionState,
+            focusIndex: number | null,
+            focusRowId: string | null
+        ) => void;
+        clearSelection: () => void;
+    }>({
+        getSelectionSnapshot: () => ({}),
+        previewSelection: () => {},
+        commitSelection: () => {},
+        clearSelection: () => {},
+    });
     const speedHistoryRef = useTorrentSpeedHistory(torrents);
 
     const getDisplayTorrent = useCallback(
@@ -391,6 +407,32 @@ export function TorrentTable({
             "TorrentTable invariant violated: rowIds must match React Table row order"
         );
     }
+    const bridgeGetSelectionSnapshot = useCallback(
+        () => selectionBridgeRef.current.getSelectionSnapshot(),
+        []
+    );
+    const bridgePreviewSelection = useCallback(
+        (s: RowSelectionState) =>
+            selectionBridgeRef.current.previewSelection(s),
+        []
+    );
+    const bridgeCommitSelection = useCallback(
+        (
+            s: RowSelectionState,
+            focusIndex: number | null,
+            focusRowId: string | null
+        ) =>
+            selectionBridgeRef.current.commitSelection(
+                s,
+                focusIndex,
+                focusRowId
+            ),
+        []
+    );
+    const bridgeClearSelection = useCallback(
+        () => selectionBridgeRef.current.clearSelection(),
+        []
+    );
 
     const {
         measuredMinWidths,
@@ -515,32 +557,38 @@ export function TorrentTable({
         normalizeColumnSizingState,
         AUTO_FIT_TOLERANCE_PX,
         rowsRef,
-        setRowSelection,
-        setAnchorIndex,
-        setFocusIndex,
-        setHighlightedRowId,
-        rowSelectionRef,
+        getSelectionSnapshot: bridgeGetSelectionSnapshot,
+        previewSelection: bridgePreviewSelection,
+        commitSelection: bridgeCommitSelection,
+        clearSelection: bridgeClearSelection,
     });
+    rowVirtualizerRef.current = rowVirtualizer;
 
     const selection = useRowSelectionController({
         table,
         rows,
         rowIds,
-        rowVirtualizer,
         isMarqueeDraggingRef,
         marqueeClickBlockRef,
-        rowSelectionRef,
         rowSelection,
         setRowSelection,
+        rowSelectionRef,
         anchorIndex,
         setAnchorIndex,
         focusIndex,
         setFocusIndex,
         highlightedRowId,
         setHighlightedRowId,
+        rowVirtualizerRef,
         onSelectionChange,
         onActiveRowChange,
     });
+    selectionBridgeRef.current = {
+        getSelectionSnapshot: selection.getSelectionSnapshot,
+        previewSelection: selection.previewSelection,
+        commitSelection: selection.commitSelection,
+        clearSelection: selection.clearSelection,
+    };
 
     const {
         activate: activateDashboardScope,
