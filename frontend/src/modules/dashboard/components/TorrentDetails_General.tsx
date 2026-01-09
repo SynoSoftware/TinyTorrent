@@ -108,7 +108,6 @@ export const GeneralTab = ({
     superSeedingCapability: _superSeedingCapability,
     onSequentialToggle: _onSequentialToggle,
     onSuperSeedingToggle: _onSuperSeedingToggle,
-    onForceTrackerReannounce,
     onSetLocation,
     onRedownload: _onRedownload,
     onRetry,
@@ -169,111 +168,6 @@ export const GeneralTab = ({
         );
     };
 
-    // Build recovery buttons dynamically from the envelope's recoveryActions
-    const buildRecoveryButtons = () => {
-        const actions = torrent.errorEnvelope?.recoveryActions ?? [];
-        const buttons: {
-            id: string;
-            color: "primary" | "danger" | "default";
-            label: string;
-            tooltip: string;
-            onPress: () => Promise<void> | void;
-        }[] = [];
-
-        for (const a of actions) {
-            if (a === "resume") {
-                buttons.push({
-                    id: a,
-                    color: "primary",
-                    label: t("toolbar.resume"),
-                    tooltip: t("tooltip.resume"),
-                    onPress: handleResumeAction,
-                });
-                continue;
-            }
-            if (a === "forceRecheck") {
-                buttons.push({
-                    id: a,
-                    color: "primary",
-                    label: t("torrent_modal.controls.verify"),
-                    tooltip: t("tooltip.verify"),
-                    onPress: handleForceRecheckAction,
-                });
-            } else if (a === "setLocation" || a === "changeLocation") {
-                buttons.push({
-                    id: a,
-                    color: "primary",
-                    label: t("directory_browser.select", {
-                        name: t("torrent_modal.labels.save_path"),
-                    }),
-                    tooltip: t("tooltip.set_location"),
-                    onPress: handleSetLocationAction,
-                });
-            } else if (a === "reDownload") {
-                buttons.push({
-                    id: a,
-                    color: "danger",
-                    label: t("modals.download"),
-                    tooltip: t("tooltip.redownload"),
-                    onPress: handleRedownloadAction,
-                });
-            } else if (a === "reannounce") {
-                buttons.push({
-                    id: a,
-                    color: "default",
-                    label: t("torrent_modal.controls.force_reannounce"),
-                    tooltip: t("tooltip.reannounce"),
-                    onPress: async () => {
-                        if (!onForceTrackerReannounce) return;
-                        await onForceTrackerReannounce();
-                    },
-                });
-            } else {
-                console.info(
-                    `[tiny-torrent][general-tab] Skipping unsupported recovery action "${a}"`
-                );
-            }
-        }
-
-        // Ensure primaryAction is first in the resulting array
-        if (torrent.errorEnvelope?.primaryAction) {
-            const prim = torrent.errorEnvelope.primaryAction;
-            const primIdx = buttons.findIndex((b) => b.id === prim);
-            if (primIdx > 0) {
-                const [p] = buttons.splice(primIdx, 1);
-                buttons.unshift(p);
-            }
-        }
-
-        return buttons;
-    };
-
-    const orderedRecoveryButtons = buildRecoveryButtons();
-    const modalPrimaryAction = orderedRecoveryButtons[0] ?? null;
-    const modalSecondaryActions = orderedRecoveryButtons
-        .slice(1)
-        .filter((action) => action.id !== "dismiss");
-    const isEngineVerifying =
-        torrent.errorEnvelope?.recoveryState === "verifying" ||
-        (torrent.verificationProgress ?? 0) > 0;
-    const isForceRecheckPrimary = modalPrimaryAction?.id === "forceRecheck";
-    const isVerifying = isForceRecheckPrimary && isEngineVerifying;
-    const verifyingLabel = t("torrent_modal.controls.verifying");
-    const showPrimaryLabel = modalPrimaryAction
-        ? isVerifying
-            ? verifyingLabel
-            : modalPrimaryAction.label
-        : "";
-
-    const needsUserConfirmation =
-        torrent.errorEnvelope?.recoveryState === "needsUserConfirmation";
-    useEffect(() => {
-        setShowConfirm(needsUserConfirmation);
-    }, [needsUserConfirmation]);
-
-    // Local modal state for recovery flow
-    const [showRecoveryModal, setShowRecoveryModal] = useState(false);
-
     const statusLabelKey = `table.status_${torrent.state}`;
     const statusLabel = t(statusLabelKey, {
         defaultValue: torrent.state.replace("_", " "),
@@ -286,10 +180,24 @@ export const GeneralTab = ({
         ? "text-warning/70"
         : "text-foreground/60";
 
-    const mainAction = modalPrimaryAction?.onPress ?? handleResumeAction;
-    const mainLabel =
-        modalPrimaryAction?.label ??
-        t("toolbar.resume");
+    // Auto-open recovery modal for error classes
+    const errorClasses = [
+        "missingFiles",
+        "permissionDenied",
+        "diskFull",
+        "partialFiles",
+        "trackerWarning",
+        "trackerError",
+    ];
+    useEffect(() => {
+        const hasError =
+            torrent.errorEnvelope?.errorClass &&
+            errorClasses.includes(torrent.errorEnvelope.errorClass);
+        setShowRecoveryModal(Boolean(hasError && recoveryPlan));
+    }, [torrent.errorEnvelope?.errorClass, recoveryPlan]);
+
+    const mainAction = handleResumeAction;
+    const mainLabel = t("toolbar.resume");
     const downloadRate = torrent.speed?.down ?? 0;
     const uploadRate = torrent.speed?.up ?? 0;
 
@@ -300,6 +208,8 @@ export const GeneralTab = ({
     };
 
     const [showRemoveModal, setShowRemoveModal] = useState(false);
+
+    const [showRecoveryModal, setShowRecoveryModal] = useState(false);
 
     const handleRemoveAction = () => {
         setShowRemoveModal(true);
@@ -342,168 +252,10 @@ export const GeneralTab = ({
 
     const isActive =
         torrent.state === "downloading" || torrent.state === "seeding";
-    const mainActionLabel = isActive
-        ? t("toolbar.pause")
-        : t("toolbar.resume");
+    const mainActionLabel = isActive ? t("toolbar.pause") : t("toolbar.resume");
 
     return (
         <div className="space-y-stage">
-            <Modal isOpen={showConfirm} onOpenChange={setShowConfirm}>
-                <ModalContent className="max-w-modal">
-                    <ModalHeader>
-                        {t("modals.missing_files.title")}
-                    </ModalHeader>
-                    <ModalBody className="max-h-modal-body">
-                        <div className="space-y-3">
-                            <div>
-                                {t("modals.missing_files.body")}
-                            </div>
-                            {isVerifying && (
-                                <div className="text-label text-foreground/60">
-                                    {verifyingLabel}
-                                </div>
-                            )}
-                        </div>
-                    </ModalBody>
-                    <ModalFooter>
-                        <div className="flex items-center justify-end gap-tools w-full">
-                            {modalPrimaryAction && (
-                                <Button
-                                    size="md"
-                                    variant="shadow"
-                                    color={modalPrimaryAction.color}
-                                    title={
-                                        modalPrimaryAction.tooltip || undefined
-                                    }
-                                    onPress={async () => {
-                                        try {
-                                            if (recoveryCallbacks) {
-                                                const outcome =
-                                                    await recoveryCallbacks.handlePrimaryRecovery();
-                                                // If controller asks for a path or reports noop, show recovery modal to let user pick or see guidance
-                                                if (
-                                                    outcome.kind ===
-                                                        "path-needed" ||
-                                                    outcome.kind === "noop"
-                                                ) {
-                                                    setShowConfirm(false);
-                                                    setShowRecoveryModal(true);
-                                                    return;
-                                                }
-                                                if (outcome.kind === "error") {
-                                                    // Surface via console and require user action
-                                                    console.error(
-                                                        "recovery primary action failed",
-                                                        outcome.message
-                                                    );
-                                                    setShowConfirm(false);
-                                                    return;
-                                                }
-                                            }
-                                            // Fallback to existing action
-                                            void modalPrimaryAction.onPress();
-                                            if (
-                                                modalPrimaryAction.id !==
-                                                "forceRecheck"
-                                            ) {
-                                                setShowConfirm(false);
-                                            }
-                                        } catch (err) {
-                                            console.error(
-                                                "primary recovery action failed",
-                                                err
-                                            );
-                                        }
-                                    }}
-                                    isDisabled={isVerifying}
-                                    className={isVerifying ? "opacity-80" : ""}
-                                >
-                                    {(() => {
-                                        const Icon = getIconForAction(
-                                            modalPrimaryAction.id
-                                        );
-                                        return (
-                                            <>
-                                                {Icon && (
-                                                    <Icon
-                                                        size={16}
-                                                        strokeWidth={
-                                                            ICON_STROKE_WIDTH
-                                                        }
-                                                        className="mr-2"
-                                                    />
-                                                )}
-                                                {showPrimaryLabel}
-                                            </>
-                                        );
-                                    })()}
-                                </Button>
-                            )}
-
-                            <Button
-                                size="md"
-                                variant="flat"
-                                color="default"
-                                onPress={() => {
-                                    // Do not suppress engine-driven prompts. Close modal
-                                    // and allow the engine to continue driving recovery.
-                                    setShowConfirm(false);
-                                }}
-                            >
-                                {t("toolbar.cancel")}
-                            </Button>
-                            {modalSecondaryActions.map((action) => (
-                                <Button
-                                    key={action.id}
-                                    size="md"
-                                    variant="shadow"
-                                    color={action.color}
-                                    title={action.tooltip}
-                                    onPress={() => {
-                                        void action.onPress();
-                                        setShowConfirm(false);
-                                    }}
-                                    isDisabled={isVerifying}
-                                >
-                                    {(() => {
-                                        const Icon = getIconForAction(
-                                            action.id
-                                        );
-                                        return (
-                                            <>
-                                                {Icon && (
-                                                    <Icon
-                                                        size={16}
-                                                        strokeWidth={
-                                                            ICON_STROKE_WIDTH
-                                                        }
-                                                        className="mr-2"
-                                                    />
-                                                )}
-                                                {action.label}
-                                            </>
-                                        );
-                                    })()}
-                                </Button>
-                            ))}
-                            <Button
-                                size="md"
-                                variant="flat"
-                                color="default"
-                                onPress={() => {
-                                    // Do not suppress engine-driven prompts. Close modal
-                                    // and allow the engine to continue driving recovery.
-                                    setShowConfirm(false);
-                                }}
-                            >
-                                {t("toolbar.cancel")}
-                            </Button>
-                        </div>
-                    </ModalFooter>
-                </ModalContent>
-            </Modal>
-
-            {/* Recovery modal (controller-driven) */}
             <TorrentRecoveryModal
                 isOpen={showRecoveryModal}
                 plan={recoveryPlan ?? null}
@@ -522,6 +274,11 @@ export const GeneralTab = ({
                 onVerify={async () => {
                     if (!recoveryCallbacks) return;
                     await recoveryCallbacks.handleVerify();
+                    setShowRecoveryModal(false);
+                }}
+                onReannounce={async () => {
+                    if (!recoveryCallbacks) return;
+                    await recoveryCallbacks.handleReannounce();
                     setShowRecoveryModal(false);
                 }}
                 onBrowse={async () => {
@@ -601,11 +358,7 @@ export const GeneralTab = ({
                         <Button
                             size="md"
                             variant="shadow"
-                            color={
-                                modalPrimaryAction?.id === "resume"
-                                    ? "primary"
-                                    : "default"
-                            }
+                            color={isActive ? "default" : "primary"}
                             onPress={() => {
                                 void mainAction();
                             }}
@@ -613,8 +366,7 @@ export const GeneralTab = ({
                         >
                             {(() => {
                                 const Icon = getIconForAction(
-                                    modalPrimaryAction?.id ??
-                                        (isActive ? "pause" : "resume")
+                                    isActive ? "pause" : "resume"
                                 );
                                 return (
                                     <>
@@ -625,7 +377,7 @@ export const GeneralTab = ({
                                                 className="mr-2"
                                             />
                                         )}
-                                        {mainLabel}
+                                        {mainActionLabel}
                                     </>
                                 );
                             })()}

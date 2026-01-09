@@ -21,6 +21,7 @@ interface Props {
     onPrimary: () => Promise<void> | void;
     onPickPath: (path: string) => Promise<void> | void;
     onVerify: () => Promise<void> | void;
+    onReannounce: () => Promise<void> | void;
     // When provided, called to open native browse and should resolve to a path or null
     onBrowse?: () => Promise<string | null> | void;
     isBusy?: boolean;
@@ -34,6 +35,7 @@ export const TorrentRecoveryModal = ({
     onPrimary,
     onPickPath,
     onVerify,
+    onReannounce,
     onBrowse,
     isBusy = false,
 }: Props) => {
@@ -50,7 +52,11 @@ export const TorrentRecoveryModal = ({
     const primaryLabel = plan
         ? t(ACTION_KEY[plan.primaryAction] ?? "recovery.primary")
         : t("recovery.primary");
-    const message = outcome?.message ?? plan?.rationale ?? "";
+    const message = outcome?.message
+        ? t(`recovery.message.${outcome.message}`)
+        : plan?.rationale
+        ? t(plan.rationale)
+        : "";
 
     return (
         <Modal isOpen={isOpen} onOpenChange={onClose}>
@@ -100,6 +106,19 @@ export const TorrentRecoveryModal = ({
                                 }}
                             >
                                 {t("torrent_modal.controls.verify")}
+                            </Button>
+                        )}
+                        {onReannounce && (
+                            <Button
+                                size="md"
+                                variant="shadow"
+                                color="default"
+                                isDisabled={isBusy}
+                                onPress={async () => {
+                                    await onReannounce();
+                                }}
+                            >
+                                {t("torrent_modal.controls.force_reannounce")}
                             </Button>
                         )}
                         <Button

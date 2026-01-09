@@ -62,17 +62,36 @@ describe("recovery-controller runMissingFilesRecovery", () => {
         expect((res as any).reason).toBe("disk-full");
     });
 
-    it("interprets EACCES as unwritable", async () => {
+    it("returns resolved when free space check passes", async () => {
         const client = {
-            checkFreeSpace: async (_: string) => {
-                const e: any = new Error("permission denied");
-                e.code = "EACCES";
-                throw e;
-            },
+            checkFreeSpace: async (_: string) => ({ free: 1000 }),
         } as any;
         const detail = { downloadDir: "/dest" } as any;
         const res = await runMissingFilesRecovery({ client, detail });
-        expect(res.kind).toBe("path-needed");
-        expect((res as any).reason).toBe("unwritable");
+        expect(res.kind).toBe("resolved");
+        expect(res.message).toBe("path_ready");
+    });
+
+    it("returns resolved when directory is created successfully", async () => {
+        const client = {
+            checkFreeSpace: async (_: string) => {
+                const e: any = new Error("no such file");
+                e.code = "ENOENT";
+                throw e;
+            },
+            createDirectory: async (_: string) => {},
+        } as any;
+        const detail = { downloadDir: "/missing" } as any;
+        const res = await runMissingFilesRecovery({ client, detail });
+        expect(res.kind).toBe("resolved");
+        expect(res.message).toBe("directory_created");
+    });
+
+    it("returns resolved when checkFreeSpace not supported", async () => {
+        const client = {} as any;
+        const detail = { downloadDir: "/dest" } as any;
+        const res = await runMissingFilesRecovery({ client, detail });
+        expect(res.kind).toBe("resolved");
+        expect(res.message).toBe("filesystem_probing_not_supported");
     });
 });
