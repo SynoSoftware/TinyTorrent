@@ -1,240 +1,437 @@
-# Torrent Missing Files — Recovery UX Specification (vFinal)
+
+# Torrent Missing Files — Recovery UX Specification (vFinal+)
 
 ## 1. Core UX Philosophy
 
 * **Non-Accusatory:** Never blame the user. State observations, not causes.
-* **Context-Aware:** Distinguish between "I can't find the drive" (Hardware) and "I can't find the folder" (Organization).
-* **Action-Oriented:** Every error state offers a one-click primary resolution.
-* **Transient-Resistant:** Do not panic over temporary system glitches (e.g., sleeping drives).
+* **Truth-Only:** Never claim “drive disconnected” or “folder missing” unless proven.
+* **Context-Aware:** Distinguish hardware absence (volume) vs folder absence (path) vs permission vs integrity.
+* **Action-Oriented:** Every recoverable state offers a one-click primary resolution.
+* **Transient-Resistant:** Do not panic over temporary glitches (sleeping drives, slow mounts).
+* **No Destructive Advice:** Never instruct “remove torrent and re-add”.
 
 ---
 
 ## 2. State Machine Logic
 
-The client must classify a "Missing Files" error into one of **four** distinct states. This classification determines the UI.
+The client must classify into **one of four states** and attach a **confidence level**: `certain | likely | unknown`.
 
-| State Code | Name | Technical Condition | User Reality |
-| :--- | :--- | :--- | :--- |
-| **S1** | **Data Gap** | Path exists, writable. Hash check failed or file size mismatch. | "Files are corrupted or incomplete." |
-| **S2** | **Path Loss** | Drive/Mount exists. Specific folder path missing. | "I moved, renamed, or deleted the folder." |
-| **S3** | **Volume Loss** | Root path (Drive Letter / Mount point) not found. | "The external drive is unplugged." |
-| **S4** | **Access Denied** | Path exists but is Read-Only or Permission Denied. | "The OS is blocking access." |
+### Confidence levels
+
+* `certain`: proven by OS probing (local) or unambiguous RPC result.
+* `likely`: heuristic (RPC free-space probes + error hints).
+* `unknown`: conflicting/missing signals → UI must say **“Location unavailable”** and offer **Locate/Retry**.
+
+### Detection context
+
+* **Remote (RPC):** heuristic, best-effort (Transmission RPC constraints).
+* **Local (TinyTorrent Server / WebView2):** OS calls, authoritative.
+
+### S1 — Data Gap (Integrity mismatch / incomplete pieces)
+
+**Remote (RPC):**
+
+* torrent is in `CHECK_WAIT`/`CHECK` (checking states), **or**
+* user explicitly initiated Verify and it resulted in missing pieces (observed via state/bytes).
+  **Local:**
+* OS confirms files exist, but verify marks pieces missing/corrupt.
+  **User reality:** “Files are corrupted or incomplete.”
+
+### S2 — Path Loss (Folder missing)
+
+**Remote (RPC, likely):**
+
+* error indicates path missing **and**
+* `free-space(root)` succeeds **and**
+* `root` stable across polls (2 samples).
+  **Local (certain):**
+* `exists(path) == false` **and** `exists(root) == true`.
+  **User reality:** “Folder moved/renamed/deleted.”
+
+In Remote (RPC) mode, “Download to recreate” MUST send torrent-set-location
+even if the path string is unchanged, to force Transmission to re-evaluate
+path existence and permissions before recovery.
+
+### S3 — Volume Loss (Drive missing)
+
+**Remote (RPC, likely/unknown):**
+
+* error indicates path missing **and**
+* `free-space(root)` fails repeatedly (>=2 samples, 500ms–2s).
+* If failure reason is unknown → confidence `unknown` and UI must not claim drive is disconnected.
+  **Local (certain):**
+* `exists(root) == false` (volume unmounted).
+  **User reality:** “External drive not mounted.”
+
+### S4 — Access Denied (Permissions)
+
+**Remote (RPC):**
+
+* error contains permission/denied semantics (best-effort).
+  **Local (certain):**
+* `access(path, W_OK)` fails.
+  **User reality:** “OS blocks access.”
 
 ---
 
 ## 3. Inline UI (Torrent List Row)
 
-*Status Column replacement when error is detected.*
+**Status column replacement when missing-files error is detected.**
 
-### Visual Grammar
+### Visual grammar
 
-* **Icon:** ⚠️ (Warning Yellow/Orange) — *Never Red (Red implies fatal/stopped).*
-* **Text:** High-contrast, legible.
-* **Buttons:** Standard action buttons/links.
+* **Icon:** ⚠️ warning (yellow/orange). Never red (red implies fatal).
+* **Text:** high contrast, short, factual.
+* **Actions:** standard buttons/links.
 
-### Row Layouts per State
+### Confidence-to-copy rule (global)
 
-**S1: Data Gap** (Files exist but are wrong)
+If confidence = `unknown`, inline text must be **“Location unavailable”** (never “Drive disconnected” or “Folder not found”).
+
+### Row layouts per state
+
+**S1: Data Gap**
+
 > `[⚠️] Missing: 1.2 GB`
-> **[ Download missing ]**  ·  *Open folder*
+> **[ Download missing ]** · *Open folder*
 
-**S2: Path Loss** (Folder gone)
+**S2: Path Loss**
+
 > `[⚠️] Folder not found: /Movies/Avatar`
-> **[ Locate... ]**  ·  *Download to recreate*
+> **[ Locate... ]** · *Download to recreate*
+> “Download to recreate” performs: ensure folder exists (local) / set location (remote) + minimal engine sequence + start.
 
-**S3: Volume Loss** (Drive gone)
-> `[⚠️] Drive disconnected (E:)`
-> **[ Retry ]**  ·  *Locate...*
+**S3: Volume Loss**
 
-**S4: Access Denied** (Permissions)
+> `[⚠️] Drive disconnected (E:)` *(only if confidence != unknown)*
+> **[ Retry ]** · *Locate...*
+
+**S4: Access Denied**
+
 > `[⚠️] Permission denied (Read-only)`
-> **[ Retry ]**  ·  *Fix permissions* (Opens OS Properties)
+> **[ Choose new location… ]** · *Open folder*
+> Optional: *Show permission help* (TinyTorrent help sheet / OS dialog best-effort)
+
+### Retry semantics (must be consistent)
+
+“Retry” performs **availability re-probing only** (drive/path/access checks). It does **not** modify paths or data.
 
 ---
 
-## 4. Interaction Logic (The "Smart" Behavior)
+## 4. Interaction Logic (Smart Recovery)
 
-### A. The "Open Folder" Algorithm (Recursive Fallback)
+### A. Open Folder algorithm
 
-*Trigger: User clicks "Open folder" or uses Context Menu > Open Destination.*
+**Trigger:** user clicks *Open folder*.
 
-1. **Try:** Open `Target_Directory`.
-2. **Catch (Missing):** Try `Target_Directory`'s Parent.
-3. **Catch (Missing):** Repeat up to `Drive_Root`.
-4. **Catch (Missing):** Open OS Default File Manager view (This PC / Home).
-5. **Feedback:** If the exact target was not opened, display Toast:
-    * *"Folder missing. Opened parent directory."*
+**Remote (RPC):**
 
-### B. The "Download / Retry" Algorithm (Smart Recovery)
+* Attempt to open the path via OS shell **only if mapped/valid**.
+* If not possible: toast **“Cannot open remote folder.”** and stop.
 
-*Trigger: User clicks Primary Action.*
+**Local (WebView2):**
 
-1. **Grace Period (S3 only):**
-    * If State is **S3 (Volume Loss)**, show spinning loader for **2000ms**.
-    * Background: Attempt to list directory. (Allows sleeping USB drives to wake).
-    * If success: Proceed to Step 2.
-    * If fail: Show Modal (See Section 5).
+1. Try open `Target_Directory`.
+2. If target missing:
 
-2. **Pre-Flight Capacity Check:**
-    * Calculate `Missing_Bytes`.
-    * Check `Free_Space` on target.
-    * If `Free_Space < Missing_Bytes`: Show **Disk Full Modal**.
+   * if `root` exists → open parent directory
+   * else → open **This PC / Volumes**
 
-3. **Execution (S1/S2):**
-    * **If State S1 (Gap):** Transition to "Queued" -> "Downloading".
-    * **If State S2 (Path Loss) AND User clicked "Download to recreate":** Create folder structure -> Start Download.
-
-4. **Verification (The Hidden Step):**
-    * If the engine requires a hash check before downloading:
-    * **UI Status:** Change to "Verifying local data..." (Show progress %).
-    * **Logic:** Do *not* delete existing data. Only verify.
-    * **Completion:** If 100% match, transition directly to "Seeding" (Do not download).
+No promises of “ghost selection”.
 
 ---
 
----
+### B. Primary action algorithms (Download / Retry / Locate)
 
-## 5. The Recovery Modal (Hard Stop)
+**Trigger:** user clicks the primary action for the current state.
 
-*Trigger: Only appears if the Primary Action fails (e.g., user clicked "Retry" but drive is still gone).*
+#### Step 0: Recovery gate (entry-point invariant)
 
-### 5.1 Modal Architecture
+All entry points (row action, context menu, navbar Resume/Start, details buttons) must funnel into the same recovery gate:
 
-**Trigger:**
-Appears **only** when a recovery action fails or requires explicit user decision (e.g., Drive still missing after grace period, or Permissions denied).
+* classify state + confidence
+* run preflight (local authoritative / rpc heuristic)
+* execute minimal correct engine sequence
+* open modal only if required
 
-**States:**
+#### Step 1: Grace period (S3 only)
 
-1. **S2: Path Loss** (Folder deleted/moved)
-2. **S3: Volume Loss** (Drive unplugged)
-3. **S4: Access Denied** (Read-only/No Write)
+**Remote (RPC):**
 
----
+* Poll `free-space(root)` every 500ms for 2s.
+* If recovers → proceed.
+* Else → open modal in S3 with confidence.
 
-### 5.2 Header Strategy (The Problem)
+**Local (WebView2):**
 
-**Layout:** `[Icon] [Title]`
+* Show “Waiting for drive…” micro-status.
+* Listen to OS mount events (or poll `access(root)` every 200ms for 2s).
+* If drive appears → proceed immediately (sub-second response).
+* **Local best UX:** If the drive reappears later (while app running), auto-recover without user click (see Local Perfect Mode).
 
-* **Icon:** `AlertTriangle` (Yellow/Warning) - *Never Red (panic).*
+#### Step 2: Pre-flight capacity
 
-| State | Title Text |
-| :--- | :--- |
-| **S2** | **Folder Missing** |
-| **S3** | **Drive Disconnected** |
-| **S4** | **Access Denied** |
+**Remote (RPC):** `free-space(path)`
+**Local:** `getDiskInfo(path)`
+If `freeSpace < missingBytes` → show Disk Full modal (separate spec).
 
----
+#### Step 3: Execution — minimal correct engine sequence
 
-### 5.3 Body Content (The Diagnostic)
+### Context A: Remote (RPC) — Minimal correct sequence (Transmission-max)
 
-The body must use **Semantic Highlighting** to show exactly what broke.
+**Goal:** avoid unnecessary verify, but never get stuck due to stale bitmap.
 
-**S2 (Path Loss):**
-> "The folder is missing from disk. If you moved it, please locate it."
->
-> **Path:** `E:\Downloads\`**`[Movies]`**
-> *(Style note: `E:\Downloads\` is dim/gray. `[Movies]` is bold/foreground color. This highlights the gap.)*
+**Determine if verify is needed**
 
-**S3 (Volume Loss):**
-> "The drive is not connected. Connect it to resume."
->
-> **Path:** **`[E:\]`**`Downloads\Movies`
-> *(Style note: `[E:\]` is bold/highlighted. The rest is dim.)*
+* If `leftUntilDone > 0` **and** torrent was previously downloading or seeding in this session:
+  → try `torrent-start` first.
+* Otherwise (unknown history, prior error, after path repair, integrity suspicion):
+  → run `torrent-verify`, then `torrent-start`.
 
-**S4 (Access Denied):**
-> "The software cannot write to this location. Please choose a writable folder."
->
-> **Path:** `E:\System\Protected` *(All bold)*
+**If verifying**
 
----
+* UI status: “Verifying local data…”
+* Watcher: wait until torrent is **not in any checking state** (`CHECK` / `CHECK_WAIT`) with timeout 30s.
 
-### 5.4 Interactions & Buttons (The Solution)
+**After watcher**
 
-**Footer Layout:**
-`[ Tertiary Action ]` (Spacer) `[ Secondary ] [ Primary ]`
+* If torrent is not active → send `torrent-start`.
 
-#### State S2 (Folder Missing)
+**Anti-loop guard (required)**
 
-* **Primary (Solid):** **Locate...**
-  * *Action:* Opens OS File Picker. User finds where they moved the folder.
-* **Secondary (Outline):** **Re-create**
-  * *Action:* Re-makes the directory structure at the *original* path and starts downloading.
-  * *Tooltip:* "Download files again to the original location."
-* **Tertiary:** *Cancel*
+* If `torrent-verify` completes and `leftUntilDone` is unchanged vs pre-verify:
+  → do not re-run verify again in this session.
+  → surface S1 with confidence `certain` (data gap).
 
-#### State S3 (Volume Loss)
+**Timeout behavior (required)**
 
-* **Primary (Solid):** **Locate...**
-  * *Action:* Opens OS File Picker (Use this if the drive letter changed).
-* **Passive Action (Auto-Resolve):**
-  * *Logic:* If the OS reports the drive (`E:`) is mounted while this modal is open:
-  * **1.** Flash Toast inside modal: "Drive E: detected."
-  * **2.** Auto-transition to **Primary: Resume** (or auto-close and resume).
-* **Tertiary:** *Cancel*
+* If watcher timeout expires and still checking:
 
-#### State S4 (Access Denied)
-
-* **Primary (Solid):** **Choose New Location...**
-  * *Action:* Opens OS File Picker.
-* **Tertiary:** *Cancel*
+  * show inline status “Still verifying…”
+  * offer Retry / Locate
+  * do not auto-open modal
 
 ---
 
-### 5.5 The "Success" Transition
+### Context B: Local (WebView2) — Direct fix (absolute best UX)
 
-When the user selects a new path (via "Locate..."), the modal must **not** vanish instantly.
+**Local is authoritative.** Prefer OS truth over engine guesses.
 
-1. **Validation:** System checks write permission on new path.
-2. **Visual Feedback:**
-    * Modal Body fades out.
-    * Replaced by **Green Checkmark** + Text: *"Location updated"*
-    * Duration: 600ms.
-3. **Close:** Modal closes, torrent status changes to "Checking" or "Downloading."
+1. If S2 (path loss): `mkdir(path, recursive=true)` before any engine start.
 
-### 5.6 Developer Prohibitions
+2. Choose minimal engine sequence:
 
-1. **NO Text Inputs:** Do not allow users to type paths. It causes syntax errors. Use File Pickers only.
-2. **NO "Verify" Button:** Verification is an automatic consequence of fixing the location. Do not offer it as a manual choice here.
-3. **NO Generic Errors:** Never show "Error: Path not found." You must calculate whether it is the *Root* (Drive) or the *Leaf* (Folder) and display the correct specific state (S2 vs S3).
+   * If **all data absent** (`missingBytes == expectedBytes`) and path valid/writable:
+    → attempt torrent-start without verify.
+    → if the engine errors, stalls, or immediately re-enters missing-files state:
+        → run torrent-verify, then torrent-start.
+   * Else:
+     → `torrent-verify` then `torrent-start`.
 
----
+3. UI shows fine-grained micro-status (local only):
 
-## 6. Edge Case Safety Rails
-
-1. **The "0 Bytes Missing" Scenario:**
-    * If user clicks "Download missing", and the check finds all files are actually complete:
-    * **Action:** Immediately transition to "Seeding" / "Complete".
-    * **Feedback:** Toast: *"All files verified. Resuming."*
-
-2. **The "Move" vs "Set" Distinction:**
-    * In the "Locate..." dialog (triggered from Error state), the logic must be **Set Pointer Only**.
-    * Do **not** attempt to move files from the old (missing) path to the new path. Just update the download destination config.
-
-3. **Transient Network Drives:**
-    * If a mapped network drive is missing, treat as **S3 (Volume Loss)**. Do not treat as S2 (Path Loss).
+   * “Creating folder…”
+   * “Checking files…”
+   * “Waiting for drive…”
+   * “Starting download…”
 
 ---
 
-## 7. Copywriting Dictionary (Exact Strings)
+## 5. Local Perfect Mode (WebView2-only, authoritative)
 
-Use these strings to ensure consistency.
+Local mode may do everything “perfect” because it has OS access.
 
-* **Generic Header:** "Missing files"
-* **Button - Action:** "Download missing"
-* **Button - Finding:** "Locate..."
-* **Button - Hard Retry:** "Retry"
-* **Status - Hashing:** "Verifying: 45%"
-* **Status - Waiting:** "Waiting for drive..."
-* **Toast - Success:** "Download resumed"
-* **Toast - Fallback:** "Location updated"
+### Authoritative probes
+
+* `exists(path)?`
+* `exists(root)?`
+* `writable(path)?`
+* `free space?`
+* `missingBytes?` and `expectedBytes?`
+
+### Auto-recovery (best UX)
+
+* If S3 and drive later reappears:
+
+  * toast “Drive detected”
+  * auto-run minimal engine sequence
+  * no modal unless the user explicitly opens it
+
+### Truthful UI (never guess)
+
+* root missing → “Drive disconnected”
+* leaf missing → “Folder not found”
+* access denied → “Access denied”
+* otherwise → “Missing files” / “Missing: Z”
+
+### After any successful location fix
+
+* queue minimal sequence (possibly skip verify if provably redundant)
+* show row status transitions
 
 ---
 
-## 8. Definition of Done (QA Checklist)
+## 6. Recovery Modal (Hard stop)
 
-* [ ] Unplugging a drive shows "Drive disconnected" (Not "Error").
-* [ ] Re-plugging the drive and clicking "Retry" resumes without a modal.
-* [ ] Deleting the folder shows "Folder not found".
-* [ ] Clicking "Open folder" on a missing folder opens the parent directory.
-* [ ] Clicking "Download missing" on a perfect file (false alarm) transitions to Seeding instantly.
-* [ ] No modal appears automatically; only on user click.
+**Trigger:** appears only when a recovery action fails or requires explicit user decision.
+
+If confidence = `unknown` and the action requires a path decision, the modal may open immediately without attempting recovery.
+
+### Modal applies to
+
+* S2 Path loss
+* S3 Volume loss
+* S4 Access denied
+  (never S1: integrity stays inline + advanced tools)
+
+### Header
+
+Icon: AlertTriangle (yellow). Never red.
+
+| State | Title                                                                             |
+| ----- | --------------------------------------------------------------------------------- |
+| S2    | Folder Missing                                                                    |
+| S3    | Drive Disconnected *(only if confidence != unknown; else “Location unavailable”)* |
+| S4    | Access Denied                                                                     |
+
+### Body diagnostic (semantic highlighting)
+
+S2:
+
+* “The folder is missing from disk. If you moved it, please locate it.”
+* Path with leaf highlighted.
+
+S3:
+
+* “The drive is not connected. Connect it to resume.”
+* Root highlighted.
+
+S4:
+
+* “Cannot write to this location. Choose a writable folder.”
+* Path highlighted.
+
+### Footer layout
+
+`[Cancel] ... [Secondary] [Primary]`
+
+#### S2 buttons
+
+* **Primary:** Locate…
+* **Secondary:** Re-create (recreate at original path + minimal engine sequence + start)
+* **Tertiary:** Cancel
+
+#### S3 buttons
+
+* **Primary:** Locate…
+* **Passive:** auto-resolve
+
+  * RPC: poll free-space every 2s while modal open
+  * Local: mount events
+  * If detected: toast “Drive detected” → close modal → resume minimal sequence
+* **Tertiary:** Cancel
+
+#### S4 buttons
+
+* **Primary:** Choose New Location…
+* **Tertiary:** Cancel
+
+### Success transition (required)
+
+After selecting a new path:
+
+1. validate writable
+2. show “Location updated” success state (600ms)
+3. close modal
+4. torrent proceeds to checking/downloading
+
+### Developer prohibitions
+
+* NO text inputs for paths (picker only)
+* NO “Verify” button in modal (verify is a consequence, not a choice)
+* NO generic errors; must compute root vs leaf (local) or use confidence (rpc)
+
+---
+
+## 7. Integration rules (all entry points)
+
+### Surface responsibilities (strict)
+
+**Allowed primary recovery surfaces**
+
+* Torrent table row inline UI
+* Recovery modal (hard stop only)
+
+**Informational/config surfaces only**
+
+* Detail/General tab and properties panels: may show state and sizes, but must not duplicate primary recovery CTAs.
+
+### Entry points that must funnel into recovery gate
+
+* Row inline buttons (Download missing / Retry / Locate)
+* Context menu actions
+* Navbar Resume/Start
+* Details “Resume”, “Set location”, “Re-download” (if present) must call the same gate
+
+No bypasses, no duplicated logic.
+
+---
+
+## 8. Copywriting dictionary (exact strings)
+
+* Generic header: “Missing files”
+* Button: “Download missing”
+* Button: “Locate…”
+* Button: “Retry”
+* Status: “Verifying: 45%”
+* Status: “Waiting for drive…”
+* Status: “Still verifying…”
+* Toast: “Download resumed”
+* Toast: “Location updated”
+* Row fallback: “Location unavailable”
+* Modal fallback title: “Location unavailable”
+* Modal fallback body: “The download location cannot be reached. Locate it or choose a new one.”
+* Toast: “Drive detected”
+
+---
+
+## 9. Edge case safety rails
+
+1. **0 bytes missing**
+
+* If action finds `missingBytes == 0`:
+
+  * transition to Complete/Seeding
+  * toast “All files verified. Resuming.”
+
+1. **Move vs Set**
+
+* Locate updates pointer only; never attempts to move files automatically.
+
+1. **Transient network drives**
+
+* Treat missing mapped network drive as S3 (volume loss). If RPC uncertain → confidence unknown → “Location unavailable”.
+
+1. **No infinite verify loops**
+
+* Anti-loop guard (Section 4) is mandatory.
+
+---
+
+## 10. Definition of Done (QA checklist)
+
+* [ ] Unplugging a drive shows “Drive disconnected” **only when confidence != unknown**.
+* [ ] If confidence unknown, UI shows “Location unavailable” (no false claims).
+* [ ] Re-plugging a drive resumes:
+
+  * RPC: after Retry (or passive in modal)
+  * Local: auto-resume without click
+* [ ] Deleting folder shows “Folder not found” (local certain; rpc likely/unknown).
+* [ ] Open folder on missing folder opens parent (local); remote shows toast if cannot map.
+* [ ] “Download missing” works without deleting/re-adding torrent.
+* [ ] Start/Resume from navbar funnels into recovery gate and recovers correctly.
+* [ ] Verify does not compete with recovery actions; modal has no Verify button.
+* [ ] No modal appears automatically; only on user click or when required decision is unavoidable.
+* [ ] Local mode skips verify when all data absent and path is valid (best UX).
+
+---
