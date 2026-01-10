@@ -140,9 +140,9 @@ export function Navbar({
                             </div>
                         </div>
 
-                        <div className="h-sep w-px bg-default-200/50 mx-tight" />
+                        <div className="hidden min-[600px]:flex h-sep w-px bg-default-200/50 mx-tight" />
 
-                        <div className="hidden lg:flex text-navbar min-w-0">
+                        <div className="hidden min-[1200px]:flex text-navbar min-w-0">
                             <Tabs
                                 aria-label={t("nav.filter_aria")}
                                 variant="light"
@@ -156,7 +156,7 @@ export function Navbar({
                                     base: "",
                                     tabList:
                                         "bg-default-100/50 p-tight border border-default-200/50 shadow-inner gap-tight h-navbar-pill overflow-visible",
-                                    cursor: "bg-background shadow-sm border-default-100 h-navbar-cursor rounded-full ",
+                                    cursor: "bg-background shadow-sm border-default-100 h-navbar-cursor rounded-full",
                                     tab: "px-panel font-semibold text-default-500 transition-colors text-navbar",
                                 }}
                             >
@@ -169,7 +169,7 @@ export function Navbar({
                                                 size="lg"
                                                 className="text-default-400"
                                             />
-                                            <span className="hidden xl:inline">
+                                            <span className="hidden min-[1600px]:inline">
                                                 {t("nav.filter_all")}
                                             </span>
                                         </div>
@@ -184,7 +184,7 @@ export function Navbar({
                                                 size="lg"
                                                 className="text-default-400"
                                             />
-                                            <span className="hidden xl:inline">
+                                            <span className="hidden min-[1600px]:inline">
                                                 {t("nav.filter_downloading")}
                                             </span>
                                         </div>
@@ -199,7 +199,7 @@ export function Navbar({
                                                 size="lg"
                                                 className="text-default-400"
                                             />
-                                            <span className="hidden xl:inline">
+                                            <span className="hidden min-[1600px]:inline">
                                                 {t("nav.filter_seeding")}
                                             </span>
                                         </div>
@@ -207,7 +207,8 @@ export function Navbar({
                                 />
                             </Tabs>
                         </div>
-                        <div className="hidden xl:flex">
+
+                        <div className="hidden min-[1400px]:flex">
                             <Input
                                 classNames={{
                                     base: "transition-all",
@@ -235,18 +236,6 @@ export function Navbar({
                                         className="text-default-400"
                                     />
                                 }
-                            />
-                        </div>
-
-                        {/* compact search for xs */}
-                        <div className="sm:hidden ml-tight">
-                            <ToolbarIconButton
-                                Icon={Search}
-                                ariaLabel={t("toolbar.search")}
-                                title={t("toolbar.search")}
-                                onPress={() => setActivePart("search")}
-                                className="text-default-400 hover:text-foreground"
-                                iconSize="lg"
                             />
                         </div>
                     </div>
@@ -311,29 +300,31 @@ export function Navbar({
                                 )}
                                 iconSize="lg"
                             />
-                            <ToolbarIconButton
-                                Icon={RotateCcw}
-                                ariaLabel={t("toolbar.recheck")}
-                                title={t("toolbar.recheck")}
-                                onPress={onRecheckSelection}
-                                disabled={!hasSelection}
-                                className={cn(
-                                    "text-default-500 hover:text-foreground hover:bg-default-200",
-                                    emphasizeActions?.forceRecheck
-                                        ? "ring-1 ring-default/20 shadow-sm"
-                                        : ""
-                                )}
-                                iconSize="lg"
-                            />
-                            <ToolbarIconButton
-                                Icon={Trash2}
-                                ariaLabel={t("toolbar.remove")}
-                                title={t("toolbar.remove")}
-                                onPress={onRemoveSelection}
-                                disabled={!hasSelection}
-                                className="text-danger hover:text-danger-600 hover:bg-danger/10"
-                                iconSize="lg"
-                            />
+                            <div className=" hidden min-[600px]:flex">
+                                <ToolbarIconButton
+                                    Icon={RotateCcw}
+                                    ariaLabel={t("toolbar.recheck")}
+                                    title={t("toolbar.recheck")}
+                                    onPress={onRecheckSelection}
+                                    disabled={!hasSelection}
+                                    className={cn(
+                                        "text-default-500 hover:text-foreground hover:bg-default-200",
+                                        emphasizeActions?.forceRecheck
+                                            ? "ring-1 ring-default/20 shadow-sm"
+                                            : ""
+                                    )}
+                                    iconSize="lg"
+                                />
+                                <ToolbarIconButton
+                                    Icon={Trash2}
+                                    ariaLabel={t("toolbar.remove")}
+                                    title={t("toolbar.remove")}
+                                    onPress={onRemoveSelection}
+                                    disabled={!hasSelection}
+                                    className="text-danger hover:text-danger-600 hover:bg-danger/10"
+                                    iconSize="lg"
+                                />
+                            </div>
                         </div>
 
                         <div
@@ -350,6 +341,24 @@ export function Navbar({
                             style={{ overflow: "visible" }}
                             iconSize="lg"
                         />
+                        <div
+                            className="flex max-[799px]:flex min-[800px]:hidden
+"
+                        >
+                            <ToolbarIconButton
+                                Icon={Icon}
+                                ariaLabel={t("theme.toggle_label", {
+                                    value: isDark
+                                        ? t("theme.dark")
+                                        : t("theme.light"),
+                                })}
+                                title={t("theme.toggle")}
+                                onPress={toggle}
+                                className="text-default-400 hover:text-foreground"
+                                style={{ overflow: "visible" }}
+                                iconSize="lg"
+                            />
+                        </div>
                     </div>
 
                     {rehashStatus?.active && (
@@ -376,7 +385,7 @@ export function Navbar({
                     className={cn(
                         GLASS_BLOCK_SURFACE,
                         BLOCK_SHADOW,
-                        "flex h-full items-stretch divide-x divide-default/20 overflow-hidden"
+                        "hidden min-[800px]:flex h-full items-stretch divide-x divide-default/20 overflow-hidden"
                     )}
                     style={{
                         ...shell.outerStyle,
