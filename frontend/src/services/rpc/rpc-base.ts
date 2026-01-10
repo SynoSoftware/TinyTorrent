@@ -1285,10 +1285,15 @@ export class TransmissionAdapter implements EngineAdapter {
     }
 
     public async openPath(path: string): Promise<void> {
+        const hasNativeShell =
+            this.serverClass === "tinytorrent" && NativeShell.isAvailable;
         if (!path) {
+            if (hasNativeShell) {
+                await NativeShell.openPath("");
+            }
             return;
         }
-        if (this.serverClass === "tinytorrent" && NativeShell.isAvailable) {
+        if (hasNativeShell) {
             await NativeShell.openPath(path);
             return;
         }

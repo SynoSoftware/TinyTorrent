@@ -113,7 +113,10 @@ interface WorkspaceShellProps {
     superSeedingToggleHandler?: (enabled: boolean) => Promise<void>;
     handleForceTrackerReannounce: () => Promise<string | void> | void;
     onSetLocation?: (torrent: TorrentDetail) => Promise<void> | void;
-    onRedownload?: (torrent: TorrentDetail) => Promise<void> | void;
+    onRedownload?: (
+        torrent: TorrentDetail,
+        options?: { recreateFolder?: boolean }
+    ) => Promise<void> | void;
     onRetry?: (torrent: TorrentDetail) => Promise<void> | void;
     onResume?: (torrent: TorrentDetail) => Promise<void> | void;
     capabilities: CapabilityStore;

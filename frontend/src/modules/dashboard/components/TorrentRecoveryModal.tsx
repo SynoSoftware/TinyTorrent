@@ -12,25 +12,19 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+    AlertOctagon,
+    AlertTriangle,
+    Ban,
     CheckCircle2,
     Download,
     FolderOpen,
-    LifeBuoy,
+    HardDrive,
+    Info,
     Play,
     Radio,
-    X,
-    AlertTriangle,
-    ArrowRight,
-    HardDrive,
     ShieldCheck,
-    Search,
-    Activity,
-    FileWarning,
-    Ban,
-    Info,
+    X,
     type LucideIcon,
-    AlertOctagon,
-    Waypoints,
 } from "lucide-react";
 import type { TFunction } from "i18next";
 
@@ -42,6 +36,11 @@ import type {
     RecoveryOutcome,
     RecoveryPlan,
 } from "@/services/recovery/recovery-controller";
+import type { TorrentEntity } from "@/services/rpc/entities";
+import {
+    deriveMissingFilesStateKind,
+    extractDriveLabel,
+} from "@/shared/utils/recoveryFormat";
 
 // --- TYPES ---
 
@@ -49,12 +48,13 @@ export interface TorrentRecoveryModalProps {
     isOpen: boolean;
     plan: RecoveryPlan | null;
     outcome: RecoveryOutcome | null;
+    torrent?: TorrentEntity | null;
     onClose: () => void;
     onPrimary: () => Promise<void>;
     onPickPath: (path: string) => Promise<void>;
-    onVerify: () => Promise<void>;
     onReannounce: () => Promise<void>;
     onBrowse?: (currentPath?: string | null) => Promise<string | null>;
+    onRecreate?: () => Promise<void>;
     isBusy?: boolean;
 }
 
@@ -189,12 +189,13 @@ export default function TorrentRecoveryModal({
     isOpen,
     plan,
     outcome,
+    torrent,
     onClose,
     onPrimary,
     onPickPath,
-    onVerify,
     onReannounce,
     onBrowse,
+    onRecreate,
     isBusy,
 }: TorrentRecoveryModalProps) {
     const { t } = useTranslation();
@@ -209,21 +210,65 @@ export default function TorrentRecoveryModal({
         setIsBrowsing(false);
     }, [isOpen, plan?.suggestedPath]);
 
-    const actionLabel = useMemo(() => {
-        const key = plan ? RECOVERY_ACTION_LABEL_KEY[plan.primaryAction] : null;
-        return key ? t(key) : t("recovery.modal.title_idle");
-    }, [plan, t]);
+    const downloadDir =
+        plan?.suggestedPath ??
+        torrent?.downloadDir ??
+        torrent?.savePath ??
+        torrent?.downloadDir ??
+        "";
 
-    const title = useMemo(() => t("recovery.modal.title"), [t]);
+    const stateKind = useMemo(
+        () =>
+            deriveMissingFilesStateKind(
+                torrent?.errorEnvelope ?? null,
+                downloadDir
+            ),
+        [torrent?.errorEnvelope, downloadDir]
+    );
 
-    const [isManuallyEditing, setIsManuallyEditing] = useState(false);
+    const headerTitle = useMemo(() => {
+        if (stateKind === "accessDenied") {
+            return t("recovery.modal.title_location_blocked");
+        }
+        if (
+            stateKind === "pathLoss" ||
+            stateKind === "volumeLoss" ||
+            stateKind === "dataGap"
+        ) {
+            return t("recovery.modal.title_location_required");
+        }
+        return t("recovery.modal.title");
+    }, [stateKind, t]);
+
+    const statusText = useMemo(() => {
+        const fallback =
+            plan?.rationale && plan.rationale !== "none"
+                ? t(plan.rationale)
+                : t("recovery.no_primary_recovery_for_error_class");
+        if (stateKind === "pathLoss") {
+            return t("recovery.status.folder_not_found", {
+                path: downloadDir || t("labels.unknown"),
+            });
+        }
+        if (stateKind === "volumeLoss") {
+            return t("recovery.status.drive_disconnected", {
+                drive:
+                    extractDriveLabel(downloadDir) ??
+                    t("labels.unknown"),
+            });
+        }
+        if (stateKind === "accessDenied") {
+            return t("recovery.status.access_denied");
+        }
+        return fallback;
+    }, [stateKind, downloadDir, plan?.rationale, t]);
 
     const requiresUserPath = Boolean(
         outcome?.kind === "path-needed" ||
             plan?.requiresPath ||
-            plan?.primaryAction === "pickPath" ||
-            isManuallyEditing // <--- The override
+            plan?.primaryAction === "pickPath"
     );
+
     const outcomeMessage = useMemo(
         () => resolveOutcomeMessage(outcome, t),
         [outcome, t]
@@ -232,22 +277,34 @@ export default function TorrentRecoveryModal({
     const toneStyles = getToneStyles(outcomeTone);
 
     const primaryDescription = useMemo(() => {
-        const key = plan ? PRIMARY_DESC_KEY[plan.primaryAction] : null;
-        if (!key) return null;
-        return t(key, { action: actionLabel });
-    }, [actionLabel, plan, t]);
+        if (!plan) return null;
+        const key =
+            PRIMARY_DESC_KEY[plan.primaryAction] ??
+            PRIMARY_DESC_KEY.none;
+        return t(key);
+    }, [plan, t]);
 
-    // Handlers
     const handleBrowse = useCallback(async () => {
         if (!onBrowse || busy) return;
         setIsBrowsing(true);
         try {
-            const picked = await onBrowse(pathDraft || plan?.suggestedPath);
-            if (picked) setPathDraft(picked);
+            const picked = await onBrowse(
+                pathDraft || plan?.suggestedPath
+            );
+            if (picked) {
+                setPathDraft(picked);
+                await onPickPath(picked);
+            }
         } finally {
             setIsBrowsing(false);
         }
-    }, [busy, onBrowse, pathDraft, plan?.suggestedPath]);
+    }, [
+        busy,
+        onBrowse,
+        pathDraft,
+        plan?.suggestedPath,
+        onPickPath,
+    ]);
 
     const handleConfirmPickPath = useCallback(async () => {
         const trimmed = pathDraft.trim();
@@ -255,9 +312,8 @@ export default function TorrentRecoveryModal({
         await onPickPath(trimmed);
     }, [busy, onPickPath, pathDraft]);
 
-    // Primary Action Configuration
     const primary = useMemo(() => {
-        if (!plan)
+        if (!plan) {
             return {
                 key: "none",
                 label: t("modals.cancel"),
@@ -265,24 +321,15 @@ export default function TorrentRecoveryModal({
                 isDisabled: busy,
                 icon: X,
             };
+        }
 
         if (requiresUserPath) {
             return {
-                key: "pickPath",
-                label: t("recovery.action.pick_path"),
-                onPress: handleConfirmPickPath,
-                isDisabled: busy || !pathDraft.trim(),
+                key: "locate",
+                label: t("recovery.action.locate"),
+                onPress: handleBrowse,
+                isDisabled: busy || !onBrowse,
                 icon: FolderOpen,
-            };
-        }
-
-        if (plan.primaryAction === "verify") {
-            return {
-                key: "verify",
-                label: t("recovery.action.verify"),
-                onPress: onVerify,
-                isDisabled: busy,
-                icon: ShieldCheck,
             };
         }
 
@@ -306,21 +353,18 @@ export default function TorrentRecoveryModal({
         };
     }, [
         busy,
-        handleConfirmPickPath,
+        handleBrowse,
+        onBrowse,
         onClose,
         onPrimary,
         onReannounce,
-        onVerify,
-        pathDraft,
         plan,
         requiresUserPath,
         t,
     ]);
 
-    const showSecondaryVerify =
-        !requiresUserPath &&
-        (plan?.primaryAction === "reDownloadHere" ||
-            plan?.primaryAction === "createAndDownloadHere");
+    const showRecreateAction =
+        stateKind === "pathLoss" && Boolean(onRecreate);
 
     return (
         <Modal
@@ -342,21 +386,15 @@ export default function TorrentRecoveryModal({
                             <div className="flex items-center gap-tools min-w-0">
                                 <div className="surface-layer-1 rounded-full p-tight shrink-0">
                                     <StatusIcon
-                                        Icon={LifeBuoy}
+                                        Icon={AlertOctagon}
                                         size="lg"
                                         className="text-danger"
                                     />
                                 </div>
                                 <div className="flex flex-col min-w-0">
-                                    <h2 className="text-label font-bold uppercase tracking-label text-foreground py-panel">
-                                        {title}
+                                    <h2 className="text-label font-bold uppercase tracking-label text-foreground">
+                                        {headerTitle}
                                     </h2>
-                                    <div className="flex items-center gap-tools text-label uppercase tracking-label text-foreground">
-                                        <ArrowRight className="toolbar-icon-size-md text-primary" />
-                                        <span className="truncate">
-                                            {actionLabel}
-                                        </span>
-                                    </div>
                                 </div>
                             </div>
                             <ToolbarIconButton
@@ -368,128 +406,64 @@ export default function TorrentRecoveryModal({
                         </ModalHeader>
 
                         <ModalBody className="relative flex flex-col gap-stage p-panel">
-                            <div className="flex flex-col gap-tools">
-                                <span className="text-label font-semibold uppercase tracking-label text-foreground flex items-center gap-tools">
-                                    <Activity className="toolbar-icon-size-md text-danger" />
-                                    {t("recovery.modal.problem_heading")}
-                                </span>
-                                <div className="flex items-center gap-tools">
-                                    <div className="surface-layer-1 rounded-panel p-tight shrink-0">
-                                        <AlertOctagon className="toolbar-icon-size-md text-danger" />
-                                    </div>
-                                    <div className="flex flex-col gap-tight text-scaled">
-                                        <p className="text-scaled text-foreground">
-                                            {plan?.rationale
-                                                ? t(plan.rationale)
-                                                : t(
-                                                      "recovery.no_primary_recovery_for_error_class"
-                                                  )}
+                            <div className="flex items-start gap-tools">
+                                <div className="surface-layer-1 rounded-panel p-tight shrink-0">
+                                    <AlertOctagon className="toolbar-icon-size-md text-danger" />
+                                </div>
+                                <div className="flex flex-col gap-tight min-w-0">
+                                    <p className="text-scaled font-semibold text-foreground">
+                                        {statusText}
+                                    </p>
+                                    {primaryDescription && (
+                                        <p className="text-label text-foreground/70">
+                                            {primaryDescription}
                                         </p>
-                                    </div>
+                                    )}
                                 </div>
                             </div>
 
-                            {primaryDescription && (
-                                <div className="flex flex-col gap-tools">
-                                    <span className="text-label font-semibold uppercase tracking-label text-foreground flex items-center gap-tools">
-                                        <Waypoints className="toolbar-icon-size-md text-primary" />
-                                        {t("recovery.modal.next_heading")}
-                                    </span>
-                                    <div className="flex items-center  gap-tools">
-                                        <div className="surface-layer-1  rounded-panel p-tight shrink-0">
-                                            <StatusIcon
-                                                Icon={primary.icon || Play}
-                                                size="md"
-                                                className="text-primary"
-                                            />
-                                        </div>
-                                        <div className="flex flex-col gap-tight text-scaled">
-                                            <p className="text-scaled text-foreground">
-                                                {primaryDescription}
-                                            </p>
-                                            {!requiresUserPath &&
-                                                plan?.suggestedPath && (
-                                                    <div className="flex items-center gap-tools">
-                                                        <div className="surface-layer-1 rounded-panel px-panel py-tight flex items-center gap-tools max-w-dir-picker">
-                                                            <HardDrive className="toolbar-icon-size-md text-foreground" />
-                                                            <span
-                                                                className="text-label font-mono truncate"
-                                                                title={
-                                                                    plan.suggestedPath
-                                                                }
-                                                            >
-                                                                {
-                                                                    plan.suggestedPath
-                                                                }
-                                                            </span>
-                                                        </div>
-                                                        <ToolbarIconButton
-                                                            Icon={FolderOpen}
-                                                            ariaLabel={t(
-                                                                "recovery.action.pick_path"
-                                                            )}
-                                                            onPress={() =>
-                                                                setIsManuallyEditing(
-                                                                    true
-                                                                )
-                                                            }
-                                                            isDisabled={busy}
-                                                        />
-                                                    </div>
-                                                )}
-                                        </div>
+                            {!requiresUserPath && plan?.suggestedPath && (
+                                <div className="flex items-center gap-tools">
+                                    <div className="surface-layer-1 rounded-panel p-tight shrink-0">
+                                        <HardDrive className="toolbar-icon-size-md text-foreground" />
                                     </div>
+                                    <span
+                                        className="text-label font-mono text-foreground truncate"
+                                        title={plan.suggestedPath}
+                                    >
+                                        {plan.suggestedPath}
+                                    </span>
                                 </div>
                             )}
 
                             {requiresUserPath && (
-                                <div className="flex flex-col gap-tools">
-                                    <div className="flex items-start gap-tools">
-                                        <div className="flex-1 min-w-0">
-                                            <Input
-                                                value={pathDraft}
-                                                onChange={(e) =>
-                                                    setPathDraft(
-                                                        e.target.value ?? ""
-                                                    )
-                                                }
-                                                placeholder={t(
-                                                    "recovery.modal.path_placeholder"
-                                                )}
-                                                startContent={
-                                                    <FolderOpen className="toolbar-icon-size-md text-foreground" />
-                                                }
-                                                variant="faded"
-                                                isDisabled={busy}
-                                                classNames={{
-                                                    input: "font-mono text-label",
-                                                }}
-                                            />
-                                        </div>
-                                        {onBrowse && (
-                                            <ToolbarIconButton
-                                                Icon={Search}
-                                                ariaLabel={t(
-                                                    "recovery.action.pick_path"
-                                                )}
-                                                onPress={handleBrowse}
-                                                isDisabled={busy}
-                                                isLoading={isBrowsing}
-                                            />
+                                <div className="flex flex-col gap-tight">
+                                    <Input
+                                        value={pathDraft}
+                                        onChange={(event) =>
+                                            setPathDraft(event.target.value ?? "")
+                                        }
+                                        placeholder={t(
+                                            "recovery.modal.path_placeholder"
                                         )}
-                                        {isManuallyEditing && (
-                                            <Button
-                                                variant="ghost"
-                                                onPress={() =>
-                                                    setIsManuallyEditing(false)
-                                                }
-                                                isDisabled={busy}
-                                            >
-                                                {t(
-                                                    "recovery.modal.cancel_path_edit"
-                                                )}
-                                            </Button>
-                                        )}
+                                        startContent={
+                                            <FolderOpen className="toolbar-icon-size-md text-foreground" />
+                                        }
+                                        variant="faded"
+                                        isDisabled={busy}
+                                        classNames={{
+                                            input: "font-mono text-label",
+                                        }}
+                                    />
+                                    <div className="flex items-center gap-tools">
+                                        <Button
+                                            variant="ghost"
+                                            onPress={handleConfirmPickPath}
+                                            isDisabled={busy || !pathDraft.trim()}
+                                            className="font-medium text-foreground"
+                                        >
+                                            {t("recovery.action.pick_path")}
+                                        </Button>
                                     </div>
                                 </div>
                             )}
@@ -521,19 +495,16 @@ export default function TorrentRecoveryModal({
 
                         <ModalFooter className="flex items-center justify-between gap-tools px-panel py-panel border-t border-divider">
                             <div className="flex items-center gap-tools">
-                                {showSecondaryVerify &&
-                                    plan?.primaryAction !== "verify" && (
-                                        <Button
-                                            variant="ghost"
-                                            onPress={onVerify}
-                                            isDisabled={busy}
-                                            startContent={
-                                                <FileWarning className="toolbar-icon-size-md text-foreground" />
-                                            }
-                                        >
-                                            {t("recovery.action.verify")}
-                                        </Button>
-                                    )}
+                                {showRecreateAction && (
+                                    <Button
+                                        variant="ghost"
+                                        onPress={() => void onRecreate?.()}
+                                        isDisabled={busy}
+                                        className="font-medium text-foreground"
+                                    >
+                                        {t("recovery.action.recreate_folder")}
+                                    </Button>
+                                )}
                             </div>
                             <div className="flex items-center gap-tools">
                                 <Button

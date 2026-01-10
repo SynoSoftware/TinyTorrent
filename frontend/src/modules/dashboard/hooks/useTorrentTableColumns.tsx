@@ -15,10 +15,16 @@ export function useTorrentTableColumns({
     t,
     speedHistoryRef,
     optimisticStatuses,
+    onDownloadMissing,
+    onChangeLocation,
+    onOpenFolder,
 }: {
     t: TFunction;
     speedHistoryRef: React.RefObject<Record<string, Array<number | null>>>;
     optimisticStatuses: OptimisticStatusMap;
+    onDownloadMissing?: (torrent: Torrent) => Promise<void> | void;
+    onChangeLocation?: (torrent: Torrent) => Promise<void> | void;
+    onOpenFolder?: (torrent: Torrent) => Promise<void> | void;
 }): { columns: ColumnDef<Torrent>[]; tableMeta: DashboardTableMeta } {
     const columns = useMemo<ColumnDef<Torrent>[]>(() => {
         const cols = DEFAULT_COLUMN_ORDER.map((colId) => {
@@ -75,8 +81,17 @@ export function useTorrentTableColumns({
         () => ({
             speedHistoryRef,
             optimisticStatuses,
+            onDownloadMissing,
+            onChangeLocation,
+            onOpenFolder,
         }),
-        [speedHistoryRef, optimisticStatuses]
+        [
+            onChangeLocation,
+            onDownloadMissing,
+            onOpenFolder,
+            optimisticStatuses,
+            speedHistoryRef,
+        ]
     );
 
     return { columns, tableMeta };
