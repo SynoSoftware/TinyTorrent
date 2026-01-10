@@ -27,7 +27,6 @@ import { writeClipboard } from "@/shared/utils/clipboard";
 import { TEXT_ROLES } from "../hooks/utils/textRoles";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
-import { getEmphasisClassForAction } from "@/shared/utils/recoveryFormat";
 
 interface GeneralTabProps {
     torrent: TorrentDetail;
@@ -38,8 +37,6 @@ interface GeneralTabProps {
     onSuperSeedingToggle?: (enabled: boolean) => Promise<void> | void;
     onForceTrackerReannounce?: () => Promise<string | void> | void;
     onSetLocation?: () => Promise<void> | void;
-    onRedownload?: () => Promise<void> | void;
-    onRetry?: () => Promise<void> | void;
     onResume?: () => Promise<void> | void;
     progressPercent: number;
     timeRemainingLabel: string;
@@ -89,8 +86,6 @@ export const GeneralTab = ({
     onSequentialToggle: _onSequentialToggle,
     onSuperSeedingToggle: _onSuperSeedingToggle,
     onSetLocation,
-    onRedownload: _onRedownload,
-    onRetry,
     onResume,
     progressPercent: _progressPercent,
     timeRemainingLabel: _timeRemainingLabel,
@@ -114,25 +109,27 @@ export const GeneralTab = ({
 
     // Single source of truth: derived in rpc normalizer
     const showMissingFilesError = torrent.state === "missing_files";
+    const expectedBytes =
+        typeof torrent.totalSize === "number" ? torrent.totalSize : null;
+    const missingBytes =
+        typeof torrent.leftUntilDone === "number"
+            ? torrent.leftUntilDone
+            : null;
+    const onDiskBytes =
+        expectedBytes !== null && missingBytes !== null
+            ? Math.max(0, expectedBytes - missingBytes)
+            : null;
+    const missingDisplay =
+        missingBytes !== null ? formatBytes(missingBytes) : t("labels.unknown");
+    const onDiskDisplay =
+        onDiskBytes !== null ? formatBytes(onDiskBytes) : null;
+    const expectedDisplay =
+        expectedBytes !== null ? formatBytes(expectedBytes) : null;
 
     const handleSetLocationAction = () => {
         if (onSetLocation) return onSetLocation();
         console.warn(
             "set-location action requires a typed onSetLocation handler; global events removed"
-        );
-    };
-
-    const handleRedownloadAction = () => {
-        if (_onRedownload) return _onRedownload();
-        console.warn(
-            "redownload action requires a typed onRedownload handler; global events removed"
-        );
-    };
-
-    const handleForceRecheckAction = () => {
-        if (onRetry) return onRetry();
-        console.warn(
-            "retry/verify action requires a typed onRetry handler; global events removed"
         );
     };
 
@@ -251,49 +248,40 @@ export const GeneralTab = ({
             </GlassPanel>
 
             {showMissingFilesError && (
-                <GlassPanel className="p-panel border border-warning/30 bg-warning/10 space-y-3">
-                    <div className="flex items-start justify-between gap-panel">
-                        <div className="space-y-tight">
-                            <span className="text-scaled font-semibold uppercase tracking-tight text-warning">
-                                {t("torrent_modal.errors.no_data_found_title")}
+                <GlassPanel className="p-panel border border-warning/30 bg-warning/10">
+                    <div className="flex flex-col gap-tools">
+                        <span className="text-scaled font-semibold uppercase tracking-tight text-warning">
+                            {t("torrent_modal.errors.no_data_found_title")}
+                        </span>
+                        <div className="flex flex-col gap-tight text-label font-mono text-warning/80">
+                            <span>
+                                {t("torrent_modal.files.missing")}:{" "}
+                                {missingDisplay}
                             </span>
-                            <p className="text-label text-warning/80">
-                                {torrent.errorEnvelope?.errorMessage
-                                    ? torrent.errorEnvelope.errorMessage
-                                    : t(
-                                          "torrent_modal.errors.no_data_found_desc"
-                                      )}
-                            </p>
+                            {onDiskDisplay && expectedDisplay && (
+                                <span>
+                                    {t("torrent_modal.files.on_disk")}:{" "}
+                                    {onDiskDisplay} {"  •  "}
+                                    {t("torrent_modal.files.expected")}:{" "}
+                                    {expectedDisplay}
+                                </span>
+                            )}
                         </div>
-                        <Button
-                            size="md"
-                            variant="shadow"
-                            color={isActive ? "default" : "primary"}
-                            onPress={() => {
-                                void mainAction();
-                            }}
-                            isDisabled={!mainAction || Boolean(isRecoveryBlocked)}
-                        >
-                            {(() => {
-                                const Icon = getIconForAction(
-                                    isActive ? "pause" : "resume"
-                                );
-                                return (
-                                    <>
-                                        {Icon && (
-                                            <Icon
-                                                size={16}
-                                                strokeWidth={ICON_STROKE_WIDTH}
-                                                className="mr-2"
-                                            />
-                                        )}
-                                        {mainActionLabel}
-                                    </>
-                                );
-                            })()}
-                        </Button>
+                        <div className="flex items-center gap-tools">
+                            <Button
+                                size="md"
+                                variant="light"
+                                onPress={() => {
+                                    if (onSetLocation) void onSetLocation();
+                                }}
+                                isDisabled={!onSetLocation}
+                                className="font-medium text-foreground"
+                            >
+                                {t("recovery.action.change_location")}
+                            </Button>
+                        </div>
                         {recoveryBlockedMessage && (
-                            <div className="text-label text-warning/80 mt-tight">
+                            <div className="text-label text-warning/80">
                                 {recoveryBlockedMessage}
                             </div>
                         )}
@@ -362,23 +350,6 @@ export const GeneralTab = ({
                                             </>
                                         );
                                     })()}
-                                </Button>
-                                <Button
-                                    size="md"
-                                    variant="flat"
-                                    color="primary"
-                                    onPress={() =>
-                                        void handleForceRecheckAction()
-                                    }
-                                >
-                                    <>
-                                        <CheckCircle
-                                            size={16}
-                                            strokeWidth={ICON_STROKE_WIDTH}
-                                            className="mr-2"
-                                        />
-                                        {t("torrent_modal.controls.verify")}
-                                    </>
                                 </Button>
                                 <Button
                                     size="md"

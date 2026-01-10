@@ -129,6 +129,10 @@ interface TorrentTableProps {
     disableDetailOpen?: boolean;
     onOpenFolder?: (torrent: Torrent) => Promise<void>;
     onSetLocation?: (torrent: Torrent) => Promise<void> | void;
+    onRedownload?: (
+        torrent: Torrent,
+        options?: { recreateFolder?: boolean }
+    ) => Promise<void> | void;
     ghostTorrents?: Torrent[];
 }
 
@@ -165,14 +169,15 @@ export function TorrentTable({
     ghostTorrents,
     onOpenFolder,
     onSetLocation,
+    onRedownload,
 }: TorrentTableProps) {
     const { t } = useTranslation();
     // Wiring state required by the extracted hooks/components
     const [activeRowId, setActiveRowId] = useState<string | null>(null);
     const [dropTargetRowId, setDropTargetRowId] = useState<string | null>(null);
-    const [pendingQueueOrder, setPendingQueueOrder] = useState<
-        string[] | null
-    >(null);
+    const [pendingQueueOrder, setPendingQueueOrder] = useState<string[] | null>(
+        null
+    );
     const {
         isSuppressed: animationSuppressionActive,
         begin: beginAnimationSuppression,
@@ -212,14 +217,17 @@ export function TorrentTable({
         | ((
               updater:
                   | Record<string, number>
-                  | ((
-                        prev: Record<string, number>
-                    ) => Record<string, number>)
+                  | ((prev: Record<string, number>) => Record<string, number>)
           ) => void)
         | null
     >(null);
     const handleColumnSizingInfoChangeRef = useRef<
-        ((info: ColumnSizingInfoState | ((info: ColumnSizingInfoState) => ColumnSizingInfoState)) => void) | null
+        | ((
+              info:
+                  | ColumnSizingInfoState
+                  | ((info: ColumnSizingInfoState) => ColumnSizingInfoState)
+          ) => void)
+        | null
     >(null);
     const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
     const rowSelectionRef = useRef<RowSelectionState>(rowSelection);
@@ -323,6 +331,7 @@ export function TorrentTable({
         },
         onOpenFolder,
         onSetLocation,
+        onRedownload,
         copyToClipboard,
         buildMagnetLink,
         onAction,
@@ -340,6 +349,9 @@ export function TorrentTable({
         t,
         speedHistoryRef,
         optimisticStatuses,
+        onDownloadMissing: onRedownload,
+        onChangeLocation: onSetLocation,
+        onOpenFolder,
     });
 
     const serverOrder = useMemo(() => data.map((d) => d.id), [data]);

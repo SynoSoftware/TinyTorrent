@@ -135,6 +135,12 @@ export interface TorrentEntity {
     pieceAvailability?: number[];
     added: number;
     savePath?: string;
+    /**
+     * Backwards-compatible alias for the download directory exposed by some
+     * engine adapters (present on TorrentDetailEntity); include here so table
+     * consumers can read a path without requiring a details fetch.
+     */
+    downloadDir?: string;
     rpcId?: number;
     isGhost?: boolean;
     ghostLabel?: string;

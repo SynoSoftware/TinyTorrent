@@ -13,6 +13,8 @@ import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable"
 import type { TorrentStatus } from "@/services/rpc/entities";
 import STATUS from "@/shared/status";
 
+import type { FeedbackTone } from "@/shared/types/feedback";
+
 interface UseTorrentWorkflowParams {
     torrents: Torrent[];
     selectedTorrents: Torrent[];
@@ -22,6 +24,13 @@ interface UseTorrentWorkflowParams {
         options?: { deleteData?: boolean }
     ) => Promise<void>;
     executeBulkRemove: (ids: string[], deleteData: boolean) => Promise<void>;
+    /** Optional externally-provided feedback functions (injected by host). */
+    announceAction?: (
+        action: FeedbackAction,
+        stage: "start" | "done",
+        count: number
+    ) => void;
+    showFeedback?: (message: string, tone: FeedbackTone) => void;
 }
 
 export function useTorrentWorkflow({
@@ -29,9 +38,13 @@ export function useTorrentWorkflow({
     selectedTorrents,
     executeTorrentAction,
     executeBulkRemove,
+    announceAction: injectedAnnounce,
+    showFeedback: injectedShowFeedback,
 }: UseTorrentWorkflowParams) {
     const { t } = useTranslation();
-    const { announceAction, showFeedback } = useActionFeedback();
+    const internal = useActionFeedback();
+    const announceAction = injectedAnnounce ?? internal.announceAction;
+    const showFeedback = injectedShowFeedback ?? internal.showFeedback;
     const { optimisticStatuses, updateOptimisticStatuses } =
         useOptimisticStatuses(torrents);
     const [pendingDelete, setPendingDelete] = useState<DeleteIntent | null>(
@@ -202,12 +215,7 @@ export function useTorrentWorkflow({
                 announceAction(actionKey, "done", count);
             }
         },
-        [
-            announceAction,
-            executeBulkRemove,
-            executeTorrentAction,
-            pendingDelete,
-        ]
+        [announceAction, executeBulkRemove, executeTorrentAction, pendingDelete]
     );
 
     return {

@@ -1,15 +1,44 @@
 import { useCallback, type MutableRefObject } from "react";
+import { useTranslation } from "react-i18next";
 import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
 import type { QueueActionHandlers } from "@/modules/dashboard/hooks/useTorrentData";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import type { ReportCommandErrorFn } from "@/shared/types/rpc";
 import { isRpcCommandError } from "@/services/rpc/errors";
+import { interpretFsError } from "@/shared/utils/fsErrors";
+import type { FeedbackTone } from "@/shared/types/feedback";
 import type {
     RecoveryGateAction,
     RecoveryGateCallback,
 } from "@/app/types/recoveryGate";
 
+const normalizePath = (value: string) => value.replace(/[\\/]+$/g, "");
+
+const buildAncestorPaths = (value: string) => {
+    const cleaned = normalizePath(value);
+    if (!cleaned) return [];
+    const ancestors: string[] = [];
+    let current = cleaned;
+    const seen = new Set<string>();
+    while (current && !seen.has(current)) {
+        ancestors.push(current);
+        seen.add(current);
+        const lastSlash = Math.max(
+            current.lastIndexOf("/"),
+            current.lastIndexOf("\\")
+        );
+        if (lastSlash === -1) {
+            break;
+        }
+        current = normalizePath(current.slice(0, lastSlash));
+        if (!current) break;
+    }
+    if (!ancestors[ancestors.length - 1]) {
+        ancestors.push("");
+    }
+    return ancestors;
+};
 interface UseTorrentActionsParams {
     torrentClient: EngineAdapter;
     queueActions: QueueActionHandlers;
@@ -19,6 +48,7 @@ interface UseTorrentActionsParams {
     reportCommandError: ReportCommandErrorFn;
     isMountedRef: MutableRefObject<boolean>;
     requestRecovery?: RecoveryGateCallback;
+    showFeedback: (message: string, tone: FeedbackTone) => void;
 }
 
 interface RefreshOptions {
@@ -37,7 +67,9 @@ export function useTorrentActions({
     reportCommandError,
     isMountedRef,
     requestRecovery,
+    showFeedback,
 }: UseTorrentActionsParams) {
+    const { t } = useTranslation();
     const runWithRefresh = useCallback(
         async (operation: () => Promise<void>, options?: RefreshOptions) => {
             try {
@@ -83,6 +115,7 @@ export function useTorrentActions({
                 }
                 return true;
             }
+
             if (action !== "resume" && action !== "recheck") {
                 return true;
             }
@@ -140,18 +173,48 @@ export function useTorrentActions({
             if (!torrentClient.openPath) return;
             const targetPath = torrent.savePath ?? "";
             if (!targetPath) return;
-            try {
-                await torrentClient.openPath(targetPath);
-            } catch (error) {
-                if (
-                    isMountedRef.current &&
-                    !isRpcCommandError(error)
-                ) {
-                    reportCommandError(error);
+
+            let openedPath: string | null = null;
+            const ancestors = buildAncestorPaths(targetPath);
+            for (const path of ancestors) {
+                try {
+                    await torrentClient.openPath(path);
+                    openedPath = path;
+                    break;
+                } catch (error) {
+                    const kind = interpretFsError(error);
+                    if (kind !== "enoent") {
+                        if (
+                            isMountedRef.current &&
+                            !isRpcCommandError(error)
+                        ) {
+                            reportCommandError(error);
+                        }
+                        return;
+                    }
+                }
+            }
+            const normalizedTarget = normalizePath(targetPath);
+            if (!openedPath) {
+                try {
+                    await torrentClient.openPath("");
+                    openedPath = "";
+                } catch {
+                    // Swallow fallback failures; explorer opening is best-effort.
+                }
+            }
+
+            if (openedPath !== null) {
+                const normalizedOpenedPath = normalizePath(openedPath);
+                if (normalizedOpenedPath !== normalizedTarget) {
+                    showFeedback(
+                        t("recovery.feedback.folder_parent_opened"),
+                        "info"
+                    );
                 }
             }
         },
-        [reportCommandError, torrentClient, isMountedRef]
+        [reportCommandError, torrentClient, isMountedRef, showFeedback, t]
     );
 
     const executeBulkRemove = useCallback(

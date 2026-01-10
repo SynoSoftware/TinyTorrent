@@ -76,10 +76,16 @@ export const formatRecoveryTooltip = (
 ) => {
     if (!envelope) return t(fallbackKey);
 
-    const effectiveState =
+    let effectiveState =
         envelope.recoveryState && envelope.recoveryState !== "ok"
             ? envelope.recoveryState
             : torrentState || "unknown";
+
+    // For missing-files, prefer the explicit missing_files label so UI shows
+    // a calm and actionable status rather than an ambiguous 'needsUserAction'.
+    if (envelope.errorClass === "missingFiles") {
+        effectiveState = "missing_files";
+    }
 
     const stateLabelKey =
         RECOVERY_STATE_LABEL_KEY[String(effectiveState)] ??
@@ -96,14 +102,23 @@ export const formatRecoveryTooltip = (
     if (classLabel && classLabel !== envelope.errorClass) {
         parts.push(classLabel);
     }
-    if (envelope.errorMessage) {
+    // Avoid leaking legacy or accusatory engine messages for missing-files
+    // — when missing payload files are expected, prefer silence and action.
+    if (
+        envelope.errorMessage &&
+        envelope.errorClass !== "missingFiles" &&
+        !/(no data found|no such file|not found)/i.test(envelope.errorMessage)
+    ) {
         parts.push(envelope.errorMessage);
     }
     if (envelope.automationHint?.recommendedAction) {
         const action = envelope.automationHint.recommendedAction;
-        const hintKey = RECOVERY_HINT_KEY[action] ?? `recovery.hint.${action}`;
-        const hint = t(hintKey);
-        parts.push(hint);
+        if (!(envelope.errorClass === "missingFiles" && action === "removeReadd")) {
+            const hintKey =
+                RECOVERY_HINT_KEY[action] ?? `recovery.hint.${action}`;
+            const hint = t(hintKey);
+            parts.push(hint);
+        }
     }
 
     return parts.join(" — ");
@@ -137,7 +152,50 @@ export const getEmphasisClassForAction = (
         case "forceRecheck":
         case "removeReadd":
             return "ring-1 ring-default/20 shadow-sm";
+        case "reDownloadHere":
+        case "reDownload":
+            return "ring-1 ring-primary/30 shadow-sm";
         default:
             return "";
     }
+};
+
+export const extractDriveLabel = (value?: string | null) => {
+    if (!value) return null;
+    const letterMatch = value.match(/^([a-zA-Z]:)/);
+    if (letterMatch) return letterMatch[1];
+    const uncMatch = value.match(/^(\\\\[^\\/]+\\[^\\/]+)/);
+    if (uncMatch) return uncMatch[1];
+    return null;
+};
+
+export type MissingFilesStateKind =
+    | "dataGap"
+    | "pathLoss"
+    | "volumeLoss"
+    | "accessDenied";
+
+export const deriveMissingFilesStateKind = (
+    envelope: ErrorEnvelope | undefined | null,
+    path?: string
+): MissingFilesStateKind => {
+    const message = (envelope?.errorMessage ?? "").toLowerCase();
+    if (/permission|access is denied|read-only/.test(message)) {
+        return "accessDenied";
+    }
+    if (
+        /(drive|volume|disk|unplugged|disconnected|not ready)/.test(message) &&
+        /(not found|missing|unplugged)/.test(message)
+    ) {
+        return "volumeLoss";
+    }
+    if (
+        /(no such file|not found|missing file|folder)/.test(message) ||
+        (typeof path === "string" &&
+            message.length === 0 &&
+            path.includes("\\"))
+    ) {
+        return "pathLoss";
+    }
+    return "dataGap";
 };

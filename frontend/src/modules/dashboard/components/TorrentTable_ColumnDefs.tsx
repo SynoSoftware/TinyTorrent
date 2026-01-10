@@ -1,6 +1,6 @@
 // FILE: src/modules/dashboard/components/ColumnDefinitions.tsx
 
-import { Chip, cn } from "@heroui/react";
+import { Chip, cn, Button } from "@heroui/react";
 import type { LucideIcon } from "lucide-react";
 import {
     FileText, // name
@@ -38,6 +38,9 @@ import {
     formatRecoveryStatus,
     formatRecoveryTooltip,
     formatPrimaryActionHint,
+    getEmphasisClassForAction,
+    deriveMissingFilesStateKind,
+    extractDriveLabel,
 } from "@/shared/utils/recoveryFormat";
 import { type TFunction } from "i18next";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
@@ -77,6 +80,12 @@ export type ColumnId =
 export interface DashboardTableMeta {
     speedHistoryRef: RefObject<Record<string, Array<number | null>>>;
     optimisticStatuses: OptimisticStatusMap;
+    onDownloadMissing?: (
+        torrent: Torrent,
+        options?: { recreateFolder?: boolean }
+    ) => Promise<void> | void;
+    onChangeLocation?: (torrent: Torrent) => Promise<void> | void;
+    onOpenFolder?: (torrent: Torrent) => Promise<void> | void;
 }
 
 export interface ColumnRendererProps {
@@ -433,7 +442,7 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
         defaultVisible: true,
         sortAccessor: (torrent) => torrent.state,
         headerIcon: Activity,
-        render: ({ torrent, t }) => {
+        render: ({ torrent, t, table }) => {
             // Determine effective state (recovery overlay overrides engine state)
             const effectiveState =
                 torrent.errorEnvelope &&
@@ -464,6 +473,213 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
                     torrent.state,
                     conf.labelKey
                 ) || t(conf.labelKey);
+
+            // Special-case view for missing files: show counts and quick inline action
+            if (effectiveState === "missing_files") {
+                const expected =
+                    typeof torrent.totalSize === "number"
+                        ? torrent.totalSize
+                        : null;
+                const left =
+                    typeof torrent.leftUntilDone === "number"
+                        ? torrent.leftUntilDone
+                        : null;
+                const existing =
+                    expected !== null && left !== null
+                        ? Math.max(0, expected - left)
+                        : null;
+                const missingBytes = left ?? null;
+                const missingLabel = `${t("torrent_modal.files.missing")}: ${
+                    missingBytes !== null
+                        ? formatBytes(missingBytes)
+                        : t("labels.unknown")
+                }`;
+                const sizeHint =
+                    existing !== null && expected !== null
+                        ? `${t("torrent_modal.files.on_disk")}: ${formatBytes(
+                              existing
+                          )}  •  ${t(
+                              "torrent_modal.files.expected"
+                          )}: ${formatBytes(expected)}`
+                        : null;
+                const tableMeta = table.options.meta as
+                    | DashboardTableMeta
+                    | undefined;
+                const onDownloadMissing = tableMeta?.onDownloadMissing;
+                const onChangeLocation = tableMeta?.onChangeLocation;
+                const onOpenFolder = tableMeta?.onOpenFolder;
+                const basePath =
+                    (torrent as any).downloadDir ??
+                    torrent.savePath ??
+                    torrent.downloadDir ??
+                    "";
+                const stateKind = deriveMissingFilesStateKind(
+                    torrent.errorEnvelope,
+                    basePath
+                );
+                const statusText = (() => {
+                    switch (stateKind) {
+                        case "pathLoss":
+                            return t("recovery.status.folder_not_found", {
+                                path: basePath || t("labels.unknown"),
+                            });
+                        case "volumeLoss":
+                            return t("recovery.status.drive_disconnected", {
+                                drive:
+                                    extractDriveLabel(basePath) ??
+                                    t("labels.unknown"),
+                            });
+                        case "accessDenied":
+                            return t("recovery.status.access_denied");
+                        default:
+                            return missingLabel;
+                    }
+                })();
+                const showSizeDetails = stateKind === "dataGap";
+
+                const getPrimaryLabel = () => {
+                    if (stateKind === "pathLoss")
+                        return "recovery.action.locate";
+                    if (stateKind === "dataGap") {
+                        return "recovery.action.redownload_here";
+                    }
+                    return "recovery.action.retry";
+                };
+                const handlePrimaryAction = () => {
+                    if (stateKind === "pathLoss") {
+                        if (!onChangeLocation) return;
+                        void onChangeLocation(torrent);
+                        return;
+                    }
+                    if (!onDownloadMissing) return;
+                    void onDownloadMissing(torrent);
+                };
+                const primaryDisabled =
+                    stateKind === "pathLoss"
+                        ? !onChangeLocation
+                        : !onDownloadMissing;
+
+                const getSecondaryLabel = () => {
+                    switch (stateKind) {
+                        case "dataGap":
+                            return "recovery.action.open_folder";
+                        case "pathLoss":
+                            return "recovery.action.create_and_redownload_here";
+                        case "volumeLoss":
+                            return "recovery.action.locate";
+                        case "accessDenied":
+                            return "recovery.action.fix_permissions";
+                        default:
+                            return "recovery.action.open_folder";
+                    }
+                };
+                const handleSecondaryAction = () => {
+                    switch (stateKind) {
+                        case "dataGap":
+                        case "accessDenied":
+                            if (!onOpenFolder) return;
+                            void onOpenFolder(torrent);
+                            return;
+                        case "pathLoss":
+                            if (!onDownloadMissing) return;
+                            void onDownloadMissing(torrent, {
+                                recreateFolder: true,
+                            });
+                            return;
+                        case "volumeLoss":
+                            if (!onChangeLocation) return;
+                            void onChangeLocation(torrent);
+                            return;
+                        default:
+                            if (!onOpenFolder) return;
+                            void onOpenFolder(torrent);
+                    }
+                };
+                const secondaryDisabled = (() => {
+                    switch (stateKind) {
+                        case "dataGap":
+                        case "accessDenied":
+                            return !onOpenFolder;
+                        case "pathLoss":
+                            return !onDownloadMissing;
+                        case "volumeLoss":
+                            return !onChangeLocation;
+                        default:
+                            return !onOpenFolder;
+                    }
+                })();
+
+                return (
+                    <div className="min-w-0 w-full flex items-center justify-center h-full">
+                        <div className="flex items-center gap-tools min-w-0">
+                            <Chip
+                                size="md"
+                                variant="flat"
+                                color={conf.color}
+                                style={STATUS_CHIP_STYLE}
+                                classNames={{
+                                    base: "h-status-chip px-tight inline-flex items-center justify-center gap-tools whitespace-nowrap",
+                                    content:
+                                        "font-bold text-scaled  tracking-wider  whitespace-nowrap text-foreground",
+                                }}
+                            >
+                                <div className="flex items-center justify-center gap-tools">
+                                    <StatusIcon
+                                        Icon={Icon}
+                                        size="md"
+                                        strokeWidth={ICON_STROKE_WIDTH_DENSE}
+                                        className="text-current"
+                                    />
+                                    <div className="flex flex-col min-w-0 gap-tight">
+                                        <span
+                                            className="truncate"
+                                            title={tooltip}
+                                        >
+                                            {t("table.status_missing_files")}
+                                        </span>
+                                        <span className="text-label font-mono text-foreground/70 truncate">
+                                            {statusText}
+                                        </span>
+                                        {showSizeDetails && sizeHint && (
+                                            <span className="text-label font-mono text-foreground/50 truncate">
+                                                {sizeHint}
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                            </Chip>
+
+                            <div className="flex items-center gap-tools">
+                                <Button
+                                    variant="shadow"
+                                    color="primary"
+                                    size="md"
+                                    aria-label={t(getPrimaryLabel())}
+                                    className={cn(
+                                        "ml-tight font-medium",
+                                        getEmphasisClassForAction(
+                                            torrent.errorEnvelope?.primaryAction
+                                        )
+                                    )}
+                                    isDisabled={primaryDisabled}
+                                    onPress={handlePrimaryAction}
+                                >
+                                    {t(getPrimaryLabel())}
+                                </Button>
+                                <Button
+                                    variant="light"
+                                    size="md"
+                                    className="font-medium text-foreground"
+                                    isDisabled={secondaryDisabled}
+                                    onPress={handleSecondaryAction}
+                                >
+                                    {t(getSecondaryLabel())}
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
 
             return (
                 <div className="min-w-0 w-full flex items-center justify-center h-full">

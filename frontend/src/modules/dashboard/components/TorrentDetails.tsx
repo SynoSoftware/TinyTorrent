@@ -135,12 +135,6 @@ export function TorrentDetails({
                                 ? () => onSetLocation(torrent)
                                 : undefined
                         }
-                        onRedownload={
-                            onRedownload
-                                ? () => onRedownload(torrent)
-                                : undefined
-                        }
-                        onRetry={onRetry ? () => onRetry(torrent) : undefined}
                         onResume={
                             onResume ? () => onResume(torrent) : undefined
                         }
