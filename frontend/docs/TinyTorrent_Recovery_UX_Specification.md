@@ -92,30 +92,110 @@ The client must classify a "Missing Files" error into one of **four** distinct s
 
 ---
 
+---
+
 ## 5. The Recovery Modal (Hard Stop)
 
 *Trigger: Only appears if the Primary Action fails (e.g., user clicked "Retry" but drive is still gone).*
 
-**Title:**
+### 5.1 Modal Architecture
 
-* S2/S3: **Download location required**
-* S4: **Access denied**
+**Trigger:**
+Appears **only** when a recovery action fails or requires explicit user decision (e.g., Drive still missing after grace period, or Permissions denied).
 
-**Body Content:**
-> **Status:** [Dynamic Reason]
-> **Path:** `E:\Downloads\LinuxISO`
+**States:**
+
+1. **S2: Path Loss** (Folder deleted/moved)
+2. **S3: Volume Loss** (Drive unplugged)
+3. **S4: Access Denied** (Read-only/No Write)
+
+---
+
+### 5.2 Header Strategy (The Problem)
+
+**Layout:** `[Icon] [Title]`
+
+* **Icon:** `AlertTriangle` (Yellow/Warning) - *Never Red (panic).*
+
+| State | Title Text |
+| :--- | :--- |
+| **S2** | **Folder Missing** |
+| **S3** | **Drive Disconnected** |
+| **S4** | **Access Denied** |
+
+---
+
+### 5.3 Body Content (The Diagnostic)
+
+The body must use **Semantic Highlighting** to show exactly what broke.
+
+**S2 (Path Loss):**
+> "The folder is missing from disk. If you moved it, please locate it."
 >
-> *[Dynamic Reason dictionary]:*
+> **Path:** `E:\Downloads\`**`[Movies]`**
+> *(Style note: `E:\Downloads\` is dim/gray. `[Movies]` is bold/foreground color. This highlights the gap.)*
+
+**S3 (Volume Loss):**
+> "The drive is not connected. Connect it to resume."
 >
-> * (S2) "The folder was not found on disk."
-> * (S3) "The drive **E:** is not currently connected."
-> * (S4) "The software does not have permission to write to this folder."
+> **Path:** **`[E:\]`**`Downloads\Movies`
+> *(Style note: `[E:\]` is bold/highlighted. The rest is dim.)*
 
-**Footer Actions:**
+**S4 (Access Denied):**
+> "The software cannot write to this location. Please choose a writable folder."
+>
+> **Path:** `E:\System\Protected` *(All bold)*
 
-* **Primary:** `[ Locate... ]` (Opens generic "Set Download Location" picker).
-* **Secondary:** `[ Cancel ]`
-* **Tertiary (S2 only):** `[ Re-create folder ]` (Force download to original path).
+---
+
+### 5.4 Interactions & Buttons (The Solution)
+
+**Footer Layout:**
+`[ Tertiary Action ]` (Spacer) `[ Secondary ] [ Primary ]`
+
+#### State S2 (Folder Missing)
+
+* **Primary (Solid):** **Locate...**
+  * *Action:* Opens OS File Picker. User finds where they moved the folder.
+* **Secondary (Outline):** **Re-create**
+  * *Action:* Re-makes the directory structure at the *original* path and starts downloading.
+  * *Tooltip:* "Download files again to the original location."
+* **Tertiary:** *Cancel*
+
+#### State S3 (Volume Loss)
+
+* **Primary (Solid):** **Locate...**
+  * *Action:* Opens OS File Picker (Use this if the drive letter changed).
+* **Passive Action (Auto-Resolve):**
+  * *Logic:* If the OS reports the drive (`E:`) is mounted while this modal is open:
+  * **1.** Flash Toast inside modal: "Drive E: detected."
+  * **2.** Auto-transition to **Primary: Resume** (or auto-close and resume).
+* **Tertiary:** *Cancel*
+
+#### State S4 (Access Denied)
+
+* **Primary (Solid):** **Choose New Location...**
+  * *Action:* Opens OS File Picker.
+* **Tertiary:** *Cancel*
+
+---
+
+### 5.5 The "Success" Transition
+
+When the user selects a new path (via "Locate..."), the modal must **not** vanish instantly.
+
+1. **Validation:** System checks write permission on new path.
+2. **Visual Feedback:**
+    * Modal Body fades out.
+    * Replaced by **Green Checkmark** + Text: *"Location updated"*
+    * Duration: 600ms.
+3. **Close:** Modal closes, torrent status changes to "Checking" or "Downloading."
+
+### 5.6 Developer Prohibitions
+
+1. **NO Text Inputs:** Do not allow users to type paths. It causes syntax errors. Use File Pickers only.
+2. **NO "Verify" Button:** Verification is an automatic consequence of fixing the location. Do not offer it as a manual choice here.
+3. **NO Generic Errors:** Never show "Error: Path not found." You must calculate whether it is the *Root* (Drive) or the *Leaf* (Folder) and display the correct specific state (S2 vs S3).
 
 ---
 
