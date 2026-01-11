@@ -267,19 +267,6 @@ export const GeneralTab = ({
                                 </span>
                             )}
                         </div>
-                        <div className="flex items-center gap-tools">
-                            <Button
-                                size="md"
-                                variant="light"
-                                onPress={() => {
-                                    if (onSetLocation) void onSetLocation();
-                                }}
-                                isDisabled={!onSetLocation}
-                                className="font-medium text-foreground"
-                            >
-                                {t("recovery.action.change_location")}
-                            </Button>
-                        </div>
                         {recoveryBlockedMessage && (
                             <div className="text-label text-warning/80">
                                 {recoveryBlockedMessage}

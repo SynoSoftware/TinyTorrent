@@ -11,7 +11,12 @@ export type RecoveryGateOutcome =
     | { status: "handled" }
     | { status: "cancelled" };
 
+export type RecoveryGateOptions = {
+    recreateFolder?: boolean;
+};
+
 export type RecoveryGateCallback = (params: {
     torrent: Torrent | TorrentDetail;
     action: RecoveryGateAction;
+    options?: RecoveryGateOptions;
 }) => Promise<RecoveryGateOutcome | null>;

@@ -10,6 +10,7 @@ import { ICON_STROKE_WIDTH_DENSE } from "@/config/logic";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { DashboardTableMeta } from "@/modules/dashboard/components/TorrentTable_ColumnDefs";
 import type { OptimisticStatusMap } from "@/modules/dashboard/types/optimistic";
+import { useRecoveryContext } from "@/app/context/RecoveryContext";
 
 export function useTorrentTableColumns({
     t,
@@ -26,6 +27,7 @@ export function useTorrentTableColumns({
     onChangeLocation?: (torrent: Torrent) => Promise<void> | void;
     onOpenFolder?: (torrent: Torrent) => Promise<void> | void;
 }): { columns: ColumnDef<Torrent>[]; tableMeta: DashboardTableMeta } {
+    const { handleRetry, serverClass } = useRecoveryContext();
     const columns = useMemo<ColumnDef<Torrent>[]>(() => {
         const cols = DEFAULT_COLUMN_ORDER.map((colId) => {
             const id = colId as ColumnId;
@@ -84,13 +86,17 @@ export function useTorrentTableColumns({
             onDownloadMissing,
             onChangeLocation,
             onOpenFolder,
+            onRetry: handleRetry,
+            serverClass,
         }),
         [
             onChangeLocation,
             onDownloadMissing,
             onOpenFolder,
+            handleRetry,
             optimisticStatuses,
             speedHistoryRef,
+            serverClass,
         ]
     );
 

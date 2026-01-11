@@ -3,16 +3,12 @@ import { useTranslation } from "react-i18next";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
 import type { ErrorEnvelope } from "@/services/rpc/entities";
+import { runPartialFilesRecovery, runReannounce } from "@/services/recovery/recovery-controller";
+import type { RecoveryOutcome } from "@/services/recovery/recovery-controller";
 import type {
-    RecoveryPlan,
-    RecoveryOutcome,
-    runDiskFullRecovery,
-    runMissingFilesRecovery,
-    runPartialFilesRecovery,
-    runReannounce,
-    planRecovery,
-} from "@/services/recovery/recovery-controller";
-import * as controller from "@/services/recovery/recovery-controller";
+    RecoveryGateCallback,
+    RecoveryGateOutcome,
+} from "@/app/types/recoveryGate";
 
 export type RecoveryCallbacks = {
     handlePrimaryRecovery: () => Promise<RecoveryOutcome>;
@@ -25,8 +21,10 @@ export function useRecoveryController(params: {
     client: EngineAdapter | null | undefined;
     detail: TorrentDetail | null | undefined;
     envelope: ErrorEnvelope | null | undefined;
+    requestRecovery?: RecoveryGateCallback;
 }) {
     const { client, detail, envelope } = params;
+    const { requestRecovery } = params;
     const { t } = useTranslation();
     const [lastOutcome, setLastOutcome] = useState<RecoveryOutcome | null>(
         null
@@ -59,14 +57,38 @@ export function useRecoveryController(params: {
         String(detail?.id ?? detail?.hash ?? "<no-fp>");
     const isBusy = (busyStates.get(currentFp) ?? 0) > 0;
 
-    const plan: RecoveryPlan | null = useMemo(() => {
-        if (!detail || !envelope) return null;
-        return controller.planRecovery(envelope, detail as any);
-    }, [detail, envelope]);
+    const mapGateOutcomeToRecoveryOutcome = useCallback(
+        (outcome: RecoveryGateOutcome | null): RecoveryOutcome => {
+            if (!outcome) {
+                return {
+                    kind: "error",
+                    message: "no_outcome_from_gate",
+                };
+            }
+            switch (outcome.status) {
+                case "handled":
+                    return {
+                        kind: "resolved",
+                        message: "recovery_handled",
+                    };
+                case "continue":
+                    return {
+                        kind: "noop",
+                        message: "recovery_continued",
+                    };
+                case "cancelled":
+                    return {
+                        kind: "error",
+                        message: "recovery_cancelled",
+                    };
+            }
+        },
+        []
+    );
 
     const handlePrimaryRecovery =
         useCallback(async (): Promise<RecoveryOutcome> => {
-            if (!client || !detail || !envelope) {
+            if (!client || !detail || !envelope || !requestRecovery) {
                 const r: RecoveryOutcome = {
                     kind: "error",
                     message: t(
@@ -77,13 +99,11 @@ export function useRecoveryController(params: {
                 return r;
             }
 
-            // Determine fingerprint to dedupe concurrent operations
             const fp =
                 envelope.fingerprint ??
                 String(detail.id ?? detail.hash ?? "<no-fp>");
             const existing = inFlight.get(fp);
             if (existing) {
-                // Reuse existing in-flight promise
                 return existing;
             }
 
@@ -91,54 +111,13 @@ export function useRecoveryController(params: {
                 busyStates.set(fp, (busyStates.get(fp) ?? 0) + 1);
                 forceUpdate(Math.random());
                 try {
-                    const ec = envelope.errorClass;
-                    let out: RecoveryOutcome = {
-                        kind: "noop",
-                        message: "no_recovery_performed",
-                    };
-                    if (ec === "missingFiles") {
-                        out = await controller.runMissingFilesRecovery({
-                            client,
-                            detail: detail as any,
-                            envelope,
-                        });
-                    } else if (ec === "permissionDenied") {
-                        out = await controller.runPermissionDeniedRecovery({
-                            client,
-                            detail: detail as any,
-                            envelope,
-                        });
-                    } else if (ec === "diskFull") {
-                        out = await controller.runDiskFullRecovery({
-                            client,
-                            detail: detail as any,
-                            envelope,
-                        });
-                    } else if (ec === "partialFiles") {
-                        out = await controller.runPartialFilesRecovery({
-                            client,
-                            detail: detail as any,
-                            envelope,
-                        });
-                    } else if (
-                        ec === "trackerWarning" ||
-                        ec === "trackerError"
-                    ) {
-                        out = await controller.runReannounce({
-                            client,
-                            detail: detail as any,
-                            envelope,
-                        });
-                    } else {
-                        out = {
-                            kind: "noop",
-                            message: t(
-                                "recovery.no_primary_recovery_for_error_class"
-                            ),
-                        };
-                    }
-                    setLastOutcome(out);
-                    return out;
+                    const gateOutcome = await requestRecovery({
+                        torrent: detail,
+                        action: "resume",
+                    });
+                    const mapped = mapGateOutcomeToRecoveryOutcome(gateOutcome);
+                    setLastOutcome(mapped);
+                    return mapped;
                 } finally {
                     busyStates.set(fp, (busyStates.get(fp) ?? 1) - 1);
                     forceUpdate(Math.random());
@@ -148,7 +127,14 @@ export function useRecoveryController(params: {
 
             inFlight.set(fp, promise);
             return promise;
-        }, [client, detail, envelope, inFlight]);
+        }, [
+            client,
+            detail,
+            envelope,
+            inFlight,
+            requestRecovery,
+            mapGateOutcomeToRecoveryOutcome,
+        ]);
 
     const handlePickPath = useCallback(
         async (path: string): Promise<RecoveryOutcome> => {
@@ -233,7 +219,7 @@ export function useRecoveryController(params: {
             busyStates.set(fp, (busyStates.get(fp) ?? 0) + 1);
             forceUpdate(Math.random());
             try {
-                const out = await controller.runPartialFilesRecovery({
+                const out = await runPartialFilesRecovery({
                     client,
                     detail: detail as any,
                     envelope: undefined,
@@ -265,7 +251,7 @@ export function useRecoveryController(params: {
             busyStates.set(fp, (busyStates.get(fp) ?? 0) + 1);
             forceUpdate(Math.random());
             try {
-                const out = await controller.runReannounce({
+                const out = await runReannounce({
                     client,
                     detail: detail as any,
                     envelope: undefined,
@@ -283,7 +269,6 @@ export function useRecoveryController(params: {
     }, [client, detail, envelope, inFlight]);
 
     return {
-        plan,
         recoveryCallbacks: {
             handlePrimaryRecovery,
             handlePickPath,

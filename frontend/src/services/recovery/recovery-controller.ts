@@ -1,8 +1,19 @@
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import type {
     TorrentDetailEntity,
+    TorrentEntity,
     ErrorEnvelope,
+    ServerClass,
 } from "@/services/rpc/entities";
+import { STATUS } from "@/shared/status";
+import {
+    deriveMissingFilesStateKind,
+    type MissingFilesStateKind,
+} from "@/shared/utils/recoveryFormat";
+import {
+    interpretFsError,
+    type FsErrorKind,
+} from "@/shared/utils/fsErrors";
 
 export type RecoveryOutcome =
     | { kind: "resolved"; message?: string }
@@ -23,204 +34,527 @@ export interface RecoveryControllerDeps {
     envelope?: ErrorEnvelope | null | undefined;
 }
 
-export interface RecoveryPlan {
-    primaryAction:
-        | "reDownloadHere"
-        | "createAndDownloadHere"
-        | "pickPath"
-        | "verify"
-        | "resume"
-        | "reannounce"
-        | "openFolder"
-        | "none";
-    rationale: string;
-    requiresPath: boolean;
-    suggestedPath?: string;
+export type ConfidenceLevel = "certain" | "likely" | "unknown";
+
+export interface MissingFilesClassification {
+    kind: MissingFilesStateKind;
+    confidence: ConfidenceLevel;
+    path?: string;
+    root?: string;
 }
 
-import { interpretFsError } from "@/shared/utils/fsErrors";
+export interface RecoverySequenceOptions {
+    recreateFolder?: boolean;
+    retryOnly?: boolean;
+}
 
-export function planRecovery(
+export interface RecoverySequenceParams {
+    client: EngineAdapter;
+    torrent: TorrentEntity | TorrentDetailEntity;
+    envelope: ErrorEnvelope;
+    classification: MissingFilesClassification;
+    serverClass: ServerClass;
+    options?: RecoverySequenceOptions;
+}
+
+export type RecoverySequenceStatus = "resolved" | "needsModal" | "noop";
+
+export interface RecoverySequenceResult {
+    status: RecoverySequenceStatus;
+    classification: MissingFilesClassification;
+    blockingOutcome?: RecoveryOutcome;
+    log?: string;
+}
+
+const VERIFY_GUARD = new Map<string, number | null>();
+
+export function resetVerifyGuard() {
+    VERIFY_GUARD.clear();
+}
+
+export function shouldSkipVerify(
+    fingerprint?: string | null,
+    left?: number | null
+) {
+    if (!fingerprint || left === null) return false;
+    const entry = VERIFY_GUARD.get(fingerprint);
+    return entry !== undefined && entry === left;
+}
+
+export function recordVerifyAttempt(
+    fingerprint: string | null,
+    left: number | null
+) {
+    if (!fingerprint) return;
+    VERIFY_GUARD.set(fingerprint, left);
+}
+
+function deriveFingerprint(
+    torrent: TorrentEntity | TorrentDetailEntity,
+    envelope: ErrorEnvelope
+) {
+    return (
+        envelope.fingerprint ??
+        torrent.hash ??
+        torrent.id ??
+        "<no-recovery-fingerprint>"
+    );
+}
+
+const POLL_INTERVAL_MS = 500;
+const POLL_TIMEOUT_MS = 2000;
+const VERIFY_WATCH_INTERVAL_MS = 500;
+const VERIFY_WATCH_TIMEOUT_MS = 30000;
+const FREE_SPACE_UNSUPPORTED_MESSAGE = "free_space_check_not_supported";
+const IN_FLIGHT_RECOVERY = new Map<string, Promise<RecoverySequenceResult>>();
+
+export function classifyMissingFilesState(
     envelope: ErrorEnvelope | null | undefined,
-    detail: TorrentDetailEntity | null | undefined
-): RecoveryPlan {
-    const errorClass = envelope?.errorClass ?? "unknown";
-    const downloadDir = detail?.downloadDir ?? detail?.savePath ?? undefined;
-    const planBase: RecoveryPlan = {
-        primaryAction: "none",
-        rationale: "No action required",
-        requiresPath: false,
-        suggestedPath: downloadDir,
+    downloadDir?: string,
+    serverClass: ServerClass = "unknown"
+): MissingFilesClassification {
+    const kind = envelope
+        ? deriveMissingFilesStateKind(envelope, downloadDir)
+        : "dataGap";
+    const root = resolveRootFromPath(downloadDir);
+    const confidence = determineConfidence(kind, envelope, serverClass);
+    return {
+        kind,
+        confidence,
+        path: downloadDir,
+        root,
     };
-
-    if (errorClass === "missingFiles") {
-        planBase.primaryAction = "reDownloadHere";
-        planBase.rationale = "recovery.rationale.missing_files";
-        planBase.requiresPath = !downloadDir;
-        return planBase;
-    }
-    if (errorClass === "permissionDenied") {
-        planBase.primaryAction = "pickPath";
-        planBase.rationale = "recovery.rationale.permission_denied";
-        planBase.requiresPath = true;
-        return planBase;
-    }
-    if (errorClass === "diskFull") {
-        planBase.primaryAction = "pickPath";
-        planBase.rationale = "recovery.rationale.disk_full";
-        planBase.requiresPath = true;
-        return planBase;
-    }
-    if (errorClass === "partialFiles") {
-        planBase.primaryAction = "verify";
-        planBase.rationale = "recovery.rationale.partial_files";
-        planBase.requiresPath = false;
-        return planBase;
-    }
-    if (errorClass === "trackerWarning" || errorClass === "trackerError") {
-        planBase.primaryAction = "reannounce";
-        planBase.rationale = "recovery.rationale.tracker_issue";
-        planBase.requiresPath = false;
-        return planBase;
-    }
-    return planBase;
 }
 
-export async function runMissingFilesRecovery(
-    deps: RecoveryControllerDeps
-): Promise<RecoveryOutcome> {
-    const { client, detail } = deps;
-    const downloadDir = detail?.downloadDir ?? detail?.savePath ?? null;
-    if (!downloadDir) {
-        return {
-            kind: "path-needed",
-            reason: "missing",
-            message: "no_download_path_known",
-        };
+function determineConfidence(
+    kind: MissingFilesStateKind,
+    envelope: ErrorEnvelope | null | undefined,
+    serverClass: ServerClass
+): ConfidenceLevel {
+    if (serverClass === "tinytorrent") {
+        return "certain";
+    }
+    if (kind === "pathLoss" || kind === "volumeLoss" || kind === "accessDenied") {
+        if (envelope?.errorMessage?.length) {
+            return "likely";
+        }
+        return "unknown";
+    }
+    return "unknown";
+}
+
+function resolveRootFromPath(path?: string) {
+    if (!path) return undefined;
+    const driveMatch = path.match(/^([a-zA-Z]:)([\\/]|$)/);
+    if (driveMatch) {
+        return driveMatch[1];
+    }
+    const uncMatch = path.match(/^(\\\\[^\\/]+\\[^\\/]+)/);
+    if (uncMatch) {
+        return uncMatch[1];
+    }
+    return path;
+}
+
+const RECOVERY_ERROR_CLASSES: ReadonlySet<string> = new Set([
+    "missingFiles",
+    "permissionDenied",
+    "diskFull",
+]);
+
+export async function runMissingFilesRecoverySequence(params: RecoverySequenceParams): Promise<RecoverySequenceResult> {
+    const { client, torrent, envelope, classification, options } = params;
+    if (!envelope || !RECOVERY_ERROR_CLASSES.has(envelope.errorClass ?? "")) {
+        return { status: "noop", classification };
+    }
+    const fingerprint = deriveFingerprint(torrent, envelope);
+    if (IN_FLIGHT_RECOVERY.has(fingerprint)) {
+        return IN_FLIGHT_RECOVERY.get(fingerprint)!;
     }
 
-    if (!client.checkFreeSpace) {
-        // Cannot validate — assume path is ready
-        return {
-            kind: "resolved",
-            message: "filesystem_probing_not_supported",
-        };
-    }
+    const sequence = (async (): Promise<RecoverySequenceResult> => {
+        const downloadDir =
+            (torrent as TorrentDetailEntity).downloadDir ??
+            torrent.savePath ??
+            torrent.downloadDir ??
+            "";
 
-    try {
-        const fs = await client.checkFreeSpace(downloadDir);
-        // Successful check implies path exists; however treat free<=0 as disk-full
-        const free = (fs as any).free ?? null;
-        if (typeof free === "number") {
-            if (free <= 0) {
-                return {
+        if (!downloadDir) {
+            return {
+                status: "needsModal",
+                classification,
+                blockingOutcome: {
                     kind: "path-needed",
-                    reason: "disk-full",
-                    message: "insufficient_free_space",
+                    reason: "missing",
+                    message: "no_download_path_known",
+                },
+            };
+        }
+
+        if (classification.kind === "volumeLoss") {
+            if (!client.checkFreeSpace) {
+                return {
+                    status: "needsModal",
+                    classification,
+                    blockingOutcome: {
+                        kind: "path-needed",
+                        reason: "missing",
+                        message: FREE_SPACE_UNSUPPORTED_MESSAGE,
+                    },
+                };
+            }
+            const probe = await pollPathAvailability(client, downloadDir);
+            if (!probe.success) {
+                const reason = deriveReasonFromFsError(probe.errorKind);
+                return {
+                    status: "needsModal",
+                    classification,
+                    blockingOutcome: {
+                        kind: "path-needed",
+                        reason,
+                        message:
+                            probe.errorKind === "enospc"
+                                ? "disk_full"
+                                : probe.errorKind === "eacces"
+                                ? "path_access_denied"
+                                : "path_check_failed",
+                    },
+                };
+            }
+        }
+
+        const ensure = await ensurePathReady({
+            client,
+            path: downloadDir,
+            options,
+        });
+        if (!ensure.ready) {
+            if (ensure.blockingOutcome) {
+                return {
+                    status: "needsModal",
+                    classification,
+                    blockingOutcome: ensure.blockingOutcome,
                 };
             }
             return {
-                kind: "resolved",
-                message: "path_ready",
+                status: "needsModal",
+                classification,
+                blockingOutcome: {
+                    kind: "path-needed",
+                    reason: "missing",
+                    message: "path_check_failed",
+                },
             };
         }
-        return { kind: "error", message: "path_check_unknown" };
+
+        if (options?.retryOnly) {
+            return {
+                status: "noop",
+                classification,
+            };
+        }
+
+        if (client.setTorrentLocation) {
+            try {
+                await client.setTorrentLocation(torrent.id, downloadDir, false);
+            } catch (err) {
+                const reason = deriveReasonFromFsError(interpretFsError(err));
+                return {
+                    status: "needsModal",
+                    classification,
+                    blockingOutcome: {
+                        kind: "path-needed",
+                        reason,
+                        message: "set_torrent_location_failed",
+                    },
+                };
+            }
+        }
+
+        return await runMinimalSequence({
+            client,
+            torrent,
+            envelope,
+            classification,
+        });
+    })();
+
+    IN_FLIGHT_RECOVERY.set(fingerprint, sequence);
+    try {
+        return await sequence;
+    } finally {
+        IN_FLIGHT_RECOVERY.delete(fingerprint);
+    }
+}
+
+interface EnsurePathParams {
+    client: EngineAdapter;
+    path: string;
+    options?: RecoverySequenceOptions;
+}
+
+async function ensurePathReady({
+    client,
+    path,
+    options,
+}: EnsurePathParams): Promise<{
+    ready: boolean;
+    blockingOutcome?: RecoveryOutcome;
+}> {
+    if (!client.checkFreeSpace) {
+        return {
+            ready: false,
+            blockingOutcome: {
+                kind: "path-needed",
+                reason: "missing",
+                message: FREE_SPACE_UNSUPPORTED_MESSAGE,
+            },
+        };
+    }
+    try {
+        await client.checkFreeSpace(path);
+        return { ready: true };
     } catch (err) {
         const kind = interpretFsError(err);
         if (kind === "enoent") {
-            if (typeof client.createDirectory === "function") {
+            if (options?.recreateFolder && client.createDirectory) {
                 try {
-                    await client.createDirectory(downloadDir);
-                    return { kind: "resolved", message: "directory_created" };
+                    await client.createDirectory(path);
+                    return { ready: true };
                 } catch (createErr) {
-                    const i = interpretFsError(createErr);
-                    if (i === "eacces") {
+                    const createKind = interpretFsError(createErr);
+                    if (createKind === "eacces") {
                         return {
-                            kind: "path-needed",
-                            reason: "unwritable",
-                            message: "directory_creation_denied",
+                            ready: false,
+                            blockingOutcome: {
+                                kind: "path-needed",
+                                reason: "unwritable",
+                                message: "directory_creation_denied",
+                            },
                         };
                     }
                     return {
-                        kind: "path-needed",
-                        reason: "missing",
-                        message: "directory_creation_failed",
+                        ready: false,
+                        blockingOutcome: {
+                            kind: "path-needed",
+                            reason: "missing",
+                            message: "directory_creation_failed",
+                        },
                     };
                 }
             }
             return {
-                kind: "path-needed",
-                reason: "missing",
-                message: "directory_creation_not_supported",
+                ready: false,
+                blockingOutcome: {
+                    kind: "path-needed",
+                    reason: "missing",
+                    message:
+                        client.createDirectory === undefined
+                            ? "directory_creation_not_supported"
+                            : "path_check_failed",
+                },
             };
         }
         if (kind === "eacces") {
             return {
-                kind: "path-needed",
-                reason: "unwritable",
-                message: "path_access_denied",
+                ready: false,
+                blockingOutcome: {
+                    kind: "path-needed",
+                    reason: "unwritable",
+                    message: "path_access_denied",
+                },
             };
         }
         if (kind === "enospc") {
             return {
-                kind: "path-needed",
-                reason: "disk-full",
-                message: "disk_full",
+                ready: false,
+                blockingOutcome: {
+                    kind: "path-needed",
+                    reason: "disk-full",
+                    message: "insufficient_free_space",
+                },
             };
         }
-        // Fail-safe for unknown errors: require user intervention with full message
         return {
-            kind: "path-needed",
-            reason: "missing",
-            message: "path_check_failed",
+            ready: false,
+            blockingOutcome: {
+                kind: "path-needed",
+                reason: "missing",
+                message: "path_check_failed",
+            },
         };
     }
 }
 
-export async function runPermissionDeniedRecovery(
-    _deps: RecoveryControllerDeps
-): Promise<RecoveryOutcome> {
-    // PermissionDenied: do not attempt create; prompt user to pick new path
+type PathProbeResult =
+    | { success: true }
+    | { success: false; errorKind: FsErrorKind };
+
+async function pollPathAvailability(
+    client: EngineAdapter,
+    path: string
+): Promise<PathProbeResult> {
+    if (!client.checkFreeSpace) {
+        return { success: false, errorKind: "other" as FsErrorKind };
+    }
+    const deadline = Date.now() + POLL_TIMEOUT_MS;
+    let lastKind: FsErrorKind | null = null;
+    while (Date.now() < deadline) {
+        try {
+            await client.checkFreeSpace(path);
+            return { success: true };
+        } catch (err) {
+            lastKind = interpretFsError(err);
+            if (lastKind !== "enoent") {
+                return { success: false, errorKind: lastKind };
+            }
+        }
+        await delay(POLL_INTERVAL_MS);
+    }
+    return { success: false, errorKind: lastKind ?? "other" };
+}
+
+function isCheckingState(state?: string) {
+    if (!state) return false;
+    const normalized = state.toLowerCase();
+    return (
+        normalized === "checking" ||
+        normalized === "check_wait" ||
+        normalized === "check_waiting"
+    );
+}
+
+async function watchVerifyCompletion(
+    client: EngineAdapter,
+    torrentId: string
+): Promise<{ success: boolean; leftUntilDone: number | null; state?: string }> {
+    if (!client.getTorrentDetails) {
+        return { success: true, leftUntilDone: null };
+    }
+    const deadline = Date.now() + VERIFY_WATCH_TIMEOUT_MS;
+    let lastLeft: number | null = null;
+    while (Date.now() < deadline) {
+        try {
+            const detail = await client.getTorrentDetails(torrentId);
+            const state = detail.state;
+            const left =
+                typeof detail.leftUntilDone === "number"
+                    ? detail.leftUntilDone
+                    : null;
+            lastLeft = left;
+            if (!isCheckingState(state)) {
+                return { success: true, leftUntilDone: left, state };
+            }
+        } catch {
+            // best-effort; continue polling
+        }
+        await delay(VERIFY_WATCH_INTERVAL_MS);
+    }
+    return { success: false, leftUntilDone: lastLeft };
+}
+
+async function runMinimalSequence(params: {
+    client: EngineAdapter;
+    torrent: TorrentEntity | TorrentDetailEntity;
+    envelope: ErrorEnvelope;
+    classification: MissingFilesClassification;
+}): Promise<RecoverySequenceResult> {
+    const { client, torrent, envelope } = params;
+    let { classification } = params;
+    const fingerprint = deriveFingerprint(torrent, envelope);
+    const left =
+        typeof torrent.leftUntilDone === "number"
+            ? torrent.leftUntilDone
+            : null;
+    const shouldVerify = determineShouldVerify(torrent);
+
+    if (shouldVerify && client.verify) {
+        if (!shouldSkipVerify(fingerprint, left)) {
+            let leftAfterVerify = left;
+            try {
+                await client.verify([torrent.id]);
+                const watchResult = await watchVerifyCompletion(
+                    client,
+                    torrent.id
+                );
+                if (watchResult.leftUntilDone !== null) {
+                    leftAfterVerify = watchResult.leftUntilDone;
+                }
+                recordVerifyAttempt(fingerprint, leftAfterVerify);
+                if (leftAfterVerify === left) {
+                    classification = {
+                        ...classification,
+                        kind: "dataGap",
+                        confidence: "certain",
+                    };
+                }
+            } catch (err) {
+                return {
+                    status: "needsModal",
+                    classification,
+                    blockingOutcome: {
+                        kind: "error",
+                        message: "verify_failed",
+                    },
+                };
+            }
+        } else {
+            classification = {
+                ...classification,
+                kind: "dataGap",
+                confidence: "certain",
+            };
+        }
+    }
+
+    try {
+        await client.resume([torrent.id]);
+    } catch (err) {
+        return {
+            status: "needsModal",
+            classification,
+            blockingOutcome: {
+                kind: "path-needed",
+                reason: "missing",
+                message: "path_check_failed",
+            },
+        };
+    }
+
     return {
-        kind: "path-needed",
-        reason: "unwritable",
-        message: "permission_denied",
+        status: "resolved",
+        classification,
     };
 }
 
-export async function runDiskFullRecovery(
-    deps: RecoveryControllerDeps
-): Promise<RecoveryOutcome> {
-    const { client, detail } = deps;
-    const downloadDir = detail?.downloadDir ?? detail?.savePath ?? null;
-    if (!downloadDir) {
-        return {
-            kind: "path-needed",
-            reason: "disk-full",
-            message: "no_download_path_known",
-        };
+function determineShouldVerify(
+    torrent: TorrentEntity | TorrentDetailEntity
+): boolean {
+    const isActive =
+        torrent.state === STATUS.torrent.DOWNLOADING ||
+        torrent.state === STATUS.torrent.SEEDING;
+    const left =
+        typeof torrent.leftUntilDone === "number"
+            ? torrent.leftUntilDone
+            : null;
+    if (left === null || left <= 0) {
+        return true;
     }
-    if (!client.checkFreeSpace) {
-        return {
-            kind: "path-needed",
-            reason: "disk-full",
-            message: "free_space_check_not_supported",
-        };
+    return !isActive;
+}
+
+function deriveReasonFromFsError(kind: FsErrorKind | null) {
+    if (kind === "eacces") {
+        return "unwritable";
     }
-    try {
-        const fs = await client.checkFreeSpace(downloadDir);
-        const free = (fs as any).free ?? null;
-        return {
-            kind: "path-needed",
-            reason: "disk-full",
-            message: "insufficient_free_space",
-        };
-    } catch (err) {
-        return {
-            kind: "error",
-            message: "free_space_check_failed",
-        };
+    if (kind === "enospc") {
+        return "disk-full";
     }
+    return "missing";
+}
+
+function delay(ms: number) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export async function runPartialFilesRecovery(

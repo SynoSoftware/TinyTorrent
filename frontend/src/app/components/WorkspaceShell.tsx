@@ -193,7 +193,6 @@ export function WorkspaceShell({
     handleForceTrackerReannounce,
     onSetLocation,
     onRedownload,
-    onRetry,
     isDetailRecoveryBlocked,
     capabilities,
     optimisticStatuses,
@@ -307,7 +306,6 @@ export function WorkspaceShell({
                 onForceTrackerReannounce={handleForceTrackerReannounce}
                 onSetLocation={onSetLocation}
                 onRedownload={onRedownload}
-                onRetry={onRetry}
                 capabilities={capabilities}
                 optimisticStatuses={optimisticStatuses}
                 peerSortStrategy={peerSortStrategy}
@@ -320,6 +318,7 @@ export function WorkspaceShell({
                 onOpenFolder={handleOpenFolder}
                 tableWatermarkEnabled={tableWatermarkEnabled}
                 isDetailRecoveryBlocked={isDetailRecoveryBlocked}
+                serverClass={serverClass}
             />
     );
 

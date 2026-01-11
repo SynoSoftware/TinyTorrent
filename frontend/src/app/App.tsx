@@ -29,8 +29,8 @@ import { useDetailControls } from "@/modules/dashboard/hooks/useDetailControls";
 import { useRecoveryController } from "@/modules/dashboard/hooks/useRecoveryController";
 import { useTorrentActions } from "@/modules/dashboard/hooks/useTorrentActions";
 import {
-    planRecovery,
-    runMissingFilesRecovery,
+    classifyMissingFilesState,
+    runMissingFilesRecoverySequence,
 } from "@/services/recovery/recovery-controller";
 import { deriveMissingFilesStateKind } from "@/shared/utils/recoveryFormat";
 import { interpretFsError } from "@/shared/utils/fsErrors";
@@ -42,6 +42,7 @@ import type {
 } from "./components/CommandPalette";
 import { WorkspaceShell } from "./components/WorkspaceShell";
 import TorrentRecoveryModal from "@/modules/dashboard/components/TorrentRecoveryModal";
+import { RecoveryProvider } from "@/app/context/RecoveryContext";
 import type { EngineDisplayType } from "./components/layout/StatusBar";
 import type {
     CapabilityKey,
@@ -555,8 +556,97 @@ export default function App() {
         null
     );
 
+    const runMissingFilesFlow = useCallback(
+        async (
+            torrent: Torrent | TorrentDetail,
+            options?: { recreateFolder?: boolean }
+        ) => {
+            const client = torrentClientRef.current;
+            const envelope = torrent.errorEnvelope;
+            if (!client || !envelope) return null;
+            const classification = classifyMissingFilesState(
+                envelope,
+                torrent.savePath ?? torrent.downloadDir ?? "",
+                serverClass
+            );
+            try {
+                return await runMissingFilesRecoverySequence({
+                    client,
+                    torrent,
+                    envelope,
+                    classification,
+                    serverClass,
+                    options,
+                });
+            } catch (err) {
+                console.error("missing files recovery flow failed", err);
+                throw err;
+            }
+        },
+        [serverClass]
+    );
+
+    const requestRecovery: RecoveryGateCallback = useCallback(
+        async ({ torrent, action, options }) => {
+            const envelope = torrent.errorEnvelope;
+            if (!envelope) return null;
+            if (action === "setLocation") return null;
+
+            let blockingOutcome: RecoveryOutcome | null = null;
+            try {
+                const flowResult = await runMissingFilesFlow(torrent, options);
+                if (flowResult?.status === "resolved") {
+                    console.info(
+                        `[tiny-torrent][recovery] ${action} executed recovery for torrent=${torrent.id}`
+                    );
+                    return { status: "handled" };
+                }
+                if (flowResult?.status === "needsModal") {
+                    blockingOutcome = flowResult.blockingOutcome ?? null;
+                }
+            } catch (err) {
+                console.error("recovery flow failed", err);
+                blockingOutcome = {
+                    kind: "path-needed",
+                    reason: derivePathReason(envelope.errorClass),
+                };
+            }
+
+            if (!blockingOutcome) {
+                return null;
+            }
+
+            if (action === "recheck") {
+                return { status: "continue" };
+            }
+
+            const fingerprint = getRecoveryFingerprint(torrent);
+            const activeFingerprint = recoveryFingerprintRef.current;
+            if (activeFingerprint) {
+                if (activeFingerprint === fingerprint) {
+                    return recoveryPromiseRef.current ?? null;
+                }
+                return { status: "cancelled" };
+            }
+            if (recoveryResolverRef.current) {
+                return { status: "cancelled" };
+            }
+            const promise = new Promise<RecoveryGateOutcome>((resolve) => {
+                recoveryResolverRef.current = resolve;
+                setRecoverySession({
+                    torrent,
+                    action,
+                    outcome: blockingOutcome,
+                });
+            });
+            recoveryFingerprintRef.current = fingerprint;
+            recoveryPromiseRef.current = promise;
+            return promise;
+        },
+        [runMissingFilesFlow]
+    );
+
     const {
-        plan: recoveryPlan,
         recoveryCallbacks,
         isBusy: isRecoveryBusy,
         lastOutcome: lastRecoveryOutcome,
@@ -564,6 +654,7 @@ export default function App() {
         client: torrentClient,
         detail: recoverySession?.torrent ?? null,
         envelope: recoverySession?.torrent?.errorEnvelope ?? null,
+        requestRecovery,
     });
 
     const finalizeRecovery = useCallback((result: RecoveryGateOutcome) => {
@@ -630,114 +721,6 @@ export default function App() {
         finalizeRecovery({ status: "cancelled" });
     }, [finalizeRecovery]);
 
-    const requestRecovery: RecoveryGateCallback = useCallback(
-        async ({ torrent, action }) => {
-            const envelope = torrent.errorEnvelope;
-            if (!envelope) return null;
-            const plan = planRecovery(envelope, torrent);
-            if (plan.primaryAction === "none") {
-                return null;
-            }
-
-            // Do not open an interactive modal for verification-only plans —
-            // Verify is an advanced, non-recovery primary action and must
-            // be handled as an action (e.g., recheck) or exposed in overflow
-            // menus. The modal is reserved for path-selection and blocked
-            // states only.
-            if (plan.primaryAction === "verify") {
-                return null;
-            }
-
-            if (action === "recheck") {
-                return null;
-            }
-
-            if (action === "setLocation") {
-                return null;
-            }
-
-            let blockingOutcome: RecoveryOutcome | null = null;
-
-            // Fast-path: if missingFiles and a path is present (no user input required),
-            // attempt a silent filesystem preflight. If resolved, skip the modal and
-            // allow the caller to continue (resume/recheck/etc.). Otherwise fall back
-            // to the interactive modal flow.
-            try {
-                if (
-                    plan.primaryAction === "reDownloadHere" &&
-                    !plan.requiresPath
-                ) {
-                    const client = torrentClientRef.current;
-                    if (client) {
-                        const pre = await runMissingFilesRecovery({
-                            client,
-                            detail: torrent as any,
-                        });
-                        if (pre.kind === "resolved") {
-                            // No user interaction required — continue with action
-                            return null;
-                        }
-                        if (pre.kind === "path-needed") {
-                            blockingOutcome = pre;
-                        } else if (pre.kind === "error") {
-                            blockingOutcome = {
-                                kind: "path-needed",
-                                reason: derivePathReason(envelope.errorClass),
-                                message: pre.message,
-                            };
-                        }
-                    }
-                }
-            } catch (err) {
-                // If preflight fails unexpectedly, fall through to interactive modal
-                console.error("recovery preflight failed", err);
-                blockingOutcome = {
-                    kind: "path-needed",
-                    reason: derivePathReason(envelope.errorClass),
-                };
-            }
-
-            if (!blockingOutcome) {
-                const needsPath =
-                    plan.requiresPath ||
-                    plan.primaryAction === "pickPath" ||
-                    envelope.errorClass === "permissionDenied" ||
-                    envelope.errorClass === "diskFull";
-                if (!needsPath) {
-                    return null;
-                }
-                blockingOutcome = {
-                    kind: "path-needed",
-                    reason: derivePathReason(envelope.errorClass),
-                };
-            }
-
-            const fingerprint = getRecoveryFingerprint(torrent);
-            const activeFingerprint = recoveryFingerprintRef.current;
-            if (activeFingerprint) {
-                if (activeFingerprint === fingerprint) {
-                    return recoveryPromiseRef.current ?? null;
-                }
-                return { status: "cancelled" };
-            }
-            if (recoveryResolverRef.current) {
-                return { status: "cancelled" };
-            }
-            const promise = new Promise<RecoveryGateOutcome>((resolve) => {
-                recoveryResolverRef.current = resolve;
-                setRecoverySession({
-                    torrent,
-                    action,
-                    outcome: blockingOutcome,
-                });
-            });
-            recoveryFingerprintRef.current = fingerprint;
-            recoveryPromiseRef.current = promise;
-            return promise;
-        },
-        []
-    );
-
     const isDetailRecoveryBlocked = useMemo(() => {
         if (!detailData || !recoverySession) return false;
         return (
@@ -790,17 +773,11 @@ export default function App() {
         [recoveryCallbacks?.handlePickPath, runRecoveryOperation]
     );
 
-    const handleRecoveryPrimary = useCallback(async () => {
-        if (!recoveryCallbacks?.handlePrimaryRecovery) return;
-        await runRecoveryOperation(() =>
-            recoveryCallbacks.handlePrimaryRecovery()
-        );
-    }, [recoveryCallbacks?.handlePrimaryRecovery, runRecoveryOperation]);
-
-    const handleRecoveryReannounce = useCallback(async () => {
-        if (!recoveryCallbacks?.handleReannounce) return;
-        await runRecoveryOperation(() => recoveryCallbacks.handleReannounce());
-    }, [recoveryCallbacks?.handleReannounce, runRecoveryOperation]);
+    const handleRecoveryRetry = useCallback(async () => {
+        if (!recoverySession?.torrent) return;
+        await executeRetryFetch(recoverySession.torrent);
+        handleRecoveryClose();
+    }, [executeRetryFetch, recoverySession, handleRecoveryClose]);
 
     const { announceAction, showFeedback } = useActionFeedback();
 
@@ -1324,148 +1301,44 @@ export default function App() {
         [executeSetLocation]
     );
 
+    const refreshAfterRecovery = useCallback(
+        async (target: Torrent | TorrentDetail) => {
+            await refreshTorrentsRef.current?.();
+            await refreshSessionStatsDataRef.current?.();
+            if (detailData?.id === target.id) {
+                await refreshDetailData();
+            }
+        },
+        [detailData, refreshDetailData]
+    );
+
     const executeRedownload = useCallback(
         async (
             target: Torrent | TorrentDetail,
             options?: { recreateFolder?: boolean }
         ) => {
-            const client = torrentClientRef.current;
-            if (!client) return;
-            const gateResult = await requestRecovery({
-                torrent: target,
-                action: "redownload",
-            });
-            if (gateResult && gateResult.status !== "continue") {
-                return;
-            }
-
-            const fp = target.errorEnvelope?.fingerprint ?? null;
-            const key = fp ?? String(target.id ?? target.hash);
+            const key =
+                (target.errorEnvelope?.fingerprint ?? null) ??
+                String(target.id ?? target.hash);
             if (redownloadInFlight.current.has(key)) {
                 return;
             }
             redownloadInFlight.current.add(key);
-
-            const driveReady = async (path: string) => {
-                if (!client.checkFreeSpace) return false;
-                const deadline = Date.now() + 2000;
-                const delay = 250;
-                while (Date.now() < deadline) {
-                    try {
-                        await client.checkFreeSpace(path);
-                        return true;
-                    } catch (err) {
-                        if (interpretFsError(err) !== "enoent") {
-                            return false;
-                        }
-                    }
-                    await new Promise((resolve) =>
-                        window.setTimeout(resolve, delay)
-                    );
-                }
-                return false;
-            };
-
             try {
-                const downloadDir = target.savePath ?? target.downloadDir ?? "";
-                const missingBytes =
-                    typeof target.leftUntilDone === "number"
-                        ? target.leftUntilDone
-                        : null;
-                const missingState = deriveMissingFilesStateKind(
-                    target.errorEnvelope,
-                    downloadDir
-                );
-
-                if (missingBytes !== null && missingBytes <= 0) {
-                    await client.resume([target.id]);
-                    showFeedback(
-                        t("recovery.feedback.download_resumed"),
-                        "info"
-                    );
-                    await refreshTorrentsRef.current?.();
-                    await refreshSessionStatsDataRef.current?.();
-                    if (detailData?.id === target.id) {
-                        await refreshDetailData();
-                    }
-                    return;
-                }
-
-                if (missingState === "volumeLoss" && downloadDir) {
-                    showFeedback(
-                        t("recovery.status.waiting_for_drive"),
-                        "info"
-                    );
-                    const ready = await driveReady(downloadDir);
-                    if (!ready) {
-                        return;
-                    }
-                }
-
-                if (
-                    missingState === "pathLoss" &&
-                    options?.recreateFolder &&
-                    downloadDir &&
-                    typeof client.createDirectory === "function"
-                ) {
-                    try {
-                        await client.createDirectory(downloadDir);
-                    } catch (err) {
-                        const kind = interpretFsError(err);
-                        if (kind === "eacces") {
-                            showFeedback(
-                                t("recovery.message.directory_creation_denied"),
-                                "warning"
-                            );
-                            return;
-                        }
-                    }
-                }
-
-                if (client.checkFreeSpace && downloadDir) {
-                    try {
-                        const fs = await client.checkFreeSpace(downloadDir);
-                        const free =
-                            typeof (fs as any).free === "number"
-                                ? (fs as any).free
-                                : (fs as any).sizeBytes;
-                        if (
-                            missingBytes !== null &&
-                            typeof free === "number" &&
-                            missingBytes > free
-                        ) {
-                            showFeedback(
-                                t("recovery.message.insufficient_free_space"),
-                                "warning"
-                            );
-                            return;
-                        }
-                    } catch (err) {
-                        const kind = interpretFsError(err);
-                        if (kind === "enoent") {
-                            return;
-                        }
-                    }
-                }
-
-                if (missingBytes !== null && client.verify) {
-                    try {
+                const gateResult = await requestRecovery({
+                    torrent: target,
+                    action: "redownload",
+                    options,
+                });
+                if (gateResult && gateResult.status !== "continue") {
+                    if (gateResult.status === "handled") {
                         showFeedback(
-                            t("torrent_modal.controls.verifying"),
+                            t("recovery.feedback.download_resumed"),
                             "info"
                         );
-                        await client.verify([target.id]);
-                    } catch (err) {
-                        console.error("verify before download failed", err);
+                        await refreshAfterRecovery(target);
                     }
-                }
-
-                await client.resume([target.id]);
-                showFeedback(t("recovery.feedback.download_resumed"), "info");
-                await refreshTorrentsRef.current?.();
-                await refreshSessionStatsDataRef.current?.();
-                if (detailData?.id === target.id) {
-                    await refreshDetailData();
+                    return;
                 }
             } catch (err) {
                 reportCommandError?.(err);
@@ -1474,8 +1347,7 @@ export default function App() {
             }
         },
         [
-            detailData,
-            refreshDetailData,
+            refreshAfterRecovery,
             reportCommandError,
             requestRecovery,
             showFeedback,
@@ -1559,11 +1431,6 @@ export default function App() {
             }
         },
         [detailData, refreshDetailData, requestRecovery]
-    );
-
-    const handleRetryForDetail = useCallback(
-        (torrent: TorrentDetail) => executeRetryFetch(torrent),
-        [executeRetryFetch]
     );
 
     useEffect(() => {
@@ -1928,8 +1795,14 @@ export default function App() {
                 requestDetails={handleRequestDetails}
                 closeDetail={handleCloseDetail}
             />
-            <WorkspaceShell
-                getRootProps={getRootProps}
+            <RecoveryProvider
+                value={{
+                    serverClass,
+                    handleRetry: handleRecoveryRetry,
+                }}
+            >
+                <WorkspaceShell
+                    getRootProps={getRootProps}
                 getInputProps={getInputProps}
                 isDragActive={isDragActive}
                 filter={filter}
@@ -1957,7 +1830,6 @@ export default function App() {
                 handleForceTrackerReannounce={handleForceTrackerReannounce}
                 onSetLocation={handleSetLocation}
                 onRedownload={handleRedownloadForDetail}
-                onRetry={handleRetryForDetail}
                 onResume={handleResumeForDetail}
                 capabilities={capabilities}
                 optimisticStatuses={optimisticStatuses}
@@ -1995,22 +1867,20 @@ export default function App() {
                     settingsFlow.settingsConfig.table_watermark_enabled
                 }
                 isDetailRecoveryBlocked={isDetailRecoveryBlocked}
-            />
-            <TorrentRecoveryModal
-                isOpen={Boolean(recoverySession)}
-                plan={recoveryPlan ?? null}
-                torrent={recoverySession?.torrent ?? null}
-                outcome={
-                    lastRecoveryOutcome ?? recoverySession?.outcome ?? null
-                }
-                onClose={handleRecoveryClose}
-                onPrimary={handleRecoveryPrimary}
-                onPickPath={handleRecoveryPickPath}
-                onReannounce={handleRecoveryReannounce}
-                onBrowse={recoveryRequestBrowse}
-                onRecreate={handleRecoveryRecreateFolder}
-                isBusy={isRecoveryBusy}
-            />
+                />
+                <TorrentRecoveryModal
+                    isOpen={Boolean(recoverySession)}
+                    torrent={recoverySession?.torrent ?? null}
+                    outcome={
+                        lastRecoveryOutcome ?? recoverySession?.outcome ?? null
+                    }
+                    onClose={handleRecoveryClose}
+                    onPickPath={handleRecoveryPickPath}
+                    onBrowse={recoveryRequestBrowse}
+                    onRecreate={handleRecoveryRecreateFolder}
+                    isBusy={isRecoveryBusy}
+                />
+            </RecoveryProvider>
             <CommandPalette
                 isOpen={isCommandPaletteOpen}
                 onOpenChange={setCommandPaletteOpen}

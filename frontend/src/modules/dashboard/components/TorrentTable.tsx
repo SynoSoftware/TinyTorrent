@@ -167,6 +167,7 @@ export function TorrentTable({
     optimisticStatuses = {},
     disableDetailOpen = false,
     ghostTorrents,
+    serverClass,
     onOpenFolder,
     onSetLocation,
     onRedownload,

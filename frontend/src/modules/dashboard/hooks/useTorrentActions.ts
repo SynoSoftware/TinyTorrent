@@ -100,7 +100,7 @@ export function useTorrentActions({
         ]
     );
 
-    const shouldRunRecovery = useCallback(
+    const evaluateRecoveryGate = useCallback(
         async (action: TorrentTableAction, target: Torrent) => {
             if (!requestRecovery) {
                 if (
@@ -113,25 +113,44 @@ export function useTorrentActions({
                         target.errorEnvelope.errorClass
                     );
                 }
-                return true;
+                return null;
             }
 
             if (action !== "resume" && action !== "recheck") {
-                return true;
+                return null;
             }
             const gateAction = (action === "resume"
                 ? "resume"
                 : "recheck") as RecoveryGateAction;
-            const result = await requestRecovery({
+            return requestRecovery({
                 torrent: target,
                 action: gateAction,
             });
-            if (!result) return true;
-            return result.status === "continue";
         },
         [requestRecovery]
     );
 
+    const refreshAfterRecovery = useCallback(async () => {
+        await refreshTorrents();
+        await refreshSessionStatsData();
+        await refreshDetailData();
+    }, [refreshDetailData, refreshSessionStatsData, refreshTorrents]);
+
+    const shouldRunRecovery = useCallback(
+        async (action: TorrentTableAction, target: Torrent) => {
+            const result = await evaluateRecoveryGate(action, target);
+            if (!result) return true;
+            if (result.status === "handled") {
+                await refreshAfterRecovery();
+                showFeedback(
+                    t("recovery.feedback.download_resumed"),
+                    "info"
+                );
+            }
+            return result.status === "continue";
+        },
+        [evaluateRecoveryGate, refreshAfterRecovery, showFeedback, t]
+    );
     const handleTorrentAction = useCallback(
         async (
             action: TorrentTableAction,
