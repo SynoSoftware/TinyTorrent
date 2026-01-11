@@ -948,7 +948,8 @@
         "feedback": {
             "downloading_missing": "Downloading missing pieces...",
             "folder_parent_opened": "Folder missing. Opened parent directory.",
-            "download_resumed": "Download resumed"
+            "download_resumed": "Download resumed",
+            "all_verified_resuming": "All files verified — resuming download."
         },
         "choose_another_folder": "Choose another folder",
         "outcome_message": "{{message}}",
@@ -959,7 +960,8 @@
             "missing_client_detail_envelope": "Missing client, detail, or envelope",
             "missing_client_or_detail": "Missing client or detail",
             "set_torrent_location_failed": "{{message}}",
-            "set_torrent_location_failed_default": "Failed to set location"
+            "set_torrent_location_failed_default": "Failed to set location",
+            "cannot_open_remote_folder": "Cannot open remote folder."
         },
         "status": {
             "ok": "Idle",

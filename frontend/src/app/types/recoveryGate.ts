@@ -13,6 +13,7 @@ export type RecoveryGateOutcome =
 
 export type RecoveryGateOptions = {
     recreateFolder?: boolean;
+    retryOnly?: boolean;
 };
 
 export type RecoveryGateCallback = (params: {

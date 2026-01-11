@@ -26,10 +26,8 @@ const RECOVERY_MESSAGE_LABEL_KEY: Record<string, string> = {
     path_ready: "recovery.message.path_ready",
     path_check_unknown: "recovery.message.path_check_unknown",
     directory_created: "recovery.message.directory_created",
-    directory_creation_denied:
-        "recovery.message.directory_creation_denied",
-    directory_creation_failed:
-        "recovery.message.directory_creation_failed",
+    directory_creation_denied: "recovery.message.directory_creation_denied",
+    directory_creation_failed: "recovery.message.directory_creation_failed",
     directory_creation_not_supported:
         "recovery.message.directory_creation_not_supported",
     path_access_denied: "recovery.message.path_access_denied",
@@ -43,8 +41,7 @@ const RECOVERY_MESSAGE_LABEL_KEY: Record<string, string> = {
     verify_not_supported: "recovery.message.verify_not_supported",
     verify_started: "recovery.message.verify_started",
     verify_failed: "recovery.message.verify_failed",
-    reannounce_not_supported:
-        "recovery.message.reannounce_not_supported",
+    reannounce_not_supported: "recovery.message.reannounce_not_supported",
     reannounce_started: "recovery.message.reannounce_started",
     reannounce_failed: "recovery.message.reannounce_failed",
     location_updated: "recovery.message.location_updated",
@@ -99,15 +96,12 @@ export default function TorrentRecoveryModal({
     }, [torrent, downloadDir, serverClass]);
 
     const shouldRender =
-        Boolean(classification) &&
-        classification?.kind !== "dataGap" &&
-        isOpen;
+        Boolean(classification) && classification?.kind !== "dataGap" && isOpen;
     if (!shouldRender) {
         return null;
     }
 
-    const isUnknownConfidence =
-        classification?.confidence === "unknown";
+    const isUnknownConfidence = classification?.confidence === "unknown";
     const isPathLoss = classification?.kind === "pathLoss";
     const isVolumeLoss = classification?.kind === "volumeLoss";
     const isAccessDenied = classification?.kind === "accessDenied";
@@ -139,16 +133,13 @@ export default function TorrentRecoveryModal({
         if (isPathLoss) {
             return t("recovery.status.folder_not_found", {
                 path:
-                    classification.path ??
-                    downloadDir ||
+                    (classification?.path ?? downloadDir) ||
                     t("labels.unknown"),
             });
         }
         if (isVolumeLoss) {
             return t("recovery.status.drive_disconnected", {
-                drive:
-                    classification.root ??
-                    t("labels.unknown"),
+                drive: classification.root ?? t("labels.unknown"),
             });
         }
         if (isAccessDenied) {
@@ -158,8 +149,8 @@ export default function TorrentRecoveryModal({
     })();
 
     const locationLabel =
-        (isVolumeLoss ? classification.root : classification.path) ??
-        downloadDir ||
+        ((isVolumeLoss ? classification?.root : classification?.path) ??
+            downloadDir) ||
         t("labels.unknown");
 
     const outcomeMessage = useMemo(
@@ -169,7 +160,7 @@ export default function TorrentRecoveryModal({
 
     const handleBrowse = useCallback(async () => {
         if (!onBrowse || busy) return;
-        const current = classification?.path ?? downloadDir || undefined;
+        const current = (classification?.path ?? downloadDir) || undefined;
         const picked = await onBrowse(current ?? null);
         if (!picked) return;
         await onPickPath(picked);
@@ -183,8 +174,7 @@ export default function TorrentRecoveryModal({
     const primaryDisabled = busy || (isVolumeLoss ? !handleRetry : !onBrowse);
     const primaryAction = isVolumeLoss ? handleRetry : handleBrowse;
 
-    const showRecreate =
-        isPathLoss && Boolean(onRecreate);
+    const showRecreate = isPathLoss && Boolean(onRecreate);
 
     return (
         <Modal

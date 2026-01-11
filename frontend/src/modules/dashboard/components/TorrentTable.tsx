@@ -134,6 +134,8 @@ interface TorrentTableProps {
         options?: { recreateFolder?: boolean }
     ) => Promise<void> | void;
     ghostTorrents?: Torrent[];
+    serverClass?: ServerClass;
+    onRetry?: (torrent: Torrent) => Promise<void> | void;
 }
 
 // --- HELPERS ---
