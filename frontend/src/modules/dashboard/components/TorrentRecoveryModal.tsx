@@ -1,91 +1,35 @@
 import {
     Button,
-    Input,
     Modal,
     ModalBody,
     ModalContent,
     ModalFooter,
     ModalHeader,
-    Spinner,
     cn,
 } from "@heroui/react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import {
-    AlertOctagon,
-    AlertTriangle,
-    Ban,
-    CheckCircle2,
-    Download,
-    FolderOpen,
-    HardDrive,
-    Info,
-    Play,
-    Radio,
-    ShieldCheck,
-    X,
-    type LucideIcon,
-} from "lucide-react";
-import type { TFunction } from "i18next";
+import { AlertTriangle, HardDrive, X } from "lucide-react";
 
 import { INTERACTION_CONFIG } from "@/config/logic";
 import { GLASS_MODAL_SURFACE } from "@/shared/ui/layout/glass-surface";
-import { StatusIcon } from "@/shared/ui/components/StatusIcon";
-import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
-import type {
-    RecoveryOutcome,
-    RecoveryPlan,
-} from "@/services/recovery/recovery-controller";
+import { classifyMissingFilesState } from "@/services/recovery/recovery-controller";
+import type { RecoveryOutcome } from "@/services/recovery/recovery-controller";
 import type { TorrentEntity } from "@/services/rpc/entities";
-import {
-    deriveMissingFilesStateKind,
-    extractDriveLabel,
-} from "@/shared/utils/recoveryFormat";
-
-// --- TYPES ---
-
-export interface TorrentRecoveryModalProps {
-    isOpen: boolean;
-    plan: RecoveryPlan | null;
-    outcome: RecoveryOutcome | null;
-    torrent?: TorrentEntity | null;
-    onClose: () => void;
-    onPrimary: () => Promise<void>;
-    onPickPath: (path: string) => Promise<void>;
-    onReannounce: () => Promise<void>;
-    onBrowse?: (currentPath?: string | null) => Promise<string | null>;
-    onRecreate?: () => Promise<void>;
-    isBusy?: boolean;
-}
-
-type ModalTone = "neutral" | "success" | "warning" | "danger";
-
-// --- STYLING ---
+import { useRecoveryContext } from "@/app/context/RecoveryContext";
 
 const MODAL_CLASSES =
     "w-full max-w-modal-compact flex flex-col overflow-hidden";
-
-const RECOVERY_ACTION_LABEL_KEY: Record<
-    RecoveryPlan["primaryAction"],
-    string | null
-> = {
-    reDownloadHere: "recovery.action.redownload_here",
-    createAndDownloadHere: "recovery.action.create_and_redownload_here",
-    pickPath: "recovery.action.pick_path",
-    verify: "recovery.action.verify",
-    resume: "recovery.action.resume",
-    reannounce: "recovery.action.reannounce",
-    openFolder: "recovery.action.open_folder",
-    none: null,
-};
 
 const RECOVERY_MESSAGE_LABEL_KEY: Record<string, string> = {
     insufficient_free_space: "recovery.message.insufficient_free_space",
     path_ready: "recovery.message.path_ready",
     path_check_unknown: "recovery.message.path_check_unknown",
     directory_created: "recovery.message.directory_created",
-    directory_creation_denied: "recovery.message.directory_creation_denied",
-    directory_creation_failed: "recovery.message.directory_creation_failed",
+    directory_creation_denied:
+        "recovery.message.directory_creation_denied",
+    directory_creation_failed:
+        "recovery.message.directory_creation_failed",
     directory_creation_not_supported:
         "recovery.message.directory_creation_not_supported",
     path_access_denied: "recovery.message.path_access_denied",
@@ -99,7 +43,8 @@ const RECOVERY_MESSAGE_LABEL_KEY: Record<string, string> = {
     verify_not_supported: "recovery.message.verify_not_supported",
     verify_started: "recovery.message.verify_started",
     verify_failed: "recovery.message.verify_failed",
-    reannounce_not_supported: "recovery.message.reannounce_not_supported",
+    reannounce_not_supported:
+        "recovery.message.reannounce_not_supported",
     reannounce_started: "recovery.message.reannounce_started",
     reannounce_failed: "recovery.message.reannounce_failed",
     location_updated: "recovery.message.location_updated",
@@ -107,269 +52,146 @@ const RECOVERY_MESSAGE_LABEL_KEY: Record<string, string> = {
         "recovery.message.filesystem_probing_not_supported",
 };
 
-const PRIMARY_ACTION_ICON: Partial<
-    Record<RecoveryPlan["primaryAction"], LucideIcon>
-> = {
-    reDownloadHere: Download,
-    createAndDownloadHere: Download,
-    pickPath: FolderOpen,
-    verify: ShieldCheck,
-    resume: Play,
-    reannounce: Radio,
-    openFolder: FolderOpen,
-};
-
-const PRIMARY_DESC_KEY: Record<RecoveryPlan["primaryAction"], string> = {
-    reDownloadHere: "recovery.modal.primary_desc.redownload_here",
-    createAndDownloadHere: "recovery.modal.primary_desc.create_and_redownload",
-    pickPath: "recovery.modal.primary_desc.pick_path",
-    verify: "recovery.modal.primary_desc.verify",
-    resume: "recovery.modal.primary_desc.resume",
-    reannounce: "recovery.modal.primary_desc.reannounce",
-    openFolder: "recovery.modal.primary_desc.open_folder",
-    none: "recovery.modal.primary_desc.none",
-};
-
-// --- LOGIC ---
-
-function getOutcomeTone(outcome: RecoveryOutcome | null): ModalTone {
-    if (!outcome) return "neutral";
-    switch (outcome.kind) {
-        case "resolved":
-        case "verify-started":
-        case "reannounce-started":
-            return "success";
-        case "path-needed":
-            return "warning";
-        case "error":
-            return "danger";
-        default:
-            return "neutral";
-    }
+export interface TorrentRecoveryModalProps {
+    isOpen: boolean;
+    torrent?: TorrentEntity | null;
+    outcome: RecoveryOutcome | null;
+    onClose: () => void;
+    onPickPath: (path: string) => Promise<void>;
+    onBrowse?: (currentPath?: string | null) => Promise<string | null>;
+    onRecreate?: () => Promise<void>;
+    isBusy?: boolean;
 }
 
-function getToneStyles(tone: ModalTone) {
-    switch (tone) {
-        case "success":
-            return {
-                text: "text-success",
-                icon: CheckCircle2,
-            };
-        case "warning":
-            return {
-                text: "text-warning",
-                icon: AlertTriangle,
-            };
-        case "danger":
-            return {
-                text: "text-danger",
-                icon: Ban,
-            };
-        default:
-            return {
-                text: "text-foreground",
-                icon: Info,
-            };
-    }
-}
-
-function resolveOutcomeMessage(
+const resolveOutcomeMessage = (
     outcome: RecoveryOutcome | null,
-    t: TFunction
-): string | null {
-    const raw = outcome?.message;
-    if (!raw) return null;
-    const key = RECOVERY_MESSAGE_LABEL_KEY[raw];
-    return key ? t(key) : raw;
-}
-
-// --- COMPONENT ---
+    t: (key: string) => string
+): string | null => {
+    if (!outcome?.message) return null;
+    const key = RECOVERY_MESSAGE_LABEL_KEY[outcome.message];
+    return key ? t(key) : outcome.message;
+};
 
 export default function TorrentRecoveryModal({
     isOpen,
-    plan,
-    outcome,
     torrent,
+    outcome,
     onClose,
-    onPrimary,
     onPickPath,
-    onReannounce,
     onBrowse,
     onRecreate,
     isBusy,
 }: TorrentRecoveryModalProps) {
     const { t } = useTranslation();
-    const [pathDraft, setPathDraft] = useState("");
-    const [isBrowsing, setIsBrowsing] = useState(false);
-
-    const busy = Boolean(isBusy) || isBrowsing;
-
-    useEffect(() => {
-        if (!isOpen) return;
-        setPathDraft(plan?.suggestedPath ?? "");
-        setIsBrowsing(false);
-    }, [isOpen, plan?.suggestedPath]);
+    const busy = Boolean(isBusy);
+    const { serverClass, handleRetry } = useRecoveryContext();
 
     const downloadDir =
-        plan?.suggestedPath ??
-        torrent?.downloadDir ??
-        torrent?.savePath ??
-        torrent?.downloadDir ??
-        "";
+        torrent?.downloadDir ?? torrent?.savePath ?? torrent?.downloadDir ?? "";
 
-    const stateKind = useMemo(
-        () =>
-            deriveMissingFilesStateKind(
-                torrent?.errorEnvelope ?? null,
-                downloadDir
-            ),
-        [torrent?.errorEnvelope, downloadDir]
-    );
+    const classification = useMemo(() => {
+        if (!torrent) return null;
+        return classifyMissingFilesState(
+            torrent.errorEnvelope ?? null,
+            downloadDir,
+            serverClass
+        );
+    }, [torrent, downloadDir, serverClass]);
 
-    const headerTitle = useMemo(() => {
-        if (stateKind === "accessDenied") {
-            return t("recovery.modal.title_location_blocked");
+    const shouldRender =
+        Boolean(classification) &&
+        classification?.kind !== "dataGap" &&
+        isOpen;
+    if (!shouldRender) {
+        return null;
+    }
+
+    const isUnknownConfidence =
+        classification?.confidence === "unknown";
+    const isPathLoss = classification?.kind === "pathLoss";
+    const isVolumeLoss = classification?.kind === "volumeLoss";
+    const isAccessDenied = classification?.kind === "accessDenied";
+
+    const title = (() => {
+        if (isUnknownConfidence) {
+            return t("recovery.modal_title_fallback");
         }
-        if (
-            stateKind === "pathLoss" ||
-            stateKind === "volumeLoss" ||
-            stateKind === "dataGap"
-        ) {
-            return t("recovery.modal.title_location_required");
-        }
-        return t("recovery.modal.title");
-    }, [stateKind, t]);
+        if (isPathLoss) return t("recovery.modal_title_folder");
+        if (isVolumeLoss) return t("recovery.modal_title_drive");
+        if (isAccessDenied) return t("recovery.modal_title_access");
+        return t("recovery.modal_title_fallback");
+    })();
 
-    const statusText = useMemo(() => {
-        const fallback =
-            plan?.rationale && plan.rationale !== "none"
-                ? t(plan.rationale)
-                : t("recovery.no_primary_recovery_for_error_class");
-        if (stateKind === "pathLoss") {
+    const bodyText = (() => {
+        if (isUnknownConfidence) {
+            return t("recovery.modal_body_fallback");
+        }
+        if (isPathLoss) return t("recovery.modal_body_folder");
+        if (isVolumeLoss) return t("recovery.modal_body_drive");
+        if (isAccessDenied) return t("recovery.modal_body_access");
+        return t("recovery.modal_body_fallback");
+    })();
+
+    const statusText = (() => {
+        if (isUnknownConfidence) {
+            return t("recovery.inline_fallback");
+        }
+        if (isPathLoss) {
             return t("recovery.status.folder_not_found", {
-                path: downloadDir || t("labels.unknown"),
-            });
-        }
-        if (stateKind === "volumeLoss") {
-            return t("recovery.status.drive_disconnected", {
-                drive:
-                    extractDriveLabel(downloadDir) ??
+                path:
+                    classification.path ??
+                    downloadDir ||
                     t("labels.unknown"),
             });
         }
-        if (stateKind === "accessDenied") {
+        if (isVolumeLoss) {
+            return t("recovery.status.drive_disconnected", {
+                drive:
+                    classification.root ??
+                    t("labels.unknown"),
+            });
+        }
+        if (isAccessDenied) {
             return t("recovery.status.access_denied");
         }
-        return fallback;
-    }, [stateKind, downloadDir, plan?.rationale, t]);
+        return t("recovery.generic_header");
+    })();
 
-    const requiresUserPath = Boolean(
-        outcome?.kind === "path-needed" ||
-            plan?.requiresPath ||
-            plan?.primaryAction === "pickPath"
-    );
+    const locationLabel =
+        (isVolumeLoss ? classification.root : classification.path) ??
+        downloadDir ||
+        t("labels.unknown");
 
     const outcomeMessage = useMemo(
         () => resolveOutcomeMessage(outcome, t),
         [outcome, t]
     );
-    const outcomeTone = useMemo(() => getOutcomeTone(outcome), [outcome]);
-    const toneStyles = getToneStyles(outcomeTone);
-
-    const primaryDescription = useMemo(() => {
-        if (!plan) return null;
-        const key =
-            PRIMARY_DESC_KEY[plan.primaryAction] ??
-            PRIMARY_DESC_KEY.none;
-        return t(key);
-    }, [plan, t]);
 
     const handleBrowse = useCallback(async () => {
         if (!onBrowse || busy) return;
-        setIsBrowsing(true);
-        try {
-            const picked = await onBrowse(
-                pathDraft || plan?.suggestedPath
-            );
-            if (picked) {
-                setPathDraft(picked);
-                await onPickPath(picked);
-            }
-        } finally {
-            setIsBrowsing(false);
-        }
-    }, [
-        busy,
-        onBrowse,
-        pathDraft,
-        plan?.suggestedPath,
-        onPickPath,
-    ]);
+        const current = classification?.path ?? downloadDir || undefined;
+        const picked = await onBrowse(current ?? null);
+        if (!picked) return;
+        await onPickPath(picked);
+    }, [busy, classification?.path, downloadDir, onBrowse, onPickPath]);
 
-    const handleConfirmPickPath = useCallback(async () => {
-        const trimmed = pathDraft.trim();
-        if (!trimmed || busy) return;
-        await onPickPath(trimmed);
-    }, [busy, onPickPath, pathDraft]);
+    const primaryLabel = isAccessDenied
+        ? t("recovery.action.choose_location")
+        : isVolumeLoss
+        ? t("recovery.action_retry")
+        : t("recovery.action_locate");
+    const primaryDisabled = busy || (isVolumeLoss ? !handleRetry : !onBrowse);
+    const primaryAction = isVolumeLoss ? handleRetry : handleBrowse;
 
-    const primary = useMemo(() => {
-        if (!plan) {
-            return {
-                key: "none",
-                label: t("modals.cancel"),
-                onPress: onClose,
-                isDisabled: busy,
-                icon: X,
-            };
-        }
-
-        if (requiresUserPath) {
-            return {
-                key: "locate",
-                label: t("recovery.action.locate"),
-                onPress: handleBrowse,
-                isDisabled: busy || !onBrowse,
-                icon: FolderOpen,
-            };
-        }
-
-        if (plan.primaryAction === "reannounce") {
-            return {
-                key: "reannounce",
-                label: t("recovery.action.reannounce"),
-                onPress: onReannounce,
-                isDisabled: busy,
-                icon: Radio,
-            };
-        }
-
-        const labelKey = RECOVERY_ACTION_LABEL_KEY[plan.primaryAction];
-        return {
-            key: plan.primaryAction,
-            label: labelKey ? t(labelKey) : t("recovery.action.resume"),
-            onPress: onPrimary,
-            isDisabled: busy,
-            icon: PRIMARY_ACTION_ICON[plan.primaryAction] ?? Play,
-        };
-    }, [
-        busy,
-        handleBrowse,
-        onBrowse,
-        onClose,
-        onPrimary,
-        onReannounce,
-        plan,
-        requiresUserPath,
-        t,
-    ]);
-
-    const showRecreateAction =
-        stateKind === "pathLoss" && Boolean(onRecreate);
+    const showRecreate =
+        isPathLoss && Boolean(onRecreate);
 
     return (
         <Modal
             isOpen={isOpen}
-            onOpenChange={(open) => (!open ? onClose() : undefined)}
+            onOpenChange={(open) => {
+                if (!open) onClose();
+            }}
             backdrop="blur"
             placement="center"
             motionProps={INTERACTION_CONFIG.modalBloom}
@@ -383,132 +205,73 @@ export default function TorrentRecoveryModal({
                 {() => (
                     <>
                         <ModalHeader className="flex items-center justify-between gap-tools px-panel py-panel border-b border-divider">
-                            <div className="flex items-center gap-tools min-w-0">
-                                <div className="surface-layer-1 rounded-full p-tight shrink-0">
-                                    <StatusIcon
-                                        Icon={AlertOctagon}
-                                        size="lg"
-                                        className="text-danger"
-                                    />
+                            <div className="flex items-center gap-tools">
+                                <div className="surface-layer-1 rounded-full p-tight">
+                                    <AlertTriangle className="toolbar-icon-size-md text-warning" />
                                 </div>
-                                <div className="flex flex-col min-w-0">
-                                    <h2 className="text-label font-bold uppercase tracking-label text-foreground">
-                                        {headerTitle}
-                                    </h2>
-                                </div>
+                                <h2 className="text-scaled font-bold uppercase tracking-label text-foreground">
+                                    {title}
+                                </h2>
                             </div>
-                            <ToolbarIconButton
-                                Icon={X}
-                                ariaLabel={t("torrent_modal.actions.close")}
+                            <Button
+                                variant="ghost"
+                                color="default"
+                                size="md"
                                 onPress={onClose}
                                 isDisabled={busy}
-                            />
+                            >
+                                <X />
+                            </Button>
                         </ModalHeader>
 
-                        <ModalBody className="relative flex flex-col gap-stage p-panel">
-                            <div className="flex items-start gap-tools">
-                                <div className="surface-layer-1 rounded-panel p-tight shrink-0">
-                                    <AlertOctagon className="toolbar-icon-size-md text-danger" />
-                                </div>
-                                <div className="flex flex-col gap-tight min-w-0">
-                                    <p className="text-scaled font-semibold text-foreground">
-                                        {statusText}
-                                    </p>
-                                    {primaryDescription && (
-                                        <p className="text-label text-foreground/70">
-                                            {primaryDescription}
-                                        </p>
-                                    )}
-                                </div>
+                        <ModalBody className="flex flex-col gap-stage p-panel">
+                            <div className="flex flex-col gap-tight">
+                                <p className="text-scaled font-semibold text-foreground">
+                                    {statusText}
+                                </p>
+                                <p className="text-label text-foreground/70">
+                                    {bodyText}
+                                </p>
                             </div>
-
-                            {!requiresUserPath && plan?.suggestedPath && (
-                                <div className="flex items-center gap-tools">
-                                    <div className="surface-layer-1 rounded-panel p-tight shrink-0">
-                                        <HardDrive className="toolbar-icon-size-md text-foreground" />
-                                    </div>
-                                    <span
-                                        className="text-label font-mono text-foreground truncate"
-                                        title={plan.suggestedPath}
-                                    >
-                                        {plan.suggestedPath}
-                                    </span>
+                            <div className="flex items-center gap-tools surface-layer-1 rounded-panel p-tight">
+                                <HardDrive className="toolbar-icon-size-md text-foreground" />
+                                <span
+                                    className="font-mono text-label text-foreground truncate"
+                                    title={locationLabel}
+                                >
+                                    {locationLabel}
+                                </span>
+                            </div>
+                            {isVolumeLoss && (
+                                <div className="text-label text-foreground/60">
+                                    {t("recovery.status.waiting_for_drive")}
                                 </div>
                             )}
-
-                            {requiresUserPath && (
-                                <div className="flex flex-col gap-tight">
-                                    <Input
-                                        value={pathDraft}
-                                        onChange={(event) =>
-                                            setPathDraft(event.target.value ?? "")
-                                        }
-                                        placeholder={t(
-                                            "recovery.modal.path_placeholder"
-                                        )}
-                                        startContent={
-                                            <FolderOpen className="toolbar-icon-size-md text-foreground" />
-                                        }
-                                        variant="faded"
-                                        isDisabled={busy}
-                                        classNames={{
-                                            input: "font-mono text-label",
-                                        }}
-                                    />
-                                    <div className="flex items-center gap-tools">
-                                        <Button
-                                            variant="ghost"
-                                            onPress={handleConfirmPickPath}
-                                            isDisabled={busy || !pathDraft.trim()}
-                                            className="font-medium text-foreground"
-                                        >
-                                            {t("recovery.action.pick_path")}
-                                        </Button>
-                                    </div>
-                                </div>
-                            )}
-
-                            {(busy || outcomeMessage) && (
-                                <div className="flex items-center gap-tools p-panel rounded-panel border border-divider">
-                                    {busy ? (
-                                        <Spinner color="current" />
-                                    ) : (
-                                        <StatusIcon
-                                            Icon={toneStyles.icon}
-                                            size="md"
-                                            className={toneStyles.text}
-                                        />
-                                    )}
-                                    <span
-                                        className={cn(
-                                            "text-label font-semibold",
-                                            toneStyles.text
-                                        )}
-                                    >
-                                        {busy
-                                            ? t("recovery.modal.in_progress")
-                                            : outcomeMessage}
-                                    </span>
+                            {outcomeMessage && (
+                                <div className="surface-layer-1 rounded-panel p-tight text-label text-foreground/70">
+                                    {outcomeMessage}
                                 </div>
                             )}
                         </ModalBody>
 
                         <ModalFooter className="flex items-center justify-between gap-tools px-panel py-panel border-t border-divider">
                             <div className="flex items-center gap-tools">
-                                {showRecreateAction && (
+                                {showRecreate && (
                                     <Button
-                                        variant="ghost"
-                                        onPress={() => void onRecreate?.()}
+                                        variant="light"
+                                        size="md"
+                                        onPress={onRecreate}
                                         isDisabled={busy}
                                         className="font-medium text-foreground"
                                     >
-                                        {t("recovery.action.recreate_folder")}
+                                        {t("recovery.action_recreate")}
                                     </Button>
                                 )}
                             </div>
                             <div className="flex items-center gap-tools">
                                 <Button
                                     variant="light"
+                                    size="md"
                                     onPress={onClose}
                                     isDisabled={busy}
                                     className="font-medium text-foreground"
@@ -516,27 +279,14 @@ export default function TorrentRecoveryModal({
                                     {t("modals.cancel")}
                                 </Button>
                                 <Button
-                                    color={
-                                        outcomeTone === "danger"
-                                            ? "danger"
-                                            : "primary"
-                                    }
                                     variant="shadow"
+                                    color="primary"
                                     size="lg"
-                                    onPress={primary.onPress}
-                                    isDisabled={primary.isDisabled}
-                                    isLoading={busy}
-                                    startContent={
-                                        !busy && primary.icon ? (
-                                            <StatusIcon
-                                                Icon={primary.icon}
-                                                size="md"
-                                            />
-                                        ) : null
-                                    }
+                                    onPress={primaryAction}
+                                    isDisabled={primaryDisabled}
                                     className="font-bold"
                                 >
-                                    {primary.label}
+                                    {primaryLabel}
                                 </Button>
                             </div>
                         </ModalFooter>

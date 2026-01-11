@@ -28,7 +28,7 @@ import {
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 import type { CapabilityStore } from "@/app/types/capabilities";
 import type { WorkspaceStyle } from "@/app/hooks/useWorkspaceShell";
-import type { TorrentPeerEntity } from "@/services/rpc/entities";
+import type { ServerClass, TorrentPeerEntity } from "@/services/rpc/entities";
 import type {
     FileExplorerContextAction,
     FileExplorerEntry,
@@ -335,6 +335,7 @@ export function Dashboard_Layout({
                                     ghostTorrents={ghostTorrents}
                                     onOpenFolder={onOpenFolder}
                                     onSetLocation={onSetLocation}
+                                    onRetry={onRetry}
                                 />
                             </div>
                         </div>
