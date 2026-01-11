@@ -749,16 +749,9 @@ export default function App() {
 
     const recoveryRequestBrowse = useCallback(
         async (currentPath?: string | null) => {
+            // Picker-only: do not fall back to free-form text input.
             const nativePath = await choosePathViaNativeShell(currentPath);
-            if (nativePath) return nativePath;
-            const pick = window.prompt(
-                t("recovery.prompt.enter_new_path"),
-                currentPath ?? ""
-            );
-            if (pick === null) return null;
-            const trimmed = pick.trim();
-            if (!trimmed) return null;
-            return trimmed;
+            return nativePath ?? null;
         },
         [choosePathViaNativeShell, t]
     );
@@ -771,6 +764,40 @@ export default function App() {
             );
         },
         [recoveryCallbacks?.handlePickPath, runRecoveryOperation]
+    );
+
+    const executeRetryFetch = useCallback(
+        async (target: Torrent | TorrentDetail) => {
+            const client = torrentClientRef.current;
+            if (!client) return;
+            // Retry must be probe-only: request the recovery gate with retryOnly
+            // so the controller performs availability probing without mutating
+            // engine state (no verify, reannounce, resume, or set-location).
+            const gateResult = await requestRecovery({
+                torrent: target,
+                action: "recheck",
+                options: { recreateFolder: false, retryOnly: true },
+            });
+
+            // Per spec, Retry should not open the modal automatically; if the
+            // gate returned a non-continue status, we simply return.
+            if (gateResult && gateResult.status !== "continue") {
+                return;
+            }
+
+            // Refresh UI state so any updated classification from the probe
+            // is visible to the user. Do NOT perform any engine mutations here.
+            try {
+                await refreshTorrentsRef.current?.();
+                await refreshSessionStatsDataRef.current?.();
+                if (detailData?.id === target.id) {
+                    await refreshDetailData();
+                }
+            } catch (err) {
+                console.error("refresh after retry probe failed", err);
+            }
+        },
+        [requestRecovery, refreshDetailData]
     );
 
     const handleRecoveryRetry = useCallback(async () => {
@@ -1241,19 +1268,10 @@ export default function App() {
             if (gateResult && gateResult.status !== "continue") {
                 return;
             }
-            let chosen: string | null | undefined =
-                await choosePathViaNativeShell(target.savePath ?? undefined);
-            if (!chosen) {
-                const promptMessage = t(
-                    "directory_browser.manual_entry_prompt"
-                );
-                const defaultValue = target.savePath ?? "";
-                const manualEntry = window.prompt(promptMessage, defaultValue);
-                if (manualEntry === null) return;
-                const trimmedEntry = manualEntry.trim();
-                if (!trimmedEntry) return;
-                chosen = trimmedEntry;
-            }
+            // Picker-only: require native picker; do not accept free-form text.
+            const chosen = await choosePathViaNativeShell(
+                target.savePath ?? undefined
+            );
             if (!chosen) return;
 
             try {
@@ -1318,7 +1336,7 @@ export default function App() {
             options?: { recreateFolder?: boolean }
         ) => {
             const key =
-                (target.errorEnvelope?.fingerprint ?? null) ??
+                target.errorEnvelope?.fingerprint ??
                 String(target.id ?? target.hash);
             if (redownloadInFlight.current.has(key)) {
                 return;
@@ -1372,65 +1390,6 @@ export default function App() {
     const handleResumeForDetail = useCallback(
         (torrent: TorrentDetail) => void handleTorrentAction("resume", torrent),
         [handleTorrentAction]
-    );
-
-    const executeRetryFetch = useCallback(
-        async (target: Torrent | TorrentDetail) => {
-            const client = torrentClientRef.current;
-            if (!client) return;
-            const gateResult = await requestRecovery({
-                torrent: target,
-                action: "recheck",
-            });
-            if (gateResult && gateResult.status !== "continue") {
-                return;
-            }
-
-            const fingerprint = target.errorEnvelope?.fingerprint ?? null;
-
-            const errorClass = target.errorEnvelope?.errorClass;
-            const isTrackerError =
-                errorClass === "trackerWarning" ||
-                errorClass === "trackerError";
-
-            if (
-                isTrackerError &&
-                typeof client.forceTrackerReannounce === "function"
-            ) {
-                try {
-                    await client.forceTrackerReannounce(target.id);
-                    // No UI-driven suppression: do not call into recoveryAutomation
-                    // for clearing fingerprints. Engine truth will drive state.
-                } catch (err) {
-                    console.error("retry fetch reannounce failed", err);
-                    return;
-                }
-            } else if (typeof client.verify === "function") {
-                try {
-                    if (recoveryCallbacks?.handleVerify) {
-                        await recoveryCallbacks.handleVerify();
-                    } else {
-                        await client.verify([target.id]);
-                    }
-                } catch (err) {
-                    console.error("retry fetch verify failed", err);
-                    return;
-                }
-            } else {
-                return;
-            }
-
-            await refreshTorrentsRef.current?.();
-            await refreshSessionStatsDataRef.current?.();
-            if (detailData?.id === target.id) {
-                try {
-                    await refreshDetailData();
-                } catch (err) {
-                    console.error("refreshDetailData failed", err);
-                }
-            }
-        },
-        [detailData, refreshDetailData, requestRecovery]
     );
 
     useEffect(() => {
@@ -1803,70 +1762,72 @@ export default function App() {
             >
                 <WorkspaceShell
                     getRootProps={getRootProps}
-                getInputProps={getInputProps}
-                isDragActive={isDragActive}
-                filter={filter}
-                searchQuery={searchQuery}
-                setSearchQuery={setSearchQuery}
-                setFilter={setFilter}
-                openAddTorrent={openAddTorrentPicker}
-                openAddMagnet={() => openAddMagnet()}
-                openSettings={openSettings}
-                selectedTorrents={selectedTorrents}
-                handleBulkAction={handleBulkAction}
-                rehashStatus={rehashStatus}
-                workspaceStyle={workspaceStyle}
-                toggleWorkspaceStyle={wrappedToggleWorkspaceStyle}
-                torrents={torrents}
-                ghostTorrents={ghostTorrents}
-                isTableLoading={!isInitialLoadFinished}
-                handleTorrentAction={handleTorrentAction}
-                handleRequestDetails={handleRequestDetails}
-                detailData={detailData}
-                closeDetail={handleCloseDetail}
-                handleFileSelectionChange={handleFileSelectionChange}
-                sequentialToggleHandler={handleSequentialToggle}
-                superSeedingToggleHandler={handleSuperSeedingToggle}
-                handleForceTrackerReannounce={handleForceTrackerReannounce}
-                onSetLocation={handleSetLocation}
-                onRedownload={handleRedownloadForDetail}
-                onResume={handleResumeForDetail}
-                capabilities={capabilities}
-                optimisticStatuses={optimisticStatuses}
-                handleSelectionChange={handleSelectionChange}
-                handleActiveRowChange={handleActiveRowChange}
-                handleOpenFolder={handleOpenFolder}
-                peerSortStrategy={peerSortStrategy}
-                inspectorTabCommand={inspectorTabCommand}
-                onInspectorTabCommandHandled={handleInspectorTabCommandHandled}
-                sessionStats={sessionStats}
-                liveTransportStatus={liveTransportStatus}
-                rpcStatus={rpcStatus}
-                engineType={engineType}
-                serverClass={serverClass}
-                isNativeIntegrationActive={isNativeIntegrationActive}
-                handleReconnect={handleReconnect}
-                pendingDelete={pendingDelete}
-                clearPendingDelete={clearPendingDelete}
-                confirmDelete={confirmDelete}
-                visibleHudCards={visibleHudCards}
-                dismissHudCard={dismissHudCard}
-                hasDismissedInsights={hasDismissedInsights}
-                isSettingsOpen={isSettingsOpen}
-                closeSettings={closeSettings}
-                settingsConfig={settingsFlow.settingsConfig}
-                isSettingsSaving={settingsFlow.isSettingsSaving}
-                settingsLoadError={settingsFlow.settingsLoadError}
-                handleSaveSettings={settingsFlow.handleSaveSettings}
-                handleTestPort={settingsFlow.handleTestPort}
-                restoreHudCards={restoreHudCards}
-                applyUserPreferencesPatch={
-                    settingsFlow.applyUserPreferencesPatch
-                }
-                tableWatermarkEnabled={
-                    settingsFlow.settingsConfig.table_watermark_enabled
-                }
-                isDetailRecoveryBlocked={isDetailRecoveryBlocked}
+                    getInputProps={getInputProps}
+                    isDragActive={isDragActive}
+                    filter={filter}
+                    searchQuery={searchQuery}
+                    setSearchQuery={setSearchQuery}
+                    setFilter={setFilter}
+                    openAddTorrent={openAddTorrentPicker}
+                    openAddMagnet={() => openAddMagnet()}
+                    openSettings={openSettings}
+                    selectedTorrents={selectedTorrents}
+                    handleBulkAction={handleBulkAction}
+                    rehashStatus={rehashStatus}
+                    workspaceStyle={workspaceStyle}
+                    toggleWorkspaceStyle={wrappedToggleWorkspaceStyle}
+                    torrents={torrents}
+                    ghostTorrents={ghostTorrents}
+                    isTableLoading={!isInitialLoadFinished}
+                    handleTorrentAction={handleTorrentAction}
+                    handleRequestDetails={handleRequestDetails}
+                    detailData={detailData}
+                    closeDetail={handleCloseDetail}
+                    handleFileSelectionChange={handleFileSelectionChange}
+                    sequentialToggleHandler={handleSequentialToggle}
+                    superSeedingToggleHandler={handleSuperSeedingToggle}
+                    handleForceTrackerReannounce={handleForceTrackerReannounce}
+                    onSetLocation={handleSetLocation}
+                    onRedownload={handleRedownloadForDetail}
+                    onResume={handleResumeForDetail}
+                    capabilities={capabilities}
+                    optimisticStatuses={optimisticStatuses}
+                    handleSelectionChange={handleSelectionChange}
+                    handleActiveRowChange={handleActiveRowChange}
+                    handleOpenFolder={handleOpenFolder}
+                    peerSortStrategy={peerSortStrategy}
+                    inspectorTabCommand={inspectorTabCommand}
+                    onInspectorTabCommandHandled={
+                        handleInspectorTabCommandHandled
+                    }
+                    sessionStats={sessionStats}
+                    liveTransportStatus={liveTransportStatus}
+                    rpcStatus={rpcStatus}
+                    engineType={engineType}
+                    serverClass={serverClass}
+                    isNativeIntegrationActive={isNativeIntegrationActive}
+                    handleReconnect={handleReconnect}
+                    pendingDelete={pendingDelete}
+                    clearPendingDelete={clearPendingDelete}
+                    confirmDelete={confirmDelete}
+                    visibleHudCards={visibleHudCards}
+                    dismissHudCard={dismissHudCard}
+                    hasDismissedInsights={hasDismissedInsights}
+                    isSettingsOpen={isSettingsOpen}
+                    closeSettings={closeSettings}
+                    settingsConfig={settingsFlow.settingsConfig}
+                    isSettingsSaving={settingsFlow.isSettingsSaving}
+                    settingsLoadError={settingsFlow.settingsLoadError}
+                    handleSaveSettings={settingsFlow.handleSaveSettings}
+                    handleTestPort={settingsFlow.handleTestPort}
+                    restoreHudCards={restoreHudCards}
+                    applyUserPreferencesPatch={
+                        settingsFlow.applyUserPreferencesPatch
+                    }
+                    tableWatermarkEnabled={
+                        settingsFlow.settingsConfig.table_watermark_enabled
+                    }
+                    isDetailRecoveryBlocked={isDetailRecoveryBlocked}
                 />
                 <TorrentRecoveryModal
                     isOpen={Boolean(recoverySession)}
@@ -1876,7 +1837,11 @@ export default function App() {
                     }
                     onClose={handleRecoveryClose}
                     onPickPath={handleRecoveryPickPath}
-                    onBrowse={recoveryRequestBrowse}
+                    onBrowse={
+                        NativeShell.isAvailable
+                            ? recoveryRequestBrowse
+                            : undefined
+                    }
                     onRecreate={handleRecoveryRecreateFolder}
                     isBusy={isRecoveryBusy}
                 />

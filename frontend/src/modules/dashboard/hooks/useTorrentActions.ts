@@ -103,10 +103,7 @@ export function useTorrentActions({
     const evaluateRecoveryGate = useCallback(
         async (action: TorrentTableAction, target: Torrent) => {
             if (!requestRecovery) {
-                if (
-                    import.meta.env.DEV &&
-                    target.errorEnvelope
-                ) {
+                if (import.meta.env.DEV && target.errorEnvelope) {
                     console.error(
                         "Recovery gate missing for action",
                         action,
@@ -119,9 +116,9 @@ export function useTorrentActions({
             if (action !== "resume" && action !== "recheck") {
                 return null;
             }
-            const gateAction = (action === "resume"
-                ? "resume"
-                : "recheck") as RecoveryGateAction;
+            const gateAction = (
+                action === "resume" ? "resume" : "recheck"
+            ) as RecoveryGateAction;
             return requestRecovery({
                 torrent: target,
                 action: gateAction,
@@ -142,10 +139,7 @@ export function useTorrentActions({
             if (!result) return true;
             if (result.status === "handled") {
                 await refreshAfterRecovery();
-                showFeedback(
-                    t("recovery.feedback.download_resumed"),
-                    "info"
-                );
+                showFeedback(t("recovery.feedback.download_resumed"), "info");
             }
             return result.status === "continue";
         },
@@ -203,10 +197,7 @@ export function useTorrentActions({
                 } catch (error) {
                     const kind = interpretFsError(error);
                     if (kind !== "enoent") {
-                        if (
-                            isMountedRef.current &&
-                            !isRpcCommandError(error)
-                        ) {
+                        if (isMountedRef.current && !isRpcCommandError(error)) {
                             reportCommandError(error);
                         }
                         return;
@@ -231,6 +222,12 @@ export function useTorrentActions({
                         "info"
                     );
                 }
+            } else {
+                // Could not open any mapped path; inform the user.
+                showFeedback(
+                    t("recovery.errors.cannot_open_remote_folder"),
+                    "danger"
+                );
             }
         },
         [reportCommandError, torrentClient, isMountedRef, showFeedback, t]

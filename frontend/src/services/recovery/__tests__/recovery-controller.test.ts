@@ -122,7 +122,10 @@ describe("recovery-controller helpers", () => {
     };
 
     it("dedupes concurrent recovery calls using the same fingerprint", async () => {
-        const deferred = createDeferred<{ totalBytes: number; freeBytes: number }>();
+        const deferred = createDeferred<{
+            totalBytes: number;
+            freeBytes: number;
+        }>();
         let checkCalls = 0;
         const client: Partial<EngineAdapter> = {
             checkFreeSpace: vi.fn(async () => {
@@ -165,9 +168,10 @@ describe("recovery-controller helpers", () => {
             classification,
             serverClass: "unknown",
         });
-        expect(run1).toBe(run2);
+        // Both calls should resolve to the same result; compare resolved values
         deferred.resolve({ totalBytes: 100, freeBytes: 50 });
-        await expect(run1).resolves.toBeDefined();
+        const [res1, res2] = await Promise.all([run1, run2]);
+        expect(res1).toStrictEqual(res2);
     });
 
     it("retry-only runs availability reprobe without touching verify/resume/location", async () => {
@@ -273,6 +277,50 @@ describe("recovery-controller helpers", () => {
         });
         expect(result.status).toBe("resolved");
         expect(setLocation).toHaveBeenCalled();
+        expect(verify).toHaveBeenCalled();
+        expect(resume).toHaveBeenCalled();
+    });
+
+    it("fast-path returns all_verified_resuming when verify finishes with zero left", async () => {
+        const verify = vi.fn(async () => {});
+        const resume = vi.fn(async () => {});
+        const getTorrentDetails = vi.fn(async () => ({
+            state: "idle",
+            leftUntilDone: 0,
+        }));
+        const client: Partial<EngineAdapter> = {
+            checkFreeSpace: vi.fn(async () => ({
+                totalBytes: 4096,
+                freeBytes: 2048,
+            })) as any,
+            resume,
+            verify,
+            getTorrentDetails: getTorrentDetails as any,
+        };
+        const envelope = {
+            errorClass: "missingFiles",
+            errorMessage: "No such file",
+        } as ErrorEnvelope;
+        const classification: MissingFilesClassification = {
+            kind: "pathLoss",
+            confidence: "unknown",
+            path: "C:\\Missing",
+        };
+        const result = await runMissingFilesRecoverySequence({
+            client: client as EngineAdapter,
+            torrent: {
+                ...baseTorrent,
+                state: "missing_files",
+                downloadDir: "C:\\Missing",
+                savePath: "C:\\Missing",
+                leftUntilDone: 1000,
+            } as any,
+            envelope,
+            classification,
+            serverClass: "unknown",
+        });
+        expect(result.status).toBe("resolved");
+        expect(result.log).toBe("all_verified_resuming");
         expect(verify).toHaveBeenCalled();
         expect(resume).toHaveBeenCalled();
     });
