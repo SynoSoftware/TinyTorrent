@@ -177,14 +177,18 @@ export async function runMissingFilesRecoverySequence(
 
     // Create a deferred promise and store it synchronously so concurrent callers
     // receive the same Promise instance (dedupe in-flight recovery calls).
-    let resolveDeferred: (v: RecoverySequenceResult) => void;
-    let rejectDeferred: (e: unknown) => void;
+    const deferredHandlers: {
+        resolve: (v: RecoverySequenceResult) => void;
+        reject: (e: unknown) => void;
+    } = {
+        resolve: () => {},
+        reject: () => {},
+    };
+
     const deferredPromise = new Promise<RecoverySequenceResult>(
         (resolve, reject) => {
-            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-            resolveDeferred = resolve!;
-            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-            rejectDeferred = reject!;
+            deferredHandlers.resolve = resolve;
+            deferredHandlers.reject = reject;
         }
     );
 
@@ -199,7 +203,7 @@ export async function runMissingFilesRecoverySequence(
                 "";
 
             if (!downloadDir) {
-                resolveDeferred({
+                deferredHandlers.resolve({
                     status: "needsModal",
                     classification,
                     blockingOutcome: {
@@ -213,7 +217,7 @@ export async function runMissingFilesRecoverySequence(
 
             if (classification.kind === "volumeLoss") {
                 if (!client.checkFreeSpace) {
-                    resolveDeferred({
+                    deferredHandlers.resolve({
                         status: "needsModal",
                         classification,
                         blockingOutcome: {
@@ -227,7 +231,7 @@ export async function runMissingFilesRecoverySequence(
                 const probe = await pollPathAvailability(client, downloadDir);
                 if (!probe.success) {
                     const reason = deriveReasonFromFsError(probe.errorKind);
-                    resolveDeferred({
+                    deferredHandlers.resolve({
                         status: "needsModal",
                         classification,
                         blockingOutcome: {
@@ -252,14 +256,14 @@ export async function runMissingFilesRecoverySequence(
             });
             if (!ensure.ready) {
                 if (ensure.blockingOutcome) {
-                    resolveDeferred({
+                    deferredHandlers.resolve({
                         status: "needsModal",
                         classification,
                         blockingOutcome: ensure.blockingOutcome,
                     });
                     return;
                 }
-                resolveDeferred({
+                deferredHandlers.resolve({
                     status: "needsModal",
                     classification,
                     blockingOutcome: {
@@ -272,7 +276,7 @@ export async function runMissingFilesRecoverySequence(
             }
 
             if (options?.retryOnly) {
-                resolveDeferred({ status: "noop", classification });
+                deferredHandlers.resolve({ status: "noop", classification });
                 return;
             }
 
@@ -287,7 +291,7 @@ export async function runMissingFilesRecoverySequence(
                     const reason = deriveReasonFromFsError(
                         interpretFsError(err)
                     );
-                    resolveDeferred({
+                    deferredHandlers.resolve({
                         status: "needsModal",
                         classification,
                         blockingOutcome: {
@@ -306,9 +310,9 @@ export async function runMissingFilesRecoverySequence(
                 envelope,
                 classification,
             });
-            resolveDeferred(minimal);
+            deferredHandlers.resolve(minimal);
         } catch (err) {
-            rejectDeferred(err);
+            deferredHandlers.reject(err);
         } finally {
             IN_FLIGHT_RECOVERY.delete(fingerprint);
         }

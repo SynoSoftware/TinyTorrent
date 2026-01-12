@@ -37,6 +37,7 @@ import type { TorrentEntity } from "@/services/rpc/entities";
 import type { HeartbeatSource } from "@/services/rpc/heartbeat";
 import type { ConnectionStatus } from "@/shared/types/rpc";
 import type { WorkspaceStyle } from "@/app/hooks/useWorkspaceShell";
+import { useLifecycle } from "@/app/context/LifecycleContext";
 
 const DISK_LABELS: Record<string, string> = {
     ok: "status_bar.disk_ok",
@@ -68,7 +69,6 @@ type DiskState = "ok" | "warn" | "bad" | "unknown";
 interface StatusBarProps {
     workspaceStyle: WorkspaceStyle;
     sessionStats: SessionStats | null;
-    rpcStatus: ConnectionStatus;
     liveTransportStatus: HeartbeatSource;
     selectedCount?: number;
     onEngineClick?: () => void;
@@ -507,7 +507,6 @@ function EngineControlChip({
 export function StatusBar({
     workspaceStyle,
     sessionStats,
-    rpcStatus,
     liveTransportStatus,
     selectedCount = 0,
     onEngineClick,
@@ -519,6 +518,7 @@ export function StatusBar({
     const telemetry = useNetworkTelemetry();
     const rpcConnection = useRpcConnection();
     const client = useTorrentClient();
+    const { rpcStatus } = useLifecycle();
 
     // StatusBar must not independently fetch the full torrent list; prefer
     // the parent-provided `torrents` (from Heartbeat) to avoid N+1 storms.

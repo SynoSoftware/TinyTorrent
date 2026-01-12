@@ -11,23 +11,21 @@ import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { DashboardTableMeta } from "@/modules/dashboard/components/TorrentTable_ColumnDefs";
 import type { OptimisticStatusMap } from "@/modules/dashboard/types/optimistic";
 import { useRecoveryContext } from "@/app/context/RecoveryContext";
+import { useLifecycle } from "@/app/context/LifecycleContext";
+import { useTorrentActionsContext } from "@/app/context/TorrentActionsContext";
 
 export function useTorrentTableColumns({
     t,
     speedHistoryRef,
     optimisticStatuses,
-    onDownloadMissing,
-    onChangeLocation,
-    onOpenFolder,
 }: {
     t: TFunction;
     speedHistoryRef: React.RefObject<Record<string, Array<number | null>>>;
     optimisticStatuses: OptimisticStatusMap;
-    onDownloadMissing?: (torrent: Torrent) => Promise<void> | void;
-    onChangeLocation?: (torrent: Torrent) => Promise<void> | void;
-    onOpenFolder?: (torrent: Torrent) => Promise<void> | void;
 }): { columns: ColumnDef<Torrent>[]; tableMeta: DashboardTableMeta } {
-    const { handleRetry, serverClass } = useRecoveryContext();
+    const { handleRetry } = useRecoveryContext();
+    const { serverClass } = useLifecycle();
+    const actions = useTorrentActionsContext();
     const columns = useMemo<ColumnDef<Torrent>[]>(() => {
         const cols = DEFAULT_COLUMN_ORDER.map((colId) => {
             const id = colId as ColumnId;
@@ -83,21 +81,9 @@ export function useTorrentTableColumns({
         () => ({
             speedHistoryRef,
             optimisticStatuses,
-            onDownloadMissing,
-            onChangeLocation,
-            onOpenFolder,
-            onRetry: handleRetry,
             serverClass,
         }),
-        [
-            onChangeLocation,
-            onDownloadMissing,
-            onOpenFolder,
-            handleRetry,
-            optimisticStatuses,
-            speedHistoryRef,
-            serverClass,
-        ]
+        [optimisticStatuses, speedHistoryRef, serverClass]
     );
 
     return { columns, tableMeta };

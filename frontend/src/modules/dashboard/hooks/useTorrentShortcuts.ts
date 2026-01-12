@@ -1,4 +1,5 @@
 import { useHotkeys } from "react-hotkeys-hook";
+import { useTorrentActionsContext } from "@/app/context/TorrentActionsContext";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
 import { KEYMAP, ShortcutIntent } from "@/config/logic";
@@ -8,8 +9,6 @@ interface UseTorrentShortcutsProps {
     scope: string;
     selectedTorrents: Torrent[];
     selectAll: () => void;
-    onAction?: (action: TorrentTableAction, torrent: Torrent) => void;
-    onBulkAction?: (action: TorrentTableAction) => void;
     onRequestDetails?: (torrent: Torrent) => void;
 }
 
@@ -17,10 +16,10 @@ export function useTorrentShortcuts({
     scope,
     selectedTorrents,
     selectAll,
-    onAction,
-    onBulkAction,
     onRequestDetails,
 }: UseTorrentShortcutsProps) {
+    const _actions = useTorrentActionsContext();
+    const localOnAction = _actions.executeTorrentAction;
     const hasSelection = selectedTorrents.length > 0;
     const primaryTorrent = selectedTorrents[0];
     const hasPrimaryTorrent = Boolean(primaryTorrent);
@@ -43,17 +42,16 @@ export function useTorrentShortcuts({
         KEYMAP[ShortcutIntent.Delete],
         (event) => {
             event.preventDefault();
-            if (onBulkAction && hasSelection) {
-                void onBulkAction("remove");
-                return;
-            }
-            if (!onAction || !hasSelection) return;
+            if (!localOnAction || !hasSelection) return;
             selectedTorrents.forEach((torrent) => {
-                onAction("remove", torrent);
+                void localOnAction("remove", torrent);
             });
         },
-        { scopes: scope, enabled: hasSelection && Boolean(onAction || onBulkAction) },
-        [hasSelection, onAction, onBulkAction, selectedTorrents]
+        {
+            scopes: scope,
+            enabled: hasSelection && Boolean(localOnAction),
+        },
+        [hasSelection, localOnAction, selectedTorrents]
     );
 
     useHotkeys(
@@ -75,43 +73,42 @@ export function useTorrentShortcuts({
         KEYMAP[ShortcutIntent.TogglePause],
         (event) => {
             event.preventDefault();
-            if (!onAction || !primaryTorrent) return;
+            if (!localOnAction || !primaryTorrent) return;
             const nextAction: TorrentTableAction = isActiveTorrent
                 ? "pause"
                 : "resume";
-            onAction(nextAction, primaryTorrent);
+            localOnAction(nextAction, primaryTorrent);
         },
-        { scopes: scope, enabled: hasPrimaryTorrent && Boolean(onAction) },
-        [primaryTorrent, isActiveTorrent, onAction]
+        { scopes: scope, enabled: hasPrimaryTorrent && Boolean(localOnAction) },
+        [primaryTorrent, isActiveTorrent, localOnAction]
     );
 
     useHotkeys(
         KEYMAP[ShortcutIntent.Recheck],
         (event) => {
             event.preventDefault();
-            if (!onAction || !hasSelection) return;
+            if (!localOnAction || !hasSelection) return;
             selectedTorrents.forEach((torrent) => {
-                onAction("recheck", torrent);
+                localOnAction("recheck", torrent);
             });
         },
-        { scopes: scope, enabled: hasSelection && Boolean(onAction) },
-        [hasSelection, onAction, selectedTorrents]
+        { scopes: scope, enabled: hasSelection && Boolean(localOnAction) },
+        [hasSelection, localOnAction, selectedTorrents]
     );
 
     useHotkeys(
         KEYMAP[ShortcutIntent.RemoveWithData],
         (event) => {
             event.preventDefault();
-            if (onBulkAction && hasSelection) {
-                void onBulkAction("remove-with-data");
-                return;
-            }
-            if (!onAction || !hasSelection) return;
+            if (!localOnAction || !hasSelection) return;
             selectedTorrents.forEach((torrent) => {
-                onAction("remove-with-data", torrent);
+                void localOnAction("remove-with-data", torrent);
             });
         },
-        { scopes: scope, enabled: hasSelection && Boolean(onAction || onBulkAction) },
-        [hasSelection, onAction, onBulkAction, selectedTorrents]
+        {
+            scopes: scope,
+            enabled: hasSelection && Boolean(localOnAction),
+        },
+        [hasSelection, localOnAction, selectedTorrents]
     );
 }

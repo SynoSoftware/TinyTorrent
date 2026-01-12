@@ -62,6 +62,9 @@ import type { Table } from "@tanstack/react-table";
 import type { OptimisticStatusMap } from "@/modules/dashboard/types/optimistic";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 import { useMemo } from "react";
+import { useLifecycle } from "@/app/context/LifecycleContext";
+import { useRecoveryContext } from "@/app/context/RecoveryContext";
+import { useTorrentActionsContext } from "@/app/context/TorrentActionsContext";
 
 // --- TYPES ---
 export type ColumnId =
@@ -80,13 +83,6 @@ export type ColumnId =
 export interface DashboardTableMeta {
     speedHistoryRef: RefObject<Record<string, Array<number | null>>>;
     optimisticStatuses: OptimisticStatusMap;
-    onDownloadMissing?: (
-        torrent: Torrent,
-        options?: { recreateFolder?: boolean }
-    ) => Promise<void> | void;
-    onChangeLocation?: (torrent: Torrent) => Promise<void> | void;
-    onOpenFolder?: (torrent: Torrent) => Promise<void> | void;
-    onRetry?: (torrent: Torrent) => Promise<void> | void;
     serverClass?: ServerClass;
 }
 
@@ -474,7 +470,10 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
 
             // Special-case view for missing files: aligned with state machine spec
             if (effectiveState === "missing_files") {
-                const tableMeta = table.options.meta as DashboardTableMeta | undefined;
+                const tableMeta = table.options.meta as
+                    | DashboardTableMeta
+                    | undefined;
+                const serverClass = tableMeta?.serverClass ?? "unknown";
                 const downloadDir =
                     torrent.savePath ??
                     torrent.downloadDir ??
@@ -483,7 +482,7 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
                 const classification = classifyMissingFilesState(
                     torrent.errorEnvelope,
                     downloadDir,
-                    tableMeta?.serverClass ?? "unknown"
+                    serverClass ?? "unknown"
                 );
                 const missingBytes =
                     typeof torrent.leftUntilDone === "number"
@@ -535,10 +534,9 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
                               "torrent_modal.files.expected"
                           )}: ${formatBytes(torrent.totalSize)}`
                         : null;
-                const onDownloadMissing = tableMeta?.onDownloadMissing;
-                const onChangeLocation = tableMeta?.onChangeLocation;
-                const onOpenFolder = tableMeta?.onOpenFolder;
-                const onRetry = tableMeta?.onRetry;
+                const actions = useTorrentActionsContext();
+                const onOpenFolder = actions.handleOpenFolder;
+                const { handleRetry } = useRecoveryContext();
 
                 const primaryConfig = (() => {
                     const common = {
@@ -552,29 +550,32 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
                             return {
                                 ...common,
                                 label: t("recovery.action_locate"),
-                                onPress: () => onChangeLocation?.(torrent),
-                                isDisabled: !onChangeLocation,
+                                onPress: () =>
+                                    actions.setLocation?.(torrent as any),
+                                isDisabled: !actions.setLocation,
                             };
                         case "volumeLoss":
                             return {
                                 ...common,
                                 label: t("recovery.action_retry"),
-                                onPress: () => onRetry?.(torrent),
-                                isDisabled: !onRetry,
+                                onPress: () => handleRetry?.(),
+                                isDisabled: !handleRetry,
                             };
                         case "accessDenied":
                             return {
                                 ...common,
                                 label: t("recovery.action_locate"),
-                                onPress: () => onChangeLocation?.(torrent),
-                                isDisabled: !onChangeLocation,
+                                onPress: () =>
+                                    actions.setLocation?.(torrent as any),
+                                isDisabled: !actions.setLocation,
                             };
                         default:
                             return {
                                 ...common,
                                 label: t("recovery.action_download"),
-                                onPress: () => onDownloadMissing?.(torrent),
-                                isDisabled: !onDownloadMissing,
+                                onPress: () =>
+                                    actions.redownload?.(torrent as any),
+                                isDisabled: !actions.redownload,
                             };
                     }
                 })();
@@ -591,30 +592,31 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
                                 ...common,
                                 label: t("recovery.action_recreate"),
                                 onPress: () =>
-                                    onDownloadMissing?.(torrent, {
+                                    actions.redownload?.(torrent as any, {
                                         recreateFolder: true,
                                     }),
-                                isDisabled: !onDownloadMissing,
+                                isDisabled: !actions.redownload,
                             };
                         case "volumeLoss":
                             return {
                                 ...common,
                                 label: t("recovery.action_locate"),
-                                onPress: () => onChangeLocation?.(torrent),
-                                isDisabled: !onChangeLocation,
+                                onPress: () =>
+                                    actions.setLocation?.(torrent as any),
+                                isDisabled: !actions.setLocation,
                             };
                         case "accessDenied":
                             return {
                                 ...common,
                                 label: t("recovery.action.open_folder"),
-                                onPress: () => onOpenFolder?.(torrent),
+                                onPress: () => onOpenFolder?.(torrent as any),
                                 isDisabled: !onOpenFolder,
                             };
                         default:
                             return {
                                 ...common,
                                 label: t("recovery.action.open_folder"),
-                                onPress: () => onOpenFolder?.(torrent),
+                                onPress: () => onOpenFolder?.(torrent as any),
                                 isDisabled: !onOpenFolder,
                             };
                     }
@@ -644,7 +646,10 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
                                     variant={primaryConfig.variant}
                                     color={primaryConfig.color}
                                     size={primaryConfig.size}
-                                    className={cn("ml-tight font-medium", primaryConfig.className)}
+                                    className={cn(
+                                        "ml-tight font-medium",
+                                        primaryConfig.className
+                                    )}
                                     isDisabled={primaryConfig.isDisabled}
                                     onPress={primaryConfig.onPress}
                                 >

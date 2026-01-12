@@ -1,4 +1,4 @@
-import { Button, cn } from "@heroui/react";
+import { cn } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 import { formatBytes } from "@/shared/utils/format";
 import { SmoothProgressBar } from "@/shared/ui/components/SmoothProgressBar";
@@ -11,9 +11,7 @@ export interface DiskSpaceGaugeProps {
     isLoading?: boolean;
     error?: string | null;
     hint?: string | null;
-    onRetry?: () => void;
     isInsufficient?: boolean;
-    emphasisClass?: string;
 }
 
 export function DiskSpaceGauge({
@@ -24,9 +22,7 @@ export function DiskSpaceGauge({
     isLoading,
     error,
     hint,
-    onRetry,
     isInsufficient,
-    emphasisClass,
 }: DiskSpaceGaugeProps) {
     const usedBytes =
         typeof totalBytes === "number" && typeof freeBytes === "number"
@@ -46,8 +42,8 @@ export function DiskSpaceGauge({
     const indicatorClasses = cn(
         "h-full rounded-full",
         isInsufficient
-            ? "bg-gradient-to-r from-danger/80 via-danger/60 to-danger/90"
-            : "bg-gradient-to-r from-danger/70 via-warning/70 to-success/70"
+            ? "bg-gradient-to-r from-danger/70 via-warning/70 to-success/70"
+            : "bg-gradient-to-r from-success/50 to-success"
     );
     const containerClasses = cn(
         "space-y-tight rounded-xl border bg-content1/15 p-panel",
@@ -122,17 +118,6 @@ export function DiskSpaceGauge({
                     >
                         {error}
                     </p>
-                    {onRetry && (
-                        <Button
-                            size="md"
-                            variant="bordered"
-                            onPress={onRetry}
-                            isDisabled={isLoading}
-                            className={emphasisClass ?? undefined}
-                        >
-                            {t("modals.disk_gauge.retry")}
-                        </Button>
-                    )}
                 </div>
             )}
         </div>

@@ -1,9 +1,6 @@
-import { useMemo } from "react";
-import { Button } from "@heroui/react";
+import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-
-// All imports use '@/...' aliases. UI-owned optimistic logic and inline literals are flagged for future refactor per AGENTS.md.
-
+import { Button } from "@heroui/react";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import {
     FileExplorerTree,
@@ -14,6 +11,7 @@ import { useFileTree } from "@/shared/hooks/useFileTree";
 import { useOptimisticToggle } from "@/shared/hooks/useOptimisticToggle";
 import type { TorrentFileEntity } from "@/services/rpc/entities";
 import { DETAILS_TAB_CONTENT_MAX_HEIGHT } from "@/config/logic";
+import { useTorrentActionsContext } from "@/app/context/TorrentActionsContext";
 
 interface ContentTabProps {
     files?: TorrentFileEntity[];
@@ -26,14 +24,14 @@ interface ContentTabProps {
         action: FileExplorerContextAction,
         entry: FileExplorerEntry
     ) => void;
-    onRedownload?: () => void | Promise<void>;
-    onRetry?: () => void | Promise<void>;
-    onSetLocation?: () => void | Promise<void>;
+    torrent?: any;
     isStandalone?: boolean;
 }
 
-const NOOP_FILE_TOGGLE: NonNullable<ContentTabProps["onFilesToggle"]> = () => {
-    /* intentionally empty */
+const NOOP_FILE_TOGGLE: NonNullable<
+    ContentTabProps["onFilesToggle"]
+> = async () => {
+    /* no-op */
 };
 
 export const ContentTab = ({
@@ -41,14 +39,15 @@ export const ContentTab = ({
     emptyMessage,
     onFilesToggle,
     onFileContextAction,
-    onRedownload,
-    onRetry,
-    onSetLocation,
-    isStandalone = false,
+    torrent,
+    isStandalone,
 }: ContentTabProps) => {
     const { t } = useTranslation();
+    const actions = useTorrentActionsContext();
+
     const fileEntries = useFileTree(files);
-    const filesCount = files?.length ?? 0;
+    const filesCount = fileEntries.length;
+
     const { optimisticState, toggle } = useOptimisticToggle(
         onFilesToggle ?? NOOP_FILE_TOGGLE
     );
@@ -90,16 +89,12 @@ export const ContentTab = ({
                             size="md"
                             variant="shadow"
                             color="primary"
-                            onPress={() => {
-                                if (onRetry) {
-                                    void onRetry();
-                                    return;
-                                }
-                                // Recovery-related fallback removed: require typed handler
-                                console.warn(
-                                    "retry fallback removed; pass onRetry prop to handle verify/reannounce"
-                                );
-                            }}
+                            onPress={() =>
+                                void actions.executeTorrentAction(
+                                    "recheck",
+                                    torrent
+                                )
+                            }
                         >
                             {t("toolbar.recheck")}
                         </Button>
@@ -107,23 +102,7 @@ export const ContentTab = ({
                             size="md"
                             variant="shadow"
                             color="danger"
-                            onPress={() => {
-                                if (onRedownload) {
-                                    void onRedownload();
-                                    return;
-                                }
-                                // Deprecated fallback: prefer typed callback
-                                console.warn(
-                                    "tiny-torrent: redownload fallback used; prefer passing onRedownload prop"
-                                );
-                                try {
-                                    window.dispatchEvent(
-                                        new CustomEvent(
-                                            "tiny-torrent:redownload"
-                                        )
-                                    );
-                                } catch (err) {}
-                            }}
+                            onPress={() => void actions.redownload(torrent)}
                         >
                             {t("modals.download")}
                         </Button>
@@ -131,16 +110,7 @@ export const ContentTab = ({
                             size="md"
                             variant="shadow"
                             color="default"
-                            onPress={() => {
-                                if (onSetLocation) {
-                                    void onSetLocation();
-                                    return;
-                                }
-                                // Recovery-related fallback removed: require typed handler
-                                console.warn(
-                                    "set-location fallback removed; pass onSetLocation prop"
-                                );
-                            }}
+                            onPress={() => void actions.setLocation(torrent)}
                         >
                             {t("directory_browser.open")}
                         </Button>
@@ -149,6 +119,7 @@ export const ContentTab = ({
             </div>
         );
     }
+
     return (
         <div className="flex h-full min-h-0 flex-col gap-panel">
             {isStandalone ? (

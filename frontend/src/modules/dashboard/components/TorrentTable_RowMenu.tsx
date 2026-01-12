@@ -10,6 +10,7 @@ import {
     cn,
 } from "@heroui/react";
 import { GLASS_MENU_SURFACE } from "@/shared/ui/layout/glass-surface";
+import { useTorrentActionsContext } from "@/app/context/TorrentActionsContext";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { ItemElement } from "@react-types/shared";
 import type { ContextMenuVirtualElement } from "@/shared/hooks/ui/useContextMenuPosition";
@@ -23,8 +24,6 @@ export default function TorrentTable_RowMenu({
     queueMenuActions,
     getContextMenuShortcut,
     t,
-    onOpenFolder,
-    onSetLocation,
     isClipboardSupported,
     getEmphasisClassForAction,
 }: {
@@ -37,12 +36,11 @@ export default function TorrentTable_RowMenu({
     queueMenuActions: QueueMenuAction[];
     getContextMenuShortcut: (key: string) => string | undefined;
     t: (k: string, opts?: Record<string, unknown>) => string;
-    onOpenFolder?: (t: Torrent) => Promise<void>;
-    onSetLocation?: (t: Torrent) => Promise<void> | void;
     isClipboardSupported?: boolean;
     getEmphasisClassForAction?: (a?: string) => string;
 }) {
     if (!contextMenu) return null;
+    const actions = useTorrentActionsContext();
     const rect = contextMenu.virtualElement.getBoundingClientRect();
     return (
         <AnimatePresence>
@@ -63,28 +61,25 @@ export default function TorrentTable_RowMenu({
                         }}
                     />
                 </DropdownTrigger>
-                <DropdownMenu
-                    variant="shadow"
-                    className={GLASS_MENU_SURFACE}
-                    onAction={(key) => {
-                        void handleContextMenuAction(key as string);
-                    }}
-                >
+                <DropdownMenu variant="shadow" className={GLASS_MENU_SURFACE}>
                     <DropdownItem
                         key="pause"
                         shortcut={getContextMenuShortcut("pause")}
+                        onPress={() => void handleContextMenuAction("pause")}
                     >
                         {t("table.actions.pause")}
                     </DropdownItem>
                     <DropdownItem
                         key="resume"
                         shortcut={getContextMenuShortcut("resume")}
+                        onPress={() => void handleContextMenuAction("resume")}
                     >
                         {t("table.actions.resume")}
                     </DropdownItem>
                     <DropdownItem
                         key="recheck"
                         shortcut={getContextMenuShortcut("recheck")}
+                        onPress={() => void handleContextMenuAction("recheck")}
                     >
                         {t("table.actions.recheck")}
                     </DropdownItem>
@@ -97,6 +92,9 @@ export default function TorrentTable_RowMenu({
                                 key={action.key}
                                 className="pl-stage text-sm"
                                 shortcut={getContextMenuShortcut(action.key)}
+                                onPress={() =>
+                                    void handleContextMenuAction(action.key)
+                                }
                             >
                                 {action.label}
                             </DropdownItem>
@@ -113,7 +111,8 @@ export default function TorrentTable_RowMenu({
                     <DropdownItem
                         key="open-folder"
                         isDisabled={
-                            !onOpenFolder || !contextMenu?.torrent.savePath
+                            !actions.handleOpenFolder ||
+                            !contextMenu?.torrent.savePath
                         }
                         className={cn(
                             contextMenu?.torrent.errorEnvelope
@@ -124,12 +123,15 @@ export default function TorrentTable_RowMenu({
                                   )
                                 : ""
                         )}
+                        onPress={() =>
+                            void handleContextMenuAction("open-folder")
+                        }
                     >
                         {t("table.actions.open_folder")}
                     </DropdownItem>
                     <DropdownItem
                         key="set-download-path"
-                        isDisabled={!onSetLocation}
+                        isDisabled={!actions.setLocation}
                         className={cn(
                             contextMenu?.torrent.errorEnvelope
                                 ?.primaryAction === "setLocation"
@@ -139,6 +141,9 @@ export default function TorrentTable_RowMenu({
                                   )
                                 : ""
                         )}
+                        onPress={() =>
+                            void handleContextMenuAction("set-download-path")
+                        }
                     >
                         {t("table.actions.set_download_path")}
                     </DropdownItem>
@@ -146,6 +151,9 @@ export default function TorrentTable_RowMenu({
                         key="copy-hash"
                         isDisabled={isClipboardSupported === false}
                         shortcut={getContextMenuShortcut("copy-hash")}
+                        onPress={() =>
+                            void handleContextMenuAction("copy-hash")
+                        }
                     >
                         {t("table.actions.copy_hash")}
                     </DropdownItem>
@@ -153,6 +161,9 @@ export default function TorrentTable_RowMenu({
                         key="copy-magnet"
                         isDisabled={isClipboardSupported === false}
                         shortcut={getContextMenuShortcut("copy-magnet")}
+                        onPress={() =>
+                            void handleContextMenuAction("copy-magnet")
+                        }
                     >
                         {t("table.actions.copy_magnet")}
                     </DropdownItem>

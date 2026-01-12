@@ -241,6 +241,8 @@ export function useTorrentActions({
 
     return {
         handleTorrentAction,
+        // Backwards-compatible alias for callers preferring a verb-named API.
+        executeTorrentAction: handleTorrentAction,
         handleOpenFolder,
         executeBulkRemove,
     };

@@ -13,9 +13,9 @@ import {
     type ConnectionProfile,
     DEFAULT_PROFILE_ID,
 } from "@/app/context/ConnectionConfigContext";
+import { useLifecycle } from "@/app/context/LifecycleContext";
 
 interface ConnectionManagerProps {
-    rpcStatus: ConnectionStatus;
     onReconnect: () => void;
     serverClass: ServerClass;
     isNativeMode: boolean;
@@ -28,9 +28,7 @@ interface ConnectionManagerState {
     isOffline: boolean;
 }
 
-function useConnectionManagerState(
-    rpcStatus: ConnectionStatus
-): ConnectionManagerState {
+function useConnectionManagerState(): ConnectionManagerState {
     const { activeProfile, updateProfile } = useConnectionConfig();
     const handleUpdate = useCallback(
         (
@@ -49,6 +47,7 @@ function useConnectionManagerState(
         () => buildRpcEndpoint(activeProfile),
         [activeProfile]
     );
+    const { rpcStatus } = useLifecycle();
     return {
         activeProfile,
         handleUpdate,
@@ -65,7 +64,6 @@ const SERVER_TYPE_LABELS: Record<string, string> = {
 };
 
 export function ConnectionCredentialsCard({
-    rpcStatus,
     onReconnect,
     serverClass,
     isNativeMode,
@@ -73,7 +71,8 @@ export function ConnectionCredentialsCard({
     const { t } = useTranslation();
     const [showAdvanced, setShowAdvanced] = useState(false);
     const { activeProfile, handleUpdate, isOffline } =
-        useConnectionManagerState(rpcStatus);
+        useConnectionManagerState();
+    const { rpcStatus } = useLifecycle();
     const connectionStatusLabel = useMemo(() => {
         const map: Record<string, string> = {
             [STATUS.connection.CONNECTED]: t("status_bar.rpc_connected"),
@@ -345,15 +344,14 @@ export function ConnectionCredentialsCard({
 }
 
 interface ConnectionExtensionCardProps {
-    rpcStatus: ConnectionStatus;
     serverClass: ServerClass;
 }
 
 export function ConnectionExtensionCard({
-    rpcStatus,
     serverClass,
 }: ConnectionExtensionCardProps) {
     const { t } = useTranslation();
+    const { rpcStatus } = useLifecycle();
 
     const modeLabelKey = useMemo(() => {
         if (rpcStatus !== STATUS.connection.CONNECTED) {
