@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import type { HTMLAttributes, InputHTMLAttributes } from "react";
 import { AnimatePresence, motion, type Transition } from "framer-motion";
 import { useTranslation } from "react-i18next";
@@ -10,6 +10,7 @@ import type { ConnectionStatus } from "@/shared/types/rpc";
 
 import Runtime, { NativeShell } from "@/app/runtime";
 import { useLifecycle } from "@/app/context/LifecycleContext";
+import { useSelection } from "@/app/context/SelectionContext";
 
 import { Dashboard_Layout } from "@/modules/dashboard/components/Dashboard_Layout";
 import { useTorrentActionsContext } from "@/app/context/TorrentActionsContext";
@@ -85,7 +86,6 @@ interface WorkspaceShellProps {
     openAddTorrent: () => void;
     openAddMagnet: () => void;
     openSettings: () => void;
-    selectedTorrents: Torrent[];
     // handleBulkAction removed — use TorrentActionsContext in leaf components
     rehashStatus?: RehashStatus;
     workspaceStyle: WorkspaceStyle;
@@ -115,8 +115,6 @@ interface WorkspaceShellProps {
     capabilities: CapabilityStore;
     optimisticStatuses: OptimisticStatusMap;
     isDetailRecoveryBlocked?: boolean;
-    handleSelectionChange: (selection: Torrent[]) => void;
-    handleActiveRowChange: (torrent: Torrent | null) => void;
     // handleOpenFolder removed — use TorrentActionsContext in leaf components
     peerSortStrategy: PeerSortStrategy;
     inspectorTabCommand: DetailTab | null;
@@ -163,7 +161,6 @@ export function WorkspaceShell({
     openAddTorrent,
     openAddMagnet,
     openSettings,
-    selectedTorrents,
 
     rehashStatus,
     workspaceStyle,
@@ -182,8 +179,6 @@ export function WorkspaceShell({
     isDetailRecoveryBlocked,
     capabilities,
     optimisticStatuses,
-    handleSelectionChange,
-    handleActiveRowChange,
     // handleOpenFolder removed — leaf components should call TorrentActionsContext
     peerSortStrategy,
     inspectorTabCommand,
@@ -217,6 +212,12 @@ export function WorkspaceShell({
     } = useLifecycle();
     const { t } = useTranslation();
     const actions = useTorrentActionsContext();
+    const { selectedIds } = useSelection();
+    const selectedIdsSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+    const selectedTorrents = useMemo(
+        () => torrents.filter((torrent) => selectedIdsSet.has(torrent.id)),
+        [selectedIdsSet, torrents]
+    );
     const handleWindowCommand = useCallback(
         (command: "minimize" | "maximize" | "close") => {
             if (!Runtime.isNativeHost) {
@@ -240,36 +241,25 @@ export function WorkspaceShell({
             onAddTorrent={openAddTorrent}
             onAddMagnet={openAddMagnet}
             onSettings={() => openSettings()}
-            hasSelection={selectedTorrents.length > 0}
+            hasSelection={selectedIds.length > 0}
             onEnsureSelectionActive={() => {
-                selectedTorrents.forEach(
-                    (t) =>
-                        void actions.dispatch(
-                            TorrentIntents.ensureActive(t.id ?? t.hash)
-                        )
+                selectedIds.forEach((id) =>
+                    void actions.dispatch(TorrentIntents.ensureActive(id))
                 );
             }}
             onEnsureSelectionPaused={() => {
-                selectedTorrents.forEach(
-                    (t) =>
-                        void actions.dispatch(
-                            TorrentIntents.ensurePaused(t.id ?? t.hash)
-                        )
+                selectedIds.forEach((id) =>
+                    void actions.dispatch(TorrentIntents.ensurePaused(id))
                 );
             }}
             onEnsureSelectionValid={() => {
                 void actions.dispatch(
-                    TorrentIntents.ensureSelectionActive(
-                        selectedTorrents.map((t) => t.id ?? t.hash)
-                    )
+                    TorrentIntents.ensureSelectionActive(selectedIds)
                 );
             }}
             onEnsureSelectionRemoved={() => {
                 void actions.dispatch(
-                    TorrentIntents.ensureSelectionRemoved(
-                        selectedTorrents.map((t) => t.id ?? t.hash),
-                        false
-                    )
+                    TorrentIntents.ensureSelectionRemoved(selectedIds, false)
                 );
             }}
             rehashStatus={rehashStatus}
@@ -320,8 +310,6 @@ export function WorkspaceShell({
             onInspectorTabCommandHandled={onInspectorTabCommandHandled}
             ghostTorrents={ghostTorrents}
             isDropActive={isDragActive}
-            onSelectionChange={handleSelectionChange}
-            onActiveRowChange={handleActiveRowChange}
             /* onOpenFolder removed; leaf components use TorrentActionsContext */
             tableWatermarkEnabled={tableWatermarkEnabled}
             isDetailRecoveryBlocked={isDetailRecoveryBlocked}
@@ -333,7 +321,7 @@ export function WorkspaceShell({
             workspaceStyle={workspaceStyle}
             sessionStats={sessionStats}
             liveTransportStatus={liveTransportStatus}
-            selectedCount={selectedTorrents.length}
+            selectedCount={selectedIds.length}
             onEngineClick={handleReconnect}
             engineType={engineType}
             torrents={torrents}

@@ -53,8 +53,6 @@ interface DashboardLayoutProps {
     detailSplitDirection?: "horizontal" | "vertical";
     // action props removed — use TorrentActionsContext in leaf components
     onRequestDetails?: (torrent: Torrent) => void;
-    onSelectionChange?: (selection: Torrent[]) => void;
-    onActiveRowChange?: (torrent: Torrent | null) => void;
     detailData: TorrentDetail | null;
     onCloseDetail: () => void;
     onFilesToggle?: (
@@ -108,8 +106,6 @@ export function Dashboard_Layout({
     peerSortStrategy,
     inspectorTabCommand,
     onInspectorTabCommandHandled,
-    onSelectionChange,
-    onActiveRowChange,
     isDropActive = false,
     detailSplitDirection = "vertical",
     tableWatermarkEnabled = true,
@@ -317,8 +313,6 @@ export function Dashboard_Layout({
                                     onRequestDetailsFullscreen={
                                         handleDetailFullscreenRequest
                                     }
-                                    onSelectionChange={onSelectionChange}
-                                    onActiveRowChange={onActiveRowChange}
                                     optimisticStatuses={optimisticStatuses}
                                     ghostTorrents={ghostTorrents}
                                     /* onOpenFolder removed; leaf components use TorrentActionsContext */

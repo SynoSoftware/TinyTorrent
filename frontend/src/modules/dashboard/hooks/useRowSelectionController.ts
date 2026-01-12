@@ -9,6 +9,7 @@ import type { Row } from "@tanstack/react-table";
 import type { RowSelectionState } from "@tanstack/react-table";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import { useState } from "react";
+import { useSelection } from "@/app/context/SelectionContext";
 
 type RowSelectionControllerDeps = {
     table?: {
@@ -30,8 +31,6 @@ type RowSelectionControllerDeps = {
     setFocusIndex: (n: number | null) => void;
     highlightedRowId: string | null;
     setHighlightedRowId: (id: string | null) => void;
-    onSelectionChange?: (selection: Torrent[]) => void;
-    onActiveRowChange?: (row: Torrent | null) => void;
 };
 
 export const useRowSelectionController = (
@@ -53,9 +52,8 @@ export const useRowSelectionController = (
         setFocusIndex,
         highlightedRowId,
         setHighlightedRowId,
-        onSelectionChange,
-        onActiveRowChange,
     } = deps;
+    const { setSelectedIds, setActiveId } = useSelection();
 
     useEffect(() => {
         rowSelectionRef.current = rowSelection;
@@ -100,6 +98,11 @@ export const useRowSelectionController = (
             .filter((torrent) => !torrent.isGhost);
     }, [table, rowSelection]);
 
+    const selectedIds = useMemo(
+        () => selectedTorrents.map((torrent) => torrent.id),
+        [selectedTorrents]
+    );
+
     const getSelectionSnapshot = useCallback(
         () => rowSelectionRef.current,
         [rowSelectionRef]
@@ -136,8 +139,8 @@ export const useRowSelectionController = (
     }, [setAnchorIndex, setFocusIndex, setHighlightedRowId, setRowSelection]);
 
     useEffect(() => {
-        onSelectionChange?.(selectedTorrents);
-    }, [onSelectionChange, selectedTorrents]);
+        setSelectedIds(selectedIds);
+    }, [selectedIds, setSelectedIds]);
 
     const rowsById = useMemo(() => {
         if (!rows) return new Map<string, Row<Torrent>>();
@@ -150,14 +153,13 @@ export const useRowSelectionController = (
 
     const lastActiveRowIdRef = useRef<string | null>(null);
     useEffect(() => {
-        if (!onActiveRowChange) return;
         if (lastActiveRowIdRef.current === highlightedRowId) return;
         lastActiveRowIdRef.current = highlightedRowId ?? null;
         const activeRow = highlightedRowId
             ? rowsById.get(highlightedRowId)
             : null;
-        onActiveRowChange(activeRow?.original ?? null);
-    }, [highlightedRowId, onActiveRowChange, rowsById]);
+        setActiveId(activeRow?.original.id ?? null);
+    }, [highlightedRowId, rowsById, setActiveId]);
 
     const handleRowClick = useCallback(
         (e: React.MouseEvent, rowId: string, originalIndex: number) => {
