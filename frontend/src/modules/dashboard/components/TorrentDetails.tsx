@@ -46,11 +46,7 @@ export interface TorrentDetailsProps {
     onInspectorTabCommandHandled?: () => void;
     onSequentialToggle?: (enabled: boolean) => void | Promise<void>;
     onSuperSeedingToggle?: (enabled: boolean) => void | Promise<void>;
-    onForceTrackerReannounce?: () => void | Promise<string | void>;
-    onSetLocation?: (torrent: TorrentDetail) => void | Promise<void>;
-    onRedownload?: (torrent: TorrentDetail) => void | Promise<void>;
-    onRetry?: (torrent: TorrentDetail) => void | Promise<void>;
-    onResume?: (torrent: TorrentDetail) => void | Promise<void>;
+
     isRecoveryBlocked?: boolean;
     capabilities: CapabilityStore;
     isStandalone?: boolean;
@@ -72,11 +68,7 @@ export function TorrentDetails({
     onInspectorTabCommandHandled,
     onSequentialToggle,
     onSuperSeedingToggle,
-    onForceTrackerReannounce,
-    onSetLocation,
-    onRedownload,
-    onRetry,
-    onResume,
+
     isRecoveryBlocked,
     capabilities,
     isDetailFullscreen = false,
@@ -129,15 +121,7 @@ export function TorrentDetails({
                         superSeedingCapability={capabilities.superSeeding}
                         onSequentialToggle={onSequentialToggle}
                         onSuperSeedingToggle={onSuperSeedingToggle}
-                        onForceTrackerReannounce={onForceTrackerReannounce}
-                        onSetLocation={
-                            onSetLocation
-                                ? () => onSetLocation(torrent)
-                                : undefined
-                        }
-                        onResume={
-                            onResume ? () => onResume(torrent) : undefined
-                        }
+                        /* set-location handled via TorrentActionsContext */
                         progressPercent={Math.round(
                             (torrent.progress ?? 0) * 100
                         )}
@@ -152,17 +136,8 @@ export function TorrentDetails({
                         emptyMessage={t("torrent_modal.files_empty")}
                         onFilesToggle={onFilesToggle}
                         onFileContextAction={onFileContextAction}
-                        onRedownload={
-                            onRedownload
-                                ? () => onRedownload(torrent)
-                                : undefined
-                        }
-                        onRetry={onRetry ? () => onRetry(torrent) : undefined}
-                        onSetLocation={
-                            onSetLocation
-                                ? () => onSetLocation(torrent)
-                                : undefined
-                        }
+                        /* redownload handled via TorrentActionsContext */
+                        torrent={torrent}
                         isStandalone={isStandalone}
                     />
                 )}
@@ -180,7 +155,6 @@ export function TorrentDetails({
                         trackers={torrent.trackers ?? []}
                         emptyMessage={t("torrent_modal.trackers.empty_backend")}
                         isStandalone={isStandalone}
-                        onForceTrackerReannounce={onForceTrackerReannounce}
                     />
                 )}
                 {active === "peers" && torrent && (

@@ -2,7 +2,6 @@ import { createContext, useContext } from "react";
 import type { ReactNode } from "react";
 import type { SettingsConfig, ConfigKey } from "@/modules/settings/data/config";
 import type { ButtonActionKey } from "@/modules/settings/data/settings-tabs";
-import type { ConnectionStatus } from "@/shared/types/rpc";
 
 interface SettingsFormContextValue {
     config: SettingsConfig;
@@ -16,7 +15,6 @@ interface SettingsFormContextValue {
     jsonCopyStatus: "idle" | "copied" | "failed";
     onCopyConfigJson: () => void;
     configJson: string;
-    rpcStatus: ConnectionStatus;
     onReconnect: () => void;
     isImmersive?: boolean;
 }

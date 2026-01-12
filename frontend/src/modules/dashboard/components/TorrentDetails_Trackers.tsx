@@ -14,6 +14,8 @@ import { Button, Textarea, Spinner, cn } from "@heroui/react";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import { GLASS_PANEL_SURFACE } from "@/shared/ui/layout/glass-surface";
 import type { TorrentTrackerEntity } from "@/services/rpc/entities";
+import { useTorrentActionsContext } from "@/app/context/TorrentActionsContext";
+import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
 import { TEXT_ROLES } from "../hooks/utils/textRoles";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
@@ -23,7 +25,6 @@ interface TrackersTabProps {
     emptyMessage: string;
     serverTime?: number;
     isStandalone?: boolean;
-    onForceTrackerReannounce?: () => void | Promise<string | void>;
 }
 
 const formatCountdown = (seconds: number) => {
@@ -38,16 +39,13 @@ export const TrackersTab: React.FC<TrackersTabProps> = ({
     emptyMessage,
     serverTime,
     isStandalone = false,
-    onForceTrackerReannounce,
 }) => {
     const { t } = useTranslation();
+    const actions = useTorrentActionsContext();
 
     const [showAdd, setShowAdd] = useState(false);
     const [newTrackers, setNewTrackers] = useState("");
-    const [isReannouncing, setIsReannouncing] = useState(false);
-    const [reannounceFeedback, setReannounceFeedback] = useState<string | null>(
-        null
-    );
+    // reannounce action removed from UI-level props; recovery flow handles this
 
     if (!trackers || trackers.length === 0) {
         const Empty = (
@@ -213,37 +211,7 @@ export const TrackersTab: React.FC<TrackersTabProps> = ({
                         onPress={() => setShowAdd((v) => !v)}
                     />
 
-                    <ToolbarIconButton
-                        ariaLabel={t("torrent_modal.trackers.reannounce")}
-                        disabled={!onForceTrackerReannounce || isReannouncing}
-                        onPress={async () => {
-                            if (!onForceTrackerReannounce) return;
-                            try {
-                                setIsReannouncing(true);
-                                setReannounceFeedback(null);
-                                await Promise.resolve();
-                                const result = await onForceTrackerReannounce();
-                                setReannounceFeedback(
-                                    result ??
-                                        t(
-                                            "torrent_modal.trackers.reannounce_sent"
-                                        )
-                                );
-                            } catch (e: any) {
-                                setReannounceFeedback(
-                                    e?.message ?? String(e ?? "Unknown error")
-                                );
-                            } finally {
-                                setIsReannouncing(false);
-                            }
-                        }}
-                    >
-                        {isReannouncing ? (
-                            <Spinner />
-                        ) : (
-                            <RefreshCw strokeWidth={1.5} />
-                        )}
-                    </ToolbarIconButton>
+                    {/* reannounce action removed from UI-level; handled by recovery controller */}
                 </div>
             </div>
 
@@ -306,12 +274,6 @@ export const TrackersTab: React.FC<TrackersTabProps> = ({
                     </div>
                 )}
             </div>
-
-            {reannounceFeedback && (
-                <div className="px-tight text-label font-mono text-foreground/60">
-                    {reannounceFeedback}
-                </div>
-            )}
         </div>
     );
 };

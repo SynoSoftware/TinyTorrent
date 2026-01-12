@@ -18,6 +18,7 @@ import RemoveConfirmationModal from "@/modules/torrent-remove/components/RemoveC
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
+import { useTorrentActionsContext } from "@/app/context/TorrentActionsContext";
 import type { CapabilityState } from "@/app/types/capabilities";
 import { formatBytes, formatPercent, formatRatio } from "@/shared/utils/format";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
@@ -35,9 +36,7 @@ interface GeneralTabProps {
     superSeedingCapability: CapabilityState;
     onSequentialToggle?: (enabled: boolean) => Promise<void> | void;
     onSuperSeedingToggle?: (enabled: boolean) => Promise<void> | void;
-    onForceTrackerReannounce?: () => Promise<string | void> | void;
-    onSetLocation?: () => Promise<void> | void;
-    onResume?: () => Promise<void> | void;
+
     progressPercent: number;
     timeRemainingLabel: string;
     activePeers: number;
@@ -85,8 +84,6 @@ export const GeneralTab = ({
     superSeedingCapability: _superSeedingCapability,
     onSequentialToggle: _onSequentialToggle,
     onSuperSeedingToggle: _onSuperSeedingToggle,
-    onSetLocation,
-    onResume,
     progressPercent: _progressPercent,
     timeRemainingLabel: _timeRemainingLabel,
     activePeers,
@@ -126,18 +123,13 @@ export const GeneralTab = ({
     const expectedDisplay =
         expectedBytes !== null ? formatBytes(expectedBytes) : null;
 
+    const actions = useTorrentActionsContext();
     const handleSetLocationAction = () => {
-        if (onSetLocation) return onSetLocation();
-        console.warn(
-            "set-location action requires a typed onSetLocation handler; global events removed"
-        );
+        void actions.setLocation(torrent);
     };
 
     const handleResumeAction = () => {
-        if (onResume) return onResume();
-        console.warn(
-            "resume action requires a typed onResume handler; global events removed"
-        );
+        void actions.resume(torrent);
     };
 
     const statusLabelKey = `table.status_${torrent.state}`;

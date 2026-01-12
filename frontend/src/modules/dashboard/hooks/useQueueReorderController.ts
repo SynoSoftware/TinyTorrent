@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from "react";
+import { useTorrentActionsContext } from "@/app/context/TorrentActionsContext";
 import {
     ANIMATION_SUPPRESSION_KEYS,
     type AnimationSuppressionKey,
@@ -10,10 +11,6 @@ import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable"
 
 type QueueControllerDeps = {
     sorting: SortingState;
-    onAction?: (
-        action: TorrentTableAction,
-        torrent: Torrent
-    ) => Promise<void> | void | undefined;
     pendingQueueOrder: string[] | null;
     setPendingQueueOrder: (order: string[] | null) => void;
     rowIds: string[];
@@ -28,7 +25,6 @@ type QueueControllerDeps = {
 export const useQueueReorderController = (deps: QueueControllerDeps) => {
     const {
         sorting,
-        onAction,
         pendingQueueOrder,
         setPendingQueueOrder,
         rowIds,
@@ -40,14 +36,19 @@ export const useQueueReorderController = (deps: QueueControllerDeps) => {
         setDropTargetRowId,
     } = deps;
 
+    const _actions = useTorrentActionsContext();
+
     const isQueueSort = useMemo(
         () =>
             sorting.some(
-                (s) => typeof s === "object" && (s as { id?: string }).id === "queue"
+                (s) =>
+                    typeof s === "object" &&
+                    (s as { id?: string }).id === "queue"
             ),
         [sorting]
     );
-    const canReorderQueue = isQueueSort && Boolean(onAction);
+    const canReorderQueue =
+        isQueueSort && Boolean(_actions.executeTorrentAction);
 
     const { handleRowDragStart, handleRowDragEnd, handleRowDragCancel } =
         useTorrentRowDrag({
@@ -55,7 +56,6 @@ export const useQueueReorderController = (deps: QueueControllerDeps) => {
             rowIds,
             rowsById,
             rowsLength,
-            onAction,
             sorting,
             setActiveRowId,
             setDropTargetRowId,

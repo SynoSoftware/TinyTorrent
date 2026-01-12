@@ -43,6 +43,11 @@ import type {
 import { WorkspaceShell } from "./components/WorkspaceShell";
 import TorrentRecoveryModal from "@/modules/dashboard/components/TorrentRecoveryModal";
 import { RecoveryProvider } from "@/app/context/RecoveryContext";
+import {
+    TorrentActionsProvider,
+    useTorrentActionsContext,
+} from "@/app/context/TorrentActionsContext";
+import { LifecycleProvider } from "@/app/context/LifecycleContext";
 import type { EngineDisplayType } from "./components/layout/StatusBar";
 import type {
     CapabilityKey,
@@ -260,9 +265,8 @@ export default function App() {
         updateCapabilityState,
     ]);
 
-    const isNativeIntegrationActive = serverClass === "tinytorrent";
     const isNativeHost = Runtime.isNativeHost;
-    const isRunningNative = isNativeHost || isNativeIntegrationActive;
+    const isRunningNative = isNativeHost || serverClass === "tinytorrent";
 
     const [lastDownloadDir, setLastDownloadDir] = useState(() => {
         if (typeof window === "undefined") {
@@ -808,21 +812,18 @@ export default function App() {
 
     const { announceAction, showFeedback } = useActionFeedback();
 
-    const {
-        handleTorrentAction: executeTorrentAction,
-        handleOpenFolder,
-        executeBulkRemove,
-    } = useTorrentActions({
-        torrentClient,
-        queueActions,
-        refreshTorrents,
-        refreshDetailData,
-        refreshSessionStatsData,
-        reportCommandError,
-        isMountedRef,
-        requestRecovery,
-        showFeedback,
-    });
+    const { executeTorrentAction, handleOpenFolder, executeBulkRemove } =
+        useTorrentActions({
+            torrentClient,
+            queueActions,
+            refreshTorrents,
+            refreshDetailData,
+            refreshSessionStatsData,
+            reportCommandError,
+            isMountedRef,
+            requestRecovery,
+            showFeedback,
+        });
 
     const { handleAddTorrent, isAddingTorrent } = useAddTorrent({
         torrentClient,
@@ -962,8 +963,6 @@ export default function App() {
     const {
         optimisticStatuses,
         pendingDelete,
-        handleBulkAction,
-        handleTorrentAction,
         confirmDelete,
         clearPendingDelete,
     } = useTorrentWorkflow({
@@ -974,6 +973,8 @@ export default function App() {
         announceAction,
         showFeedback,
     });
+
+    const actions = useTorrentActionsContext();
 
     const {
         workspaceStyle,
@@ -1067,7 +1068,14 @@ export default function App() {
                         description: t(
                             "command_palette.actions.pause_selected_description"
                         ),
-                        onSelect: () => handleBulkAction("pause"),
+                        onSelect: () =>
+                            selectedTorrents.forEach(
+                                (t) =>
+                                    void actions.executeTorrentAction(
+                                        "pause",
+                                        t
+                                    )
+                            ),
                     },
                     {
                         id: "context.resume_selected",
@@ -1076,7 +1084,14 @@ export default function App() {
                         description: t(
                             "command_palette.actions.resume_selected_description"
                         ),
-                        onSelect: () => handleBulkAction("resume"),
+                        onSelect: () =>
+                            selectedTorrents.forEach(
+                                (t) =>
+                                    void actions.executeTorrentAction(
+                                        "resume",
+                                        t
+                                    )
+                            ),
                     },
                     {
                         id: "context.recheck_selected",
@@ -1085,7 +1100,14 @@ export default function App() {
                         description: t(
                             "command_palette.actions.recheck_selected_description"
                         ),
-                        onSelect: () => handleBulkAction("recheck"),
+                        onSelect: () =>
+                            selectedTorrents.forEach(
+                                (t) =>
+                                    void actions.executeTorrentAction(
+                                        "recheck",
+                                        t
+                                    )
+                            ),
                     }
                 );
                 const targetTorrent = selectedTorrents[0];
@@ -1152,7 +1174,6 @@ export default function App() {
         },
         [
             detailData,
-            handleBulkAction,
             handleFileSelectionChange,
             handleRequestDetails,
             peerSortStrategy,
@@ -1257,67 +1278,7 @@ export default function App() {
         [detailData, torrents]
     );
 
-    const executeSetLocation = useCallback(
-        async (target: Torrent | TorrentDetail) => {
-            const client = torrentClientRef.current;
-            if (!client) return;
-            const gateResult = await requestRecovery({
-                torrent: target,
-                action: "setLocation",
-            });
-            if (gateResult && gateResult.status !== "continue") {
-                return;
-            }
-            // Picker-only: require native picker; do not accept free-form text.
-            const chosen = await choosePathViaNativeShell(
-                target.savePath ?? undefined
-            );
-            if (!chosen) return;
-
-            try {
-                if (recoveryCallbacks?.handlePickPath) {
-                    const out = await recoveryCallbacks.handlePickPath(chosen);
-                    if (out.kind === "error") {
-                        reportCommandError?.(
-                            out.message ??
-                                "setTorrentLocation failed via controller"
-                        );
-                        // abort further operations when pick path failed
-                        return;
-                    }
-                } else {
-                    try {
-                        await client.setTorrentLocation?.(
-                            target.id,
-                            chosen,
-                            false
-                        );
-                    } catch (err) {
-                        reportCommandError?.(err);
-                        return;
-                    }
-                }
-                await refreshTorrentsRef.current?.();
-                if (detailData?.id === target.id) {
-                    await refreshDetailData();
-                }
-            } catch (err) {
-                console.error("setTorrentLocation failed", err);
-            }
-        },
-        [
-            detailData,
-            refreshDetailData,
-            t,
-            requestRecovery,
-            choosePathViaNativeShell,
-        ]
-    );
-
-    const handleSetLocation = useCallback(
-        (torrent: Torrent | TorrentDetail) => executeSetLocation(torrent),
-        [executeSetLocation]
-    );
+    // set-location flow moved into TorrentActionsProvider (provider owns engine interactions)
 
     const refreshAfterRecovery = useCallback(
         async (target: Torrent | TorrentDetail) => {
@@ -1373,11 +1334,6 @@ export default function App() {
         ]
     );
 
-    const handleRedownloadForDetail = useCallback(
-        (torrent: TorrentDetail) => executeRedownload(torrent),
-        [executeRedownload]
-    );
-
     const handleRecoveryRecreateFolder = useCallback(() => {
         if (!recoverySession?.torrent) {
             return Promise.resolve();
@@ -1386,11 +1342,6 @@ export default function App() {
             recreateFolder: true,
         });
     }, [executeRedownload, recoverySession]);
-
-    const handleResumeForDetail = useCallback(
-        (torrent: TorrentDetail) => void handleTorrentAction("resume", torrent),
-        [handleTorrentAction]
-    );
 
     useEffect(() => {
         const handleRedownload = async (ev: Event) => {
@@ -1402,14 +1353,7 @@ export default function App() {
             await executeRedownload(target);
         };
 
-        const handleSetLocation = async (ev: Event) => {
-            const ce = ev as CustomEvent & { detail?: any };
-            const detail = ce?.detail ?? {};
-            const idOrHash = detail.id ?? detail.hash;
-            const target = findTorrentById(idOrHash);
-            if (!target) return;
-            await executeSetLocation(target);
-        };
+        // set-location event handler removed; set-location handled by TorrentActionsProvider
 
         const handleRetryFetch = async (ev: Event) => {
             const ce = ev as CustomEvent & { detail?: any };
@@ -1426,7 +1370,7 @@ export default function App() {
             const idOrHash = detail.id ?? detail.hash;
             const target = findTorrentById(idOrHash);
             if (!target) return;
-            await handleTorrentAction("resume", target);
+            await executeTorrentAction("resume", target);
         };
 
         const handleDismiss = async (ev: Event) => {
@@ -1509,9 +1453,8 @@ export default function App() {
     }, [
         executeRedownload,
         executeRetryFetch,
-        executeSetLocation,
         findTorrentById,
-        handleTorrentAction,
+        executeTorrentAction,
         handleCloseDetail,
         activeTorrentId,
     ]);
@@ -1738,6 +1681,8 @@ export default function App() {
         ]
     );
 
+    // Torrent actions are now owned by TorrentActionsProvider; no local value.
+
     return (
         <FocusProvider>
             <input
@@ -1754,98 +1699,99 @@ export default function App() {
                 requestDetails={handleRequestDetails}
                 closeDetail={handleCloseDetail}
             />
-            <RecoveryProvider
-                value={{
-                    serverClass,
-                    handleRetry: handleRecoveryRetry,
-                }}
-            >
-                <WorkspaceShell
-                    getRootProps={getRootProps}
-                    getInputProps={getInputProps}
-                    isDragActive={isDragActive}
-                    filter={filter}
-                    searchQuery={searchQuery}
-                    setSearchQuery={setSearchQuery}
-                    setFilter={setFilter}
-                    openAddTorrent={openAddTorrentPicker}
-                    openAddMagnet={() => openAddMagnet()}
-                    openSettings={openSettings}
-                    selectedTorrents={selectedTorrents}
-                    handleBulkAction={handleBulkAction}
-                    rehashStatus={rehashStatus}
-                    workspaceStyle={workspaceStyle}
-                    toggleWorkspaceStyle={wrappedToggleWorkspaceStyle}
-                    torrents={torrents}
-                    ghostTorrents={ghostTorrents}
-                    isTableLoading={!isInitialLoadFinished}
-                    handleTorrentAction={handleTorrentAction}
-                    handleRequestDetails={handleRequestDetails}
-                    detailData={detailData}
-                    closeDetail={handleCloseDetail}
-                    handleFileSelectionChange={handleFileSelectionChange}
-                    sequentialToggleHandler={handleSequentialToggle}
-                    superSeedingToggleHandler={handleSuperSeedingToggle}
-                    handleForceTrackerReannounce={handleForceTrackerReannounce}
-                    onSetLocation={handleSetLocation}
-                    onRedownload={handleRedownloadForDetail}
-                    onResume={handleResumeForDetail}
-                    capabilities={capabilities}
-                    optimisticStatuses={optimisticStatuses}
-                    handleSelectionChange={handleSelectionChange}
-                    handleActiveRowChange={handleActiveRowChange}
-                    handleOpenFolder={handleOpenFolder}
-                    peerSortStrategy={peerSortStrategy}
-                    inspectorTabCommand={inspectorTabCommand}
-                    onInspectorTabCommandHandled={
-                        handleInspectorTabCommandHandled
-                    }
-                    sessionStats={sessionStats}
-                    liveTransportStatus={liveTransportStatus}
-                    rpcStatus={rpcStatus}
-                    engineType={engineType}
-                    serverClass={serverClass}
-                    isNativeIntegrationActive={isNativeIntegrationActive}
-                    handleReconnect={handleReconnect}
-                    pendingDelete={pendingDelete}
-                    clearPendingDelete={clearPendingDelete}
-                    confirmDelete={confirmDelete}
-                    visibleHudCards={visibleHudCards}
-                    dismissHudCard={dismissHudCard}
-                    hasDismissedInsights={hasDismissedInsights}
-                    isSettingsOpen={isSettingsOpen}
-                    closeSettings={closeSettings}
-                    settingsConfig={settingsFlow.settingsConfig}
-                    isSettingsSaving={settingsFlow.isSettingsSaving}
-                    settingsLoadError={settingsFlow.settingsLoadError}
-                    handleSaveSettings={settingsFlow.handleSaveSettings}
-                    handleTestPort={settingsFlow.handleTestPort}
-                    restoreHudCards={restoreHudCards}
-                    applyUserPreferencesPatch={
-                        settingsFlow.applyUserPreferencesPatch
-                    }
-                    tableWatermarkEnabled={
-                        settingsFlow.settingsConfig.table_watermark_enabled
-                    }
-                    isDetailRecoveryBlocked={isDetailRecoveryBlocked}
-                />
-                <TorrentRecoveryModal
-                    isOpen={Boolean(recoverySession)}
-                    torrent={recoverySession?.torrent ?? null}
-                    outcome={
-                        lastRecoveryOutcome ?? recoverySession?.outcome ?? null
-                    }
-                    onClose={handleRecoveryClose}
-                    onPickPath={handleRecoveryPickPath}
-                    onBrowse={
-                        NativeShell.isAvailable
-                            ? recoveryRequestBrowse
-                            : undefined
-                    }
-                    onRecreate={handleRecoveryRecreateFolder}
-                    isBusy={isRecoveryBusy}
-                />
-            </RecoveryProvider>
+            <LifecycleProvider>
+                <TorrentActionsProvider>
+                    <RecoveryProvider
+                        value={{
+                            serverClass,
+                            handleRetry: handleRecoveryRetry,
+                        }}
+                    >
+                        <WorkspaceShell
+                            getRootProps={getRootProps}
+                            getInputProps={getInputProps}
+                            isDragActive={isDragActive}
+                            filter={filter}
+                            searchQuery={searchQuery}
+                            setSearchQuery={setSearchQuery}
+                            setFilter={setFilter}
+                            openAddTorrent={openAddTorrentPicker}
+                            openAddMagnet={() => openAddMagnet()}
+                            openSettings={openSettings}
+                            selectedTorrents={selectedTorrents}
+                            rehashStatus={rehashStatus}
+                            workspaceStyle={workspaceStyle}
+                            toggleWorkspaceStyle={wrappedToggleWorkspaceStyle}
+                            torrents={torrents}
+                            ghostTorrents={ghostTorrents}
+                            isTableLoading={!isInitialLoadFinished}
+                            handleRequestDetails={handleRequestDetails}
+                            detailData={detailData}
+                            closeDetail={handleCloseDetail}
+                            handleFileSelectionChange={
+                                handleFileSelectionChange
+                            }
+                            sequentialToggleHandler={handleSequentialToggle}
+                            superSeedingToggleHandler={handleSuperSeedingToggle}
+                            /* onSetLocation removed: use TorrentActionsContext.setLocation */
+                            capabilities={capabilities}
+                            optimisticStatuses={optimisticStatuses}
+                            handleSelectionChange={handleSelectionChange}
+                            handleActiveRowChange={handleActiveRowChange}
+                            /* handleOpenFolder removed; leaf components use TorrentActionsContext */
+                            peerSortStrategy={peerSortStrategy}
+                            inspectorTabCommand={inspectorTabCommand}
+                            onInspectorTabCommandHandled={
+                                handleInspectorTabCommandHandled
+                            }
+                            sessionStats={sessionStats}
+                            liveTransportStatus={liveTransportStatus}
+                            engineType={engineType}
+                            handleReconnect={handleReconnect}
+                            pendingDelete={pendingDelete}
+                            clearPendingDelete={clearPendingDelete}
+                            confirmDelete={confirmDelete}
+                            visibleHudCards={visibleHudCards}
+                            dismissHudCard={dismissHudCard}
+                            hasDismissedInsights={hasDismissedInsights}
+                            isSettingsOpen={isSettingsOpen}
+                            closeSettings={closeSettings}
+                            settingsConfig={settingsFlow.settingsConfig}
+                            isSettingsSaving={settingsFlow.isSettingsSaving}
+                            settingsLoadError={settingsFlow.settingsLoadError}
+                            handleSaveSettings={settingsFlow.handleSaveSettings}
+                            handleTestPort={settingsFlow.handleTestPort}
+                            restoreHudCards={restoreHudCards}
+                            applyUserPreferencesPatch={
+                                settingsFlow.applyUserPreferencesPatch
+                            }
+                            tableWatermarkEnabled={
+                                settingsFlow.settingsConfig
+                                    .table_watermark_enabled
+                            }
+                            isDetailRecoveryBlocked={isDetailRecoveryBlocked}
+                        />
+                        <TorrentRecoveryModal
+                            isOpen={Boolean(recoverySession)}
+                            torrent={recoverySession?.torrent ?? null}
+                            outcome={
+                                lastRecoveryOutcome ??
+                                recoverySession?.outcome ??
+                                null
+                            }
+                            onClose={handleRecoveryClose}
+                            onPickPath={handleRecoveryPickPath}
+                            onBrowse={
+                                NativeShell.isAvailable
+                                    ? recoveryRequestBrowse
+                                    : undefined
+                            }
+                            onRecreate={handleRecoveryRecreateFolder}
+                            isBusy={isRecoveryBusy}
+                        />
+                    </RecoveryProvider>
+                </TorrentActionsProvider>
+            </LifecycleProvider>
             <CommandPalette
                 isOpen={isCommandPaletteOpen}
                 onOpenChange={setCommandPaletteOpen}

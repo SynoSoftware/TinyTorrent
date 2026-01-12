@@ -1356,3 +1356,1603 @@ Phase 1 — TorrentActionsProvider (first implementation)
 - Validate against tests (unit for sequencing).
 
 Proceed to the per-component mapping sheet now?
+
+
+
+Here is **exactly** what the agent needs.
+Nothing more. Nothing less.
+This is an **execution-ready instruction**, not discussion.
+
+---
+
+## AGENT DIRECTIVE — PARAMETER COLLAPSE & OWNERSHIP MIGRATION (AUTHORITATIVE)
+
+### Mode
+
+You are **not designing** and **not debating**.
+You are producing **deliverables** that will be used to execute a refactor.
+
+No code changes.
+No architectural alternatives.
+No questions.
+
+---
+
+## Objective
+
+Eliminate parameter explosion by **restoring correct ownership boundaries** and defining a **single, authoritative migration map**.
+
+The problem is **domain logic leaking through UI plumbing**.
+Your task is to **pin ownership**, **define deletion targets**, and **lock the context surface**.
+
+---
+
+## Canonical Context Inventory (NON-NEGOTIABLE)
+
+These are the **only** shared access points allowed.
+Do **not** invent additional contexts.
+
+### 1. TorrentActionsContext
+
+**Hook:** `useTorrentActions()`
+
+**Owns (exclusive):**
+
+* resume / pause / recheck
+* redownload / recreate
+* setLocation
+* retryProbe (probe-only)
+* openFolder
+* recovery sequencing
+* in-flight dedupe
+* VERIFY_GUARD
+* verify watchers
+* recovery gate orchestration
+
+**Consumes:** `RecoveryLogic` (pure module)
+
+**Emits (UI-agnostic signals):**
+
+* `resume_started`
+* `verify_started`
+* `path_required`
+* `recovery_blocked`
+* `recovery_resolved`
+
+**Only layer allowed to issue engine commands.**
+
+---
+
+### 2. RecoveryLogic (PURE MODULE — NOT A CONTEXT)
+
+**Consumed only by TorrentActionsContext**
+
+Contains:
+
+* classifyMissingFilesState
+* determineConfidence
+* verify watcher logic
+* anti-loop guard logic
+* fingerprint derivation
+
+No UI.
+No engine calls.
+No hooks.
+
+---
+
+### 3. ServicesContext
+
+**Hook:** `useServices()`
+
+**Owns:**
+
+* engine adapter
+* raw RPC / FS primitives
+* capability flags
+* `safeCall(...)`
+
+**Does NOT own:**
+
+* resume / pause / verify semantics
+* recovery decisions
+
+This is **transport only**, not domain.
+
+---
+
+### 4. UIContext
+
+**Hook:** `useUI()`
+
+**Owns:**
+
+* toasts
+* modals
+* native file/folder pickers
+* feedback timing (success delays, passive resolution)
+
+**Never**:
+
+* calls engine
+* interprets recovery outcomes
+
+---
+
+### 5. LifecycleContext
+
+**Hook:** `useLifecycle()`
+
+**Read-only:**
+
+* serverClass
+* rpcStatus
+* native integration flags
+* platform info
+
+---
+
+### 6. SelectionContext
+
+**Hook:** `useSelection()`
+
+**Owns:**
+
+* selected torrent IDs
+* active row
+* focus state
+
+---
+
+### 7. TelemetryContext
+
+**Hook:** `useTelemetry()`
+
+**Owns:**
+
+* speedHistoryRef
+* optimisticStatuses
+* read-only derived metrics
+
+---
+
+## Deliverable Required (THIS IS THE TASK)
+
+### Deliverable B — Per-Component Mapping Sheet
+
+Produce a **mapping table** for **each** of the following files:
+
+* `App.tsx`
+* `useRecoveryController.ts`
+* `TorrentTable.tsx`
+* `TorrentTable_ColumnDefs.tsx`
+
+---
+
+### Required Table Format (STRICT)
+
+For **every recovery/action-related prop or callback**:
+
+| Component | Current Prop / Input | True Owner (Domain) | Replacement API (Context/Hook) | Deletable After Phase |
+| --------- | -------------------- | ------------------- | ------------------------------ | --------------------- |
+
+---
+
+### Ownership Rules (ENFORCE)
+
+* Engine calls → **TorrentActionsContext**
+* Recovery sequencing → **TorrentActionsContext**
+* Classification logic → **RecoveryLogic**
+* Toasts / modals → **UIContext**
+* serverClass → **LifecycleContext**
+* Selection state → **SelectionContext**
+* TableMeta callbacks → **sourced from hooks, not passed**
+
+If ownership is ambiguous, **call it out explicitly**.
+
+---
+
+## Phase Alignment (REFERENCE ONLY)
+
+* **Phase 0:** Mapping & ownership (this task)
+* **Phase 1:** TorrentActionsProvider
+* **Phase 2:** RecoveryLogic extraction
+* **Phase 3–5:** Prop deletion & migration
+* **Phase 6:** Cleanup
+
+Do **not** reorder phases.
+Do **not** propose new ones.
+
+---
+
+## Output Rules
+
+* No prose explanations outside the tables
+* No refactor suggestions
+* No future ideas
+* No “could also” statements
+
+This output must be **directly usable as a PR checklist**.
+
+---
+
+## Stopping Condition
+
+You stop **only** when:
+
+* All four components are mapped
+* Every prop has a declared owner
+* Every prop has a deletion phase
+* All replacement APIs reference the canonical contexts above
+
+---
+Component Current Prop / Input True Owner (Domain) Replacement API (Context / Hook) Deletable After Phase
+App (App.tsx) requestRecovery (recovery gate callback passed into children) TorrentActionsContext useTorrentActions().recoverPrimary(...) Phase 1
+App (App.tsx) choosePathViaNativeShell / native picker helper UIContext (native picker) useUI().openFolderPicker() Phase 3
+App (App.tsx) executeSetLocation (set-location flow helper) TorrentActionsContext useTorrentActions().setLocation(torrent, path, opts) Phase 1
+App (App.tsx) executeRetryFetch / retry probe helper TorrentActionsContext useTorrentActions().retryProbe(torrent) Phase 1
+App (App.tsx) onOpenFolder / forwarded open-folder callback TorrentActionsContext useTorrentActions().openFolder(torrent) Phase 5
+App (App.tsx) onSetLocation / forwarded set-location callback TorrentActionsContext useTorrentActions().setLocation(torrent, path) Phase 5
+App (App.tsx) onRedownload / download-missing callback TorrentActionsContext useTorrentActions().redownload(torrent, opts) Phase 5
+App (App.tsx) onRetry / forwarded retry callback TorrentActionsContext useTorrentActions().retryProbe(torrent) Phase 5
+App (App.tsx) serverClass, capabilities, torrentClient (runtime flags/adapter) LifecycleContext / ServicesContext useLifecycle().serverClass / useServices().engine Phase 3
+Component Current Prop / Input True Owner (Domain) Replacement API (Context / Hook) Deletable After Phase
+useRecoveryController (useRecoveryController.ts) params.client: EngineAdapter ServicesContext (transport) useServices().engine / useServices().safeCall() Phase 1
+useRecoveryController (...) params.detail: TorrentDetail SelectionContext (selected/active torrent data) useSelection().activeTorrent / useSelection().getDetail(id) Phase 4
+useRecoveryController (...) params.envelope: ErrorEnvelope ServicesContext (RPC read-model) / RecoveryLogic as consumer useServices().getErrorEnvelope(torrentId) then RecoveryLogic.classify(...) Phase 3
+useRecoveryController (...) params.requestRecovery?: RecoveryGateCallback TorrentActionsContext (action owner) useTorrentActions().recoverPrimary(torrent) Phase 1
+useRecoveryController (...) exposes recoveryCallbacks.handlePrimaryRecovery UI bridge (transitional) → TorrentActionsContext useTorrentActions().recoverPrimary (adapter) Phase 1
+Component Current Prop / Input True Owner (Domain) Replacement API (Context / Hook) Deletable After Phase
+TorrentTable (TorrentTable.tsx) onOpenFolder?: (torrent) => Promise<void> TorrentActionsContext useTorrentActions().openFolder(torrent) Phase 5
+TorrentTable (...) [onSetLocation?: (torrent) => Promise<void> void](http://vscodecontentref/49) TorrentActionsContext useTorrentActions().setLocation(torrent, path)
+TorrentTable (...) [onRedownload?: (torrent, opts?) => Promise<void> void](http://vscodecontentref/52) TorrentActionsContext useTorrentActions().redownload(torrent, opts)
+TorrentTable (...) [onRetry?: (torrent) => Promise<void> void](http://vscodecontentref/55) TorrentActionsContext useTorrentActions().retryProbe(torrent)
+TorrentTable (...) onAction, handleBulkAction (generic action dispatch) UI surface → may call TorrentActions useTorrentActions() (calls invoked from UI handlers) Phase 5
+TorrentTable (...) onRequestDetails?, onRequestDetailsFullscreen?, onSelectionChange?, onActiveRowChange? SelectionContext / UI useSelection() / useFocus() Phase 4
+TorrentTable (...) serverClass?: ServerClass (read-only flag) LifecycleContext useLifecycle().serverClass Phase 3
+Component Current Prop / Input True Owner (Domain) Replacement API (Context / Hook) Deletable After Phase
+TorrentTable_ColumnDefs (TorrentTable_ColumnDefs.tsx) table.options.meta.onDownloadMissing?: (torrent, opts?) TorrentActionsContext useTorrentActions().redownload(torrent, opts) (sourced into table meta) Phase 5
+TorrentTable_ColumnDefs (...) table.options.meta.onChangeLocation?: (torrent) => Promise<void> TorrentActionsContext useTorrentActions().setLocation(torrent, path) (sourced into table meta) Phase 5
+TorrentTable_ColumnDefs (...) table.options.meta.onOpenFolder?: (torrent) => Promise<void> TorrentActionsContext useTorrentActions().openFolder(torrent) (sourced into table meta) Phase 5
+TorrentTable_ColumnDefs (...) table.options.meta.onRetry?: (torrent) => Promise<void> TorrentActionsContext useTorrentActions().retryProbe(torrent) (sourced into table meta) Phase 5
+TorrentTable_ColumnDefs (...) table.options.meta.serverClass?: ServerClass LifecycleContext useLifecycle().serverClass (read-only) Phase 3
+TorrentTable_ColumnDefs (...) speedHistoryRef, optimisticStatuses (read-model references) TelemetryContext / UI read-model useTelemetry().speedHistoryRef / useTelemetry().optimisticStatuses Phase 4
+
+--------------------
+Short answer: **this is mostly correct**, but **it is not yet agent-complete**. Two things are missing and three things need tightening so the agent doesn’t drift or re-introduce leaks.
+
+I’ll be precise.
+
+---
+
+## 1. What’s good (you’re ~85% there)
+
+* Ownership is correctly reassigned to **TorrentActionsContext** for *all* recovery-related side effects.
+* App.tsx is clearly marked as a **temporary orchestrator** with Phase-1 deletions.
+* ColumnDefs meta callbacks are correctly identified as **table plumbing debt** to be eliminated.
+* `serverClass` correctly moved to **LifecycleContext** (read-only).
+* Telemetry is cleanly separated.
+
+This is **not hand-wavy** — it’s actionable.
+
+---
+
+## 2. What is missing (this is why the agent will still hesitate)
+
+### ❌ Missing: **Canonical Context List embedded in the mapping**
+
+Right now the mapping **assumes** the agent remembers the context inventory from earlier messages.
+
+Agents don’t.
+They regress.
+
+You must **prepend** the mapping with an explicit, frozen list like this:
+
+```
+Canonical contexts (do not invent others):
+
+- TorrentActionsContext → useTorrentActions()
+- ServicesContext → useServices()
+- UIContext → useUI()
+- LifecycleContext → useLifecycle()
+- SelectionContext → useSelection()
+- TelemetryContext → useTelemetry()
+- RecoveryLogic → pure module (no hook)
+```
+
+Without this, the agent will:
+
+* re-introduce a `RecoveryContext`
+* or sneak domain logic into `UIContext`
+* or add “just one helper” to Services
+
+This list must travel **with** the mapping.
+
+---
+
+## 3. Three corrections you should make before handing this to the agent
+
+These are important.
+
+### 🔧 Correction 1 — `params.detail` ownership
+
+You wrote:
+
+> `params.detail: TorrentDetail → SelectionContext`
+
+That’s **not quite right**.
+
+Correct split:
+
+* **SelectionContext** owns **identity** (selected IDs, active ID)
+* **TorrentActionsContext** (or Torrent read-model) owns **details**
+
+So the replacement should read:
+
+```
+params.detail → TorrentActionsContext (domain read-model)
+useTorrentActions().getDetail(torrentId)
+```
+
+SelectionContext should never own full `TorrentDetail` objects.
+
+---
+
+### 🔧 Correction 2 — ErrorEnvelope source
+
+You wrote:
+
+> `useServices().getErrorEnvelope(torrentId)`
+
+Be careful: **ServicesContext must not expose UI-level envelopes**.
+
+Correct flow:
+
+```
+ServicesContext → raw RPC error
+RecoveryLogic → classification
+TorrentActionsContext → ErrorEnvelope (domain projection)
+```
+
+So the replacement API should be:
+
+```
+useTorrentActions().getRecoveryState(torrentId)
+```
+
+Not Services.
+
+This preserves the rule: **UI never touches transport errors**.
+
+---
+
+### 🔧 Correction 3 — Picker naming + responsibility
+
+You wrote:
+
+> `useUI().openFolderPicker()`
+
+Good intent, but ambiguous.
+
+You need **two distinct UI responsibilities** or the agent will blur them:
+
+* `openFolderPicker()` → user-initiated path selection
+* `openFolder(path)` → OS shell open
+
+So the mapping row should be explicit:
+
+```
+choosePathViaNativeShell → UIContext
+Replacement: useUI().pickFolder()
+```
+
+and
+
+```
+onOpenFolder → TorrentActionsContext
+Replacement: useTorrentActions().openFolder(torrent)
+```
+
+Otherwise the agent will collapse them again.
+
+---
+
+## 4. What the agent still needs (final checklist)
+
+Before you paste this to the agent, **prepend** these two blocks:
+
+### A. Canonical Context Inventory (frozen)
+
+(as listed above)
+
+### B. Ownership axioms (one screen, no prose)
+
+```
+- UI never calls engine
+- UI never interprets recovery outcomes
+- TorrentActions is the only engine caller
+- RecoveryLogic is pure and internal
+- ServicesContext is transport only
+- SelectionContext owns IDs, not data
+```
+
+Then paste **your table**, with the three corrections applied.
+
+---
+
+## 5. Verdict
+
+* ✅ Your mapping is **structurally sound**
+* ❌ It is **missing the guardrails** that keep agents from re-introducing debt
+* ⚠️ Three ownership edges need tightening to avoid future leaks
+
+Fix those, add the canonical context list **above the table**, and then **yes** — this is exactly what the agent needs.
+
+
+-------------------
+
+# TinyTorrent — Recovery / Actions Refactor
+
+# AUTHORITATIVE MAPPING + OWNERSHIP SPEC
+
+# READ-ONLY. DO NOT INVENT NEW CONTEXTS
+
+────────────────────────────────────────
+
+1. CANONICAL CONTEXT INVENTORY (FROZEN)
+────────────────────────────────────────
+
+The following contexts/modules are the ONLY ones allowed.
+Do NOT introduce additional services or contexts.
+
+* TorrentActionsContext → useTorrentActions()
+  * Owns ALL torrent intents and engine side effects
+  * Owns recovery sequencing, dedupe, verify-guard, watchers
+  * Emits UI-agnostic signals (resume_started, verify_started, path_needed)
+
+* ServicesContext → useServices()
+  * Transport only (EngineAdapter, fs, rpc)
+  * Exposes raw capabilities + safeCall
+  * MUST NOT expose domain helpers (no resume(), verify(), etc.)
+
+* UIContext → useUI()
+  * Toasts, modals, native dialogs
+  * pickFolder() → user path selection
+  * openFolder(path) → OS shell open
+  * MUST NOT contain domain logic
+
+* LifecycleContext → useLifecycle()
+  * serverClass, rpcStatus, sessionReady, platform flags
+
+* SelectionContext → useSelection()
+  * Owns selected IDs and active ID ONLY
+  * MUST NOT own Torrent or TorrentDetail objects
+
+* TelemetryContext → useTelemetry()
+  * speedHistoryRef, optimisticStatuses, read-model only
+
+* RecoveryLogic (pure module, NOT a context)
+  * classifyMissingFilesState
+  * determineConfidence
+  * verify watcher helpers
+  * anti-loop logic
+  * NO engine calls, NO UI, NO hooks
+
+────────────────────────────────────────
+2. OWNERSHIP AXIOMS (NON-NEGOTIABLE)
+────────────────────────────────────────
+
+* UI NEVER calls engine methods
+* UI NEVER interprets RecoveryOutcome
+* TorrentActionsContext is the ONLY engine caller
+* RecoveryLogic is internal + pure
+* ServicesContext is transport only
+* SelectionContext owns identity, not data
+* ErrorEnvelope is a DOMAIN projection, not a transport artifact
+
+────────────────────────────────────────
+3. PER-COMPONENT MAPPING SHEET
+────────────────────────────────────────
+
+Component | Current Prop / Input | True Owner | Replacement API | Deletable After Phase
+
+────────────────────────────────────────
+App (App.tsx)
+────────────────────────────────────────
+requestRecovery (recovery gate callback)
+→ TorrentActionsContext
+→ useTorrentActions().recoverPrimary(torrent, opts)
+→ Phase 1
+
+choosePathViaNativeShell (native picker helper)
+→ UIContext
+→ useUI().pickFolder()
+→ Phase 3
+
+executeSetLocation (set-location helper)
+→ TorrentActionsContext
+→ useTorrentActions().setLocation(torrent, path, opts)
+→ Phase 1
+
+executeRetryFetch (retry probe helper)
+→ TorrentActionsContext
+→ useTorrentActions().retryProbe(torrent)
+→ Phase 1
+
+onOpenFolder (forwarded callback)
+→ TorrentActionsContext
+→ useTorrentActions().openFolder(torrent)
+→ Phase 5
+
+onSetLocation (forwarded callback)
+→ TorrentActionsContext
+→ useTorrentActions().setLocation(torrent, path)
+→ Phase 5
+
+onRedownload (download-missing callback)
+→ TorrentActionsContext
+→ useTorrentActions().redownload(torrent, opts)
+→ Phase 5
+
+onRetry (forwarded retry callback)
+→ TorrentActionsContext
+→ useTorrentActions().retryProbe(torrent)
+→ Phase 5
+
+serverClass, capabilities
+→ LifecycleContext
+→ useLifecycle().serverClass / useLifecycle().capabilities
+→ Phase 3
+
+torrentClient (EngineAdapter)
+→ ServicesContext
+→ useServices().engine
+→ Phase 3
+
+────────────────────────────────────────
+useRecoveryController (useRecoveryController.ts)
+────────────────────────────────────────
+params.client: EngineAdapter
+→ ServicesContext
+→ useServices().engine / useServices().safeCall()
+→ Phase 1
+
+params.detail: TorrentDetail
+→ TorrentActionsContext (domain read-model)
+→ useTorrentActions().getDetail(torrentId)
+→ Phase 3
+
+params.envelope: ErrorEnvelope
+→ TorrentActionsContext (domain projection)
+→ useTorrentActions().getRecoveryState(torrentId)
+→ Phase 3
+
+params.requestRecovery
+→ TorrentActionsContext
+→ useTorrentActions().recoverPrimary(torrent)
+→ Phase 1
+
+handlePrimaryRecovery (noop today)
+→ Transitional UI bridge ONLY
+→ Adapter calling useTorrentActions().recoverPrimary
+→ Phase 1 (domain removed)
+
+────────────────────────────────────────
+TorrentTable (TorrentTable.tsx)
+────────────────────────────────────────
+onOpenFolder
+→ TorrentActionsContext
+→ useTorrentActions().openFolder(torrent)
+→ Phase 5
+
+onSetLocation
+→ TorrentActionsContext
+→ useTorrentActions().setLocation(torrent, path)
+→ Phase 5
+
+onRedownload
+→ TorrentActionsContext
+→ useTorrentActions().redownload(torrent, opts)
+→ Phase 5
+
+onRetry
+→ TorrentActionsContext
+→ useTorrentActions().retryProbe(torrent)
+→ Phase 5
+
+onAction / handleBulkAction
+→ UI surface → dispatch into TorrentActions
+→ useTorrentActions()
+→ Phase 5
+
+onSelectionChange / onActiveRowChange / onRequestDetails
+→ SelectionContext / Focus
+→ useSelection() / useFocus()
+→ Phase 4
+
+serverClass
+→ LifecycleContext (read-only)
+→ useLifecycle().serverClass
+→ Phase 3
+
+────────────────────────────────────────
+TorrentTable_ColumnDefs (TorrentTable_ColumnDefs.tsx)
+────────────────────────────────────────
+table.meta.onDownloadMissing
+→ TorrentActionsContext
+→ useTorrentActions().redownload(torrent, opts)
+→ Phase 5
+
+table.meta.onChangeLocation
+→ TorrentActionsContext
+→ useTorrentActions().setLocation(torrent, path)
+→ Phase 5
+
+table.meta.onOpenFolder
+→ TorrentActionsContext
+→ useTorrentActions().openFolder(torrent)
+→ Phase 5
+
+table.meta.onRetry
+→ TorrentActionsContext
+→ useTorrentActions().retryProbe(torrent)
+→ Phase 5
+
+table.meta.serverClass
+→ LifecycleContext
+→ useLifecycle().serverClass
+→ Phase 3
+
+speedHistoryRef / optimisticStatuses
+→ TelemetryContext
+→ useTelemetry().speedHistoryRef / useTelemetry().optimisticStatuses
+→ Phase 4
+
+────────────────────────────────────────
+4. EXECUTION ORDER (DO NOT REORDER)
+────────────────────────────────────────
+
+Phase 0 — Mapping & ownership (this document)
+Phase 1 — TorrentActionsContext (action ownership)
+Phase 2 — Extract RecoveryLogic (pure module)
+Phase 3 — ServicesContext + LifecycleContext
+Phase 4 — SelectionContext + TelemetryContext
+Phase 5 — Delete prop plumbing
+Phase 6 — Cleanup + QA
+
+END OF SPEC
+-------------------
+CANONICAL CONTEXT INVENTORY (FROZEN)
+
+TorrentActionsContext → useTorrentActions() — owns all torrent intents, sequencing, in‑flight dedupe, VERIFY_GUARD, verify watchers; only layer that issues engine commands.
+ServicesContext → useServices() — transport only (EngineAdapter, safeCall, capability flags); no domain helpers.
+UIContext → useUI() — toasts, modals, native pickers; provides pickFolder() (user path selection) and MUST NOT contain domain logic.
+LifecycleContext → useLifecycle() — read-only runtime flags: serverClass, rpcStatus, nativeIntegration.
+SelectionContext → useSelection() — owns selected IDs and active ID only (no TorrentDetail objects).
+TelemetryContext → useTelemetry() — speedHistoryRef, optimisticStatuses, read-only telemetry.
+RecoveryLogic — pure module (no hook): classification, confidence, verify-watcher helpers, anti-loop logic (consumed by TorrentActionsContext).
+OWNERSHIP AXIOMS (NON-NEGOTIABLE)
+
+UI never calls engine methods.
+UI never interprets RecoveryOutcome.
+TorrentActionsContext is the only engine caller.
+RecoveryLogic is pure and internal.
+ServicesContext is transport only.
+SelectionContext owns IDs, not data.
+ErrorEnvelope is a domain projection (provided by TorrentActions), not a transport artifact.
+Component Current Prop / Input True Owner (Domain) Replacement API (Context / Hook) Deletable After Phase
+App (App.tsx) requestRecovery (recovery gate callback passed into children) TorrentActionsContext useTorrentActions().recoverPrimary(torrent, opts) Phase 1
+App (App.tsx) choosePathViaNativeShell / native picker helper UIContext useUI().pickFolder() Phase 3
+App (App.tsx) executeSetLocation (set-location flow helper) TorrentActionsContext useTorrentActions().setLocation(torrent, path, opts) Phase 1
+App (App.tsx) executeRetryFetch / retry probe helper TorrentActionsContext useTorrentActions().retryProbe(torrent) Phase 1
+App (App.tsx) onOpenFolder (forwarded open-folder callback) TorrentActionsContext useTorrentActions().openFolder(torrent) Phase 5
+App (App.tsx) onSetLocation (forwarded set-location callback) TorrentActionsContext useTorrentActions().setLocation(torrent, path) Phase 5
+App (App.tsx) onRedownload (download-missing callback) TorrentActionsContext useTorrentActions().redownload(torrent, opts) Phase 5
+App (App.tsx) onRetry (forwarded retry callback) TorrentActionsContext useTorrentActions().retryProbe(torrent) Phase 5
+App (App.tsx) serverClass, capabilities, torrentClient (runtime flags/adapter) LifecycleContext / ServicesContext useLifecycle().serverClass / useServices().engine Phase 3
+Component Current Prop / Input True Owner (Domain) Replacement API (Context / Hook) Deletable After Phase
+useRecoveryController (useRecoveryController.ts) params.client: EngineAdapter ServicesContext useServices().engine / useServices().safeCall() Phase 1
+useRecoveryController (...) params.detail: TorrentDetail TorrentActionsContext (domain read-model) useTorrentActions().getDetail(torrentId) Phase 3
+useRecoveryController (...) params.envelope: ErrorEnvelope TorrentActionsContext (domain projection) useTorrentActions().getRecoveryState(torrentId) Phase 3
+useRecoveryController (...) params.requestRecovery?: RecoveryGateCallback TorrentActionsContext useTorrentActions().recoverPrimary(torrent) Phase 1
+useRecoveryController (...) exposes recoveryCallbacks.handlePrimaryRecovery (transitional) UI bridge → TorrentActionsContext Adapter calling useTorrentActions().recoverPrimary Phase 1
+Component Current Prop / Input True Owner (Domain) Replacement API (Context / Hook) Deletable After Phase
+TorrentTable (TorrentTable.tsx) onOpenFolder?: (torrent) => Promise<void> TorrentActionsContext useTorrentActions().openFolder(torrent) Phase 5
+TorrentTable (...) [onSetLocation?: (torrent) => Promise<void> void](http://vscodecontentref/52) TorrentActionsContext useTorrentActions().setLocation(torrent, path)
+TorrentTable (...) [onRedownload?: (torrent, opts?) => Promise<void> void](http://vscodecontentref/55) TorrentActionsContext useTorrentActions().redownload(torrent, opts)
+TorrentTable (...) [onRetry?: (torrent) => Promise<void> void](http://vscodecontentref/58) TorrentActionsContext useTorrentActions().retryProbe(torrent)
+TorrentTable (...) onAction, handleBulkAction (generic action dispatch) UI surface (dispatch into domain) UI handlers call useTorrentActions() Phase 5
+TorrentTable (...) onRequestDetails?, onRequestDetailsFullscreen?, onSelectionChange?, onActiveRowChange? SelectionContext / Focus useSelection() / useFocus() Phase 4
+TorrentTable (...) serverClass?: ServerClass (read-only flag) LifecycleContext useLifecycle().serverClass Phase 3
+Component Current Prop / Input True Owner (Domain) Replacement API (Context / Hook) Deletable After Phase
+TorrentTable_ColumnDefs (TorrentTable_ColumnDefs.tsx) table.options.meta.onDownloadMissing?: (torrent, opts?) TorrentActionsContext useTorrentActions().redownload(torrent, opts) (sourced into table meta) Phase 5
+TorrentTable_ColumnDefs (...) table.options.meta.onChangeLocation?: (torrent) => Promise<void> TorrentActionsContext useTorrentActions().setLocation(torrent, path) (sourced into table meta) Phase 5
+TorrentTable_ColumnDefs (...) table.options.meta.onOpenFolder?: (torrent) => Promise<void> TorrentActionsContext useTorrentActions().openFolder(torrent) (sourced into table meta) Phase 5
+TorrentTable_ColumnDefs (...) table.options.meta.onRetry?: (torrent) => Promise<void> TorrentActionsContext useTorrentActions().retryProbe(torrent) (sourced into table meta) Phase 5
+TorrentTable_ColumnDefs (...) table.options.meta.serverClass?: ServerClass LifecycleContext useLifecycle().serverClass Phase 3
+TorrentTable_ColumnDefs (...) speedHistoryRef, optimisticStatuses (read-model references) TelemetryContext useTelemetry().speedHistoryRef / useTelemetry().optimisticStatuses Phase 4
+
+-----------
+
+Added 5 todos
+
+Phase‑1 Implementation Checklist (scope: implement TorrentActionsContext + migrate requestRecovery & primary entry points; no RecoveryLogic extraction; minimal UI wiring)
+
+Task 1 — Create TorrentActionsContext provider
+
+Files:
+Add: src/app/context/TorrentActionsContext.tsx
+Update: App.tsx (wrap root/workspace with provider)
+Change summary:
+Implement provider + useTorrentActions() hook exposing domain methods: recoverPrimary(torrent, opts), setLocation(torrent, path, opts), retryProbe(torrent), openFolder(torrent), redownload(torrent, opts).
+Provider owns in‑flight dedupe map and VERIFY_GUARD.
+Provider uses useServices() (existing transport) internally to call engine.
+Delete / Replace:
+No deletions yet — new provider added; consumers remain until migrated.
+Tests required:
+Unit tests verifying provider methods call engine via useServices() and enforce in‑flight dedupe (concurrent callers get same Promise).
+Test that VERIFY_GUARD is stored/used by provider (see Task 12).
+Task 2 — Wire provider into App (minimal)
+
+Files:
+App.tsx
+Change summary:
+Import TorrentActionsProvider and wrap the app/workspace shell at the same level as RecoveryProvider/other top-level providers.
+Do not change child props yet — this only injects provider into tree.
+Delete / Replace:
+None.
+Tests required:
+Smoke start: ensure app renders with provider present (unit/integration smoke).
+Task 3 — Migrate requestRecovery wiring in App.tsx
+
+Files:
+App.tsx
+Any children currently receiving requestRecovery prop (search and list callsites; likely table/details components).
+Change summary:
+Stop building/passing explicit requestRecovery callback from App. Instead, leave child prop wiring untouched for now and provide an adapter in children that calls useTorrentActions().recoverPrimary() (see Task 4). Initially, update App to stop creating the separate gate callback object and rely on provider where needed.
+Keep behavior identical; only change the source of truth for action to provider hook.
+Delete / Replace:
+Replace App-local requestRecovery factory with provider-based calls.
+Tests required:
+Integration test ensuring clicking primary recovery UI triggers provider method (can be mocked).
+Task 4 — Update useRecoveryController to call provider (primary entry point)
+
+Files:
+useRecoveryController.ts
+Change summary:
+Replace internal requestRecovery usage and handlePrimaryRecovery implementation to call useTorrentActions().recoverPrimary(detail, options).
+Remove per‑fingerprint in‑flight map duplication here — this hook becomes a thin adapter and must not duplicate dedupe. If it currently exposes inFlight map for concurrency, replace with delegating to provider.
+Delete / Replace:
+Remove inFlight map and busyState ownership from this hook (ownership moved to provider); keep minimal UI state (isBusy/lastOutcome) derived from provider signals.
+Tests required:
+Unit tests asserting handlePrimaryRecovery calls provider and that UI adapts to provider outcome responses.
+Task 5 — Migrate other primary-entry adapters (minimal)
+
+Files:
+Search & update small adapter callsites that expose recovery callbacks (e.g., details panel bridges).
+Change summary:
+Where small adapter functions previously called into App-level requestRecovery, refactor them to call useTorrentActions().recoverPrimary() (adapter only).
+Delete / Replace:
+Replace App-supplied callback usage with hook call.
+Tests required:
+Unit tests confirming adapters delegate to provider.
+Task 6 — Move in‑flight dedupe & VERIFY_GUARD ownership
+
+Files:
+src/app/context/TorrentActionsContext.tsx (new home)
+Remove/adjust duplicates in useRecoveryController.ts and recovery-controller.ts where relevant
+Change summary:
+Centralize dedupe structures in provider keyed by fingerprint.
+Provider returns deduped Promise for recoverPrimary.
+Keep runMissingFilesRecoverySequence usage unchanged (provider may call it), but provider ensures single concurrent execution per fingerprint.
+Delete / Replace:
+Delete/disable in‑hook dedupe maps.
+Tests required:
+Concurrency tests: two concurrent calls to recoverPrimary for same fingerprint share Promise and only one engine sequence runs.
+Task 7 — Minimal consumer adapter for UI (no UI UX changes)
+
+Files:
+useRecoveryController.ts (adapter)
+src/modules/dashboard/components/* callsites (minor)
+Change summary:
+Provide tiny adapter wrappers that call useTorrentActions() so UI code changes are minimal and localized.
+Delete / Replace:
+Replace direct App-provided callback usage with adapters that call provider hook.
+Tests required:
+Ensure adapter preserves previous API surface (so UI code needs minimal edits).
+Task 8 — Tests: TorrentActions sequencing, dedupe, and requestRecovery mapping
+
+Files:
+src/app/context/**tests**/TorrentActionsContext.test.ts
+Update **tests** as needed
+Change summary:
+Tests verifying:
+recoverPrimary enforces dedupe for concurrent callers.
+recoverPrimary emits expected UI-agnostic signals (resume_started, verify_started, path_required) via observable or callback hooks (mock or spy).
+useRecoveryController.handlePrimaryRecovery delegates to provider.
+Delete / Replace:
+Add tests; update existing recovery tests that assumed in‑hook dedupe.
+Tests required:
+Unit + small integration tests (mock useServices().engine to assert engine calls).
+Notes / Constraints (phase‑1 boundaries)
+
+Do NOT extract RecoveryLogic in Phase‑1: provider may call runMissingFilesRecoverySequence or other existing functions; do not move classification logic out yet.
+Keep UI changes minimal: do not redesign modal APIs or table meta; only replace where required to call provider hook.
+Avoid changing public types or exporting new domain types in this phase.
+Ensure provider uses existing useServices() (or useTransmissionSession) for engine access — do not add new transport layers.
+If you want, I can now:
+
+produce the concrete PR checklist (file diffs & exact code locations to edit), or
+generate the unit test skeletons for Task 8.
+Which next step do you want?
+--------------
+Concrete **PR checklist** first.
+
+Why (strictly practical):
+
+* Phase-1 risk is **wiring mistakes**, not logic gaps.
+* Tests without exact edit points invite scope creep and accidental Phase-2 work.
+* A PR checklist forces **surgical edits + deletions**, which is the whole point of Phase-1.
+
+What I want in the PR checklist (so it’s actually usable):
+
+**For each task:**
+
+* file path
+* exact symbols/functions to touch
+* what line(s) stop owning behavior
+* what line(s) start delegating to `useTorrentActions()`
+* what must remain unchanged (guardrails)
+
+**Explicit sections:**
+
+1. **Edits**
+2. **Deletions**
+3. **New files**
+4. **No-touch list** (RecoveryLogic, UI semantics, table meta redesign)
+5. **Verification steps** (manual + unit)
+
+Once that lands cleanly, unit test skeletons are trivial and low-risk.
+
+So: **produce the concrete PR checklist with exact edit locations**.
+-------------------
+
+Yes — **you are correct**.
+`serverClass` **belongs in transport / lifecycle context**, *not* in props.
+The fact that it ended up in `DashboardLayoutProps` is a **symptom**, not a requirement.
+
+Let’s be exact about **why it happened**, **why it’s wrong**, and **where it actually belongs**.
+
+---
+
+## The correct ownership of `serverClass`
+
+### What `serverClass` actually is
+
+`serverClass` answers:
+
+> *“What kind of backend am I talking to?”*
+> (local TinyTorrent vs remote Transmission / RPC)
+
+That makes it:
+
+* **environment / runtime fact**
+* **read-only**
+* **session-scoped**
+* **orthogonal to UI structure**
+
+So the correct owner is:
+
+```
+LifecycleContext (or TransportContext)
+```
+
+Not UI. Not layout. Not table.
+
+You already defined this correctly in the frozen inventory.
+
+---
+
+## Why it *accidentally* went into Dashboard props
+
+This is the causal chain — no hand-waving:
+
+1. **TorrentTable / ColumnDefs need to branch on serverClass**
+
+   * (local vs remote behavior, recovery confidence, open-folder behavior)
+
+2. **TorrentTable does not have access to LifecycleContext yet**
+
+   * because Phase-1 explicitly postponed it
+
+3. TypeScript complained:
+
+   * “serverClass is used but not in scope”
+
+4. The *shortest mechanical path* was:
+
+   ```
+   App → WorkspaceShell → Dashboard_Layout → TorrentTable
+   ```
+
+5. So `serverClass` got threaded.
+
+This was **not a design decision**.
+It was a **missing context placeholder**.
+
+---
+
+## Why this is architecturally wrong (but temporarily survivable)
+
+### Wrong because
+
+* `Dashboard_Layout` does not *own* `serverClass`
+* layout now depends on transport semantics
+* every intermediate component becomes a conduit
+
+### Survivable because
+
+* it is read-only
+* it doesn’t introduce new behavior
+* it is explicitly transitional
+
+This is **acceptable debt** only if:
+
+1. it is **marked temporary**
+2. it is **deleted in Phase-2**
+3. it does **not spread further**
+
+---
+
+## Where `serverClass` MUST go (precisely)
+
+You have two valid placements — choose one, but only one:
+
+### ✅ Option A — LifecycleContext (recommended)
+
+```ts
+interface LifecycleContextValue {
+  serverClass: ServerClass;
+  rpcStatus: ConnectionStatus;
+  nativeIntegration: boolean;
+}
+```
+
+Accessed via:
+
+```ts
+const { serverClass } = useLifecycle();
+```
+
+Used by:
+
+* TorrentActionsContext
+* RecoveryLogic (indirectly)
+* UI read-only decisions (labels, availability)
+
+### ✅ Option B — ServicesContext (acceptable alternative)
+
+If you treat transport as authoritative:
+
+```ts
+interface ServicesContextValue {
+  engine: EngineAdapter;
+  serverClass: ServerClass;
+  capabilities: CapabilityStore;
+}
+```
+
+Then UI never sees it directly — only actions do.
+
+This is slightly tighter, but also fine.
+
+---
+
+## Why it should NOT be in Dashboard props
+
+Because props imply **ownership or configuration**.
+
+`serverClass` is neither.
+
+Dashboard is not saying:
+
+> “Render differently because I chose this serverClass”
+
+It’s saying:
+
+> “I need to know what world I’m in”
+
+That’s context.
+
+---
+
+## What to do *right now* (Phase-1 safe correction)
+
+### 1. **Do NOT remove it yet**
+
+You already unblocked the build. Good.
+
+### 2. **Freeze propagation**
+
+Do **not** pass `serverClass` any further down.
+
+### 3. **Add an explicit TODO**
+
+Right where it was added:
+
+```ts
+// TEMP (Phase-1): serverClass is threaded to unblock build.
+// Must be removed once LifecycleContext is introduced (Phase-2).
+serverClass?: ServerClass;
+```
+
+This matters. It prevents normalization.
+
+---
+
+## Phase-2 cleanup (guaranteed deletion)
+
+When you introduce `LifecycleContext`:
+
+1. Remove `serverClass` from:
+
+   * `DashboardLayoutProps`
+   * `WorkspaceShellProps`
+   * `TorrentTableProps`
+   * `ColumnDefs meta`
+
+2. Replace all reads with:
+
+```ts
+const { serverClass } = useLifecycle();
+```
+
+1. TypeScript will help you delete everything cleanly.
+
+That’s the payoff.
+
+---
+
+## Key insight (this is important)
+
+> **Prop explosion doesn’t come from “too many features.”
+> It comes from missing contexts.**
+
+This `serverClass` incident is a textbook example.
+
+You’re not going backwards.
+You’re identifying **exactly which context must exist next**.
+
+That’s progress.
+
+---
+
+## Bottom line
+
+* Yes — `serverClass` belongs in transport / lifecycle context.
+* It landed in props only because that context doesn’t exist yet.
+* This is acceptable **only as a marked, temporary bridge**.
+* Phase-2 deletes it everywhere.
+
+You spotted the right problem instantly. That’s senior-level instinct.
+
+Proceed — but don’t let it spread.
+--------------
+
+
+STOP.
+
+Phase-1 is COMPLETE and FROZEN.
+Do not modify or reinterpret it.
+
+PHASE-1 GOAL (ALREADY ACHIEVED):
+* Establish TorrentActionsContext as the single owner of torrent intents and engine calls
+* Redirect primary recovery entry points to the provider
+* Remove in-hook dedupe / VERIFY_GUARD ownership from useRecoveryController
+* No UI behavior changes
+* No RecoveryLogic extraction
+* No modal or table redesign
+
+Phase-1 is DONE. No more wiring, no more fixes, no “small follow-ups”.
+
+---
+
+PHASE-2 GOAL (ONLY GOAL):
+**Collapse prop plumbing by replacing props with context consumption.**
+
+This phase is about:
+* REMOVING parameters
+* DELETING props
+* MOVING reads to contexts
+
+This phase is NOT about:
+* Adding new logic
+* Adding new provider responsibilities
+* Changing UX
+* Rewriting components
+
+---
+
+PHASE-2 SCOPE (STRICT ORDER):
+
+1) Lifecycle reads
+   * serverClass
+   * rpcStatus
+   * nativeIntegration
+
+   Action:
+   * Identify every component receiving these as props
+   * Replace with useLifecycle()
+   * Delete the props
+
+2) TorrentActions consumption
+   * onOpenFolder
+   * onSetLocation
+   * onRedownload
+   * onRetry
+   * resume/recheck entry points
+
+   Action:
+   * Replace prop callbacks with useTorrentActions()
+   * Delete the props
+
+3) Selection plumbing
+   * selectedTorrents
+   * onSelectionChange
+   * active row propagation
+
+   Action:
+   * Replace with SelectionContext reads
+   * Delete selection props
+
+---
+
+DELIVERABLE FOR THIS STEP (NO CODE):
+
+Produce a **Phase-2 execution plan** containing ONLY:
+
+For each of these components:
+* App.tsx
+* WorkspaceShell
+* Dashboard_Layout
+* TorrentTable
+* TorrentTable_ColumnDefs
+
+Provide a table with columns:
+* Prop name
+* Which context replaces it
+* Where to read it instead
+* Phase-2 step number (1 / 2 / 3)
+* Safe deletion order
+
+Do NOT propose new contexts.
+Do NOT write code.
+Do NOT modify RecoveryLogic or TorrentActionsContext.
+Do NOT touch modals or UX.
+
+This is a deletion plan, not a design exercise.
+--------------
+Phase‑1 Audit (ownership check — completed Phase‑1 code is the baseline)
+
+Violations of ownership axioms (items remaining that currently violate "TorrentActionsContext owns engine / UI never calls engine / UI never interprets RecoveryOutcome"):
+
+App.tsx
+Contains direct engine calls and engine fallbacks (examples: executeSetLocation fallback calls client.setTorrentLocation, provider value pickPath/recreate implementations call torrentClientRef.current and client.resume). These are engine calls implemented in App instead of strictly inside the canonical TorrentActionsContext module. (Phase‑1 allowed introducing the provider but the engine call sites remain in App.)
+RecoveryGateContext.tsx
+interpretRecoveryOutcome maps RecoveryOutcome → RecoveryGateOutcome (UI-level mapping/interpretation of recovery outcomes). That logic interprets RecoveryOutcome in the gate/provider layer — this conflicts with the axiom “UI never interprets RecoveryOutcome.”
+Hooks and modules still calling engine directly outside of the canonical owner
+src/modules/dashboard/hooks/useAddTorrent.ts (and similar hooks) accept torrentClient and call transport directly — these are still engine callers outside of TorrentActionsContext.
+Some provider wiring is implemented in App.tsx
+The TorrentActionsProvider value is assembled in App.tsx (implemented by using useTorrentActions/direct client calls). This means engine-call implementations are split between useTorrentActions hook and ad‑hoc code in App, which increases owner dispersion.
+Logic added prematurely (belongs in Phase‑2/Phase‑3, not Phase‑1):
+
+Implementing pickPath, browse, recreate inside App.tsx (provider value) rather than in a centralized TorrentActionsContext implementation file. These are engine-call implementations that would be more properly owned by the canonical TorrentActionsContext module in a later pass.
+Any direct torrentClient usages left in App.tsx fall under the same premature-ownership distribution — they should be migrated into TorrentActionsContext in Phase‑2/3.
+RecoveryGateContext interpreting outcomes (should be reviewed in a later phase to align with the axiom or explicitly categorized as UI-side behavior).
+Confirm whether App.tsx is an engine orchestrator now
+
+Short answer: No — Phase‑1 introduced TorrentActionsContext and the hook/provider wiring, but App.tsx still contains direct engine call sites and provider method implementations (see above). Therefore App.tsx still functions as an engine orchestrator in places and must be cleaned in Phase‑2 to meet the canonical ownership model.
+Phase‑2 Execution Plan (deletion plan — per your strict constraints)
+
+Notes:
+
+Use only existing canonical contexts: LifecycleContext (useLifecycle), TorrentActionsContext (useTorrentActions), SelectionContext (useSelection), UIContext (useUI) or ServicesContext/TelemetryContext exactly as specified in the frozen inventory.
+Phase mapping: Step 1 = Lifecycle reads; Step 2 = TorrentActions consumption; Step 3 = Selection plumbing.
+Safe deletion order (per prop): (A) Replace reads inside the target component to consume context (add useX() locally). (B) Stop passing the prop from the immediate parent (patch the parent to remove the prop forwarding). (C) Remove prop from the parent’s TypeScript signature and continue upwards until App.tsx no longer constructs/passes the prop. Do not delete a prop until all consumers read from context.
+This plan is a deletion-only plan; it does not propose new contexts, new behavior, or code changes beyond replacing prop reads with context reads.
+Table: columns = Prop name | Which context replaces it | Where to read it instead | Phase‑2 step (1/2/3) | Safe deletion order
+
+File: App.tsx
+serverClass
+LifecycleContext
+read via useLifecycle() in consuming component (e.g., WorkspaceShell, Dashboard_Layout)
+Step 1
+Safe deletion order: A) In WorkspaceShell replace prop use with useLifecycle(); B) stop passing serverClass from App; C) remove serverClass from App callsites.
+rpcStatus
+LifecycleContext
+read via useLifecycle() in WorkspaceShell / StatusBar
+Step 1
+Safe deletion order: A) StatusBar consume useLifecycle(); B) WorkspaceShell stop forwarding; C) remove from App.
+isNativeIntegrationActive (nativeIntegration)
+LifecycleContext
+read via useLifecycle() in WorkspaceShell and other consumers
+Step 1
+Safe deletion order: A) Replace usage in WorkspaceShell with useLifecycle(); B) stop passing from App; C) remove from App.
+handleOpenFolder / onOpenFolder
+TorrentActionsContext
+read via useTorrentActions() where UI needs to open folders (e.g., WorkspaceShell, TorrentTable, Dashboard_Layout)
+Step 2
+Safe deletion order: A) In leaf components (TorrentTable, row menus) switch usage to useTorrentActions().handleOpenFolder; B) remove prop forwarding from Dashboard_Layout; C) remove passing from WorkspaceShell and finally App.
+onSetLocation
+TorrentActionsContext
+read via useTorrentActions().pickPath or useTorrentActions().setLocation (canonical: TorrentActionsContext)
+Step 2
+Safe deletion order: A) Replace use in Dashboard_Layout/WorkspaceShell to call useTorrentActions(); B) stop forwarding; C) remove from App.
+onRedownload / recreate
+TorrentActionsContext
+read via useTorrentActions().recreate or useTorrentActions().executeRedownload
+Step 2
+Safe deletion order: A) Update leaf consumer to call useTorrentActions(); B) remove forwarding from Dashboard_Layout/WorkspaceShell; C) remove in App.
+onRetry / retry entry points (resume/recheck retry)
+TorrentActionsContext
+read via useTorrentActions() (e.g., executeTorrentAction('recheck'|'resume'))
+Step 2
+Safe deletion order: A) Replace any UI retry handlers to call useTorrentActions(); B) stop passing retry props; C) remove in App.
+selectedTorrents
+SelectionContext
+read via useSelection() in WorkspaceShell / components needing selection
+Step 3
+Safe deletion order: A) Replace selection reads in WorkspaceShell with useSelection(); B) Dashboard_Layout and TorrentTable stop accepting selectedTorrents prop; C) remove from App.
+handleSelectionChange / onSelectionChange
+SelectionContext
+read via useSelection() (dispatch selection actions into SelectionContext)
+Step 3
+Safe deletion order: A) Migrate selection updates to SelectionContext API within TorrentTable / WorkspaceShell; B) stop forwarding handlers; C) remove from App.
+activeTorrentId / handleActiveRowChange
+SelectionContext
+read via useSelection() / SelectionContext APIs
+Step 3
+Safe deletion order: A) TorrentTable/Dashboard_Layout consume SelectionContext; B) remove prop forwarding; C) remove from App.
+File: WorkspaceShell (component)
+Props to delete / replace:
+serverClass
+LifecycleContext
+read inside WorkspaceShell via useLifecycle()
+Step 1
+Safe deletion order: A) WorkspaceShell switches to useLifecycle(); B) App stop passing serverClass; C) clean signatures upward.
+rpcStatus
+LifecycleContext
+read inside StatusBar / WorkspaceShell via useLifecycle()
+Step 1
+Safe deletion order: A) StatusBar consume useLifecycle(); B) WorkspaceShell stop forwarding; C) App stop passing.
+isNativeIntegrationActive
+LifecycleContext
+read via useLifecycle() in WorkspaceShell
+Step 1
+Safe deletion order: A) consume locally; B) stop pass; C) remove from App.
+handleOpenFolder
+TorrentActionsContext
+useTorrentActions().handleOpenFolder inside WorkspaceShell and forwarded children
+Step 2
+Safe deletion order: A) replace leaf calls with context; B) delete forwarding in WorkspaceShell; C) remove from App.
+onSetLocation / onRedownload / onRetry / onResume
+TorrentActionsContext
+use useTorrentActions() locally where those actions are invoked
+Step 2
+Safe deletion order: A) replace local calls; B) stop forwarding; C) remove from App.
+selectedTorrents / handleSelectionChange / active row forwarding
+SelectionContext
+read/write via useSelection() in WorkspaceShell and internal views
+Step 3
+Safe deletion order: A) move selection reads/updates into WorkspaceShell via useSelection(); B) stop passing to children; C) remove from App.
+File: Dashboard_Layout
+Props to delete / replace:
+onOpenFolder
+TorrentActionsContext
+call useTorrentActions().handleOpenFolder inside Dashboard_Layout or pass only selection IDs (not full callbacks)
+Step 2
+Safe deletion order: A) replace any in-component calls with useTorrentActions(); B) stop forwarding props to TorrentTable; C) remove in WorkspaceShell.
+onSetLocation / onRedownload / onRetry / onResume
+TorrentActionsContext
+read via useTorrentActions() inside Dashboard_Layout / TorrentDetails
+Step 2
+Safe deletion order: A) migrate to context calls in Dashboard_Layout/child views; B) remove forwards from WorkspaceShell; C) remove from App.
+serverClass (if still present)
+LifecycleContext
+read with useLifecycle() where needed (e.g., classification display)
+Step 1
+Safe deletion order: A) Dashboard_Layout consume useLifecycle(); B) WorkspaceShell stop passing; C) App stop passing.
+isDetailRecoveryBlocked (derived flag)
+SelectionContext / LifecycleContext as appropriate (if derived from selection/serverClass)
+Step (1 or 3) — choose depending on data source
+Safe deletion order: A) compute from context; B) remove prop forwarding; C) remove from App.
+File: TorrentTable
+Props to delete / replace:
+onOpenFolder / onSetLocation / onRedownload / onRetry / onResume (row-level actions)
+TorrentActionsContext
+call useTorrentActions() inside TorrentTable row menus or TorrentTable_RowMenu
+Step 2
+Safe deletion order: A) migrate row menu handlers to useTorrentActions(); B) remove handlers from Dashboard_Layout and WorkspaceShell forwards; C) remove from App.
+selectedTorrents / onSelectionChange / onActiveRowChange
+SelectionContext
+read/write via useSelection() inside TorrentTable
+Step 3
+Safe deletion order: A) switch TorrentTable to useSelection(); B) Dashboard_Layout/WorkspaceShell stop forwarding; C) remove from App.
+serverClass (if still referenced)
+LifecycleContext
+read via useLifecycle() inside TorrentTable as needed
+Step 1
+Safe deletion order: A) TorrentTable consumes useLifecycle(); B) Dashboard_Layout stop forwarding; C) App remove.
+File: TorrentTable_ColumnDefs
+Props to delete / replace:
+Any column-level access to serverClass or action callbacks (e.g., emphasis/visibility decisions)
+serverClass → LifecycleContext
+action callbacks → TorrentActionsContext
+selection metadata → SelectionContext
+Phase mapping:
+serverClass: Step 1
+action callbacks: Step 2
+selection metadata: Step 3
+Safe deletion order: A) Make TorrentTable_ColumnDefs pure by reading contexts where column renderer code needs them (e.g., getCellProps), or pass minimal metadata and move logic into consuming component; B) remove forwarded props from TorrentTable; C) remove from Dashboard_Layout/App.
+End of plan.
+
+
+-------------------
+
+
+
+Here is the authoritative summary and execution guide for the TinyTorrent Refactor. This document acts as the single source of truth for the project's current state, architectural rules, and immediate roadmap.
+
+---
+
+# TinyTorrent Refactor: Master Status & Execution Guide
+
+## 1. Executive Summary
+**The Problem:** The application suffered from severe "prop drilling" (passing parameters through too many layers) and leakage of domain logic into the UI. Specifically, the "Missing Files / Recovery" specification exposed that `App.tsx` was orchestrating engine logic, `serverClass` was polluting UI props, and recovery handlers were duplicated or ineffective.
+
+**The Solution:** A strict **Context-Based Architecture**. We are moving ownership of logic and data into specific React Contexts. Components must consume these contexts directly rather than receiving props from their parents.
+
+**Current Status:**
+*   **Phase 0 (Design & Mapping):** ✅ Complete.
+*   **Phase 1 (Action Wiring):** ✅ Complete & Frozen. `TorrentActionsContext` is created and wired; primary entry points use it.
+*   **Phase 2 (Prop Deletion):** 🚧 **ACTIVE**. We are currently removing the legacy props and replacing them with context hooks.
+
+---
+
+## 2. The Architectural Constitution
+Do not invent new patterns. Adhere strictly to these boundaries.
+
+### A. Canonical Context Inventory
+These are the **only** shared access points allowed.
+
+| Context | Hook | Responsibility |
+| :--- | :--- | :--- |
+| **TorrentActions** | `useTorrentActions()` | **The Brain.** Owns all intents (resume, pause, setLocation, recover). The *only* layer allowed to call the Engine. |
+| **Services** | `useServices()` | **The Transport.** Raw EngineAdapter, RPC calls, filesystem primitives. No domain logic. |
+| **Lifecycle** | `useLifecycle()` | **The Environment.** Read-only runtime flags: `serverClass`, `rpcStatus`, `nativeIntegration`. |
+| **UI** | `useUI()` | **The Surface.** Toasts, Modals, Native File Pickers (`pickFolder`). |
+| **Selection** | `useSelection()` | **The Pointer.** Owns selected IDs and active Row ID. Does *not* own data. |
+| **RecoveryLogic** | *(Module)* | **The Rules.** Pure functions for classification (S1–S4) and confidence. Consumed only by TorrentActions. |
+
+### B. Ownership Axioms (Non-Negotiable)
+1.  **UI NEVER calls engine methods.**
+2.  **UI NEVER interprets Recovery Outcomes.** (It only reacts to signals like "resume_started").
+3.  **TorrentActions is the ONLY engine caller.**
+4.  **ServicesContext is Transport only.** (It does not know what "Recovery" is).
+5.  **Props are for Configuration, not Context.** (If a prop answers "What environment am I in?" or "What is currently selected?", it must be deleted and replaced with a Context read).
+
+---
+
+## 3. Progress Report: What Was Done (Phase 1)
+**Goal:** Establish the `TorrentActionsContext` as the single owner of side effects.
+
+1.  **Created `TorrentActionsContext`:** It now houses the logic for recovery sequencing, deduplication, and engine calls.
+2.  **Redirected Entry Points:** The "Gate" in `App.tsx` and the `useRecoveryController` hook were patched to delegate to `useTorrentActions().recoverPrimary()`.
+3.  **Frozen Wiring:** The provider is injected at the root.
+
+**Known Debt (To Be Fixed in Phase 2):**
+*   `serverClass` is still passed as a prop to `Dashboard_Layout` and `TorrentTable` to unblock the build.
+*   `onOpenFolder`, `onRetry`, etc., are still passed down from `App.tsx`.
+
+---
+
+## 4. The Master Plan (Current Phase)
+
+We are currently executing **Phase 2: Prop Deletion**.
+
+**Objective:** Collapse the parameter explosion by replacing prop passing with direct context consumption.
+
+### Step 1: Lifecycle cleanup (`serverClass`)
+*   **Target:** `App`, `WorkspaceShell`, `Dashboard_Layout`, `TorrentTable`.
+*   **Action:** Replace `props.serverClass` with `const { serverClass } = useLifecycle()`.
+*   **Outcome:** `serverClass` is removed from all intermediate component signatures.
+
+### Step 2: Action cleanup (Callbacks)
+*   **Target:** `onOpenFolder`, `onSetLocation`, `onRedownload`, `onRetry`, `onResume`.
+*   **Action:** Replace callbacks with `useTorrentActions().[method]`.
+*   **Outcome:** `App.tsx` stops being an event bus. `TorrentTable` becomes self-sufficient.
+
+### Step 3: Selection cleanup
+*   **Target:** `selectedTorrents`, `onSelectionChange`, `activeRow`.
+*   **Action:** Replace with `useSelection()`.
+*   **Outcome:** Props related to selection state are deleted.
+
+---
+
+## 5. Phase 2 Execution Detail (The Checklist)
+
+Use this table to execute the specific code changes required right now.
+
+| Component | Prop to Delete | Replacement API | Notes |
+| :--- | :--- | :--- | :--- |
+| **App.tsx** | `serverClass`, `rpcStatus` | `useLifecycle()` | Stop passing these to `WorkspaceShell`. |
+| **App.tsx** | `requestRecovery` | `useTorrentActions().recoverPrimary` | Already wired in Phase 1; delete the prop def. |
+| **App.tsx** | `onOpenFolder`, `onRetry` | `useTorrentActions()` | Delete the handler functions in App entirely. |
+| **WorkspaceShell** | `serverClass` | `useLifecycle()` | Stop forwarding to `Dashboard_Layout`. |
+| **WorkspaceShell** | All Action Callbacks | `useTorrentActions()` | Stop forwarding to `Dashboard_Layout`. |
+| **Dashboard_Layout**| `serverClass` | `useLifecycle()` | Stop forwarding to `TorrentTable`. |
+| **TorrentTable** | `serverClass` | `useLifecycle()` | Read context inside the table/row. |
+| **TorrentTable** | `onOpenFolder`, `onRetry` | `useTorrentActions()` | Invoke context methods directly in row actions. |
+| **ColumnDefs** | `meta.serverClass` | `useLifecycle()` | Columns should read context or accept minimal data. |
+
+---
+
+## 6. Verification: How to Check Success
+
+After Phase 2 changes are applied, run this audit to confirm the refactor is correct:
+
+1.  **The "Prop Scan":**
+    *   Open `TorrentTable.tsx`. Does it accept `serverClass` as a prop?
+        *   **YES:** ❌ Fail.
+        *   **NO:** ✅ Pass.
+    *   Open `App.tsx`. Does it contain functions like `handleRetry` or `handleOpenFolder`?
+        *   **YES:** ❌ Fail.
+        *   **NO:** ✅ Pass.
+
+2.  **The "Engine Check":**
+    *   Search the entire `src/modules/dashboard` folder for direct usage of `client.call`, `client.verify`, or `engine.*`.
+    *   **Result:** Should be **0 results**. All engine calls must be inside `src/app/context/TorrentActionsContext`.
+
+3.  **The "Recovery Check":**
+    *   Trigger a "Missing Files" error (S1–S4).
+    *   Click "Retry" or "Download Missing."
+    *   **Result:** The UI should update via signals from `TorrentActionsContext` (e.g., toast appears, state changes to verifying), *without* `App.tsx` re-rendering or passing new props down.
+
+## 7. Immediate Next Instruction
+Proceed to **Phase 2 Step 1**: Remove `serverClass` and `rpcStatus` props by implementing `useLifecycle()` reads in `WorkspaceShell`, `Dashboard_Layout`, and `TorrentTable`.
+
+
+--------------------------
+
+I'll record this Step‑1 task in the todo list, then produce the deletion checklist with exact read locations and safe deletion order.
+
+Tracked todo items and investigated serverClass usage
+Summarized conversation history
+
+Created deletion checklist and updated prop usage
+I'll scan the specific files to capture exact read locations for each prop, then produce the deletion checklist.
+
+Read and analyzed multiple source code files
+Summary — what I scanned
+
+I located each read/use of serverClass, rpcStatus, and isNativeIntegrationActive in the target files so we can remove prop plumbing safely.
+Read locations (examples)
+
+App: rpcStatus destructured from session hook — App.tsx:160 · isNativeIntegrationActive computed from serverClass — App.tsx:264 · forwarding site where App passes props → children — App.tsx:1844
+WorkspaceShell: props destructure includes rpcStatus, serverClass, isNativeIntegrationActive — WorkspaceShell.tsx:200 · conditional toast uses rpcStatus — WorkspaceShell.tsx:370 · forwards serverClass into layout — WorkspaceShell.tsx:321 · passes native flag — WorkspaceShell.tsx:586
+Dashboard_Layout: serverClass declared in props (optional) — Dashboard_Layout.tsx:80
+TorrentTable: tableMeta passed into useReactTable (meta originates in hook) — TorrentTable.tsx:390 · props type still lists serverClass (unused) — TorrentTable.tsx:26
+TorrentTable_ColumnDefs: reads table.options.meta?.serverClass when classifying missing-files — TorrentTable_ColumnDefs.tsx:486
+Note (dependency): tableMeta.serverClass is currently supplied by the useTorrentTableColumns hook — see its serverClass capture — useTorrentTableColumns.tsx:11 and tableMeta creation — useTorrentTableColumns.tsx:82.
+
+Concrete, surgical deletion checklist (do these steps; stop when App no longer passes the prop)
+
+Preparation — safety rules (do these before editing)
+Run tests/build baseline: npm test (or npm run build) and commit current workspace state.
+Work one lifecycle symbol at a time (first serverClass, then rpcStatus, then isNativeIntegrationActive) to reduce blast radius.
+After each subtree change, run npm test and verify UI behavior in dev if needed.
+serverClass — leaf-first change
+Replace reads:
+Update useTorrentTableColumns.tsx to source serverClass from useLifecycle() instead of useRecoveryContext() so tableMeta.serverClass is lifecycle-backed. See: useTorrentTableColumns.tsx:11 and useTorrentTableColumns.tsx:82.
+(Alternatively) If you prefer column-local change, update TorrentTable_ColumnDefs.tsx to call useLifecycle() directly (replace table.options.meta?.serverClass reads). See: TorrentTable_ColumnDefs.tsx:486.
+Remove prop flow in child components:
+Remove serverClass from TorrentTable prop type (it's currently unused). See: TorrentTable.tsx:26.
+If Dashboard_Layout doesn't use serverClass, remove it from DashboardLayoutProps; otherwise replace reads with useLifecycle() inside Dashboard_Layout. See: Dashboard_Layout.tsx:80.
+Stop forwarding:
+Remove serverClass={serverClass} forwards from WorkspaceShell into Dashboard_Layout and other children. See where forwarded: WorkspaceShell.tsx:321.
+Final cut at App:
+After no child reads serverClass prop, remove serverClass state/forwarding in App (stop calling setServerClass/passing serverClass to children). Example forward site: App.tsx:1844.
+Verify: run tests/build and check that TorrentTable_ColumnDefs still gets serverClass value via lifecycle (or via updated hook).
+rpcStatus — leaf-first change
+Replace reads in deepest consumers first:
+Replace rpcStatus prop usages inside WorkspaceShell with const { rpcStatus } = useLifecycle() and update local uses (toast, status bar, HUD cards, etc.). See prop destructure and uses: WorkspaceShell.tsx:200 and WorkspaceShell.tsx:370.
+If any Dashboard child consumes rpcStatus via props, convert those children to call useLifecycle() directly.
+Remove prop from parents:
+Remove rpcStatus from Dashboard_Layout props/interfaces if present, or replace reads there with useLifecycle().
+Remove rpcStatus from WorkspaceShell prop list and all forwards to its children.
+Final cut at App:
+Once no component relies on a forwarded rpcStatus, remove the rpcStatus={rpcStatus} JSX props App uses to forward. Example forwards: App.tsx:1844.
+In App, replace internal local rpcStatus reads with useLifecycle() where required (or keep local if still needed for App-specific early initialization — but avoid double-sources).
+Verify: run tests/build.
+isNativeIntegrationActive — leaf-first change
+Replace reads in consumers:
+In WorkspaceShell, replace isNativeIntegrationActive prop usages with const { isNativeIntegrationActive } = useLifecycle() and update any isNativeMode forwards. See forwards: WorkspaceShell.tsx:586.
+In App, isNativeIntegrationActive is computed (serverClass === "tinytorrent") — switch any child reads to lifecycle first; then remove computation/forwarding in App as the final step.
+Remove prop from parents:
+Remove isNativeIntegrationActive from WorkspaceShell props and stop forwarding from App.
+Final cut at App:
+After children read lifecycle directly, delete computed isNativeIntegrationActive and any forwards in App (example forward: App.tsx:1844).
+Verify: run tests/build.
+Types, props, and small cleanup (after each prop)
+Remove the prop from the component prop interface(s) and from any call sites that forwarded it.
+Update DashboardTableMeta if you moved serverClass sourcing (or remove serverClass from meta if you decide columns call useLifecycle() directly).
+Update any tests or mocks that assert prop passing.
+Run npm test and npm run build.
+Safety & rollback guidance
+Do each prop in its own commit; keep changes minimal per commit (leaf changes first, then parent).
+If tests fail after a child change, revert that child edit before touching parents.
+Keep PR notes: which files were changed, where useLifecycle() was introduced, and that App forwarding was removed last. --- give it the above prompt? or what
+--------------------------
+
+Give it **one tight execution order**, not the whole narrative again.
+
+What you pasted is *correct*, but it’s **too explanatory** for an agent at this stage. It invites commentary and scope creep.
+
+What the agent needs now is a **locked task contract** with a stop condition.
+
+---
+
+### **Use THIS prompt (verbatim)**
+
+```
+You are executing Phase-2 Step-1 ONLY.
+
+Scope:
+- Remove lifecycle props: serverClass, rpcStatus, isNativeIntegrationActive
+- Replace all reads with useLifecycle()
+- Delete all prop plumbing for those symbols
+
+Files in scope (do not touch others):
+- App.tsx
+- WorkspaceShell.tsx
+- Dashboard_Layout.tsx
+- TorrentTable.tsx
+- TorrentTable_ColumnDefs.tsx
+- useTorrentTableColumns.tsx (if it supplies serverClass)
+
+Rules (non-negotiable):
+- Leaf-first deletion: replace reads → stop forwarding → delete prop
+- One symbol at a time: serverClass first, then rpcStatus, then isNativeIntegrationActive
+- NO action callbacks, NO recovery logic, NO selection logic
+- NO refactors, NO formatting, NO behavior changes
+- Do not invent new contexts or helpers
+
+Deliverable:
+1. A checklist of exact edits performed (file + symbol + line range)
+2. Confirmation that:
+   - serverClass no longer appears in any component props
+   - rpcStatus no longer appears in any component props
+   - isNativeIntegrationActive no longer appears in any component props
+3. npm test + npm run build both pass
+
+Stop immediately after Step-1 is complete.
+Do not proceed to Step-2 or Step-3.
+```
+
+---
+
+### Why this works (and your longer version didn’t)
+
+* Your long message = **design-correct but execution-ambiguous**
+* This prompt = **mechanical, bounded, auditable**
+* It forces:
+
+  * leaf-first discipline
+  * zero “helpful” detours
+  * a hard stop
+
+This is how you prevent “every component has 100 params” from happening **again**.
+
+Once Step-1 is green, you repeat the same structure for Step-2 and Step-3.
+
+You’re finally operating like a compiler pass, not a refactor session.

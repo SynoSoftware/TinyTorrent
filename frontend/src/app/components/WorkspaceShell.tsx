@@ -9,8 +9,10 @@ import { STATUS } from "@/shared/status";
 import type { ConnectionStatus } from "@/shared/types/rpc";
 
 import Runtime, { NativeShell } from "@/app/runtime";
+import { useLifecycle } from "@/app/context/LifecycleContext";
 
 import { Dashboard_Layout } from "@/modules/dashboard/components/Dashboard_Layout";
+import { useTorrentActionsContext } from "@/app/context/TorrentActionsContext";
 import { SettingsModal } from "@/modules/settings/components/SettingsModal";
 import { Navbar } from "./layout/Navbar";
 import { StatusBar, type EngineDisplayType } from "./layout/StatusBar";
@@ -83,17 +85,13 @@ interface WorkspaceShellProps {
     openAddMagnet: () => void;
     openSettings: () => void;
     selectedTorrents: Torrent[];
-    handleBulkAction: (action: TorrentTableAction) => Promise<void>;
+    // handleBulkAction removed — use TorrentActionsContext in leaf components
     rehashStatus?: RehashStatus;
     workspaceStyle: WorkspaceStyle;
     toggleWorkspaceStyle: () => void;
     torrents: Torrent[];
     ghostTorrents: Torrent[];
     isTableLoading: boolean;
-    handleTorrentAction: (
-        action: TorrentTableAction,
-        torrent: Torrent
-    ) => Promise<void>;
     handleRequestDetails: (torrent: Torrent) => Promise<void>;
     detailData: TorrentDetail | null;
     closeDetail: () => void;
@@ -111,29 +109,20 @@ interface WorkspaceShellProps {
     ) => void;
     sequentialToggleHandler?: (enabled: boolean) => Promise<void>;
     superSeedingToggleHandler?: (enabled: boolean) => Promise<void>;
-    handleForceTrackerReannounce: () => Promise<string | void> | void;
-    onSetLocation?: (torrent: TorrentDetail) => Promise<void> | void;
-    onRedownload?: (
-        torrent: TorrentDetail,
-        options?: { recreateFolder?: boolean }
-    ) => Promise<void> | void;
-    onRetry?: (torrent: TorrentDetail) => Promise<void> | void;
-    onResume?: (torrent: TorrentDetail) => Promise<void> | void;
+
+    // onRetry removed — use TorrentActionsContext in leaf components
     capabilities: CapabilityStore;
     optimisticStatuses: OptimisticStatusMap;
     isDetailRecoveryBlocked?: boolean;
     handleSelectionChange: (selection: Torrent[]) => void;
     handleActiveRowChange: (torrent: Torrent | null) => void;
-    handleOpenFolder: (torrent: Torrent) => Promise<void>;
+    // handleOpenFolder removed — use TorrentActionsContext in leaf components
     peerSortStrategy: PeerSortStrategy;
     inspectorTabCommand: DetailTab | null;
     onInspectorTabCommandHandled: () => void;
     sessionStats: SessionStats | null;
     liveTransportStatus: HeartbeatSource;
-    rpcStatus: ConnectionStatus;
     engineType: EngineDisplayType;
-    serverClass: ServerClass;
-    isNativeIntegrationActive: boolean;
     handleReconnect: () => void;
     pendingDelete: DeleteIntent | null;
     clearPendingDelete: () => void;
@@ -174,14 +163,13 @@ export function WorkspaceShell({
     openAddMagnet,
     openSettings,
     selectedTorrents,
-    handleBulkAction,
+
     rehashStatus,
     workspaceStyle,
     toggleWorkspaceStyle,
     torrents,
     ghostTorrents,
     isTableLoading,
-    handleTorrentAction,
     handleRequestDetails,
     detailData,
     closeDetail,
@@ -190,24 +178,19 @@ export function WorkspaceShell({
     onPeerContextAction,
     sequentialToggleHandler,
     superSeedingToggleHandler,
-    handleForceTrackerReannounce,
-    onSetLocation,
-    onRedownload,
     isDetailRecoveryBlocked,
     capabilities,
     optimisticStatuses,
     handleSelectionChange,
     handleActiveRowChange,
-    handleOpenFolder,
+    // handleOpenFolder removed — leaf components should call TorrentActionsContext
     peerSortStrategy,
     inspectorTabCommand,
     onInspectorTabCommandHandled,
     sessionStats,
     liveTransportStatus,
-    rpcStatus,
     engineType,
-    serverClass,
-    isNativeIntegrationActive,
+    // isNativeIntegrationActive removed — read from LifecycleContext
     handleReconnect,
     pendingDelete,
     clearPendingDelete,
@@ -226,7 +209,13 @@ export function WorkspaceShell({
     applyUserPreferencesPatch,
     tableWatermarkEnabled,
 }: WorkspaceShellProps) {
+    const {
+        serverClass,
+        rpcStatus: lifecycleRpcStatus,
+        nativeIntegration,
+    } = useLifecycle();
     const { t } = useTranslation();
+    const actions = useTorrentActionsContext();
     const handleWindowCommand = useCallback(
         (command: "minimize" | "maximize" | "close") => {
             if (!Runtime.isNativeHost) {
@@ -252,16 +241,24 @@ export function WorkspaceShell({
             onSettings={() => openSettings()}
             hasSelection={selectedTorrents.length > 0}
             onResumeSelection={() => {
-                void handleBulkAction("resume");
+                selectedTorrents.forEach(
+                    (t) => void actions.executeTorrentAction("resume", t)
+                );
             }}
             onPauseSelection={() => {
-                void handleBulkAction("pause");
+                selectedTorrents.forEach(
+                    (t) => void actions.executeTorrentAction("pause", t)
+                );
             }}
             onRecheckSelection={() => {
-                void handleBulkAction("recheck");
+                selectedTorrents.forEach(
+                    (t) => void actions.executeTorrentAction("recheck", t)
+                );
             }}
             onRemoveSelection={() => {
-                void handleBulkAction("remove");
+                selectedTorrents.forEach(
+                    (t) => void actions.executeTorrentAction("remove", t)
+                );
             }}
             rehashStatus={rehashStatus}
             workspaceStyle={workspaceStyle}
@@ -287,46 +284,42 @@ export function WorkspaceShell({
     );
 
     const renderModeLayoutSection = () => (
-            <Dashboard_Layout
-                workspaceStyle={workspaceStyle}
-                torrents={torrents}
-                filter={filter}
-                searchQuery={searchQuery}
-                isTableLoading={isTableLoading}
-                onAction={handleTorrentAction}
-                handleBulkAction={handleBulkAction}
-                onRequestDetails={handleRequestDetails}
-                detailData={detailData}
-                onCloseDetail={closeDetail}
-                onFilesToggle={handleFileSelectionChange}
-                onFileContextAction={onFileContextAction}
-                onPeerContextAction={onPeerContextAction}
-                onSequentialToggle={sequentialToggleHandler}
-                onSuperSeedingToggle={superSeedingToggleHandler}
-                onForceTrackerReannounce={handleForceTrackerReannounce}
-                onSetLocation={onSetLocation}
-                onRedownload={onRedownload}
-                capabilities={capabilities}
-                optimisticStatuses={optimisticStatuses}
-                peerSortStrategy={peerSortStrategy}
-                inspectorTabCommand={inspectorTabCommand}
-                onInspectorTabCommandHandled={onInspectorTabCommandHandled}
-                ghostTorrents={ghostTorrents}
-                isDropActive={isDragActive}
-                onSelectionChange={handleSelectionChange}
-                onActiveRowChange={handleActiveRowChange}
-                onOpenFolder={handleOpenFolder}
-                tableWatermarkEnabled={tableWatermarkEnabled}
-                isDetailRecoveryBlocked={isDetailRecoveryBlocked}
-                serverClass={serverClass}
-            />
+        <Dashboard_Layout
+            workspaceStyle={workspaceStyle}
+            torrents={torrents}
+            filter={filter}
+            searchQuery={searchQuery}
+            isTableLoading={isTableLoading}
+            // onAction/handleBulkAction handled via TorrentActionsContext in leaf components
+            onRequestDetails={handleRequestDetails}
+            detailData={detailData}
+            onCloseDetail={closeDetail}
+            onFilesToggle={handleFileSelectionChange}
+            onFileContextAction={onFileContextAction}
+            onPeerContextAction={onPeerContextAction}
+            onSequentialToggle={sequentialToggleHandler}
+            onSuperSeedingToggle={superSeedingToggleHandler}
+            /* onSetLocation removed: use TorrentActionsContext.setLocation */
+
+            capabilities={capabilities}
+            optimisticStatuses={optimisticStatuses}
+            peerSortStrategy={peerSortStrategy}
+            inspectorTabCommand={inspectorTabCommand}
+            onInspectorTabCommandHandled={onInspectorTabCommandHandled}
+            ghostTorrents={ghostTorrents}
+            isDropActive={isDragActive}
+            onSelectionChange={handleSelectionChange}
+            onActiveRowChange={handleActiveRowChange}
+            /* onOpenFolder removed; leaf components use TorrentActionsContext */
+            tableWatermarkEnabled={tableWatermarkEnabled}
+            isDetailRecoveryBlocked={isDetailRecoveryBlocked}
+        />
     );
 
     const renderStatusBarSection = () => (
         <StatusBar
             workspaceStyle={workspaceStyle}
             sessionStats={sessionStats}
-            rpcStatus={rpcStatus}
             liveTransportStatus={liveTransportStatus}
             selectedCount={selectedTorrents.length}
             onEngineClick={handleReconnect}
@@ -367,7 +360,7 @@ export function WorkspaceShell({
             )}
 
             <AnimatePresence>
-                {rpcStatus === STATUS.connection.ERROR && (
+                {lifecycleRpcStatus === STATUS.connection.ERROR && (
                     <motion.div
                         initial={{ opacity: 0, y: 6 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -581,9 +574,8 @@ export function WorkspaceShell({
                 onRestoreInsights={restoreHudCards}
                 onToggleWorkspaceStyle={toggleWorkspaceStyle}
                 onReconnect={handleReconnect}
-                rpcStatus={rpcStatus}
                 serverClass={serverClass}
-                isNativeMode={isNativeIntegrationActive}
+                isNativeMode={nativeIntegration}
                 isImmersive={workspaceStyle === "immersive"}
                 hasDismissedInsights={hasDismissedInsights}
                 onApplyUserPreferencesPatch={applyUserPreferencesPatch}

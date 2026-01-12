@@ -6,6 +6,7 @@ import {
 } from "@/modules/settings/components/tabs/connection/ConnectionManager";
 import { SettingsSection } from "@/modules/settings/components/SettingsSection";
 import { useSettingsForm } from "@/modules/settings/context/SettingsFormContext";
+import { useLifecycle } from "@/app/context/LifecycleContext";
 import type { ServerClass } from "@/services/rpc/entities";
 
 interface ConnectionTabContentProps {
@@ -18,7 +19,8 @@ export function ConnectionTabContent({
     isNativeMode,
 }: ConnectionTabContentProps) {
     const { t } = useTranslation();
-    const { rpcStatus, onReconnect } = useSettingsForm();
+    const { onReconnect } = useSettingsForm();
+    const { rpcStatus } = useLifecycle();
 
     return (
         <SettingsSection
@@ -28,15 +30,11 @@ export function ConnectionTabContent({
             <div className="space-y-stage">
                 <ConnectionCredentialsCard
                     onReconnect={onReconnect}
-                    rpcStatus={rpcStatus}
                     serverClass={serverClass}
                     isNativeMode={isNativeMode}
                 />
                 <Divider className="my-panel opacity-50" />
-                <ConnectionExtensionCard
-                    rpcStatus={rpcStatus}
-                    serverClass={serverClass}
-                />
+                <ConnectionExtensionCard serverClass={serverClass} />
             </div>
         </SettingsSection>
     );

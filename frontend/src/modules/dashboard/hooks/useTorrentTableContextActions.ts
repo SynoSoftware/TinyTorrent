@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+import { useTorrentActionsContext } from "@/app/context/TorrentActionsContext";
 
 // Hook: context-menu action handler for the torrent table.
 // Extracted from `TorrentTable.tsx` and accepts a params object to keep
@@ -8,13 +9,12 @@ export const useTorrentTableContextActions = (params: any) => {
         contextMenu,
         findRowElement,
         openColumnModal,
-        onOpenFolder,
-        onSetLocation,
         copyToClipboard,
         buildMagnetLink,
-        onAction,
         setContextMenu,
     } = params;
+
+    const _actions = useTorrentActionsContext();
 
     const handleContextMenuAction = useCallback(
         async (key?: string) => {
@@ -25,19 +25,25 @@ export const useTorrentTableContextActions = (params: any) => {
                 const rowElement = findRowElement(torrent.id);
                 openColumnModal(rowElement ?? null);
             } else if (key === "open-folder") {
-                if (onOpenFolder && torrent.savePath) {
-                    await onOpenFolder(torrent);
+                if (torrent.savePath) {
+                    await _actions.handleOpenFolder(torrent);
                 }
             } else if (key === "set-download-path") {
-                if (onSetLocation) {
-                    await onSetLocation(torrent);
+                // Provider-owned: use TorrentActionsContext.setLocation
+                if (_actions.setLocation) {
+                    await _actions.setLocation(torrent);
+                }
+            } else if (key === "reDownload" || key === "reDownloadHere") {
+                // Redownload action handled by provider
+                if (_actions.redownload) {
+                    await _actions.redownload(torrent);
                 }
             } else if (key === "copy-hash") {
                 await copyToClipboard(torrent.hash);
             } else if (key === "copy-magnet") {
                 await copyToClipboard(buildMagnetLink(torrent));
             } else if (key) {
-                onAction?.(key, torrent);
+                await _actions.executeTorrentAction(key as any, torrent);
             }
             setContextMenu(null);
         },
@@ -45,12 +51,10 @@ export const useTorrentTableContextActions = (params: any) => {
             contextMenu,
             findRowElement,
             openColumnModal,
-            onOpenFolder,
-            onSetLocation,
             copyToClipboard,
             buildMagnetLink,
-            onAction,
             setContextMenu,
+            _actions,
         ]
     );
 

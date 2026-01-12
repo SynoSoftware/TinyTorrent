@@ -222,8 +222,6 @@ export function useTorrentWorkflow({
         optimisticStatuses,
         pendingDelete,
         confirmDelete,
-        handleTorrentAction,
-        handleBulkAction,
         clearPendingDelete,
         showFeedback,
     };

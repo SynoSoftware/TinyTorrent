@@ -23,6 +23,7 @@ import React, {
 } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
+import { useTorrentActionsContext } from "@/app/context/TorrentActionsContext";
 import { getEmphasisClassForAction } from "@/shared/utils/recoveryFormat";
 
 import type { OptimisticStatusMap } from "@/modules/dashboard/types/optimistic";
@@ -119,23 +120,13 @@ interface TorrentTableProps {
     searchQuery: string;
     isLoading?: boolean;
     embedded?: boolean;
-    onAction?: (action: TorrentTableAction, torrent: Torrent) => void;
-    handleBulkAction?: (action: TorrentTableAction) => Promise<void>;
     onRequestDetails?: (torrent: Torrent) => void;
     onRequestDetailsFullscreen?: (torrent: Torrent) => void;
     onSelectionChange?: (selection: Torrent[]) => void;
     onActiveRowChange?: (torrent: Torrent | null) => void;
     optimisticStatuses?: OptimisticStatusMap;
     disableDetailOpen?: boolean;
-    onOpenFolder?: (torrent: Torrent) => Promise<void>;
-    onSetLocation?: (torrent: Torrent) => Promise<void> | void;
-    onRedownload?: (
-        torrent: Torrent,
-        options?: { recreateFolder?: boolean }
-    ) => Promise<void> | void;
     ghostTorrents?: Torrent[];
-    serverClass?: ServerClass;
-    onRetry?: (torrent: Torrent) => Promise<void> | void;
 }
 
 // --- HELPERS ---
@@ -160,8 +151,6 @@ export function TorrentTable({
     searchQuery,
     isLoading = false,
     embedded = false,
-    onAction,
-    handleBulkAction,
     onRequestDetails,
     onRequestDetailsFullscreen,
     onSelectionChange,
@@ -169,12 +158,9 @@ export function TorrentTable({
     optimisticStatuses = {},
     disableDetailOpen = false,
     ghostTorrents,
-    serverClass,
-    onOpenFolder,
-    onSetLocation,
-    onRedownload,
 }: TorrentTableProps) {
     const { t } = useTranslation();
+    // actions provided by TorrentActionsContext (declared above)
     // Wiring state required by the extracted hooks/components
     const [activeRowId, setActiveRowId] = useState<string | null>(null);
     const [dropTargetRowId, setDropTargetRowId] = useState<string | null>(null);
@@ -319,6 +305,8 @@ export function TorrentTable({
     const { isClipboardSupported, copyToClipboard, buildMagnetLink } =
         useTorrentClipboard();
 
+    const actions = useTorrentActionsContext();
+
     const { handleContextMenuAction } = useTorrentTableContextActions({
         contextMenu,
         findRowElement: (id: string) =>
@@ -332,12 +320,8 @@ export function TorrentTable({
             focusReturnRef.current = triggerElement ?? null;
             setIsColumnModalOpen(true);
         },
-        onOpenFolder,
-        onSetLocation,
-        onRedownload,
         copyToClipboard,
         buildMagnetLink,
-        onAction,
         setContextMenu,
     });
 
@@ -352,9 +336,6 @@ export function TorrentTable({
         t,
         speedHistoryRef,
         optimisticStatuses,
-        onDownloadMissing: onRedownload,
-        onChangeLocation: onSetLocation,
-        onOpenFolder,
     });
 
     const serverOrder = useMemo(() => data.map((d) => d.id), [data]);
@@ -616,8 +597,6 @@ export function TorrentTable({
         scope: KEY_SCOPE.Dashboard,
         selectedTorrents: selection.selectedTorrents,
         selectAll: selection.selectAllRows,
-        onAction,
-        onBulkAction: handleBulkAction,
         onRequestDetails,
     });
 
@@ -637,7 +616,6 @@ export function TorrentTable({
         handleRowDragCancel: queueHandleRowDragCancel,
     } = useQueueReorderController({
         sorting,
-        onAction,
         pendingQueueOrder,
         setPendingQueueOrder,
         rowIds,
@@ -690,7 +668,6 @@ export function TorrentTable({
         setDropTargetRowId,
         rowIds,
         rowsById,
-        onAction,
         sorting,
         rows,
         setRowSelection,
@@ -914,8 +891,6 @@ export function TorrentTable({
                         queueMenuActions={queueMenuActions}
                         getContextMenuShortcut={getContextMenuShortcut}
                         t={t}
-                        onOpenFolder={onOpenFolder}
-                        onSetLocation={onSetLocation}
                         isClipboardSupported={isClipboardSupported}
                         getEmphasisClassForAction={getEmphasisClassForAction}
                     />

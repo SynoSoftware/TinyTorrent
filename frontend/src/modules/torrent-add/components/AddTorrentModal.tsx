@@ -933,11 +933,6 @@ export function AddTorrentModal({
                                                     </Button>
                                                 </DropdownTrigger>
                                                 <DropdownMenu
-                                                    onAction={(k) =>
-                                                        applyDroppedPath(
-                                                            k.toString()
-                                                        )
-                                                    }
                                                     aria-label={t(
                                                         "modals.add_torrent.history"
                                                     )}
@@ -951,6 +946,11 @@ export function AddTorrentModal({
                                                                 )}
                                                                 startContent={
                                                                     <HardDrive className="toolbar-icon-size-md" />
+                                                                }
+                                                                onPress={() =>
+                                                                    applyDroppedPath(
+                                                                        p
+                                                                    )
                                                                 }
                                                             >
                                                                 {p}
@@ -1191,11 +1191,6 @@ export function AddTorrentModal({
                                                 </Button>
                                             </DropdownTrigger>
                                             <DropdownMenu
-                                                onAction={(k) =>
-                                                    handleSmartSelect(
-                                                        k as SmartSelectCommand
-                                                    )
-                                                }
                                                 aria-label={t(
                                                     "modals.add_torrent.smart_select"
                                                 )}
@@ -1203,6 +1198,11 @@ export function AddTorrentModal({
                                                 <DropdownItem
                                                     key="all"
                                                     shortcut="Ctrl+A"
+                                                    onPress={() =>
+                                                        handleSmartSelect(
+                                                            "all" as SmartSelectCommand
+                                                        )
+                                                    }
                                                 >
                                                     {t(
                                                         "modals.add_torrent.select_all"

@@ -28,7 +28,7 @@ import {
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 import type { CapabilityStore } from "@/app/types/capabilities";
 import type { WorkspaceStyle } from "@/app/hooks/useWorkspaceShell";
-import type { ServerClass, TorrentPeerEntity } from "@/services/rpc/entities";
+import type { TorrentPeerEntity } from "@/services/rpc/entities";
 import type {
     FileExplorerContextAction,
     FileExplorerEntry,
@@ -51,8 +51,7 @@ interface DashboardLayoutProps {
     searchQuery: string;
     isTableLoading: boolean;
     detailSplitDirection?: "horizontal" | "vertical";
-    onAction?: (action: TorrentTableAction, torrent: Torrent) => void;
-    handleBulkAction?: (action: TorrentTableAction) => Promise<void>;
+    // action props removed — use TorrentActionsContext in leaf components
     onRequestDetails?: (torrent: Torrent) => void;
     onSelectionChange?: (selection: Torrent[]) => void;
     onActiveRowChange?: (torrent: Torrent | null) => void;
@@ -63,7 +62,7 @@ interface DashboardLayoutProps {
         wanted: boolean
     ) => Promise<void> | void;
     ghostTorrents?: Torrent[];
-    onOpenFolder?: (torrent: Torrent) => Promise<void>;
+    // onOpenFolder removed — use TorrentActionsContext in leaf components
     onFileContextAction?: (
         action: FileExplorerContextAction,
         entry: FileExplorerEntry
@@ -74,11 +73,7 @@ interface DashboardLayoutProps {
     ) => void;
     onSequentialToggle?: (enabled: boolean) => Promise<void> | void;
     onSuperSeedingToggle?: (enabled: boolean) => Promise<void> | void;
-    onForceTrackerReannounce?: () => Promise<string | void> | void;
-    onSetLocation?: (torrent: Torrent | TorrentDetail) => Promise<void> | void;
-    onRedownload?: (torrent: TorrentDetail) => Promise<void> | void;
-    onRetry?: (torrent: TorrentDetail) => Promise<void> | void;
-    onResume?: (torrent: TorrentDetail) => Promise<void> | void;
+    // action callbacks removed — use TorrentActionsContext in leaf components
     isDetailRecoveryBlocked?: boolean;
     capabilities: CapabilityStore;
     optimisticStatuses?: OptimisticStatusMap;
@@ -95,8 +90,7 @@ export function Dashboard_Layout({
     filter,
     searchQuery,
     isTableLoading,
-    onAction,
-    handleBulkAction,
+
     onRequestDetails,
     detailData,
     onCloseDetail,
@@ -106,13 +100,9 @@ export function Dashboard_Layout({
     onPeerContextAction,
     onSequentialToggle,
     onSuperSeedingToggle,
-    onForceTrackerReannounce,
-    onSetLocation,
-    onRedownload,
-    onRetry,
-    onResume,
+
     isDetailRecoveryBlocked,
-    onOpenFolder,
+    // onOpenFolder removed from props
     capabilities,
     optimisticStatuses,
     peerSortStrategy,
@@ -323,8 +313,6 @@ export function Dashboard_Layout({
                                     filter={filter}
                                     searchQuery={searchQuery}
                                     isLoading={isTableLoading}
-                                    onAction={onAction}
-                                    handleBulkAction={handleBulkAction}
                                     onRequestDetails={handleDetailRequest}
                                     onRequestDetailsFullscreen={
                                         handleDetailFullscreenRequest
@@ -333,9 +321,8 @@ export function Dashboard_Layout({
                                     onActiveRowChange={onActiveRowChange}
                                     optimisticStatuses={optimisticStatuses}
                                     ghostTorrents={ghostTorrents}
-                                    onOpenFolder={onOpenFolder}
-                                    onSetLocation={onSetLocation}
-                                    onRetry={onRetry}
+                                    /* onOpenFolder removed; leaf components use TorrentActionsContext */
+                                    /* onSetLocation removed: use TorrentActionsContext.setLocation */
                                 />
                             </div>
                         </div>
@@ -425,13 +412,9 @@ export function Dashboard_Layout({
                                     }
                                     onSequentialToggle={onSequentialToggle}
                                     onSuperSeedingToggle={onSuperSeedingToggle}
-                                    onForceTrackerReannounce={
-                                        onForceTrackerReannounce
-                                    }
-                                    onSetLocation={onSetLocation}
-                                    onRedownload={onRedownload}
-                                    onRetry={onRetry}
-                                    onResume={onResume}
+                                    /* onSetLocation removed: use TorrentActionsContext.setLocation */
+                                    /* redownload handled via TorrentActionsContext */
+
                                     capabilities={capabilities}
                                     isDetailFullscreen={false}
                                     isRecoveryBlocked={isDetailRecoveryBlocked}
@@ -471,33 +454,29 @@ export function Dashboard_Layout({
                             exit={{ opacity: 0, scale: 0.96 }}
                             transition={{ duration: 0.25 }}
                         >
-                                <TorrentDetails
-                                    torrent={detailData}
-                                    onClose={handleDetailClose}
-                                    onFilesToggle={onFilesToggle}
-                                    onFileContextAction={onFileContextAction}
-                                    onPeerContextAction={onPeerContextAction}
-                                    peerSortStrategy={peerSortStrategy}
-                                    inspectorTabCommand={inspectorTabCommand}
-                                    onInspectorTabCommandHandled={
-                                        onInspectorTabCommandHandled
-                                    }
-                                    onSequentialToggle={onSequentialToggle}
-                                    onSuperSeedingToggle={onSuperSeedingToggle}
-                                    onForceTrackerReannounce={
-                                        onForceTrackerReannounce
-                                    }
-                                    onSetLocation={onSetLocation}
-                                    onRedownload={onRedownload}
-                                    onRetry={onRetry}
-                                    onResume={onResume}
-                                    capabilities={capabilities}
-                                    isDetailFullscreen={isDetailFullscreen}
-                                    isRecoveryBlocked={isDetailRecoveryBlocked}
-                                    isStandalone={true}
-                                    onDock={handleDetailDock}
-                                    onPopout={handleDetailPopout}
-                                />
+                            <TorrentDetails
+                                torrent={detailData}
+                                onClose={handleDetailClose}
+                                onFilesToggle={onFilesToggle}
+                                onFileContextAction={onFileContextAction}
+                                onPeerContextAction={onPeerContextAction}
+                                peerSortStrategy={peerSortStrategy}
+                                inspectorTabCommand={inspectorTabCommand}
+                                onInspectorTabCommandHandled={
+                                    onInspectorTabCommandHandled
+                                }
+                                onSequentialToggle={onSequentialToggle}
+                                onSuperSeedingToggle={onSuperSeedingToggle}
+                                /* onSetLocation removed: use TorrentActionsContext.setLocation */
+                                /* redownload handled via TorrentActionsContext */
+
+                                capabilities={capabilities}
+                                isDetailFullscreen={isDetailFullscreen}
+                                isRecoveryBlocked={isDetailRecoveryBlocked}
+                                isStandalone={true}
+                                onDock={handleDetailDock}
+                                onPopout={handleDetailPopout}
+                            />
                         </motion.div>
                     </motion.div>
                 )}
