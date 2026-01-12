@@ -2,7 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import type { ServerClass } from "@/services/rpc/entities";
-import type { AddTorrentSource } from "@/modules/torrent-add/components/AddTorrentModal";
+import type {
+    AddTorrentSource,
+    AddTorrentSelection,
+} from "@/modules/torrent-add/components/AddTorrentModal";
 import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
 import { NativeShell } from "@/app/runtime";
 import { normalizeMagnetLink } from "@/app/utils/magnet";
@@ -24,7 +27,7 @@ import type {
     TorrentIntentExtended,
     QueueMoveIntent,
 } from "@/app/intents/torrentIntents";
-import { runReannounce } from "@/services/recovery/recovery-controller";
+import { readTorrentFileAsMetainfoBase64 } from "@/modules/torrent-add/services/torrent-metainfo";
 
 // --- Types ---
 
@@ -97,10 +100,6 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
     useEffect(() => {
         let active = true;
         if (rpcStatus !== "connected") {
-            // checking strict 'connected' from STATUS
-            // Assuming caller passes string or we map it.
-            // Ideally import STATUS, but rpcStatus string check is often sufficient if typed.
-            // If rpcStatus comes from useTransmissionSession it matches STATUS.connection constants.
             if (active) setServerClass("unknown");
             return () => {
                 active = false;
@@ -128,7 +127,6 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
         return window.localStorage.getItem(LAST_DOWNLOAD_DIR_KEY) ?? "";
     });
 
-    // Sync ref for handlers
     const settingsConfigRef = useRef({
         start_added_torrents: false,
         download_dir: "",
@@ -145,7 +143,6 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
         settingsConfig.start_added_torrents,
     ]);
 
-    // Sync lastDownloadDir <-> Settings
     useEffect(() => {
         if (lastDownloadDir || !settingsConfig.download_dir) return;
         setLastDownloadDir(settingsConfig.download_dir);
@@ -173,8 +170,8 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
     const [isResolvingMagnet, setIsResolvingMagnet] = useState(false);
     const [isMagnetModalOpen, setMagnetModalOpen] = useState(false);
     const [magnetModalInitialValue, setMagnetModalInitialValue] = useState("");
+    const [isFinalizingExisting, setIsFinalizingExisting] = useState(false); // needed for loading state
 
-    // Explicitly typed refs
     const torrentFilePickerRef = useRef<HTMLInputElement | null>(null);
     const isMountedRef = useRef(false);
 
@@ -198,9 +195,6 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
     }, []);
 
     const openAddTorrentFromFile = useCallback(async (file: File) => {
-        // Wiring requires parseTorrentFile import or moving logic.
-        // For Phase-3 structure, we expose the state setter or full logic.
-        // Assuming full logic from App.tsx:
         try {
             const { parseTorrentFile } = await import("@/shared/utils/torrent");
             const metadata = await parseTorrentFile(file);
@@ -255,6 +249,67 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
     const closeAddTorrentWindow = useCallback(() => {
         setAddSource(null);
     }, []);
+
+    const handleTorrentWindowConfirm = useCallback(
+        async (selection: AddTorrentSelection) => {
+            if (!addSource) return;
+            const downloadDir = selection.downloadDir.trim();
+            if (downloadDir) setLastDownloadDir(downloadDir);
+
+            const startNow = selection.commitMode !== "paused";
+
+            if (addSource.kind === "file") {
+                const metainfo = await readTorrentFileAsMetainfoBase64(
+                    addSource.file
+                );
+                if (!metainfo.ok) {
+                    closeAddTorrentWindow();
+                    return;
+                }
+                try {
+                    await client?.addTorrent({
+                        metainfo: metainfo.metainfoBase64,
+                        downloadDir,
+                        paused: !startNow,
+                        filesUnwanted: selection.filesUnwanted,
+                        priorityHigh: selection.priorityHigh,
+                        priorityNormal: selection.priorityNormal,
+                        priorityLow: selection.priorityLow,
+                    });
+                    void refreshTorrentsRef.current?.();
+                } finally {
+                    closeAddTorrentWindow();
+                }
+                return;
+            }
+
+            // Magnet / Existing Finalization
+            setIsFinalizingExisting(true);
+            try {
+                if (addSource.torrentId && client?.setTorrentLocation) {
+                    await client.setTorrentLocation(
+                        addSource.torrentId,
+                        downloadDir,
+                        true
+                    );
+                }
+                if (addSource.torrentId && selection.filesUnwanted.length) {
+                    await client?.updateFileSelection?.(
+                        addSource.torrentId,
+                        selection.filesUnwanted,
+                        false
+                    );
+                }
+                if (startNow && addSource.torrentId) {
+                    await client?.resume([addSource.torrentId]);
+                }
+                closeAddTorrentWindow();
+            } finally {
+                setIsFinalizingExisting(false);
+            }
+        },
+        [addSource, client, closeAddTorrentWindow, refreshTorrentsRef]
+    );
 
     // --- 4. Recovery Orchestration ---
     const [recoverySession, setRecoverySession] = useState<{
@@ -378,8 +433,6 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
     }, [finalizeRecovery]);
 
     // --- 5. Retry / Redownload / Dedupe ---
-
-    // Idempotency guard for redownloads
     const redownloadInFlight = useRef<Set<string>>(new Set());
 
     const refreshAfterRecovery = useCallback(
@@ -415,7 +468,10 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
                 });
                 if (gateResult && gateResult.status !== "continue") {
                     if (gateResult.status === "handled") {
-                        showFeedback("Download resumed successfully", "info"); // simplified string for now, caller uses t
+                        showFeedback(
+                            t("recovery.feedback.download_resumed"),
+                            "info"
+                        );
                         await refreshAfterRecovery(target);
                     }
                     return;
@@ -431,6 +487,7 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
             showFeedback,
             refreshAfterRecovery,
             reportCommandError,
+            t,
         ]
     );
 
@@ -489,7 +546,6 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
         async (path: string) => {
             if (!recoveryCallbacks?.handlePickPath) return;
             await recoveryCallbacks.handlePickPath(path);
-            // implicit close handled by controller usually, or outcome flow
         },
         [recoveryCallbacks]
     );
@@ -502,17 +558,9 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
         );
     }, [detailData, recoverySession]);
 
-    // --- 6. Event Listeners (tiny-torrent:*) ---
-
+    // --- 6. Event Listeners ---
     const findTorrentById = useCallback(
         (idOrHash?: string | null) => {
-            // We don't have access to the full 'torrents' list in params currently,
-            // but App.tsx used 'torrents' from useTorrentData.
-            // NOTE: For full wiring, we might need to rely on 'detailData' or passed down list.
-            // However, we can use the ENGINE to act on IDs blindly if needed,
-            // OR the user must pass 'torrents' in params.
-            // For Phase-3A strictness, we'll skip the lookup if data isn't here,
-            // but let's assume detailData covers the inspector case.
             if (!idOrHash) return null;
             if (
                 detailData &&
@@ -520,19 +568,13 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
             ) {
                 return detailData;
             }
-            return null; // The table list isn't in params yet.
-            // TODO: Add 'torrents' to UseTorrentOrchestratorParams if global events need it.
+            return null;
         },
         [detailData]
     );
 
     useEffect(() => {
         if (typeof window === "undefined") return;
-
-        const handleRemoveEvent = async (ev: Event) => {
-            // Implementation requires 'torrents' list to find target by hash
-            // For now, partial implementation or wire 'torrents' later.
-        };
 
         const handleRedownloadEvent = async (ev: Event) => {
             const detail = (ev as CustomEvent).detail;
@@ -552,8 +594,7 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
         };
     }, [executeRedownload, findTorrentById]);
 
-    // --- 7. Intent Dispatcher (The "Control Plane") ---
-
+    // --- 7. Intent Dispatcher ---
     const dispatch = useCallback(
         async (intent: TorrentIntentExtended) => {
             const activeClient = clientRef.current || client;
@@ -574,9 +615,6 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
                     break;
                 case "ENSURE_TORRENT_VALID":
                     await activeClient.verify([String(intent.torrentId)]);
-                    break;
-                case "ENSURE_TORRENT_ANNOUNCED":
-                    // requires detail fetch or optimistic reannounce
                     break;
                 case "ENSURE_SELECTION_ACTIVE":
                     await activeClient.resume(
@@ -599,9 +637,6 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
                         (intent.torrentIds || []).map(String)
                     );
                     break;
-                case "OPEN_TORRENT_FOLDER":
-                    // Logic moved from App.tsx intents
-                    break;
                 case "QUEUE_MOVE":
                     const q = intent as QueueMoveIntent;
                     const tid = String(q.torrentId);
@@ -623,12 +658,9 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
     );
 
     // --- 8. UI Lifecycle ---
-
     useEffect(() => {
         if (!client) return;
-        // Notify UI ready
         void client.notifyUiReady?.();
-
         const detachUi = () => {
             try {
                 void client.notifyUiDetached?.();
@@ -638,10 +670,7 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
         return () => window.removeEventListener("beforeunload", detachUi);
     }, [client]);
 
-    // --- API Return ---
-
     return {
-        // State
         serverClass,
         lastDownloadDir,
         addSource,
@@ -650,14 +679,13 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
         magnetModalInitialValue,
         addModalState,
         torrentFilePickerRef,
+        isFinalizingExisting,
+        isAddingTorrent: isFinalizingExisting, // Align with App consumers
 
-        // Recovery
         recoverySession,
         isRecoveryBusy,
         lastRecoveryOutcome,
         isDetailRecoveryBlocked,
-
-        // Actions / Callbacks
         dispatch,
         openAddTorrentPicker,
         openAddMagnet,
@@ -665,10 +693,9 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
         handleMagnetSubmit,
         handleMagnetModalClose,
         closeAddTorrentWindow,
+        handleTorrentWindowConfirm,
         setAddSource,
         setLastDownloadDir,
-
-        // Recovery Controls
         requestRecovery,
         executeRedownload,
         executeRetryFetch,
