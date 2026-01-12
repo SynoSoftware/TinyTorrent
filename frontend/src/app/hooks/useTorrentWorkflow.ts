@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { DeleteIntent } from "@/app/types/workspace";
@@ -17,7 +17,7 @@ import type { FeedbackTone } from "@/shared/types/feedback";
 
 interface UseTorrentWorkflowParams {
     torrents: Torrent[];
-    selectedTorrents: Torrent[];
+    selectedTorrentIds: string[];
     executeTorrentAction: (
         action: TorrentTableAction,
         torrent: Torrent,
@@ -54,6 +54,14 @@ export function useTorrentWorkflow({
         useOptimisticStatuses(torrents);
     const [pendingDelete, setPendingDelete] = useState<DeleteIntent | null>(
         null
+    );
+    const selectedTorrentIdsSet = useMemo(
+        () => new Set(selectedTorrentIds),
+        [selectedTorrentIds]
+    );
+    const selectedTorrents = useMemo(
+        () => torrents.filter((torrent) => selectedTorrentIdsSet.has(torrent.id)),
+        [selectedTorrentIdsSet, torrents]
     );
 
     const requestDelete = useCallback(

@@ -37,6 +37,10 @@ import {
     useTorrentActionsContext,
 } from "@/app/context/TorrentActionsContext";
 import { TorrentIntents } from "@/app/intents/torrentIntents";
+import {
+    SelectionProvider,
+    useSelection,
+} from "@/app/context/SelectionContext";
 import { useTorrentOrchestrator } from "./orchestrators/useTorrentOrchestrator";
 import { LifecycleProvider } from "@/app/context/LifecycleContext";
 import type { EngineDisplayType } from "./components/layout/StatusBar";
@@ -58,21 +62,25 @@ import { AddTorrentModal } from "@/modules/torrent-add/components/AddTorrentModa
 import { AddMagnetModal } from "@/modules/torrent-add/components/AddMagnetModal";
 
 interface FocusControllerProps {
-    selectedTorrents: Torrent[];
-    activeTorrentId: string | null;
+    torrents: Torrent[];
     detailData: TorrentDetail | null;
     requestDetails: (torrent: Torrent) => Promise<void>;
     closeDetail: () => void;
 }
 
 function FocusController({
-    selectedTorrents,
-    activeTorrentId,
+    torrents,
     detailData,
     requestDetails,
     closeDetail,
 }: FocusControllerProps) {
     const { setActivePart } = useFocusState();
+    const { selectedIds, activeId } = useSelection();
+    const selectedIdsSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+    const selectedTorrents = useMemo(
+        () => torrents.filter((torrent) => selectedIdsSet.has(torrent.id)),
+        [selectedIdsSet, torrents]
+    );
 
     const toggleInspector = useCallback(async () => {
         if (detailData) {
@@ -82,15 +90,14 @@ function FocusController({
         }
 
         const targetTorrent =
-            selectedTorrents.find(
-                (torrent) => torrent.id === activeTorrentId
-            ) ?? selectedTorrents[0];
+            selectedTorrents.find((torrent) => torrent.id === activeId) ??
+            selectedTorrents[0];
         if (!targetTorrent) return;
 
         setActivePart("inspector");
         await requestDetails(targetTorrent);
     }, [
-        activeTorrentId,
+        activeId,
         closeDetail,
         detailData,
         requestDetails,
@@ -321,8 +328,6 @@ export default function App() {
 
     const [filter, setFilter] = useState("all");
     const [searchQuery, setSearchQuery] = useState("");
-    const [selectedTorrents, setSelectedTorrents] = useState<Torrent[]>([]);
-    const [activeTorrentId, setActiveTorrentId] = useState<string | null>(null);
     const [isCommandPaletteOpen, setCommandPaletteOpen] = useState(false);
     const [peerSortStrategy, setPeerSortStrategy] =
         useState<PeerSortStrategy>("none");
@@ -348,66 +353,10 @@ export default function App() {
         [setCommandPaletteOpen]
     );
 
-    const handleSelectionChange = useCallback((selection: Torrent[]) => {
-        setSelectedTorrents(selection);
-    }, []);
-
-    const handleActiveRowChange = useCallback((torrent: Torrent | null) => {
-        if (!torrent) return;
-        setActiveTorrentId(torrent.id);
-    }, []);
-
     const handleInspectorTabCommandHandled = useCallback(() => {
         setInspectorTabCommand(null);
     }, []);
 
-    const handleRequestDetails = useCallback(
-        async (torrent: Torrent) => {
-            setActiveTorrentId(torrent.id);
-            await loadDetail(torrent.id, {
-                ...torrent,
-                trackers: [],
-                files: [],
-                peers: [],
-            } as TorrentDetail);
-        },
-        [loadDetail]
-    );
-
-    useEffect(() => {
-        if (!activeTorrentId) {
-            return;
-        }
-        if (!detailData || detailData.id === activeTorrentId) {
-            return;
-        }
-        const activeTorrent =
-            selectedTorrents.find(
-                (torrent) => torrent.id === activeTorrentId
-            ) ?? null;
-        void loadDetail(
-            activeTorrentId,
-            activeTorrent
-                ? ({
-                      ...activeTorrent,
-                      trackers: [],
-                      files: [],
-                      peers: [],
-                  } as TorrentDetail)
-                : undefined
-        );
-    }, [
-        activeTorrentId,
-        clearDetail,
-        detailData,
-        loadDetail,
-        selectedTorrents,
-    ]);
-
-    const handleCloseDetail = useCallback(() => {
-        setActiveTorrentId(null);
-        clearDetail();
-    }, [clearDetail]);
 
     const rehashStatus: RehashStatus | undefined = useMemo(() => {
         const verifyingTorrents = torrents.filter(
@@ -499,6 +448,57 @@ export default function App() {
         } = orchestrator;
 
         const { getRootProps, getInputProps, isDragActive } = addModalState;
+        const {
+            selectedIds,
+            activeId,
+            setActiveId,
+        } = useSelection();
+        const selectedIdsSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+        const selectedTorrents = useMemo(
+            () => torrents.filter((torrent) => selectedIdsSet.has(torrent.id)),
+            [selectedIdsSet, torrents]
+        );
+
+        const handleRequestDetails = useCallback(
+            async (torrent: Torrent) => {
+                setActiveId(torrent.id);
+                await loadDetail(torrent.id, {
+                    ...torrent,
+                    trackers: [],
+                    files: [],
+                    peers: [],
+                } as TorrentDetail);
+            },
+            [loadDetail, setActiveId]
+        );
+
+        const handleCloseDetail = useCallback(() => {
+            setActiveId(null);
+            clearDetail();
+        }, [clearDetail, setActiveId]);
+
+        useEffect(() => {
+            if (!activeId) {
+                return;
+            }
+            if (detailData && detailData.id === activeId) {
+                return;
+            }
+            const activeTorrent =
+                selectedTorrents.find((torrent) => torrent.id === activeId) ??
+                null;
+            void loadDetail(
+                activeId,
+                activeTorrent
+                    ? ({
+                          ...activeTorrent,
+                          trackers: [],
+                          files: [],
+                          peers: [],
+                      } as TorrentDetail)
+                    : undefined
+            );
+        }, [activeId, detailData, loadDetail, selectedTorrents]);
 
         const engineType = useMemo<EngineDisplayType>(() => {
             if (serverClass === "tinytorrent") {
@@ -607,7 +607,7 @@ export default function App() {
             clearPendingDelete,
         } = useTorrentWorkflow({
             torrents,
-            selectedTorrents,
+            selectedTorrentIds: selectedIds,
             executeTorrentAction: executeTorrentActionViaDispatch,
             executeBulkRemove: executeBulkRemoveViaDispatch,
             executeSelectionAction: async (action, ids) => {
@@ -894,8 +894,7 @@ export default function App() {
             <>
                 {/* Add-torrent file input handled via orchestrator's dropzone props */}
                 <FocusController
-                    selectedTorrents={selectedTorrents}
-                    activeTorrentId={activeTorrentId}
+                    torrents={torrents}
                     detailData={detailData}
                     requestDetails={handleRequestDetails}
                     closeDetail={handleCloseDetail}
@@ -917,7 +916,6 @@ export default function App() {
                         openAddTorrent={openAddTorrentPicker}
                         openAddMagnet={openAddMagnet}
                         openSettings={openSettings}
-                        selectedTorrents={selectedTorrents}
                         rehashStatus={rehashStatus}
                         workspaceStyle={workspaceStyle}
                         toggleWorkspaceStyle={wrappedToggleWorkspaceStyle}
@@ -935,8 +933,6 @@ export default function App() {
                         /* onSetLocation removed: use TorrentActionsContext.setLocation */
                         capabilities={capabilities}
                         optimisticStatuses={optimisticStatuses}
-                        handleSelectionChange={handleSelectionChange}
-                        handleActiveRowChange={handleActiveRowChange}
                         /* handleOpenFolder removed; leaf components use TorrentActionsContext */
                         peerSortStrategy={peerSortStrategy}
                         inspectorTabCommand={inspectorTabCommand}
@@ -1037,7 +1033,9 @@ export default function App() {
         <FocusProvider>
             <LifecycleProvider>
                 <TorrentActionsProvider>
-                    <AppInner />
+                    <SelectionProvider>
+                        <AppInner />
+                    </SelectionProvider>
                 </TorrentActionsProvider>
             </LifecycleProvider>
         </FocusProvider>

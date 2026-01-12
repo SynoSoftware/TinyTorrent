@@ -122,8 +122,6 @@ interface TorrentTableProps {
     embedded?: boolean;
     onRequestDetails?: (torrent: Torrent) => void;
     onRequestDetailsFullscreen?: (torrent: Torrent) => void;
-    onSelectionChange?: (selection: Torrent[]) => void;
-    onActiveRowChange?: (torrent: Torrent | null) => void;
     optimisticStatuses?: OptimisticStatusMap;
     disableDetailOpen?: boolean;
     ghostTorrents?: Torrent[];
@@ -153,8 +151,6 @@ export function TorrentTable({
     embedded = false,
     onRequestDetails,
     onRequestDetailsFullscreen,
-    onSelectionChange,
-    onActiveRowChange,
     optimisticStatuses = {},
     disableDetailOpen = false,
     ghostTorrents,
@@ -578,8 +574,6 @@ export function TorrentTable({
         highlightedRowId,
         setHighlightedRowId,
         rowVirtualizerRef,
-        onSelectionChange,
-        onActiveRowChange,
     });
     selectionBridgeRef.current = {
         getSelectionSnapshot: selection.getSelectionSnapshot,
