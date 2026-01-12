@@ -24,6 +24,10 @@ interface UseTorrentWorkflowParams {
         options?: { deleteData?: boolean }
     ) => Promise<void>;
     executeBulkRemove: (ids: string[], deleteData: boolean) => Promise<void>;
+    executeSelectionAction: (
+        action: TorrentTableAction,
+        ids: string[]
+    ) => Promise<void>;
     /** Optional externally-provided feedback functions (injected by host). */
     announceAction?: (
         action: FeedbackAction,
@@ -38,6 +42,7 @@ export function useTorrentWorkflow({
     selectedTorrents,
     executeTorrentAction,
     executeBulkRemove,
+    executeSelectionAction,
     announceAction: injectedAnnounce,
     showFeedback: injectedShowFeedback,
 }: UseTorrentWorkflowParams) {
@@ -109,8 +114,11 @@ export function useTorrentWorkflow({
 
             let succeeded = false;
             try {
-                for (const torrent of torrentsToUpdate) {
-                    await executeTorrentAction(action, torrent);
+                if (torrentsToUpdate.length > 1) {
+                    const ids = torrentsToUpdate.map((t) => t.id);
+                    await executeSelectionAction(action, ids);
+                } else {
+                    await executeTorrentAction(action, torrentsToUpdate[0]);
                 }
                 succeeded = true;
             } catch {

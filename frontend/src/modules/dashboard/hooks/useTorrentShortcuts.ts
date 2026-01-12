@@ -1,5 +1,6 @@
 import { useHotkeys } from "react-hotkeys-hook";
 import { useTorrentActionsContext } from "@/app/context/TorrentActionsContext";
+import { TorrentIntents } from "@/app/intents/torrentIntents";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
 import { KEYMAP, ShortcutIntent } from "@/config/logic";
@@ -18,8 +19,8 @@ export function useTorrentShortcuts({
     selectAll,
     onRequestDetails,
 }: UseTorrentShortcutsProps) {
-    const _actions = useTorrentActionsContext();
-    const localOnAction = _actions.executeTorrentAction;
+    const actions = useTorrentActionsContext();
+    const dispatch = actions.dispatch;
     const hasSelection = selectedTorrents.length > 0;
     const primaryTorrent = selectedTorrents[0];
     const hasPrimaryTorrent = Boolean(primaryTorrent);
@@ -42,16 +43,20 @@ export function useTorrentShortcuts({
         KEYMAP[ShortcutIntent.Delete],
         (event) => {
             event.preventDefault();
-            if (!localOnAction || !hasSelection) return;
-            selectedTorrents.forEach((torrent) => {
-                void localOnAction("remove", torrent);
-            });
+            if (!dispatch || !hasSelection) return;
+            // Use selection-level intent when possible
+            void dispatch(
+                TorrentIntents.ensureSelectionRemoved(
+                    selectedTorrents.map((t) => t.id ?? t.hash),
+                    false
+                )
+            );
         },
         {
             scopes: scope,
-            enabled: hasSelection && Boolean(localOnAction),
+            enabled: hasSelection && Boolean(dispatch),
         },
-        [hasSelection, localOnAction, selectedTorrents]
+        [hasSelection, dispatch, selectedTorrents]
     );
 
     useHotkeys(
@@ -73,42 +78,58 @@ export function useTorrentShortcuts({
         KEYMAP[ShortcutIntent.TogglePause],
         (event) => {
             event.preventDefault();
-            if (!localOnAction || !primaryTorrent) return;
-            const nextAction: TorrentTableAction = isActiveTorrent
-                ? "pause"
-                : "resume";
-            localOnAction(nextAction, primaryTorrent);
+            if (!dispatch || !primaryTorrent) return;
+            if (isActiveTorrent) {
+                void dispatch(
+                    TorrentIntents.ensurePaused(
+                        primaryTorrent.id ?? primaryTorrent.hash
+                    )
+                );
+            } else {
+                void dispatch(
+                    TorrentIntents.ensureActive(
+                        primaryTorrent.id ?? primaryTorrent.hash
+                    )
+                );
+            }
         },
-        { scopes: scope, enabled: hasPrimaryTorrent && Boolean(localOnAction) },
-        [primaryTorrent, isActiveTorrent, localOnAction]
+        { scopes: scope, enabled: hasPrimaryTorrent && Boolean(dispatch) },
+        [primaryTorrent, isActiveTorrent, dispatch]
     );
 
     useHotkeys(
         KEYMAP[ShortcutIntent.Recheck],
         (event) => {
             event.preventDefault();
-            if (!localOnAction || !hasSelection) return;
-            selectedTorrents.forEach((torrent) => {
-                localOnAction("recheck", torrent);
-            });
+            if (!dispatch || !hasSelection) return;
+            void dispatch(
+                TorrentIntents.ensureSelectionActive(
+                    selectedTorrents.map(
+                        (torrent) => torrent.id ?? torrent.hash
+                    )
+                )
+            );
         },
-        { scopes: scope, enabled: hasSelection && Boolean(localOnAction) },
-        [hasSelection, localOnAction, selectedTorrents]
+        { scopes: scope, enabled: hasSelection && Boolean(dispatch) },
+        [hasSelection, dispatch, selectedTorrents]
     );
 
     useHotkeys(
         KEYMAP[ShortcutIntent.RemoveWithData],
         (event) => {
             event.preventDefault();
-            if (!localOnAction || !hasSelection) return;
-            selectedTorrents.forEach((torrent) => {
-                void localOnAction("remove-with-data", torrent);
-            });
+            if (!dispatch || !hasSelection) return;
+            void dispatch(
+                TorrentIntents.ensureSelectionRemoved(
+                    selectedTorrents.map((t) => t.id ?? t.hash),
+                    true
+                )
+            );
         },
         {
             scopes: scope,
-            enabled: hasSelection && Boolean(localOnAction),
+            enabled: hasSelection && Boolean(dispatch),
         },
-        [hasSelection, localOnAction, selectedTorrents]
+        [hasSelection, dispatch, selectedTorrents]
     );
 }

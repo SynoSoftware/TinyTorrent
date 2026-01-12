@@ -13,6 +13,7 @@ import type {
     RecoveryGateOutcome,
 } from "@/app/types/recoveryGate";
 import { useTorrentActionsContext } from "@/app/context/TorrentActionsContext";
+import { TorrentIntents } from "@/app/intents/torrentIntents";
 
 export type RecoveryCallbacks = {
     handlePrimaryRecovery: () => Promise<RecoveryOutcome>;
@@ -98,7 +99,9 @@ export function useRecoveryController(params: {
             // to the TorrentActions provider (single action owner).
             if (gateOutcome && gateOutcome.status === "continue") {
                 try {
-                    await actions.executeTorrentAction("resume", detail as any);
+                    await actions.dispatch(
+                        TorrentIntents.ensureActive(detail.id ?? detail.hash)
+                    );
                     return { kind: "resolved", message: "recovery_handled" };
                 } catch (err) {
                     return { kind: "error", message: String(err ?? "error") };
@@ -130,16 +133,12 @@ export function useRecoveryController(params: {
             // Delegate pick-path to the provider. The provider implements the
             // actual setTorrentLocation + resume behavior for the given torrent.
             try {
-                if (!actions.pickPath) {
-                    // Provider must supply pickPath; do not fallback to direct engine calls.
-                    const r: RecoveryOutcome = {
-                        kind: "error",
-                        message: t("recovery.errors.missing_client_or_detail"),
-                    };
-                    setLastOutcome(r);
-                    return r;
-                }
-                await actions.pickPath(detail as any, path);
+                await actions.dispatch(
+                    TorrentIntents.ensureAtLocation(
+                        detail.id ?? detail.hash,
+                        path
+                    )
+                );
                 const out: RecoveryOutcome = {
                     kind: "resolved",
                     message: "location_updated",
@@ -171,7 +170,7 @@ export function useRecoveryController(params: {
             };
         try {
             const out = await runPartialFilesRecovery({
-                client,
+                client: client as EngineAdapter,
                 detail: detail as any,
                 envelope: undefined,
             });
@@ -195,7 +194,7 @@ export function useRecoveryController(params: {
             };
         try {
             const out = await runReannounce({
-                client,
+                client: client as EngineAdapter,
                 detail: detail as any,
                 envelope: undefined,
             });

@@ -1,14 +1,31 @@
 import { useCallback } from "react";
 import { useTorrentActionsContext } from "@/app/context/TorrentActionsContext";
+import { TorrentIntents } from "@/app/intents/torrentIntents";
 import type { DragEndEvent, DragStartEvent } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
 import { ANIMATION_SUPPRESSION_KEYS } from "@/modules/dashboard/hooks/useTableAnimationGuard";
+import type { Row, SortingState } from "@tanstack/react-table";
+import type { Torrent } from "@/modules/dashboard/types/torrent";
+import type { AnimationSuppressionKey } from "@/modules/dashboard/hooks/useTableAnimationGuard";
 
 // Parameterized wiring-friendly hook. Provide the dependencies that
 // previously lived in `TorrentTable.tsx` as a single object so the
 // hook remains a mechanical extraction and the parent keeps ownership
 // of state.
-export const useTorrentRowDrag = (deps: any) => {
+type UseTorrentRowDragDeps = {
+    canReorderQueue: boolean;
+    rowIds: string[];
+    rowsById: Map<string, Row<Torrent>>;
+    sorting: SortingState;
+    setActiveRowId: (id: string | null) => void;
+    setDropTargetRowId: (id: string | null) => void;
+    setPendingQueueOrder: (order: string[] | null) => void;
+    beginAnimationSuppression: (key: AnimationSuppressionKey) => void;
+    endAnimationSuppression: (key: AnimationSuppressionKey) => void;
+    rowsLength?: number;
+};
+
+export const useTorrentRowDrag = (deps: UseTorrentRowDragDeps) => {
     const {
         canReorderQueue,
         rowIds,
@@ -19,9 +36,12 @@ export const useTorrentRowDrag = (deps: any) => {
         setPendingQueueOrder,
         beginAnimationSuppression,
         endAnimationSuppression,
+        rowsLength: providedRowsLength,
     } = deps;
     const rowsLength =
-        typeof deps.rowsLength === "number" ? deps.rowsLength : rowIds.length;
+        typeof providedRowsLength === "number"
+            ? providedRowsLength
+            : rowIds.length;
 
     const handleRowDragStart = useCallback(
         (event: DragStartEvent) => {
@@ -46,11 +66,13 @@ export const useTorrentRowDrag = (deps: any) => {
             const targetIndex = rowIds.indexOf(over.id as string);
             if (draggedIndex === -1 || targetIndex === -1) return;
             const draggedRow = rowsById.get(active.id as string);
-            const actionFn = _actions.executeTorrentAction;
-            if (!draggedRow || !actionFn) return;
+            const dispatch = _actions.dispatch;
+            if (!draggedRow || !dispatch) return;
 
-            const queueSort = sorting.find((s: any) => s.id === "queue");
-            const isDesc = queueSort?.desc;
+            const queueSort = sorting.find(
+                (s) => (s as { id?: string }).id === "queue"
+            );
+            const isDesc = (queueSort as { desc?: boolean } | undefined)?.desc;
 
             const normalizedFrom = isDesc
                 ? rowsLength - 1 - draggedIndex
@@ -65,13 +87,16 @@ export const useTorrentRowDrag = (deps: any) => {
             beginAnimationSuppression(ANIMATION_SUPPRESSION_KEYS.queueReorder);
             setPendingQueueOrder(nextOrder);
 
-            const actionKey = delta > 0 ? "queue-move-down" : "queue-move-up";
+            const direction = delta > 0 ? "down" : "up";
             const steps = Math.abs(delta);
-            for (let i = 0; i < steps; i++) {
-                // Allow actionFn to be either sync or async
-                // eslint-disable-next-line @typescript-eslint/no-floating-promises
-                await actionFn(actionKey as any, draggedRow.original);
-            }
+            // Dispatch a single QUEUE_MOVE intent (provider maps to legacy handlers)
+            await dispatch(
+                TorrentIntents.queueMove(
+                    draggedRow.original.id ?? draggedRow.original.hash,
+                    direction as "up" | "down" | "top" | "bottom",
+                    steps
+                )
+            );
         },
         [
             beginAnimationSuppression,

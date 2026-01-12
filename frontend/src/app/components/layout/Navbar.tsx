@@ -41,10 +41,10 @@ interface NavbarProps {
     onAddMagnet: () => void;
     onSettings: () => void;
     hasSelection: boolean;
-    onResumeSelection: () => void;
-    onPauseSelection: () => void;
-    onRecheckSelection: () => void;
-    onRemoveSelection: () => void;
+    onEnsureSelectionActive: () => void;
+    onEnsureSelectionPaused: () => void;
+    onEnsureSelectionValid: () => void;
+    onEnsureSelectionRemoved: () => void;
     rehashStatus?: {
         active: boolean;
         value: number;
@@ -70,10 +70,10 @@ export function Navbar({
     onAddMagnet,
     onSettings,
     hasSelection,
-    onResumeSelection,
-    onPauseSelection,
-    onRecheckSelection,
-    onRemoveSelection,
+    onEnsureSelectionActive,
+    onEnsureSelectionPaused,
+    onEnsureSelectionValid,
+    onEnsureSelectionRemoved,
     rehashStatus,
     workspaceStyle,
     onWindowCommand,
@@ -281,7 +281,7 @@ export function Navbar({
                                 Icon={Play}
                                 ariaLabel={t("toolbar.resume")}
                                 title={t("toolbar.resume")}
-                                onPress={onResumeSelection}
+                                onPress={onEnsureSelectionActive}
                                 disabled={!hasSelection}
                                 className="text-success hover:text-success-600 hover:bg-success/10"
                                 iconSize="lg"
@@ -290,7 +290,7 @@ export function Navbar({
                                 Icon={Pause}
                                 ariaLabel={t("toolbar.pause")}
                                 title={t("toolbar.pause")}
-                                onPress={onPauseSelection}
+                                onPress={onEnsureSelectionPaused}
                                 disabled={!hasSelection}
                                 className={cn(
                                     "text-warning hover:text-warning-600 hover:bg-warning/10",
@@ -305,7 +305,7 @@ export function Navbar({
                                     Icon={RotateCcw}
                                     ariaLabel={t("toolbar.recheck")}
                                     title={t("toolbar.recheck")}
-                                    onPress={onRecheckSelection}
+                                    onPress={onEnsureSelectionValid}
                                     disabled={!hasSelection}
                                     className={cn(
                                         "text-default-500 hover:text-foreground hover:bg-default-200",
@@ -319,7 +319,7 @@ export function Navbar({
                                     Icon={Trash2}
                                     ariaLabel={t("toolbar.remove")}
                                     title={t("toolbar.remove")}
-                                    onPress={onRemoveSelection}
+                                    onPress={onEnsureSelectionRemoved}
                                     disabled={!hasSelection}
                                     className="text-danger hover:text-danger-600 hover:bg-danger/10"
                                     iconSize="lg"

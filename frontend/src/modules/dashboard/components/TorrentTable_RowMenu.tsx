@@ -111,8 +111,7 @@ export default function TorrentTable_RowMenu({
                     <DropdownItem
                         key="open-folder"
                         isDisabled={
-                            !actions.handleOpenFolder ||
-                            !contextMenu?.torrent.savePath
+                            !actions.dispatch || !contextMenu?.torrent.savePath
                         }
                         className={cn(
                             contextMenu?.torrent.errorEnvelope
@@ -131,7 +130,7 @@ export default function TorrentTable_RowMenu({
                     </DropdownItem>
                     <DropdownItem
                         key="set-download-path"
-                        isDisabled={!actions.setLocation}
+                        isDisabled={!actions.dispatch}
                         className={cn(
                             contextMenu?.torrent.errorEnvelope
                                 ?.primaryAction === "setLocation"

@@ -13,6 +13,7 @@ import { useLifecycle } from "@/app/context/LifecycleContext";
 
 import { Dashboard_Layout } from "@/modules/dashboard/components/Dashboard_Layout";
 import { useTorrentActionsContext } from "@/app/context/TorrentActionsContext";
+import { TorrentIntents } from "@/app/intents/torrentIntents";
 import { SettingsModal } from "@/modules/settings/components/SettingsModal";
 import { Navbar } from "./layout/Navbar";
 import { StatusBar, type EngineDisplayType } from "./layout/StatusBar";
@@ -240,24 +241,35 @@ export function WorkspaceShell({
             onAddMagnet={openAddMagnet}
             onSettings={() => openSettings()}
             hasSelection={selectedTorrents.length > 0}
-            onResumeSelection={() => {
+            onEnsureSelectionActive={() => {
                 selectedTorrents.forEach(
-                    (t) => void actions.executeTorrentAction("resume", t)
+                    (t) =>
+                        void actions.dispatch(
+                            TorrentIntents.ensureActive(t.id ?? t.hash)
+                        )
                 );
             }}
-            onPauseSelection={() => {
+            onEnsureSelectionPaused={() => {
                 selectedTorrents.forEach(
-                    (t) => void actions.executeTorrentAction("pause", t)
+                    (t) =>
+                        void actions.dispatch(
+                            TorrentIntents.ensurePaused(t.id ?? t.hash)
+                        )
                 );
             }}
-            onRecheckSelection={() => {
-                selectedTorrents.forEach(
-                    (t) => void actions.executeTorrentAction("recheck", t)
+            onEnsureSelectionValid={() => {
+                void actions.dispatch(
+                    TorrentIntents.ensureSelectionActive(
+                        selectedTorrents.map((t) => t.id ?? t.hash)
+                    )
                 );
             }}
-            onRemoveSelection={() => {
-                selectedTorrents.forEach(
-                    (t) => void actions.executeTorrentAction("remove", t)
+            onEnsureSelectionRemoved={() => {
+                void actions.dispatch(
+                    TorrentIntents.ensureSelectionRemoved(
+                        selectedTorrents.map((t) => t.id ?? t.hash),
+                        false
+                    )
                 );
             }}
             rehashStatus={rehashStatus}

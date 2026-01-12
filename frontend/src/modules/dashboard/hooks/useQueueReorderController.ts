@@ -47,8 +47,7 @@ export const useQueueReorderController = (deps: QueueControllerDeps) => {
             ),
         [sorting]
     );
-    const canReorderQueue =
-        isQueueSort && Boolean(_actions.executeTorrentAction);
+    const canReorderQueue = isQueueSort && Boolean(_actions.dispatch);
 
     const { handleRowDragStart, handleRowDragEnd, handleRowDragCancel } =
         useTorrentRowDrag({
