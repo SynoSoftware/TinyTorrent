@@ -4,7 +4,6 @@ import {
     useMemo,
     useRef,
     useState,
-    type ChangeEvent,
 } from "react";
 import { STATUS } from "@/shared/status";
 import Runtime, { NativeShell } from "@/app/runtime";
@@ -16,8 +15,6 @@ import { useTranslation } from "react-i18next";
 import { useTransmissionSession } from "./hooks/useTransmissionSession";
 import { useWorkspaceShell } from "./hooks/useWorkspaceShell";
 import { useWorkspaceModals } from "./WorkspaceModalContext";
-import { useAddModalState } from "./hooks/useAddModalState";
-import { useAddTorrent } from "./hooks/useAddTorrent";
 import { useSettingsFlow } from "./hooks/useSettingsFlow";
 import { useSessionStats } from "./hooks/useSessionStats";
 import { useTorrentWorkflow } from "./hooks/useTorrentWorkflow";
@@ -27,15 +24,6 @@ import { useHudCards } from "./hooks/useHudCards";
 import { useTorrentData } from "@/modules/dashboard/hooks/useTorrentData";
 import { useTorrentDetail } from "@/modules/dashboard/hooks/useTorrentDetail";
 import { useDetailControls } from "@/modules/dashboard/hooks/useDetailControls";
-import { useRecoveryController } from "@/modules/dashboard/hooks/useRecoveryController";
-import { useTorrentActions } from "@/modules/dashboard/hooks/useTorrentActions";
-import {
-    classifyMissingFilesState,
-    runMissingFilesRecoverySequence,
-} from "@/services/recovery/recovery-controller";
-import { deriveMissingFilesStateKind } from "@/shared/utils/recoveryFormat";
-import { interpretFsError } from "@/shared/utils/fsErrors";
-import type { RecoveryOutcome } from "@/services/recovery/recovery-controller";
 import { CommandPalette } from "./components/CommandPalette";
 import type {
     CommandAction,
@@ -61,26 +49,13 @@ import { DEFAULT_CAPABILITY_STORE } from "@/app/types/capabilities";
 import { useTorrentClient } from "./providers/TorrentClientProvider";
 import { FocusProvider, useFocusState } from "./context/FocusContext";
 import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
-import type {
-    RecoveryGateAction,
-    RecoveryGateCallback,
-    RecoveryGateOutcome,
-} from "@/app/types/recoveryGate";
 import type { RehashStatus } from "./types/workspace";
 import type {
     DetailTab,
     PeerSortStrategy,
 } from "@/modules/dashboard/types/torrentDetail";
-import type { ServerClass } from "@/services/rpc/entities";
-import {
-    AddTorrentModal,
-    type AddTorrentSelection,
-    type AddTorrentSource,
-} from "@/modules/torrent-add/components/AddTorrentModal";
+import { AddTorrentModal } from "@/modules/torrent-add/components/AddTorrentModal";
 import { AddMagnetModal } from "@/modules/torrent-add/components/AddMagnetModal";
-import { normalizeMagnetLink } from "@/app/utils/magnet";
-import { parseTorrentFile, type TorrentMetadata } from "@/shared/utils/torrent";
-import { readTorrentFileAsMetainfoBase64 } from "@/modules/torrent-add/services/torrent-metainfo";
 
 interface FocusControllerProps {
     selectedTorrents: Torrent[];
@@ -140,15 +115,14 @@ function FocusController({
     return null;
 }
 
-// TODO: recovery helper functions `getRecoveryFingerprint` and `derivePathReason`
-// moved to src/app/orchestrators/useTorrentOrchestrator.ts.
-
-// TODO: LAST_DOWNLOAD_DIR_KEY moved to orchestrator
-
 export default function App() {
     const { t } = useTranslation();
+    const { isSettingsOpen, openSettings, closeSettings } =
+        useWorkspaceModals();
+    const { announceAction, showFeedback } = useActionFeedback();
     const torrentClient = useTorrentClient();
     const torrentClientRef = useRef<EngineAdapter | null>(null);
+    torrentClientRef.current = torrentClient;
     const {
         rpcStatus,
         reconnect,
@@ -159,9 +133,7 @@ export default function App() {
         updateRequestTimeout,
         engineInfo,
         isDetectingEngine,
-        isReady,
     } = useTransmissionSession(torrentClient);
-    const [serverClass, setServerClass] = useState<ServerClass>("unknown");
     const [capabilities, setCapabilities] = useState<CapabilityStore>(
         DEFAULT_CAPABILITY_STORE
     );
@@ -175,27 +147,6 @@ export default function App() {
         },
         []
     );
-
-    const engineType = useMemo<EngineDisplayType>(() => {
-        if (serverClass === "tinytorrent") {
-            return "tinytorrent";
-        }
-        if (serverClass === "transmission") {
-            return "transmission";
-        }
-        if (engineInfo?.type === "libtorrent") {
-            return "tinytorrent";
-        }
-        if (engineInfo?.type === "transmission") {
-            return "transmission";
-        }
-        return "unknown";
-    }, [engineInfo, serverClass]);
-
-    // TODO: capability refresh and serverClass detection moved to
-    // src/app/orchestrators/useTorrentOrchestrator.ts — wiring required.
-    // (Original effect that called `torrentClient.getExtendedCapabilities` and
-    // `torrentClient.getServerClass` has been removed from App.tsx.)
 
     useEffect(() => {
         if (!torrentClient.setSequentialDownload) {
@@ -225,20 +176,7 @@ export default function App() {
         updateCapabilityState,
     ]);
 
-    const isNativeHost = Runtime.isNativeHost;
-    const isRunningNative = isNativeHost || serverClass === "tinytorrent";
-
-    // TODO: add-torrent / magnet lifecycle and related state have been moved
-    // to src/app/orchestrators/useTorrentOrchestrator.ts and must be wired.
-    // Removed: addSource, isResolvingMagnet, isFinalizingExisting,
-    // isMagnetModalOpen, magnetModalInitialValue, torrentFilePickerRef,
-    // openAddTorrentPicker, openAddMagnet, openAddTorrentFromFile,
-    // addModalState/getRootProps/getInputProps/isDragActive,
-    // settingsConfigRef and LAST_DOWNLOAD_DIR_KEY usage.
-
     const isMountedRef = useRef(false);
-    const uiReadyNotifiedRef = useRef(false);
-
     const { sessionStats, refreshSessionStatsData, liveTransportStatus } =
         useSessionStats({
             torrentClient,
@@ -248,7 +186,7 @@ export default function App() {
         });
 
     // Workbench zoom: initialize global scale hook
-    const { increase, decrease, reset, setScale } = useWorkbenchScale();
+    const { increase, decrease, reset } = useWorkbenchScale();
 
     useEffect(() => {
         if (Runtime.isNativeHost && typeof document !== "undefined") {
@@ -330,9 +268,6 @@ export default function App() {
         start_added_torrents: settingsStartAdded,
     } = settingsFlow.settingsConfig;
 
-    // TODO: settings snapshot and last-download-dir handling moved to orchestrator.
-    // (Removed settingsConfigRef usage, lastDownloadDir persistence, and related effects.)
-
     const pollingIntervalMs = Math.max(
         1000,
         settingsFlow.settingsConfig.refresh_interval_ms
@@ -342,10 +277,7 @@ export default function App() {
         torrents,
         isInitialLoadFinished,
         refresh: refreshTorrents,
-        queueActions,
         ghostTorrents,
-        addGhostTorrent,
-        removeGhostTorrent,
     } = useTorrentData({
         client: torrentClient,
         sessionReady: rpcStatus === STATUS.connection.CONNECTED,
@@ -387,27 +319,6 @@ export default function App() {
         updateCapabilityState,
     });
 
-    // TODO: recovery orchestration state (recoverySession, recoveryResolverRef)
-    // moved to src/app/orchestrators/useTorrentOrchestrator.ts.
-    // TODO: extracted recovery / redownload / retry / magnet resolution
-    // logic into `src/app/orchestrators/useTorrentOrchestrator.ts`.
-    // The orchestrator needs these dependencies wired in. Call it here:
-    const orchestrator =
-        useTorrentOrchestrator(/* TODO: pass deps: {
-        torrentClientRef,
-        refreshTorrentsRef,
-        refreshSessionStatsDataRef,
-        refreshDetailData,
-        reportCommandError,
-        showFeedback,
-        addGhostTorrent,
-        removeGhostTorrent,
-        actionsContext,
-        detailData,
-        serverClass,
-        isMountedRef,
-    } */);
-
     const [filter, setFilter] = useState("all");
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedTorrents, setSelectedTorrents] = useState<Torrent[]>([]);
@@ -436,199 +347,6 @@ export default function App() {
         { enableOnFormTags: true, enableOnContentEditable: true },
         [setCommandPaletteOpen]
     );
-
-    // TODO: add-torrent hotkey handling moved to orchestrator.
-
-    const commandActions = useMemo(() => {
-        const actionGroup = t("command_palette.group.actions");
-        const filterGroup = t("command_palette.group.filters");
-        const searchGroup = t("command_palette.group.search");
-        return [
-            // TODO: add-torrent / add-magnet actions moved to orchestrator.
-
-            {
-                id: "open-settings",
-                group: actionGroup,
-                title: t("command_palette.actions.open_settings"),
-                description: t(
-                    "command_palette.actions.open_settings_description"
-                ),
-                onSelect: openSettings,
-            },
-            {
-                id: "refresh-torrents",
-                group: actionGroup,
-                title: t("command_palette.actions.refresh"),
-                description: t("command_palette.actions.refresh_description"),
-                onSelect: refreshTorrents,
-            },
-            {
-                id: "focus-search",
-                group: searchGroup,
-                title: t("command_palette.actions.focus_search"),
-                description: t(
-                    "command_palette.actions.focus_search_description"
-                ),
-                onSelect: focusSearchInput,
-            },
-            {
-                id: "filter-all",
-                group: filterGroup,
-                title: t("nav.filter_all"),
-                description: t("command_palette.filters.all_description"),
-                onSelect: () => setFilter("all"),
-            },
-            {
-                id: "filter-downloading",
-                group: filterGroup,
-                title: t("nav.filter_downloading"),
-                description: t(
-                    "command_palette.filters.downloading_description"
-                ),
-                onSelect: () => setFilter(STATUS.torrent.DOWNLOADING),
-            },
-            {
-                id: "filter-seeding",
-                group: filterGroup,
-                title: t("nav.filter_seeding"),
-                description: t("command_palette.filters.seeding_description"),
-                onSelect: () => setFilter(STATUS.torrent.SEEDING),
-            },
-        ];
-    }, [focusSearchInput, openSettings, refreshTorrents, setFilter, t]);
-
-    const actionsContext = useTorrentActionsContext();
-
-    const executeTorrentActionViaDispatch = async (
-        action: TorrentTableAction,
-        torrent: Torrent,
-        options?: { deleteData?: boolean }
-    ) => {
-        const dispatch = actionsContext.dispatch;
-        if (!dispatch) throw new Error("Torrent actions dispatch unavailable");
-        switch (action) {
-            case "pause":
-                return dispatch(
-                    TorrentIntents.ensurePaused(torrent.id ?? torrent.hash)
-                );
-            case "resume":
-                return dispatch(
-                    TorrentIntents.ensureActive(torrent.id ?? torrent.hash)
-                );
-            case "recheck":
-                return dispatch(
-                    TorrentIntents.ensureValid(torrent.id ?? torrent.hash)
-                );
-            case "remove":
-                return dispatch(
-                    TorrentIntents.ensureRemoved(
-                        torrent.id ?? torrent.hash,
-                        Boolean(options?.deleteData)
-                    )
-                );
-            case "remove-with-data":
-                return dispatch(
-                    TorrentIntents.ensureRemoved(
-                        torrent.id ?? torrent.hash,
-                        true
-                    )
-                );
-            case "queue-move-top":
-                return dispatch(
-                    TorrentIntents.queueMove(
-                        torrent.id ?? torrent.hash,
-                        "top",
-                        1
-                    )
-                );
-            case "queue-move-bottom":
-                return dispatch(
-                    TorrentIntents.queueMove(
-                        torrent.id ?? torrent.hash,
-                        "bottom",
-                        1
-                    )
-                );
-            case "queue-move-up":
-                return dispatch(
-                    TorrentIntents.queueMove(
-                        torrent.id ?? torrent.hash,
-                        "up",
-                        1
-                    )
-                );
-            case "queue-move-down":
-                return dispatch(
-                    TorrentIntents.queueMove(
-                        torrent.id ?? torrent.hash,
-                        "down",
-                        1
-                    )
-                );
-        }
-    };
-
-    const executeBulkRemoveViaDispatch = async (
-        ids: string[],
-        deleteData: boolean
-    ) => {
-        const dispatch = actionsContext.dispatch;
-        if (!dispatch) throw new Error("Torrent actions dispatch unavailable");
-        return dispatch(TorrentIntents.ensureSelectionRemoved(ids, deleteData));
-    };
-
-    const {
-        optimisticStatuses,
-        pendingDelete,
-        confirmDelete,
-        clearPendingDelete,
-    } = useTorrentWorkflow({
-        torrents,
-        selectedTorrents,
-        executeTorrentAction: executeTorrentActionViaDispatch,
-        executeBulkRemove: executeBulkRemoveViaDispatch,
-        executeSelectionAction: async (action, ids) => {
-            const dispatch = actionsContext.dispatch;
-            if (!dispatch)
-                throw new Error("Torrent actions dispatch unavailable");
-            switch (action) {
-                case "pause":
-                    return dispatch(TorrentIntents.ensureSelectionPaused(ids));
-                case "resume":
-                    return dispatch(TorrentIntents.ensureSelectionActive(ids));
-                case "recheck":
-                    return dispatch(TorrentIntents.ensureSelectionValid(ids));
-                default:
-                    throw new Error("Unsupported selection action: " + action);
-            }
-        },
-        announceAction,
-        showFeedback,
-    });
-
-    const actions = useTorrentActionsContext();
-
-    const {
-        workspaceStyle,
-        toggleWorkspaceStyle,
-        dismissedHudCardSet,
-        dismissHudCard,
-        restoreHudCards,
-    } = useWorkspaceShell();
-    const hasDismissedInsights = Boolean(dismissedHudCardSet.size);
-
-    const wrappedToggleWorkspaceStyle = useCallback(() => {
-        toggleWorkspaceStyle();
-    }, [toggleWorkspaceStyle]);
-
-    const hudCards = useHudCards({
-        rpcStatus,
-        engineInfo,
-        isDetectingEngine,
-        isDragActive,
-        dismissedHudCardSet,
-    });
-    const visibleHudCards = hudCards.visibleHudCards;
 
     const handleSelectionChange = useCallback((selection: Torrent[]) => {
         setSelectedTorrents(selection);
@@ -686,148 +404,6 @@ export default function App() {
         selectedTorrents,
     ]);
 
-    const getContextActions = useCallback(
-        ({ activePart }: CommandPaletteContext) => {
-            const contextGroup = t("command_palette.group.context");
-            const entries: CommandAction[] = [];
-
-            if (activePart === "table" && selectedTorrents.length) {
-                entries.push(
-                    {
-                        id: "context.pause_selected",
-                        group: contextGroup,
-                        title: t("command_palette.actions.pause_selected"),
-                        description: t(
-                            "command_palette.actions.pause_selected_description"
-                        ),
-                        onSelect: () => {
-                            const dispatch = actionsContext?.dispatch ?? null;
-                            if (!dispatch) return;
-                            selectedTorrents.forEach(
-                                (t) =>
-                                    void dispatch(
-                                        TorrentIntents.ensurePaused(
-                                            t.id ?? t.hash
-                                        )
-                                    )
-                            );
-                        },
-                    },
-                    {
-                        id: "context.resume_selected",
-                        group: contextGroup,
-                        title: t("command_palette.actions.resume_selected"),
-                        description: t(
-                            "command_palette.actions.resume_selected_description"
-                        ),
-                        onSelect: () => {
-                            const dispatch = actionsContext?.dispatch ?? null;
-                            if (!dispatch) return;
-                            selectedTorrents.forEach(
-                                (t) =>
-                                    void dispatch(
-                                        TorrentIntents.ensureActive(
-                                            t.id ?? t.hash
-                                        )
-                                    )
-                            );
-                        },
-                    },
-                    {
-                        id: "context.recheck_selected",
-                        group: contextGroup,
-                        title: t("command_palette.actions.recheck_selected"),
-                        description: t(
-                            "command_palette.actions.recheck_selected_description"
-                        ),
-                        onSelect: () => {
-                            const dispatch = actionsContext?.dispatch ?? null;
-                            if (!dispatch) return;
-                            selectedTorrents.forEach(
-                                (t) =>
-                                    void dispatch(
-                                        TorrentIntents.ensureValid(
-                                            t.id ?? t.hash
-                                        )
-                                    )
-                            );
-                        },
-                    }
-                );
-                const targetTorrent = selectedTorrents[0];
-                if (targetTorrent) {
-                    entries.push({
-                        id: "context.open_inspector",
-                        group: contextGroup,
-                        title: t("command_palette.actions.open_inspector"),
-                        description: t(
-                            "command_palette.actions.open_inspector_description"
-                        ),
-                        onSelect: () => handleRequestDetails(targetTorrent),
-                    });
-                }
-            }
-
-            if (activePart === "inspector" && detailData) {
-                const fileIndexes =
-                    detailData.files?.map((file) => file.index) ?? [];
-                if (fileIndexes.length) {
-                    entries.push({
-                        id: "context.select_all_files",
-                        group: contextGroup,
-                        title: t("command_palette.actions.select_all_files"),
-                        description: t(
-                            "command_palette.actions.select_all_files_description"
-                        ),
-                        onSelect: () => {
-                            setInspectorTabCommand("content");
-                            return handleFileSelectionChange(fileIndexes, true);
-                        },
-                    });
-                }
-
-                const hasPeers = Boolean(detailData.peers?.length);
-                if (hasPeers) {
-                    const isSpeedSorted = peerSortStrategy === "speed";
-                    entries.push({
-                        id: isSpeedSorted
-                            ? "context.inspector.reset_peer_sort"
-                            : "context.inspector.sort_peers_by_speed",
-                        group: contextGroup,
-                        title: t(
-                            isSpeedSorted
-                                ? "command_palette.actions.reset_peer_sort"
-                                : "command_palette.actions.sort_peers_by_speed"
-                        ),
-                        description: t(
-                            isSpeedSorted
-                                ? "command_palette.actions.reset_peer_sort_description"
-                                : "command_palette.actions.sort_peers_by_speed_description"
-                        ),
-                        onSelect: () => {
-                            setInspectorTabCommand("peers");
-                            setPeerSortStrategy(
-                                isSpeedSorted ? "none" : "speed"
-                            );
-                        },
-                    });
-                }
-            }
-
-            return entries;
-        },
-        [
-            detailData,
-            handleFileSelectionChange,
-            handleRequestDetails,
-            peerSortStrategy,
-            selectedTorrents,
-            setInspectorTabCommand,
-            setPeerSortStrategy,
-            t,
-        ]
-    );
-
     const handleCloseDetail = useCallback(() => {
         setActiveTorrentId(null);
         clearDetail();
@@ -869,32 +445,7 @@ export default function App() {
         };
     }, []);
 
-    // TODO: UI ready notification moved to orchestrator.
-    // (Original effect that called `torrentClient.notifyUiReady` removed.)
-
-    // TODO: UI detach / notify moved to orchestrator.
-    // (Original effect that called `torrentClient.notifyUiDetached` on unload
-    // and assigned `torrentClientRef.current` has been removed from App.tsx.)
-
-    // Re-download idempotency guard per-fingerprint
-    // TODO: control moved to src/app/orchestrators/useTorrentOrchestrator.ts
-    // const redownloadInFlight = useRef<Set<string>>(new Set());
-    // const findTorrentById = ... (moved)
-
-    // set-location flow moved into TorrentActionsProvider (provider owns engine interactions)
-
-    // TODO: refreshAfterRecovery moved to src/app/orchestrators/useTorrentOrchestrator.ts
-
-    // TODO: control moved to src/app/orchestrators/useTorrentOrchestrator.ts
-    // const executeRedownload = ... (moved)
-
-    // TODO: handleRecoveryRecreateFolder moved to src/app/orchestrators/useTorrentOrchestrator.ts
-
-    // TODO: control moved to src/app/orchestrators/useTorrentOrchestrator.ts
-    // Global tiny-torrent event handlers (window listeners) moved.
-
-    // legacy redownload handler removed — single idempotent handler exists above
-
+    // Re-download idempotency guard per-fingerprint has moved into the orchestrator.
     useEffect(() => {
         if (!detailData) {
             setPeerSortStrategy("none");
@@ -905,110 +456,590 @@ export default function App() {
         reconnect();
     };
 
-    // TODO: add-torrent file picker handlers moved to orchestrator.
+    const AppInner = () => {
+        const orchestrator = useTorrentOrchestrator({
+            client: torrentClient,
+            clientRef: torrentClientRef,
+            refreshTorrentsRef,
+            refreshSessionStatsDataRef,
+            refreshDetailData,
+            detailData,
+            rpcStatus,
+            settingsFlow,
+            showFeedback,
+            reportCommandError,
+            t,
+        });
 
-    // TODO: control moved to src/app/orchestrators/useTorrentOrchestrator.ts
-    // const resolveMagnetToMetadata = ... (moved)
-    // TODO: control moved to src/app/orchestrators/useTorrentOrchestrator.ts
-    // const performResolution = useEffect(...) (moved)
+        const {
+            serverClass,
+            addModalState,
+            openAddTorrentPicker,
+            openAddMagnet,
+            isMagnetModalOpen,
+            magnetModalInitialValue,
+            handleMagnetModalClose,
+            handleMagnetSubmit,
+            addSource,
+            lastDownloadDir,
+            isResolvingMagnet,
+            isFinalizingExisting,
+            isAddingTorrent,
+            closeAddTorrentWindow,
+            handleTorrentWindowConfirm,
+            recoverySession,
+            isRecoveryBusy,
+            lastRecoveryOutcome,
+            isDetailRecoveryBlocked,
+            handleRecoveryClose,
+            handleRecoveryPickPath,
+            handleRecoveryRecreateFolder,
+            recoveryRequestBrowse,
+            handleRecoveryRetry,
+        } = orchestrator;
 
-    // TODO: add-torrent finalization (handleTorrentWindowCancel / handleTorrentWindowConfirm)
-    // moved to src/app/orchestrators/useTorrentOrchestrator.ts — implementations removed from App.tsx.
+        const { getRootProps, getInputProps, isDragActive } = addModalState;
 
-    // Torrent actions are now owned by TorrentActionsProvider; no local value.
+        const engineType = useMemo<EngineDisplayType>(() => {
+            if (serverClass === "tinytorrent") {
+                return "tinytorrent";
+            }
+            if (serverClass === "transmission") {
+                return "transmission";
+            }
+            if (engineInfo?.type === "libtorrent") {
+                return "tinytorrent";
+            }
+            if (engineInfo?.type === "transmission") {
+                return "transmission";
+            }
+            return "unknown";
+        }, [engineInfo, serverClass]);
+
+        const actionsContext = useTorrentActionsContext();
+
+        const executeTorrentActionViaDispatch = async (
+            action: TorrentTableAction,
+            torrent: Torrent,
+            options?: { deleteData?: boolean }
+        ) => {
+            const dispatch = actionsContext.dispatch;
+            if (!dispatch)
+                throw new Error("Torrent actions dispatch unavailable");
+            switch (action) {
+                case "pause":
+                    return dispatch(
+                        TorrentIntents.ensurePaused(torrent.id ?? torrent.hash)
+                    );
+                case "resume":
+                    return dispatch(
+                        TorrentIntents.ensureActive(torrent.id ?? torrent.hash)
+                    );
+                case "recheck":
+                    return dispatch(
+                        TorrentIntents.ensureValid(torrent.id ?? torrent.hash)
+                    );
+                case "remove":
+                    return dispatch(
+                        TorrentIntents.ensureRemoved(
+                            torrent.id ?? torrent.hash,
+                            Boolean(options?.deleteData)
+                        )
+                    );
+                case "remove-with-data":
+                    return dispatch(
+                        TorrentIntents.ensureRemoved(
+                            torrent.id ?? torrent.hash,
+                            true
+                        )
+                    );
+                case "queue-move-top":
+                    return dispatch(
+                        TorrentIntents.queueMove(
+                            torrent.id ?? torrent.hash,
+                            "top",
+                            1
+                        )
+                    );
+                case "queue-move-bottom":
+                    return dispatch(
+                        TorrentIntents.queueMove(
+                            torrent.id ?? torrent.hash,
+                            "bottom",
+                            1
+                        )
+                    );
+                case "queue-move-up":
+                    return dispatch(
+                        TorrentIntents.queueMove(
+                            torrent.id ?? torrent.hash,
+                            "up",
+                            1
+                        )
+                    );
+                case "queue-move-down":
+                    return dispatch(
+                        TorrentIntents.queueMove(
+                            torrent.id ?? torrent.hash,
+                            "down",
+                            1
+                        )
+                    );
+            }
+        };
+
+        const executeBulkRemoveViaDispatch = async (
+            ids: string[],
+            deleteData: boolean
+        ) => {
+            const dispatch = actionsContext.dispatch;
+            if (!dispatch)
+                throw new Error("Torrent actions dispatch unavailable");
+            return dispatch(
+                TorrentIntents.ensureSelectionRemoved(ids, deleteData)
+            );
+        };
+
+        const {
+            optimisticStatuses,
+            pendingDelete,
+            confirmDelete,
+            clearPendingDelete,
+        } = useTorrentWorkflow({
+            torrents,
+            selectedTorrents,
+            executeTorrentAction: executeTorrentActionViaDispatch,
+            executeBulkRemove: executeBulkRemoveViaDispatch,
+            executeSelectionAction: async (action, ids) => {
+                const dispatch = actionsContext.dispatch;
+                if (!dispatch)
+                    throw new Error("Torrent actions dispatch unavailable");
+                switch (action) {
+                    case "pause":
+                        return dispatch(
+                            TorrentIntents.ensureSelectionPaused(ids)
+                        );
+                    case "resume":
+                        return dispatch(
+                            TorrentIntents.ensureSelectionActive(ids)
+                        );
+                    case "recheck":
+                        return dispatch(
+                            TorrentIntents.ensureSelectionValid(ids)
+                        );
+                    default:
+                        throw new Error(
+                            "Unsupported selection action: " + action
+                        );
+                }
+            },
+            announceAction,
+            showFeedback,
+        });
+
+        const {
+            workspaceStyle,
+            toggleWorkspaceStyle,
+            dismissedHudCardSet,
+            dismissHudCard,
+            restoreHudCards,
+        } = useWorkspaceShell();
+        const hasDismissedInsights = Boolean(dismissedHudCardSet.size);
+
+        const wrappedToggleWorkspaceStyle = useCallback(() => {
+            toggleWorkspaceStyle();
+        }, [toggleWorkspaceStyle]);
+
+        const hudCards = useHudCards({
+            rpcStatus,
+            engineInfo,
+            isDetectingEngine,
+            isDragActive,
+            dismissedHudCardSet,
+        });
+        const visibleHudCards = hudCards.visibleHudCards;
+
+        const commandActions = useMemo(() => {
+            const actionGroup = t("command_palette.group.actions");
+            const filterGroup = t("command_palette.group.filters");
+            const searchGroup = t("command_palette.group.search");
+            return [
+                {
+                    id: "add-torrent",
+                    group: actionGroup,
+                    title: t("command_palette.actions.add_torrent"),
+                    description: t(
+                        "command_palette.actions.add_torrent_description"
+                    ),
+                    onSelect: openAddTorrentPicker,
+                },
+                {
+                    id: "add-magnet",
+                    group: actionGroup,
+                    title: t("command_palette.actions.add_magnet"),
+                    description: t(
+                        "command_palette.actions.add_magnet_description"
+                    ),
+                    onSelect: openAddMagnet,
+                },
+                {
+                    id: "open-settings",
+                    group: actionGroup,
+                    title: t("command_palette.actions.open_settings"),
+                    description: t(
+                        "command_palette.actions.open_settings_description"
+                    ),
+                    onSelect: openSettings,
+                },
+                {
+                    id: "refresh-torrents",
+                    group: actionGroup,
+                    title: t("command_palette.actions.refresh"),
+                    description: t(
+                        "command_palette.actions.refresh_description"
+                    ),
+                    onSelect: refreshTorrents,
+                },
+                {
+                    id: "focus-search",
+                    group: searchGroup,
+                    title: t("command_palette.actions.focus_search"),
+                    description: t(
+                        "command_palette.actions.focus_search_description"
+                    ),
+                    onSelect: focusSearchInput,
+                },
+                {
+                    id: "filter-all",
+                    group: filterGroup,
+                    title: t("nav.filter_all"),
+                    description: t("command_palette.filters.all_description"),
+                    onSelect: () => setFilter("all"),
+                },
+                {
+                    id: "filter-downloading",
+                    group: filterGroup,
+                    title: t("nav.filter_downloading"),
+                    description: t(
+                        "command_palette.filters.downloading_description"
+                    ),
+                    onSelect: () =>
+                        setFilter(STATUS.torrent.DOWNLOADING),
+                },
+                {
+                    id: "filter-seeding",
+                    group: filterGroup,
+                    title: t("nav.filter_seeding"),
+                    description: t("command_palette.filters.seeding_description"),
+                    onSelect: () => setFilter(STATUS.torrent.SEEDING),
+                },
+            ];
+        }, [
+            focusSearchInput,
+            openAddTorrentPicker,
+            openAddMagnet,
+            openSettings,
+            refreshTorrents,
+            setFilter,
+            t,
+        ]);
+
+        const getContextActions = useCallback(
+            ({ activePart }: CommandPaletteContext) => {
+                const contextGroup = t("command_palette.group.context");
+                const entries: CommandAction[] = [];
+
+                if (activePart === "table" && selectedTorrents.length) {
+                    entries.push(
+                        {
+                            id: "context.pause_selected",
+                            group: contextGroup,
+                            title: t("command_palette.actions.pause_selected"),
+                            description: t(
+                                "command_palette.actions.pause_selected_description"
+                            ),
+                            onSelect: () => {
+                                const dispatch =
+                                    actionsContext?.dispatch ?? null;
+                                if (!dispatch) return;
+                                selectedTorrents.forEach((t) =>
+                                    void dispatch(
+                                        TorrentIntents.ensurePaused(
+                                            t.id ?? t.hash
+                                        )
+                                    )
+                                );
+                            },
+                        },
+                        {
+                            id: "context.resume_selected",
+                            group: contextGroup,
+                            title: t("command_palette.actions.resume_selected"),
+                            description: t(
+                                "command_palette.actions.resume_selected_description"
+                            ),
+                            onSelect: () => {
+                                const dispatch =
+                                    actionsContext?.dispatch ?? null;
+                                if (!dispatch) return;
+                                selectedTorrents.forEach((t) =>
+                                    void dispatch(
+                                        TorrentIntents.ensureActive(
+                                            t.id ?? t.hash
+                                        )
+                                    )
+                                );
+                            },
+                        },
+                        {
+                            id: "context.recheck_selected",
+                            group: contextGroup,
+                            title: t("command_palette.actions.recheck_selected"),
+                            description: t(
+                                "command_palette.actions.recheck_selected_description"
+                            ),
+                            onSelect: () => {
+                                const dispatch =
+                                    actionsContext?.dispatch ?? null;
+                                if (!dispatch) return;
+                                selectedTorrents.forEach((t) =>
+                                    void dispatch(
+                                        TorrentIntents.ensureValid(
+                                            t.id ?? t.hash
+                                        )
+                                    )
+                                );
+                            },
+                        }
+                    );
+                    const targetTorrent = selectedTorrents[0];
+                    if (targetTorrent) {
+                        entries.push({
+                            id: "context.open_inspector",
+                            group: contextGroup,
+                            title: t("command_palette.actions.open_inspector"),
+                            description: t(
+                                "command_palette.actions.open_inspector_description"
+                            ),
+                            onSelect: () => handleRequestDetails(targetTorrent),
+                        });
+                    }
+                }
+
+                if (activePart === "inspector" && detailData) {
+                    const fileIndexes =
+                        detailData.files?.map((file) => file.index) ?? [];
+                    if (fileIndexes.length) {
+                        entries.push({
+                            id: "context.select_all_files",
+                            group: contextGroup,
+                            title: t("command_palette.actions.select_all_files"),
+                            description: t(
+                                "command_palette.actions.select_all_files_description"
+                            ),
+                            onSelect: () => {
+                                setInspectorTabCommand("content");
+                                return handleFileSelectionChange(
+                                    fileIndexes,
+                                    true
+                                );
+                            },
+                        });
+                    }
+
+                    const hasPeers = Boolean(detailData.peers?.length);
+                    if (hasPeers) {
+                        const isSpeedSorted = peerSortStrategy === "speed";
+                        entries.push({
+                            id: isSpeedSorted
+                                ? "context.inspector.reset_peer_sort"
+                                : "context.inspector.sort_peers_by_speed",
+                            group: contextGroup,
+                            title: t(
+                                isSpeedSorted
+                                    ? "command_palette.actions.reset_peer_sort"
+                                    : "command_palette.actions.sort_peers_by_speed"
+                            ),
+                            description: t(
+                                isSpeedSorted
+                                    ? "command_palette.actions.reset_peer_sort_description"
+                                    : "command_palette.actions.sort_peers_by_speed_description"
+                            ),
+                            onSelect: () => {
+                                setInspectorTabCommand("peers");
+                                setPeerSortStrategy(
+                                    isSpeedSorted ? "none" : "speed"
+                                );
+                            },
+                        });
+                    }
+                }
+
+                return entries;
+            },
+            [
+                detailData,
+                handleFileSelectionChange,
+                handleRequestDetails,
+                peerSortStrategy,
+                selectedTorrents,
+                setInspectorTabCommand,
+                setPeerSortStrategy,
+                t,
+                actionsContext,
+            ]
+        );
+
+        return (
+            <>
+                {/* Add-torrent file input handled via orchestrator's dropzone props */}
+                <FocusController
+                    selectedTorrents={selectedTorrents}
+                    activeTorrentId={activeTorrentId}
+                    detailData={detailData}
+                    requestDetails={handleRequestDetails}
+                    closeDetail={handleCloseDetail}
+                />
+                <RecoveryProvider
+                    value={{
+                        serverClass,
+                        handleRetry: handleRecoveryRetry,
+                    }}
+                >
+                    <WorkspaceShell
+                        getRootProps={getRootProps}
+                        getInputProps={getInputProps}
+                        isDragActive={isDragActive}
+                        filter={filter}
+                        searchQuery={searchQuery}
+                        setSearchQuery={setSearchQuery}
+                        setFilter={setFilter}
+                        openAddTorrent={openAddTorrentPicker}
+                        openAddMagnet={openAddMagnet}
+                        openSettings={openSettings}
+                        selectedTorrents={selectedTorrents}
+                        rehashStatus={rehashStatus}
+                        workspaceStyle={workspaceStyle}
+                        toggleWorkspaceStyle={wrappedToggleWorkspaceStyle}
+                        torrents={torrents}
+                        ghostTorrents={ghostTorrents}
+                        isTableLoading={!isInitialLoadFinished}
+                        handleRequestDetails={handleRequestDetails}
+                        detailData={detailData}
+                        closeDetail={handleCloseDetail}
+                        handleFileSelectionChange={
+                            handleFileSelectionChange
+                        }
+                        sequentialToggleHandler={handleSequentialToggle}
+                        superSeedingToggleHandler={handleSuperSeedingToggle}
+                        /* onSetLocation removed: use TorrentActionsContext.setLocation */
+                        capabilities={capabilities}
+                        optimisticStatuses={optimisticStatuses}
+                        handleSelectionChange={handleSelectionChange}
+                        handleActiveRowChange={handleActiveRowChange}
+                        /* handleOpenFolder removed; leaf components use TorrentActionsContext */
+                        peerSortStrategy={peerSortStrategy}
+                        inspectorTabCommand={inspectorTabCommand}
+                        onInspectorTabCommandHandled={
+                            handleInspectorTabCommandHandled
+                        }
+                        sessionStats={sessionStats}
+                        liveTransportStatus={liveTransportStatus}
+                        engineType={engineType}
+                        handleReconnect={handleReconnect}
+                        pendingDelete={pendingDelete}
+                        clearPendingDelete={clearPendingDelete}
+                        confirmDelete={confirmDelete}
+                        visibleHudCards={visibleHudCards}
+                        dismissHudCard={dismissHudCard}
+                        hasDismissedInsights={hasDismissedInsights}
+                        isSettingsOpen={isSettingsOpen}
+                        closeSettings={closeSettings}
+                        settingsConfig={settingsFlow.settingsConfig}
+                        isSettingsSaving={settingsFlow.isSettingsSaving}
+                        settingsLoadError={settingsFlow.settingsLoadError}
+                        handleSaveSettings={settingsFlow.handleSaveSettings}
+                        handleTestPort={settingsFlow.handleTestPort}
+                        restoreHudCards={restoreHudCards}
+                        applyUserPreferencesPatch={
+                            settingsFlow.applyUserPreferencesPatch
+                        }
+                        tableWatermarkEnabled={
+                            settingsFlow.settingsConfig
+                                .table_watermark_enabled
+                        }
+                        isDetailRecoveryBlocked={isDetailRecoveryBlocked}
+                    />
+                    <TorrentRecoveryModal
+                        isOpen={Boolean(recoverySession)}
+                        torrent={recoverySession?.torrent ?? null}
+                        outcome={
+                            lastRecoveryOutcome ??
+                            recoverySession?.outcome ??
+                            null
+                        }
+                        onClose={handleRecoveryClose}
+                        onPickPath={handleRecoveryPickPath}
+                        onBrowse={
+                            NativeShell.isAvailable
+                                ? recoveryRequestBrowse
+                                : undefined
+                        }
+                        onRecreate={handleRecoveryRecreateFolder}
+                        isBusy={isRecoveryBusy}
+                    />
+                </RecoveryProvider>
+                <CommandPalette
+                    isOpen={isCommandPaletteOpen}
+                    onOpenChange={setCommandPaletteOpen}
+                    actions={commandActions}
+                    getContextActions={getContextActions}
+                />
+                <AddMagnetModal
+                    isOpen={isMagnetModalOpen}
+                    initialValue={magnetModalInitialValue}
+                    onClose={handleMagnetModalClose}
+                    onSubmit={handleMagnetSubmit}
+                />
+                {addSource && addSource.kind === "file" && (
+                    <AddTorrentModal
+                        isOpen={true}
+                        source={addSource}
+                        initialDownloadDir={
+                            lastDownloadDir ||
+                            settingsFlow.settingsConfig.download_dir
+                        }
+                        isSubmitting={isAddingTorrent || isFinalizingExisting}
+                        isResolvingSource={isResolvingMagnet}
+                        onCancel={closeAddTorrentWindow}
+                        onConfirm={handleTorrentWindowConfirm}
+                        checkFreeSpace={torrentClient.checkFreeSpace}
+                        onBrowseDirectory={
+                            NativeShell.isAvailable
+                                ? async (currentPath: string) => {
+                                      try {
+                                          return await NativeShell.browseDirectory(
+                                              currentPath
+                                          );
+                                      } catch {
+                                          return null;
+                                      }
+                                  }
+                                : undefined
+                        }
+                    />
+                )}
+            </>
+        );
+    };
 
     return (
         <FocusProvider>
-            {/* TODO: add-torrent file input moved to src/app/orchestrators/useTorrentOrchestrator.ts */}
-            <FocusController
-                selectedTorrents={selectedTorrents}
-                activeTorrentId={activeTorrentId}
-                detailData={detailData}
-                requestDetails={handleRequestDetails}
-                closeDetail={handleCloseDetail}
-            />
             <LifecycleProvider>
                 <TorrentActionsProvider>
-                    <RecoveryProvider
-                        value={{
-                            serverClass,
-                            // TODO: recovery handler moved to orchestrator
-                            handleRetry: undefined,
-                        }}
-                    >
-                        <WorkspaceShell
-                            filter={filter}
-                            searchQuery={searchQuery}
-                            setSearchQuery={setSearchQuery}
-                            setFilter={setFilter}
-                            /* TODO: add-torrent open handlers moved to orchestrator */
-                            openSettings={openSettings}
-                            selectedTorrents={selectedTorrents}
-                            rehashStatus={rehashStatus}
-                            workspaceStyle={workspaceStyle}
-                            toggleWorkspaceStyle={wrappedToggleWorkspaceStyle}
-                            torrents={torrents}
-                            ghostTorrents={ghostTorrents}
-                            isTableLoading={!isInitialLoadFinished}
-                            handleRequestDetails={handleRequestDetails}
-                            detailData={detailData}
-                            closeDetail={handleCloseDetail}
-                            handleFileSelectionChange={
-                                handleFileSelectionChange
-                            }
-                            sequentialToggleHandler={handleSequentialToggle}
-                            superSeedingToggleHandler={handleSuperSeedingToggle}
-                            /* onSetLocation removed: use TorrentActionsContext.setLocation */
-                            capabilities={capabilities}
-                            optimisticStatuses={optimisticStatuses}
-                            handleSelectionChange={handleSelectionChange}
-                            handleActiveRowChange={handleActiveRowChange}
-                            /* handleOpenFolder removed; leaf components use TorrentActionsContext */
-                            peerSortStrategy={peerSortStrategy}
-                            inspectorTabCommand={inspectorTabCommand}
-                            onInspectorTabCommandHandled={
-                                handleInspectorTabCommandHandled
-                            }
-                            sessionStats={sessionStats}
-                            liveTransportStatus={liveTransportStatus}
-                            engineType={engineType}
-                            handleReconnect={handleReconnect}
-                            pendingDelete={pendingDelete}
-                            clearPendingDelete={clearPendingDelete}
-                            confirmDelete={confirmDelete}
-                            visibleHudCards={visibleHudCards}
-                            dismissHudCard={dismissHudCard}
-                            hasDismissedInsights={hasDismissedInsights}
-                            isSettingsOpen={isSettingsOpen}
-                            closeSettings={closeSettings}
-                            settingsConfig={settingsFlow.settingsConfig}
-                            isSettingsSaving={settingsFlow.isSettingsSaving}
-                            settingsLoadError={settingsFlow.settingsLoadError}
-                            handleSaveSettings={settingsFlow.handleSaveSettings}
-                            handleTestPort={settingsFlow.handleTestPort}
-                            restoreHudCards={restoreHudCards}
-                            applyUserPreferencesPatch={
-                                settingsFlow.applyUserPreferencesPatch
-                            }
-                            tableWatermarkEnabled={
-                                settingsFlow.settingsConfig
-                                    .table_watermark_enabled
-                            }
-                            /* TODO: isDetailRecoveryBlocked provided by orchestrator */
-                        />
-                        {/* TODO: TorrentRecoveryModal presentation and recovery session
-                            lifecycle moved to src/app/orchestrators/useTorrentOrchestrator.ts */}
-                    </RecoveryProvider>
+                    <AppInner />
                 </TorrentActionsProvider>
             </LifecycleProvider>
-            <CommandPalette
-                isOpen={isCommandPaletteOpen}
-                onOpenChange={setCommandPaletteOpen}
-                actions={commandActions}
-                getContextActions={getContextActions}
-            />
-            {/* TODO: AddMagnetModal / AddTorrentModal UI and state moved to
-                src/app/orchestrators/useTorrentOrchestrator.ts. */}
         </FocusProvider>
     );
 }
