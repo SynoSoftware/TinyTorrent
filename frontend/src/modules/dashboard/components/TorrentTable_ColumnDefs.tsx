@@ -49,6 +49,7 @@ import { TABLE_LAYOUT, ICON_STROKE_WIDTH_DENSE } from "@/config/logic";
 import useLayoutMetrics from "@/shared/hooks/useLayoutMetrics";
 import { useUiClock } from "@/shared/hooks/useUiClock";
 import { SmoothProgressBar } from "@/shared/ui/components/SmoothProgressBar";
+import { TorrentIntents } from "@/app/intents/torrentIntents";
 import {
     formatBytes,
     formatDate,
@@ -535,7 +536,12 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
                           )}: ${formatBytes(torrent.totalSize)}`
                         : null;
                 const actions = useTorrentActionsContext();
-                const onOpenFolder = actions.handleOpenFolder;
+                const onOpenFolder = actions.dispatch
+                    ? (t: Torrent) =>
+                          void actions.dispatch(
+                              TorrentIntents.openTorrentFolder(t.id ?? t.hash)
+                          )
+                    : undefined;
                 const { handleRetry } = useRecoveryContext();
 
                 const primaryConfig = (() => {
@@ -551,8 +557,13 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
                                 ...common,
                                 label: t("recovery.action_locate"),
                                 onPress: () =>
-                                    actions.setLocation?.(torrent as any),
-                                isDisabled: !actions.setLocation,
+                                    void actions.dispatch(
+                                        TorrentIntents.ensureAtLocation(
+                                            torrent.id ?? torrent.hash,
+                                            torrent.savePath ?? ""
+                                        )
+                                    ),
+                                isDisabled: !actions.dispatch,
                             };
                         case "volumeLoss":
                             return {
@@ -566,16 +577,25 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
                                 ...common,
                                 label: t("recovery.action_locate"),
                                 onPress: () =>
-                                    actions.setLocation?.(torrent as any),
-                                isDisabled: !actions.setLocation,
+                                    void actions.dispatch(
+                                        TorrentIntents.ensureAtLocation(
+                                            torrent.id ?? torrent.hash,
+                                            torrent.savePath ?? ""
+                                        )
+                                    ),
+                                isDisabled: !actions.dispatch,
                             };
                         default:
                             return {
                                 ...common,
                                 label: t("recovery.action_download"),
                                 onPress: () =>
-                                    actions.redownload?.(torrent as any),
-                                isDisabled: !actions.redownload,
+                                    void actions.dispatch(
+                                        TorrentIntents.ensureDataPresent(
+                                            torrent.id ?? torrent.hash
+                                        )
+                                    ),
+                                isDisabled: !actions.dispatch,
                             };
                     }
                 })();
@@ -592,18 +612,26 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
                                 ...common,
                                 label: t("recovery.action_recreate"),
                                 onPress: () =>
-                                    actions.redownload?.(torrent as any, {
-                                        recreateFolder: true,
-                                    }),
-                                isDisabled: !actions.redownload,
+                                    void actions.dispatch(
+                                        TorrentIntents.ensureDataPresent(
+                                            torrent.id ?? torrent.hash,
+                                            true
+                                        )
+                                    ),
+                                isDisabled: !actions.dispatch,
                             };
                         case "volumeLoss":
                             return {
                                 ...common,
                                 label: t("recovery.action_locate"),
                                 onPress: () =>
-                                    actions.setLocation?.(torrent as any),
-                                isDisabled: !actions.setLocation,
+                                    void actions.dispatch(
+                                        TorrentIntents.ensureAtLocation(
+                                            torrent.id ?? torrent.hash,
+                                            torrent.savePath ?? ""
+                                        )
+                                    ),
+                                isDisabled: !actions.dispatch,
                             };
                         case "accessDenied":
                             return {
@@ -616,7 +644,7 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
                             return {
                                 ...common,
                                 label: t("recovery.action.open_folder"),
-                                onPress: () => onOpenFolder?.(torrent as any),
+                                onPress: () => onOpenFolder?.(torrent),
                                 isDisabled: !onOpenFolder,
                             };
                     }

@@ -66,14 +66,14 @@ When fixing zoom-related or css magic number issues:
 - You may NOT introduce Tailwind numeric geometry or spacing utilities in components:
   - **Forbidden:** `p-*`, `px-*`, `py-*`, `m-*`, `gap-*`, `space-*`, `w-*`, `h-*`, `text-*`, `leading-*`, `rounded-*`, `shadow-*`, `blur-*` when they encode a literal number.
   - **Forbidden:** bracket classes (arbitrary values) like `w-[...]`, `h-[...]`, `text-[...]`, `shadow-[...]`, `rounded-[...]`, `blur-[...]`, `max-w-[...]`, `min-w-[...]`, `border-[...]`.
+
 - Replacements must use:
 
   - existing semantic tokens, or
   - existing primitives (`--u`, `--z`, `--fz`) *without introducing new coefficients*.
-- If no suitable token exists, the element must be left unchanged and flagged instead.
 
 ### **Consistency & Convergence Rule**
->
+
 - Do NOT introduce one-off variables.
 - If a numeric value represents a concept that appears more than once (width, padding, icon size, column size, max-width, etc.), it MUST map to a **single semantic variable**.
 - Before introducing or using any variable, check whether an existing variable already represents the same meaning.
@@ -1180,34 +1180,11 @@ Relative paths like `../../../../../` are forbidden.
 ### **Required Configuration:**
 
 **tsconfig.json**
-
-```jsonc
-{
-    "compilerOptions": {
-        "baseUrl": "./src",
-        "paths": {
-            "@/*": ["*"]
-        }
-    }
-}
-```
-
 **vite.config.ts**
 
-```ts
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
-import path from "path";
+as they are, don't change pattern without permission from the user. ask if you need tochange.
 
-export default defineConfig({
-    plugins: [react()],
-    resolve: {
-        alias: {
-            "@": path.resolve(__dirname, "src"),
-        },
-    },
-});
-```
+
 
 ## **7 Incremental Architecture & Naming Improvement Rule (Mandatory)**
 
@@ -1240,9 +1217,38 @@ then the agent must **reduce the violation**, even if only slightly.
 
 Leaving the file in the same or worse architectural state is a spec violation.
 
+### **B. Typed Control Plane (Specialization)**
+
+All control flow (intents, actions, commands, events, orchestration switches):
+
+- must be **statically typed**
+- must use **typed identifiers** (no string literals)
+- must be **exhaustively checked**
+- must not contain transitional, fallback, or dual-path logic
+- must not be constructed directly by UI components
+
+If typing is unclear, **the architecture is incomplete and must be fixed**.
+Breaking compilation is acceptable. Breaking type safety is not.
+
 ---
 
-### **B. Identifier Quality & Rename Reporting**
+### **C. Strict Typing (Hard Rule — Global)**
+
+In all **new or modified code**, without exception:
+
+- `Any` is **forbidden**
+- `unknown` is **forbidden**
+- untyped string identifiers are **forbidden**
+
+All code must be **fully statically typed** and **exhaustively checked**.
+
+If a change cannot be expressed without weakening the type system,
+**the architecture is incomplete and must be redesigned**.
+
+Breaking compilation is acceptable.
+Breaking type safety is not.
+
+### **D. Identifier Quality & Rename Reporting**
 
 When editing UI code, the agent must actively evaluate **identifier quality**.
 
@@ -1269,6 +1275,131 @@ Include a short section titled **“Rename Candidates”** containing:
 - Missing obvious rename candidates is a spec violation.
 
 This enables fast, safe batch renames by the user (VS Code / IDE).
+
+---
+
+### **E. God Object / God Component Prohibition (Hard Stop)**
+
+Creation or expansion of **god objects, god components, or god modules** is **forbidden**.
+
+A file is considered a god object/component if it:
+
+- owns **multiple unrelated responsibilities**
+- coordinates **orchestration + execution + presentation**
+- grows by **accumulating logic instead of shedding it**
+- becomes the default place to “just put one more thing”
+- exposes a wide surface area that is not conceptually cohesive
+
+**Mandatory constraints:**
+
+- A change **may not increase** the responsibility surface of an already-large file.
+- If a touched file is already overloaded, the change **must reduce** responsibility, even minimally.
+- “We’ll clean it later” is **not permitted**.
+- Replacing one large block with another large block in the same file is **not improvement**.
+
+**Required behavior when risk is detected:**
+
+The agent must do **at least one** of the following:
+
+- Extract a responsibility into a hook, helper, or service
+- Move orchestration out of the file
+- Split the component/module along responsibility boundaries
+- Narrow the public interface (fewer props, fewer exports, fewer effects)
+
+**Explicitly forbidden justifications:**
+
+- “This file already does a lot”
+- “It’s the entry point”
+- “Refactoring is out of scope”
+- “It’s only one more case”
+
+If a change would result in a file becoming *more central, more implicit, or more overloaded*,
+the change **must be rejected or restructured**.
+
+Failure to prevent god-object growth is a **spec violation**.
+
+---
+
+### **F. Approved Design Patterns & Placement Rules (Mandatory)**
+
+When reducing responsibility or extracting logic, the agent **must use one of the approved patterns below**.
+Inventing new architectural shapes or hybrid patterns is **not allowed** without explicit instruction.
+
+#### **1. Orchestrator Hook (Control Plane)**
+
+**Purpose:**
+Owns **sequencing, retries, deduplication, gating, and multi-step workflows**.
+
+---
+
+#### **2. Domain Hook (Single Responsibility)**
+
+**Purpose:**
+Encapsulates **one domain concern** with minimal coordination.
+
+---
+
+#### **3. Service (Pure or Effectful, Non-React)**
+
+**Purpose:**
+Implements **business or domain logic** independent of React.
+
+---
+
+#### **4. Adapter (Edge / IO Boundary)**
+
+**Purpose:**
+Owns **external system interaction** (RPC, filesystem, native host, browser APIs).
+
+
+---
+
+#### **5. UI Component (Presentation Only)**
+
+**Purpose:**
+Render UI and forward **typed intents**.
+
+**Rules:**
+
+- No orchestration
+- No engine calls
+- No multi-step logic
+- No control flow construction
+- Emits intents, never effects
+
+**Allowed:**
+
+- local UI state
+- visual conditionals
+- calling orchestrator commands
+
+---
+
+### **Placement Rule (Hard)**
+
+When extracting code:
+
+| Logic Type                    | Must Go To   |
+| ----------------------------- | ------------ |
+| Sequencing / retries / gating | Orchestrator |
+| Business rules                | Service      |
+| IO / RPC / native calls       | Adapter      |
+| View state                    | UI component |
+| Cross-cutting decisions       | Orchestrator |
+
+If logic does not clearly fit one category, **the architecture is incomplete** and the change must stop.
+
+---
+
+### **Anti-Patterns (Explicitly Forbidden)**
+
+- “Smart components”
+- Hooks that return flags instead of commands
+- Boolean-driven control flow
+- Files that both **decide** and **execute**
+- “Helper” files that grow indefinitely
+- Passing callbacks that close over engine state
+
 
 ---
 

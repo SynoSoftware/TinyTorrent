@@ -12,6 +12,7 @@ import { useOptimisticToggle } from "@/shared/hooks/useOptimisticToggle";
 import type { TorrentFileEntity } from "@/services/rpc/entities";
 import { DETAILS_TAB_CONTENT_MAX_HEIGHT } from "@/config/logic";
 import { useTorrentActionsContext } from "@/app/context/TorrentActionsContext";
+import { TorrentIntents } from "@/app/intents/torrentIntents";
 
 interface ContentTabProps {
     files?: TorrentFileEntity[];
@@ -90,9 +91,10 @@ export const ContentTab = ({
                             variant="shadow"
                             color="primary"
                             onPress={() =>
-                                void actions.executeTorrentAction(
-                                    "recheck",
-                                    torrent
+                                void actions.dispatch(
+                                    TorrentIntents.ensureValid(
+                                        torrent?.id ?? torrent?.hash
+                                    )
                                 )
                             }
                         >
@@ -102,7 +104,13 @@ export const ContentTab = ({
                             size="md"
                             variant="shadow"
                             color="danger"
-                            onPress={() => void actions.redownload(torrent)}
+                            onPress={() =>
+                                void actions.dispatch(
+                                    TorrentIntents.ensureDataPresent(
+                                        torrent?.id ?? torrent?.hash
+                                    )
+                                )
+                            }
                         >
                             {t("modals.download")}
                         </Button>
@@ -110,7 +118,14 @@ export const ContentTab = ({
                             size="md"
                             variant="shadow"
                             color="default"
-                            onPress={() => void actions.setLocation(torrent)}
+                            onPress={() =>
+                                void actions.dispatch(
+                                    TorrentIntents.ensureAtLocation(
+                                        torrent?.id ?? torrent?.hash,
+                                        torrent?.savePath ?? ""
+                                    )
+                                )
+                            }
                         >
                             {t("directory_browser.open")}
                         </Button>
