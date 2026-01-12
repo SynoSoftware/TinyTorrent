@@ -21,6 +21,10 @@ import {
     classifyMissingFilesState,
     runMissingFilesRecoverySequence,
 } from "@/services/recovery/recovery-controller";
+import {
+    getRecoveryFingerprint,
+    derivePathReason,
+} from "@/app/domain/recoveryUtils";
 import { useRecoveryController } from "@/modules/dashboard/hooks/useRecoveryController";
 import type {
     RecoveryGateAction,
@@ -55,30 +59,6 @@ export interface RecoveryGateProviderProps {
     serverClass: ServerClass;
     children: ReactNode | ((value: RecoveryGateContextValue) => ReactNode);
 }
-
-const getRecoveryFingerprint = (torrent: Torrent | TorrentDetail) =>
-    torrent.errorEnvelope?.fingerprint ??
-    torrent.hash ??
-    torrent.id ??
-    "<no-recovery-fingerprint>";
-
-type PathNeededReason = Extract<
-    RecoveryOutcome,
-    { kind: "path-needed" }
->["reason"];
-
-const derivePathReason = (errorClass?: string | null): PathNeededReason => {
-    switch (errorClass) {
-        case "permissionDenied":
-            return "unwritable";
-        case "diskFull":
-            return "disk-full";
-        case "missingFiles":
-            return "missing";
-        default:
-            return "missing";
-    }
-};
 
 export function RecoveryGateProvider({
     clientRef,
