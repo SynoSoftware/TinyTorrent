@@ -70,6 +70,25 @@ export type OpenTorrentFolder = {
     torrentId: string | number;
 };
 
+export type SetTorrentFilesWanted = {
+    type: "SET_TORRENT_FILES_WANTED";
+    torrentId: string | number;
+    fileIndexes: number[];
+    wanted: boolean;
+};
+
+export type SetTorrentSequentialDownload = {
+    type: "SET_TORRENT_SEQUENTIAL";
+    torrentId: string | number;
+    enabled: boolean;
+};
+
+export type SetTorrentSuperSeeding = {
+    type: "SET_TORRENT_SUPERSEEDING";
+    torrentId: string | number;
+    enabled: boolean;
+};
+
 export type TorrentIntent =
     | EnsureTorrentActive
     | EnsureTorrentPaused
@@ -83,7 +102,10 @@ export type TorrentIntent =
     | EnsureSelectionRemoved
     | EnsureSelectionPaused
     | EnsureSelectionValid
-    | OpenTorrentFolder;
+    | OpenTorrentFolder
+    | SetTorrentFilesWanted
+    | SetTorrentSequentialDownload
+    | SetTorrentSuperSeeding;
 
 export type QueueMoveIntent = {
     type: "QUEUE_MOVE";
@@ -176,6 +198,32 @@ export const TorrentIntents = {
     openTorrentFolder: (torrentId: string | number): OpenTorrentFolder => ({
         type: "OPEN_TORRENT_FOLDER",
         torrentId,
+    }),
+    setFilesWanted: (
+        torrentId: string | number,
+        fileIndexes: number[],
+        wanted: boolean
+    ): SetTorrentFilesWanted => ({
+        type: "SET_TORRENT_FILES_WANTED",
+        torrentId,
+        fileIndexes,
+        wanted,
+    }),
+    setSequentialDownload: (
+        torrentId: string | number,
+        enabled: boolean
+    ): SetTorrentSequentialDownload => ({
+        type: "SET_TORRENT_SEQUENTIAL",
+        torrentId,
+        enabled,
+    }),
+    setSuperSeeding: (
+        torrentId: string | number,
+        enabled: boolean
+    ): SetTorrentSuperSeeding => ({
+        type: "SET_TORRENT_SUPERSEEDING",
+        torrentId,
+        enabled,
     }),
     queueMove: (
         torrentId: string | number,

@@ -80,15 +80,11 @@ type AppContentProps = {
     loadDetail: ReturnType<typeof useTorrentDetail>["loadDetail"];
     refreshDetailData: ReturnType<typeof useTorrentDetail>["refreshDetailData"];
     clearDetail: ReturnType<typeof useTorrentDetail>["clearDetail"];
-    handleFileSelectionChange: ReturnType<
-        typeof useDetailControls
-    >["handleFileSelectionChange"];
-    handleSequentialToggle: ReturnType<
-        typeof useDetailControls
-    >["handleSequentialToggle"];
-    handleSuperSeedingToggle: ReturnType<
-        typeof useDetailControls
-    >["handleSuperSeedingToggle"];
+    mutateDetail: ReturnType<typeof useTorrentDetail>["mutateDetail"];
+    updateCapabilityState: (
+        capability: CapabilityKey,
+        state: CapabilityState
+    ) => void;
     settingsFlow: ReturnType<typeof useSettingsFlow>;
     orchestrator: ReturnType<typeof useTorrentOrchestrator>;
     openSettings: ReturnType<typeof useWorkspaceModals>["openSettings"];
@@ -120,9 +116,8 @@ function AppContent({
     loadDetail,
     refreshDetailData,
     clearDetail,
-    handleFileSelectionChange,
-    handleSequentialToggle,
-    handleSuperSeedingToggle,
+    mutateDetail,
+    updateCapabilityState,
     settingsFlow,
     orchestrator,
     openSettings,
@@ -204,6 +199,16 @@ function AppContent({
         () => torrents.filter((torrent) => selectedIdsSet.has(torrent.id)),
         [selectedIdsSet, torrents]
     );
+
+    const {
+        handleFileSelectionChange,
+        handleSequentialToggle,
+        handleSuperSeedingToggle,
+    } = useDetailControls({
+        detailData,
+        mutateDetail,
+        updateCapabilityState,
+    });
 
     // -- Detail Handling --
     const handleRequestDetails = useCallback(
@@ -943,22 +948,6 @@ export default function App() {
         sessionReady: rpcStatus === STATUS.connection.CONNECTED,
     });
 
-    const {
-        handleFileSelectionChange,
-        handleSequentialToggle,
-        handleSuperSeedingToggle,
-    } = useDetailControls({
-        detailData,
-        torrentClient,
-        mutateDetail,
-        reportCommandError,
-        isMountedRef,
-        refreshTorrents,
-        refreshDetailData,
-        refreshSessionStatsData,
-        updateCapabilityState,
-    });
-
     useEffect(() => {
         isMountedRef.current = true;
         return () => {
@@ -1013,11 +1002,8 @@ export default function App() {
                             loadDetail={loadDetail}
                             refreshDetailData={refreshDetailData}
                             clearDetail={clearDetail}
-                            handleFileSelectionChange={
-                                handleFileSelectionChange
-                            }
-                            handleSequentialToggle={handleSequentialToggle}
-                            handleSuperSeedingToggle={handleSuperSeedingToggle}
+                            mutateDetail={mutateDetail}
+                            updateCapabilityState={updateCapabilityState}
                             settingsFlow={settingsFlow}
                             orchestrator={orchestrator}
                             openSettings={openSettings}
