@@ -14,10 +14,10 @@ import type { TorrentStatus } from "@/services/rpc/entities";
 import STATUS from "@/shared/status";
 
 import type { FeedbackTone } from "@/shared/types/feedback";
+import { useSelection } from "@/app/context/SelectionContext";
 
 interface UseTorrentWorkflowParams {
     torrents: Torrent[];
-    selectedTorrentIds: string[];
     executeTorrentAction: (
         action: TorrentTableAction,
         torrent: Torrent,
@@ -39,7 +39,6 @@ interface UseTorrentWorkflowParams {
 
 export function useTorrentWorkflow({
     torrents,
-    selectedTorrentIds,
     executeTorrentAction,
     executeBulkRemove,
     executeSelectionAction,
@@ -55,9 +54,10 @@ export function useTorrentWorkflow({
     const [pendingDelete, setPendingDelete] = useState<DeleteIntent | null>(
         null
     );
+    const { selectedIds } = useSelection();
     const selectedTorrentIdsSet = useMemo(
-        () => new Set(selectedTorrentIds),
-        [selectedTorrentIds]
+        () => new Set(selectedIds),
+        [selectedIds]
     );
     const selectedTorrents = useMemo(
         () => torrents.filter((torrent) => selectedTorrentIdsSet.has(torrent.id)),
