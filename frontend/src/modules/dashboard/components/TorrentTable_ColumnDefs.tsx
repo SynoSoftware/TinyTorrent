@@ -461,7 +461,7 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
                 conf.labelKey
             );
 
-            const tooltip =
+            let tooltip =
                 formatRecoveryTooltip(
                     torrent.errorEnvelope,
                     t,
@@ -535,6 +535,11 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
                               "torrent_modal.files.expected"
                           )}: ${formatBytes(torrent.totalSize)}`
                         : null;
+                const tooltipParts = [statusText];
+                if (sizeHint) {
+                    tooltipParts.push(sizeHint);
+                }
+                tooltip = tooltipParts.join(" — ");
                 const { dispatch } = useRequiredTorrentActions();
                 const onOpenFolder = (t: Torrent) =>
                     void dispatch(

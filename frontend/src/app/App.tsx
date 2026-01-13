@@ -216,6 +216,7 @@ function AppContent({
         handleRecoveryRecreateFolder,
         recoveryRequestBrowse,
         handleRecoveryRetry,
+        resumeTorrentWithRecovery: resumeTorrent,
     } = orchestrator;
 
     const { getRootProps, getInputProps, isDragActive } = addModalState;
@@ -305,9 +306,7 @@ function AppContent({
                     TorrentIntents.ensurePaused(torrent.id ?? torrent.hash)
                 );
             case "resume":
-                return dispatch(
-                    TorrentIntents.ensureActive(torrent.id ?? torrent.hash)
-                );
+                return resumeTorrent(torrent);
             case "recheck":
                 return dispatch(
                     TorrentIntents.ensureValid(torrent.id ?? torrent.hash)
@@ -381,8 +380,16 @@ function AppContent({
             switch (action) {
                 case "pause":
                     return dispatch(TorrentIntents.ensureSelectionPaused(ids));
-                case "resume":
-                    return dispatch(TorrentIntents.ensureSelectionActive(ids));
+            case "resume":
+                {
+                    const targets = selectedTorrents.filter((torrent) =>
+                        ids.includes(torrent.id)
+                    );
+                    for (const torrent of targets) {
+                        await resumeTorrent(torrent);
+                    }
+                }
+                return;
                 case "recheck":
                     return dispatch(TorrentIntents.ensureSelectionValid(ids));
                 default:
@@ -557,13 +564,8 @@ function AppContent({
                             "command_palette.actions.resume_selected_description"
                         ),
                         onSelect: () => {
-                            selectedTorrents.forEach(
-                                (torrent) =>
-                                    void dispatch(
-                                        TorrentIntents.ensureActive(
-                                            torrent.id ?? torrent.hash
-                                        )
-                                    )
+                            selectedTorrents.forEach((torrent) =>
+                                void resumeTorrent(torrent)
                             );
                         },
                     },
@@ -657,6 +659,7 @@ function AppContent({
             setPeerSortStrategy,
             t,
             dispatch,
+            resumeTorrent,
         ]
     );
 
@@ -669,6 +672,7 @@ function AppContent({
                 detailData={detailData}
                 handleRequestDetails={handleRequestDetails}
                 handleCloseDetail={handleCloseDetail}
+                resumeTorrent={resumeTorrent}
             />
             <RecoveryProvider
                 value={{
@@ -723,15 +727,16 @@ function AppContent({
                     settingsLoadError={settingsFlow.settingsLoadError}
                     handleSaveSettings={settingsFlow.handleSaveSettings}
                     handleTestPort={settingsFlow.handleTestPort}
-                    restoreHudCards={restoreHudCards}
-                    applyUserPreferencesPatch={
-                        settingsFlow.applyUserPreferencesPatch
-                    }
-                    tableWatermarkEnabled={
-                        settingsFlow.settingsConfig.table_watermark_enabled
-                    }
-                    isDetailRecoveryBlocked={isDetailRecoveryBlocked}
-                />
+                restoreHudCards={restoreHudCards}
+                applyUserPreferencesPatch={
+                    settingsFlow.applyUserPreferencesPatch
+                }
+                tableWatermarkEnabled={
+                    settingsFlow.settingsConfig.table_watermark_enabled
+                }
+                isDetailRecoveryBlocked={isDetailRecoveryBlocked}
+                resumeTorrent={resumeTorrent}
+            />
                 <TorrentRecoveryModal
                     isOpen={Boolean(recoverySession)}
                     torrent={recoverySession?.torrent ?? null}

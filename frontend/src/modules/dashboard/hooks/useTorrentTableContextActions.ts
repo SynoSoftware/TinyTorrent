@@ -22,6 +22,7 @@ type UseTorrentTableContextParams = {
             torrent: Torrent;
         } | null>
     >;
+    resumeTorrent?: (torrent: Torrent) => Promise<void> | void;
 };
 
 export const useTorrentTableContextActions = (
@@ -34,6 +35,7 @@ export const useTorrentTableContextActions = (
         copyToClipboard,
         buildMagnetLink,
         setContextMenu,
+        resumeTorrent,
     } = params;
 
     const { dispatch } = useRequiredTorrentActions();
@@ -82,11 +84,15 @@ export const useTorrentTableContextActions = (
                         );
                         break;
                     case "resume":
-                        await dispatch(
-                            TorrentIntents.ensureActive(
-                                torrent.id ?? torrent.hash
-                            )
-                        );
+                        if (resumeTorrent) {
+                            await resumeTorrent(torrent);
+                        } else {
+                            await dispatch(
+                                TorrentIntents.ensureActive(
+                                    torrent.id ?? torrent.hash
+                                )
+                            );
+                        }
                         break;
                     case "recheck":
                         await dispatch(
@@ -126,6 +132,7 @@ export const useTorrentTableContextActions = (
             buildMagnetLink,
             setContextMenu,
             dispatch,
+            resumeTorrent,
         ]
     );
 

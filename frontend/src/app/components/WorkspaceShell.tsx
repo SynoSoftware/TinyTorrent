@@ -148,6 +148,7 @@ interface WorkspaceShellProps {
         >
     ) => void;
     tableWatermarkEnabled: boolean;
+    resumeTorrent: (torrent: Torrent) => Promise<void> | void;
 }
 
 export function WorkspaceShell({
@@ -204,6 +205,7 @@ export function WorkspaceShell({
     restoreHudCards,
     applyUserPreferencesPatch,
     tableWatermarkEnabled,
+    resumeTorrent,
 }: WorkspaceShellProps) {
     const {
         serverClass,
@@ -218,6 +220,10 @@ export function WorkspaceShell({
         () => torrents.filter((torrent) => selectedIdsSet.has(torrent.id)),
         [selectedIdsSet, torrents]
     );
+    const handleEnsureSelectionActive = useCallback(() => {
+        if (!resumeTorrent) return;
+        selectedTorrents.forEach((torrent) => void resumeTorrent(torrent));
+    }, [resumeTorrent, selectedTorrents]);
     const handleWindowCommand = useCallback(
         (command: "minimize" | "maximize" | "close") => {
             if (!Runtime.isNativeHost) {
@@ -242,11 +248,7 @@ export function WorkspaceShell({
             onAddMagnet={openAddMagnet}
             onSettings={() => openSettings()}
             hasSelection={selectedIds.length > 0}
-            onEnsureSelectionActive={() => {
-                selectedIds.forEach((id) =>
-                    void dispatch(TorrentIntents.ensureActive(id))
-                );
-            }}
+            onEnsureSelectionActive={handleEnsureSelectionActive}
             onEnsureSelectionPaused={() => {
                 selectedIds.forEach((id) =>
                     void dispatch(TorrentIntents.ensurePaused(id))
@@ -286,14 +288,14 @@ export function WorkspaceShell({
     );
 
     const renderModeLayoutSection = () => (
-        <Dashboard_Layout
-            workspaceStyle={workspaceStyle}
-            torrents={torrents}
-            filter={filter}
-            searchQuery={searchQuery}
-            isTableLoading={isTableLoading}
-            // onAction/handleBulkAction handled via TorrentActionsContext in leaf components
-            onRequestDetails={handleRequestDetails}
+            <Dashboard_Layout
+                workspaceStyle={workspaceStyle}
+                torrents={torrents}
+                filter={filter}
+                searchQuery={searchQuery}
+                isTableLoading={isTableLoading}
+                // onAction/handleBulkAction handled via TorrentActionsContext in leaf components
+                onRequestDetails={handleRequestDetails}
             detailData={detailData}
             onCloseDetail={closeDetail}
             onFilesToggle={handleFileSelectionChange}
@@ -308,12 +310,13 @@ export function WorkspaceShell({
             peerSortStrategy={peerSortStrategy}
             inspectorTabCommand={inspectorTabCommand}
             onInspectorTabCommandHandled={onInspectorTabCommandHandled}
-            ghostTorrents={ghostTorrents}
-            isDropActive={isDragActive}
-            /* onOpenFolder removed; leaf components use TorrentActionsContext */
-            tableWatermarkEnabled={tableWatermarkEnabled}
-            isDetailRecoveryBlocked={isDetailRecoveryBlocked}
-        />
+                ghostTorrents={ghostTorrents}
+                isDropActive={isDragActive}
+                /* onOpenFolder removed; leaf components use TorrentActionsContext */
+                tableWatermarkEnabled={tableWatermarkEnabled}
+                isDetailRecoveryBlocked={isDetailRecoveryBlocked}
+                resumeTorrent={resumeTorrent}
+            />
     );
 
     const renderStatusBarSection = () => (

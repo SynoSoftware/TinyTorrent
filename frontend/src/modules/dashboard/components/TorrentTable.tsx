@@ -123,6 +123,7 @@ interface TorrentTableProps {
     optimisticStatuses?: OptimisticStatusMap;
     disableDetailOpen?: boolean;
     ghostTorrents?: Torrent[];
+    resumeTorrent?: (torrent: Torrent) => Promise<void> | void;
 }
 
 // --- HELPERS ---
@@ -152,6 +153,7 @@ export function TorrentTable({
     optimisticStatuses = {},
     disableDetailOpen = false,
     ghostTorrents,
+    resumeTorrent,
 }: TorrentTableProps) {
     const { t } = useTranslation();
     // actions provided by TorrentActionsContext (declared above)
@@ -315,6 +317,7 @@ export function TorrentTable({
         copyToClipboard,
         buildMagnetLink,
         setContextMenu,
+        resumeTorrent,
     });
 
     // Marquee `mousedown` and drag listeners moved to the virtualization hook.
