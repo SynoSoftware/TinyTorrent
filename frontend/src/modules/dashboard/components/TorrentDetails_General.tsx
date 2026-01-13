@@ -37,6 +37,7 @@ interface GeneralTabProps {
     superSeedingCapability: CapabilityState;
     onSequentialToggle?: (enabled: boolean) => Promise<void> | void;
     onSuperSeedingToggle?: (enabled: boolean) => Promise<void> | void;
+    onResume?: (torrent: TorrentDetail) => Promise<void> | void;
 
     progressPercent: number;
     timeRemainingLabel: string;
@@ -85,6 +86,7 @@ export const GeneralTab = ({
     superSeedingCapability: _superSeedingCapability,
     onSequentialToggle: _onSequentialToggle,
     onSuperSeedingToggle: _onSuperSeedingToggle,
+    onResume,
     progressPercent: _progressPercent,
     timeRemainingLabel: _timeRemainingLabel,
     activePeers,
@@ -135,6 +137,10 @@ export const GeneralTab = ({
     };
 
     const handleResumeAction = () => {
+        if (onResume) {
+            void onResume(torrent);
+            return;
+        }
         void dispatch(
             TorrentIntents.ensureActive(torrent?.id ?? torrent?.hash)
         );

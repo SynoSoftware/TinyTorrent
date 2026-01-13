@@ -14,6 +14,7 @@ interface GlobalHotkeysHostProps {
     detailData: TorrentDetail | null;
     handleRequestDetails: (torrent: Torrent) => Promise<void>;
     handleCloseDetail: () => void;
+    resumeTorrent: (torrent: Torrent) => Promise<void> | void;
 }
 
 export function GlobalHotkeysHost({
@@ -22,6 +23,7 @@ export function GlobalHotkeysHost({
     detailData,
     handleRequestDetails,
     handleCloseDetail,
+    resumeTorrent,
 }: GlobalHotkeysHostProps) {
     const { selectedIds, activeId, setSelectedIds, setActiveId } = useSelection();
     const { setActivePart } = useFocusState();
@@ -67,6 +69,11 @@ export function GlobalHotkeysHost({
     useEffect(() => {
         dispatchRef.current = dispatch;
     }, [dispatch]);
+    const resumeTorrentRef = useRef(resumeTorrent);
+
+    useEffect(() => {
+        resumeTorrentRef.current = resumeTorrent;
+    }, [resumeTorrent]);
 
     const scope = KEY_SCOPE.Dashboard;
 
@@ -114,35 +121,34 @@ export function GlobalHotkeysHost({
         []
     );
 
-    useHotkeys(
-        KEYMAP[ShortcutIntent.TogglePause],
-        (event) => {
-            event.preventDefault();
-            const dispatch = dispatchRef.current;
-            const primaryTorrent = selectedTorrentsRef.current.find(
-                (torrent) => torrent.id === activeIdRef.current
-            ) ?? selectedTorrentsRef.current[0];
-            if (!dispatch || !primaryTorrent) return;
-            const isActive =
-                primaryTorrent.state === STATUS.torrent.DOWNLOADING ||
-                primaryTorrent.state === STATUS.torrent.SEEDING;
-            if (isActive) {
-                void dispatch(
-                    TorrentIntents.ensurePaused(
-                        primaryTorrent.id ?? primaryTorrent.hash
-                    )
-                );
-            } else {
-                void dispatch(
-                    TorrentIntents.ensureActive(
-                        primaryTorrent.id ?? primaryTorrent.hash
-                    )
-                );
-            }
-        },
-        { scopes: scope },
-        []
-    );
+            useHotkeys(
+                KEYMAP[ShortcutIntent.TogglePause],
+                (event) => {
+                    event.preventDefault();
+                    const dispatch = dispatchRef.current;
+                    const primaryTorrent = selectedTorrentsRef.current.find(
+                        (torrent) => torrent.id === activeIdRef.current
+                    ) ?? selectedTorrentsRef.current[0];
+                    if (!dispatch || !primaryTorrent) return;
+                    const isActive =
+                        primaryTorrent.state === STATUS.torrent.DOWNLOADING ||
+                        primaryTorrent.state === STATUS.torrent.SEEDING;
+                    if (isActive) {
+                        void dispatch(
+                            TorrentIntents.ensurePaused(
+                                primaryTorrent.id ?? primaryTorrent.hash
+                            )
+                        );
+                    } else {
+                        const resume = resumeTorrentRef.current;
+                        if (resume) {
+                            void resume(primaryTorrent);
+                        }
+                    }
+                },
+                { scopes: scope },
+                []
+            );
 
     useHotkeys(
         KEYMAP[ShortcutIntent.Recheck],

@@ -425,6 +425,25 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
         dispatch,
     });
 
+    const resumeTorrentWithRecovery = useCallback(
+        async (torrent: Torrent | TorrentDetail) => {
+            const id = torrent.id ?? torrent.hash;
+            if (!id) return;
+            if (torrent.errorEnvelope) {
+                const gateResult = await requestRecovery({
+                    torrent,
+                    action: "resume",
+                });
+                if (gateResult?.status === "continue") {
+                    await dispatch(TorrentIntents.ensureActive(id));
+                }
+                return;
+            }
+            await dispatch(TorrentIntents.ensureActive(id));
+        },
+        [dispatch, requestRecovery]
+    );
+
     const handleRecoveryClose = useCallback(() => {
         if (!recoveryResolverRef.current) return;
         finalizeRecovery({ status: "cancelled" });
@@ -638,6 +657,7 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
         handleRecoveryPickPath,
         handleRecoveryRecreateFolder,
         recoveryRequestBrowse,
+        resumeTorrentWithRecovery,
     };
 }
 
