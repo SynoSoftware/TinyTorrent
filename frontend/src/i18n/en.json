@@ -659,16 +659,17 @@
             "title": "Confirm removal"
         },
         "feedback": {
-            "failed": "Action failed",
-            "paused": "Paused {{count}} torrents",
-            "pausing": "Pausing {{count}} torrents",
-            "rehashed": "Rehash complete",
-            "rehashing": "Rehashing {{count}} torrents",
-            "removed": "Removed {{count}} torrents",
-            "removing": "Removing {{count}} torrents",
-            "resumed": "Resumed {{count}} torrents",
-            "resuming": "Resuming {{count}} torrents"
-        },
+        "failed": "Action failed",
+        "paused": "Paused {{count}} torrents",
+        "pausing": "Pausing {{count}} torrents",
+        "rehashed": "Rehash complete",
+        "rehashing": "Rehashing {{count}} torrents",
+        "removed": "Removed {{count}} torrents",
+        "removing": "Removing {{count}} torrents",
+        "pending_delete": "That torrent is still being removed. Please wait a moment and try again.",
+        "resumed": "Resumed {{count}} torrents",
+        "resuming": "Resuming {{count}} torrents"
+    },
         "maximize": "Maximize",
         "minimize": "Minimize",
         "pause": "Pause",

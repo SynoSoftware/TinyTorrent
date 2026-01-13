@@ -83,27 +83,27 @@ export function AddMagnetModal({
             <ModalContent>
                 {() => (
                     <>
-                        <ModalHeader className="border-b border-default/20 px-stage py-panel">
-                            <div className="flex items-center justify-between gap-tools">
-                                <div className="flex items-center gap-tools">
-                                    <StatusIcon
-                                        Icon={Magnet}
-                                        size="md"
-                                        className="text-primary"
-                                    />
-                                    <span className="text-label tracking-label uppercase font-semibold">
-                                        {t("modals.add_magnet.title")}
-                                    </span>
-                                </div>
-                                <ToolbarIconButton
-                                    Icon={X}
-                                    ariaLabel={t("torrent_modal.actions.close")}
-                                    onPress={handleClose}
-                                    iconSize="lg"
-                                    className="text-foreground/40 hover:text-foreground hidden sm:flex"
+                        <div className="sticky top-0 z-10 shrink-0 h-modal-header border-b border-default/20 flex items-center justify-between px-stage py-panel bg-content1/30 backdrop-blur-xl">
+                            <div className="flex items-center gap-tools">
+                                <StatusIcon
+                                    Icon={Magnet}
+                                    size="md"
+                                    className="text-primary"
                                 />
+                                <span className="text-label tracking-label uppercase font-semibold">
+                                    {t("modals.add_magnet.title")}
+                                </span>
                             </div>
-                        </ModalHeader>
+
+                            <ToolbarIconButton
+                                Icon={X}
+                                ariaLabel={t("torrent_modal.actions.close")}
+                                onPress={handleClose}
+                                iconSize="lg"
+                                className="text-foreground/40 hover:text-foreground hidden sm:flex"
+                            />
+                        </div>
+
                         <ModalBody className="space-y-panel py-panel">
                             <Textarea
                                 ref={textareaRef}

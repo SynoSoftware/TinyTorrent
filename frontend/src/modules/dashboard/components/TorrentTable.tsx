@@ -233,7 +233,6 @@ export function TorrentTable({
         clearSelection: () => {},
     });
     const speedHistoryRef = useTorrentSpeedHistory(torrents);
-
     const getDisplayTorrent = useCallback(
         (torrent: Torrent) => {
             const override = optimisticStatuses?.[torrent.id];
