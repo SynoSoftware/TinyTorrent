@@ -1,12 +1,12 @@
 import { useEffect, useRef } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import { useFocusState } from "@/app/context/FocusContext";
-import { useRequiredTorrentActions } from "@/app/context/TorrentActionsContext";
 import { useSelection } from "@/app/context/SelectionContext";
-import { TorrentIntents } from "@/app/intents/torrentIntents";
 import { KEYMAP, KEY_SCOPE, ShortcutIntent } from "@/config/logic";
 import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
+import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
 import STATUS from "@/shared/status";
+import { useTorrentCommands } from "@/app/context/TorrentCommandContext";
 
 interface GlobalHotkeysHostProps {
     torrents: Torrent[];
@@ -14,7 +14,6 @@ interface GlobalHotkeysHostProps {
     detailData: TorrentDetail | null;
     handleRequestDetails: (torrent: Torrent) => Promise<void>;
     handleCloseDetail: () => void;
-    resumeTorrent: (torrent: Torrent) => Promise<void> | void;
 }
 
 export function GlobalHotkeysHost({
@@ -23,11 +22,10 @@ export function GlobalHotkeysHost({
     detailData,
     handleRequestDetails,
     handleCloseDetail,
-    resumeTorrent,
 }: GlobalHotkeysHostProps) {
     const { selectedIds, activeId, setSelectedIds, setActiveId } = useSelection();
     const { setActivePart } = useFocusState();
-    const { dispatch } = useRequiredTorrentActions();
+    const { handleTorrentAction, handleBulkAction } = useTorrentCommands();
 
     const selectedIdsRef = useRef(selectedIds);
     const activeIdRef = useRef(activeId);
@@ -36,7 +34,8 @@ export function GlobalHotkeysHost({
     const detailDataRef = useRef(detailData);
     const handleRequestDetailsRef = useRef(handleRequestDetails);
     const handleCloseDetailRef = useRef(handleCloseDetail);
-    const dispatchRef = useRef(dispatch);
+    const handleTorrentActionRef = useRef(handleTorrentAction);
+    const handleBulkActionRef = useRef(handleBulkAction);
 
     useEffect(() => {
         selectedIdsRef.current = selectedIds;
@@ -67,14 +66,12 @@ export function GlobalHotkeysHost({
     }, [handleCloseDetail]);
 
     useEffect(() => {
-        dispatchRef.current = dispatch;
-    }, [dispatch]);
-    const resumeTorrentRef = useRef(resumeTorrent);
+        handleTorrentActionRef.current = handleTorrentAction;
+    }, [handleTorrentAction]);
 
     useEffect(() => {
-        resumeTorrentRef.current = resumeTorrent;
-    }, [resumeTorrent]);
-
+        handleBulkActionRef.current = handleBulkAction;
+    }, [handleBulkAction]);
     const scope = KEY_SCOPE.Dashboard;
 
     useHotkeys(
@@ -95,12 +92,10 @@ export function GlobalHotkeysHost({
         KEYMAP[ShortcutIntent.Delete],
         (event) => {
             event.preventDefault();
-            const dispatch = dispatchRef.current;
+            const handleBulk = handleBulkActionRef.current;
             const selection = selectedIdsRef.current;
-            if (!dispatch || !selection.length) return;
-            void dispatch(
-                TorrentIntents.ensureSelectionRemoved(selection, false)
-            );
+            if (!handleBulk || !selection.length) return;
+            void handleBulk("remove");
         },
         { scopes: scope },
         []
@@ -121,45 +116,33 @@ export function GlobalHotkeysHost({
         []
     );
 
-            useHotkeys(
-                KEYMAP[ShortcutIntent.TogglePause],
-                (event) => {
-                    event.preventDefault();
-                    const dispatch = dispatchRef.current;
-                    const primaryTorrent = selectedTorrentsRef.current.find(
-                        (torrent) => torrent.id === activeIdRef.current
-                    ) ?? selectedTorrentsRef.current[0];
-                    if (!dispatch || !primaryTorrent) return;
-                    const isActive =
-                        primaryTorrent.state === STATUS.torrent.DOWNLOADING ||
-                        primaryTorrent.state === STATUS.torrent.SEEDING;
-                    if (isActive) {
-                        void dispatch(
-                            TorrentIntents.ensurePaused(
-                                primaryTorrent.id ?? primaryTorrent.hash
-                            )
-                        );
-                    } else {
-                        const resume = resumeTorrentRef.current;
-                        if (resume) {
-                            void resume(primaryTorrent);
-                        }
-                    }
-                },
-                { scopes: scope },
-                []
-            );
+    useHotkeys(
+        KEYMAP[ShortcutIntent.TogglePause],
+        (event) => {
+            event.preventDefault();
+            const handler = handleTorrentActionRef.current;
+            const primaryTorrent = selectedTorrentsRef.current.find(
+                (torrent) => torrent.id === activeIdRef.current
+            ) ?? selectedTorrentsRef.current[0];
+            if (!handler || !primaryTorrent) return;
+            const isActive =
+                primaryTorrent.state === STATUS.torrent.DOWNLOADING ||
+                primaryTorrent.state === STATUS.torrent.SEEDING;
+            const action: TorrentTableAction = isActive ? "pause" : "resume";
+            void handler(action, primaryTorrent);
+        },
+        { scopes: scope },
+        []
+    );
 
     useHotkeys(
         KEYMAP[ShortcutIntent.Recheck],
         (event) => {
             event.preventDefault();
-            const dispatch = dispatchRef.current;
+            const handleBulk = handleBulkActionRef.current;
             const selection = selectedIdsRef.current;
-            if (!dispatch || !selection.length) return;
-            void dispatch(
-                TorrentIntents.ensureSelectionActive(selection)
-            );
+            if (!handleBulk || !selection.length) return;
+            void handleBulk("recheck");
         },
         { scopes: scope },
         []
@@ -169,12 +152,10 @@ export function GlobalHotkeysHost({
         KEYMAP[ShortcutIntent.RemoveWithData],
         (event) => {
             event.preventDefault();
-            const dispatch = dispatchRef.current;
+            const handleBulk = handleBulkActionRef.current;
             const selection = selectedIdsRef.current;
-            if (!dispatch || !selection.length) return;
-            void dispatch(
-                TorrentIntents.ensureSelectionRemoved(selection, true)
-            );
+            if (!handleBulk || !selection.length) return;
+            void handleBulk("remove-with-data");
         },
         { scopes: scope },
         []

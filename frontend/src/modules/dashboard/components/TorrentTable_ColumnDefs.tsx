@@ -144,15 +144,18 @@ const ratioValue = (torrent: Torrent) => {
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 
 const getEffectiveProgress = (torrent: Torrent) => {
-    switch (torrent.state) {
-        case STATUS.torrent.CHECKING:
-            return clamp01(torrent.verificationProgress ?? 0);
-        case STATUS.torrent.MISSING_FILES:
-            return 0;
-
-        default:
-            return clamp01(torrent.progress ?? 0);
+    const normalizedProgress = clamp01(
+        torrent.progress ?? torrent.verificationProgress ?? 0
+    );
+    if (torrent.state === STATUS.torrent.MISSING_FILES) {
+        return 0;
     }
+
+    if (torrent.state === STATUS.torrent.CHECKING) {
+        return clamp01(torrent.verificationProgress ?? normalizedProgress);
+    }
+
+    return normalizedProgress;
 };
 
 const DENSE_TEXT = `${TABLE_LAYOUT.fontSize} ${TABLE_LAYOUT.fontMono} leading-none cap-height-text`;
@@ -808,6 +811,17 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
             torrent.eta < 0 ? Number.MAX_SAFE_INTEGER : torrent.eta,
         headerIcon: Timer,
         render: ({ torrent, t }) => {
+            const isChecking = torrent.state === STATUS.torrent.CHECKING;
+            if (isChecking) {
+                return (
+                    <span
+                        className={cn("text-foreground/70 min-w-0", DENSE_NUMERIC)}
+                        title={t("labels.status.torrent.checking")}
+                    >
+                        -
+                    </span>
+                );
+            }
             const relativeLabel =
                 torrent.eta < 0
                     ? t("table.eta_unknown")

@@ -3,6 +3,7 @@ import { useRequiredTorrentActions } from "@/app/context/TorrentActionsContext";
 import { TorrentIntents } from "@/app/intents/torrentIntents";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { ContextMenuVirtualElement } from "@/shared/hooks/ui/useContextMenuPosition";
+import { useTorrentCommands } from "@/app/context/TorrentCommandContext";
 
 // Hook: context-menu action handler for the torrent table.
 // Extracted from `TorrentTable.tsx` and accepts a params object to keep
@@ -22,8 +23,6 @@ type UseTorrentTableContextParams = {
             torrent: Torrent;
         } | null>
     >;
-    resumeTorrent?: (torrent: Torrent) => Promise<void> | void;
-    retryTorrent?: (torrent: Torrent) => Promise<void> | void;
     openTorrentFolder?: (path?: string | null) => void;
 };
 
@@ -37,13 +36,12 @@ export const useTorrentTableContextActions = (
         copyToClipboard,
         buildMagnetLink,
         setContextMenu,
-        resumeTorrent,
-        retryTorrent,
         openTorrentFolder,
     } = params;
 
     const { dispatch } = useRequiredTorrentActions();
 
+    const { handleTorrentAction } = useTorrentCommands();
     const handleContextMenuAction = useCallback(
         async (key?: string) => {
             if (!contextMenu) return;
@@ -82,49 +80,19 @@ export const useTorrentTableContextActions = (
                 // Map common table actions to intents when possible
                 switch (key) {
                     case "pause":
-                        await dispatch(
-                            TorrentIntents.ensurePaused(
-                                torrent.id ?? torrent.hash
-                            )
-                        );
+                        await handleTorrentAction("pause", torrent);
                         break;
                     case "resume":
-                        if (resumeTorrent) {
-                            await resumeTorrent(torrent);
-                        } else {
-                            await dispatch(
-                                TorrentIntents.ensureActive(
-                                    torrent.id ?? torrent.hash
-                                )
-                            );
-                        }
+                        await handleTorrentAction("resume", torrent);
                         break;
                     case "recheck":
-                        if (retryTorrent) {
-                            await retryTorrent(torrent);
-                        } else {
-                            await dispatch(
-                                TorrentIntents.ensureValid(
-                                    torrent.id ?? torrent.hash
-                                )
-                            );
-                        }
+                        await handleTorrentAction("recheck", torrent);
                         break;
                     case "remove":
-                        await dispatch(
-                            TorrentIntents.ensureRemoved(
-                                torrent.id ?? torrent.hash,
-                                false
-                            )
-                        );
+                        await handleTorrentAction("remove", torrent);
                         break;
                     case "remove-with-data":
-                        await dispatch(
-                            TorrentIntents.ensureRemoved(
-                                torrent.id ?? torrent.hash,
-                                true
-                            )
-                        );
+                        await handleTorrentAction("remove-with-data", torrent);
                         break;
                     default:
                         // Unknown key: no-op under intent-only migration
@@ -141,7 +109,7 @@ export const useTorrentTableContextActions = (
             buildMagnetLink,
             setContextMenu,
             dispatch,
-            resumeTorrent,
+            handleTorrentAction,
         ]
     );
 

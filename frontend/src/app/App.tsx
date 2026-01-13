@@ -64,6 +64,11 @@ import type {
 } from "@/modules/dashboard/types/torrentDetail";
 import { AddTorrentModal } from "@/modules/torrent-add/components/AddTorrentModal";
 import { AddMagnetModal } from "@/modules/torrent-add/components/AddMagnetModal";
+import { TorrentCommandProvider } from "@/app/context/TorrentCommandContext";
+import {
+    UIActionGateProvider,
+    useUIActionGateController,
+} from "@/app/context/UIActionGateContext";
 
 type TranslationFn = ReturnType<typeof useTranslation>["t"];
 
@@ -177,6 +182,8 @@ function AppContent({
         setInspectorTabCommand(null);
     }, []);
 
+    const { markRemoved, unmarkRemoved } = useUIActionGateController();
+
     // -- Orchestrator & Selection Wiring --
     const orchestrator = useTorrentOrchestrator({
         client: torrentClient,
@@ -191,6 +198,9 @@ function AppContent({
         showFeedback,
         reportCommandError,
         t,
+        clearDetail,
+        markRemoved,
+        unmarkRemoved,
     });
 
     const {
@@ -224,6 +234,7 @@ function AppContent({
         probeMissingFilesIfStale,
         executeRedownload,
         executeRetryFetch,
+        performUIActionDelete,
     } = orchestrator;
     useEffect(() => {
         if (!probeMissingFilesIfStale) return;
@@ -424,10 +435,13 @@ function AppContent({
         pendingDelete,
         confirmDelete,
         clearPendingDelete,
+        handleTorrentAction,
+        handleBulkAction,
     } = useTorrentWorkflow({
         torrents,
         executeTorrentAction: executeTorrentActionViaDispatch,
         executeBulkRemove: executeBulkRemoveViaDispatch,
+        performUIActionDelete,
         executeSelectionAction: async (action, ids) => {
             switch (action) {
                 case "pause":
@@ -452,6 +466,16 @@ function AppContent({
         announceAction,
         showFeedback,
     });
+
+    const commandApi = useMemo(
+        () => ({
+            handleTorrentAction,
+            handleBulkAction,
+            openAddMagnet,
+            openAddTorrentPicker,
+        }),
+        [handleTorrentAction, handleBulkAction, openAddMagnet, openAddTorrentPicker]
+    );
 
     // -- Shell & Layout State --
     const {
@@ -598,14 +622,7 @@ function AppContent({
                             "command_palette.actions.pause_selected_description"
                         ),
                         onSelect: () => {
-                            selectedTorrents.forEach(
-                                (torrent) =>
-                                    void dispatch(
-                                        TorrentIntents.ensurePaused(
-                                            torrent.id ?? torrent.hash
-                                        )
-                                    )
-                            );
+                            void handleBulkAction("pause");
                         },
                     },
                     {
@@ -616,9 +633,7 @@ function AppContent({
                             "command_palette.actions.resume_selected_description"
                         ),
                         onSelect: () => {
-                            selectedTorrents.forEach((torrent) =>
-                                void resumeTorrent(torrent)
-                            );
+                            void handleBulkAction("resume");
                         },
                     },
                     {
@@ -629,14 +644,7 @@ function AppContent({
                             "command_palette.actions.recheck_selected_description"
                         ),
                         onSelect: () => {
-                            selectedTorrents.forEach(
-                                (torrent) =>
-                                    void dispatch(
-                                        TorrentIntents.ensureValid(
-                                            torrent.id ?? torrent.hash
-                                        )
-                                    )
-                            );
+                            void handleBulkAction("recheck");
                         },
                     }
                 );
@@ -710,21 +718,19 @@ function AppContent({
             setInspectorTabCommand,
             setPeerSortStrategy,
             t,
-            dispatch,
-            resumeTorrent,
+            handleBulkAction,
         ]
     );
 
     // -- Render --
     return (
-        <>
+        <TorrentCommandProvider value={commandApi}>
             <GlobalHotkeysHost
                 torrents={torrents}
                 selectedTorrents={selectedTorrents}
                 detailData={detailData}
                 handleRequestDetails={handleRequestDetails}
                 handleCloseDetail={handleCloseDetail}
-                resumeTorrent={resumeTorrent}
             />
             <RecoveryProvider
                 value={{
@@ -734,17 +740,15 @@ function AppContent({
                     handleSetLocation,
                 }}
             >
-                <WorkspaceShell
-                    getRootProps={getRootProps}
-                    getInputProps={getInputProps}
-                    isDragActive={isDragActive}
-                    filter={filter}
-                    searchQuery={searchQuery}
-                    setSearchQuery={setSearchQuery}
-                    setFilter={setFilter}
-                    openAddTorrent={openAddTorrentPicker}
-                    openAddMagnet={openAddMagnet}
-                    openSettings={openSettings}
+                    <WorkspaceShell
+                        getRootProps={getRootProps}
+                        getInputProps={getInputProps}
+                        isDragActive={isDragActive}
+                        filter={filter}
+                        searchQuery={searchQuery}
+                        setSearchQuery={setSearchQuery}
+                        setFilter={setFilter}
+                        openSettings={openSettings}
                     rehashStatus={rehashStatus}
                     workspaceStyle={workspaceStyle}
                     toggleWorkspaceStyle={toggleWorkspaceStyle}
@@ -761,9 +765,7 @@ function AppContent({
                     optimisticStatuses={optimisticStatuses}
                     peerSortStrategy={peerSortStrategy}
                     inspectorTabCommand={inspectorTabCommand}
-                    onInspectorTabCommandHandled={
-                        handleInspectorTabCommandHandled
-                    }
+                    onInspectorTabCommandHandled={handleInspectorTabCommandHandled}
                     sessionStats={sessionStats}
                     liveTransportStatus={liveTransportStatus}
                     engineType={engineType}
@@ -781,16 +783,14 @@ function AppContent({
                     settingsLoadError={settingsFlow.settingsLoadError}
                     handleSaveSettings={settingsFlow.handleSaveSettings}
                     handleTestPort={settingsFlow.handleTestPort}
-                restoreHudCards={restoreHudCards}
-                applyUserPreferencesPatch={
-                    settingsFlow.applyUserPreferencesPatch
-                }
-                tableWatermarkEnabled={
-                    settingsFlow.settingsConfig.table_watermark_enabled
-                }
+                    restoreHudCards={restoreHudCards}
+                    applyUserPreferencesPatch={
+                        settingsFlow.applyUserPreferencesPatch
+                    }
+                    tableWatermarkEnabled={
+                        settingsFlow.settingsConfig.table_watermark_enabled
+                    }
                     isDetailRecoveryBlocked={isDetailRecoveryBlocked}
-                    resumeTorrent={resumeTorrent}
-                    retryTorrent={executeRetryFetch}
                 />
                 <TorrentRecoveryModal
                     isOpen={Boolean(recoverySession)}
@@ -850,7 +850,7 @@ function AppContent({
                     }
                 />
             )}
-        </>
+        </TorrentCommandProvider>
     );
 }
 
@@ -1079,44 +1079,46 @@ export default function App() {
     );
 
     return (
-        <FocusProvider>
-            <LifecycleProvider>
-                <TorrentActionsProvider actions={actions}>
-                    <SelectionProvider>
-                        <AppContent
-                            t={t}
-                            torrentClient={torrentClient}
-                            rpcStatus={rpcStatus}
-                            engineInfo={engineInfo}
-                            isDetectingEngine={isDetectingEngine}
-                            sessionStats={sessionStats}
-                            liveTransportStatus={liveTransportStatus}
-                            torrents={torrents}
-                            ghostTorrents={ghostTorrents}
-                            isInitialLoadFinished={isInitialLoadFinished}
-                        refreshTorrents={refreshTorrents}
-                        refreshDetailData={refreshDetailData}
-                        detailData={detailData}
-                            loadDetail={loadDetail}
-                            clearDetail={clearDetail}
-                            mutateDetail={mutateDetail}
-                            updateCapabilityState={updateCapabilityState}
-                            settingsFlow={settingsFlow}
-                            torrentClientRef={torrentClientRef}
-                            refreshTorrentsRef={refreshTorrentsRef}
-                            refreshSessionStatsDataRef={refreshSessionStatsDataRef}
-                            openSettings={openSettings}
-                            isSettingsOpen={isSettingsOpen}
-                            closeSettings={closeSettings}
-                            announceAction={announceAction}
-                        showFeedback={showFeedback}
-                        reportCommandError={reportCommandError}
-                            capabilities={capabilities}
-                            handleReconnect={handleReconnect}
-                        />
-                    </SelectionProvider>
-                </TorrentActionsProvider>
-            </LifecycleProvider>
-        </FocusProvider>
+        <UIActionGateProvider>
+            <FocusProvider>
+                <LifecycleProvider>
+                    <TorrentActionsProvider actions={actions}>
+                        <SelectionProvider>
+                            <AppContent
+                                t={t}
+                                torrentClient={torrentClient}
+                                rpcStatus={rpcStatus}
+                                engineInfo={engineInfo}
+                                isDetectingEngine={isDetectingEngine}
+                                sessionStats={sessionStats}
+                                liveTransportStatus={liveTransportStatus}
+                                torrents={torrents}
+                                ghostTorrents={ghostTorrents}
+                                isInitialLoadFinished={isInitialLoadFinished}
+                            refreshTorrents={refreshTorrents}
+                            refreshDetailData={refreshDetailData}
+                            detailData={detailData}
+                                loadDetail={loadDetail}
+                                clearDetail={clearDetail}
+                                mutateDetail={mutateDetail}
+                                updateCapabilityState={updateCapabilityState}
+                                settingsFlow={settingsFlow}
+                                torrentClientRef={torrentClientRef}
+                                refreshTorrentsRef={refreshTorrentsRef}
+                                refreshSessionStatsDataRef={refreshSessionStatsDataRef}
+                                openSettings={openSettings}
+                                isSettingsOpen={isSettingsOpen}
+                                closeSettings={closeSettings}
+                                announceAction={announceAction}
+                            showFeedback={showFeedback}
+                            reportCommandError={reportCommandError}
+                                capabilities={capabilities}
+                                handleReconnect={handleReconnect}
+                            />
+                        </SelectionProvider>
+                    </TorrentActionsProvider>
+                </LifecycleProvider>
+            </FocusProvider>
+        </UIActionGateProvider>
     );
 }

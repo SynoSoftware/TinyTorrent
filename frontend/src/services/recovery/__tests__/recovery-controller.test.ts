@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
-import type { ErrorEnvelope } from "@/services/rpc/entities";
+import type { ErrorEnvelope, RecoveryState } from "@/services/rpc/entities";
 import type { MissingFilesClassification } from "@/services/recovery/recovery-controller";
 import {
     classifyMissingFilesState,
@@ -206,6 +206,42 @@ describe("recovery-controller helpers", () => {
         expect(client.verify).not.toHaveBeenCalled();
         expect(client.resume).not.toHaveBeenCalled();
         expect(client.setTorrentLocation).not.toHaveBeenCalled();
+    });
+
+    it("forces setTorrentLocation even when the path is unchanged", async () => {
+        const setLocation = vi.fn(async () => {});
+        const client: Partial<EngineAdapter> = {
+            checkFreeSpace: vi.fn(async () => ({
+                totalBytes: 1024,
+                freeBytes: 512,
+            })) as any,
+            resume: vi.fn(async () => {}),
+            verify: vi.fn(async () => {}),
+            setTorrentLocation: setLocation,
+        };
+        const envelope = {
+            errorClass: "missingFiles",
+            errorMessage: "No such file",
+            recoveryState: "missing_files" as RecoveryState,
+        } as ErrorEnvelope;
+        const classification: MissingFilesClassification = {
+            kind: "pathLoss",
+            confidence: "likely",
+            path: "D:\\Drive",
+            root: "D:",
+        };
+        await runMissingFilesRecoverySequence({
+            client: client as EngineAdapter,
+            torrent: baseTorrent as any,
+            envelope,
+            classification,
+            serverClass: "unknown",
+        });
+        expect(setLocation).toHaveBeenCalledWith(
+            "torrent-1",
+            "D:\\Drive\\",
+            false
+        );
     });
 
     it("returns blocking outcome when free-space probing is unsupported", async () => {

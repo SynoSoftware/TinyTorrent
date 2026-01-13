@@ -19,8 +19,7 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
 import { useRecoveryContext } from "@/app/context/RecoveryContext";
-import { useRequiredTorrentActions } from "@/app/context/TorrentActionsContext";
-import { TorrentIntents } from "@/app/intents/torrentIntents";
+import { useTorrentCommands } from "@/app/context/TorrentCommandContext";
 import type { CapabilityState } from "@/app/types/capabilities";
 import { formatPercent, formatRatio } from "@/shared/utils/format";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
@@ -44,8 +43,6 @@ interface GeneralTabProps {
     superSeedingCapability: CapabilityState;
     onSequentialToggle?: (enabled: boolean) => Promise<void> | void;
     onSuperSeedingToggle?: (enabled: boolean) => Promise<void> | void;
-    onResume?: (torrent: TorrentDetail) => Promise<void> | void;
-
     progressPercent: number;
     timeRemainingLabel: string;
     activePeers: number;
@@ -93,7 +90,6 @@ export const GeneralTab = ({
     superSeedingCapability: _superSeedingCapability,
     onSequentialToggle: _onSequentialToggle,
     onSuperSeedingToggle: _onSuperSeedingToggle,
-    onResume,
     progressPercent: _progressPercent,
     timeRemainingLabel: _timeRemainingLabel,
     activePeers,
@@ -139,7 +135,7 @@ export const GeneralTab = ({
     const currentPath =
         downloadDir ?? torrent.savePath ?? torrent.downloadDir ?? "";
 
-    const { dispatch } = useRequiredTorrentActions();
+    const { handleTorrentAction } = useTorrentCommands();
     const handleSetLocationAction = () => {
         if (!handleSetLocation) {
             return;
@@ -148,11 +144,7 @@ export const GeneralTab = ({
     };
 
     const handleResumeAction = () => {
-        if (!onResume) {
-            console.warn("Resume handler missing; action ignored");
-            return;
-        }
-        void onResume(torrent);
+        void handleTorrentAction("resume", torrent);
     };
 
     const stateKey = typeof torrent.state === "string" ? torrent.state : "unknown";
@@ -190,13 +182,9 @@ export const GeneralTab = ({
 
     const handleRemoveConfirm = async (deleteData: boolean) => {
         setShowRemoveModal(false);
+        const action = deleteData ? "remove-with-data" : "remove";
         try {
-            await dispatch(
-                TorrentIntents.ensureRemoved(
-                    torrent?.id ?? torrent?.hash,
-                    deleteData
-                )
-            );
+            await handleTorrentAction(action, torrent);
         } catch (err) {
             console.error("remove torrent action failed", err);
         }

@@ -46,8 +46,6 @@ export interface TorrentDetailsProps {
     onInspectorTabCommandHandled?: () => void;
     onSequentialToggle?: (enabled: boolean) => void | Promise<void>;
     onSuperSeedingToggle?: (enabled: boolean) => void | Promise<void>;
-    onResume?: (torrent: TorrentDetail) => void | Promise<void>;
-
     isRecoveryBlocked?: boolean;
     capabilities: CapabilityStore;
     isStandalone?: boolean;
@@ -69,7 +67,6 @@ export function TorrentDetails({
     onInspectorTabCommandHandled,
     onSequentialToggle,
     onSuperSeedingToggle,
-    onResume,
 
     isRecoveryBlocked,
     capabilities,
@@ -123,7 +120,6 @@ export function TorrentDetails({
                         superSeedingCapability={capabilities.superSeeding}
                         onSequentialToggle={onSequentialToggle}
                         onSuperSeedingToggle={onSuperSeedingToggle}
-                        onResume={onResume}
                         /* set-location handled via TorrentActionsContext */
                         progressPercent={Math.round(
                             (torrent.progress ?? 0) * 100
