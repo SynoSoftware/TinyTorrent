@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { useTorrentActionsContext } from "@/app/context/TorrentActionsContext";
+import { useRequiredTorrentActions } from "@/app/context/TorrentActionsContext";
 import { TorrentIntents } from "@/app/intents/torrentIntents";
 import type { DragEndEvent, DragStartEvent } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
@@ -52,7 +52,7 @@ export const useTorrentRowDrag = (deps: UseTorrentRowDragDeps) => {
         [beginAnimationSuppression, canReorderQueue, setActiveRowId]
     );
 
-    const _actions = useTorrentActionsContext();
+    const { dispatch } = useRequiredTorrentActions();
 
     const handleRowDragEnd = useCallback(
         async (event: DragEndEvent) => {
@@ -66,8 +66,7 @@ export const useTorrentRowDrag = (deps: UseTorrentRowDragDeps) => {
             const targetIndex = rowIds.indexOf(over.id as string);
             if (draggedIndex === -1 || targetIndex === -1) return;
             const draggedRow = rowsById.get(active.id as string);
-            const dispatch = _actions.dispatch;
-            if (!draggedRow || !dispatch) return;
+            if (!draggedRow) return;
 
             const queueSort = sorting.find(
                 (s) => (s as { id?: string }).id === "queue"
@@ -109,7 +108,7 @@ export const useTorrentRowDrag = (deps: UseTorrentRowDragDeps) => {
             setActiveRowId,
             setDropTargetRowId,
             setPendingQueueOrder,
-            _actions,
+            dispatch,
         ]
     );
 

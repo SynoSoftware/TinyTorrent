@@ -14,7 +14,6 @@ import { Button, Textarea, Spinner, cn } from "@heroui/react";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import { GLASS_PANEL_SURFACE } from "@/shared/ui/layout/glass-surface";
 import type { TorrentTrackerEntity } from "@/services/rpc/entities";
-import { useTorrentActionsContext } from "@/app/context/TorrentActionsContext";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
 import { TEXT_ROLES } from "../hooks/utils/textRoles";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
@@ -41,7 +40,6 @@ export const TrackersTab: React.FC<TrackersTabProps> = ({
     isStandalone = false,
 }) => {
     const { t } = useTranslation();
-    const actions = useTorrentActionsContext();
 
     const [showAdd, setShowAdd] = useState(false);
     const [newTrackers, setNewTrackers] = useState("");

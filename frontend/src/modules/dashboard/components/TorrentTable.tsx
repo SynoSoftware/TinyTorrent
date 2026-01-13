@@ -23,7 +23,6 @@ import React, {
 } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { useTorrentActionsContext } from "@/app/context/TorrentActionsContext";
 import { getEmphasisClassForAction } from "@/shared/utils/recoveryFormat";
 
 import type { OptimisticStatusMap } from "@/modules/dashboard/types/optimistic";
@@ -299,8 +298,6 @@ export function TorrentTable({
 
     const { isClipboardSupported, copyToClipboard, buildMagnetLink } =
         useTorrentClipboard();
-
-    const actions = useTorrentActionsContext();
 
     const { handleContextMenuAction } = useTorrentTableContextActions({
         contextMenu,
