@@ -541,6 +541,28 @@ All frontend decisions must pass this test:
 
 ---
 
+## UIActions — Hard Rules
+
+1. UIActions change **UI identity participation**, not data.
+2. UIActions execute **synchronously in the same tick**.
+3. UIActions **must not await** engine / RPC / filesystem work.
+4. Engine data remains the **only canonical source of truth**.
+5. UIActions **must not**:
+   - create filtered or “visible” data lists
+   - maintain shadow copies of engine data
+   - rely on cleanup effects or reconciliation
+6. UIActions **must**:
+   - clear selection and detail state immediately
+   - remove the identity from UI participation
+   - fire engine intents **fire-and-forget**
+7. Rollback is explicit:
+   - only on engine failure
+   - with a user-visible toast
+   - never via silent resurrection
+8. All UIActions funnel through the orchestrator control plane.
+
+---
+
 ## **State & Heartbeat Strategy (CRITICAL)**
 
 To prevent "Slow Table / Fast CPU Burn":
@@ -1009,6 +1031,44 @@ TinyTorrent must deliver **Adaptive Excellence**:
 
 - **Don’t reinvent solved problems.**
     Use libraries with purpose; avoid both legacy junk and unnecessary reinvention.
+
+
+## **Context Authority & Prop Budget (Hard Rule)**
+
+**Prop drilling is forbidden as an architectural strategy.**
+
+1. **Context Authority**
+If a value is:
+- global or cross-cutting
+- used by more than one distant component
+- already represented by an existing Context
+
+→ it **must be read from that Context**.
+It must **not** be passed through components as props.
+
+If no suitable Context exists:
+- do **not** invent local state
+- do **not** thread props
+- stop and flag the missing authority
+
+2. **Prop Budget**
+Components have a hard prop limit:
+
+- Leaf UI components: **≤ 5 props**
+- Layout / shell components: **≤ 8 props**
+
+Exceeding this limit is a spec violation.
+If the limit is exceeded, remove props by using Contexts or split the component.
+
+3. **Explicitly Forbidden**
+- pass-through props
+- props that mirror Context values
+- local “shadow” state of global identity (e.g. filtered copies)
+- components whose main role is wiring parameters
+
+**If a change requires threading values through components, the ownership is wrong. Fix authority, not plumbing.**
+
+
 
 ## **Single Control Plane Rule (Non-Negotiable)**
 
