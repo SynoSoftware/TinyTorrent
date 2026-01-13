@@ -61,9 +61,84 @@ const numOr = (value: unknown, fallback: number) =>
 type VerifyStateEntry = {
     wasVerifying: boolean;
     lastVerifyCompletedAt?: number;
+    lastDownloadStartedAt?: number;
+    lastDerivedState?: TorrentStatus;
+    noTrafficSince?: number;
 };
 
 const verifyStateMap = new Map<string, VerifyStateEntry>();
+
+const isCheckingStatusNum = (statusNum: unknown) =>
+    statusNum === 1 || statusNum === 2;
+
+const updateVerifyState = (
+    idKey: string | null,
+    currentlyVerifying: boolean,
+    nowSeconds: number
+) => {
+    if (!idKey) return;
+    const entry = verifyStateMap.get(idKey) ?? {
+        wasVerifying: false,
+    };
+    const previouslyVerifying = entry.wasVerifying;
+    entry.wasVerifying = currentlyVerifying;
+    if (!entry.wasVerifying && previouslyVerifying) {
+        entry.lastVerifyCompletedAt = nowSeconds;
+    }
+    verifyStateMap.set(idKey, entry);
+};
+
+const hasRecentVerifyCompletion = (
+    idKey: string | null,
+    nowSeconds: number
+) => {
+    if (!idKey) return false;
+    const entry = verifyStateMap.get(idKey);
+    if (!entry || entry.lastVerifyCompletedAt === undefined) return false;
+    return nowSeconds - entry.lastVerifyCompletedAt < STALLED_GRACE_SECONDS;
+};
+
+/**
+ * Stateless “post-verify grace” detection using Transmission truth.
+ *
+ * We avoid any local caches/maps. Instead, we treat "recent activity" as a grace window.
+ * Transmission updates `activityDate` when meaningful torrent activity happens (including verify completion),
+ * so we can delay STALLED classification shortly after that moment.
+ *
+ * If activityDate is missing/0, we fall back to addedDate-based grace (new torrents).
+ */
+type ActivityInfo = {
+    activityDate?: number;
+    addedDate?: number;
+};
+
+const isWithinStallGraceWindow = (torrent: ActivityInfo) => {
+    const nowSeconds = Math.floor(Date.now() / 1000);
+
+    const activityDate =
+        typeof torrent.activityDate === "number" &&
+        Number.isFinite(torrent.activityDate)
+            ? Math.max(0, Math.floor(torrent.activityDate))
+            : undefined;
+
+    const addedDate =
+        typeof torrent.addedDate === "number" &&
+        Number.isFinite(torrent.addedDate)
+            ? Math.max(0, Math.floor(torrent.addedDate))
+            : undefined;
+
+    // Primary: grace after recent activity (covers “verify just completed” without stateful tracking)
+    if (typeof activityDate === "number") {
+        return nowSeconds - activityDate < STALLED_GRACE_SECONDS;
+    }
+
+    // Fallback: grace for newly added torrents
+    if (typeof addedDate === "number") {
+        return nowSeconds - addedDate < STALLED_GRACE_SECONDS;
+    }
+
+    return false;
+};
 
 export const deriveTorrentState = (
     base: TorrentStatus,
@@ -93,65 +168,90 @@ export const deriveTorrentState = (
 
     const down = numOr(torrent.rateDownload, 0);
     const sendingToUs = numOr(torrent.peersSendingToUs, 0);
-    const addedDate =
-        typeof torrent.addedDate === "number" &&
-        Number.isFinite(torrent.addedDate)
-            ? Math.max(0, Math.floor(torrent.addedDate))
-            : undefined;
-    const torrentAgeSeconds =
-        typeof addedDate === "number"
-            ? Math.max(
-                  0,
-                  Math.floor(Date.now() / 1000) - Math.floor(addedDate)
-              )
-            : undefined;
+
+    const statusNum =
+        typeof torrent.status === "number" ? torrent.status : undefined;
+    const statusIndicatesChecking = isCheckingStatusNum(statusNum);
     const isVerifying =
         typeof torrent.recheckProgress === "number" &&
         torrent.recheckProgress > 0;
-    const statusNum =
-        typeof torrent.status === "number" ? torrent.status : undefined;
-    const statusIndicatesChecking = statusNum === 1 || statusNum === 2;
-    const nowSeconds = Math.floor(Date.now() / 1000);
+    const currentlyVerifying = isVerifying || statusIndicatesChecking;
     const idKey = torrent.hashString ?? String(torrent.id ?? "");
-    const hasIdKey = Boolean(idKey);
-    if (hasIdKey) {
-        const entry =
-            verifyStateMap.get(idKey) ?? { wasVerifying: false };
-        const previouslyVerifying = entry.wasVerifying;
-        entry.wasVerifying = isVerifying || statusIndicatesChecking;
-        if (!entry.wasVerifying && previouslyVerifying) {
-            entry.lastVerifyCompletedAt = nowSeconds;
-        }
-        verifyStateMap.set(idKey, entry);
-    }
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    updateVerifyState(idKey || null, currentlyVerifying, nowSeconds);
+    const justCompletedVerify = hasRecentVerifyCompletion(
+        idKey || null,
+        nowSeconds
+    );
 
-    const verifyEntry = hasIdKey ? verifyStateMap.get(idKey) : undefined;
-    const timeSinceVerifyCompletion =
-        verifyEntry?.lastVerifyCompletedAt !== undefined
-            ? nowSeconds - verifyEntry.lastVerifyCompletedAt
-            : undefined;
+    const entry = idKey ? verifyStateMap.get(idKey) : undefined;
+    const lastDownloadStartedAt = entry?.lastDownloadStartedAt;
+    const justStartedDownloading =
+        typeof lastDownloadStartedAt === "number" &&
+        nowSeconds - lastDownloadStartedAt < STALLED_GRACE_SECONDS;
 
-    const justCompletedVerify =
-        typeof timeSinceVerifyCompletion === "number" &&
-        timeSinceVerifyCompletion < STALLED_GRACE_SECONDS;
-    const isWithinStallGrace =
-        (typeof torrentAgeSeconds === "number" &&
-            torrentAgeSeconds < STALLED_GRACE_SECONDS) ||
-        justCompletedVerify;
+    const isWithinGrace =
+        isWithinStallGraceWindow(torrent) ||
+        justCompletedVerify ||
+        justStartedDownloading;
 
-    // 4) Stalled applies ONLY to downloading
+    let derived = base;
+
     if (base === STATUS.torrent.DOWNLOADING) {
-        if (isWithinStallGrace) {
-            return STATUS.torrent.DOWNLOADING;
-        }
         const noTraffic = down === 0;
         const noUploadingPeers = sendingToUs === 0;
-        return noTraffic && noUploadingPeers
-            ? STATUS.torrent.STALLED
-            : STATUS.torrent.DOWNLOADING;
+
+        // Strongly recommended: don’t call it “stalled” if there are zero peers.
+        // That’s not “stalled”; it’s “waiting / no peers”.
+        const peersConnected = numOr(torrent.peersConnected, 0);
+        const stallEligible = peersConnected > 0;
+
+        // Reset noTrafficSince whenever we have any sign of life or we’re in a protected window.
+        const shouldResetNoTraffic =
+            !noTraffic ||
+            !noUploadingPeers ||
+            statusIndicatesChecking ||
+            isVerifying ||
+            isWithinGrace ||
+            !stallEligible;
+
+        if (idKey) {
+            const e =
+                entry ??
+                ({
+                    wasVerifying: currentlyVerifying,
+                } as VerifyStateEntry);
+
+            if (shouldResetNoTraffic) {
+                e.noTrafficSince = undefined;
+                derived = STATUS.torrent.DOWNLOADING;
+            } else {
+                // Start timer on first observation, only emit STALLED if it persists long enough.
+                e.noTrafficSince ??= nowSeconds;
+
+                derived =
+                    nowSeconds - e.noTrafficSince >= STALLED_GRACE_SECONDS
+                        ? STATUS.torrent.STALLED
+                        : STATUS.torrent.DOWNLOADING;
+            }
+
+            // Keep your existing “download just started” marker if you still want it.
+            if (
+                derived === STATUS.torrent.DOWNLOADING &&
+                e.lastDerivedState !== STATUS.torrent.DOWNLOADING
+            ) {
+                e.lastDownloadStartedAt = nowSeconds;
+            }
+
+            e.lastDerivedState = derived;
+            verifyStateMap.set(idKey, e);
+        } else {
+            // No idKey: be conservative
+            derived = STATUS.torrent.DOWNLOADING;
+        }
     }
 
-    return base;
+    return derived;
 };
 
 // Error envelope is computed centrally in the recovery domain.
@@ -321,8 +421,6 @@ export const normalizeTorrent = (
         rpcId: torrent.id,
         errorEnvelope: buildErrorEnvelope(torrent),
     };
-
-    //console.debug("[torrent] Normalized torrent:", normalizedTorrent);
 
     return normalizedTorrent;
 };
