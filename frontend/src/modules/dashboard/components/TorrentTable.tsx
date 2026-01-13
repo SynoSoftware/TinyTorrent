@@ -41,7 +41,6 @@ import {
     type ColumnId,
     type DashboardTableMeta,
 } from "@/modules/dashboard/components/TorrentTable_ColumnDefs";
-import { useTorrentShortcuts } from "@/modules/dashboard/hooks/useTorrentShortcuts";
 import { useTorrentSpeedHistory } from "@/modules/dashboard/hooks/useTorrentSpeedHistory";
 import {
     TABLE_LAYOUT,
@@ -586,13 +585,6 @@ export function TorrentTable({
         activate: activateDashboardScope,
         deactivate: deactivateDashboardScope,
     } = useKeyboardScope(KEY_SCOPE.Dashboard);
-
-    useTorrentShortcuts({
-        scope: KEY_SCOPE.Dashboard,
-        selectedTorrents: selection.selectedTorrents,
-        selectAll: selection.selectAllRows,
-        onRequestDetails,
-    });
 
     // `rowIds` is declared earlier (above) so it can be captured by marquee handlers.
     const rowsById = useMemo(() => {
