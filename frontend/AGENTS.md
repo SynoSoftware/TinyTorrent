@@ -1010,6 +1010,44 @@ TinyTorrent must deliver **Adaptive Excellence**:
 - **Don’t reinvent solved problems.**
     Use libraries with purpose; avoid both legacy junk and unnecessary reinvention.
 
+## **Single Control Plane Rule (Non-Negotiable)**
+
+TinyTorrent has **exactly one place where behavior happens**.
+
+### **Principle**
+
+> **UI may render state and emit intents.
+> It may never carry behavior, sequencing, or authority.**
+
+### **Implications**
+
+- **No prop drilling for behavior**
+
+  - No `onResume`, `onRetry`, `onRecover`, `onSetLocation`, etc.
+  - UI components and layouts do not forward callbacks.
+- **No implicit control flow**
+
+  - No effects or handlers that “decide” what should happen.
+- **No engine or recovery logic outside the control plane**
+
+  - If it talks to the engine, sequences steps, dedupes, retries, or gates → it belongs in the control plane.
+
+### **Allowed data flow**
+
+```
+UI → Intent → Control Plane → Services
+UI ← Signals ← Control Plane
+```
+
+Anything outside this flow is architectural drift.
+
+### **Enforcement heuristic**
+
+If removing a prop or moving a component causes behavior to break,
+**that behavior was in the wrong place.**
+
+Fix ownership, not wiring
+
 ---
 
 # **15. Project Structure (Optimized for Single Developer)**
