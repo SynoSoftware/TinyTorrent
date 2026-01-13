@@ -12,7 +12,7 @@ import type {
     RecoveryGateCallback,
     RecoveryGateOutcome,
 } from "@/app/types/recoveryGate";
-import { useTorrentActionsContext } from "@/app/context/TorrentActionsContext";
+import type { TorrentIntentExtended } from "@/app/intents/torrentIntents";
 import { TorrentIntents } from "@/app/intents/torrentIntents";
 
 export type RecoveryCallbacks = {
@@ -27,9 +27,9 @@ export function useRecoveryController(params: {
     detail: TorrentDetail | null | undefined;
     envelope: ErrorEnvelope | null | undefined;
     requestRecovery?: RecoveryGateCallback;
+    dispatch: (intent: TorrentIntentExtended) => Promise<void>;
 }) {
-    const { client, detail, envelope } = params;
-    const { requestRecovery } = params;
+    const { client, detail, envelope, requestRecovery, dispatch } = params;
     const { t } = useTranslation();
     const [lastOutcome, setLastOutcome] = useState<RecoveryOutcome | null>(
         null
@@ -43,7 +43,6 @@ export function useRecoveryController(params: {
         String(detail?.id ?? detail?.hash ?? "<no-fp>");
     const isBusy = false;
 
-    const actions = useTorrentActionsContext();
 
     const mapGateOutcomeToRecoveryOutcome = useCallback(
         (outcome: RecoveryGateOutcome | null): RecoveryOutcome => {
@@ -92,32 +91,32 @@ export function useRecoveryController(params: {
                 torrent: detail,
                 action: "resume",
             });
-            const mapped = mapGateOutcomeToRecoveryOutcome(gateOutcome);
-            setLastOutcome(mapped);
+        const mapped = mapGateOutcomeToRecoveryOutcome(gateOutcome);
+        setLastOutcome(mapped);
 
-            // If the gate indicates we should continue, delegate the engine action
-            // to the TorrentActions provider (single action owner).
-            if (gateOutcome && gateOutcome.status === "continue") {
-                try {
-                    await actions.dispatch(
-                        TorrentIntents.ensureActive(detail.id ?? detail.hash)
-                    );
-                    return { kind: "resolved", message: "recovery_handled" };
-                } catch (err) {
-                    return { kind: "error", message: String(err ?? "error") };
-                }
+        // If the gate indicates we should continue, delegate the engine action
+        // to the TorrentActions provider (single action owner).
+        if (gateOutcome && gateOutcome.status === "continue") {
+            try {
+                await dispatch(
+                    TorrentIntents.ensureActive(detail.id ?? detail.hash)
+                );
+                return { kind: "resolved", message: "recovery_handled" };
+            } catch (err) {
+                return { kind: "error", message: String(err ?? "error") };
             }
+        }
 
-            return mapped;
-        }, [
-            client,
-            detail,
-            envelope,
-            requestRecovery,
-            mapGateOutcomeToRecoveryOutcome,
-            actions,
-            t,
-        ]);
+        return mapped;
+    }, [
+        client,
+        detail,
+        envelope,
+        requestRecovery,
+        mapGateOutcomeToRecoveryOutcome,
+        dispatch,
+        t,
+    ]);
 
     const handlePickPath = useCallback(
         async (path: string): Promise<RecoveryOutcome> => {
@@ -133,7 +132,7 @@ export function useRecoveryController(params: {
             // Delegate pick-path to the provider. The provider implements the
             // actual setTorrentLocation + resume behavior for the given torrent.
             try {
-                await actions.dispatch(
+                await dispatch(
                     TorrentIntents.ensureAtLocation(
                         detail.id ?? detail.hash,
                         path
@@ -159,7 +158,7 @@ export function useRecoveryController(params: {
                 return r;
             }
         },
-        [client, detail, envelope, actions]
+        [client, detail, envelope, dispatch, t]
     );
 
     const handleVerify = useCallback(async (): Promise<RecoveryOutcome> => {

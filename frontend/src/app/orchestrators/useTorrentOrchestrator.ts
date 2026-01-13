@@ -416,6 +416,68 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
         resolver?.(result);
     }, []);
 
+    const dispatch = useCallback(
+        async (intent: TorrentIntentExtended) => {
+            const activeClient = clientRef.current || client;
+            if (!activeClient) return;
+
+            switch (intent.type) {
+                case "ENSURE_TORRENT_ACTIVE":
+                    await activeClient.resume([String(intent.torrentId)]);
+                    break;
+                case "ENSURE_TORRENT_PAUSED":
+                    await activeClient.pause([String(intent.torrentId)]);
+                    break;
+                case "ENSURE_TORRENT_REMOVED":
+                    await activeClient.remove(
+                        [String(intent.torrentId)],
+                        Boolean(intent.deleteData)
+                    );
+                    break;
+                case "ENSURE_TORRENT_VALID":
+                    await activeClient.verify([String(intent.torrentId)]);
+                    break;
+                case "ENSURE_SELECTION_ACTIVE":
+                    await activeClient.resume(
+                        (intent.torrentIds || []).map(String)
+                    );
+                    break;
+                case "ENSURE_SELECTION_PAUSED":
+                    await activeClient.pause(
+                        (intent.torrentIds || []).map(String)
+                    );
+                    break;
+                case "ENSURE_SELECTION_REMOVED":
+                    await activeClient.remove(
+                        (intent.torrentIds || []).map(String),
+                        Boolean(intent.deleteData)
+                    );
+                    break;
+                case "ENSURE_SELECTION_VALID":
+                    await activeClient.verify(
+                        (intent.torrentIds || []).map(String)
+                    );
+                    break;
+                case "QUEUE_MOVE":
+                    const q = intent as QueueMoveIntent;
+                    const tid = String(q.torrentId);
+                    const steps = Math.max(1, Number(q.steps ?? 1));
+                    for (let i = 0; i < steps; i++) {
+                        if (q.direction === "up")
+                            await activeClient.moveUp([tid]);
+                        else if (q.direction === "down")
+                            await activeClient.moveDown([tid]);
+                        else if (q.direction === "top")
+                            await activeClient.moveToTop([tid]);
+                        else if (q.direction === "bottom")
+                            await activeClient.moveToBottom([tid]);
+                    }
+                    break;
+            }
+        },
+        [client, clientRef]
+    );
+
     const {
         recoveryCallbacks,
         isBusy: isRecoveryBusy,
@@ -425,6 +487,7 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
         detail: recoverySession?.torrent ?? null,
         envelope: recoverySession?.torrent?.errorEnvelope ?? null,
         requestRecovery,
+        dispatch,
     });
 
     const handleRecoveryClose = useCallback(() => {
@@ -593,69 +656,6 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
             );
         };
     }, [executeRedownload, findTorrentById]);
-
-    // --- 7. Intent Dispatcher ---
-    const dispatch = useCallback(
-        async (intent: TorrentIntentExtended) => {
-            const activeClient = clientRef.current || client;
-            if (!activeClient) return;
-
-            switch (intent.type) {
-                case "ENSURE_TORRENT_ACTIVE":
-                    await activeClient.resume([String(intent.torrentId)]);
-                    break;
-                case "ENSURE_TORRENT_PAUSED":
-                    await activeClient.pause([String(intent.torrentId)]);
-                    break;
-                case "ENSURE_TORRENT_REMOVED":
-                    await activeClient.remove(
-                        [String(intent.torrentId)],
-                        Boolean(intent.deleteData)
-                    );
-                    break;
-                case "ENSURE_TORRENT_VALID":
-                    await activeClient.verify([String(intent.torrentId)]);
-                    break;
-                case "ENSURE_SELECTION_ACTIVE":
-                    await activeClient.resume(
-                        (intent.torrentIds || []).map(String)
-                    );
-                    break;
-                case "ENSURE_SELECTION_PAUSED":
-                    await activeClient.pause(
-                        (intent.torrentIds || []).map(String)
-                    );
-                    break;
-                case "ENSURE_SELECTION_REMOVED":
-                    await activeClient.remove(
-                        (intent.torrentIds || []).map(String),
-                        Boolean(intent.deleteData)
-                    );
-                    break;
-                case "ENSURE_SELECTION_VALID":
-                    await activeClient.verify(
-                        (intent.torrentIds || []).map(String)
-                    );
-                    break;
-                case "QUEUE_MOVE":
-                    const q = intent as QueueMoveIntent;
-                    const tid = String(q.torrentId);
-                    const steps = Math.max(1, Number(q.steps ?? 1));
-                    for (let i = 0; i < steps; i++) {
-                        if (q.direction === "up")
-                            await activeClient.moveUp([tid]);
-                        else if (q.direction === "down")
-                            await activeClient.moveDown([tid]);
-                        else if (q.direction === "top")
-                            await activeClient.moveToTop([tid]);
-                        else if (q.direction === "bottom")
-                            await activeClient.moveToBottom([tid]);
-                    }
-                    break;
-            }
-        },
-        [client, clientRef]
-    );
 
     // --- 8. UI Lifecycle ---
     useEffect(() => {

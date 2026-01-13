@@ -30,6 +30,7 @@ import type {
     CommandPaletteContext,
 } from "./components/CommandPalette";
 import { WorkspaceShell } from "./components/WorkspaceShell";
+import { GlobalHotkeysHost } from "./components/GlobalHotkeysHost";
 import TorrentRecoveryModal from "@/modules/dashboard/components/TorrentRecoveryModal";
 import { RecoveryProvider } from "@/app/context/RecoveryContext";
 import {
@@ -51,7 +52,7 @@ import type {
 } from "@/app/types/capabilities";
 import { DEFAULT_CAPABILITY_STORE } from "@/app/types/capabilities";
 import { useTorrentClient } from "./providers/TorrentClientProvider";
-import { FocusProvider, useFocusState } from "./context/FocusContext";
+import { FocusProvider } from "./context/FocusContext";
 import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
 import type { RehashStatus } from "./types/workspace";
 import type {
@@ -60,67 +61,6 @@ import type {
 } from "@/modules/dashboard/types/torrentDetail";
 import { AddTorrentModal } from "@/modules/torrent-add/components/AddTorrentModal";
 import { AddMagnetModal } from "@/modules/torrent-add/components/AddMagnetModal";
-
-interface FocusControllerProps {
-    torrents: Torrent[];
-    detailData: TorrentDetail | null;
-    requestDetails: (torrent: Torrent) => Promise<void>;
-    closeDetail: () => void;
-}
-
-function FocusController({
-    torrents,
-    detailData,
-    requestDetails,
-    closeDetail,
-}: FocusControllerProps) {
-    const { setActivePart } = useFocusState();
-    const { selectedIds, activeId } = useSelection();
-    const selectedIdsSet = useMemo(() => new Set(selectedIds), [selectedIds]);
-    const selectedTorrents = useMemo(
-        () => torrents.filter((torrent) => selectedIdsSet.has(torrent.id)),
-        [selectedIdsSet, torrents]
-    );
-
-    const toggleInspector = useCallback(async () => {
-        if (detailData) {
-            closeDetail();
-            setActivePart("table");
-            return;
-        }
-
-        const targetTorrent =
-            selectedTorrents.find((torrent) => torrent.id === activeId) ??
-            selectedTorrents[0];
-        if (!targetTorrent) return;
-
-        setActivePart("inspector");
-        await requestDetails(targetTorrent);
-    }, [
-        activeId,
-        closeDetail,
-        detailData,
-        requestDetails,
-        selectedTorrents,
-        setActivePart,
-    ]);
-
-    useHotkeys(
-        "cmd+i,ctrl+i",
-        (event) => {
-            event.preventDefault();
-            void toggleInspector();
-        },
-        {
-            enableOnFormTags: true,
-            enableOnContentEditable: true,
-        },
-        [toggleInspector]
-    );
-
-    // FocusController does not register app-global hotkeys.
-    return null;
-}
 
 export default function App() {
     const { t } = useTranslation();
@@ -405,20 +345,21 @@ export default function App() {
         reconnect();
     };
 
+    const orchestrator = useTorrentOrchestrator({
+        client: torrentClient,
+        clientRef: torrentClientRef,
+        refreshTorrentsRef,
+        refreshSessionStatsDataRef,
+        refreshDetailData,
+        detailData,
+        rpcStatus,
+        settingsFlow,
+        showFeedback,
+        reportCommandError,
+        t,
+    });
+
     const AppInner = () => {
-        const orchestrator = useTorrentOrchestrator({
-            client: torrentClient,
-            clientRef: torrentClientRef,
-            refreshTorrentsRef,
-            refreshSessionStatsDataRef,
-            refreshDetailData,
-            detailData,
-            rpcStatus,
-            settingsFlow,
-            showFeedback,
-            reportCommandError,
-            t,
-        });
 
         const {
             serverClass,
@@ -891,15 +832,16 @@ export default function App() {
         );
 
         return (
-            <>
-                {/* Add-torrent file input handled via orchestrator's dropzone props */}
-                <FocusController
-                    torrents={torrents}
-                    detailData={detailData}
-                    requestDetails={handleRequestDetails}
-                    closeDetail={handleCloseDetail}
-                />
-                <RecoveryProvider
+        <>
+            {/* Add-torrent file input handled via orchestrator's dropzone props */}
+            <GlobalHotkeysHost
+                torrents={torrents}
+                selectedTorrents={selectedTorrents}
+                detailData={detailData}
+                handleRequestDetails={handleRequestDetails}
+                handleCloseDetail={handleCloseDetail}
+            />
+            <RecoveryProvider
                     value={{
                         serverClass,
                         handleRetry: handleRecoveryRetry,
@@ -1029,10 +971,17 @@ export default function App() {
         );
     };
 
+    const actions = useMemo(
+        () => ({
+            dispatch: orchestrator.dispatch,
+        }),
+        [orchestrator.dispatch]
+    );
+
     return (
         <FocusProvider>
             <LifecycleProvider>
-                <TorrentActionsProvider>
+                <TorrentActionsProvider actions={actions}>
                     <SelectionProvider>
                         <AppInner />
                     </SelectionProvider>

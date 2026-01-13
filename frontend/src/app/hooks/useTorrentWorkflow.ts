@@ -39,7 +39,7 @@ interface UseTorrentWorkflowParams {
 
 export function useTorrentWorkflow({
     torrents,
-    selectedTorrents,
+    selectedTorrentIds,
     executeTorrentAction,
     executeBulkRemove,
     executeSelectionAction,

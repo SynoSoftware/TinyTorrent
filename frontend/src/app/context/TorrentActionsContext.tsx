@@ -1,16 +1,6 @@
-import React, {
-    createContext,
-    useContext,
-    useEffect,
-    useMemo,
-    useRef,
-    useCallback,
-} from "react";
+import React, { createContext, useContext, useMemo } from "react";
 import type { ReactNode } from "react";
-import { useTorrentClient } from "@/app/providers/TorrentClientProvider";
-import { useTorrentOrchestrator } from "@/app/orchestrators/useTorrentOrchestrator";
 import type { TorrentIntentExtended } from "@/app/intents/torrentIntents";
-import TorrentRecoveryModal from "@/modules/dashboard/components/TorrentRecoveryModal";
 
 export interface TorrentActions {
     dispatch: (intent: TorrentIntentExtended) => Promise<void>;
@@ -18,25 +8,20 @@ export interface TorrentActions {
 
 const TorrentActionsContext = createContext<TorrentActions | null>(null);
 
-export function TorrentActionsProvider({ children }: { children: ReactNode }) {
-    const client = useTorrentClient();
-    const { dispatch, recoveryState } = useTorrentOrchestrator({ client });
+interface TorrentActionsProviderProps {
+    children: ReactNode;
+    actions: TorrentActions;
+}
 
-    const value: TorrentActions = useMemo(() => ({ dispatch }), [dispatch]);
+export function TorrentActionsProvider({
+    children,
+    actions,
+}: TorrentActionsProviderProps) {
+    const value = useMemo(() => actions, [actions.dispatch]);
 
     return (
         <TorrentActionsContext.Provider value={value}>
             {children}
-            <TorrentRecoveryModal
-                isOpen={Boolean(recoveryState)}
-                torrent={null}
-                outcome={null}
-                onClose={() => {}}
-                onPickPath={async () => {}}
-                onBrowse={undefined}
-                onRecreate={async () => {}}
-                isBusy={false}
-            />
         </TorrentActionsContext.Provider>
     );
 }
