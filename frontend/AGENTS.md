@@ -1068,6 +1068,54 @@ If the limit is exceeded, remove props by using Contexts or split the component.
 
 **If a change requires threading values through components, the ownership is wrong. Fix authority, not plumbing.**
 
+### **Command Context Completeness Rule (Hard)**
+
+If UI components need to invoke behavior (actions, commands, intents):
+
+- A **Context** exposing those commands **must exist**.
+- Absence of such a Context is a **spec violation**.
+
+**Agents must not:**
+
+- route commands via props to avoid creating a Context
+- implement “temporary” prop-based command wiring
+
+**Agent responsibility:**
+
+- If prop drilling is required to access behavior,
+  → stop
+  → create or restore the missing command Context
+  → wire it once at the App boundary
+
+If `/app/context` does not contain a command surface,
+**the architecture is incomplete and must be fixed before proceeding.**
+
+
+#### Detection Heuristic (Mandatory)
+
+
+If, while editing UI code, the agent is about to:
+
+- add a function prop whose purpose is to **trigger behavior**, or
+- forward a function prop through a component that does not own the behavior
+
+then this is **proof that a required Context is missing**.
+
+
+In this situation the agent must:
+
+1. STOP adding or forwarding the prop.
+2. Identify the missing command surface.
+3. Create or restore a Context that exposes the command.
+4. Wire that Context once at the App boundary.
+5. Consume the command via Context at the leaf.
+
+Passing the function as a prop is **not an acceptable workaround**.
+
+Any PR that introduces a new function prop for behavior without introducing
+a corresponding Context is invalid by definition.
+
+
 # **15. Project Structure (Optimized for Single Developer)**
 
 Flat, high-maintenance structure optimized for speed and co-location.

@@ -80,8 +80,6 @@ interface DashboardLayoutProps {
     onInspectorTabCommandHandled?: () => void;
     isDropActive?: boolean;
     tableWatermarkEnabled?: boolean;
-    resumeTorrent?: (torrent: Torrent | TorrentDetail) => Promise<void> | void;
-    retryTorrent?: (torrent: Torrent | TorrentDetail) => Promise<void> | void;
 }
 
 export function Dashboard_Layout({
@@ -100,9 +98,6 @@ export function Dashboard_Layout({
     onPeerContextAction,
     onSequentialToggle,
     onSuperSeedingToggle,
-    resumeTorrent,
-    retryTorrent,
-
     isDetailRecoveryBlocked,
     // onOpenFolder removed from props
     capabilities,
@@ -321,9 +316,7 @@ export function Dashboard_Layout({
                                     ghostTorrents={ghostTorrents}
                                     /* onOpenFolder removed; leaf components use TorrentActionsContext */
                                     /* onSetLocation removed: use TorrentActionsContext.setLocation */
-                                resumeTorrent={resumeTorrent}
-                                retryTorrent={retryTorrent}
-                            />
+                                />
                             </div>
                         </div>
                         {dropOverlay}
@@ -410,9 +403,8 @@ export function Dashboard_Layout({
                                     onInspectorTabCommandHandled={
                                         onInspectorTabCommandHandled
                                     }
-                                    onSequentialToggle={onSequentialToggle}
-                                    onSuperSeedingToggle={onSuperSeedingToggle}
-                                    onResume={resumeTorrent}
+                                onSequentialToggle={onSequentialToggle}
+                                onSuperSeedingToggle={onSuperSeedingToggle}
                                     /* onSetLocation removed: use TorrentActionsContext.setLocation */
                                     /* redownload handled via TorrentActionsContext */
 
@@ -468,7 +460,6 @@ export function Dashboard_Layout({
                                 }
                                 onSequentialToggle={onSequentialToggle}
                                 onSuperSeedingToggle={onSuperSeedingToggle}
-                                onResume={resumeTorrent}
                                 /* onSetLocation removed: use TorrentActionsContext.setLocation */
                                 /* redownload handled via TorrentActionsContext */
 

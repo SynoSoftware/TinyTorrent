@@ -75,6 +75,7 @@ import {
 import TorrentTable_ColumnSettingsModal from "./TorrentTable_ColumnSettingsModal";
 import { useQueueReorderController } from "@/modules/dashboard/hooks/useQueueReorderController";
 import { useRowSelectionController } from "@/modules/dashboard/hooks/useRowSelectionController";
+import { useUIActionGate } from "@/app/context/UIActionGateContext";
 
 const assertDev = (condition: boolean, message: string) => {
     if (import.meta.env.DEV && !condition) {
@@ -124,8 +125,6 @@ interface TorrentTableProps {
     optimisticStatuses?: OptimisticStatusMap;
     disableDetailOpen?: boolean;
     ghostTorrents?: Torrent[];
-    resumeTorrent?: (torrent: Torrent) => Promise<void> | void;
-    retryTorrent?: (torrent: Torrent) => Promise<void> | void;
 }
 
 // --- HELPERS ---
@@ -155,8 +154,6 @@ export function TorrentTable({
     optimisticStatuses = {},
     disableDetailOpen = false,
     ghostTorrents,
-    resumeTorrent,
-    retryTorrent,
 }: TorrentTableProps) {
     const { t } = useTranslation();
     // actions provided by TorrentActionsContext (declared above)
@@ -249,10 +246,13 @@ export function TorrentTable({
         if (!ghostTorrents?.length) return torrents;
         return [...ghostTorrents, ...torrents];
     }, [ghostTorrents, torrents]);
+    const { isRemoved } = useUIActionGate();
 
     // Prepare data for the table - memoized to prevent re-processing
     const data = useMemo(() => {
-        const displayTorrents = pooledTorrents.map(getDisplayTorrent);
+        const displayTorrents = pooledTorrents
+            .filter((torrent) => !isRemoved(torrent.id ?? torrent.hash))
+            .map(getDisplayTorrent);
         const filteredByState =
             filter === "all"
                 ? displayTorrents
@@ -267,7 +267,7 @@ export function TorrentTable({
             }`.toLowerCase();
             return haystack.includes(normalizedQuery);
         });
-    }, [pooledTorrents, filter, searchQuery, getDisplayTorrent]);
+    }, [pooledTorrents, filter, searchQuery, getDisplayTorrent, isRemoved]);
 
     const parentRef = useRef<HTMLDivElement>(null);
     const tableContainerRef = useRef<HTMLDivElement>(null);
@@ -323,8 +323,6 @@ export function TorrentTable({
         buildMagnetLink,
         setContextMenu,
         openTorrentFolder,
-        resumeTorrent,
-        retryTorrent,
     });
 
     // Marquee `mousedown` and drag listeners moved to the virtualization hook.

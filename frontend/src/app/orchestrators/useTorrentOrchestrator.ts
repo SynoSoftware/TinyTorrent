@@ -36,6 +36,10 @@ import {
     clearProbe as clearCachedProbe,
 } from "@/services/recovery/missingFilesStore";
 import STATUS from "@/shared/status";
+import { useSelection } from "@/app/context/SelectionContext";
+
+const getTorrentKey = (torrent: Torrent | TorrentDetail) =>
+    torrent.id?.toString() ?? torrent.hash ?? "";
 
 // --- Types ---
 
@@ -55,6 +59,9 @@ export interface UseTorrentOrchestratorParams {
         setSettingsConfig: Dispatch<SetStateAction<SettingsConfig>>;
     };
     t: (key: string) => string;
+    clearDetail: () => void;
+    markRemoved: (key: string) => void;
+    unmarkRemoved: (key: string) => void;
 }
 
 // --- Helpers ---
@@ -116,9 +123,13 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
         showFeedback,
         reportCommandError,
         t,
+        clearDetail,
+        markRemoved,
+        unmarkRemoved,
     } = params;
     const { settingsConfig, setSettingsConfig } = settingsFlow;
     const { dispatch } = useRequiredTorrentActions();
+    const { setSelectedIds, setActiveId } = useSelection();
 
     // --- 1. Capability & Server Class ---
     const [serverClass, setServerClass] = useState<ServerClass>("unknown");
@@ -198,7 +209,6 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
     const [magnetModalInitialValue, setMagnetModalInitialValue] = useState("");
     const [isFinalizingExisting, setIsFinalizingExisting] = useState(false); // needed for loading state
 
-    const torrentFilePickerRef = useRef<HTMLInputElement | null>(null);
     const isMountedRef = useRef(false);
 
     useEffect(() => {
@@ -208,14 +218,10 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
         };
     }, []);
 
-    const openAddTorrentPicker = useCallback(() => {
-        torrentFilePickerRef.current?.click();
-    }, []);
-
     const openAddMagnet = useCallback((magnetLink?: string) => {
-        const normalized = magnetLink
-            ? normalizeMagnetLink(magnetLink)
-            : undefined;
+        const linkValue =
+            typeof magnetLink === "string" ? magnetLink : undefined;
+        const normalized = linkValue ? normalizeMagnetLink(linkValue) : undefined;
         setMagnetModalInitialValue(normalized ?? magnetLink ?? "");
         setMagnetModalOpen(true);
     }, []);
@@ -239,6 +245,10 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
         onOpenAddMagnet: openAddMagnet,
         onOpenAddTorrentFromFile: openAddTorrentFromFile,
     });
+    const { open: openDropzone } = addModalState;
+    const openAddTorrentPicker = useCallback(() => {
+        openDropzone();
+    }, [openDropzone]);
 
     const handleMagnetModalClose = useCallback(() => {
         setMagnetModalOpen(false);
@@ -472,13 +482,10 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
     }, [probeMissingFilesIfStale]);
 
     useEffect(() => {
-        const activeStates = torrents.filter(
-            (torrent) =>
-                torrent.state === STATUS.torrent.DOWNLOADING ||
-                torrent.state === STATUS.torrent.SEEDING
-        );
-        activeStates.forEach((torrent) => {
-            clearVerifyGuardEntry(getRecoveryFingerprint(torrent));
+        torrents.forEach((torrent) => {
+            if (torrent.state !== STATUS.torrent.CHECKING) {
+                clearVerifyGuardEntry(getRecoveryFingerprint(torrent));
+            }
         });
     }, [torrents]);
 
@@ -620,6 +627,56 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
             processNextRecoveryQueueEntry();
         },
         [processNextRecoveryQueueEntry]
+    );
+
+    const performUIActionDelete = useCallback(
+        (torrent: Torrent, deleteData = false) => {
+            const targetId = torrent.id ?? torrent.hash;
+            const key = getTorrentKey(torrent);
+            if (!targetId || !key) return;
+            markRemoved(key);
+            setSelectedIds([]);
+            setActiveId(null);
+            if (detailData && getTorrentKey(detailData) === key) {
+                clearDetail();
+            }
+            const fingerprint = getRecoveryFingerprint(torrent);
+            clearVerifyGuardEntry(fingerprint);
+            clearCachedProbe(key);
+            const pollKey = targetId;
+            if (pollKey) {
+                volumeLossPollingRef.current.delete(pollKey);
+            }
+            pendingRecoveryQueueRef.current =
+                pendingRecoveryQueueRef.current.filter(
+                    (entry) => entry.fingerprint !== fingerprint
+                );
+            if (
+                recoverySession &&
+                getRecoveryFingerprint(recoverySession.torrent) === fingerprint
+            ) {
+                finalizeRecovery({ status: "cancelled" });
+            }
+            void dispatch(TorrentIntents.ensureRemoved(targetId, deleteData)).catch(
+                () => {
+                    showFeedback(t("toolbar.feedback.failed"), "danger");
+                    unmarkRemoved(key);
+                }
+            );
+        },
+        [
+            clearDetail,
+            detailData,
+            dispatch,
+            finalizeRecovery,
+            recoverySession,
+            setActiveId,
+            setSelectedIds,
+            showFeedback,
+            t,
+            markRemoved,
+            unmarkRemoved,
+        ]
     );
 
     const {
@@ -1059,7 +1116,6 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
         isMagnetModalOpen,
         magnetModalInitialValue,
         addModalState,
-        torrentFilePickerRef,
         isFinalizingExisting,
         isAddingTorrent: isFinalizingExisting, // Align with App consumers
 
@@ -1088,6 +1144,7 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
         recoveryRequestBrowse,
         resumeTorrentWithRecovery,
         probeMissingFilesIfStale,
+        performUIActionDelete,
     };
 }
 

@@ -28,6 +28,7 @@ interface UseTorrentWorkflowParams {
         action: TorrentTableAction,
         ids: string[]
     ) => Promise<void>;
+    performUIActionDelete: (torrent: Torrent, deleteData: boolean) => void;
     /** Optional externally-provided feedback functions (injected by host). */
     announceAction?: (
         action: FeedbackAction,
@@ -42,6 +43,7 @@ export function useTorrentWorkflow({
     executeTorrentAction,
     executeBulkRemove,
     executeSelectionAction,
+    performUIActionDelete,
     announceAction: injectedAnnounce,
     showFeedback: injectedShowFeedback,
 }: UseTorrentWorkflowParams) {
@@ -211,6 +213,10 @@ export function useTorrentWorkflow({
                 announceAction(actionKey, "start", count);
             }
 
+            toDelete.forEach((torrent) => {
+                performUIActionDelete(torrent, deleteData);
+            });
+
             if (
                 toDelete.length > 1 &&
                 (action === "remove" || action === "remove-with-data")
@@ -231,7 +237,13 @@ export function useTorrentWorkflow({
                 announceAction(actionKey, "done", count);
             }
         },
-        [announceAction, executeBulkRemove, executeTorrentAction, pendingDelete]
+        [
+            announceAction,
+            executeBulkRemove,
+            executeTorrentAction,
+            pendingDelete,
+            performUIActionDelete,
+        ]
     );
 
     return {
@@ -240,5 +252,7 @@ export function useTorrentWorkflow({
         confirmDelete,
         clearPendingDelete,
         showFeedback,
+        handleTorrentAction,
+        handleBulkAction,
     };
 }

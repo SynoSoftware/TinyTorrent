@@ -5,6 +5,7 @@ import { useEngineSpeedHistory } from "@/shared/hooks/useEngineSpeedHistory";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
 import { TEXT_ROLES } from "../hooks/utils/textRoles";
 import { cn } from "@heroui/react";
+import STATUS from "@/shared/status";
 
 interface SpeedTabProps {
     torrent: TorrentDetail;
@@ -13,6 +14,10 @@ interface SpeedTabProps {
 
 export const SpeedTab = ({ torrent, isStandalone = false }: SpeedTabProps) => {
     const { t } = useTranslation();
+    const isChecking = torrent.state === STATUS.torrent.CHECKING;
+    if (isChecking) {
+        return null;
+    }
     const { down: downHistory, up: upHistory } = useEngineSpeedHistory(
         torrent.id
     );
