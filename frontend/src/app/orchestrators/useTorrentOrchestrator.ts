@@ -23,12 +23,9 @@ import type {
     RecoveryGateCallback,
     RecoveryGateOutcome,
 } from "@/app/types/recoveryGate";
-import type {
-    TorrentIntentExtended,
-    QueueMoveIntent,
-} from "@/app/intents/torrentIntents";
+import { useRequiredTorrentActions } from "@/app/context/TorrentActionsContext";
 import { readTorrentFileAsMetainfoBase64 } from "@/modules/torrent-add/services/torrent-metainfo";
-import { isRpcCommandError } from "@/services/rpc/errors";
+import { TorrentIntents } from "@/app/intents/torrentIntents";
 
 // --- Types ---
 
@@ -94,6 +91,7 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
         t,
     } = params;
     const { settingsConfig, setSettingsConfig } = settingsFlow;
+    const { dispatch } = useRequiredTorrentActions();
 
     // --- 1. Capability & Server Class ---
     const [serverClass, setServerClass] = useState<ServerClass>("unknown");
@@ -234,17 +232,18 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
                 lastDownloadDir || settingsConfigRef.current.download_dir;
 
             try {
-                await client?.addTorrent({
-                    magnetLink: normalized,
-                    paused: !startNow,
-                    downloadDir: defaultDir,
-                });
-                void refreshTorrentsRef.current?.();
+                await dispatch(
+                    TorrentIntents.addMagnetTorrent(
+                        normalized,
+                        defaultDir,
+                        !startNow
+                    )
+                );
             } catch (err) {
                 console.error("Failed to add magnet", err);
             }
         },
-        [client, lastDownloadDir, refreshTorrentsRef]
+        [dispatch, lastDownloadDir]
     );
 
     const closeAddTorrentWindow = useCallback(() => {
@@ -268,16 +267,17 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
                     return;
                 }
                 try {
-                    await client?.addTorrent({
-                        metainfo: metainfo.metainfoBase64,
-                        downloadDir,
-                        paused: !startNow,
-                        filesUnwanted: selection.filesUnwanted,
-                        priorityHigh: selection.priorityHigh,
-                        priorityNormal: selection.priorityNormal,
-                        priorityLow: selection.priorityLow,
-                    });
-                    void refreshTorrentsRef.current?.();
+                    await dispatch(
+                        TorrentIntents.addTorrentFromFile(
+                            metainfo.metainfoBase64,
+                            downloadDir,
+                            !startNow,
+                            selection.filesUnwanted,
+                            selection.priorityHigh,
+                            selection.priorityNormal,
+                            selection.priorityLow
+                        )
+                    );
                 } finally {
                     closeAddTorrentWindow();
                 }
@@ -285,31 +285,27 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
             }
 
             // Magnet / Existing Finalization
+            const targetId = addSource.torrentId;
+            if (!targetId) {
+                closeAddTorrentWindow();
+                return;
+            }
             setIsFinalizingExisting(true);
             try {
-                if (addSource.torrentId && client?.setTorrentLocation) {
-                    await client.setTorrentLocation(
-                        addSource.torrentId,
+                await dispatch(
+                    TorrentIntents.finalizeExistingTorrent(
+                        targetId,
                         downloadDir,
-                        true
-                    );
-                }
-                if (addSource.torrentId && selection.filesUnwanted.length) {
-                    await client?.updateFileSelection?.(
-                        addSource.torrentId,
                         selection.filesUnwanted,
-                        false
-                    );
-                }
-                if (startNow && addSource.torrentId) {
-                    await client?.resume([addSource.torrentId]);
-                }
+                        startNow
+                    )
+                );
                 closeAddTorrentWindow();
             } finally {
                 setIsFinalizingExisting(false);
             }
         },
-        [addSource, client, closeAddTorrentWindow, refreshTorrentsRef]
+        [addSource, closeAddTorrentWindow, dispatch]
     );
 
     // --- 4. Recovery Orchestration ---
@@ -416,134 +412,6 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
         setRecoverySession(null);
         resolver?.(result);
     }, []);
-
-    const runWithRefresh = useCallback(
-        async (
-            operation: () => Promise<void>,
-            options?: {
-                refreshTorrents?: boolean;
-                refreshDetail?: boolean;
-                refreshStats?: boolean;
-                reportError?: boolean;
-            }
-        ) => {
-            try {
-                await operation();
-                if (options?.refreshTorrents ?? true) {
-                    await refreshTorrentsRef.current?.();
-                }
-                if (options?.refreshDetail ?? true) {
-                    await refreshDetailData();
-                }
-                if (options?.refreshStats ?? true) {
-                    await refreshSessionStatsDataRef.current?.();
-                }
-            } catch (error) {
-                if ((options?.reportError ?? true) && reportCommandError) {
-                    if (!isRpcCommandError(error)) {
-                        reportCommandError(error);
-                    }
-                }
-                throw error;
-            }
-        },
-        [
-            refreshDetailData,
-            reportCommandError,
-            refreshSessionStatsDataRef,
-            refreshTorrentsRef,
-        ]
-    );
-
-    const dispatch = useCallback(
-        async (intent: TorrentIntentExtended) => {
-            const activeClient = clientRef.current || client;
-            if (!activeClient) return;
-
-            switch (intent.type) {
-                case "ENSURE_TORRENT_ACTIVE":
-                    await activeClient.resume([String(intent.torrentId)]);
-                    break;
-                case "ENSURE_TORRENT_PAUSED":
-                    await activeClient.pause([String(intent.torrentId)]);
-                    break;
-                case "ENSURE_TORRENT_REMOVED":
-                    await activeClient.remove(
-                        [String(intent.torrentId)],
-                        Boolean(intent.deleteData)
-                    );
-                    break;
-                case "ENSURE_TORRENT_VALID":
-                    await activeClient.verify([String(intent.torrentId)]);
-                    break;
-                case "SET_TORRENT_FILES_WANTED":
-                    if (!activeClient.updateFileSelection) return;
-                    await runWithRefresh(() =>
-                        activeClient.updateFileSelection(
-                            String(intent.torrentId),
-                            intent.fileIndexes,
-                            intent.wanted
-                        )
-                    );
-                    break;
-                case "SET_TORRENT_SEQUENTIAL":
-                    if (!activeClient.setSequentialDownload) return;
-                    await runWithRefresh(() =>
-                        activeClient.setSequentialDownload(
-                            String(intent.torrentId),
-                            intent.enabled
-                        )
-                    );
-                    break;
-                case "SET_TORRENT_SUPERSEEDING":
-                    if (!activeClient.setSuperSeeding) return;
-                    await runWithRefresh(() =>
-                        activeClient.setSuperSeeding(
-                            String(intent.torrentId),
-                            intent.enabled
-                        )
-                    );
-                    break;
-                case "ENSURE_SELECTION_ACTIVE":
-                    await activeClient.resume(
-                        (intent.torrentIds || []).map(String)
-                    );
-                    break;
-                case "ENSURE_SELECTION_PAUSED":
-                    await activeClient.pause(
-                        (intent.torrentIds || []).map(String)
-                    );
-                    break;
-                case "ENSURE_SELECTION_REMOVED":
-                    await activeClient.remove(
-                        (intent.torrentIds || []).map(String),
-                        Boolean(intent.deleteData)
-                    );
-                    break;
-                case "ENSURE_SELECTION_VALID":
-                    await activeClient.verify(
-                        (intent.torrentIds || []).map(String)
-                    );
-                    break;
-                case "QUEUE_MOVE":
-                    const q = intent as QueueMoveIntent;
-                    const tid = String(q.torrentId);
-                    const steps = Math.max(1, Number(q.steps ?? 1));
-                    for (let i = 0; i < steps; i++) {
-                        if (q.direction === "up")
-                            await activeClient.moveUp([tid]);
-                        else if (q.direction === "down")
-                            await activeClient.moveDown([tid]);
-                        else if (q.direction === "top")
-                            await activeClient.moveToTop([tid]);
-                        else if (q.direction === "bottom")
-                            await activeClient.moveToBottom([tid]);
-                    }
-                    break;
-            }
-        },
-        [client, clientRef]
-    );
 
     const {
         recoveryCallbacks,
@@ -753,7 +621,6 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
         isRecoveryBusy,
         lastRecoveryOutcome,
         isDetailRecoveryBlocked,
-        dispatch,
         openAddTorrentPicker,
         openAddMagnet,
         openAddTorrentFromFile,

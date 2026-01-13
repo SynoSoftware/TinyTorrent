@@ -89,6 +89,32 @@ export type SetTorrentSuperSeeding = {
     enabled: boolean;
 };
 
+export type AddMagnetTorrent = {
+    type: "ADD_MAGNET_TORRENT";
+    magnetLink: string;
+    downloadDir: string;
+    paused: boolean;
+};
+
+export type AddTorrentFromFile = {
+    type: "ADD_TORRENT_FROM_FILE";
+    metainfoBase64: string;
+    downloadDir: string;
+    paused: boolean;
+    filesUnwanted: number[];
+    priorityHigh: number[];
+    priorityNormal: number[];
+    priorityLow: number[];
+};
+
+export type FinalizeExistingTorrent = {
+    type: "FINALIZE_EXISTING_TORRENT";
+    torrentId: string | number;
+    downloadDir: string;
+    filesUnwanted: number[];
+    resume: boolean;
+};
+
 export type TorrentIntent =
     | EnsureTorrentActive
     | EnsureTorrentPaused
@@ -105,7 +131,10 @@ export type TorrentIntent =
     | OpenTorrentFolder
     | SetTorrentFilesWanted
     | SetTorrentSequentialDownload
-    | SetTorrentSuperSeeding;
+    | SetTorrentSuperSeeding
+    | AddMagnetTorrent
+    | AddTorrentFromFile
+    | FinalizeExistingTorrent;
 
 export type QueueMoveIntent = {
     type: "QUEUE_MOVE";
@@ -234,5 +263,45 @@ export const TorrentIntents = {
         torrentId,
         direction,
         steps,
+    }),
+    addMagnetTorrent: (
+        magnetLink: string,
+        downloadDir: string,
+        paused: boolean
+    ): AddMagnetTorrent => ({
+        type: "ADD_MAGNET_TORRENT",
+        magnetLink,
+        downloadDir,
+        paused,
+    }),
+    addTorrentFromFile: (
+        metainfoBase64: string,
+        downloadDir: string,
+        paused: boolean,
+        filesUnwanted: number[],
+        priorityHigh: number[],
+        priorityNormal: number[],
+        priorityLow: number[]
+    ): AddTorrentFromFile => ({
+        type: "ADD_TORRENT_FROM_FILE",
+        metainfoBase64,
+        downloadDir,
+        paused,
+        filesUnwanted,
+        priorityHigh,
+        priorityNormal,
+        priorityLow,
+    }),
+    finalizeExistingTorrent: (
+        torrentId: string | number,
+        downloadDir: string,
+        filesUnwanted: number[],
+        resume: boolean
+    ): FinalizeExistingTorrent => ({
+        type: "FINALIZE_EXISTING_TORRENT",
+        torrentId,
+        downloadDir,
+        filesUnwanted,
+        resume,
     }),
 } as const;

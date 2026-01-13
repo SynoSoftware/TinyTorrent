@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+} from "react";
+import type { MutableRefObject } from "react";
 import { STATUS } from "@/shared/status";
 import Runtime, { NativeShell } from "@/app/runtime";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
@@ -37,6 +44,7 @@ import {
     useSelection,
 } from "@/app/context/SelectionContext";
 import { useTorrentOrchestrator } from "./orchestrators/useTorrentOrchestrator";
+import { createTorrentDispatch } from "./actions/torrentDispatch";
 import { LifecycleProvider } from "@/app/context/LifecycleContext";
 import type { EngineDisplayType } from "./components/layout/StatusBar";
 import type {
@@ -76,9 +84,9 @@ type AppContentProps = {
         typeof useTorrentData
     >["isInitialLoadFinished"];
     refreshTorrents: ReturnType<typeof useTorrentData>["refresh"];
+    refreshDetailData: ReturnType<typeof useTorrentDetail>["refreshDetailData"];
     detailData: ReturnType<typeof useTorrentDetail>["detailData"];
     loadDetail: ReturnType<typeof useTorrentDetail>["loadDetail"];
-    refreshDetailData: ReturnType<typeof useTorrentDetail>["refreshDetailData"];
     clearDetail: ReturnType<typeof useTorrentDetail>["clearDetail"];
     mutateDetail: ReturnType<typeof useTorrentDetail>["mutateDetail"];
     updateCapabilityState: (
@@ -86,14 +94,17 @@ type AppContentProps = {
         state: CapabilityState
     ) => void;
     settingsFlow: ReturnType<typeof useSettingsFlow>;
-    orchestrator: ReturnType<typeof useTorrentOrchestrator>;
     openSettings: ReturnType<typeof useWorkspaceModals>["openSettings"];
     isSettingsOpen: ReturnType<typeof useWorkspaceModals>["isSettingsOpen"];
     closeSettings: ReturnType<typeof useWorkspaceModals>["closeSettings"];
     announceAction: ReturnType<typeof useActionFeedback>["announceAction"];
     showFeedback: ReturnType<typeof useActionFeedback>["showFeedback"];
+    reportCommandError: ReturnType<typeof useTransmissionSession>["reportCommandError"];
     capabilities: CapabilityStore;
     handleReconnect: () => void;
+    torrentClientRef: MutableRefObject<EngineAdapter | null>;
+    refreshTorrentsRef: MutableRefObject<() => Promise<void>>;
+    refreshSessionStatsDataRef: MutableRefObject<() => Promise<void>>;
 };
 
 // -----------------------------------------------------------------------------
@@ -112,21 +123,24 @@ function AppContent({
     ghostTorrents,
     isInitialLoadFinished,
     refreshTorrents,
+    refreshDetailData,
     detailData,
     loadDetail,
-    refreshDetailData,
     clearDetail,
     mutateDetail,
     updateCapabilityState,
     settingsFlow,
-    orchestrator,
     openSettings,
     isSettingsOpen,
     closeSettings,
     announceAction,
     showFeedback,
+    reportCommandError,
     capabilities,
     handleReconnect,
+    torrentClientRef,
+    refreshTorrentsRef,
+    refreshSessionStatsDataRef,
 }: AppContentProps) {
     // -- Local UI State --
     const [filter, setFilter] = useState("all");
@@ -163,6 +177,20 @@ function AppContent({
     }, []);
 
     // -- Orchestrator & Selection Wiring --
+    const orchestrator = useTorrentOrchestrator({
+        client: torrentClient,
+        clientRef: torrentClientRef,
+        refreshTorrentsRef,
+        refreshSessionStatsDataRef,
+        refreshDetailData,
+        detailData,
+        rpcStatus,
+        settingsFlow,
+        showFeedback,
+        reportCommandError,
+        t,
+    });
+
     const {
         serverClass,
         addModalState,
@@ -230,11 +258,13 @@ function AppContent({
     }, [clearDetail, setActiveId]);
 
     // Ensure detail panel matches active selection if needed
+    // Ensure detail panel matches active selection if needed
     useEffect(() => {
-        if (!activeId) return;
-        // Fix: Use optional chaining to prevent crash if detailData is null
-        // and avoid double-checks.
-        if (detailData?.id === activeId) return;
+        // Only auto-update if the inspector is ALREADY open (detailData exists).
+        // If closed, a single click should just select, not open.
+        if (!activeId || !detailData) return;
+
+        if (detailData.id === activeId) return;
 
         const activeTorrent =
             selectedTorrents.find((torrent) => torrent.id === activeId) ?? null;
@@ -345,7 +375,6 @@ function AppContent({
         clearPendingDelete,
     } = useTorrentWorkflow({
         torrents,
-        selectedTorrentIds: selectedIds,
         executeTorrentAction: executeTorrentActionViaDispatch,
         executeBulkRemove: executeBulkRemoveViaDispatch,
         executeSelectionAction: async (action, ids) => {
@@ -510,12 +539,13 @@ function AppContent({
                             "command_palette.actions.pause_selected_description"
                         ),
                         onSelect: () => {
-                            selectedTorrents.forEach((torrent) =>
-                                void dispatch(
-                                    TorrentIntents.ensurePaused(
-                                        torrent.id ?? torrent.hash
+                            selectedTorrents.forEach(
+                                (torrent) =>
+                                    void dispatch(
+                                        TorrentIntents.ensurePaused(
+                                            torrent.id ?? torrent.hash
+                                        )
                                     )
-                                )
                             );
                         },
                     },
@@ -527,12 +557,13 @@ function AppContent({
                             "command_palette.actions.resume_selected_description"
                         ),
                         onSelect: () => {
-                            selectedTorrents.forEach((torrent) =>
-                                void dispatch(
-                                    TorrentIntents.ensureActive(
-                                        torrent.id ?? torrent.hash
+                            selectedTorrents.forEach(
+                                (torrent) =>
+                                    void dispatch(
+                                        TorrentIntents.ensureActive(
+                                            torrent.id ?? torrent.hash
+                                        )
                                     )
-                                )
                             );
                         },
                     },
@@ -544,12 +575,13 @@ function AppContent({
                             "command_palette.actions.recheck_selected_description"
                         ),
                         onSelect: () => {
-                            selectedTorrents.forEach((torrent) =>
-                                void dispatch(
-                                    TorrentIntents.ensureValid(
-                                        torrent.id ?? torrent.hash
+                            selectedTorrents.forEach(
+                                (torrent) =>
+                                    void dispatch(
+                                        TorrentIntents.ensureValid(
+                                            torrent.id ?? torrent.hash
+                                        )
                                     )
-                                )
                             );
                         },
                     }
@@ -959,26 +991,30 @@ export default function App() {
         reconnect();
     };
 
-    const orchestrator = useTorrentOrchestrator({
-        client: torrentClient,
-        clientRef: torrentClientRef,
-        refreshTorrentsRef,
-        refreshSessionStatsDataRef,
-        refreshDetailData,
-        detailData,
-        rpcStatus,
-        settingsFlow,
-        showFeedback,
-        reportCommandError,
-        t,
-    });
+    const torrentDispatch = useMemo(
+        () =>
+            createTorrentDispatch({
+                client: torrentClient,
+                clientRef: torrentClientRef,
+                refreshTorrentsRef,
+                refreshSessionStatsDataRef,
+                refreshDetailData,
+                reportCommandError,
+            }),
+        [
+            torrentClient,
+            torrentClientRef,
+            refreshTorrentsRef,
+            refreshSessionStatsDataRef,
+            refreshDetailData,
+            reportCommandError,
+        ]
+    );
 
     // Create the stable Actions object to pass down
     const actions = useMemo(
-        () => ({
-            dispatch: orchestrator.dispatch,
-        }),
-        [orchestrator.dispatch]
+        () => ({ dispatch: torrentDispatch }),
+        [torrentDispatch]
     );
 
     return (
@@ -997,20 +1033,23 @@ export default function App() {
                             torrents={torrents}
                             ghostTorrents={ghostTorrents}
                             isInitialLoadFinished={isInitialLoadFinished}
-                            refreshTorrents={refreshTorrents}
-                            detailData={detailData}
+                        refreshTorrents={refreshTorrents}
+                        refreshDetailData={refreshDetailData}
+                        detailData={detailData}
                             loadDetail={loadDetail}
-                            refreshDetailData={refreshDetailData}
                             clearDetail={clearDetail}
                             mutateDetail={mutateDetail}
                             updateCapabilityState={updateCapabilityState}
                             settingsFlow={settingsFlow}
-                            orchestrator={orchestrator}
+                            torrentClientRef={torrentClientRef}
+                            refreshTorrentsRef={refreshTorrentsRef}
+                            refreshSessionStatsDataRef={refreshSessionStatsDataRef}
                             openSettings={openSettings}
                             isSettingsOpen={isSettingsOpen}
                             closeSettings={closeSettings}
                             announceAction={announceAction}
-                            showFeedback={showFeedback}
+                        showFeedback={showFeedback}
+                        reportCommandError={reportCommandError}
                             capabilities={capabilities}
                             handleReconnect={handleReconnect}
                         />

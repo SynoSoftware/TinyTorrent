@@ -46,6 +46,7 @@ export default function TorrentTable_RowMenu({
                 isOpen
                 onClose={onClose}
                 placement="bottom-start"
+                shouldBlockScroll={false}
                 shouldFlip
             >
                 <DropdownTrigger>

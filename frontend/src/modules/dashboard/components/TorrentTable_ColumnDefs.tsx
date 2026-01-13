@@ -548,6 +548,7 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
                         variant: "shadow" as const,
                         color: "primary" as const,
                         className: "font-medium",
+                        isDisabled: false,
                     };
                     switch (classification.kind) {
                         case "pathLoss":
@@ -600,6 +601,7 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
                         size: "md" as const,
                         variant: "light" as const,
                         className: "font-medium text-foreground" as const,
+                        isDisabled: false,
                     };
                     switch (classification.kind) {
                         case "pathLoss":
