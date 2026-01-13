@@ -1092,7 +1092,7 @@ src/
 |
 \-- i18n/
     \-- en.json
-````
+```
 
 ---
 
@@ -1438,6 +1438,32 @@ If logic does not clearly fit one category, **the architecture is incomplete** a
 - “Helper” files that grow indefinitely
 - Passing callbacks that close over engine state
 
+---
+
+## **8 — Single Control Plane Rule (Hard Law)**
+
+**Single Control Plane Rule**
+    Any code that:
+    - calls the engine
+    - sequences actions
+    - retries, dedupes, or gates
+    - performs recovery or orchestration decisions
+    **must live in the Control Plane (Orchestrator).**
+    UI code may **only**:
+    - emit typed intents
+    - render state and outcomes
+    UI code must **never**:
+    - call the engine
+    - sequence actions
+    - implement retries, guards, or recovery logic
+    - decide correctness, confidence, or outcomes
+    **Diagnostic invariant**
+    If fixing a bug requires:
+    - adding a callback prop
+    - threading a handler through components
+    - passing “just one more function” downward
+    then the architecture is wrong.
+    Fix ownership, not wiring.
 
 ---
 
