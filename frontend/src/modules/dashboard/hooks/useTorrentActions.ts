@@ -114,7 +114,9 @@ export function useTorrentActions() {
     const handleOpenFolder = useCallback(
         (torrent: Torrent) => {
             if (!torrent) return;
-            dispatch(TorrentIntents.openTorrentFolder(torrent.id ?? torrent.hash));
+            dispatch(
+                TorrentIntents.openTorrentFolder(torrent.id ?? torrent.hash)
+            );
         },
         [dispatch]
     );

@@ -90,7 +90,8 @@ export function RecoveryGateProvider({
             const classification = classifyMissingFilesState(
                 envelope,
                 torrent.savePath ?? torrent.downloadDir ?? "",
-                serverClass
+                serverClass,
+                { torrentId: torrent.id ?? torrent.hash }
             );
             try {
                 return await runMissingFilesRecoverySequence({

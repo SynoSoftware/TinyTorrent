@@ -54,6 +54,7 @@ import {
 } from "./TorrentTable_Shared";
 import { createColumnSizingInfoState } from "./TorrentTable_ColumnMeasurement";
 import { useTorrentTableColumns } from "@/modules/dashboard/hooks/useTorrentTableColumns";
+import { useOpenTorrentFolder } from "@/app/hooks/useOpenTorrentFolder";
 import { useTorrentClipboard } from "@/modules/dashboard/hooks/useTorrentClipboard";
 import { useTorrentTablePersistence } from "@/modules/dashboard/hooks/useTorrentTablePersistence";
 import { useTorrentTableContextActions } from "@/modules/dashboard/hooks/useTorrentTableContextActions";
@@ -301,6 +302,8 @@ export function TorrentTable({
     const { isClipboardSupported, copyToClipboard, buildMagnetLink } =
         useTorrentClipboard();
 
+    const openTorrentFolder = useOpenTorrentFolder();
+
     const { handleContextMenuAction } = useTorrentTableContextActions({
         contextMenu,
         findRowElement: (id: string) =>
@@ -317,6 +320,7 @@ export function TorrentTable({
         copyToClipboard,
         buildMagnetLink,
         setContextMenu,
+        openTorrentFolder,
         resumeTorrent,
     });
 
@@ -331,6 +335,7 @@ export function TorrentTable({
         t,
         speedHistoryRef,
         optimisticStatuses,
+        openFolder: openTorrentFolder,
     });
 
     const serverOrder = useMemo(() => data.map((d) => d.id), [data]);

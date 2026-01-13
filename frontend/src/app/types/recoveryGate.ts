@@ -14,6 +14,7 @@ export type RecoveryGateOutcome =
 export type RecoveryGateOptions = {
     recreateFolder?: boolean;
     retryOnly?: boolean;
+    missingBytes?: number | null;
 };
 
 export type RecoveryGateCallback = (params: {

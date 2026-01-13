@@ -81,7 +81,7 @@ export default function TorrentRecoveryModal({
 }: TorrentRecoveryModalProps) {
     const { t } = useTranslation();
     const busy = Boolean(isBusy);
-    const { serverClass, handleRetry } = useRecoveryContext();
+    const { serverClass } = useRecoveryContext();
 
     const downloadDir =
         torrent?.downloadDir ?? torrent?.savePath ?? torrent?.downloadDir ?? "";
@@ -91,7 +91,8 @@ export default function TorrentRecoveryModal({
         return classifyMissingFilesState(
             torrent.errorEnvelope ?? null,
             downloadDir,
-            serverClass
+            serverClass,
+            { torrentId: torrent.id ?? torrent.hash }
         );
     }, [torrent, downloadDir, serverClass]);
 
@@ -168,11 +169,9 @@ export default function TorrentRecoveryModal({
 
     const primaryLabel = isAccessDenied
         ? t("recovery.action.choose_location")
-        : isVolumeLoss
-        ? t("recovery.action_retry")
         : t("recovery.action_locate");
-    const primaryDisabled = busy || (isVolumeLoss ? !handleRetry : !onBrowse);
-    const primaryAction = isVolumeLoss ? handleRetry : handleBrowse;
+    const primaryDisabled = busy || !onBrowse;
+    const primaryAction = handleBrowse;
 
     const showRecreate = isPathLoss && Boolean(onRecreate);
 

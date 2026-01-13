@@ -793,10 +793,12 @@
             "missing_files_desc": "Missing files detected. Use Download missing to recover.",
             "files": {
                 "summary_label": "Files",
-                "expected": "Expected",
-                "on_disk": "On disk",
+                "expected": "Expected: {{value}}",
+                "on_disk": "On disk: {{value}}",
                 "missing": "Missing",
-                "location": "Location"
+                "location": "Location",
+                "to_download": "To download: {{value}}",
+                "folder_missing": "Folder missing: {{path}}"
             },
             "resolve_action": "Resolve"
         },
@@ -897,6 +899,7 @@
         "action_download": "Download missing",
         "action_locate": "Locate...",
         "action_retry": "Retry",
+        "action_open_folder": "Open folder",
         "action_recreate": "Re-create folder",
         "status_verifying": "Verifying local data...",
         "status_waiting_drive": "Waiting for drive...",
@@ -904,6 +907,8 @@
         "toast_resume": "Download resumed",
         "toast_location_updated": "Location updated",
         "toast_drive_detected": "Drive detected",
+        "open_remote_folder": "Cannot open the remote folder.",
+        "open_path_failed": "Unable to open the folder.",
         "inline_fallback": "Location unavailable",
         "modal_title_folder": "Folder Missing",
         "modal_title_drive": "Drive Disconnected",
@@ -972,7 +977,9 @@
             "folder_not_found": "Folder not found: {{path}}",
             "drive_disconnected": "Drive disconnected ({{drive}})",
             "access_denied": "Permission denied (Read-only)",
-            "waiting_for_drive": "Waiting for drive..."
+            "waiting_for_drive": "Waiting for drive...",
+            "checking_files": "Checking files...",
+            "checking_location": "Checking location..."
         },
         "class": {
             "trackerWarning": "Tracker",
