@@ -11,7 +11,7 @@ import { useFileTree } from "@/shared/hooks/useFileTree";
 import { useOptimisticToggle } from "@/shared/hooks/useOptimisticToggle";
 import type { TorrentFileEntity } from "@/services/rpc/entities";
 import { DETAILS_TAB_CONTENT_MAX_HEIGHT } from "@/config/logic";
-import { useTorrentActionsContext } from "@/app/context/TorrentActionsContext";
+import { useRequiredTorrentActions } from "@/app/context/TorrentActionsContext";
 import { TorrentIntents } from "@/app/intents/torrentIntents";
 
 interface ContentTabProps {
@@ -44,7 +44,7 @@ export const ContentTab = ({
     isStandalone,
 }: ContentTabProps) => {
     const { t } = useTranslation();
-    const actions = useTorrentActionsContext();
+    const { dispatch } = useRequiredTorrentActions();
 
     const fileEntries = useFileTree(files);
     const filesCount = fileEntries.length;
@@ -91,7 +91,7 @@ export const ContentTab = ({
                             variant="shadow"
                             color="primary"
                             onPress={() =>
-                                void actions.dispatch(
+                                void dispatch(
                                     TorrentIntents.ensureValid(
                                         torrent?.id ?? torrent?.hash
                                     )
@@ -105,7 +105,7 @@ export const ContentTab = ({
                             variant="shadow"
                             color="danger"
                             onPress={() =>
-                                void actions.dispatch(
+                                void dispatch(
                                     TorrentIntents.ensureDataPresent(
                                         torrent?.id ?? torrent?.hash
                                     )
@@ -119,7 +119,7 @@ export const ContentTab = ({
                             variant="shadow"
                             color="default"
                             onPress={() =>
-                                void actions.dispatch(
+                                void dispatch(
                                     TorrentIntents.ensureAtLocation(
                                         torrent?.id ?? torrent?.hash,
                                         torrent?.savePath ?? ""

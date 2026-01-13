@@ -12,7 +12,6 @@ import type { DashboardTableMeta } from "@/modules/dashboard/components/TorrentT
 import type { OptimisticStatusMap } from "@/modules/dashboard/types/optimistic";
 import { useRecoveryContext } from "@/app/context/RecoveryContext";
 import { useLifecycle } from "@/app/context/LifecycleContext";
-import { useTorrentActionsContext } from "@/app/context/TorrentActionsContext";
 
 export function useTorrentTableColumns({
     t,
@@ -25,7 +24,6 @@ export function useTorrentTableColumns({
 }): { columns: ColumnDef<Torrent>[]; tableMeta: DashboardTableMeta } {
     const { handleRetry } = useRecoveryContext();
     const { serverClass } = useLifecycle();
-    const actions = useTorrentActionsContext();
     const columns = useMemo<ColumnDef<Torrent>[]>(() => {
         const cols = DEFAULT_COLUMN_ORDER.map((colId) => {
             const id = colId as ColumnId;

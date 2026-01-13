@@ -18,7 +18,7 @@ import RemoveConfirmationModal from "@/modules/torrent-remove/components/RemoveC
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
-import { useTorrentActionsContext } from "@/app/context/TorrentActionsContext";
+import { useRequiredTorrentActions } from "@/app/context/TorrentActionsContext";
 import { TorrentIntents } from "@/app/intents/torrentIntents";
 import type { CapabilityState } from "@/app/types/capabilities";
 import { formatBytes, formatPercent, formatRatio } from "@/shared/utils/format";
@@ -124,9 +124,9 @@ export const GeneralTab = ({
     const expectedDisplay =
         expectedBytes !== null ? formatBytes(expectedBytes) : null;
 
-    const actions = useTorrentActionsContext();
+    const { dispatch } = useRequiredTorrentActions();
     const handleSetLocationAction = () => {
-        void actions.dispatch(
+        void dispatch(
             TorrentIntents.ensureAtLocation(
                 torrent?.id ?? torrent?.hash,
                 torrent?.savePath ?? ""
@@ -135,7 +135,7 @@ export const GeneralTab = ({
     };
 
     const handleResumeAction = () => {
-        void actions.dispatch(
+        void dispatch(
             TorrentIntents.ensureActive(torrent?.id ?? torrent?.hash)
         );
     };

@@ -29,7 +29,7 @@ import TorrentRecoveryModal from "@/modules/dashboard/components/TorrentRecovery
 import { RecoveryProvider } from "@/app/context/RecoveryContext";
 import {
     TorrentActionsProvider,
-    useTorrentActionsContext,
+    useRequiredTorrentActions,
 } from "@/app/context/TorrentActionsContext";
 import { TorrentIntents } from "@/app/intents/torrentIntents";
 import {
@@ -257,16 +257,13 @@ function AppContent({
 
     // -- Workflow & Actions --
     // Safe to use here because AppContent is wrapped in TorrentActionsProvider
-    const actionsContext = useTorrentActionsContext();
+    const { dispatch } = useRequiredTorrentActions();
 
     const executeTorrentActionViaDispatch = async (
         action: TorrentTableAction,
         torrent: Torrent,
         options?: { deleteData?: boolean }
     ) => {
-        const dispatch = actionsContext.dispatch;
-        // FIX: Replaced explicit throw with return to prevent runtime crash on init
-        if (!dispatch) return;
         switch (action) {
             case "pause":
                 return dispatch(
@@ -333,9 +330,6 @@ function AppContent({
         ids: string[],
         deleteData: boolean
     ) => {
-        const dispatch = actionsContext.dispatch;
-        // FIX: Replaced explicit throw with return
-        if (!dispatch) return;
         return dispatch(TorrentIntents.ensureSelectionRemoved(ids, deleteData));
     };
 
@@ -350,9 +344,6 @@ function AppContent({
         executeTorrentAction: executeTorrentActionViaDispatch,
         executeBulkRemove: executeBulkRemoveViaDispatch,
         executeSelectionAction: async (action, ids) => {
-            const dispatch = actionsContext.dispatch;
-            // FIX: Replaced explicit throw with return
-            if (!dispatch) return;
             switch (action) {
                 case "pause":
                     return dispatch(TorrentIntents.ensureSelectionPaused(ids));
@@ -514,15 +505,12 @@ function AppContent({
                             "command_palette.actions.pause_selected_description"
                         ),
                         onSelect: () => {
-                            const dispatch = actionsContext?.dispatch ?? null;
-                            if (!dispatch) return;
-                            selectedTorrents.forEach(
-                                (t) =>
-                                    void dispatch(
-                                        TorrentIntents.ensurePaused(
-                                            t.id ?? t.hash
-                                        )
+                            selectedTorrents.forEach((torrent) =>
+                                void dispatch(
+                                    TorrentIntents.ensurePaused(
+                                        torrent.id ?? torrent.hash
                                     )
+                                )
                             );
                         },
                     },
@@ -534,15 +522,12 @@ function AppContent({
                             "command_palette.actions.resume_selected_description"
                         ),
                         onSelect: () => {
-                            const dispatch = actionsContext?.dispatch ?? null;
-                            if (!dispatch) return;
-                            selectedTorrents.forEach(
-                                (t) =>
-                                    void dispatch(
-                                        TorrentIntents.ensureActive(
-                                            t.id ?? t.hash
-                                        )
+                            selectedTorrents.forEach((torrent) =>
+                                void dispatch(
+                                    TorrentIntents.ensureActive(
+                                        torrent.id ?? torrent.hash
                                     )
+                                )
                             );
                         },
                     },
@@ -554,15 +539,12 @@ function AppContent({
                             "command_palette.actions.recheck_selected_description"
                         ),
                         onSelect: () => {
-                            const dispatch = actionsContext?.dispatch ?? null;
-                            if (!dispatch) return;
-                            selectedTorrents.forEach(
-                                (t) =>
-                                    void dispatch(
-                                        TorrentIntents.ensureValid(
-                                            t.id ?? t.hash
-                                        )
+                            selectedTorrents.forEach((torrent) =>
+                                void dispatch(
+                                    TorrentIntents.ensureValid(
+                                        torrent.id ?? torrent.hash
                                     )
+                                )
                             );
                         },
                     }
@@ -637,7 +619,7 @@ function AppContent({
             setInspectorTabCommand,
             setPeerSortStrategy,
             t,
-            actionsContext,
+            dispatch,
         ]
     );
 

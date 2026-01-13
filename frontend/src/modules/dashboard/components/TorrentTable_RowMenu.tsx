@@ -10,7 +10,6 @@ import {
     cn,
 } from "@heroui/react";
 import { GLASS_MENU_SURFACE } from "@/shared/ui/layout/glass-surface";
-import { useTorrentActionsContext } from "@/app/context/TorrentActionsContext";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { ItemElement } from "@react-types/shared";
 import type { ContextMenuVirtualElement } from "@/shared/hooks/ui/useContextMenuPosition";
@@ -40,7 +39,6 @@ export default function TorrentTable_RowMenu({
     getEmphasisClassForAction?: (a?: string) => string;
 }) {
     if (!contextMenu) return null;
-    const actions = useTorrentActionsContext();
     const rect = contextMenu.virtualElement.getBoundingClientRect();
     return (
         <AnimatePresence>
@@ -110,9 +108,7 @@ export default function TorrentTable_RowMenu({
                     </DropdownItem>
                     <DropdownItem
                         key="open-folder"
-                        isDisabled={
-                            !actions.dispatch || !contextMenu?.torrent.savePath
-                        }
+                        isDisabled={!contextMenu?.torrent.savePath}
                         className={cn(
                             contextMenu?.torrent.errorEnvelope
                                 ?.primaryAction === "openFolder"
@@ -130,7 +126,6 @@ export default function TorrentTable_RowMenu({
                     </DropdownItem>
                     <DropdownItem
                         key="set-download-path"
-                        isDisabled={!actions.dispatch}
                         className={cn(
                             contextMenu?.torrent.errorEnvelope
                                 ?.primaryAction === "setLocation"

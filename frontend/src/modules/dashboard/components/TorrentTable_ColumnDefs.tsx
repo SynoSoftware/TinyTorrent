@@ -65,7 +65,7 @@ import StatusIcon from "@/shared/ui/components/StatusIcon";
 import { useMemo } from "react";
 import { useLifecycle } from "@/app/context/LifecycleContext";
 import { useRecoveryContext } from "@/app/context/RecoveryContext";
-import { useTorrentActionsContext } from "@/app/context/TorrentActionsContext";
+import { useRequiredTorrentActions } from "@/app/context/TorrentActionsContext";
 
 // --- TYPES ---
 export type ColumnId =
@@ -535,13 +535,11 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
                               "torrent_modal.files.expected"
                           )}: ${formatBytes(torrent.totalSize)}`
                         : null;
-                const actions = useTorrentActionsContext();
-                const onOpenFolder = actions.dispatch
-                    ? (t: Torrent) =>
-                          void actions.dispatch(
-                              TorrentIntents.openTorrentFolder(t.id ?? t.hash)
-                          )
-                    : undefined;
+                const { dispatch } = useRequiredTorrentActions();
+                const onOpenFolder = (t: Torrent) =>
+                    void dispatch(
+                        TorrentIntents.openTorrentFolder(t.id ?? t.hash)
+                    );
                 const { handleRetry } = useRecoveryContext();
 
                 const primaryConfig = (() => {
@@ -557,13 +555,12 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
                                 ...common,
                                 label: t("recovery.action_locate"),
                                 onPress: () =>
-                                    void actions.dispatch(
+                                    void dispatch(
                                         TorrentIntents.ensureAtLocation(
                                             torrent.id ?? torrent.hash,
                                             torrent.savePath ?? ""
                                         )
                                     ),
-                                isDisabled: !actions.dispatch,
                             };
                         case "volumeLoss":
                             return {
@@ -577,25 +574,23 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
                                 ...common,
                                 label: t("recovery.action_locate"),
                                 onPress: () =>
-                                    void actions.dispatch(
+                                    void dispatch(
                                         TorrentIntents.ensureAtLocation(
                                             torrent.id ?? torrent.hash,
                                             torrent.savePath ?? ""
                                         )
                                     ),
-                                isDisabled: !actions.dispatch,
                             };
                         default:
                             return {
                                 ...common,
                                 label: t("recovery.action_download"),
                                 onPress: () =>
-                                    void actions.dispatch(
+                                    void dispatch(
                                         TorrentIntents.ensureDataPresent(
                                             torrent.id ?? torrent.hash
                                         )
                                     ),
-                                isDisabled: !actions.dispatch,
                             };
                     }
                 })();
@@ -612,40 +607,36 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
                                 ...common,
                                 label: t("recovery.action_recreate"),
                                 onPress: () =>
-                                    void actions.dispatch(
+                                    void dispatch(
                                         TorrentIntents.ensureDataPresent(
                                             torrent.id ?? torrent.hash,
                                             true
                                         )
                                     ),
-                                isDisabled: !actions.dispatch,
                             };
                         case "volumeLoss":
                             return {
                                 ...common,
                                 label: t("recovery.action_locate"),
                                 onPress: () =>
-                                    void actions.dispatch(
+                                    void dispatch(
                                         TorrentIntents.ensureAtLocation(
                                             torrent.id ?? torrent.hash,
                                             torrent.savePath ?? ""
                                         )
                                     ),
-                                isDisabled: !actions.dispatch,
                             };
                         case "accessDenied":
                             return {
                                 ...common,
                                 label: t("recovery.action.open_folder"),
-                                onPress: () => onOpenFolder?.(torrent as any),
-                                isDisabled: !onOpenFolder,
+                                onPress: () => onOpenFolder(torrent as any),
                             };
                         default:
                             return {
                                 ...common,
                                 label: t("recovery.action.open_folder"),
-                                onPress: () => onOpenFolder?.(torrent),
-                                isDisabled: !onOpenFolder,
+                                onPress: () => onOpenFolder(torrent),
                             };
                     }
                 })();

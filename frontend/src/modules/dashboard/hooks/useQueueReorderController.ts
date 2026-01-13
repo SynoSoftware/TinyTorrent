@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from "react";
-import { useTorrentActionsContext } from "@/app/context/TorrentActionsContext";
+import { useRequiredTorrentActions } from "@/app/context/TorrentActionsContext";
 import {
     ANIMATION_SUPPRESSION_KEYS,
     type AnimationSuppressionKey,
@@ -36,7 +36,7 @@ export const useQueueReorderController = (deps: QueueControllerDeps) => {
         setDropTargetRowId,
     } = deps;
 
-    const _actions = useTorrentActionsContext();
+    const { dispatch } = useRequiredTorrentActions();
 
     const isQueueSort = useMemo(
         () =>
@@ -47,7 +47,7 @@ export const useQueueReorderController = (deps: QueueControllerDeps) => {
             ),
         [sorting]
     );
-    const canReorderQueue = isQueueSort && Boolean(_actions.dispatch);
+    const canReorderQueue = isQueueSort && Boolean(dispatch);
 
     const { handleRowDragStart, handleRowDragEnd, handleRowDragCancel } =
         useTorrentRowDrag({

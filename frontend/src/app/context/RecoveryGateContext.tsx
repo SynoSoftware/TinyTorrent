@@ -8,7 +8,7 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import { useActionFeedback } from "@/app/hooks/useActionFeedback";
-import { useTorrentActionsContext } from "@/app/context/TorrentActionsContext";
+import { useRequiredTorrentActions } from "@/app/context/TorrentActionsContext";
 import type { MutableRefObject, ReactNode } from "react";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import type {
@@ -110,7 +110,7 @@ export function RecoveryGateProvider({
     );
 
     const { showFeedback } = useActionFeedback();
-    const actions = useTorrentActionsContext();
+    const { dispatch } = useRequiredTorrentActions();
     const { t } = useTranslation();
 
     const finalizeRecovery = useCallback((result: RecoveryGateOutcome) => {
@@ -253,7 +253,7 @@ export function RecoveryGateProvider({
         detail: recoverySession?.torrent ?? null,
         envelope: recoverySession?.torrent?.errorEnvelope ?? null,
         requestRecovery,
-        dispatch: actions.dispatch,
+        dispatch,
     });
 
     const contextValue = useMemo(

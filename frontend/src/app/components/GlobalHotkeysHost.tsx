@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import { useFocusState } from "@/app/context/FocusContext";
-import { useTorrentActionsContext } from "@/app/context/TorrentActionsContext";
+import { useRequiredTorrentActions } from "@/app/context/TorrentActionsContext";
 import { useSelection } from "@/app/context/SelectionContext";
 import { TorrentIntents } from "@/app/intents/torrentIntents";
 import { KEYMAP, KEY_SCOPE, ShortcutIntent } from "@/config/logic";
@@ -25,7 +25,7 @@ export function GlobalHotkeysHost({
 }: GlobalHotkeysHostProps) {
     const { selectedIds, activeId, setSelectedIds, setActiveId } = useSelection();
     const { setActivePart } = useFocusState();
-    const actions = useTorrentActionsContext();
+    const { dispatch } = useRequiredTorrentActions();
 
     const selectedIdsRef = useRef(selectedIds);
     const activeIdRef = useRef(activeId);
@@ -34,7 +34,7 @@ export function GlobalHotkeysHost({
     const detailDataRef = useRef(detailData);
     const handleRequestDetailsRef = useRef(handleRequestDetails);
     const handleCloseDetailRef = useRef(handleCloseDetail);
-    const dispatchRef = useRef(actions.dispatch);
+    const dispatchRef = useRef(dispatch);
 
     useEffect(() => {
         selectedIdsRef.current = selectedIds;
@@ -65,8 +65,8 @@ export function GlobalHotkeysHost({
     }, [handleCloseDetail]);
 
     useEffect(() => {
-        dispatchRef.current = actions.dispatch;
-    }, [actions.dispatch]);
+        dispatchRef.current = dispatch;
+    }, [dispatch]);
 
     const scope = KEY_SCOPE.Dashboard;
 

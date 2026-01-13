@@ -13,7 +13,7 @@ import { useLifecycle } from "@/app/context/LifecycleContext";
 import { useSelection } from "@/app/context/SelectionContext";
 
 import { Dashboard_Layout } from "@/modules/dashboard/components/Dashboard_Layout";
-import { useTorrentActionsContext } from "@/app/context/TorrentActionsContext";
+import { useRequiredTorrentActions } from "@/app/context/TorrentActionsContext";
 import { TorrentIntents } from "@/app/intents/torrentIntents";
 import { SettingsModal } from "@/modules/settings/components/SettingsModal";
 import { Navbar } from "./layout/Navbar";
@@ -211,7 +211,7 @@ export function WorkspaceShell({
         nativeIntegration,
     } = useLifecycle();
     const { t } = useTranslation();
-    const actions = useTorrentActionsContext();
+    const { dispatch } = useRequiredTorrentActions();
     const { selectedIds } = useSelection();
     const selectedIdsSet = useMemo(() => new Set(selectedIds), [selectedIds]);
     const selectedTorrents = useMemo(
@@ -244,21 +244,21 @@ export function WorkspaceShell({
             hasSelection={selectedIds.length > 0}
             onEnsureSelectionActive={() => {
                 selectedIds.forEach((id) =>
-                    void actions.dispatch(TorrentIntents.ensureActive(id))
+                    void dispatch(TorrentIntents.ensureActive(id))
                 );
             }}
             onEnsureSelectionPaused={() => {
                 selectedIds.forEach((id) =>
-                    void actions.dispatch(TorrentIntents.ensurePaused(id))
+                    void dispatch(TorrentIntents.ensurePaused(id))
                 );
             }}
             onEnsureSelectionValid={() => {
-                void actions.dispatch(
+                void dispatch(
                     TorrentIntents.ensureSelectionActive(selectedIds)
                 );
             }}
             onEnsureSelectionRemoved={() => {
-                void actions.dispatch(
+                void dispatch(
                     TorrentIntents.ensureSelectionRemoved(selectedIds, false)
                 );
             }}
