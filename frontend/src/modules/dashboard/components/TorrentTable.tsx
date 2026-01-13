@@ -125,6 +125,7 @@ interface TorrentTableProps {
     disableDetailOpen?: boolean;
     ghostTorrents?: Torrent[];
     resumeTorrent?: (torrent: Torrent) => Promise<void> | void;
+    retryTorrent?: (torrent: Torrent) => Promise<void> | void;
 }
 
 // --- HELPERS ---
@@ -155,6 +156,7 @@ export function TorrentTable({
     disableDetailOpen = false,
     ghostTorrents,
     resumeTorrent,
+    retryTorrent,
 }: TorrentTableProps) {
     const { t } = useTranslation();
     // actions provided by TorrentActionsContext (declared above)
@@ -322,6 +324,7 @@ export function TorrentTable({
         setContextMenu,
         openTorrentFolder,
         resumeTorrent,
+        retryTorrent,
     });
 
     // Marquee `mousedown` and drag listeners moved to the virtualization hook.

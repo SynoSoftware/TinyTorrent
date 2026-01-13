@@ -16,7 +16,10 @@ import {
     classifyMissingFilesState,
     runMissingFilesRecoverySequence,
     probeMissingFiles,
+    clearVerifyGuardEntry,
+    pollPathAvailability,
     type RecoveryOutcome,
+    type RecoverySequenceOptions,
 } from "@/services/recovery/recovery-controller";
 import { useRecoveryController } from "@/modules/dashboard/hooks/useRecoveryController";
 import type {
@@ -32,6 +35,7 @@ import {
     setProbe as setCachedProbe,
     clearProbe as clearCachedProbe,
 } from "@/services/recovery/missingFilesStore";
+import STATUS from "@/shared/status";
 
 // --- Types ---
 
@@ -77,6 +81,20 @@ const derivePathReason = (errorClass?: string | null): PathNeededReason => {
         default:
             return "missing";
     }
+};
+
+const delay = (ms: number) =>
+    new Promise<void>((resolve) => setTimeout(resolve, ms));
+const PICK_PATH_SUCCESS_DELAY_MS = 600;
+
+const isRecoveryActiveState = (state?: string) => {
+    if (!state) return false;
+    const normalized = state.toLowerCase();
+    return (
+        normalized === STATUS.torrent.DOWNLOADING ||
+        normalized === STATUS.torrent.SEEDING ||
+        normalized === STATUS.torrent.QUEUED
+    );
 };
 
 const LAST_DOWNLOAD_DIR_KEY = "tt-add-last-download-dir";
@@ -331,11 +349,24 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
     const recoveryPromiseRef = useRef<Promise<RecoveryGateOutcome> | null>(
         null
     );
+    const recoveryAbortControllerRef = useRef<AbortController | null>(null);
+    const pendingRecoveryQueueRef = useRef<
+        Array<{
+            torrent: Torrent | TorrentDetail;
+            action: RecoveryGateAction;
+            outcome: RecoveryOutcome;
+            fingerprint: string;
+            promise: Promise<RecoveryGateOutcome>;
+            resolve: (result: RecoveryGateOutcome) => void;
+        }>
+    >([]);
+    const recoverySessionActiveRef = useRef(false);
 
     const runMissingFilesFlow = useCallback(
         async (
             torrent: Torrent | TorrentDetail,
-            options?: { recreateFolder?: boolean }
+            options?: RecoverySequenceOptions,
+            signal?: AbortSignal
         ) => {
             const activeClient = clientRef.current;
             const envelope = torrent.errorEnvelope;
@@ -353,13 +384,32 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
                     typeof torrent.leftUntilDone === "number"
                         ? torrent.leftUntilDone
                         : null;
+                const id = torrent.id ?? torrent.hash;
+                const cachedProbe = id ? getCachedProbe(id) : undefined;
+                const isLocalEmpty =
+                    serverClass === "tinytorrent" &&
+                    cachedProbe?.kind === "data_missing" &&
+                    cachedProbe.expectedBytes > 0 &&
+                    cachedProbe.onDiskBytes === 0;
+                const sequenceOptions: RecoverySequenceOptions = {
+                    ...options,
+                    missingBytes,
+                    skipVerifyIfEmpty:
+                        options?.skipVerifyIfEmpty ?? isLocalEmpty,
+                    autoCreateMissingFolder:
+                        options?.autoCreateMissingFolder ??
+                        serverClass === "tinytorrent",
+                };
+                if (signal) {
+                    sequenceOptions.signal = signal;
+                }
                 return await runMissingFilesRecoverySequence({
                     client: activeClient,
                     torrent,
                     envelope,
                     classification,
                     serverClass,
-                    options: { ...options, missingBytes },
+                    options: sequenceOptions,
                 });
             } catch (err) {
                 console.error("missing files recovery flow failed", err);
@@ -397,14 +447,112 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
     );
 
     // Lifecycle-driven probe scheduling: run probes for errored torrents when the list changes.
+    const torrentsRef = useRef(torrents);
+
     useEffect(() => {
-        const errored = torrents.filter(
-            (torrent) => torrent.errorEnvelope !== undefined && torrent.errorEnvelope !== null
+        torrentsRef.current = torrents;
+    }, [torrents]);
+
+    const volumeLossPollingRef = useRef(new Set<string>());
+
+    useEffect(() => {
+        const runProbe = () => {
+            const errored = torrentsRef.current.filter(
+                (torrent) =>
+                    torrent.errorEnvelope !== undefined &&
+                    torrent.errorEnvelope !== null
+            );
+            errored.forEach((torrent) => {
+                void probeMissingFilesIfStale(torrent);
+            });
+        };
+        runProbe();
+        const interval = setInterval(runProbe, 5000);
+        return () => clearInterval(interval);
+    }, [probeMissingFilesIfStale]);
+
+    useEffect(() => {
+        const activeStates = torrents.filter(
+            (torrent) =>
+                torrent.state === STATUS.torrent.DOWNLOADING ||
+                torrent.state === STATUS.torrent.SEEDING
         );
-        errored.forEach((torrent) => {
-            void probeMissingFilesIfStale(torrent);
+        activeStates.forEach((torrent) => {
+            clearVerifyGuardEntry(getRecoveryFingerprint(torrent));
         });
-    }, [torrents, probeMissingFilesIfStale]);
+    }, [torrents]);
+
+
+    const startRecoverySession = useCallback(
+        (entry: {
+            torrent: Torrent | TorrentDetail;
+            action: RecoveryGateAction;
+            outcome: RecoveryOutcome;
+            fingerprint: string;
+            promise: Promise<RecoveryGateOutcome>;
+            resolve: (result: RecoveryGateOutcome) => void;
+        }) => {
+            recoveryAbortControllerRef.current?.abort();
+            recoveryAbortControllerRef.current = new AbortController();
+            setRecoverySession({
+                torrent: entry.torrent,
+                action: entry.action,
+                outcome: entry.outcome,
+            });
+            recoveryResolverRef.current = entry.resolve;
+            recoveryFingerprintRef.current = entry.fingerprint;
+            recoveryPromiseRef.current = entry.promise;
+        },
+        []
+    );
+
+    const processNextRecoveryQueueEntry = useCallback(() => {
+        if (recoverySession) return;
+        const next = pendingRecoveryQueueRef.current.shift();
+        if (!next) return;
+        startRecoverySession(next);
+    }, [recoverySession, startRecoverySession]);
+
+    const createRecoveryQueueEntry = useCallback(
+        (
+            torrent: Torrent | TorrentDetail,
+            action: RecoveryGateAction,
+            outcome: RecoveryOutcome,
+            fingerprint: string
+        ) => {
+            let resolver: (result: RecoveryGateOutcome) => void = () => {};
+            const promise = new Promise<RecoveryGateOutcome>((resolve) => {
+                resolver = resolve;
+            });
+            return {
+                torrent,
+                action,
+                outcome,
+                fingerprint,
+                promise,
+                resolve: resolver,
+            };
+        },
+        []
+    );
+
+    const enqueueRecoveryEntry = useCallback(
+        (entry: ReturnType<typeof createRecoveryQueueEntry>) => {
+            if (!recoverySession) {
+                startRecoverySession(entry);
+                return entry.promise;
+            }
+            const duplicate = pendingRecoveryQueueRef.current.find(
+                (pending) => pending.fingerprint === entry.fingerprint
+            );
+            if (duplicate) {
+                return duplicate.promise;
+            }
+            pendingRecoveryQueueRef.current.push(entry);
+            return entry.promise;
+        },
+        [recoverySession, startRecoverySession]
+    );
 
     const requestRecovery: RecoveryGateCallback = useCallback(
         async ({ torrent, action, options }) => {
@@ -414,23 +562,17 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
 
             let blockingOutcome: RecoveryOutcome | null = null;
             try {
-                const flowResult = await runMissingFilesFlow(torrent, options);
+                const flowResult = await runMissingFilesFlow(
+                    torrent,
+                    options,
+                    recoveryAbortControllerRef.current?.signal
+                );
                 if (flowResult?.status === "resolved") {
+                    clearVerifyGuardEntry(getRecoveryFingerprint(torrent));
                     if (torrent.id ?? torrent.hash) {
                         clearCachedProbe(torrent.id ?? torrent.hash);
                     }
-                    if (flowResult.log === "all_verified_resuming") {
-                        showFeedback(
-                            t("recovery.feedback.all_verified_resuming"),
-                            "info"
-                        );
-                    } else {
-                        showFeedback(
-                            t("recovery.feedback.download_resumed"),
-                            "info"
-                        );
-                    }
-                    return { status: "handled" };
+                    return { status: "handled", log: flowResult.log };
                 }
                 if (flowResult?.status === "needsModal") {
                     blockingOutcome = flowResult.blockingOutcome ?? null;
@@ -443,40 +585,42 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
             }
 
             if (!blockingOutcome) return null;
-            if (action === "recheck") return { status: "continue" };
-
-            const fingerprint = getRecoveryFingerprint(torrent);
-            if (recoveryFingerprintRef.current) {
-                if (recoveryFingerprintRef.current === fingerprint) {
-                    return recoveryPromiseRef.current ?? null;
-                }
-                return { status: "cancelled" };
+            if (action === "recheck") {
+                return {
+                    status: "handled",
+                    blockingOutcome,
+                };
             }
 
-            const promise = new Promise<RecoveryGateOutcome>((resolve) => {
-                recoveryResolverRef.current = resolve;
-                setRecoverySession({
-                    torrent,
-                    action,
-                    outcome: blockingOutcome,
-                });
-            });
-
-            recoveryFingerprintRef.current = fingerprint;
-            recoveryPromiseRef.current = promise;
-            return promise;
+            const fingerprint = getRecoveryFingerprint(torrent);
+            if (recoveryFingerprintRef.current === fingerprint) {
+                return recoveryPromiseRef.current ?? null;
+            }
+            const entry = createRecoveryQueueEntry(
+                torrent,
+                action,
+                blockingOutcome,
+                fingerprint
+            );
+            return enqueueRecoveryEntry(entry);
         },
-        [runMissingFilesFlow]
+        [runMissingFilesFlow, createRecoveryQueueEntry, enqueueRecoveryEntry]
     );
 
-    const finalizeRecovery = useCallback((result: RecoveryGateOutcome) => {
-        const resolver = recoveryResolverRef.current;
-        recoveryResolverRef.current = null;
-        recoveryFingerprintRef.current = null;
-        recoveryPromiseRef.current = null;
-        setRecoverySession(null);
-        resolver?.(result);
-    }, []);
+    const finalizeRecovery = useCallback(
+        (result: RecoveryGateOutcome) => {
+            recoveryAbortControllerRef.current?.abort();
+            recoveryAbortControllerRef.current = null;
+            const resolver = recoveryResolverRef.current;
+            recoveryResolverRef.current = null;
+            recoveryFingerprintRef.current = null;
+            recoveryPromiseRef.current = null;
+            setRecoverySession(null);
+            resolver?.(result);
+            processNextRecoveryQueueEntry();
+        },
+        [processNextRecoveryQueueEntry]
+    );
 
     const {
         recoveryCallbacks,
@@ -489,38 +633,6 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
         requestRecovery,
         dispatch,
     });
-
-    const resumeTorrentWithRecovery = useCallback(
-        async (torrent: Torrent | TorrentDetail) => {
-            const id = torrent.id ?? torrent.hash;
-            if (!id) return;
-            if (torrent.errorEnvelope) {
-                const gateResult = await requestRecovery({
-                    torrent,
-                    action: "resume",
-                });
-                if (gateResult?.status === "continue") {
-                    await dispatch(TorrentIntents.ensureActive(id));
-                    return;
-                }
-                if (!gateResult) {
-                    await dispatch(TorrentIntents.ensureActive(id));
-                    return;
-                }
-                return;
-            }
-            await dispatch(TorrentIntents.ensureActive(id));
-        },
-        [dispatch, requestRecovery]
-    );
-
-    const handleRecoveryClose = useCallback(() => {
-        if (!recoveryResolverRef.current) return;
-        finalizeRecovery({ status: "cancelled" });
-    }, [finalizeRecovery]);
-
-    // --- 5. Retry / Redownload / Dedupe ---
-    const redownloadInFlight = useRef<Set<string>>(new Set());
 
     const refreshAfterRecovery = useCallback(
         async (target: Torrent | TorrentDetail) => {
@@ -537,6 +649,207 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
             refreshTorrentsRef,
         ]
     );
+
+    type ResolveRecoverySessionOptions = RecoverySequenceOptions & {
+        delayAfterSuccessMs?: number;
+        notifyDriveDetected?: boolean;
+    };
+
+    const resolveRecoverySession = useCallback(
+        async (
+            torrent: Torrent | TorrentDetail,
+            options?: ResolveRecoverySessionOptions
+        ) => {
+            try {
+                const {
+                    delayAfterSuccessMs,
+                    notifyDriveDetected,
+                    ...sequenceOptions
+                } = options ?? {};
+                const flowResult = await runMissingFilesFlow(
+                    torrent,
+                    sequenceOptions,
+                    recoveryAbortControllerRef.current?.signal
+                );
+                if (!flowResult) return false;
+                if (flowResult.status === "resolved") {
+                    const targetKey = torrent.id ?? torrent.hash ?? "";
+                    clearVerifyGuardEntry(getRecoveryFingerprint(torrent));
+                    if (targetKey) {
+                        clearCachedProbe(targetKey);
+                    }
+                    try {
+                        await refreshAfterRecovery(torrent);
+                    } catch (err) {
+                        console.error("refresh after recovery failed", err);
+                    }
+                    if (notifyDriveDetected) {
+                        showFeedback(
+                            t("recovery.toast_drive_detected"),
+                            "info"
+                        );
+                    }
+                    const feedbackKey =
+                        flowResult.log === "all_verified_resuming"
+                            ? "recovery.feedback.all_verified_resuming"
+                            : "recovery.feedback.download_resumed";
+                    showFeedback(t(feedbackKey), "info");
+                    if (delayAfterSuccessMs && delayAfterSuccessMs > 0) {
+                        await delay(delayAfterSuccessMs);
+                    }
+                    finalizeRecovery({ status: "handled" });
+                    return true;
+                }
+                if (flowResult.status === "needsModal") {
+                    if (flowResult.blockingOutcome) {
+                        setRecoverySession((prev) =>
+                            prev
+                                ? {
+                                      ...prev,
+                                      outcome: flowResult.blockingOutcome,
+                                  }
+                                : prev
+                        );
+                    }
+                }
+                return false;
+            } catch (err) {
+                console.error(
+                    "recovery resolution failed for recreate/pick-path",
+                    err
+                );
+                return false;
+            }
+        },
+        [
+            runMissingFilesFlow,
+            refreshAfterRecovery,
+            showFeedback,
+            t,
+            finalizeRecovery,
+        ]
+    );
+
+    useEffect(() => {
+        if (serverClass !== "tinytorrent") return;
+        const checkInterval = 2000;
+        const interval = setInterval(() => {
+            const client = clientRef.current;
+            const currentTorrents = torrentsRef.current;
+            if (!client || !client.checkFreeSpace || !currentTorrents.length)
+                return;
+            currentTorrents.forEach((torrent) => {
+                const id = torrent.id ?? torrent.hash;
+                if (!id) return;
+                if (volumeLossPollingRef.current.has(id)) return;
+                if (
+                    recoverySession &&
+                    getRecoveryFingerprint(recoverySession.torrent) ===
+                        getRecoveryFingerprint(torrent)
+                ) {
+                    return;
+                }
+                const downloadDir =
+                    torrent.savePath ?? torrent.downloadDir ?? torrent.savePath;
+                const classification = classifyMissingFilesState(
+                    torrent.errorEnvelope ?? null,
+                    downloadDir,
+                    serverClass,
+                    { torrentId: id }
+                );
+                if (classification.kind !== "volumeLoss") return;
+                if (!downloadDir) return;
+                volumeLossPollingRef.current.add(id);
+                void pollPathAvailability(client, downloadDir).then((probe) => {
+                    volumeLossPollingRef.current.delete(id);
+                    if (probe.success && torrent.errorEnvelope) {
+                        void resolveRecoverySession(torrent, {
+                            notifyDriveDetected: true,
+                        });
+                    }
+                });
+            });
+        }, checkInterval);
+        return () => clearInterval(interval);
+    }, [clientRef, recoverySession, resolveRecoverySession, serverClass]);
+
+    const waitForActiveState = useCallback(
+        async (torrentId: string, timeoutMs = 1000) => {
+            const client = clientRef.current;
+            if (!client || !client.getTorrentDetails) {
+                return true;
+            }
+            const deadline = Date.now() + timeoutMs;
+            while (Date.now() < deadline) {
+                try {
+                    const detail = await client.getTorrentDetails(torrentId);
+                    if (
+                        detail &&
+                        isRecoveryActiveState(detail.state)
+                    ) {
+                        return true;
+                    }
+                } catch {
+                    // best-effort; keep polling
+                }
+                await delay(200);
+            }
+            return false;
+        },
+        [clientRef]
+    );
+
+    const resumeTorrentWithRecovery = useCallback(
+        async (torrent: Torrent | TorrentDetail) => {
+            const id = torrent.id ?? torrent.hash;
+            if (!id) return;
+            if (torrent.errorEnvelope) {
+                const gateResult = await requestRecovery({
+                    torrent,
+                    action: "resume",
+                });
+                if (gateResult?.status === "handled") {
+                    try {
+                        await refreshAfterRecovery(torrent);
+                    } catch (err) {
+                        console.error("refresh after recovery failed", err);
+                    }
+                    const resumed = await waitForActiveState(id);
+                    const isAllVerified =
+                        gateResult.log === "all_verified_resuming";
+                    const toastKey = isAllVerified
+                        ? "recovery.feedback.all_verified_resuming"
+                        : resumed
+                        ? "recovery.feedback.download_resumed"
+                        : "recovery.feedback.resume_queued";
+                    const tone: FeedbackTone =
+                        isAllVerified || resumed ? "info" : "warning";
+                    showFeedback(t(toastKey), tone);
+                    return;
+                }
+                if (gateResult?.status === "continue") {
+                    await dispatch(TorrentIntents.ensureActive(id));
+                    return;
+                }
+                if (!gateResult) {
+                    await dispatch(TorrentIntents.ensureActive(id));
+                    return;
+                }
+                return;
+            }
+            await dispatch(TorrentIntents.ensureActive(id));
+        },
+        [dispatch, requestRecovery, refreshAfterRecovery, showFeedback, t]
+    );
+
+    const handleRecoveryClose = useCallback(() => {
+        if (!recoveryResolverRef.current) return;
+        recoveryAbortControllerRef.current?.abort();
+        finalizeRecovery({ status: "cancelled" });
+    }, [finalizeRecovery]);
+
+    // --- 5. Retry / Redownload / Dedupe ---
+    const redownloadInFlight = useRef<Set<string>>(new Set());
 
     const executeRedownload = useCallback(
         async (
@@ -555,12 +868,12 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
                 });
                 if (gateResult && gateResult.status !== "continue") {
                     if (gateResult.status === "handled") {
+                        clearCachedProbe(target.id ?? target.hash ?? "");
+                        await refreshAfterRecovery(target);
                         showFeedback(
                             t("recovery.feedback.download_resumed"),
                             "info"
                         );
-                        clearCachedProbe(target.id ?? target.hash ?? "");
-                        await refreshAfterRecovery(target);
                     }
                     return;
                 }
@@ -583,6 +896,7 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
         async (target: Torrent | TorrentDetail) => {
             const activeClient = clientRef.current;
             if (!activeClient) return;
+            clearVerifyGuardEntry(getRecoveryFingerprint(target));
 
             const gateResult = await requestRecovery({
                 torrent: target,
@@ -596,21 +910,20 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
             } catch (err) {
                 console.error("refresh after retry probe failed", err);
             }
-            if (
-                (!gateResult || gateResult.status !== "continue") &&
-                (target.id ?? target.hash)
-            ) {
+            const targetId = target.id ?? target.hash;
+            const shouldResume =
+                !gateResult || gateResult.status === "continue";
+            if (shouldResume && targetId) {
                 try {
-                    await dispatch(
-                        TorrentIntents.ensureActive(
-                            target.id ?? target.hash
-                        )
-                    );
+                    await dispatch(TorrentIntents.ensureActive(targetId));
                 } catch (err) {
                     console.error("retry resume failed", err);
                 }
             }
-            if (gateResult && gateResult.status !== "continue") return;
+            if (!shouldResume) {
+                showFeedback(t("recovery.feedback.retry_failed"), "warning");
+                return;
+            }
         },
         [clientRef, requestRecovery, refreshAfterRecovery, dispatch]
     );
@@ -621,12 +934,19 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
         handleRecoveryClose();
     }, [executeRetryFetch, recoverySession, handleRecoveryClose]);
 
-    const handleRecoveryRecreateFolder = useCallback(() => {
-        if (!recoverySession?.torrent) return Promise.resolve();
-        return executeRedownload(recoverySession.torrent, {
+    const handleRecoveryAutoRetry = useCallback(async () => {
+        if (!recoverySession?.torrent) return;
+        await resolveRecoverySession(recoverySession.torrent, {
+            notifyDriveDetected: true,
+        });
+    }, [recoverySession, resolveRecoverySession]);
+
+    const handleRecoveryRecreateFolder = useCallback(async () => {
+        if (!recoverySession?.torrent) return;
+        await resolveRecoverySession(recoverySession.torrent, {
             recreateFolder: true,
         });
-    }, [executeRedownload, recoverySession]);
+    }, [recoverySession, resolveRecoverySession]);
 
     const recoveryRequestBrowse = useCallback(
         async (currentPath?: string | null) => {
@@ -647,9 +967,31 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
     const handleRecoveryPickPath = useCallback(
         async (path: string) => {
             if (!recoveryCallbacks?.handlePickPath) return;
-            await recoveryCallbacks.handlePickPath(path);
+            if (!recoverySession?.torrent) return;
+            const outcome = await recoveryCallbacks.handlePickPath(path);
+            if (outcome?.kind !== "resolved") return;
+            const updatedTorrent: Torrent | TorrentDetail = {
+                ...recoverySession.torrent,
+                downloadDir: path,
+                savePath: path,
+            };
+            await resolveRecoverySession(updatedTorrent, {
+                delayAfterSuccessMs: PICK_PATH_SUCCESS_DELAY_MS,
+            });
         },
-        [recoveryCallbacks]
+        [recoveryCallbacks, recoverySession, resolveRecoverySession]
+    );
+
+    const setLocationAndRecover = useCallback(
+        async (torrent: Torrent | TorrentDetail, path: string) => {
+            const updatedTorrent: Torrent | TorrentDetail = {
+                ...torrent,
+                downloadDir: path,
+                savePath: path,
+            };
+            await resumeTorrentWithRecovery(updatedTorrent);
+        },
+        [resumeTorrentWithRecovery]
     );
 
     const isDetailRecoveryBlocked = useMemo(() => {
@@ -738,8 +1080,10 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
         executeRedownload,
         executeRetryFetch,
         handleRecoveryRetry,
+        handleRecoveryAutoRetry,
         handleRecoveryClose,
         handleRecoveryPickPath,
+        setLocationAndRecover,
         handleRecoveryRecreateFolder,
         recoveryRequestBrowse,
         resumeTorrentWithRecovery,

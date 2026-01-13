@@ -7,7 +7,7 @@ import {
     ModalHeader,
     cn,
 } from "@heroui/react";
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, HardDrive, X } from "lucide-react";
 
@@ -57,6 +57,7 @@ export interface TorrentRecoveryModalProps {
     onPickPath: (path: string) => Promise<void>;
     onBrowse?: (currentPath?: string | null) => Promise<string | null>;
     onRecreate?: () => Promise<void>;
+    onAutoRetry?: () => Promise<void>;
     isBusy?: boolean;
 }
 
@@ -77,6 +78,7 @@ export default function TorrentRecoveryModal({
     onPickPath,
     onBrowse,
     onRecreate,
+    onAutoRetry,
     isBusy,
 }: TorrentRecoveryModalProps) {
     const { t } = useTranslation();
@@ -158,6 +160,22 @@ export default function TorrentRecoveryModal({
         () => resolveOutcomeMessage(outcome, t),
         [outcome, t]
     );
+
+    const autoRetryRef = useRef(false);
+    useEffect(() => {
+        if (!isOpen || !isVolumeLoss || !onAutoRetry || busy) return;
+        const interval = setInterval(() => {
+            if (autoRetryRef.current) return;
+            autoRetryRef.current = true;
+            void onAutoRetry().finally(() => {
+                autoRetryRef.current = false;
+            });
+        }, 2000);
+        return () => {
+            clearInterval(interval);
+            autoRetryRef.current = false;
+        };
+    }, [isOpen, isVolumeLoss, onAutoRetry, busy]);
 
     const handleBrowse = useCallback(async () => {
         if (!onBrowse || busy) return;

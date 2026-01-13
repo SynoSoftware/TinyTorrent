@@ -81,6 +81,7 @@ interface DashboardLayoutProps {
     isDropActive?: boolean;
     tableWatermarkEnabled?: boolean;
     resumeTorrent?: (torrent: Torrent | TorrentDetail) => Promise<void> | void;
+    retryTorrent?: (torrent: Torrent | TorrentDetail) => Promise<void> | void;
 }
 
 export function Dashboard_Layout({
@@ -100,6 +101,7 @@ export function Dashboard_Layout({
     onSequentialToggle,
     onSuperSeedingToggle,
     resumeTorrent,
+    retryTorrent,
 
     isDetailRecoveryBlocked,
     // onOpenFolder removed from props
@@ -319,8 +321,9 @@ export function Dashboard_Layout({
                                     ghostTorrents={ghostTorrents}
                                     /* onOpenFolder removed; leaf components use TorrentActionsContext */
                                     /* onSetLocation removed: use TorrentActionsContext.setLocation */
-                                    resumeTorrent={resumeTorrent}
-                                />
+                                resumeTorrent={resumeTorrent}
+                                retryTorrent={retryTorrent}
+                            />
                             </div>
                         </div>
                         {dropOverlay}

@@ -6,18 +6,10 @@ type ProbeMode = "local" | "remote" | "unknown";
 
 export function formatMissingFileDetails(
     t: TFunction,
-    probe?: MissingFilesProbeResult,
-    mode: ProbeMode = "unknown"
+    probe?: MissingFilesProbeResult
 ): string[] {
     if (!probe) {
-        const checkingKey =
-            mode === "local"
-                ? "recovery.status.checking_files"
-                : "recovery.status.checking_location";
-        return [
-            t("torrent_modal.errors.no_data_found_title"),
-            t(checkingKey),
-        ];
+        return [t("recovery.status.waiting_status")];
     }
 
     if (probe.kind === "unknown") {

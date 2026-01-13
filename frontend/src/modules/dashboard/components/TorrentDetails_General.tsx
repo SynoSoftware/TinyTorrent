@@ -34,6 +34,8 @@ import {
     formatMissingFileDetails,
 } from "@/modules/dashboard/utils/missingFiles";
 import { useMissingFilesProbe } from "@/services/recovery/missingFilesStore";
+import { useOpenTorrentFolder } from "@/app/hooks/useOpenTorrentFolder";
+import STATUS from "@/shared/status";
 
 interface GeneralTabProps {
     torrent: TorrentDetail;
@@ -98,7 +100,6 @@ export const GeneralTab = ({
     isRecoveryBlocked,
 }: GeneralTabProps) => {
     const { t } = useTranslation();
-    const [showConfirm, setShowConfirm] = useState(false);
     const handleCopyHash = () => writeClipboard(torrent.hash);
 
     const renderCapabilityNote = (state: CapabilityState) => {
@@ -111,7 +112,11 @@ export const GeneralTab = ({
     };
 
     const peerCount = activePeers;
-    const { serverClass } = useRecoveryContext();
+    const {
+        serverClass,
+        handleSetLocation,
+        handleDownloadMissing,
+    } = useRecoveryContext();
     const probe = useMissingFilesProbe(torrent.id);
     const probeMode =
         serverClass === "tinytorrent"
@@ -119,33 +124,41 @@ export const GeneralTab = ({
             : serverClass === "transmission"
             ? "remote"
             : "unknown";
-    const probeLines = formatMissingFileDetails(t, probe, probeMode);
+    const probeLines = formatMissingFileDetails(t, probe);
 
-    const showMissingFilesError = torrent.state === "missing_files";
+    const effectiveState =
+        torrent.errorEnvelope?.recoveryState &&
+        torrent.errorEnvelope.recoveryState !== "ok"
+            ? torrent.errorEnvelope.recoveryState
+            : torrent.state;
+
+    const showMissingFilesError =
+        effectiveState === STATUS.torrent.MISSING_FILES;
+
+    const openFolder = useOpenTorrentFolder();
+    const currentPath =
+        downloadDir ?? torrent.savePath ?? torrent.downloadDir ?? "";
 
     const { dispatch } = useRequiredTorrentActions();
     const handleSetLocationAction = () => {
-        void dispatch(
-            TorrentIntents.ensureAtLocation(
-                torrent?.id ?? torrent?.hash,
-                torrent?.savePath ?? ""
-            )
-        );
+        if (!handleSetLocation) {
+            return;
+        }
+        void handleSetLocation(torrent);
     };
 
     const handleResumeAction = () => {
-        if (onResume) {
-            void onResume(torrent);
+        if (!onResume) {
+            console.warn("Resume handler missing; action ignored");
             return;
         }
-        void dispatch(
-            TorrentIntents.ensureActive(torrent?.id ?? torrent?.hash)
-        );
+        void onResume(torrent);
     };
 
-    const statusLabelKey = `table.status_${torrent.state}`;
+    const stateKey = typeof torrent.state === "string" ? torrent.state : "unknown";
+    const statusLabelKey = `table.status_${stateKey}`;
     const statusLabel = t(statusLabelKey, {
-        defaultValue: torrent.state.replace("_", " "),
+        defaultValue: stateKey.replace(/_/g, " "),
     });
 
     const recoveryStateLabel = torrent.errorEnvelope?.errorClass
@@ -176,14 +189,16 @@ export const GeneralTab = ({
     };
 
     const handleRemoveConfirm = async (deleteData: boolean) => {
+        setShowRemoveModal(false);
         try {
-            window.dispatchEvent(
-                new CustomEvent("tiny-torrent:remove", {
-                    detail: { id: torrent.id, hash: torrent.hash, deleteData },
-                })
+            await dispatch(
+                TorrentIntents.ensureRemoved(
+                    torrent?.id ?? torrent?.hash,
+                    deleteData
+                )
             );
         } catch (err) {
-            console.error("dispatch remove event failed", err);
+            console.error("remove torrent action failed", err);
         }
     };
 
@@ -263,6 +278,30 @@ export const GeneralTab = ({
                                 {recoveryBlockedMessage}
                             </div>
                         )}
+                        <div className="flex flex-wrap gap-tight pt-tight">
+                            <Button
+                                variant="shadow"
+                                size="md"
+                                color="primary"
+                                onPress={() =>
+                                    handleDownloadMissing?.(torrent)
+                                }
+                                isDisabled={!handleDownloadMissing}
+                                className="h-auto"
+                            >
+                                {t("recovery.action_download")}
+                            </Button>
+                            <Button
+                                variant="light"
+                                size="md"
+                                color="default"
+                                onPress={() => void openFolder(currentPath)}
+                                isDisabled={!currentPath}
+                                className="h-auto"
+                            >
+                                {t("recovery.action_open_folder")}
+                            </Button>
+                        </div>
                     </div>
                 </GlassPanel>
             )}

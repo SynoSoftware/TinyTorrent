@@ -93,6 +93,9 @@ export interface RecoverySequenceOptions {
     recreateFolder?: boolean;
     retryOnly?: boolean;
     missingBytes?: number | null;
+    signal?: AbortSignal;
+    skipVerifyIfEmpty?: boolean;
+    autoCreateMissingFolder?: boolean;
 }
 
 export interface RecoverySequenceParams {
@@ -134,6 +137,11 @@ export function recordVerifyAttempt(
 ) {
     if (!fingerprint) return;
     VERIFY_GUARD.set(fingerprint, left);
+}
+
+export function clearVerifyGuardEntry(fingerprint?: string | null) {
+    if (!fingerprint) return;
+    VERIFY_GUARD.delete(fingerprint);
 }
 
 function deriveFingerprint(
@@ -228,6 +236,17 @@ const RECOVERY_ERROR_CLASSES: ReadonlySet<string> = new Set([
     "diskFull",
 ]);
 
+function normalizePathForComparison(path?: string): string {
+    if (!path) return "";
+    return path.replace(/[\\/]+$/, "").toLowerCase();
+}
+
+function appendTrailingSlashForForce(path: string): string {
+    if (!path) return path;
+    if (path.endsWith("\\") || path.endsWith("/")) return path;
+    return `${path}\\`;
+}
+
 export async function runMissingFilesRecoverySequence(
     params: RecoverySequenceParams
 ): Promise<RecoverySequenceResult> {
@@ -267,6 +286,17 @@ export async function runMissingFilesRecoverySequence(
                 torrent.savePath ??
                 torrent.downloadDir ??
                 "";
+            const compareCurrent =
+                normalizePathForComparison(
+                    (torrent as TorrentDetailEntity).downloadDir ??
+                        torrent.savePath ??
+                        torrent.downloadDir
+                );
+            const compareRequested = normalizePathForComparison(downloadDir);
+            const requestLocation =
+                compareCurrent && compareCurrent === compareRequested
+                    ? appendTrailingSlashForForce(downloadDir)
+                    : downloadDir;
 
             const missingBytes =
                 typeof torrent.leftUntilDone === "number"
@@ -303,7 +333,11 @@ export async function runMissingFilesRecoverySequence(
                     });
                     return;
                 }
-                const probe = await pollPathAvailability(client, downloadDir);
+                const probe = await pollPathAvailability(
+                    client,
+                    downloadDir,
+                    options?.signal
+                );
                 if (!probe.success) {
                     const reason = deriveReasonFromFsError(probe.errorKind);
                     deferredHandlers.resolve({
@@ -330,6 +364,14 @@ export async function runMissingFilesRecoverySequence(
                         setClassificationOverride(torrent.id, classification);
                     }
                 }
+            }
+
+            if (options?.retryOnly) {
+                deferredHandlers.resolve({
+                    status: "noop",
+                    classification,
+                });
+                return;
             }
 
             const ensure = await ensurePathReady({
@@ -362,7 +404,7 @@ export async function runMissingFilesRecoverySequence(
                 try {
                     await client.setTorrentLocation(
                         torrent.id,
-                        downloadDir,
+                        requestLocation,
                         false
                     );
                 } catch (err) {
@@ -382,12 +424,15 @@ export async function runMissingFilesRecoverySequence(
                 }
             }
 
-            const minimal = await runMinimalSequence({
-                client,
-                torrent,
-                envelope,
-                classification,
-            });
+            const minimal = await runMinimalSequence(
+                {
+                    client,
+                    torrent,
+                    envelope,
+                    classification,
+                },
+                options
+            );
             deferredHandlers.resolve(minimal);
         } catch (err) {
             deferredHandlers.reject(err);
@@ -440,7 +485,10 @@ async function ensurePathReady({
     } catch (err) {
         const kind = interpretFsError(err);
         if (kind === "enoent") {
-            if (options?.recreateFolder) {
+            const shouldCreateFolder =
+                Boolean(options?.recreateFolder) ||
+                Boolean(options?.autoCreateMissingFolder);
+            if (shouldCreateFolder) {
                 if (client.createDirectory) {
                     try {
                         await client.createDirectory(path);
@@ -467,17 +515,21 @@ async function ensurePathReady({
                         };
                     }
                 }
-                return { ready: true };
+                return {
+                    ready: false,
+                    blockingOutcome: {
+                        kind: "path-needed",
+                        reason: "missing",
+                        message: "directory_creation_not_supported",
+                    },
+                };
             }
             return {
                 ready: false,
                 blockingOutcome: {
                     kind: "path-needed",
                     reason: "missing",
-                    message:
-                        client.createDirectory === undefined
-                            ? "directory_creation_not_supported"
-                            : "path_check_failed",
+                    message: "path_check_failed",
                 },
             };
         }
@@ -516,9 +568,10 @@ type PathProbeResult =
     | { success: true }
     | { success: false; errorKind: FsErrorKind };
 
-async function pollPathAvailability(
+export async function pollPathAvailability(
     client: EngineAdapter,
-    path: string
+    path: string,
+    signal?: AbortSignal
 ): Promise<PathProbeResult> {
     if (!client.checkFreeSpace) {
         return { success: false, errorKind: "other" as FsErrorKind };
@@ -526,14 +579,14 @@ async function pollPathAvailability(
     const deadline = Date.now() + POLL_TIMEOUT_MS;
     let lastKind: FsErrorKind | null = null;
     while (Date.now() < deadline) {
+        if (signal?.aborted) {
+            return { success: false, errorKind: lastKind ?? "other" };
+        }
         try {
             await client.checkFreeSpace(path);
             return { success: true };
         } catch (err) {
             lastKind = interpretFsError(err);
-            if (lastKind !== "enoent") {
-                return { success: false, errorKind: lastKind };
-            }
         }
         await delay(POLL_INTERVAL_MS);
     }
@@ -550,16 +603,40 @@ function isCheckingState(state?: string) {
     );
 }
 
+function isTerminalErrorState(state?: string) {
+    return (
+        state === STATUS.torrent.ERROR ||
+        state === STATUS.torrent.MISSING_FILES
+    );
+}
+
+interface VerifyWatchResult {
+    success: boolean;
+    leftUntilDone: number | null;
+    state?: string;
+    aborted?: boolean;
+}
+
 async function watchVerifyCompletion(
     client: EngineAdapter,
-    torrentId: string
-): Promise<{ success: boolean; leftUntilDone: number | null; state?: string }> {
+    torrentId: string,
+    signal?: AbortSignal
+): Promise<VerifyWatchResult> {
     if (!client.getTorrentDetails) {
         return { success: true, leftUntilDone: null };
     }
     const deadline = Date.now() + VERIFY_WATCH_TIMEOUT_MS;
     let lastLeft: number | null = null;
+    let lastState: string | undefined;
     while (Date.now() < deadline) {
+        if (signal?.aborted) {
+            return {
+                success: false,
+                leftUntilDone: lastLeft,
+                state: lastState,
+                aborted: true,
+            };
+        }
         try {
             const detail = await client.getTorrentDetails(torrentId);
             const state = detail.state;
@@ -568,23 +645,36 @@ async function watchVerifyCompletion(
                     ? detail.leftUntilDone
                     : null;
             lastLeft = left;
+            lastState = state;
             if (!isCheckingState(state)) {
-                return { success: true, leftUntilDone: left, state };
+                const isErrorState = isTerminalErrorState(state);
+                return {
+                    success: !isErrorState,
+                    leftUntilDone: left,
+                    state,
+                };
             }
         } catch {
             // best-effort; continue polling
         }
         await delay(VERIFY_WATCH_INTERVAL_MS);
     }
-    return { success: false, leftUntilDone: lastLeft };
+    return {
+        success: false,
+        leftUntilDone: lastLeft,
+        state: lastState,
+    };
 }
 
-async function runMinimalSequence(params: {
-    client: EngineAdapter;
-    torrent: TorrentEntity | TorrentDetailEntity;
-    envelope: ErrorEnvelope;
-    classification: MissingFilesClassification;
-}): Promise<RecoverySequenceResult> {
+async function runMinimalSequence(
+    params: {
+        client: EngineAdapter;
+        torrent: TorrentEntity | TorrentDetailEntity;
+        envelope: ErrorEnvelope;
+        classification: MissingFilesClassification;
+    },
+    options?: RecoverySequenceOptions
+): Promise<RecoverySequenceResult> {
     const { client, torrent, envelope } = params;
     let { classification } = params;
     const fingerprint = deriveFingerprint(torrent, envelope);
@@ -594,16 +684,72 @@ async function runMinimalSequence(params: {
             : null;
     // leftAfterVerify tracks remaining bytes after any verify operation.
     let leftAfterVerify: number | null = left;
-    const shouldVerify = determineShouldVerify(torrent);
+    const skipVerifyForEmpty = Boolean(options?.skipVerifyIfEmpty);
+    const shouldVerify = determineShouldVerify(torrent) && !skipVerifyForEmpty;
+    const skipVerify =
+        shouldVerify && shouldSkipVerify(fingerprint, left);
+    const signal = options?.signal;
 
-    if (shouldVerify && client.verify) {
-        if (!shouldSkipVerify(fingerprint, left)) {
+    if (shouldVerify) {
+        if (skipVerify) {
+            const isErrorState =
+                torrent.state === STATUS.torrent.ERROR ||
+                torrent.state === STATUS.torrent.MISSING_FILES;
+            if (isErrorState) {
+                return {
+                    status: "needsModal",
+                    classification,
+                    blockingOutcome: {
+                        kind: "error",
+                        message: "verify_required",
+                    },
+                };
+            }
+            classification = {
+                ...classification,
+                kind: "dataGap",
+                confidence: "certain",
+            };
+            if (torrent.id) {
+                setClassificationOverride(torrent.id, classification);
+            }
+        } else {
+            if (signal?.aborted) {
+                return { status: "noop", classification };
+            }
             try {
                 await client.verify([torrent.id]);
                 const watchResult = await watchVerifyCompletion(
                     client,
-                    torrent.id
+                    torrent.id,
+                    signal
                 );
+                if (!watchResult.success) {
+                    if (watchResult.aborted) {
+                        return {
+                            status: "noop",
+                            classification,
+                        };
+                    }
+                    if (
+                        watchResult.state &&
+                        isTerminalErrorState(watchResult.state)
+                    ) {
+                        return {
+                            status: "needsModal",
+                            classification,
+                            blockingOutcome: {
+                                kind: "error",
+                                message: "verify_failed",
+                            },
+                        };
+                    }
+                    return {
+                        status: "resolved",
+                        classification,
+                        log: "verify_timeout",
+                    };
+                }
                 if (watchResult.leftUntilDone !== null) {
                     leftAfterVerify = watchResult.leftUntilDone;
                 }
@@ -625,16 +771,14 @@ async function runMinimalSequence(params: {
                     },
                 };
             }
-        } else {
-            classification = {
-                ...classification,
-                kind: "dataGap",
-                confidence: "certain",
-            };
+            if (torrent.id) {
+                setClassificationOverride(torrent.id, classification);
+            }
         }
-        if (torrent.id) {
-            setClassificationOverride(torrent.id, classification);
-        }
+    }
+
+    if (signal?.aborted) {
+        return { status: "noop", classification };
     }
 
     try {
@@ -673,6 +817,9 @@ async function runMinimalSequence(params: {
 function determineShouldVerify(
     torrent: TorrentEntity | TorrentDetailEntity
 ): boolean {
+    if (isCheckingState(torrent.state)) {
+        return false;
+    }
     const isActive =
         torrent.state === STATUS.torrent.DOWNLOADING ||
         torrent.state === STATUS.torrent.SEEDING;
@@ -832,16 +979,15 @@ export async function probeMissingFiles(
         serverClass,
         { torrentId: torrent.id ?? torrent.hash }
     );
-    let kind: MissingFilesProbeResult["kind"] = "data_missing";
-    if (
-        classification.kind === "pathLoss" ||
-        classification.kind === "volumeLoss"
-    ) {
-        kind = "path_missing";
-    }
-    if (classification.kind === "accessDenied") {
-        kind = "data_missing";
-    }
+    const kindMap: Record<MissingFilesStateKind, MissingFilesProbeResult["kind"]> =
+        {
+            dataGap: "unknown",
+            pathLoss: "path_missing",
+            volumeLoss: "path_missing",
+            accessDenied: "data_missing",
+        };
+    const kind =
+        kindMap[classification.kind] ?? "unknown";
     if (kind === "path_missing") {
         return {
             kind: "path_missing",
@@ -855,13 +1001,22 @@ export async function probeMissingFiles(
         };
     }
 
+    if (kind === "data_missing") {
+        return {
+            kind: "data_missing",
+            confidence: classification.confidence,
+            expectedBytes,
+            onDiskBytes: null,
+            missingBytes: null,
+            toDownloadBytes: null,
+            ts,
+        };
+    }
+
     return {
-        kind,
+        kind: "unknown",
         confidence: classification.confidence,
         expectedBytes,
-        onDiskBytes: null,
-        missingBytes: null,
-        toDownloadBytes: null,
         ts,
     };
 }
