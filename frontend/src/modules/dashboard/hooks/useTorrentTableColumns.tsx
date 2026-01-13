@@ -17,10 +17,12 @@ export function useTorrentTableColumns({
     t,
     speedHistoryRef,
     optimisticStatuses,
+    openFolder,
 }: {
     t: TFunction;
     speedHistoryRef: React.RefObject<Record<string, Array<number | null>>>;
     optimisticStatuses: OptimisticStatusMap;
+    openFolder?: (path?: string | null) => void;
 }): { columns: ColumnDef<Torrent>[]; tableMeta: DashboardTableMeta } {
     const { handleRetry } = useRecoveryContext();
     const { serverClass } = useLifecycle();
@@ -80,8 +82,9 @@ export function useTorrentTableColumns({
             speedHistoryRef,
             optimisticStatuses,
             serverClass,
+            openFolder,
         }),
-        [optimisticStatuses, speedHistoryRef, serverClass]
+        [openFolder, optimisticStatuses, speedHistoryRef, serverClass]
     );
 
     return { columns, tableMeta };

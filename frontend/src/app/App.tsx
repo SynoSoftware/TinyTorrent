@@ -119,12 +119,12 @@ function AppContent({
     isDetectingEngine,
     sessionStats,
     liveTransportStatus,
-    torrents,
     ghostTorrents,
     isInitialLoadFinished,
     refreshTorrents,
     refreshDetailData,
     detailData,
+    torrents,
     loadDetail,
     clearDetail,
     mutateDetail,
@@ -183,6 +183,7 @@ function AppContent({
         refreshTorrentsRef,
         refreshSessionStatsDataRef,
         refreshDetailData,
+        torrents,
         detailData,
         rpcStatus,
         settingsFlow,
@@ -217,7 +218,17 @@ function AppContent({
         recoveryRequestBrowse,
         handleRecoveryRetry,
         resumeTorrentWithRecovery: resumeTorrent,
+        probeMissingFilesIfStale,
     } = orchestrator;
+    useEffect(() => {
+        if (!probeMissingFilesIfStale) return;
+        const errored = torrents.filter(
+            (t) => t.errorEnvelope !== undefined && t.errorEnvelope !== null
+        );
+        errored.forEach((torrent) => {
+            void probeMissingFilesIfStale(torrent);
+        });
+    }, [probeMissingFilesIfStale, torrents]);
 
     const { getRootProps, getInputProps, isDragActive } = addModalState;
     const { selectedIds, activeId, setActiveId } = useSelection();

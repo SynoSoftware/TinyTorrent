@@ -23,6 +23,7 @@ type UseTorrentTableContextParams = {
         } | null>
     >;
     resumeTorrent?: (torrent: Torrent) => Promise<void> | void;
+    openTorrentFolder?: (path?: string | null) => void;
 };
 
 export const useTorrentTableContextActions = (
@@ -36,6 +37,7 @@ export const useTorrentTableContextActions = (
         buildMagnetLink,
         setContextMenu,
         resumeTorrent,
+        openTorrentFolder,
     } = params;
 
     const { dispatch } = useRequiredTorrentActions();
@@ -49,12 +51,13 @@ export const useTorrentTableContextActions = (
                 const rowElement = findRowElement(torrent.id);
                 openColumnModal(rowElement ?? null);
             } else if (key === "open-folder") {
-                if (torrent.savePath) {
-                    await dispatch(
-                        TorrentIntents.openTorrentFolder(
-                            torrent.id ?? torrent.hash
-                        )
-                    );
+                const path =
+                    torrent.savePath ??
+                    torrent.downloadDir ??
+                    torrent.savePath ??
+                    "";
+                if (path) {
+                    await openTorrentFolder?.(path);
                 }
             } else if (key === "set-download-path") {
                 // Provider-owned: map to ENSURE_TORRENT_AT_LOCATION

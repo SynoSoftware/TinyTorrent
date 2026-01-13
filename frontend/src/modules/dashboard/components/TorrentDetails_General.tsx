@@ -18,10 +18,11 @@ import RemoveConfirmationModal from "@/modules/torrent-remove/components/RemoveC
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
+import { useRecoveryContext } from "@/app/context/RecoveryContext";
 import { useRequiredTorrentActions } from "@/app/context/TorrentActionsContext";
 import { TorrentIntents } from "@/app/intents/torrentIntents";
 import type { CapabilityState } from "@/app/types/capabilities";
-import { formatBytes, formatPercent, formatRatio } from "@/shared/utils/format";
+import { formatPercent, formatRatio } from "@/shared/utils/format";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import { SmoothProgressBar } from "@/shared/ui/components/SmoothProgressBar";
 import { ICON_STROKE_WIDTH } from "@/config/logic";
@@ -29,6 +30,10 @@ import { writeClipboard } from "@/shared/utils/clipboard";
 import { TEXT_ROLES } from "../hooks/utils/textRoles";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
+import {
+    formatMissingFileDetails,
+} from "@/modules/dashboard/utils/missingFiles";
+import { useMissingFilesProbe } from "@/services/recovery/missingFilesStore";
 
 interface GeneralTabProps {
     torrent: TorrentDetail;
@@ -106,25 +111,17 @@ export const GeneralTab = ({
     };
 
     const peerCount = activePeers;
+    const { serverClass } = useRecoveryContext();
+    const probe = useMissingFilesProbe(torrent.id);
+    const probeMode =
+        serverClass === "tinytorrent"
+            ? "local"
+            : serverClass === "transmission"
+            ? "remote"
+            : "unknown";
+    const probeLines = formatMissingFileDetails(t, probe, probeMode);
 
-    // Single source of truth: derived in rpc normalizer
     const showMissingFilesError = torrent.state === "missing_files";
-    const expectedBytes =
-        typeof torrent.totalSize === "number" ? torrent.totalSize : null;
-    const missingBytes =
-        typeof torrent.leftUntilDone === "number"
-            ? torrent.leftUntilDone
-            : null;
-    const onDiskBytes =
-        expectedBytes !== null && missingBytes !== null
-            ? Math.max(0, expectedBytes - missingBytes)
-            : null;
-    const missingDisplay =
-        missingBytes !== null ? formatBytes(missingBytes) : t("labels.unknown");
-    const onDiskDisplay =
-        onDiskBytes !== null ? formatBytes(onDiskBytes) : null;
-    const expectedDisplay =
-        expectedBytes !== null ? formatBytes(expectedBytes) : null;
 
     const { dispatch } = useRequiredTorrentActions();
     const handleSetLocationAction = () => {
@@ -226,10 +223,7 @@ export const GeneralTab = ({
                             {t("torrent_modal.labels.save_path")}
                         </div>
                         <code className="font-mono text-scaled text-foreground/70 bg-content1/20 px-tight py-tight rounded wrap-break-word mt-2">
-                            {downloadDir ??
-                                (torrent as any).downloadDir ??
-                                (torrent as any).savePath ??
-                                ""}
+                            {downloadDir ?? torrent.downloadDir ?? torrent.savePath ?? ""}
                         </code>
                     </div>
                     <div className="w-1/3 pl-4">
@@ -260,18 +254,9 @@ export const GeneralTab = ({
                             {t("torrent_modal.errors.no_data_found_title")}
                         </span>
                         <div className="flex flex-col gap-tight text-label font-mono text-warning/80">
-                            <span>
-                                {t("torrent_modal.files.missing")}:{" "}
-                                {missingDisplay}
-                            </span>
-                            {onDiskDisplay && expectedDisplay && (
-                                <span>
-                                    {t("torrent_modal.files.on_disk")}:{" "}
-                                    {onDiskDisplay} {"  •  "}
-                                    {t("torrent_modal.files.expected")}:{" "}
-                                    {expectedDisplay}
-                                </span>
-                            )}
+                            {probeLines.map((line) => (
+                                <span key={line}>{line}</span>
+                            ))}
                         </div>
                         {recoveryBlockedMessage && (
                             <div className="text-label text-warning/80">
@@ -281,24 +266,6 @@ export const GeneralTab = ({
                     </div>
                 </GlassPanel>
             )}
-
-            <GlassPanel className="p-panel space-y-4 bg-content1/30 border border-content1/20">
-                <div className="flex items-center justify-between gap-panel">
-                    <div className="flex flex-col gap-tight">
-                        <span
-                            className="text-scaled uppercase text-foreground/40"
-                            style={{
-                                letterSpacing: "var(--tt-tracking-ultra)",
-                            }}
-                        >
-                            {t("torrent_modal.controls.title")}
-                        </span>
-                        <p className="text-scaled text-foreground/50">
-                            {t("torrent_modal.controls.description")}
-                        </p>
-                    </div>
-                </div>
-            </GlassPanel>
 
             <div className="grid gap-tools sm:grid-cols-2">
                 <div className="col-span-2">

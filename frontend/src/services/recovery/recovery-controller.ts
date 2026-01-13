@@ -11,6 +11,10 @@ import {
     type MissingFilesStateKind,
 } from "@/shared/utils/recoveryFormat";
 import { interpretFsError, type FsErrorKind } from "@/shared/utils/fsErrors";
+import {
+    getClassificationOverride,
+    setClassificationOverride,
+} from "@/services/recovery/missingFilesStore";
 
 export type RecoveryOutcome =
     | { kind: "resolved"; message?: string }
@@ -40,9 +44,55 @@ export interface MissingFilesClassification {
     root?: string;
 }
 
+export type MissingFilesProbeResult =
+    | {
+          kind: "path_missing";
+          confidence: ConfidenceLevel;
+          path: string;
+          expectedBytes: number;
+          onDiskBytes: number | null;
+          missingBytes: number | null;
+          toDownloadBytes: number | null;
+          ts: number;
+      }
+    | {
+          kind: "data_missing";
+          confidence: ConfidenceLevel;
+          expectedBytes: number;
+          onDiskBytes: number | null;
+          missingBytes: number | null;
+          toDownloadBytes: number | null;
+          ts: number;
+      }
+    | {
+          kind: "data_partial";
+          confidence: ConfidenceLevel;
+          expectedBytes: number;
+          onDiskBytes: number;
+          missingBytes: number;
+          toDownloadBytes: number;
+          ts: number;
+      }
+    | {
+          kind: "unknown";
+          confidence: ConfidenceLevel;
+          expectedBytes: number;
+          ts: number;
+      }
+    | {
+          kind: "ok";
+          confidence: ConfidenceLevel;
+          expectedBytes: number;
+          onDiskBytes: number;
+          missingBytes: number;
+          toDownloadBytes: number;
+          ts: number;
+      };
+
 export interface RecoverySequenceOptions {
     recreateFolder?: boolean;
     retryOnly?: boolean;
+    missingBytes?: number | null;
 }
 
 export interface RecoverySequenceParams {
@@ -105,21 +155,40 @@ const VERIFY_WATCH_TIMEOUT_MS = 30000;
 const FREE_SPACE_UNSUPPORTED_MESSAGE = "free_space_check_not_supported";
 const IN_FLIGHT_RECOVERY = new Map<string, Promise<RecoverySequenceResult>>();
 
+function getExpectedBytes(torrent: TorrentEntity | TorrentDetailEntity): number {
+    if (typeof torrent.totalSize === "number") {
+        return torrent.totalSize;
+    }
+    if (typeof torrent.sizeWhenDone === "number") {
+        return torrent.sizeWhenDone;
+    }
+    return 0;
+}
+
 export function classifyMissingFilesState(
     envelope: ErrorEnvelope | null | undefined,
     downloadDir?: string,
-    serverClass: ServerClass = "unknown"
+    serverClass: ServerClass = "unknown",
+    opts?: { torrentId?: string | number }
 ): MissingFilesClassification {
-    const kind = envelope
-        ? deriveMissingFilesStateKind(envelope, downloadDir)
-        : "dataGap";
+    const override = opts?.torrentId
+        ? getClassificationOverride(opts.torrentId)
+        : undefined;
+    const overrideKind = override?.kind ?? envelope?.recoveryKind;
+    const overrideConfidence =
+        override?.confidence ?? envelope?.recoveryConfidence;
+    const kind =
+        overrideKind ??
+        (envelope ? deriveMissingFilesStateKind(envelope, downloadDir) : "dataGap");
     const root = resolveRootFromPath(downloadDir);
-    const confidence = determineConfidence(kind, envelope, serverClass);
+    const confidence =
+        overrideConfidence ??
+        determineConfidence(kind, envelope, serverClass);
     return {
         kind,
         confidence,
-        path: downloadDir,
-        root,
+        path: override?.path ?? downloadDir,
+        root: override?.root ?? root,
     };
 }
 
@@ -131,15 +200,11 @@ function determineConfidence(
     if (serverClass === "tinytorrent") {
         return "certain";
     }
-    if (
-        kind === "pathLoss" ||
-        kind === "volumeLoss" ||
-        kind === "accessDenied"
-    ) {
-        if (envelope?.errorMessage?.length) {
-            return "likely";
-        }
-        return "unknown";
+    if (envelope?.errorClass === "missingFiles") {
+        return "likely";
+    }
+    if (kind === "pathLoss" || kind === "volumeLoss" || kind === "accessDenied") {
+        return "likely";
     }
     return "unknown";
 }
@@ -166,7 +231,8 @@ const RECOVERY_ERROR_CLASSES: ReadonlySet<string> = new Set([
 export async function runMissingFilesRecoverySequence(
     params: RecoverySequenceParams
 ): Promise<RecoverySequenceResult> {
-    const { client, torrent, envelope, classification, options } = params;
+    const { client, torrent, envelope, options } = params;
+    let classification = params.classification;
     if (!envelope || !RECOVERY_ERROR_CLASSES.has(envelope.errorClass ?? "")) {
         return { status: "noop", classification };
     }
@@ -201,6 +267,15 @@ export async function runMissingFilesRecoverySequence(
                 torrent.savePath ??
                 torrent.downloadDir ??
                 "";
+
+            const missingBytes =
+                typeof torrent.leftUntilDone === "number"
+                    ? torrent.leftUntilDone
+                    : null;
+            const sequenceOptions = {
+                ...options,
+                missingBytes,
+            };
 
             if (!downloadDir) {
                 deferredHandlers.resolve({
@@ -246,13 +321,21 @@ export async function runMissingFilesRecoverySequence(
                         },
                     });
                     return;
+                } else {
+                    classification = {
+                        ...classification,
+                        confidence: "likely",
+                    };
+                    if (torrent.id) {
+                        setClassificationOverride(torrent.id, classification);
+                    }
                 }
             }
 
             const ensure = await ensurePathReady({
                 client,
                 path: downloadDir,
-                options,
+                options: sequenceOptions,
             });
             if (!ensure.ready) {
                 if (ensure.blockingOutcome) {
@@ -272,11 +355,6 @@ export async function runMissingFilesRecoverySequence(
                         message: "path_check_failed",
                     },
                 });
-                return;
-            }
-
-            if (options?.retryOnly) {
-                deferredHandlers.resolve({ status: "noop", classification });
                 return;
             }
 
@@ -346,36 +424,50 @@ async function ensurePathReady({
         };
     }
     try {
-        await client.checkFreeSpace(path);
+        const freeSpace = await client.checkFreeSpace(path);
+        const needed = options?.missingBytes;
+        if (typeof needed === "number" && freeSpace.sizeBytes < needed) {
+            return {
+                ready: false,
+                blockingOutcome: {
+                    kind: "path-needed",
+                    reason: "disk-full",
+                    message: "insufficient_free_space",
+                },
+            };
+        }
         return { ready: true };
     } catch (err) {
         const kind = interpretFsError(err);
         if (kind === "enoent") {
-            if (options?.recreateFolder && client.createDirectory) {
-                try {
-                    await client.createDirectory(path);
-                    return { ready: true };
-                } catch (createErr) {
-                    const createKind = interpretFsError(createErr);
-                    if (createKind === "eacces") {
+            if (options?.recreateFolder) {
+                if (client.createDirectory) {
+                    try {
+                        await client.createDirectory(path);
+                        return { ready: true };
+                    } catch (createErr) {
+                        const createKind = interpretFsError(createErr);
+                        if (createKind === "eacces") {
+                            return {
+                                ready: false,
+                                blockingOutcome: {
+                                    kind: "path-needed",
+                                    reason: "unwritable",
+                                    message: "directory_creation_denied",
+                                },
+                            };
+                        }
                         return {
                             ready: false,
                             blockingOutcome: {
                                 kind: "path-needed",
-                                reason: "unwritable",
-                                message: "directory_creation_denied",
+                                reason: "missing",
+                                message: "directory_creation_failed",
                             },
                         };
                     }
-                    return {
-                        ready: false,
-                        blockingOutcome: {
-                            kind: "path-needed",
-                            reason: "missing",
-                            message: "directory_creation_failed",
-                        },
-                    };
                 }
+                return { ready: true };
             }
             return {
                 ready: false,
@@ -540,6 +632,9 @@ async function runMinimalSequence(params: {
                 confidence: "certain",
             };
         }
+        if (torrent.id) {
+            setClassificationOverride(torrent.id, classification);
+        }
     }
 
     try {
@@ -556,6 +651,9 @@ async function runMinimalSequence(params: {
         };
     }
 
+    if (torrent.id) {
+        setClassificationOverride(torrent.id, classification);
+    }
     // Fast-path: if a verify completed and left after verify is zero,
     // return a log flag so callers can surface a toast (all files verified).
     if (leftAfterVerify === 0) {
@@ -582,6 +680,20 @@ function determineShouldVerify(
         typeof torrent.leftUntilDone === "number"
             ? torrent.leftUntilDone
             : null;
+    const expected =
+        typeof torrent.sizeWhenDone === "number"
+            ? torrent.sizeWhenDone
+            : typeof torrent.totalSize === "number"
+            ? torrent.totalSize
+            : null;
+    if (
+        left !== null &&
+        expected !== null &&
+        typeof expected === "number" &&
+        left === expected
+    ) {
+        return false;
+    }
     if (left === null || left <= 0) {
         return true;
     }
@@ -600,6 +712,158 @@ function deriveReasonFromFsError(kind: FsErrorKind | null) {
 
 function delay(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export async function probeMissingFiles(
+    torrent: TorrentEntity | TorrentDetailEntity,
+    client: EngineAdapter,
+    serverClass: ServerClass
+): Promise<MissingFilesProbeResult> {
+    const ts = Date.now();
+    const expectedBytes = getExpectedBytes(torrent);
+    const path =
+        (torrent as TorrentDetailEntity).downloadDir ??
+        torrent.savePath ??
+        torrent.downloadDir ??
+        "";
+
+    // Local (tinytorrent): attempt authoritative probe
+    if (serverClass === "tinytorrent") {
+        let onDiskBytes: number | null = null;
+        if (client.getTorrentDetails) {
+            try {
+                const detail = await client.getTorrentDetails(torrent.id);
+                if (Array.isArray(detail.files)) {
+                    onDiskBytes = detail.files.reduce((acc, file) => {
+                        const bytes =
+                            typeof file.bytesCompleted === "number"
+                                ? file.bytesCompleted
+                                : 0;
+                        return acc + Math.max(0, bytes);
+                    }, 0);
+                }
+            } catch {
+                onDiskBytes = null;
+            }
+        }
+        // Fallback: use downloaded metric if available
+        if (onDiskBytes === null && typeof torrent.downloaded === "number") {
+            onDiskBytes = Math.max(0, torrent.downloaded);
+        }
+        const missingBytes =
+            onDiskBytes !== null
+                ? Math.max(0, expectedBytes - onDiskBytes)
+                : null;
+        const toDownloadBytes = missingBytes;
+
+        // Path probing for missing folder
+        let pathExists: boolean | null = null;
+        if (client.checkFreeSpace && path) {
+            try {
+                await client.checkFreeSpace(path);
+                pathExists = true;
+            } catch (err) {
+                const kind = interpretFsError(err);
+                if (kind === "enoent") {
+                    pathExists = false;
+                }
+            }
+        }
+
+        if (pathExists === false) {
+            return {
+                kind: "path_missing",
+                confidence: "certain",
+                path,
+                expectedBytes,
+                onDiskBytes: 0,
+                missingBytes: expectedBytes,
+                toDownloadBytes: expectedBytes,
+                ts,
+            };
+        }
+
+        if (onDiskBytes === null) {
+            return {
+                kind: "unknown",
+                confidence: "unknown",
+                expectedBytes,
+                ts,
+            };
+        }
+
+        if (onDiskBytes <= 0 && expectedBytes > 0) {
+            return {
+                kind: "data_missing",
+                confidence: "certain",
+                expectedBytes,
+                onDiskBytes,
+                missingBytes: expectedBytes,
+                toDownloadBytes: expectedBytes,
+                ts,
+            };
+        }
+        if (onDiskBytes < expectedBytes) {
+            return {
+                kind: "data_partial",
+                confidence: "certain",
+                expectedBytes,
+                onDiskBytes,
+                missingBytes: missingBytes ?? expectedBytes,
+                toDownloadBytes: toDownloadBytes ?? expectedBytes,
+                ts,
+            };
+        }
+        return {
+            kind: "ok",
+            confidence: "certain",
+            expectedBytes,
+            onDiskBytes,
+            missingBytes: 0,
+            toDownloadBytes: 0,
+            ts,
+        };
+    }
+
+    // RPC: heuristic only, no bytes
+    const classification = classifyMissingFilesState(
+        torrent.errorEnvelope ?? null,
+        path,
+        serverClass,
+        { torrentId: torrent.id ?? torrent.hash }
+    );
+    let kind: MissingFilesProbeResult["kind"] = "data_missing";
+    if (
+        classification.kind === "pathLoss" ||
+        classification.kind === "volumeLoss"
+    ) {
+        kind = "path_missing";
+    }
+    if (classification.kind === "accessDenied") {
+        kind = "data_missing";
+    }
+    if (kind === "path_missing") {
+        return {
+            kind: "path_missing",
+            confidence: classification.confidence,
+            path,
+            expectedBytes,
+            onDiskBytes: null,
+            missingBytes: null,
+            toDownloadBytes: null,
+            ts,
+        };
+    }
+
+    return {
+        kind,
+        confidence: classification.confidence,
+        expectedBytes,
+        onDiskBytes: null,
+        missingBytes: null,
+        toDownloadBytes: null,
+        ts,
+    };
 }
 
 export async function runPartialFilesRecovery(

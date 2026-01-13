@@ -15,6 +15,7 @@ import type { FeedbackTone } from "@/shared/types/feedback";
 import {
     classifyMissingFilesState,
     runMissingFilesRecoverySequence,
+    probeMissingFiles,
     type RecoveryOutcome,
 } from "@/services/recovery/recovery-controller";
 import { useRecoveryController } from "@/modules/dashboard/hooks/useRecoveryController";
@@ -26,6 +27,11 @@ import type {
 import { useRequiredTorrentActions } from "@/app/context/TorrentActionsContext";
 import { readTorrentFileAsMetainfoBase64 } from "@/modules/torrent-add/services/torrent-metainfo";
 import { TorrentIntents } from "@/app/intents/torrentIntents";
+import {
+    getProbe as getCachedProbe,
+    setProbe as setCachedProbe,
+    clearProbe as clearCachedProbe,
+} from "@/services/recovery/missingFilesStore";
 
 // --- Types ---
 
@@ -35,6 +41,7 @@ export interface UseTorrentOrchestratorParams {
     refreshTorrentsRef: MutableRefObject<() => Promise<void>>;
     refreshSessionStatsDataRef: MutableRefObject<() => Promise<void>>;
     refreshDetailData: () => Promise<void>;
+    torrents: Array<Torrent | TorrentDetail>;
     reportCommandError?: (error: unknown) => void;
     showFeedback: (message: string, tone: FeedbackTone) => void;
     detailData: TorrentDetail | null;
@@ -73,6 +80,7 @@ const derivePathReason = (errorClass?: string | null): PathNeededReason => {
 };
 
 const LAST_DOWNLOAD_DIR_KEY = "tt-add-last-download-dir";
+const PROBE_TTL_MS = 5000;
 
 // --- Main Hook ---
 
@@ -86,6 +94,7 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
         refreshSessionStatsDataRef,
         refreshDetailData,
         detailData,
+        torrents,
         showFeedback,
         reportCommandError,
         t,
@@ -335,17 +344,22 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
             const classification = classifyMissingFilesState(
                 envelope,
                 torrent.savePath ?? torrent.downloadDir ?? "",
-                serverClass
+                serverClass,
+                { torrentId: torrent.id ?? torrent.hash }
             );
 
             try {
+                const missingBytes =
+                    typeof torrent.leftUntilDone === "number"
+                        ? torrent.leftUntilDone
+                        : null;
                 return await runMissingFilesRecoverySequence({
                     client: activeClient,
                     torrent,
                     envelope,
                     classification,
                     serverClass,
-                    options,
+                    options: { ...options, missingBytes },
                 });
             } catch (err) {
                 console.error("missing files recovery flow failed", err);
@@ -354,6 +368,43 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
         },
         [clientRef, serverClass]
     );
+
+    const probeMissingFilesIfStale = useCallback(
+        async (torrent: Torrent | TorrentDetail) => {
+            const activeClient = clientRef.current;
+            if (!activeClient) return;
+            if (!torrent.errorEnvelope) return;
+            const id = torrent.id ?? torrent.hash;
+            if (!id) return;
+
+            const cached = getCachedProbe(id);
+            if (cached && Date.now() - cached.ts < PROBE_TTL_MS) {
+                return;
+            }
+
+            try {
+                const probe = await probeMissingFiles(
+                    torrent,
+                    activeClient,
+                    serverClass
+                );
+                setCachedProbe(id, probe);
+            } catch (err) {
+                console.error("probeMissingFiles failed", err);
+            }
+        },
+        [clientRef, serverClass]
+    );
+
+    // Lifecycle-driven probe scheduling: run probes for errored torrents when the list changes.
+    useEffect(() => {
+        const errored = torrents.filter(
+            (torrent) => torrent.errorEnvelope !== undefined && torrent.errorEnvelope !== null
+        );
+        errored.forEach((torrent) => {
+            void probeMissingFilesIfStale(torrent);
+        });
+    }, [torrents, probeMissingFilesIfStale]);
 
     const requestRecovery: RecoveryGateCallback = useCallback(
         async ({ torrent, action, options }) => {
@@ -365,6 +416,20 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
             try {
                 const flowResult = await runMissingFilesFlow(torrent, options);
                 if (flowResult?.status === "resolved") {
+                    if (torrent.id ?? torrent.hash) {
+                        clearCachedProbe(torrent.id ?? torrent.hash);
+                    }
+                    if (flowResult.log === "all_verified_resuming") {
+                        showFeedback(
+                            t("recovery.feedback.all_verified_resuming"),
+                            "info"
+                        );
+                    } else {
+                        showFeedback(
+                            t("recovery.feedback.download_resumed"),
+                            "info"
+                        );
+                    }
                     return { status: "handled" };
                 }
                 if (flowResult?.status === "needsModal") {
@@ -436,6 +501,11 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
                 });
                 if (gateResult?.status === "continue") {
                     await dispatch(TorrentIntents.ensureActive(id));
+                    return;
+                }
+                if (!gateResult) {
+                    await dispatch(TorrentIntents.ensureActive(id));
+                    return;
                 }
                 return;
             }
@@ -489,6 +559,7 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
                             t("recovery.feedback.download_resumed"),
                             "info"
                         );
+                        clearCachedProbe(target.id ?? target.hash ?? "");
                         await refreshAfterRecovery(target);
                     }
                     return;
@@ -518,16 +589,30 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
                 action: "recheck",
                 options: { recreateFolder: false, retryOnly: true },
             });
-
-            if (gateResult && gateResult.status !== "continue") return;
+            clearCachedProbe(target.id ?? target.hash ?? "");
 
             try {
                 await refreshAfterRecovery(target);
             } catch (err) {
                 console.error("refresh after retry probe failed", err);
             }
+            if (
+                (!gateResult || gateResult.status !== "continue") &&
+                (target.id ?? target.hash)
+            ) {
+                try {
+                    await dispatch(
+                        TorrentIntents.ensureActive(
+                            target.id ?? target.hash
+                        )
+                    );
+                } catch (err) {
+                    console.error("retry resume failed", err);
+                }
+            }
+            if (gateResult && gateResult.status !== "continue") return;
         },
-        [clientRef, requestRecovery, refreshAfterRecovery]
+        [clientRef, requestRecovery, refreshAfterRecovery, dispatch]
     );
 
     const handleRecoveryRetry = useCallback(async () => {
@@ -658,6 +743,7 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
         handleRecoveryRecreateFolder,
         recoveryRequestBrowse,
         resumeTorrentWithRecovery,
+        probeMissingFilesIfStale,
     };
 }
 

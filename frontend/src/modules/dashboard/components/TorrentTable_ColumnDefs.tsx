@@ -66,6 +66,10 @@ import { useMemo } from "react";
 import { useLifecycle } from "@/app/context/LifecycleContext";
 import { useRecoveryContext } from "@/app/context/RecoveryContext";
 import { useRequiredTorrentActions } from "@/app/context/TorrentActionsContext";
+import {
+    formatMissingFileDetails,
+} from "@/modules/dashboard/utils/missingFiles";
+import { useMissingFilesProbe } from "@/services/recovery/missingFilesStore";
 
 // --- TYPES ---
 export type ColumnId =
@@ -85,6 +89,7 @@ export interface DashboardTableMeta {
     speedHistoryRef: RefObject<Record<string, Array<number | null>>>;
     optimisticStatuses: OptimisticStatusMap;
     serverClass?: ServerClass;
+    openFolder?: (path?: string | null) => void;
 }
 
 export interface ColumnRendererProps {
@@ -442,6 +447,11 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
         sortAccessor: (torrent) => torrent.state,
         headerIcon: Activity,
         render: ({ torrent, t, table }) => {
+            const { serverClass: recoveryServerClass, handleRetry } =
+                useRecoveryContext();
+            const { dispatch } = useRequiredTorrentActions();
+            const probe = useMissingFilesProbe(torrent.id);
+
             // Determine effective state (recovery overlay overrides engine state)
             const effectiveState =
                 torrent.errorEnvelope &&
@@ -453,7 +463,6 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
             const conf = statusMap[effectiveState] ?? statusMap.paused;
             const Icon = conf.icon;
 
-            const envelopeMsg = torrent.errorEnvelope?.errorMessage;
             const statusLabel = formatRecoveryStatus(
                 torrent.errorEnvelope,
                 t,
@@ -474,78 +483,66 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
                 const tableMeta = table.options.meta as
                     | DashboardTableMeta
                     | undefined;
-                const serverClass = tableMeta?.serverClass ?? "unknown";
+                const serverClass =
+                    tableMeta?.serverClass ??
+                    recoveryServerClass ??
+                    ("unknown" as ServerClass);
                 const downloadDir =
-                    torrent.savePath ??
-                    torrent.downloadDir ??
-                    (torrent as any).downloadDir ??
-                    "";
+                    torrent.savePath ?? torrent.downloadDir ?? "";
                 const classification = classifyMissingFilesState(
                     torrent.errorEnvelope,
                     downloadDir,
-                    serverClass ?? "unknown"
+                    serverClass,
+                    { torrentId: torrent.id ?? torrent.hash }
                 );
-                const missingBytes =
-                    typeof torrent.leftUntilDone === "number"
-                        ? torrent.leftUntilDone
-                        : null;
-                const missingLabel =
-                    missingBytes !== null
-                        ? formatBytes(missingBytes)
-                        : t("labels.unknown");
-                const fallbackText = t("recovery.inline_fallback");
-                const pathLabel =
-                    classification.path || downloadDir || t("labels.unknown");
-                const driveLabel =
-                    classification.root ??
-                    extractDriveLabel(pathLabel) ??
-                    t("labels.unknown");
-                const isUnknownConfidence =
-                    classification.confidence === "unknown";
-                const dataGapStatus =
-                    missingBytes !== null
-                        ? `${t("torrent_modal.files.missing")}: ${missingLabel}`
-                        : t("recovery.generic_header");
+                const probeMode =
+                    serverClass === "tinytorrent"
+                        ? "local"
+                        : serverClass === "transmission"
+                        ? "remote"
+                        : "unknown";
+                const probeLines = formatMissingFileDetails(
+                    t,
+                    probe,
+                    probeMode
+                );
                 const statusText = (() => {
-                    if (isUnknownConfidence) {
-                        return fallbackText;
+                    if (classification.confidence === "unknown") {
+                        return t("recovery.inline_fallback");
                     }
                     switch (classification.kind) {
                         case "pathLoss":
                             return t("recovery.status.folder_not_found", {
-                                path: pathLabel,
+                                path:
+                                    classification.path ||
+                                    downloadDir ||
+                                    t("labels.unknown"),
                             });
                         case "volumeLoss":
                             return t("recovery.status.drive_disconnected", {
-                                drive: driveLabel,
+                                drive:
+                                    classification.root ??
+                                    extractDriveLabel(
+                                        classification.path ?? downloadDir
+                                    ) ??
+                                    t("labels.unknown"),
                             });
                         case "accessDenied":
                             return t("recovery.status.access_denied");
                         default:
-                            return dataGapStatus;
+                            return probeLines[0] ?? t("recovery.generic_header");
                     }
                 })();
-                const sizeHint =
-                    classification.kind === "dataGap" &&
-                    missingBytes !== null &&
-                    typeof torrent.totalSize === "number"
-                        ? `${t("torrent_modal.files.on_disk")}: ${formatBytes(
-                              Math.max(0, torrent.totalSize - missingBytes)
-                          )}  •  ${t(
-                              "torrent_modal.files.expected"
-                          )}: ${formatBytes(torrent.totalSize)}`
-                        : null;
-                const tooltipParts = [statusText];
-                if (sizeHint) {
-                    tooltipParts.push(sizeHint);
-                }
-                tooltip = tooltipParts.join(" — ");
-                const { dispatch } = useRequiredTorrentActions();
-                const onOpenFolder = (t: Torrent) =>
+                tooltip = probeLines.length
+                    ? probeLines.join(" — ")
+                    : t("recovery.generic_header");
+                const openFolder = (target: Torrent) => {
+                    const targetId = target.id ?? target.hash;
+                    if (!targetId) return;
                     void dispatch(
-                        TorrentIntents.openTorrentFolder(t.id ?? t.hash)
+                        TorrentIntents.openTorrentFolder(targetId)
                     );
-                const { handleRetry } = useRecoveryContext();
+                };
 
                 const primaryConfig = (() => {
                     const common = {
@@ -637,13 +634,13 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
                             return {
                                 ...common,
                                 label: t("recovery.action.open_folder"),
-                                onPress: () => onOpenFolder(torrent as any),
+                                onPress: () => openFolder(torrent),
                             };
                         default:
                             return {
                                 ...common,
                                 label: t("recovery.action.open_folder"),
-                                onPress: () => onOpenFolder(torrent),
+                                onPress: () => openFolder(torrent),
                             };
                     }
                 })();
@@ -660,11 +657,14 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
                                     >
                                         {statusText}
                                     </span>
-                                    {sizeHint && (
-                                        <span className="text-label font-mono text-foreground/70 truncate">
-                                            {sizeHint}
+                                    {probeLines.map((line) => (
+                                        <span
+                                            key={line}
+                                            className="text-label font-mono text-foreground/70 truncate"
+                                        >
+                                            {line}
                                         </span>
-                                    )}
+                                    ))}
                                 </div>
                             </div>
                             <div className="flex items-center gap-tools">

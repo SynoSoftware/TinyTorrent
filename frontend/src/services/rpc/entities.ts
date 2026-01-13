@@ -48,6 +48,13 @@ export type RecoveryAction =
     | "setLocation"
     | "dismiss";
 
+export type RecoveryConfidence = "certain" | "likely" | "unknown";
+export type MissingFilesClassificationKind =
+    | "dataGap"
+    | "pathLoss"
+    | "volumeLoss"
+    | "accessDenied";
+
 export interface ErrorEnvelope {
     errorClass: ErrorClass;
     errorMessage: string | null;
@@ -62,6 +69,8 @@ export interface ErrorEnvelope {
         recommendedAction?: RecoveryAction | null;
         reason?: string | null;
     } | null;
+    recoveryKind?: MissingFilesClassificationKind;
+    recoveryConfidence?: RecoveryConfidence;
     // Stable fingerprint suitable as a persistence key for later automation.
     // Deterministic; do not include transient timestamps. Null if unavailable.
     fingerprint?: string | null;

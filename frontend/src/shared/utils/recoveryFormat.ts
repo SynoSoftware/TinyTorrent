@@ -1,9 +1,6 @@
 import type { ErrorEnvelope } from "@/services/rpc/entities";
 import type { TFunction } from "i18next";
 
-// Small helper to format recovery-aware labels and read-only intent hints.
-// Use closed lookup maps to avoid dynamic i18n key construction so static
-// audits can detect usages and avoid false "unused" reports.
 const RECOVERY_HINT_KEY: Record<string, string> = {
     changeLocation: "recovery.hint.changeLocation",
     forceRecheck: "recovery.hint.forceRecheck",
@@ -14,8 +11,6 @@ const RECOVERY_HINT_KEY: Record<string, string> = {
     unknown: "recovery.hint.unknown",
 };
 
-// Explicit mapping from recoveryState -> i18n key. Keeps the set closed
-// and discoverable by static tools.
 const RECOVERY_STATE_LABEL_KEY: Record<string, string> = {
     ok: "labels.status.torrent.ok",
     verifying: "labels.status.torrent.verifying",
@@ -33,7 +28,6 @@ const RECOVERY_STATE_LABEL_KEY: Record<string, string> = {
     stalled: "labels.status.torrent.stalled",
 };
 
-// Explicit mapping for errorClass -> label key.
 const RECOVERY_CLASS_LABEL_KEY: Record<string, string> = {
     none: "recovery.class.none",
     trackerWarning: "recovery.class.trackerWarning",
@@ -55,7 +49,6 @@ export const formatRecoveryStatus = (
 ) => {
     if (!envelope) return t(fallbackKey);
 
-    // Decide effective state: recovery overrides engine state when present
     const effectiveState =
         envelope.recoveryState && envelope.recoveryState !== "ok"
             ? envelope.recoveryState
@@ -81,8 +74,6 @@ export const formatRecoveryTooltip = (
             ? envelope.recoveryState
             : torrentState || "unknown";
 
-    // For missing-files, prefer the explicit missing_files label so UI shows
-    // a calm and actionable status rather than an ambiguous 'needsUserAction'.
     if (envelope.errorClass === "missingFiles") {
         effectiveState = "missing_files";
     }
@@ -102,8 +93,6 @@ export const formatRecoveryTooltip = (
     if (classLabel && classLabel !== envelope.errorClass) {
         parts.push(classLabel);
     }
-    // Avoid leaking legacy or accusatory engine messages for missing-files
-    // — when missing payload files are expected, prefer silence and action.
     if (
         envelope.errorMessage &&
         envelope.errorClass !== "missingFiles" &&
@@ -136,7 +125,6 @@ export const formatPrimaryActionHint = (
 
 export default formatRecoveryStatus;
 
-// Map a primaryAction to a small, subtle emphasis class for existing controls.
 export const getEmphasisClassForAction = (
     primaryAction: string | null | undefined
 ) => {
@@ -191,9 +179,7 @@ export const deriveMissingFilesStateKind = (
     }
     if (
         /(no such file|not found|missing file|folder)/.test(message) ||
-        (typeof path === "string" &&
-            message.length === 0 &&
-            path.includes("\\"))
+        (typeof path === "string" && message.length === 0 && path.includes("\\"))
     ) {
         return "pathLoss";
     }
