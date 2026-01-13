@@ -26,13 +26,26 @@ export function TorrentActionsProvider({
     );
 }
 
-export function useTorrentActionsContext(): TorrentActions {
+export function useTorrentActionsContext(): TorrentActions | null {
+    return useContext(TorrentActionsContext);
+}
+
+export function useRequiredTorrentActions(): TorrentActions {
     const ctx = useContext(TorrentActionsContext);
-    if (!ctx) {
+
+    if (import.meta.env.DEV && !ctx) {
         throw new Error(
-            "useTorrentActionsContext must be used within TorrentActionsProvider"
+            "[Invariant violation] TorrentActionsContext used without provider"
         );
     }
+
+    // In prod: return a safe inert object instead of crashing
+    if (!ctx) {
+        return {
+            dispatch: async () => {},
+        };
+    }
+
     return ctx;
 }
 
