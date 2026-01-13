@@ -300,7 +300,7 @@ export function Navbar({
                                 )}
                                 iconSize="lg"
                             />
-                            <div className=" hidden min-[600px]:flex">
+                            <div className=" hidden min-[600px]:flex  gap-tools ">
                                 <ToolbarIconButton
                                     Icon={RotateCcw}
                                     ariaLabel={t("toolbar.recheck")}
