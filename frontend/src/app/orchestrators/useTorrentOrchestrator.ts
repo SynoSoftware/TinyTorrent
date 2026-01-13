@@ -28,6 +28,7 @@ import type {
     QueueMoveIntent,
 } from "@/app/intents/torrentIntents";
 import { readTorrentFileAsMetainfoBase64 } from "@/modules/torrent-add/services/torrent-metainfo";
+import { isRpcCommandError } from "@/services/rpc/errors";
 
 // --- Types ---
 
@@ -416,6 +417,44 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
         resolver?.(result);
     }, []);
 
+    const runWithRefresh = useCallback(
+        async (
+            operation: () => Promise<void>,
+            options?: {
+                refreshTorrents?: boolean;
+                refreshDetail?: boolean;
+                refreshStats?: boolean;
+                reportError?: boolean;
+            }
+        ) => {
+            try {
+                await operation();
+                if (options?.refreshTorrents ?? true) {
+                    await refreshTorrentsRef.current?.();
+                }
+                if (options?.refreshDetail ?? true) {
+                    await refreshDetailData();
+                }
+                if (options?.refreshStats ?? true) {
+                    await refreshSessionStatsDataRef.current?.();
+                }
+            } catch (error) {
+                if ((options?.reportError ?? true) && reportCommandError) {
+                    if (!isRpcCommandError(error)) {
+                        reportCommandError(error);
+                    }
+                }
+                throw error;
+            }
+        },
+        [
+            refreshDetailData,
+            reportCommandError,
+            refreshSessionStatsDataRef,
+            refreshTorrentsRef,
+        ]
+    );
+
     const dispatch = useCallback(
         async (intent: TorrentIntentExtended) => {
             const activeClient = clientRef.current || client;
@@ -436,6 +475,34 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
                     break;
                 case "ENSURE_TORRENT_VALID":
                     await activeClient.verify([String(intent.torrentId)]);
+                    break;
+                case "SET_TORRENT_FILES_WANTED":
+                    if (!activeClient.updateFileSelection) return;
+                    await runWithRefresh(() =>
+                        activeClient.updateFileSelection(
+                            String(intent.torrentId),
+                            intent.fileIndexes,
+                            intent.wanted
+                        )
+                    );
+                    break;
+                case "SET_TORRENT_SEQUENTIAL":
+                    if (!activeClient.setSequentialDownload) return;
+                    await runWithRefresh(() =>
+                        activeClient.setSequentialDownload(
+                            String(intent.torrentId),
+                            intent.enabled
+                        )
+                    );
+                    break;
+                case "SET_TORRENT_SUPERSEEDING":
+                    if (!activeClient.setSuperSeeding) return;
+                    await runWithRefresh(() =>
+                        activeClient.setSuperSeeding(
+                            String(intent.torrentId),
+                            intent.enabled
+                        )
+                    );
                     break;
                 case "ENSURE_SELECTION_ACTIVE":
                     await activeClient.resume(
