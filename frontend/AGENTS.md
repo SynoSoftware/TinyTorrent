@@ -1068,48 +1068,6 @@ If the limit is exceeded, remove props by using Contexts or split the component.
 
 **If a change requires threading values through components, the ownership is wrong. Fix authority, not plumbing.**
 
-
-
-## **Single Control Plane Rule (Non-Negotiable)**
-
-TinyTorrent has **exactly one place where behavior happens**.
-
-### **Principle**
-
-> **UI may render state and emit intents.
-> It may never carry behavior, sequencing, or authority.**
-
-### **Implications**
-
-- **No prop drilling for behavior**
-
-  - No `onResume`, `onRetry`, `onRecover`, `onSetLocation`, etc.
-  - UI components and layouts do not forward callbacks.
-- **No implicit control flow**
-
-  - No effects or handlers that “decide” what should happen.
-- **No engine or recovery logic outside the control plane**
-
-  - If it talks to the engine, sequences steps, dedupes, retries, or gates → it belongs in the control plane.
-
-### **Allowed data flow**
-
-```
-UI → Intent → Control Plane → Services
-UI ← Signals ← Control Plane
-```
-
-Anything outside this flow is architectural drift.
-
-### **Enforcement heuristic**
-
-If removing a prop or moving a component causes behavior to break,
-**that behavior was in the wrong place.**
-
-Fix ownership, not wiring
-
----
-
 # **15. Project Structure (Optimized for Single Developer)**
 
 Flat, high-maintenance structure optimized for speed and co-location.
@@ -1499,31 +1457,6 @@ If logic does not clearly fit one category, **the architecture is incomplete** a
 - Passing callbacks that close over engine state
 
 ---
-
-## **8 — Single Control Plane Rule (Hard Law)**
-
-**Single Control Plane Rule**
-    Any code that:
-    - calls the engine
-    - sequences actions
-    - retries, dedupes, or gates
-    - performs recovery or orchestration decisions
-    **must live in the Control Plane (Orchestrator).**
-    UI code may **only**:
-    - emit typed intents
-    - render state and outcomes
-    UI code must **never**:
-    - call the engine
-    - sequence actions
-    - implement retries, guards, or recovery logic
-    - decide correctness, confidence, or outcomes
-    **Diagnostic invariant**
-    If fixing a bug requires:
-    - adding a callback prop
-    - threading a handler through components
-    - passing “just one more function” downward
-    then the architecture is wrong.
-    Fix ownership, not wiring.
 
 ---
 
