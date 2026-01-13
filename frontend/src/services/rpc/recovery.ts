@@ -16,6 +16,8 @@ const fnv1a = (value: string) => {
     return h.toString(16);
 };
 
+const reportedInvariantViolations = new Set<string>();
+
 // Public entrypoint: compute a fully-populated ErrorEnvelope from engine truth.
 // This centralizes all recovery & classification logic so callers (normalizers,
 // UI) can rely on a single source of truth.
@@ -104,17 +106,7 @@ export const buildErrorEnvelope = (
     let recoveryState: RecoveryState = "ok";
     const recoveryActions: RecoveryAction[] = [];
 
-    // Engine-driven override: if the engine is actively verifying/checking,
-    // reflect that in the recovery state regardless of rpc error codes.
-    const isVerifying =
-        typeof torrent.recheckProgress === "number" &&
-        torrent.recheckProgress > 0;
-    // Transmission numeric status 1/2 correspond to checking states.
-    const statusNum = (torrent as any).status;
-    const statusIndicatesChecking = statusNum === 1 || statusNum === 2;
-    if (isVerifying || statusIndicatesChecking) {
-        recoveryState = "verifying";
-    } else if (errorClass === "none") {
+    if (errorClass === "none") {
         recoveryState = "ok";
     } else if (
         errorClass === "trackerWarning" ||
@@ -202,7 +194,7 @@ export const buildErrorEnvelope = (
         .map((t) => t.announce)
         .join(",");
     const fpBase = `${id}|${errorClass}|${msg ?? ""}|${trackerList}`;
-    const fingerprint = fnv1a(fpBase);
+    const envelopeFingerprint = fnv1a(fpBase);
 
     // Enforce invariants
     if (recoveryState === "ok" && primaryAction !== null) {
@@ -220,7 +212,7 @@ export const buildErrorEnvelope = (
         // No allowed action available; log and keep null (UI must prompt user)
         // eslint-disable-next-line no-console
         console.warn(
-            `[tiny-torrent][recovery] needsUserAction but no allowed primaryAction for fingerprint=${fingerprint}`
+            `[tiny-torrent][recovery] needsUserAction but no allowed primaryAction for fingerprint=${envelopeFingerprint}`
         );
     }
 
@@ -237,7 +229,7 @@ export const buildErrorEnvelope = (
         nextRetryAt: null,
         recoveryActions,
         automationHint,
-        fingerprint,
+        fingerprint: envelopeFingerprint,
         primaryAction,
     };
 
@@ -256,15 +248,31 @@ export const buildErrorEnvelope = (
     };
 
     const allowedStates = allowed[errorClass] ?? ["needsUserAction"];
+    const fingerprint = envelope.fingerprint;
     if (!allowedStates.includes(envelope.recoveryState)) {
-        // Defensive fix: log and coerce to first allowed state.
-        // This preserves engine-truth-first behavior while preventing
-        // contradictory envelopes.
-        // eslint-disable-next-line no-console
-        console.error(
-            `[tiny-torrent][recovery] Invariant violation for fingerprint=${envelope.fingerprint}: errorClass=${errorClass} mapped to recoveryState=${envelope.recoveryState}`
-        );
+        const fingerprintLabel = fingerprint ?? "<unknown>";
+        const shouldReport =
+            fingerprint !== undefined &&
+            fingerprint !== null &&
+            !reportedInvariantViolations.has(fingerprint);
+        if (shouldReport) {
+            // Defensive fix: log and coerce to first allowed state.
+            // This preserves engine-truth-first behavior while preventing
+            // contradictory envelopes.
+            // eslint-disable-next-line no-console
+            console.error(
+                `[tiny-torrent][recovery] Invariant violation for fingerprint=${fingerprintLabel}: errorClass=${errorClass} mapped to recoveryState=${envelope.recoveryState}`
+            );
+            reportedInvariantViolations.add(fingerprint);
+        } else if (fingerprintLabel === "<unknown>") {
+            // eslint-disable-next-line no-console
+            console.error(
+                `[tiny-torrent][recovery] Invariant violation for fingerprint=${fingerprintLabel}: errorClass=${errorClass} mapped to recoveryState=${envelope.recoveryState}`
+            );
+        }
         envelope.recoveryState = allowedStates[0];
+    } else if (fingerprint) {
+        reportedInvariantViolations.delete(fingerprint);
     }
 
     return envelope;

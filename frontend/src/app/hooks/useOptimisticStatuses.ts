@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { TorrentStatus } from "@/services/rpc/entities";
 import type { OptimisticStatusMap } from "@/modules/dashboard/types/optimistic";
-import { useUiClock } from "@/shared/hooks/useUiClock";
+import { STATUS } from "@/shared/status";
 
 export function useOptimisticStatuses(torrents: Torrent[]) {
     const [optimisticStatuses, setOptimisticStatuses] =
@@ -36,7 +36,12 @@ export function useOptimisticStatuses(torrents: Torrent[]) {
             torrents.forEach((torrent) => {
                 const optimisticState = prev[torrent.id];
                 if (!optimisticState) return;
-                if (torrent.state === optimisticState.state) {
+                const isChecking = torrent.state === STATUS.torrent.CHECKING;
+                const verificationProgress = torrent.verificationProgress;
+                const isVerifying =
+                    typeof verificationProgress === "number" &&
+                    verificationProgress < 1;
+                if (!isChecking && !isVerifying) {
                     delete next[torrent.id];
                 }
             });

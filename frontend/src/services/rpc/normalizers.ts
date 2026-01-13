@@ -58,18 +58,16 @@ const normalizeErrorString = (value: unknown) => {
 const numOr = (value: unknown, fallback: number) =>
     typeof value === "number" && Number.isFinite(value) ? value : fallback;
 
+type VerifyStateEntry = {
+    wasVerifying: boolean;
+    lastVerifyCompletedAt?: number;
+};
+
+const verifyStateMap = new Map<string, VerifyStateEntry>();
+
 export const deriveTorrentState = (
     base: TorrentStatus,
-    torrent: Pick<
-        TransmissionTorrent,
-        | "error"
-        | "errorString"
-        | "rateDownload"
-        | "rateUpload"
-        | "peersSendingToUs"
-        | "addedDate"
-        | "percentDone"
-    >
+    torrent: TransmissionTorrent
 ): TorrentStatus => {
     // 1) Error classification (authoritative)
     if (hasRpcError(torrent)) {
@@ -107,9 +105,39 @@ export const deriveTorrentState = (
                   Math.floor(Date.now() / 1000) - Math.floor(addedDate)
               )
             : undefined;
+    const isVerifying =
+        typeof torrent.recheckProgress === "number" &&
+        torrent.recheckProgress > 0;
+    const statusNum =
+        typeof torrent.status === "number" ? torrent.status : undefined;
+    const statusIndicatesChecking = statusNum === 1 || statusNum === 2;
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const idKey = torrent.hashString ?? String(torrent.id ?? "");
+    const hasIdKey = Boolean(idKey);
+    if (hasIdKey) {
+        const entry =
+            verifyStateMap.get(idKey) ?? { wasVerifying: false };
+        const previouslyVerifying = entry.wasVerifying;
+        entry.wasVerifying = isVerifying || statusIndicatesChecking;
+        if (!entry.wasVerifying && previouslyVerifying) {
+            entry.lastVerifyCompletedAt = nowSeconds;
+        }
+        verifyStateMap.set(idKey, entry);
+    }
+
+    const verifyEntry = hasIdKey ? verifyStateMap.get(idKey) : undefined;
+    const timeSinceVerifyCompletion =
+        verifyEntry?.lastVerifyCompletedAt !== undefined
+            ? nowSeconds - verifyEntry.lastVerifyCompletedAt
+            : undefined;
+
+    const justCompletedVerify =
+        typeof timeSinceVerifyCompletion === "number" &&
+        timeSinceVerifyCompletion < STALLED_GRACE_SECONDS;
     const isWithinStallGrace =
-        typeof torrentAgeSeconds === "number" &&
-        torrentAgeSeconds < STALLED_GRACE_SECONDS;
+        (typeof torrentAgeSeconds === "number" &&
+            torrentAgeSeconds < STALLED_GRACE_SECONDS) ||
+        justCompletedVerify;
 
     // 4) Stalled applies ONLY to downloading
     if (base === STATUS.torrent.DOWNLOADING) {

@@ -38,6 +38,49 @@ import {
 import STATUS from "@/shared/status";
 import { useSelection } from "@/app/context/SelectionContext";
 
+const BASE32_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+const MAGNET_INFOHASH_REGEX = /xt=urn:btih:([0-9a-zA-Z]+)/i;
+
+const base32ToHex = (value: string): string | null => {
+    let buffer = 0;
+    let bitsInBuffer = 0;
+    const bytes: number[] = [];
+    for (const char of value.toUpperCase()) {
+        const index = BASE32_ALPHABET.indexOf(char);
+        if (index === -1) {
+            return null;
+        }
+        buffer = (buffer << 5) | index;
+        bitsInBuffer += 5;
+        while (bitsInBuffer >= 8) {
+            bitsInBuffer -= 8;
+            const byte = (buffer >> bitsInBuffer) & 0xff;
+            bytes.push(byte);
+        }
+    }
+    if (bytes.length !== 20) {
+        return null;
+    }
+    return bytes
+        .map((byte) => byte.toString(16).padStart(2, "0"))
+        .join("");
+};
+
+const normalizeInfoHashCandidate = (value: string): string | null => {
+    if (/^[0-9a-fA-F]{40}$/.test(value)) {
+        return value.toLowerCase();
+    }
+    const decoded = base32ToHex(value);
+    if (!decoded) return null;
+    return decoded.toLowerCase();
+};
+
+const extractMagnetInfoHash = (magnetLink: string): string | null => {
+    const match = MAGNET_INFOHASH_REGEX.exec(magnetLink);
+    if (!match) return null;
+    return normalizeInfoHashCandidate(match[1]);
+};
+
 const getTorrentKey = (torrent: Torrent | TorrentDetail) =>
     torrent.id?.toString() ?? torrent.hash ?? "";
 
@@ -130,6 +173,8 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
     const { settingsConfig, setSettingsConfig } = settingsFlow;
     const { dispatch } = useRequiredTorrentActions();
     const { setSelectedIds, setActiveId } = useSelection();
+    const pendingDeletionHashesRef = useRef<Set<string>>(new Set());
+    const recentlyRemovedKeysRef = useRef<Set<string>>(new Set());
 
     // --- 1. Capability & Server Class ---
     const [serverClass, setServerClass] = useState<ServerClass>("unknown");
@@ -219,10 +264,9 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
     }, []);
 
     const openAddMagnet = useCallback((magnetLink?: string) => {
-        const linkValue =
-            typeof magnetLink === "string" ? magnetLink : undefined;
-        const normalized = linkValue ? normalizeMagnetLink(linkValue) : undefined;
-        setMagnetModalInitialValue(normalized ?? magnetLink ?? "");
+        const normalized =
+            typeof magnetLink === "string" ? normalizeMagnetLink(magnetLink) : undefined;
+        setMagnetModalInitialValue(normalized ?? "");
         setMagnetModalOpen(true);
     }, []);
 
@@ -259,6 +303,17 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
         async (link: string) => {
             const normalized = normalizeMagnetLink(link);
             if (!normalized) return;
+            const infoHash = extractMagnetInfoHash(normalized);
+            if (
+                infoHash &&
+                pendingDeletionHashesRef.current.has(infoHash)
+            ) {
+                showFeedback(
+                    t("toolbar.feedback.pending_delete"),
+                    "warning"
+                );
+                return;
+            }
             setMagnetModalOpen(false);
             setMagnetModalInitialValue("");
 
@@ -280,7 +335,7 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
                 console.error("Failed to add magnet", err);
             }
         },
-        [dispatch, lastDownloadDir]
+        [dispatch, lastDownloadDir, showFeedback, t]
     );
 
     const closeAddTorrentWindow = useCallback(() => {
@@ -489,6 +544,38 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
         });
     }, [torrents]);
 
+    useEffect(() => {
+        if (!torrents.length) {
+            pendingDeletionHashesRef.current.clear();
+            return;
+        }
+        const activeHashes = new Set(
+            torrents
+                .map((torrent) => torrent.hash?.toLowerCase())
+                .filter((hash): hash is string => Boolean(hash))
+        );
+        pendingDeletionHashesRef.current.forEach((hash) => {
+            if (!activeHashes.has(hash)) {
+                pendingDeletionHashesRef.current.delete(hash);
+            }
+        });
+    }, [torrents]);
+
+    useEffect(() => {
+        if (!recentlyRemovedKeysRef.current.size) return;
+        const activeKeys = new Set(
+            torrents
+                .map((torrent) => getTorrentKey(torrent))
+                .filter((key): key is string => Boolean(key))
+        );
+        recentlyRemovedKeysRef.current.forEach((key) => {
+            if (activeKeys.has(key)) {
+                unmarkRemoved(key);
+                recentlyRemovedKeysRef.current.delete(key);
+            }
+        });
+    }, [torrents, unmarkRemoved]);
+
 
     const startRecoverySession = useCallback(
         (entry: {
@@ -634,7 +721,12 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
             const targetId = torrent.id ?? torrent.hash;
             const key = getTorrentKey(torrent);
             if (!targetId || !key) return;
+            const normalizedHash = torrent.hash?.toLowerCase();
+            if (normalizedHash) {
+                pendingDeletionHashesRef.current.add(normalizedHash);
+            }
             markRemoved(key);
+            recentlyRemovedKeysRef.current.add(key);
             setSelectedIds([]);
             setActiveId(null);
             if (detailData && getTorrentKey(detailData) === key) {
