@@ -148,6 +148,7 @@ interface WorkspaceShellProps {
         >
     ) => void;
     tableWatermarkEnabled: boolean;
+    retryTorrent?: (torrent: Torrent | TorrentDetail) => Promise<void> | void;
     resumeTorrent: (torrent: Torrent) => Promise<void> | void;
 }
 
@@ -205,6 +206,7 @@ export function WorkspaceShell({
     restoreHudCards,
     applyUserPreferencesPatch,
     tableWatermarkEnabled,
+    retryTorrent,
     resumeTorrent,
 }: WorkspaceShellProps) {
     const {
@@ -316,6 +318,7 @@ export function WorkspaceShell({
                 tableWatermarkEnabled={tableWatermarkEnabled}
                 isDetailRecoveryBlocked={isDetailRecoveryBlocked}
                 resumeTorrent={resumeTorrent}
+                retryTorrent={retryTorrent}
             />
     );
 

@@ -25,6 +25,7 @@ import { useHudCards } from "./hooks/useHudCards";
 import { useTorrentData } from "@/modules/dashboard/hooks/useTorrentData";
 import { useTorrentDetail } from "@/modules/dashboard/hooks/useTorrentDetail";
 import { useDetailControls } from "@/modules/dashboard/hooks/useDetailControls";
+import { clearProbe } from "@/services/recovery/missingFilesStore";
 import { CommandPalette } from "./components/CommandPalette";
 import type {
     CommandAction,
@@ -214,11 +215,15 @@ function AppContent({
         isDetailRecoveryBlocked,
         handleRecoveryClose,
         handleRecoveryPickPath,
+        setLocationAndRecover,
         handleRecoveryRecreateFolder,
         recoveryRequestBrowse,
         handleRecoveryRetry,
+        handleRecoveryAutoRetry,
         resumeTorrentWithRecovery: resumeTorrent,
         probeMissingFilesIfStale,
+        executeRedownload,
+        executeRetryFetch,
     } = orchestrator;
     useEffect(() => {
         if (!probeMissingFilesIfStale) return;
@@ -293,6 +298,18 @@ function AppContent({
         );
     }, [activeId, detailData, loadDetail, selectedTorrents]);
 
+    useEffect(() => {
+        if (!detailData) return;
+        const detailKey = detailData.id ?? detailData.hash;
+        if (!detailKey) return;
+        const isStillPresent = torrents.some(
+            (torrent) => torrent.id === detailKey || torrent.hash === detailKey
+        );
+        if (isStillPresent) return;
+        clearProbe(detailKey);
+        handleCloseDetail();
+    }, [detailData, handleCloseDetail, torrents]);
+
     // -- Engine Display --
     const engineType = useMemo<EngineDisplayType>(() => {
         if (serverClass === "tinytorrent") return "tinytorrent";
@@ -305,6 +322,30 @@ function AppContent({
     // -- Workflow & Actions --
     // Safe to use here because AppContent is wrapped in TorrentActionsProvider
     const { dispatch } = useRequiredTorrentActions();
+
+    const handleDownloadMissing = useCallback(
+        async (torrent: Torrent, options?: { recreateFolder?: boolean }) => {
+            await executeRedownload(torrent, options);
+        },
+        [executeRedownload]
+    );
+
+    const handleSetLocation = useCallback(
+        async (torrent: Torrent, path?: string | null) => {
+            if (!setLocationAndRecover) return;
+            const targetPath =
+                path ??
+                (await recoveryRequestBrowse?.(
+                    torrent.savePath ??
+                        torrent.downloadDir ??
+                        torrent.savePath ??
+                        undefined
+                ));
+            if (!targetPath) return;
+            await setLocationAndRecover(torrent, targetPath);
+        },
+        [recoveryRequestBrowse, setLocationAndRecover]
+    );
 
     const executeTorrentActionViaDispatch = async (
         action: TorrentTableAction,
@@ -689,6 +730,8 @@ function AppContent({
                 value={{
                     serverClass,
                     handleRetry: handleRecoveryRetry,
+                    handleDownloadMissing,
+                    handleSetLocation,
                 }}
             >
                 <WorkspaceShell
@@ -745,9 +788,10 @@ function AppContent({
                 tableWatermarkEnabled={
                     settingsFlow.settingsConfig.table_watermark_enabled
                 }
-                isDetailRecoveryBlocked={isDetailRecoveryBlocked}
-                resumeTorrent={resumeTorrent}
-            />
+                    isDetailRecoveryBlocked={isDetailRecoveryBlocked}
+                    resumeTorrent={resumeTorrent}
+                    retryTorrent={executeRetryFetch}
+                />
                 <TorrentRecoveryModal
                     isOpen={Boolean(recoverySession)}
                     torrent={recoverySession?.torrent ?? null}
@@ -762,6 +806,7 @@ function AppContent({
                             : undefined
                     }
                     onRecreate={handleRecoveryRecreateFolder}
+                    onAutoRetry={handleRecoveryAutoRetry}
                     isBusy={isRecoveryBusy}
                 />
             </RecoveryProvider>

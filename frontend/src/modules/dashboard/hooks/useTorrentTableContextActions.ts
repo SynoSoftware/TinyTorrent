@@ -23,6 +23,7 @@ type UseTorrentTableContextParams = {
         } | null>
     >;
     resumeTorrent?: (torrent: Torrent) => Promise<void> | void;
+    retryTorrent?: (torrent: Torrent) => Promise<void> | void;
     openTorrentFolder?: (path?: string | null) => void;
 };
 
@@ -37,6 +38,7 @@ export const useTorrentTableContextActions = (
         buildMagnetLink,
         setContextMenu,
         resumeTorrent,
+        retryTorrent,
         openTorrentFolder,
     } = params;
 
@@ -98,11 +100,15 @@ export const useTorrentTableContextActions = (
                         }
                         break;
                     case "recheck":
-                        await dispatch(
-                            TorrentIntents.ensureValid(
-                                torrent.id ?? torrent.hash
-                            )
-                        );
+                        if (retryTorrent) {
+                            await retryTorrent(torrent);
+                        } else {
+                            await dispatch(
+                                TorrentIntents.ensureValid(
+                                    torrent.id ?? torrent.hash
+                                )
+                            );
+                        }
                         break;
                     case "remove":
                         await dispatch(

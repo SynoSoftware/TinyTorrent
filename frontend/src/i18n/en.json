@@ -954,7 +954,9 @@
             "downloading_missing": "Downloading missing pieces...",
             "folder_parent_opened": "Folder missing. Opened parent directory.",
             "download_resumed": "Download resumed",
-            "all_verified_resuming": "All files verified — resuming download."
+            "all_verified_resuming": "All files verified — resuming download.",
+            "retry_failed": "Retry could not reach the location.",
+            "resume_queued": "Resume queued"
         },
         "choose_another_folder": "Choose another folder",
         "outcome_message": "{{message}}",
@@ -978,6 +980,10 @@
             "drive_disconnected": "Drive disconnected ({{drive}})",
             "access_denied": "Permission denied (Read-only)",
             "waiting_for_drive": "Waiting for drive...",
+            "preparing": "Preparing download...",
+            "retrying": "Retrying...",
+            "waiting_status": "Waiting for status...",
+            "status_unknown": "Status unknown",
             "checking_files": "Checking files...",
             "checking_location": "Checking location..."
         },

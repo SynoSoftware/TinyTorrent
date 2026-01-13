@@ -1,4 +1,5 @@
 import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
+import type { RecoveryOutcome } from "@/services/recovery/recovery-controller";
 
 export type RecoveryGateAction =
     | "resume"
@@ -7,9 +8,13 @@ export type RecoveryGateAction =
     | "setLocation";
 
 export type RecoveryGateOutcome =
-    | { status: "continue" }
-    | { status: "handled" }
-    | { status: "cancelled" };
+    | { status: "continue"; log?: string }
+    | {
+          status: "handled";
+          log?: string;
+          blockingOutcome?: RecoveryOutcome;
+      }
+    | { status: "cancelled"; log?: string };
 
 export type RecoveryGateOptions = {
     recreateFolder?: boolean;

@@ -88,9 +88,8 @@ export const formatRecoveryTooltip = (
     const stateLabel = t(stateLabelKey);
     const classLabel = t(classLabelKey);
 
-    const parts: string[] = [];
-    parts.push(stateLabel);
-    if (classLabel && classLabel !== envelope.errorClass) {
+    const parts: string[] = [stateLabel];
+    if (classLabel && classLabel !== envelope.errorClass && classLabel !== stateLabel) {
         parts.push(classLabel);
     }
     if (
@@ -110,7 +109,7 @@ export const formatRecoveryTooltip = (
         }
     }
 
-    return parts.join(" — ");
+    return parts.filter((value, index, self) => self.indexOf(value) === index).join(" - ");
 };
 
 export const formatPrimaryActionHint = (
@@ -167,6 +166,10 @@ export const deriveMissingFilesStateKind = (
     envelope: ErrorEnvelope | undefined | null,
     path?: string
 ): MissingFilesStateKind => {
+    const errorClass = envelope?.errorClass;
+    if (errorClass === "permissionDenied") {
+        return "accessDenied";
+    }
     const message = (envelope?.errorMessage ?? "").toLowerCase();
     if (/permission|access is denied|read-only/.test(message)) {
         return "accessDenied";

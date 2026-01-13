@@ -44,7 +44,13 @@ import {
 import { classifyMissingFilesState } from "@/services/recovery/recovery-controller";
 import { type TFunction } from "i18next";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
-import { type CSSProperties, type ReactNode, type RefObject } from "react";
+import {
+    type CSSProperties,
+    type ReactNode,
+    type RefObject,
+    type Dispatch,
+    type SetStateAction,
+} from "react";
 import { TABLE_LAYOUT, ICON_STROKE_WIDTH_DENSE } from "@/config/logic";
 import useLayoutMetrics from "@/shared/hooks/useLayoutMetrics";
 import { useUiClock } from "@/shared/hooks/useUiClock";
@@ -62,7 +68,7 @@ import { buildSplinePath } from "@/shared/utils/spline";
 import type { Table } from "@tanstack/react-table";
 import type { OptimisticStatusMap } from "@/modules/dashboard/types/optimistic";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
-import { useMemo } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { useLifecycle } from "@/app/context/LifecycleContext";
 import { useRecoveryContext } from "@/app/context/RecoveryContext";
 import { useRequiredTorrentActions } from "@/app/context/TorrentActionsContext";
@@ -186,6 +192,258 @@ const formatQueueOrdinal = (queuePosition?: number) => {
     }
     const displayValue = queuePosition + 1;
     return `${displayValue}${getOrdinalSuffix(displayValue)}`;
+};
+
+type MissingFilesStatusCellProps = {
+    torrent: Torrent;
+    t: TFunction;
+    handleRetry?: () => Promise<void>;
+    handleDownloadMissing: (
+        torrent: Torrent,
+        options?: { recreateFolder?: boolean }
+    ) => Promise<void>;
+    handleSetLocation: (
+        torrent: Torrent,
+        path?: string | null
+    ) => Promise<void>;
+};
+
+const MissingFilesStatusCell = ({
+    torrent,
+    t,
+    handleRetry,
+    handleDownloadMissing,
+    handleSetLocation,
+}: MissingFilesStatusCellProps) => {
+    const [statusHint, setStatusHint] = useState<string | null>(null);
+    const [primaryBusy, setPrimaryBusy] = useState(false);
+    const [secondaryBusy, setSecondaryBusy] = useState(false);
+
+    const { serverClass } = useRecoveryContext();
+    const downloadDir = torrent.savePath ?? torrent.downloadDir ?? "";
+    const classification = useMemo(
+        () =>
+            classifyMissingFilesState(
+                torrent.errorEnvelope ?? null,
+                downloadDir,
+                serverClass,
+                { torrentId: torrent.id ?? torrent.hash }
+            ),
+        [downloadDir, serverClass, torrent]
+    );
+    const probe = useMissingFilesProbe(torrent.id);
+    const probeMode =
+        serverClass === "tinytorrent"
+            ? "local"
+            : serverClass === "transmission"
+            ? "remote"
+            : "unknown";
+    const probeLines = formatMissingFileDetails(t, probe);
+
+    const { dispatch } = useRequiredTorrentActions();
+    const openFolder = useCallback(() => {
+        const targetId = torrent.id ?? torrent.hash;
+        if (!targetId) return;
+        void dispatch(TorrentIntents.openTorrentFolder(targetId));
+    }, [dispatch, torrent.id, torrent.hash]);
+
+    useEffect(() => {
+        setStatusHint(null);
+    }, [torrent.state]);
+
+    const runAction = useCallback(
+        (
+            action?: () => Promise<void>,
+            setter?: Dispatch<SetStateAction<boolean>>,
+            hintKey?: string
+        ) => {
+            if (!action || !setter) return undefined;
+            return async () => {
+                setter(true);
+                if (hintKey) {
+                    setStatusHint(t(hintKey));
+                }
+                try {
+                    await action();
+                } finally {
+                    setter(false);
+                    setStatusHint(null);
+                }
+            };
+        },
+        [t]
+    );
+
+    const statusText = (() => {
+        if (classification.confidence === "unknown") {
+            return t("recovery.inline_fallback");
+        }
+        switch (classification.kind) {
+            case "pathLoss":
+                return t("recovery.status.folder_not_found", {
+                    path:
+                        classification.path ??
+                        downloadDir ??
+                        t("labels.unknown"),
+                });
+            case "volumeLoss":
+                return t("recovery.status.drive_disconnected", {
+                    drive:
+                        classification.root ??
+                        extractDriveLabel(
+                            classification.path ?? downloadDir
+                        ) ??
+                        t("labels.unknown"),
+                });
+            case "accessDenied":
+                return t("recovery.status.access_denied");
+            default:
+                return t("recovery.generic_header");
+        }
+    })();
+    const displayStatus = statusHint ?? statusText;
+
+    const primaryConfig = (() => {
+        const common = {
+            size: "md" as const,
+            variant: "shadow" as const,
+            color: "primary" as const,
+            className: "font-medium",
+            isDisabled: false,
+        };
+        switch (classification.kind) {
+            case "pathLoss":
+            case "accessDenied":
+                return {
+                    ...common,
+                    label: t("recovery.action_locate"),
+                    onPress: runAction(
+                        () => handleSetLocation(torrent),
+                        setPrimaryBusy,
+                        "recovery.status.preparing"
+                    ),
+                    isDisabled: !handleSetLocation,
+                };
+            case "volumeLoss":
+                return {
+                    ...common,
+                    label: t("recovery.action_retry"),
+                    onPress: runAction(
+                        handleRetry,
+                        setPrimaryBusy,
+                        "recovery.status.retrying"
+                    ),
+                    isDisabled: !handleRetry,
+                };
+            default:
+                return {
+                    ...common,
+                    label: t("recovery.action_download"),
+                    onPress: runAction(
+                        () => handleDownloadMissing(torrent),
+                        setPrimaryBusy,
+                        "recovery.status.preparing"
+                    ),
+                };
+        }
+    })();
+
+    const secondaryConfig = (() => {
+        const common = {
+            size: "md" as const,
+            variant: "light" as const,
+            className: "font-medium text-foreground" as const,
+            isDisabled: false,
+        };
+        switch (classification.kind) {
+            case "pathLoss":
+                return {
+                    ...common,
+                    label: t("recovery.action_recreate"),
+                    onPress: runAction(
+                        () =>
+                            handleDownloadMissing(torrent, {
+                                recreateFolder: true,
+                            }),
+                        setSecondaryBusy,
+                        "recovery.status.preparing"
+                    ),
+                };
+            case "volumeLoss":
+                return {
+                    ...common,
+                    label: t("recovery.action_locate"),
+                    onPress: runAction(
+                        () => handleSetLocation(torrent),
+                        setSecondaryBusy,
+                        "recovery.status.preparing"
+                    ),
+                    isDisabled: !handleSetLocation,
+                };
+            default:
+                return {
+                    ...common,
+                    label: t("recovery.action.open_folder"),
+                    onPress: openFolder,
+                };
+        }
+    })();
+
+    return (
+        <div className="min-w-0 w-full flex items-center justify-center h-full">
+            <div className="flex flex-wrap items-center gap-tools min-w-0">
+                <div className="surface-layer-1 rounded-panel p-panel flex-1 min-w-0 flex items-center gap-tight">
+                    <AlertTriangle className="toolbar-icon-size-md text-warning" />
+                    <div className="flex flex-col gap-tight min-w-0">
+                        <span
+                            className="text-scaled font-semibold text-foreground truncate"
+                            title={displayStatus}
+                        >
+                            {displayStatus}
+                        </span>
+                        {probeLines.map((line) => (
+                            <span
+                                key={line}
+                                className="text-label font-mono text-foreground/70 truncate"
+                            >
+                                {line}
+                            </span>
+                        ))}
+                    </div>
+                </div>
+                <div className="flex items-center gap-tools">
+                    <Button
+                        variant={primaryConfig.variant}
+                        color={primaryConfig.color}
+                        size={primaryConfig.size}
+                        className={cn(
+                            "ml-tight font-medium",
+                            primaryConfig.className
+                        )}
+                        isDisabled={
+                            primaryConfig.isDisabled || primaryBusy
+                        }
+                        isLoading={primaryBusy}
+                        onPress={primaryConfig.onPress}
+                    >
+                        {primaryConfig.label}
+                    </Button>
+                    <Button
+                        variant={secondaryConfig.variant}
+                        size={secondaryConfig.size}
+                        className={secondaryConfig.className}
+                        isDisabled={
+                            secondaryConfig.isDisabled || secondaryBusy
+                        }
+                        isLoading={secondaryBusy}
+                        onPress={secondaryConfig.onPress}
+                    >
+                        {secondaryConfig.label}
+                    </Button>
+                </div>
+            </div>
+        </div>
+    );
 };
 
 const SpeedColumnCell = ({ torrent, table }: ColumnRendererProps) => {
@@ -446,11 +704,12 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
         defaultVisible: true,
         sortAccessor: (torrent) => torrent.state,
         headerIcon: Activity,
-        render: ({ torrent, t, table }) => {
-            const { serverClass: recoveryServerClass, handleRetry } =
-                useRecoveryContext();
-            const { dispatch } = useRequiredTorrentActions();
-            const probe = useMissingFilesProbe(torrent.id);
+        render: ({ torrent, t }) => {
+            const {
+                handleRetry,
+                handleDownloadMissing,
+                handleSetLocation,
+            } = useRecoveryContext();
 
             // Determine effective state (recovery overlay overrides engine state)
             const effectiveState =
@@ -478,221 +737,15 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
                     conf.labelKey
                 ) || t(conf.labelKey);
 
-            // Special-case view for missing files: aligned with state machine spec
             if (effectiveState === "missing_files") {
-                const tableMeta = table.options.meta as
-                    | DashboardTableMeta
-                    | undefined;
-                const serverClass =
-                    tableMeta?.serverClass ??
-                    recoveryServerClass ??
-                    ("unknown" as ServerClass);
-                const downloadDir =
-                    torrent.savePath ?? torrent.downloadDir ?? "";
-                const classification = classifyMissingFilesState(
-                    torrent.errorEnvelope,
-                    downloadDir,
-                    serverClass,
-                    { torrentId: torrent.id ?? torrent.hash }
-                );
-                const probeMode =
-                    serverClass === "tinytorrent"
-                        ? "local"
-                        : serverClass === "transmission"
-                        ? "remote"
-                        : "unknown";
-                const probeLines = formatMissingFileDetails(
-                    t,
-                    probe,
-                    probeMode
-                );
-                const statusText = (() => {
-                    if (classification.confidence === "unknown") {
-                        return t("recovery.inline_fallback");
-                    }
-                    switch (classification.kind) {
-                        case "pathLoss":
-                            return t("recovery.status.folder_not_found", {
-                                path:
-                                    classification.path ||
-                                    downloadDir ||
-                                    t("labels.unknown"),
-                            });
-                        case "volumeLoss":
-                            return t("recovery.status.drive_disconnected", {
-                                drive:
-                                    classification.root ??
-                                    extractDriveLabel(
-                                        classification.path ?? downloadDir
-                                    ) ??
-                                    t("labels.unknown"),
-                            });
-                        case "accessDenied":
-                            return t("recovery.status.access_denied");
-                        default:
-                            return probeLines[0] ?? t("recovery.generic_header");
-                    }
-                })();
-                tooltip = probeLines.length
-                    ? probeLines.join(" — ")
-                    : t("recovery.generic_header");
-                const openFolder = (target: Torrent) => {
-                    const targetId = target.id ?? target.hash;
-                    if (!targetId) return;
-                    void dispatch(
-                        TorrentIntents.openTorrentFolder(targetId)
-                    );
-                };
-
-                const primaryConfig = (() => {
-                    const common = {
-                        size: "md" as const,
-                        variant: "shadow" as const,
-                        color: "primary" as const,
-                        className: "font-medium",
-                        isDisabled: false,
-                    };
-                    switch (classification.kind) {
-                        case "pathLoss":
-                            return {
-                                ...common,
-                                label: t("recovery.action_locate"),
-                                onPress: () =>
-                                    void dispatch(
-                                        TorrentIntents.ensureAtLocation(
-                                            torrent.id ?? torrent.hash,
-                                            torrent.savePath ?? ""
-                                        )
-                                    ),
-                            };
-                        case "volumeLoss":
-                            return {
-                                ...common,
-                                label: t("recovery.action_retry"),
-                                onPress: () => handleRetry?.(),
-                                isDisabled: !handleRetry,
-                            };
-                        case "accessDenied":
-                            return {
-                                ...common,
-                                label: t("recovery.action_locate"),
-                                onPress: () =>
-                                    void dispatch(
-                                        TorrentIntents.ensureAtLocation(
-                                            torrent.id ?? torrent.hash,
-                                            torrent.savePath ?? ""
-                                        )
-                                    ),
-                            };
-                        default:
-                            return {
-                                ...common,
-                                label: t("recovery.action_download"),
-                                onPress: () =>
-                                    void dispatch(
-                                        TorrentIntents.ensureDataPresent(
-                                            torrent.id ?? torrent.hash
-                                        )
-                                    ),
-                            };
-                    }
-                })();
-
-                const secondaryConfig = (() => {
-                    const common = {
-                        size: "md" as const,
-                        variant: "light" as const,
-                        className: "font-medium text-foreground" as const,
-                        isDisabled: false,
-                    };
-                    switch (classification.kind) {
-                        case "pathLoss":
-                            return {
-                                ...common,
-                                label: t("recovery.action_recreate"),
-                                onPress: () =>
-                                    void dispatch(
-                                        TorrentIntents.ensureDataPresent(
-                                            torrent.id ?? torrent.hash,
-                                            true
-                                        )
-                                    ),
-                            };
-                        case "volumeLoss":
-                            return {
-                                ...common,
-                                label: t("recovery.action_locate"),
-                                onPress: () =>
-                                    void dispatch(
-                                        TorrentIntents.ensureAtLocation(
-                                            torrent.id ?? torrent.hash,
-                                            torrent.savePath ?? ""
-                                        )
-                                    ),
-                            };
-                        case "accessDenied":
-                            return {
-                                ...common,
-                                label: t("recovery.action.open_folder"),
-                                onPress: () => openFolder(torrent),
-                            };
-                        default:
-                            return {
-                                ...common,
-                                label: t("recovery.action.open_folder"),
-                                onPress: () => openFolder(torrent),
-                            };
-                    }
-                })();
-
                 return (
-                    <div className="min-w-0 w-full flex items-center justify-center h-full">
-                        <div className="flex flex-wrap items-center gap-tools min-w-0">
-                            <div className="surface-layer-1 rounded-panel p-panel flex-1 min-w-0 flex items-center gap-tight">
-                                <AlertTriangle className="toolbar-icon-size-md text-warning" />
-                                <div className="flex flex-col gap-tight min-w-0">
-                                    <span
-                                        className="text-scaled font-semibold text-foreground truncate"
-                                        title={statusText}
-                                    >
-                                        {statusText}
-                                    </span>
-                                    {probeLines.map((line) => (
-                                        <span
-                                            key={line}
-                                            className="text-label font-mono text-foreground/70 truncate"
-                                        >
-                                            {line}
-                                        </span>
-                                    ))}
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-tools">
-                                <Button
-                                    variant={primaryConfig.variant}
-                                    color={primaryConfig.color}
-                                    size={primaryConfig.size}
-                                    className={cn(
-                                        "ml-tight font-medium",
-                                        primaryConfig.className
-                                    )}
-                                    isDisabled={primaryConfig.isDisabled}
-                                    onPress={primaryConfig.onPress}
-                                >
-                                    {primaryConfig.label}
-                                </Button>
-                                <Button
-                                    variant={secondaryConfig.variant}
-                                    size={secondaryConfig.size}
-                                    className={secondaryConfig.className}
-                                    isDisabled={secondaryConfig.isDisabled}
-                                    onPress={secondaryConfig.onPress}
-                                >
-                                    {secondaryConfig.label}
-                                </Button>
-                            </div>
-                        </div>
-                    </div>
+                    <MissingFilesStatusCell
+                        torrent={torrent}
+                        t={t}
+                        handleRetry={handleRetry}
+                        handleDownloadMissing={handleDownloadMissing}
+                        handleSetLocation={handleSetLocation}
+                    />
                 );
             }
 
