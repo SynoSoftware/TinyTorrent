@@ -108,6 +108,7 @@ export const TorrentTable_Body: React.FC<TorrentTableBodyProps> = (props) => {
         <div
             ref={parentRef}
             className="relative flex-1 h-full min-h-0 overflow-y-auto w-full overlay-scrollbar"
+            style={{ scrollbarGutter: "stable" }}
         >
             {isLoading && torrents.length === 0 ? (
                 <div className="w-full">
@@ -198,6 +199,7 @@ export const TorrentTable_Body: React.FC<TorrentTableBodyProps> = (props) => {
                                 .getVirtualItems()
                                 .map((virtualRow: VirtualItem) => {
                                     const row = rows[virtualRow.index];
+
                                     return (
                                         <TorrentTable_Row
                                             key={row.id}
@@ -249,7 +251,7 @@ export const TorrentTable_Body: React.FC<TorrentTableBodyProps> = (props) => {
                                         height: rowHeight,
                                     }}
                                     className={cn(
-                                        "pointer-events-none border border-content1/20 bg-background/90 backdrop-blur-3xl",
+                                        "pointer-events-none border border-content1/20 bg-background/90 backdrop-blur-3xl px-panel box-border",
                                         PANEL_SHADOW
                                     )}
                                 >

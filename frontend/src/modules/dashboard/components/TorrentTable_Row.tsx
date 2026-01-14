@@ -8,6 +8,7 @@ import { cn } from "@heroui/react";
 
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import { TableCellContent } from "./TorrentTable_Shared";
+import { getTableTotalWidthCss } from "./TorrentTable_Shared";
 
 // --- SUB-COMPONENT: VIRTUAL ROW ---
 const TorrentTable_Row = memo(
@@ -76,9 +77,10 @@ const TorrentTable_Row = memo(
                 position: "absolute",
                 top: virtualRow.start,
                 left: 0,
-                width: "100%",
                 height: virtualRow.size,
+                width: getTableTotalWidthCss(0),
             };
+
             if (transform) {
                 style.transform = CSS.Translate.toString(transform);
             }
@@ -160,14 +162,9 @@ const TorrentTable_Row = memo(
                     }
                     initial={false}
                     className={cn(
-                        "relative flex items-center w-full h-full ",
-                        // SELECTION STATE: Stronger contrast, no border, NO TRANSITION
+                        "relative flex items-center w-full h-full box-border",
                         isSelected ? "bg-primary/20" : "hover:bg-content1/10",
-
-                        // Context Menu Highlight
                         isContext && !isSelected && "bg-content1/20",
-
-                        // Keyboard Highlight (Focus)
                         isHighlighted && !isSelected && "bg-foreground/10"
                     )}
                 >
