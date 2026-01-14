@@ -89,7 +89,7 @@ export default function useLayoutMetrics(): LayoutMetrics {
                 // Use the same utility so browser resolves the same CSS token
                 // chain that real header elements use.
                 probe.style.height = "var(--tt-row-h)";
-                probe.style.position = "absolute";
+                probe.style.position = "fixed";
                 probe.style.visibility = "hidden";
                 probe.style.pointerEvents = "none";
                 probe.style.width = "1px";
