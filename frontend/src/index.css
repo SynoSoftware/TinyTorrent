@@ -10,7 +10,6 @@
     --fz: 14px;
     --z: var(--tt-zoom-level, 1);
     --tt-uz: calc(var(--u) * var(--z));
-
     /* --- 2. Logical Roles (The Consistency Authority) --- */
     /* --- Panel spacing tiers (Tiered-Panel system) --- */
     --tt-p-tight: calc(var(--tt-uz) * 2); /* p-tight (old p-1/p-2) */
@@ -29,6 +28,7 @@
     --tt-h-row: calc(var(--tt-uz) * 12);
     --tt-size-btn: calc(var(--tt-uz) * 8);
     --tt-size-btn-lg: calc(var(--tt-uz) * 10);
+    --tt-navbar-cursor-h: calc(var(--tt-size-btn-lg) + var(--tt-uz));
 
     /* --- 4. Mapping to Utilities --- */
     --spacing-panel: var(--tt-p-panel);
@@ -231,6 +231,14 @@
     --size-icon-btn-lg: var(--tt-size-icon-btn-lg);
 }
 
+:focus {
+    outline: none;
+}
+
+:focus-visible {
+    outline: 2px solid var(--nextui-focus);
+    outline-offset: 2px;
+}
 /* index.css - AGGRESSIVE TUNING FOR VISIBILITY */
 @layer components {
     main [data-slot="input-wrapper"],
@@ -1005,7 +1013,7 @@ main .torrent-table-watermark {
     }
 
     /* Cursor height slightly taller than pill (derived via token pipeline) */
-    --tt-navbar-cursor-h: calc(var(--tt-size-btn-lg) + var(--tt-uz));
+
     .h-navbar-cursor {
         height: var(--tt-navbar-cursor-h);
     }

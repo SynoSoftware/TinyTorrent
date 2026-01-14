@@ -4,6 +4,7 @@ import { TorrentIntents } from "@/app/intents/torrentIntents";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { ContextMenuVirtualElement } from "@/shared/hooks/ui/useContextMenuPosition";
 import { useTorrentCommands } from "@/app/context/TorrentCommandContext";
+import { useRecoveryContext } from "@/app/context/RecoveryContext";
 
 // Hook: context-menu action handler for the torrent table.
 // Extracted from `TorrentTable.tsx` and accepts a params object to keep
@@ -42,6 +43,7 @@ export const useTorrentTableContextActions = (
     const { dispatch } = useRequiredTorrentActions();
 
     const { handleTorrentAction } = useTorrentCommands();
+    const { handleSetLocation } = useRecoveryContext();
     const handleContextMenuAction = useCallback(
         async (key?: string) => {
             if (!contextMenu) return;
@@ -61,12 +63,7 @@ export const useTorrentTableContextActions = (
                 }
             } else if (key === "set-download-path") {
                 // Provider-owned: map to ENSURE_TORRENT_AT_LOCATION
-                await dispatch(
-                    TorrentIntents.ensureAtLocation(
-                        torrent.id ?? torrent.hash,
-                        torrent.savePath ?? ""
-                    )
-                );
+                await handleSetLocation(torrent);
             } else if (key === "reDownload" || key === "reDownloadHere") {
                 // Redownload action -> ENSURE_TORRENT_DATA_PRESENT
                 await dispatch(
@@ -108,8 +105,10 @@ export const useTorrentTableContextActions = (
             copyToClipboard,
             buildMagnetLink,
             setContextMenu,
+            openTorrentFolder,
             dispatch,
             handleTorrentAction,
+            handleSetLocation,
         ]
     );
 

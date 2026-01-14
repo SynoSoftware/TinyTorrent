@@ -191,13 +191,21 @@ export function useMarqueeSelection<TRow>({
                 if (!state.isAdditive) {
                     clearSelection();
                 }
+                setTimeout(() => {
+                    isMarqueeDraggingRef.current = false;
+                }, 0);
                 return;
             }
 
             const firstIndex = Math.floor(topContent / rowHeight);
             const lastIndex = Math.floor((bottomContent - 1) / rowHeight);
 
-            if (firstIndex > lastIndex) return;
+            if (firstIndex > lastIndex) {
+                setTimeout(() => {
+                    isMarqueeDraggingRef.current = false;
+                }, 0);
+                return;
+            }
 
             const isAdditive = state.isAdditive || event.shiftKey;
             const nextSelection: Record<string, boolean> = isAdditive
