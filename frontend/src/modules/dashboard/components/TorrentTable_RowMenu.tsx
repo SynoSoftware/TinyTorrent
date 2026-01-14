@@ -6,13 +6,12 @@ import {
     DropdownMenu,
     DropdownItem,
     DropdownSection,
-    Checkbox,
     cn,
 } from "@heroui/react";
 import { GLASS_MENU_SURFACE } from "@/shared/ui/layout/glass-surface";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
-import type { ItemElement } from "@react-types/shared";
 import type { ContextMenuVirtualElement } from "@/shared/hooks/ui/useContextMenuPosition";
+import { useRecoveryContext } from "@/app/context/RecoveryContext";
 
 type QueueMenuAction = { key: string; label: string };
 
@@ -38,7 +37,9 @@ export default function TorrentTable_RowMenu({
     isClipboardSupported?: boolean;
     getEmphasisClassForAction?: (a?: string) => string;
 }) {
+    const { serverClass } = useRecoveryContext();
     if (!contextMenu) return null;
+    const shouldShowOpenFolder = serverClass !== "transmission";
     const rect = contextMenu.virtualElement.getBoundingClientRect();
     return (
         <AnimatePresence>
@@ -107,24 +108,26 @@ export default function TorrentTable_RowMenu({
                     >
                         {t("table.data.title")}
                     </DropdownItem>
-                    <DropdownItem
-                        key="open-folder"
-                        isDisabled={!contextMenu?.torrent.savePath}
-                        className={cn(
-                            contextMenu?.torrent.errorEnvelope
-                                ?.primaryAction === "openFolder"
-                                ? getEmphasisClassForAction?.(
-                                      contextMenu?.torrent.errorEnvelope
-                                          ?.primaryAction
-                                  )
-                                : ""
-                        )}
-                        onPress={() =>
-                            void handleContextMenuAction("open-folder")
-                        }
-                    >
-                        {t("table.actions.open_folder")}
-                    </DropdownItem>
+                    {shouldShowOpenFolder ? (
+                        <DropdownItem
+                            key="open-folder"
+                            isDisabled={!contextMenu?.torrent.savePath}
+                            className={cn(
+                                contextMenu?.torrent.errorEnvelope
+                                    ?.primaryAction === "openFolder"
+                                    ? getEmphasisClassForAction?.(
+                                          contextMenu?.torrent.errorEnvelope
+                                              ?.primaryAction
+                                      )
+                                    : ""
+                            )}
+                            onPress={() =>
+                                void handleContextMenuAction("open-folder")
+                            }
+                        >
+                            {t("table.actions.open_folder")}
+                        </DropdownItem>
+                    ) : null}
                     <DropdownItem
                         key="set-download-path"
                         className={cn(
@@ -166,6 +169,7 @@ export default function TorrentTable_RowMenu({
                         key="remove"
                         color="danger"
                         shortcut={getContextMenuShortcut("remove")}
+                        onPress={() => void handleContextMenuAction("remove")}
                     >
                         {t("table.actions.remove")}
                     </DropdownItem>
@@ -173,11 +177,11 @@ export default function TorrentTable_RowMenu({
                         key="remove-with-data"
                         color="danger"
                         shortcut={getContextMenuShortcut("remove-with-data")}
+                        onPress={() =>
+                            void handleContextMenuAction("remove-with-data")
+                        }
                     >
                         {t("table.actions.remove_with_data")}
-                    </DropdownItem>
-                    <DropdownItem key="cols" showDivider>
-                        {t("table.column_picker_title")}
                     </DropdownItem>
                 </DropdownMenu>
             </Dropdown>
