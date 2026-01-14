@@ -1558,3 +1558,41 @@ TinyTorrent must behave like a desktop tool and look better than desktop tools e
 6. Never write complex or nested shell one-liners. If a command requires tricky quoting or multiple pipes, move it into a script file instead. All commands must be simple, cross-platform, and Windows-safe.
 
 ABSOLUTE RULE: Never run git restore, git reset, git clean, or checkout -- without explicit confirmation. Preserve all local changes.
+
+# Mandatory Architectural Rules
+
+1. **Global Truth Over Local Convenience**
+   Code MUST optimize for a single, global source of truth.
+   No component, hook, or UI surface may infer, guess, or re-derive behavior already owned elsewhere.
+
+2. **Completed Contracts Only**
+   Every abstraction MUST define:
+
+   - success paths
+   - failure paths
+   - unsupported states
+   - cancellation / no-op outcomes
+
+   Partial contracts, silent returns, or “best-effort” behavior are forbidden.
+
+3. **Declared Behavioral Ownership**
+   Every non-trivial behavior MUST have exactly one declared owner (module, orchestrator, or service).
+   No behavior may be split across call sites, UI layers, or helpers without a single coordinating authority.
+
+4. **No Capability Probing Outside the Control Plane**
+   Environment, platform, or engine capabilities MUST be resolved once and published as explicit state.
+   Callers may *consume* capability — never detect it themselves.
+
+5. **Outcomes Are Data, Not Side-Effects**
+   Public actions MUST return typed outcomes that describe what happened (`success`, `manual`, `canceled`, `unsupported`, etc.).
+   Callers may not infer results from UI changes or absence of errors.
+
+6. **Shared UI State Requires Arbitration**
+   Any state that can be triggered from multiple surfaces MUST include:
+
+   - ownership rules
+   - conflict resolution
+   - explicit rejection reasons
+
+   First writer wins is forbidden unless documented.
+
