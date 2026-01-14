@@ -435,7 +435,7 @@ export const HANDLE_PADDING_CLASS = "pr-handle";
 // Cells should not include extra layout padding for the handle — the handle
 // hit-area is provided by an absolutely-positioned element so it won't
 // require reserved spacing in the layout.
-export const CELL_PADDING_CLASS = `pl-panel pr-panel`;
+export const CELL_PADDING_CLASS = `pl-tight pr-tight`;
 
 export const CELL_BASE_CLASS =
     "flex items-center overflow-hidden h-full truncate whitespace-nowrap text-ellipsis box-border leading-none";
