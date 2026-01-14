@@ -4,7 +4,7 @@ Licensed under the Apache License, Version 2.0. See `LICENSES.md` for details.
 
 # **TinyTorrent RPC-Extended Specification**
 
-**Version:** 1.1.0
+**Version:** 1.2.0
 **Status:** Revised for Webview2
 **Dependencies:** TinyTorrent Security Model v1.0 (Mandatory)
 
@@ -111,6 +111,100 @@ When `server-class` is `transmission`:
 
 
 ---
+
+## **1.6 UI Capability Mapping (Normative)**
+
+The frontend **MUST** derive user-visible capabilities exclusively from the combination of:
+
+- `server-class`
+- RPC connection host
+- NativeShell runtime availability
+
+The UI **MUST NOT** infer filesystem or OS capabilities from:
+
+- extended RPC features
+- server class alone
+- presence of TinyTorrent-specific methods
+
+### 1.6.1 Capability Axes
+
+There are **three independent axes**:
+
+1. **Server Protocol**
+
+   - `transmission`
+   - `tinytorrent`
+
+2. **Connection Locality**
+
+   - local (`127.0.0.1`, `::1`)
+   - remote (any other host)
+
+3. **Runtime Bridge**
+
+   - NativeShell available
+   - NativeShell unavailable
+
+Only the **intersection** determines UI affordances.
+
+---
+
+### 1.6.2 Canonical Capability Derivation
+
+The frontend MUST compute NativeShell capability as:
+
+```
+hasNativeShell =
+    (connected_host is loopback) &&
+    (NativeShell bridge is present)
+```
+
+This value is **connection-scoped** and MUST be recomputed whenever the RPC connection changes.
+
+---
+
+### 1.6.3 Mandatory UI Behavior by Mode
+
+#### Mode A — Transmission (any host)
+
+- Folder picker dialogs: **MUST NOT be shown**
+- Filesystem browsing: **MUST NOT be attempted**
+- Path selection: **manual input only**
+- UI MUST clearly indicate the path is **server-side**
+- No NativeShell APIs may be called
+
+#### Mode B — TinyTorrent (remote)
+
+- Folder picker dialogs: **MUST NOT be shown**
+- Extended RPC features: **enabled**
+- Path selection: **manual input only**
+- UI MUST NOT imply local filesystem access
+- NativeShell APIs MUST NOT be invoked
+
+#### Mode C — TinyTorrent (local + NativeShell)
+
+- Folder picker dialogs: **MUST be available**
+- Manual path input: **MUST remain available**
+- UI may present both options
+- NativeShell is the **exclusive authority** for:
+
+  - file dialogs
+  - filesystem browsing
+- The daemon receives paths as **opaque, trusted strings**
+
+---
+
+### 1.6.4 UI Invariants (Hard Rules)
+
+The frontend MUST ensure:
+
+- No UI control opens a folder picker unless `hasNativeShell === true`
+- No UI control silently no-ops due to missing capability
+- All path selection flows terminate in exactly one of:
+
+  - native browse
+  - manual entry
+  - explicit unsupported explanation
 
 ## **2. WebSocket Protocol (State Synchronization)**
 
@@ -378,3 +472,67 @@ To ensure the Frontend can localize errors correctly, extended methods must retu
 | `metainfo-read-failure` | 4002 | Provided `metainfo-path` is corrupt, locked, or missing. |
 | `invalid-sequence` | 4004 | WebSocket synchronization gap detected. |
 | `permission-denied` | 4003 | OS-level access restriction (ACLs). |
+
+
+
+Correct clarification: TinyTorrent / Transmission / NativeShell (WebView2)
+
+### A. Server types (RPC layer — protocol capability)
+
+There are **exactly two server types** the UI can connect to:
+
+#### 1) Transmission
+
+- Pure Transmission RPC
+- No extended RPC commands
+- Always remote-semantics
+- **Never** has NativeShell capabilities
+
+#### 2) TinyTorrent
+
+- Transmission-compatible RPC **plus** extended RPC commands
+- Extended RPC ≠ filesystem access
+- Can be **local or remote**
+- NativeShell availability depends on **connection**, not server type
+
+> **Important invariant:**
+> TinyTorrent ≠ NativeShell
+> Extended RPC ≠ filesystem access
+
+---
+
+### B. NativeShell / WebView2 (transport + runtime capability)
+
+**NativeShell is not a server capability.**
+It is a **client-side filesystem bridge** that only exists when **both** conditions are true:
+
+1. **The RPC connection is local**
+
+   - `connected_host === 127.0.0.1` (or localhost equivalent)
+2. **The runtime provides the NativeShell bridge**
+
+   - `NativeShell.isAvailable === true`
+
+Canonical rule:
+
+```
+hasNativeShell =
+    transport.isLocalConnection &&
+    runtime.nativeShellBridgeAvailable
+```
+
+---
+
+### C. Resulting capability matrix
+
+| Server       | Connected Host    | NativeShell | Folder Picker | Manual Path |
+| ------------ | ----------------- | ----------- | ------------- | ----------- |
+| Transmission | Any               | ❌           | ❌             | ✅           |
+| TinyTorrent  | Remote            | ❌           | ❌             | ✅           |
+| TinyTorrent  | Local (127.0.0.1) | ✅           | ✅             | ✅           |
+
+Key consequences:
+
+- The UI **can start inside NativeShell** and later connect to a **remote server**
+- In that case, **NativeShell must be considered unavailable**
+- UI runtime ≠ server locality
