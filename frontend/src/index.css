@@ -591,10 +591,6 @@
         border-color: transparent;
         box-shadow: none;
     }
-
-    :where(body, #root) {
-        @apply h-screen w-screen overflow-hidden;
-    }
 }
 
 @layer utilities {
