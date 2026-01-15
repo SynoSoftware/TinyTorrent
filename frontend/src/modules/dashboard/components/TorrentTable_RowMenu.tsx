@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { AnimatePresence } from "framer-motion";
 import {
     Dropdown,
@@ -12,6 +12,16 @@ import { GLASS_MENU_SURFACE } from "@/shared/ui/layout/glass-surface";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { ContextMenuVirtualElement } from "@/shared/hooks/ui/useContextMenuPosition";
 import { useRecoveryContext } from "@/app/context/RecoveryContext";
+import { SetLocationInlineEditor } from "@/modules/dashboard/components/SetLocationInlineEditor";
+import type { SetLocationOutcome } from "@/app/context/RecoveryContext";
+import {
+    getSetLocationOutcomeMessage,
+    getSurfaceCaptionKey,
+} from "@/app/utils/setLocation";
+
+const getTorrentKey = (
+    entry?: { id?: string | number; hash?: string } | null
+) => entry?.id?.toString() ?? entry?.hash ?? "";
 
 type QueueMenuAction = { key: string; label: string };
 
@@ -30,26 +40,78 @@ export default function TorrentTable_RowMenu({
         torrent: Torrent;
     } | null;
     onClose: () => void;
-    handleContextMenuAction: (key?: string) => Promise<void>;
+    handleContextMenuAction: (
+        key?: string
+    ) => Promise<SetLocationOutcome | undefined>;
     queueMenuActions: QueueMenuAction[];
     getContextMenuShortcut: (key: string) => string | undefined;
     t: (k: string, opts?: Record<string, unknown>) => string;
     isClipboardSupported?: boolean;
     getEmphasisClassForAction?: (a?: string) => string;
 }) {
-    const { serverClass } = useRecoveryContext();
+    const {
+        inlineSetLocationState,
+        cancelInlineSetLocation,
+        confirmInlineSetLocation,
+        handleInlineLocationChange,
+        getLocationOutcome,
+        setLocationCapability,
+        canOpenFolder,
+        connectionMode,
+    } = useRecoveryContext();
     if (!contextMenu) return null;
-    const shouldShowOpenFolder = serverClass !== "transmission";
+    const shouldShowOpenFolder = canOpenFolder;
+    const canSetLocation =
+        setLocationCapability.canBrowse || setLocationCapability.supportsManual;
+    const inlineStateKey = inlineSetLocationState?.torrentKey ?? "";
+    const currentKey = getTorrentKey(contextMenu.torrent);
+    const shouldShowInlineEditor =
+        inlineSetLocationState?.surface === "context-menu" &&
+        inlineStateKey &&
+        inlineStateKey === currentKey;
+    const inlineIsVerifying =
+        inlineSetLocationState?.status === "verifying";
+    const inlineStatusMessage = inlineIsVerifying
+        ? t("recovery.status.applying_location")
+        : undefined;
+    const inlineCaption = t(getSurfaceCaptionKey("context-menu"));
+    const inlineIsBusy =
+        inlineSetLocationState?.status !== "idle" || inlineIsVerifying;
+    const outcomeMessage = getSetLocationOutcomeMessage(
+        getLocationOutcome("context-menu", inlineStateKey || currentKey),
+        "context-menu",
+        connectionMode
+    );
+    const unsupportedMessage =
+        outcomeMessage && !shouldShowInlineEditor
+            ? t(outcomeMessage.labelKey)
+            : null;
+    const handleInlineSubmit = () => {
+        void confirmInlineSetLocation().then((success) => {
+            if (success) {
+                onClose();
+            }
+        });
+    };
+    const handleInlineCancel = () => {
+        cancelInlineSetLocation();
+        onClose();
+    };
+    const handleSetDownloadPath = () => {
+        if (!canSetLocation) return;
+        void handleContextMenuAction("set-download-path");
+    };
     const rect = contextMenu.virtualElement.getBoundingClientRect();
     return (
         <AnimatePresence>
-            <Dropdown
-                isOpen
-                onClose={onClose}
-                placement="bottom-start"
-                shouldBlockScroll={false}
-                shouldFlip
-            >
+                <Dropdown
+                    isOpen
+                    onClose={onClose}
+                    placement="bottom-start"
+                    shouldBlockScroll={false}
+                    shouldFlip
+                    closeOnSelect={false}
+                >
                 <DropdownTrigger>
                     <div
                         style={{
@@ -103,7 +165,7 @@ export default function TorrentTable_RowMenu({
                     <DropdownItem
                         key="data-title"
                         isDisabled
-                        className="border-t border-content1/20 mt-tight pt-(--p-tight) px-panel text-scaled font-bold uppercase text-foreground/50"
+                        className="border-t border-content1/20 mt-tight pt-tight px-panel text-scaled font-bold uppercase text-foreground/50"
                         style={{ letterSpacing: "var(--tt-tracking-ultra)" }}
                     >
                         {t("table.data.title")}
@@ -139,9 +201,9 @@ export default function TorrentTable_RowMenu({
                                   )
                                 : ""
                         )}
-                        onPress={() =>
-                            void handleContextMenuAction("set-download-path")
-                        }
+                        isDisabled={!canSetLocation}
+                        onPress={handleSetDownloadPath}
+                        textValue={t("table.actions.set_download_path")}
                     >
                         {t("table.actions.set_download_path")}
                     </DropdownItem>
@@ -183,6 +245,43 @@ export default function TorrentTable_RowMenu({
                     >
                         {t("table.actions.remove_with_data")}
                     </DropdownItem>
+                    {shouldShowInlineEditor && inlineSetLocationState ? (
+                        <DropdownSection
+                            key="set-location-inline"
+                            title=""
+                            className="border-t border-content1/20 px-panel pt-panel"
+                        >
+                        <DropdownItem
+                            key="inline-editor-wrapper"
+                            className="p-0"
+                            role="presentation"
+                            textValue={t("table.actions.set_download_path")}
+                        >
+                                <SetLocationInlineEditor
+                                    value={inlineSetLocationState.inputPath}
+                                    error={inlineSetLocationState.error}
+                                    isBusy={inlineIsBusy}
+                                    caption={inlineCaption}
+                                    statusMessage={inlineStatusMessage}
+                                    disableCancel={inlineIsVerifying}
+                                    onChange={handleInlineLocationChange}
+                                    onSubmit={handleInlineSubmit}
+                                    onCancel={handleInlineCancel}
+                                />
+                            </DropdownItem>
+                        </DropdownSection>
+                    ) : null}
+                    {unsupportedMessage && !shouldShowInlineEditor ? (
+                        <DropdownSection
+                            key="set-location-unsupported"
+                            title=""
+                            className="border-t border-content1/20 px-panel pt-panel"
+                        >
+                            <div className="text-label text-warning/80">
+                                {unsupportedMessage}
+                            </div>
+                        </DropdownSection>
+                    ) : null}
                 </DropdownMenu>
             </Dropdown>
         </AnimatePresence>

@@ -35,6 +35,11 @@ import {
 import { useMissingFilesProbe } from "@/services/recovery/missingFilesStore";
 import { useOpenTorrentFolder } from "@/app/hooks/useOpenTorrentFolder";
 import STATUS from "@/shared/status";
+import { SetLocationInlineEditor } from "@/modules/dashboard/components/SetLocationInlineEditor";
+import {
+    getSetLocationOutcomeMessage,
+    getSurfaceCaptionKey,
+} from "@/app/utils/setLocation";
 
 interface GeneralTabProps {
     torrent: TorrentDetail;
@@ -83,6 +88,10 @@ const GeneralInfoCard = ({
     </GlassPanel>
 );
 
+const getTorrentKey = (
+    entry?: { id?: string | number; hash?: string } | null
+) => entry?.id?.toString() ?? entry?.hash ?? "";
+
 export const GeneralTab = ({
     torrent,
     downloadDir,
@@ -112,7 +121,23 @@ export const GeneralTab = ({
         serverClass,
         handleSetLocation,
         handleDownloadMissing,
+        inlineSetLocationState,
+        cancelInlineSetLocation,
+        confirmInlineSetLocation,
+        handleInlineLocationChange,
+        setLocationCapability,
+        getLocationOutcome,
+        canOpenFolder,
+        connectionMode,
     } = useRecoveryContext();
+    const currentTorrentKey = getTorrentKey(torrent);
+    const outcomeMessage = getSetLocationOutcomeMessage(
+        getLocationOutcome("general-tab", currentTorrentKey),
+        "general-tab",
+        connectionMode
+    );
+    const unsupportedLocationMessage =
+        outcomeMessage && t(outcomeMessage.labelKey);
     const probe = useMissingFilesProbe(torrent.id);
     const probeMode =
         serverClass === "tinytorrent"
@@ -136,12 +161,25 @@ export const GeneralTab = ({
         downloadDir ?? torrent.savePath ?? torrent.downloadDir ?? "";
 
     const { handleTorrentAction } = useTorrentCommands();
+    const canSetLocation =
+        setLocationCapability.canBrowse || setLocationCapability.supportsManual;
     const handleSetLocationAction = () => {
-        if (!handleSetLocation) {
-            return;
-        }
-        void handleSetLocation(torrent);
+        if (!handleSetLocation) return;
+        void handleSetLocation(torrent, { surface: "general-tab" });
     };
+
+    const inlineEditorKey = inlineSetLocationState?.torrentKey ?? "";
+    const showInlineEditor =
+        inlineSetLocationState?.surface === "general-tab" &&
+        inlineEditorKey &&
+        inlineEditorKey === currentTorrentKey;
+    const generalIsVerifying =
+        inlineSetLocationState?.status === "verifying";
+    const generalIsBusy = inlineSetLocationState?.status !== "idle";
+    const generalStatusMessage = generalIsVerifying
+        ? t("recovery.status.applying_location")
+        : undefined;
+    const generalCaption = t(getSurfaceCaptionKey("general-tab"));
 
     const handleResumeAction = () => {
         void handleTorrentAction("resume", torrent);
@@ -249,6 +287,19 @@ export const GeneralTab = ({
                     </div>
                 </div>
             </GlassPanel>
+            {showInlineEditor && inlineSetLocationState && (
+                <SetLocationInlineEditor
+                    value={inlineSetLocationState.inputPath}
+                    error={inlineSetLocationState.error}
+                    isBusy={generalIsBusy}
+                    caption={generalCaption}
+                    statusMessage={generalStatusMessage}
+                    disableCancel={generalIsVerifying}
+                    onChange={handleInlineLocationChange}
+                    onSubmit={() => void confirmInlineSetLocation()}
+                    onCancel={cancelInlineSetLocation}
+                />
+            )}
 
             {showMissingFilesError && (
                 <GlassPanel className="p-panel border border-warning/30 bg-warning/10">
@@ -284,7 +335,7 @@ export const GeneralTab = ({
                                 size="md"
                                 color="default"
                                 onPress={() => void openFolder(currentPath)}
-                                isDisabled={!currentPath}
+                                isDisabled={!currentPath || !canOpenFolder}
                                 className="h-auto"
                             >
                                 {t("recovery.action_open_folder")}
@@ -306,74 +357,84 @@ export const GeneralTab = ({
                                     {t("torrent_modal.controls.description")}
                                 </div>
                             </div>
-                            <div className="flex items-center gap-tools">
-                                {/* Force reannounce moved to Trackers tab per UX decision */}
-                                <Button
-                                    size="md"
-                                    variant="flat"
-                                    color={isActive ? "default" : "primary"}
-                                    onPress={() => {
-                                        if (isActive) handlePauseAction();
-                                        else handleResumeAction();
-                                    }}
-                                    isDisabled={Boolean(isRecoveryBlocked)}
-                                >
-                                    {(() => {
-                                        const Icon = getIconForAction(
-                                            isActive ? "pause" : "resume"
-                                        );
-                                        return (
-                                            <>
-                                                {Icon && (
-                                                    <Icon
-                                                        size={16}
-                                                        strokeWidth={
-                                                            ICON_STROKE_WIDTH
-                                                        }
-                                                        className="mr-2"
-                                                    />
-                                                )}
-                                                {mainActionLabel}
-                                            </>
-                                        );
-                                    })()}
-                                </Button>
-                                <Button
-                                    size="md"
-                                    variant="flat"
-                                    color="default"
-                                    onPress={() =>
-                                        void handleSetLocationAction()
-                                    }
-                                >
-                                    <>
-                                        <Folder
-                                            size={16}
-                                            strokeWidth={ICON_STROKE_WIDTH}
-                                            className="mr-2"
-                                        />
-                                        {t("directory_browser.select", {
-                                            name: t(
-                                                "torrent_modal.labels.save_path"
-                                            ),
-                                        })}
-                                    </>
-                                </Button>
-                                <Button
-                                    size="md"
-                                    variant="flat"
-                                    color="danger"
-                                    onPress={() => handleRemoveAction()}
-                                >
-                                    <>
-                                        <Trash2
-                                            size={16}
-                                            strokeWidth={ICON_STROKE_WIDTH}
-                                            className="mr-2"
-                                        />
-                                        {t("toolbar.remove")}
-                                    </>
-                                </Button>
+                            <div className="flex flex-col gap-tight">
+                                <div className="flex items-center gap-tools">
+                                    {/* Force reannounce moved to Trackers tab per UX decision */}
+                                    <Button
+                                        size="md"
+                                        variant="flat"
+                                        color={isActive ? "default" : "primary"}
+                                        onPress={() => {
+                                            if (isActive) handlePauseAction();
+                                            else handleResumeAction();
+                                        }}
+                                        isDisabled={Boolean(isRecoveryBlocked)}
+                                    >
+                                        {(() => {
+                                            const Icon = getIconForAction(
+                                                isActive ? "pause" : "resume"
+                                            );
+                                            return (
+                                                <>
+                                                    {Icon && (
+                                                        <Icon
+                                                            size={16}
+                                                            strokeWidth={
+                                                                ICON_STROKE_WIDTH
+                                                            }
+                                                            className="mr-2"
+                                                        />
+                                                    )}
+                                                    {mainActionLabel}
+                                                </>
+                                            );
+                                        })()}
+                                    </Button>
+                                    <Button
+                                        size="md"
+                                        variant="flat"
+                                        color="default"
+                                        onPress={() =>
+                                            void handleSetLocationAction()
+                                        }
+                                        isDisabled={!canSetLocation}
+                                    >
+                                        <>
+                                            <Folder
+                                                size={16}
+                                                strokeWidth={
+                                                    ICON_STROKE_WIDTH
+                                                }
+                                                className="mr-2"
+                                            />
+                                            {t("directory_browser.select", {
+                                                name: t(
+                                                    "torrent_modal.labels.save_path"
+                                                ),
+                                            })}
+                                        </>
+                                    </Button>
+                                    <Button
+                                        size="md"
+                                        variant="flat"
+                                        color="danger"
+                                        onPress={() => handleRemoveAction()}
+                                    >
+                                        <>
+                                            <Trash2
+                                                size={16}
+                                                strokeWidth={ICON_STROKE_WIDTH}
+                                                className="mr-2"
+                                            />
+                                            {t("toolbar.remove")}
+                                        </>
+                                    </Button>
+                                </div>
+                                {unsupportedLocationMessage && (
+                                    <div className="text-label text-warning/80">
+                                        {unsupportedLocationMessage}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </GlassPanel>

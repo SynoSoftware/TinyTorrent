@@ -225,9 +225,14 @@ function AppContent({
         isDetailRecoveryBlocked,
         handleRecoveryClose,
         handleRecoveryPickPath,
-        setLocationAndRecover,
+        handleSetLocation,
+        setLocationCapability,
+        getLocationOutcome,
+        inlineSetLocationState,
+        cancelInlineSetLocation,
+        confirmInlineSetLocation,
+        handleInlineLocationChange,
         handleRecoveryRecreateFolder,
-        recoveryRequestBrowse,
         handleRecoveryRetry,
         handleRecoveryAutoRetry,
         resumeTorrentWithRecovery: resumeTorrent,
@@ -235,6 +240,8 @@ function AppContent({
         executeRedownload,
         executeRetryFetch,
         performUIActionDelete,
+        connectionMode,
+        canOpenFolder,
     } = orchestrator;
     useEffect(() => {
         if (!probeMissingFilesIfStale) return;
@@ -339,23 +346,6 @@ function AppContent({
             await executeRedownload(torrent, options);
         },
         [executeRedownload]
-    );
-
-    const handleSetLocation = useCallback(
-        async (torrent: Torrent, path?: string | null) => {
-            if (!setLocationAndRecover) return;
-            const targetPath =
-                path ??
-                (await recoveryRequestBrowse?.(
-                    torrent.savePath ??
-                        torrent.downloadDir ??
-                        torrent.savePath ??
-                        undefined
-                ));
-            if (!targetPath) return;
-            await setLocationAndRecover(torrent, targetPath);
-        },
-        [recoveryRequestBrowse, setLocationAndRecover]
     );
 
     const executeTorrentActionViaDispatch = async (
@@ -735,9 +725,17 @@ function AppContent({
             <RecoveryProvider
                 value={{
                     serverClass,
+                    connectionMode,
+                    canOpenFolder,
                     handleRetry: handleRecoveryRetry,
                     handleDownloadMissing,
                     handleSetLocation,
+                    setLocationCapability,
+                    inlineSetLocationState,
+                    cancelInlineSetLocation,
+                    confirmInlineSetLocation,
+                    handleInlineLocationChange,
+                    getLocationOutcome,
                 }}
             >
                     <WorkspaceShell
@@ -799,12 +797,6 @@ function AppContent({
                         lastRecoveryOutcome ?? recoverySession?.outcome ?? null
                     }
                     onClose={handleRecoveryClose}
-                    onPickPath={handleRecoveryPickPath}
-                    onBrowse={
-                        NativeShell.isAvailable
-                            ? recoveryRequestBrowse
-                            : undefined
-                    }
                     onRecreate={handleRecoveryRecreateFolder}
                     onAutoRetry={handleRecoveryAutoRetry}
                     isBusy={isRecoveryBusy}
@@ -836,7 +828,7 @@ function AppContent({
                     onConfirm={handleTorrentWindowConfirm}
                     checkFreeSpace={torrentClient.checkFreeSpace}
                     onBrowseDirectory={
-                        NativeShell.isAvailable
+                        connectionMode === "tinytorrent-local-shell"
                             ? async (currentPath: string) => {
                                   try {
                                       return await NativeShell.browseDirectory(

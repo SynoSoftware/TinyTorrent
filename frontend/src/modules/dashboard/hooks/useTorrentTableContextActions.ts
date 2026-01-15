@@ -5,6 +5,8 @@ import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { ContextMenuVirtualElement } from "@/shared/hooks/ui/useContextMenuPosition";
 import { useTorrentCommands } from "@/app/context/TorrentCommandContext";
 import { useRecoveryContext } from "@/app/context/RecoveryContext";
+import { resolveTorrentPath } from "@/modules/dashboard/utils/torrentPaths";
+import type { SetLocationOutcome } from "@/app/context/RecoveryContext";
 
 // Hook: context-menu action handler for the torrent table.
 // Extracted from `TorrentTable.tsx` and accepts a params object to keep
@@ -45,25 +47,29 @@ export const useTorrentTableContextActions = (
     const { handleTorrentAction } = useTorrentCommands();
     const { handleSetLocation } = useRecoveryContext();
     const handleContextMenuAction = useCallback(
-        async (key?: string) => {
+        async (key?: string): Promise<SetLocationOutcome | undefined> => {
             if (!contextMenu) return;
             const torrent = contextMenu.torrent;
             if (!torrent) return;
+            let keepMenuOpen = false;
+            let actionOutcome: SetLocationOutcome | undefined;
             if (key === "cols") {
                 const rowElement = findRowElement(torrent.id);
                 openColumnModal(rowElement ?? null);
             } else if (key === "open-folder") {
-                const path =
-                    torrent.savePath ??
-                    torrent.downloadDir ??
-                    torrent.savePath ??
-                    "";
+                const path = resolveTorrentPath(torrent);
                 if (path) {
                     await openTorrentFolder?.(path);
                 }
             } else if (key === "set-download-path") {
                 // Provider-owned: map to ENSURE_TORRENT_AT_LOCATION
-                await handleSetLocation(torrent);
+                actionOutcome = await handleSetLocation(torrent, {
+                    surface: "context-menu",
+                });
+                keepMenuOpen =
+                    actionOutcome?.kind === "manual" ||
+                    actionOutcome?.kind === "unsupported" ||
+                    actionOutcome?.kind === "conflict";
             } else if (key === "reDownload" || key === "reDownloadHere") {
                 // Redownload action -> ENSURE_TORRENT_DATA_PRESENT
                 await dispatch(
@@ -96,7 +102,10 @@ export const useTorrentTableContextActions = (
                         break;
                 }
             }
-            setContextMenu(null);
+            if (!keepMenuOpen) {
+                setContextMenu(null);
+            }
+            return actionOutcome;
         },
         [
             contextMenu,

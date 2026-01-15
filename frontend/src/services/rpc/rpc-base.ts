@@ -42,7 +42,7 @@ import {
     WS_RECONNECT_INITIAL_DELAY_MS,
     WS_RECONNECT_MAX_DELAY_MS,
 } from "@/config/logic";
-import type { EngineAdapter } from "./engine-adapter";
+import type { EngineAdapter, ServerCapabilities } from "./engine-adapter";
 import { NativeShell } from "@/app/runtime";
 import { HeartbeatManager } from "./heartbeat";
 import type {
@@ -250,6 +250,26 @@ export class TransmissionAdapter implements EngineAdapter {
         this.requestTimeout = options?.requestTimeout;
         // Transport encapsulates Transmission session id handling and probing
         this.transport = new TransmissionRpcTransport(this.endpoint);
+    }
+
+    private extractEndpointHost(): string {
+        try {
+            const url = new URL(this.endpoint);
+            return url.hostname.toLowerCase();
+        } catch {
+            return "";
+        }
+    }
+
+    private isLoopbackHost(host: string): boolean {
+        const trimmed = host.trim().toLowerCase();
+        if (!trimmed) return false;
+        return (
+            trimmed === "127.0.0.1" ||
+            trimmed === "localhost" ||
+            trimmed === "::1" ||
+            trimmed === "0:0:0:0:0:0:0:1"
+        );
     }
 
     private isAbortError(err: unknown): boolean {
@@ -1157,6 +1177,22 @@ export class TransmissionAdapter implements EngineAdapter {
             this.ensureWebsocketConnection();
         }
         return this.tinyTorrentCapabilities ?? null;
+    }
+
+    public getServerCapabilities(): ServerCapabilities {
+        const host = this.extractEndpointHost();
+        const serverClassValue = this.serverClass ?? "unknown";
+        const hasNativeShell =
+            serverClassValue === "tinytorrent" &&
+            NativeShell.isAvailable &&
+            this.isLoopbackHost(host);
+        return {
+            host,
+            serverClass: serverClassValue,
+            supportsOpenFolder: hasNativeShell,
+            supportsSetLocation: true,
+            supportsManual: true,
+        };
     }
 
     public getServerClass(): ServerClass {

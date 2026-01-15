@@ -54,6 +54,7 @@
         "open": "Open",
         "path_helper": "Type a path; the daemon will create missing folders when you confirm.",
         "manual_entry_prompt": "Enter the server-side folder path that already contains this torrent's data.",
+        "validation_required": "Please enter a download path.",
         "enter_path": "Enter path:",
         "path_label": "Path",
         "root_label": "File System",
@@ -558,7 +559,11 @@
         "engine_name_transmission": "Transmission",
         "engine_tooltip": "Engine status\n\nTransport: {{transport}}\nState: {{status}}\n\nIf degraded, actions may feel delayed.",
         "engine_telemetry_tooltip": "Engine health & transport\n\nTransport: {{transport}}\nState: {{status}}\n\nShows whether the engine is reachable and how the UI is communicating with it.",
-        "engine_control_tooltip": "Engine controls\n\nConnected to: {{serverType}}\n\nClick to connect/reconnect to the torrent engine.",
+        "connection_mode_transmission_remote": "Transmission (Remote)",
+        "connection_mode_tinytorrent_remote": "TinyTorrent (Remote)",
+        "connection_mode_tinytorrent_local_shell": "TinyTorrent (Local + Native Shell)",
+        "connection_mode_unknown": "Unknown connection mode",
+        "engine_control_tooltip": "Engine controls\n\nConnection mode: {{connectionMode}}\nServer type: {{serverType}}\n\nClick to connect/reconnect to the torrent engine.",
         "engine_unknown": "Unknown engine",
         "disk_free": "Free: {{size}}",
         "network": "Network",
@@ -975,6 +980,7 @@
             "ok": "Idle",
             "transientWaiting": "Waiting",
             "needsUserAction": "Needs Attention",
+            "applying_location": "Applying the location and verifying data...",
             "blocked": "Blocked",
             "verifying": "Verifying",
             "folder_not_found": "Folder not found: {{path}}",
@@ -1057,6 +1063,19 @@
             "reannounce_failed": "Failed to reannounce",
             "location_updated": "Location updated successfully",
             "filesystem_probing_not_supported": "Filesystem probing not supported"
+        }
+    },
+    "set_location": {
+        "reason": {
+            "browse_unavailable_local_shell": "Folder browsing requires the native shell bridge, which is unavailable in this mode; use manual entry instead.",
+            "browse_unavailable_remote": "Folder browsing requires the native shell, which remote connections do not provide.",
+            "manual_disabled": "Manual location editing is disabled for this server.",
+            "inline_conflict": "Finish the current location edit before starting another change."
+        },
+        "caption": {
+            "context_menu": "Set download path (context menu)",
+            "general_tab": "Set download path (details panel)",
+            "recovery_modal": "Choose download path (recovery)"
         }
     }
 }

@@ -158,7 +158,7 @@ export function SystemTabContent({ isNativeMode }: SystemTabContentProps) {
     const [associationPending, setAssociationPending] = useState(false);
 
     const refreshIntegration = useCallback(async () => {
-        if (!NativeShell.isAvailable) {
+        if (!isNativeMode) {
             setIntegrationLoading(false);
             return;
         }
@@ -191,7 +191,7 @@ export function SystemTabContent({ isNativeMode }: SystemTabContentProps) {
         Boolean(integrationStatus.autorun),
         setAutorunState,
         async (next) => {
-            if (!NativeShell.isAvailable) {
+            if (!isNativeMode) {
                 throw new Error("Native shell unavailable");
             }
             await NativeShell.setSystemIntegration({ autorun: next });
@@ -200,7 +200,7 @@ export function SystemTabContent({ isNativeMode }: SystemTabContentProps) {
     );
 
     const handleAssociationAction = useCallback(async () => {
-        if (!NativeShell.isAvailable) {
+        if (!isNativeMode) {
             return;
         }
         setAssociationPending(true);
@@ -213,35 +213,35 @@ export function SystemTabContent({ isNativeMode }: SystemTabContentProps) {
     }, [refreshIntegration]);
 
     const associationLabel =
-        NativeShell.isAvailable && !integrationLoading
+        isNativeMode && !integrationLoading
             ? integrationStatus.associations
                 ? t("settings.install.handlers_registered")
                 : t("settings.install.handlers_not_registered")
             : t("settings.system.handlers_unknown");
 
     const associationChipColor =
-        NativeShell.isAvailable && !integrationLoading && integrationStatus.associations
+        isNativeMode && !integrationLoading && integrationStatus.associations
             ? "success"
-            : NativeShell.isAvailable && !integrationLoading && !integrationStatus.associations
+            : isNativeMode && !integrationLoading && !integrationStatus.associations
             ? "danger"
             : "default";
 
     const associationButtonLabel =
-        integrationStatus.associations && NativeShell.isAvailable && !integrationLoading
+        integrationStatus.associations && isNativeMode && !integrationLoading
             ? t("settings.system.checkAssociation")
             : t("settings.system.repairAssociation");
 
     const autorunLabel =
-        NativeShell.isAvailable && !integrationLoading
+        isNativeMode && !integrationLoading
             ? integrationStatus.autorun
                 ? t("settings.system.autorun_enabled")
                 : t("settings.system.autorun_disabled")
             : t("settings.system.autorun_unknown");
 
-    const autorunDisabled = !NativeShell.isAvailable || integrationLoading || autorunToggle.pending;
+    const autorunDisabled = !isNativeMode || integrationLoading || autorunToggle.pending;
 
     const silentStartDisabled =
-        !NativeShell.isAvailable || integrationLoading || !integrationStatus.autorun;
+        !isNativeMode || integrationLoading || !integrationStatus.autorun;
 
     if (!isNativeMode) {
         return (
@@ -272,7 +272,7 @@ export function SystemTabContent({ isNativeMode }: SystemTabContentProps) {
                             radius="full"
                             onPress={handleAssociationAction}
                             isDisabled={
-                                associationPending || !NativeShell.isAvailable || integrationLoading
+                            associationPending || !isNativeMode || integrationLoading
                             }
                         >
                             {associationButtonLabel}

@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { useActionFeedback } from "@/app/hooks/useActionFeedback";
+import { useRecoveryContext } from "@/app/context/RecoveryContext";
 import { NativeShell } from "@/app/runtime";
 
 function normalizePath(value: string) {
@@ -33,11 +34,15 @@ function getDriveRoot(value: string) {
 
 export function useOpenTorrentFolder() {
     const { showFeedback } = useActionFeedback();
+    const { connectionMode } = useRecoveryContext();
     const { t } = useTranslation();
     return useCallback(
         async (path?: string | null) => {
             if (!path) return;
-            if (!NativeShell.isAvailable) {
+            const canOpen =
+                connectionMode === "tinytorrent-local-shell" &&
+                NativeShell.isAvailable;
+            if (!canOpen) {
                 showFeedback(
                     t("recovery.feedback.open_remote_folder"),
                     "warning"
