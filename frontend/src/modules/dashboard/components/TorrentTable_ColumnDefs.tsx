@@ -71,6 +71,10 @@ import StatusIcon from "@/shared/ui/components/StatusIcon";
 import { useMemo, useState, useEffect, useCallback } from "react";
 import { useLifecycle } from "@/app/context/LifecycleContext";
 import { useRecoveryContext } from "@/app/context/RecoveryContext";
+import type {
+    SetLocationOutcome,
+    SetLocationSurface,
+} from "@/app/context/RecoveryContext";
 import { useRequiredTorrentActions } from "@/app/context/TorrentActionsContext";
 import {
     formatMissingFileDetails,
@@ -207,8 +211,8 @@ type MissingFilesStatusCellProps = {
     ) => Promise<void>;
     handleSetLocation: (
         torrent: Torrent,
-        path?: string | null
-    ) => Promise<void>;
+        options?: { surface?: SetLocationSurface }
+    ) => Promise<SetLocationOutcome>;
 };
 
 const MissingFilesStatusCell = ({
@@ -256,7 +260,7 @@ const MissingFilesStatusCell = ({
 
     const runAction = useCallback(
         (
-            action?: () => Promise<void>,
+            action?: () => Promise<unknown>,
             setter?: Dispatch<SetStateAction<boolean>>,
             hintKey?: string
         ) => {

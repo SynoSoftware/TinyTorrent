@@ -80,4 +80,13 @@ export interface EngineAdapter {
     getSpeedHistory?(id: string): Promise<{ down: number[]; up: number[] }>;
     destroy?(): void;
     resetConnection?(): void;
+    getServerCapabilities?: () => ServerCapabilities;
+}
+
+export interface ServerCapabilities {
+    host: string;
+    serverClass: ServerClass;
+    supportsOpenFolder: boolean;
+    supportsSetLocation: boolean;
+    supportsManual: boolean;
 }

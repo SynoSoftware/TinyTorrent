@@ -30,6 +30,7 @@ import { GLASS_MODAL_SURFACE } from "@/shared/ui/layout/glass-surface";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
 import type { ServerClass } from "@/services/rpc/entities";
 import { InterfaceTabContent } from "@/modules/settings/components/InterfaceTabContent";
+import { useRecoveryContext } from "@/app/context/RecoveryContext";
 
 type LiveUserPreferencePatch = Partial<
     Pick<
@@ -117,10 +118,13 @@ export function SettingsModal({
     const openedConfigRef = useRef<SettingsConfig>({ ...safeInitialConfig });
     const wasOpenRef = useRef(false);
 
+    const { connectionMode } = useRecoveryContext();
     const [modalFeedback, setModalFeedback] = useState<ModalFeedback | null>(
         null
     );
 
+    const hasNativeShellBridge =
+        connectionMode === "tinytorrent-local-shell";
     const [jsonCopyStatus, setJsonCopyStatus] = useState<
         "idle" | "copied" | "failed"
     >("idle");
@@ -153,7 +157,8 @@ export function SettingsModal({
         };
     }, []);
 
-    const canBrowseDirectories = NativeShell.isAvailable;
+    const effectiveNativeMode = isNativeMode && hasNativeShellBridge;
+    const canBrowseDirectories = hasNativeShellBridge;
 
     const hasSaveableEdits = useMemo(
         () => !configsAreEqual(config, openedConfigRef.current),
@@ -196,7 +201,7 @@ export function SettingsModal({
     }, [isOpen]);
 
     const persistWindowState = useCallback(async () => {
-        if (!NativeShell.isAvailable) return;
+        if (!hasNativeShellBridge) return;
         try {
             await NativeShell.request("persist-window-state");
         } catch {
@@ -362,7 +367,7 @@ export function SettingsModal({
         [config]
     );
 
-    const systemTabVisible = NativeShell.isAvailable;
+    const systemTabVisible = hasNativeShellBridge;
 
     const visibleTabs = useMemo(
         () =>
@@ -592,11 +597,9 @@ export function SettingsModal({
                                             />
                                         ) : activeTabDefinition.id ===
                                           "system" ? (
-                                            <SystemTabContent
-                                                isNativeMode={
-                                                    NativeShell.isAvailable
-                                                }
-                                            />
+                                        <SystemTabContent
+                                            isNativeMode={effectiveNativeMode}
+                                        />
                                         ) : activeTabDefinition.id === "gui" ? (
                                             <InterfaceTabContent
                                                 isImmersive={Boolean(

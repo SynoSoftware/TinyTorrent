@@ -38,6 +38,7 @@ import type { HeartbeatSource } from "@/services/rpc/heartbeat";
 import type { ConnectionStatus } from "@/shared/types/rpc";
 import type { WorkspaceStyle } from "@/app/hooks/useWorkspaceShell";
 import { useLifecycle } from "@/app/context/LifecycleContext";
+import { useRecoveryContext } from "@/app/context/RecoveryContext";
 
 const DISK_LABELS: Record<string, string> = {
     ok: "status_bar.disk_ok",
@@ -519,6 +520,7 @@ export function StatusBar({
     const rpcConnection = useRpcConnection();
     const client = useTorrentClient();
     const { rpcStatus } = useLifecycle();
+    const { connectionMode } = useRecoveryContext();
 
     // StatusBar must not independently fetch the full torrent list; prefer
     // the parent-provided `torrents` (from Heartbeat) to avoid N+1 storms.
@@ -597,9 +599,17 @@ export function StatusBar({
                 ? t("status_bar.engine_name_transmission")
                 : t("status_bar.engine_unknown")
             : t("status_bar.transport_offline_desc");
+    const connectionModeKey = connectionMode.replace(/-/g, "_");
+    const connectionModeLabel = t(
+        `status_bar.connection_mode_${connectionModeKey}`,
+        {
+            defaultValue: t("status_bar.connection_mode_unknown"),
+        }
+    );
 
     const engineControlTooltip = t("status_bar.engine_control_tooltip", {
         serverType: serverTypeLabel,
+        connectionMode: connectionModeLabel,
     });
 
     const torrentStatLabel = isSelection

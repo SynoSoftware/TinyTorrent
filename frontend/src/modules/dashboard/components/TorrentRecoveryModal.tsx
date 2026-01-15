@@ -17,6 +17,11 @@ import { classifyMissingFilesState } from "@/services/recovery/recovery-controll
 import type { RecoveryOutcome } from "@/services/recovery/recovery-controller";
 import type { TorrentEntity } from "@/services/rpc/entities";
 import { useRecoveryContext } from "@/app/context/RecoveryContext";
+import { SetLocationInlineEditor } from "@/modules/dashboard/components/SetLocationInlineEditor";
+import {
+    getSetLocationOutcomeMessage,
+    getSurfaceCaptionKey,
+} from "@/app/utils/setLocation";
 
 const MODAL_CLASSES =
     "w-full max-w-modal-compact flex flex-col overflow-hidden";
@@ -49,13 +54,15 @@ const RECOVERY_MESSAGE_LABEL_KEY: Record<string, string> = {
         "recovery.message.filesystem_probing_not_supported",
 };
 
+const getTorrentKey = (
+    entry?: { id?: string | number; hash?: string } | null
+) => entry?.id?.toString() ?? entry?.hash ?? "";
+
 export interface TorrentRecoveryModalProps {
     isOpen: boolean;
     torrent?: TorrentEntity | null;
     outcome: RecoveryOutcome | null;
     onClose: () => void;
-    onPickPath: (path: string) => Promise<void>;
-    onBrowse?: (currentPath?: string | null) => Promise<string | null>;
     onRecreate?: () => Promise<void>;
     onAutoRetry?: () => Promise<void>;
     isBusy?: boolean;
@@ -75,15 +82,31 @@ export default function TorrentRecoveryModal({
     torrent,
     outcome,
     onClose,
-    onPickPath,
-    onBrowse,
     onRecreate,
     onAutoRetry,
     isBusy,
 }: TorrentRecoveryModalProps) {
     const { t } = useTranslation();
     const busy = Boolean(isBusy);
-    const { serverClass } = useRecoveryContext();
+    const {
+        serverClass,
+        handleSetLocation,
+        inlineSetLocationState,
+        cancelInlineSetLocation,
+        confirmInlineSetLocation,
+        handleInlineLocationChange,
+        setLocationCapability,
+        getLocationOutcome,
+        connectionMode,
+    } = useRecoveryContext();
+    const currentTorrentKey = getTorrentKey(torrent);
+    const setLocationOutcomeMessage = getSetLocationOutcomeMessage(
+        getLocationOutcome("recovery-modal", currentTorrentKey),
+        "recovery-modal",
+        connectionMode
+    );
+    const unsupportedLocationMessage =
+        setLocationOutcomeMessage && t(setLocationOutcomeMessage.labelKey);
 
     const downloadDir =
         torrent?.downloadDir ?? torrent?.savePath ?? torrent?.downloadDir ?? "";
@@ -156,7 +179,20 @@ export default function TorrentRecoveryModal({
             downloadDir) ||
         t("labels.unknown");
 
-    const outcomeMessage = useMemo(
+    const inlineStateKey = inlineSetLocationState?.torrentKey ?? "";
+    const showInlineEditor =
+        inlineSetLocationState?.surface === "recovery-modal" &&
+        inlineStateKey &&
+        inlineStateKey === currentTorrentKey;
+    const recoveryIsVerifying =
+        inlineSetLocationState?.status === "verifying";
+    const recoveryIsBusy = inlineSetLocationState?.status !== "idle";
+    const recoveryStatusMessage = recoveryIsVerifying
+        ? t("recovery.status.applying_location")
+        : undefined;
+    const recoveryCaption = t(getSurfaceCaptionKey("recovery-modal"));
+
+    const recoveryOutcomeMessage = useMemo(
         () => resolveOutcomeMessage(outcome, t),
         [outcome, t]
     );
@@ -177,19 +213,24 @@ export default function TorrentRecoveryModal({
         };
     }, [isOpen, isVolumeLoss, onAutoRetry, busy]);
 
-    const handleBrowse = useCallback(async () => {
-        if (!onBrowse || busy) return;
-        const current = (classification?.path ?? downloadDir) || undefined;
-        const picked = await onBrowse(current ?? null);
-        if (!picked) return;
-        await onPickPath(picked);
-    }, [busy, classification?.path, downloadDir, onBrowse, onPickPath]);
+    const handleBrowseAction = useCallback(() => {
+        if (!torrent || !handleSetLocation || busy) return;
+        void handleSetLocation(torrent, { surface: "recovery-modal" });
+    }, [busy, handleSetLocation, torrent]);
 
-    const primaryLabel = isAccessDenied
+    const manualOnly =
+        !setLocationCapability.canBrowse &&
+        setLocationCapability.supportsManual;
+    const canSetLocation =
+        setLocationCapability.canBrowse ||
+        setLocationCapability.supportsManual;
+    const primaryLabel = manualOnly
+        ? t("recovery.action.change_location")
+        : isAccessDenied
         ? t("recovery.action.choose_location")
         : t("recovery.action_locate");
-    const primaryDisabled = busy || !onBrowse;
-    const primaryAction = handleBrowse;
+    const primaryDisabled = busy || showInlineEditor || !canSetLocation;
+    const primaryAction = handleBrowseAction;
 
     const showRecreate = isPathLoss && Boolean(onRecreate);
 
@@ -249,14 +290,34 @@ export default function TorrentRecoveryModal({
                                     {locationLabel}
                                 </span>
                             </div>
+                            {showInlineEditor && inlineSetLocationState && (
+                                <SetLocationInlineEditor
+                                    value={inlineSetLocationState.inputPath}
+                                    error={inlineSetLocationState.error}
+                                    isBusy={recoveryIsBusy}
+                                    caption={recoveryCaption}
+                                    statusMessage={recoveryStatusMessage}
+                                    disableCancel={recoveryIsVerifying}
+                                    onChange={handleInlineLocationChange}
+                                    onSubmit={() =>
+                                        void confirmInlineSetLocation()
+                                    }
+                                    onCancel={cancelInlineSetLocation}
+                                />
+                            )}
+                            {unsupportedLocationMessage && (
+                                <div className="surface-layer-1 rounded-panel p-tight text-label text-warning/80">
+                                    {unsupportedLocationMessage}
+                                </div>
+                            )}
                             {isVolumeLoss && (
                                 <div className="text-label text-foreground/60">
                                     {t("recovery.status.waiting_for_drive")}
                                 </div>
                             )}
-                            {outcomeMessage && (
+                            {recoveryOutcomeMessage && (
                                 <div className="surface-layer-1 rounded-panel p-tight text-label text-foreground/70">
-                                    {outcomeMessage}
+                                    {recoveryOutcomeMessage}
                                 </div>
                             )}
                         </ModalBody>
