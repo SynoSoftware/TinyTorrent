@@ -1,21 +1,11 @@
 import { IS_NATIVE_HOST } from "@/config/logic";
 import type { TransmissionFreeSpace } from "@/services/rpc/types";
 
-<<<<<<< Updated upstream
-type NativeShellAuthPayload = string | {
-    token?: string;
-    host?: string;
-    port?: string;
-    scheme?: "http" | "https";
-};
-=======
 type NativeShellEventPayload =
     | string
     | {
           link?: string;
       };
->>>>>>> Stashed changes
-
 type NativeShellRequestMessage = {
     type: "request";
     id: string;
@@ -31,11 +21,7 @@ type NativeShellResponseMessage = {
     error?: string;
 };
 
-<<<<<<< Updated upstream
 export type NativeShellEventName = "magnet-link" | "auth-token";
-=======
-export type NativeShellEventName = "magnet-link";
->>>>>>> Stashed changes
 
 type NativeShellEventMessage = {
     type: "event";
@@ -63,7 +49,10 @@ type NativeShellBridge = {
 };
 
 const pendingRequests = new Map<string, PendingRequest>();
-const eventListeners = new Map<NativeShellEventName, Set<NativeShellListener>>();
+const eventListeners = new Map<
+    NativeShellEventName,
+    Set<NativeShellListener>
+>();
 let requestCounter = 1;
 let listenerInstalled = false;
 
@@ -71,8 +60,9 @@ function hasNativeHostFlag(): boolean {
     if (typeof window === "undefined") {
         return false;
     }
-    const nativeFlag = (window as unknown as { __TINY_TORRENT_NATIVE__?: unknown })
-        .__TINY_TORRENT_NATIVE__;
+    const nativeFlag = (
+        window as unknown as { __TINY_TORRENT_NATIVE__?: unknown }
+    ).__TINY_TORRENT_NATIVE__;
     return nativeFlag === true;
 }
 
@@ -80,7 +70,9 @@ function getBridge(): NativeShellBridge | null {
     if (typeof window === "undefined") {
         return null;
     }
-    const nav = window as unknown as { chrome?: { webview?: NativeShellBridge } };
+    const nav = window as unknown as {
+        chrome?: { webview?: NativeShellBridge };
+    };
     return nav.chrome?.webview ?? null;
 }
 
@@ -111,7 +103,9 @@ function handleBridgeMessage(messageEvent: { data?: unknown }) {
         if (response.success) {
             pending.resolve(response.payload);
         } else {
-            pending.reject(new Error(response.error ?? "Native shell request failed"));
+            pending.reject(
+                new Error(response.error ?? "Native shell request failed")
+            );
         }
         return;
     }

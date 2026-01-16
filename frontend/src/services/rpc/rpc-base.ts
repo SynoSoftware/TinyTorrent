@@ -19,25 +19,6 @@ import type {
     SystemInstallResult,
 } from "./types";
 import { z } from "zod";
-<<<<<<< Updated upstream
-import {
-    parseRpcResponse,
-    zTransmissionTorrentArray,
-    zTransmissionTorrentDetailSingle,
-    zSessionStats,
-    zTransmissionSessionSettings,
-    zTransmissionFreeSpace,
-    zTinyTorrentCapabilitiesNormalized,
-    zSystemAutorunStatus,
-    zSystemHandlerStatus,
-    zTransmissionTorrentRenameResult,
-    zSystemInstallResult,
-    zRpcSuccess,
-    zTransmissionAddTorrentResponse,
-    getTorrentList,
-    getSessionStats,
-} from "@/services/rpc/schemas";
-=======
 import {
     parseRpcResponse,
     zTransmissionTorrentArray,
@@ -51,7 +32,6 @@ import {
     getTorrentList,
     getSessionStats,
 } from "@/services/rpc/schemas";
->>>>>>> Stashed changes
 import {
     CONFIG,
     FOCUS_RESTORE_DELAY_MS,
@@ -93,7 +73,6 @@ type RpcSendOptions = {
     _retry409?: boolean;
 };
 
-<<<<<<< Updated upstream
 const READ_ONLY_RPC_METHODS = new Set([
     "torrent-get",
     "session-get",
@@ -101,14 +80,6 @@ const READ_ONLY_RPC_METHODS = new Set([
     "tt-get-capabilities",
     "free-space",
 ]);
-=======
-const READ_ONLY_RPC_METHODS = new Set([
-    "torrent-get",
-    "session-get",
-    "session-stats",
-    "free-space",
-]);
->>>>>>> Stashed changes
 const READ_ONLY_RPC_RESPONSE_TTL_MS = Number.isFinite(
     (CONFIG as unknown as { performance?: { read_rpc_cache_ms?: number } })
         ?.performance?.read_rpc_cache_ms as number
@@ -175,29 +146,7 @@ export class TransmissionAdapter implements EngineAdapter {
     private idMap = new Map<string, number>();
     private readonly heartbeat = new HeartbeatManager(this);
     // Active in-flight request controllers (for abort on destroy)
-    private readonly activeControllers = new Set<AbortController>();
-<<<<<<< Updated upstream
-    // Track an in-flight promise for fetching extended capabilities to
-    // prevent duplicated concurrent requests.
-    private inflightGetCapabilities?: Promise<void>;
-    // TODO: Delete `inflightGetCapabilities` once `tt-get-capabilities` is removed (no RPC extensions).
-    // Rapid-call detector: tracks recent method call counts to detect
-    // potential race conditions or buggy caller code.
-    private readonly recentMethodCalls = new Map<
-        string,
-        { count: number; firstTs: number }
-    >();
-    private readonly METHOD_CALL_WINDOW_MS = 2000;
-    private readonly METHOD_CALL_WARNING_THRESHOLD = 100;
-    private tinyTorrentCapabilities?: TinyTorrentCapabilities | null;
-    private websocketSession?: TinyTorrentWebSocketSession;
-    // TODO: Delete `tinyTorrentCapabilities` and `websocketSession` once RPC extensions are removed; polling-only.
-    private transport: TransmissionRpcTransport;
-    private serverClass: ServerClass = "unknown";
-    // TODO: Delete `serverClass` from the adapter. All servers are Transmission; “local vs remote” is a UI/ShellAgent concern, not a daemon-reported class.
-    private handshakeState: HandshakeState = "invalid";
-=======
-    // Rapid-call detector: tracks recent method call counts to detect
+    private readonly activeControllers = new Set<AbortController>(); // Rapid-call detector: tracks recent method call counts to detect
     // potential race conditions or buggy caller code.
     private readonly recentMethodCalls = new Map<
         string,
@@ -208,7 +157,6 @@ export class TransmissionAdapter implements EngineAdapter {
     private transport: TransmissionRpcTransport;
     private readonly serverClass: ServerClass = "transmission";
     private handshakeState: HandshakeState = "invalid";
->>>>>>> Stashed changes
     private handshakePromise?: Promise<TransmissionSessionSettings>;
     private handshakeResult?: TransmissionSessionSettings;
     // (sessionIdRefreshPromise removed — Transport owns session-id probing)
@@ -225,34 +173,10 @@ export class TransmissionAdapter implements EngineAdapter {
     private _networkTelemetryInflight?: Promise<NetworkTelemetry | null>;
     private readonly NETWORK_TELEMETRY_TTL_MS = 60_000;
 
-<<<<<<< Updated upstream
-    private getTinyTorrentAuthToken(): string | undefined {
-        // TODO: Delete this function and all `tt-auth-token` sessionStorage usage.
-        // TODO: Rationale: We no longer support `X-TT-Auth` token auth (RPC extensions: NONE). Transmission auth is Basic Auth (username/password) and session-id is `X-Transmission-Session-Id` handled by `TransmissionRpcTransport`.
-        const token = sessionStorage.getItem("tt-auth-token");
-        return token && token.length > 0 ? token : undefined;
-    }
-
-    private clearTinyTorrentAuthToken() {
-        // TODO: Delete this function once TT token auth is removed; UI/adapter must not manage or clear “hidden” auth state in sessionStorage.
-        if (typeof sessionStorage !== "undefined") {
-            sessionStorage.removeItem("tt-auth-token");
-        }
-    }
-    // TODO: Remove all RPC extension scaffolding (TinyTorrent auth token, tt-get-capabilities, websocket session/delta-sync, ui-attach, system-* methods) and run Transmission RPC only.
-
-    private handleUnauthorizedResponse() {
-        this.clearTinyTorrentAuthToken();
-        this.invalidateSession("unauthorized");
-        this.closeWebSocketSession();
-    }
-=======
     // TODO: Remove all RPC extension scaffolding (TinyTorrent auth token, websocket session/delta-sync, ui-attach, system-* methods) and run Transmission RPC only.
     private handleUnauthorizedResponse() {
         this.invalidateSession("unauthorized");
     }
->>>>>>> Stashed changes
-
     private transitionHandshakeState(next: HandshakeState, reason: string) {
         const prev = this.handshakeState;
         if (prev === next) return;
@@ -416,17 +340,7 @@ export class TransmissionAdapter implements EngineAdapter {
                     "Content-Type": "application/json",
                 };
 
-<<<<<<< Updated upstream
-                const ttAuth = this.getTinyTorrentAuthToken();
-                if (ttAuth) {
-                    headers["X-TT-Auth"] = ttAuth;
-                }
-                // TODO: Remove `X-TT-Auth` header support entirely. With “RPC extensions: NONE”, Transmission RPC never uses this header.
-                // TODO: After removal, also delete: `getTinyTorrentAuthToken`, `clearTinyTorrentAuthToken`, `handleUnauthorizedResponse`, and any sessionStorage `tt-auth-token` reads/writes.
                 const transportSessionId = this.transport.getSessionId();
-=======
-                const transportSessionId = this.transport.getSessionId();
->>>>>>> Stashed changes
                 if (transportSessionId) {
                     headers["X-Transmission-Session-Id"] = transportSessionId;
                 }
@@ -468,18 +382,6 @@ export class TransmissionAdapter implements EngineAdapter {
                     throw new Error("Transmission RPC session conflict");
                 }
 
-<<<<<<< Updated upstream
-                if (response.status === 401) {
-                    this.handleUnauthorizedResponse();
-                    // TODO: Rename message to “Transmission RPC unauthorized” once RPC extensions + TinyTorrent naming are removed.
-                    throw new Error("TinyTorrent RPC unauthorized");
-                }
-                if (response.status === 403) {
-                    this.handleUnauthorizedResponse();
-                    // TODO: Rename message to “Transmission RPC forbidden” once RPC extensions + TinyTorrent naming are removed.
-                    throw new Error("TinyTorrent RPC forbidden");
-                }
-=======
                 if (response.status === 401) {
                     this.handleUnauthorizedResponse();
                     throw new Error("Transmission RPC unauthorized");
@@ -488,7 +390,6 @@ export class TransmissionAdapter implements EngineAdapter {
                     this.handleUnauthorizedResponse();
                     throw new Error("Transmission RPC forbidden");
                 }
->>>>>>> Stashed changes
 
                 if (!response.ok) {
                     throw new Error(
@@ -718,7 +619,6 @@ export class TransmissionAdapter implements EngineAdapter {
         }
     }
 
-<<<<<<< Updated upstream
     private updateServerClassFromCapabilities(
         capabilities: TinyTorrentCapabilities | null
     ) {
@@ -897,9 +797,6 @@ export class TransmissionAdapter implements EngineAdapter {
     // TODO: Remove delta-sync websocket feature detection once websocket is deleted.
 
     public async handshake(): Promise<TransmissionSessionSettings> {
-=======
-    public async handshake(): Promise<TransmissionSessionSettings> {
->>>>>>> Stashed changes
         return this.handshakeOnce();
     }
 
@@ -1046,87 +943,6 @@ export class TransmissionAdapter implements EngineAdapter {
         await this.mutate(method, { ids });
     }
 
-<<<<<<< Updated upstream
-    public async notifyUiReady(): Promise<void> {
-        // TODO: Delete `notifyUiReady` and the underlying `session-ui-attach` RPC method. UI lifecycle is not a daemon concern in Transmission-only mode.
-        // TODO: Any host integration “UI attached” behavior belongs to the ShellAgent process, not the daemon.
-        if (this.serverClass === "tinytorrent") {
-            return;
-        }
-        if (
-            this.tinyTorrentCapabilities &&
-            this.tinyTorrentCapabilities.features?.includes?.("ui-attach")
-        ) {
-            try {
-                await this.mutate("session-ui-attach");
-            } catch (err) {
-                // ignore
-            }
-        }
-    }
-
-    public async notifyUiDetached(): Promise<void> {
-        // TODO: Delete `notifyUiDetached` and the underlying `session-ui-detach` RPC method. UI lifecycle is not a daemon concern in Transmission-only mode.
-        const isTransmissionClass = this.serverClass !== "tinytorrent";
-        if (!isTransmissionClass) {
-            return;
-        }
-        if (!this.tinyTorrentCapabilities?.features?.includes?.("ui-attach")) {
-            return;
-        }
-        const request = { method: "session-ui-detach" };
-        // Use fetch with keepalive so we can include required headers
-        // (notably X-Transmission-Session-Id). sendBeacon does not allow
-        // custom headers and will often result in 409 from Transmission.
-        try {
-            const headers: Record<string, string> = {
-                "Content-Type": "application/json",
-            };
-            const ttAuth = this.getTinyTorrentAuthToken();
-            if (ttAuth) {
-                headers["X-TT-Auth"] = ttAuth;
-            }
-            // TODO: Remove `X-TT-Auth` header support entirely (Transmission-only). This exists only for the deprecated RPC-extended path.
-            if (this.sessionId) {
-                headers["X-Transmission-Session-Id"] = this.sessionId;
-            }
-            const authHeader = this.getAuthorizationHeader();
-            if (authHeader) headers.Authorization = authHeader;
-
-            const payload = JSON.stringify(request);
-            const requestInit: RequestInit = {
-                method: "POST",
-                headers,
-                body: payload,
-                keepalive: true,
-            };
-
-            await this.transport.fetchWithSession(requestInit, undefined, true);
-            // Sync transport's authoritative session token back to adapter state
-            try {
-                const transportToken = this.transport.getSessionId();
-                if (transportToken && transportToken !== this.sessionId) {
-                    this.acceptSessionId(transportToken);
-                }
-            } catch {}
-            // best-effort; don't throw on non-OK because this is fire-and-forget
-            return;
-        } catch (e) {
-            // fallback to adapter send which supports retries and header logic
-        }
-
-        try {
-            await this.send(request, zRpcSuccess, 0, true);
-        } catch (err) {
-            console.debug(
-                "[tiny-torrent][rpc] notifyUiDetached send failed (ignored)",
-                err
-            );
-        }
-    }
-
-=======
->>>>>>> Stashed changes
     public async fetchSessionSettings(): Promise<TransmissionSessionSettings> {
         const settings = await this.send(
             { method: "session-get" },
@@ -1160,7 +976,6 @@ export class TransmissionAdapter implements EngineAdapter {
         return info;
     }
 
-<<<<<<< Updated upstream
     public async getExtendedCapabilities(
         force = false
     ): Promise<TinyTorrentCapabilities | null> {
@@ -1191,18 +1006,6 @@ export class TransmissionAdapter implements EngineAdapter {
             supportsManual: true,
         };
     }
-=======
-    public getServerCapabilities(): ServerCapabilities {
-        const host = this.extractEndpointHost();
-        return {
-            host,
-            serverClass: this.serverClass,
-            supportsOpenFolder: false,
-            supportsSetLocation: true,
-            supportsManual: true,
-        };
-    }
->>>>>>> Stashed changes
 
     public getServerClass(): ServerClass {
         return this.serverClass;
@@ -1316,113 +1119,8 @@ export class TransmissionAdapter implements EngineAdapter {
             // a subsequent handshake/probe will run.
             this.invalidateSession("reset-connection");
         } catch {}
-<<<<<<< Updated upstream
     }
-
-    public async checkFreeSpace(path: string): Promise<TransmissionFreeSpace> {
-        // TODO: Remove NativeShell usage from the Transmission RPC adapter. Free-space probing is a Transmission RPC feature (`free-space`) and should not depend on ShellExtensions.
-        // TODO: If the UI needs *local disk* facts (beyond what Transmission provides), that belongs to the ShellAgent adapter, not the daemon RPC adapter.
-        if (NativeShell.isAvailable) {
-            return NativeShell.checkFreeSpace(path);
-        }
-        const fs = await this.send(
-            { method: "free-space", arguments: { path } },
-            zTransmissionFreeSpace
-        );
-        return fs;
-    }
-
-    public async openPath(path: string): Promise<void> {
-        const hasNativeShell =
-            this.serverClass === "tinytorrent" && NativeShell.isAvailable;
-        // TODO: Remove `openPath` from the Transmission RPC adapter.
-        // TODO: Opening Explorer/Finder is a ShellAgent responsibility and must be gated by `uiMode === "Full"` (localhost + ShellAgent available), not by `serverClass === "tinytorrent"`.
-        // TODO: After removing RPC extensions, delete `system-open` and all related schema/methods; keep open-path exclusively in ShellAgent IPC.
-        if (!path) {
-            if (hasNativeShell) {
-                await NativeShell.openPath("");
-            }
-            return;
-        }
-        if (hasNativeShell) {
-            await NativeShell.openPath(path);
-            return;
-        }
-        await this.mutate("system-open", { path });
-    }
-
-    // TODO: Delete the entire `system*` block below from the Transmission RPC adapter.
-    // TODO: Rationale: system install/autorun/handlers are host integration features and must be implemented by ShellAgent IPC (local-only), not by the daemon RPC interface.
-    // TODO: After removal, also delete the corresponding EngineAdapter methods, zod schemas (`zSystem*`), and translation/UI surfaces that reference them.
-    public async systemInstall(
-        options: SystemInstallOptions = {}
-    ): Promise<SystemInstallResult> {
-        // TODO: Remove `systemInstall` from the Transmission RPC adapter (and from EngineAdapter). This is not part of Transmission RPC.
-        // TODO: If we keep install/registration/handler features, move them behind the ShellAgent/ShellExtensions adapter (IPC) and only enable in `uiMode="Full"`.
-        const args: Record<string, unknown> = {};
-        const name = options.name?.trim();
-        if (name) {
-            args.name = name;
-        }
-        if (options.args && options.args.trim()) {
-            args.args = options.args.trim();
-        }
-        if (options.locations && options.locations.length > 0) {
-            args.locations = options.locations;
-        }
-        if (options.registerHandlers !== undefined) {
-            args.registerHandlers = options.registerHandlers;
-        }
-        if (options.installToProgramFiles !== undefined) {
-            args.installToProgramFiles = options.installToProgramFiles;
-        }
-        const result = await this.send(
-            { method: "system-install", arguments: args },
-            zSystemInstallResult
-        );
-        return result as SystemInstallResult;
-    }
-
-    public async getSystemAutorunStatus(): Promise<AutorunStatus> {
-        // TODO: Remove `getSystemAutorunStatus` from the Transmission RPC adapter. Autorun is a ShellAgent concern.
-        const result = await this.send(
-            { method: "system-autorun-status" },
-            zSystemAutorunStatus
-        );
-        return result;
-    }
-
-    public async getSystemHandlerStatus(): Promise<SystemHandlerStatus> {
-        // TODO: Remove `getSystemHandlerStatus` from the Transmission RPC adapter. File association/handlers are a ShellAgent concern.
-        const result = await this.send(
-            { method: "system-handler-status" },
-            zSystemHandlerStatus
-        );
-        return result;
-    }
-
-    public async systemAutorunEnable(scope = "user"): Promise<void> {
-        // TODO: Remove `systemAutorunEnable` from the Transmission RPC adapter. Autorun is a ShellAgent concern.
-        await this.mutate("system-autorun-enable", { scope });
-    }
-
-    public async systemAutorunDisable(): Promise<void> {
-        // TODO: Remove `systemAutorunDisable` from the Transmission RPC adapter. Autorun is a ShellAgent concern.
-        await this.mutate("system-autorun-disable");
-    }
-
-    public async systemHandlerEnable(): Promise<void> {
-        // TODO: Remove `systemHandlerEnable` from the Transmission RPC adapter. Handlers are a ShellAgent concern.
-        await this.mutate("system-handler-enable");
-    }
-
-    public async systemHandlerDisable(): Promise<void> {
-        // TODO: Remove `systemHandlerDisable` from the Transmission RPC adapter. Handlers are a ShellAgent concern.
-        await this.mutate("system-handler-disable");
-    }
-=======
-    }
-
+    //TODO: check all these if ok... not sure about merge.
     public async checkFreeSpace(path: string): Promise<TransmissionFreeSpace> {
         const fs = await this.send(
             { method: "free-space", arguments: { path } },
@@ -1440,34 +1138,46 @@ export class TransmissionAdapter implements EngineAdapter {
     public async systemInstall(
         _options: SystemInstallOptions = {}
     ): Promise<SystemInstallResult> {
-        throw new Error("systemInstall is not supported in Transmission-only mode");
+        throw new Error(
+            "systemInstall is not supported in Transmission-only mode"
+        );
     }
 
     public async getSystemAutorunStatus(): Promise<AutorunStatus> {
-        throw new Error("getSystemAutorunStatus is not supported in Transmission-only mode");
+        throw new Error(
+            "getSystemAutorunStatus is not supported in Transmission-only mode"
+        );
     }
 
     public async getSystemHandlerStatus(): Promise<SystemHandlerStatus> {
-        throw new Error("getSystemHandlerStatus is not supported in Transmission-only mode");
+        throw new Error(
+            "getSystemHandlerStatus is not supported in Transmission-only mode"
+        );
     }
 
     public async systemAutorunEnable(_scope = "user"): Promise<void> {
-        throw new Error("systemAutorunEnable is not supported in Transmission-only mode");
+        throw new Error(
+            "systemAutorunEnable is not supported in Transmission-only mode"
+        );
     }
 
     public async systemAutorunDisable(): Promise<void> {
-        throw new Error("systemAutorunDisable is not supported in Transmission-only mode");
+        throw new Error(
+            "systemAutorunDisable is not supported in Transmission-only mode"
+        );
     }
 
     public async systemHandlerEnable(): Promise<void> {
-        throw new Error("systemHandlerEnable is not supported in Transmission-only mode");
+        throw new Error(
+            "systemHandlerEnable is not supported in Transmission-only mode"
+        );
     }
 
     public async systemHandlerDisable(): Promise<void> {
-        throw new Error("systemHandlerDisable is not supported in Transmission-only mode");
+        throw new Error(
+            "systemHandlerDisable is not supported in Transmission-only mode"
+        );
     }
->>>>>>> Stashed changes
-
     private async fetchTransmissionTorrents(): Promise<TransmissionTorrent[]> {
         const list = await this.send(
             {

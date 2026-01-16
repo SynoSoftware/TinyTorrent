@@ -6,13 +6,12 @@ import {
     useState,
     type ReactNode,
 } from "react";
-import { useConnectionConfig, buildRpcEndpoint } from "@/app/context/ConnectionConfigContext";
+import {
+    useConnectionConfig,
+    buildRpcEndpoint,
+} from "@/app/context/ConnectionConfigContext";
 import { TransmissionAdapter } from "@/services/rpc/rpc-base";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
-<<<<<<< Updated upstream
-import { NativeShell } from "@/app/runtime";
-=======
->>>>>>> Stashed changes
 
 const ClientContext = createContext<EngineAdapter | null>(null);
 
@@ -61,40 +60,6 @@ export function ClientProvider({ children }: { children: ReactNode }) {
         activeProfile.password,
         activeProfile.id,
     ]);
-
-<<<<<<< Updated upstream
-    useEffect(() => {
-        if (typeof sessionStorage === "undefined") return;
-        if (activeProfile.token) {
-            sessionStorage.setItem("tt-auth-token", activeProfile.token);
-        } else {
-            sessionStorage.removeItem("tt-auth-token");
-        }
-    }, [activeProfile.token]);
-
-    useEffect(() => {
-        const unsubscribe = NativeShell.onEvent("auth-token", (payload) => {
-            if (typeof sessionStorage === "undefined") return;
-            let token = "";
-            if (typeof payload === "string") {
-                token = payload;
-            } else if (
-                payload &&
-                typeof payload === "object" &&
-                typeof (payload as { token?: unknown }).token === "string"
-            ) {
-                token = (payload as { token: string }).token;
-            }
-            if (token) {
-                sessionStorage.setItem("tt-auth-token", token);
-            } else {
-                sessionStorage.removeItem("tt-auth-token");
-            }
-        });
-        return unsubscribe;
-    }, []);
-=======
->>>>>>> Stashed changes
 
     return (
         <ClientContext.Provider value={client}>

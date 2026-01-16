@@ -23,7 +23,6 @@ type NativeOverride = {
 // TODO: - scope (default profile only vs any profile)
 // TODO: - when it applies (native host only, never in browser)
 
-
 export interface ConnectionProfile {
     id: string;
     label: string;
@@ -74,11 +73,11 @@ const detectNativeInfo = (): NativeOverride => {
     if (typeof window === "undefined") {
         return {};
     }
-    const info =
-        (window as
-            typeof globalThis & {
-                __TINY_TORRENT_NATIVE_INFO__?: Record<string, unknown>;
-            }).__TINY_TORRENT_NATIVE_INFO__;
+    const info = (
+        window as typeof globalThis & {
+            __TINY_TORRENT_NATIVE_INFO__?: Record<string, unknown>;
+        }
+    ).__TINY_TORRENT_NATIVE_INFO__;
     if (!info || typeof info !== "object") {
         return {};
     }
@@ -295,8 +294,10 @@ export function ConnectionConfigProvider({
         return loadActiveProfileId(initialProfiles);
     });
     const initialNativeOverride = useMemo(() => detectNativeInfo(), []);
-    const [nativeOverride, setNativeOverride] =
-        useState<NativeOverride>(initialNativeOverride);
+    //TODO: check this block below if not out of date
+    const [nativeOverride, setNativeOverride] = useState<NativeOverride>(
+        initialNativeOverride
+    );
 
     useEffect(() => {
         if (!profiles.find((profile) => profile.id === activeProfileId)) {
@@ -313,55 +314,6 @@ export function ConnectionConfigProvider({
         if (typeof window === "undefined") return;
         window.localStorage.setItem(ACTIVE_KEY, activeProfileId);
     }, [activeProfileId]);
-
-<<<<<<< Updated upstream
-    useEffect(() => {
-        const unsubscribe = NativeShell.onEvent("auth-token", (payload) => {
-            setNativeOverride((prev) => {
-                if (typeof payload === "string") {
-                    return {
-                        ...prev,
-                        token: payload || undefined,
-                    };
-                }
-                if (payload && typeof payload === "object" && !Array.isArray(payload)) {
-                    const data = payload as Record<string, unknown>;
-                    const host =
-                        typeof data.host === "string" && data.host.trim()
-                            ? data.host.trim()
-                            : prev.host;
-                    const port =
-                        typeof data.port === "string" && data.port.trim()
-                            ? data.port.trim()
-                            : prev.port;
-                    const scheme =
-                        data.scheme === "https"
-                            ? "https"
-                            : data.scheme === "http"
-                            ? "http"
-                            : prev.scheme;
-                    const token =
-                        typeof data.token === "string" && data.token
-                            ? data.token
-                            : prev.token;
-                    return {
-                        host,
-                        port,
-                        scheme,
-                        token,
-                    };
-                }
-                return prev;
-            });
-        });
-        return unsubscribe;
-    }, []);
-    // TODO: Remove `auth-token` event handling entirely.
-    // TODO: Rationale: Token auth is not part of the Transmission RPC contract; do not let the ShellAgent inject credentials into the UI via events.
-    // TODO: If a native override is still needed, replace this event with a *non-secret* endpoint override event (host/port/scheme only) and apply it in one place (ConnectionConfigProvider) with explicit precedence rules.
-
-=======
->>>>>>> Stashed changes
     const addProfile = useCallback(() => {
         const newProfile: ConnectionProfile = {
             id: generateId(),
