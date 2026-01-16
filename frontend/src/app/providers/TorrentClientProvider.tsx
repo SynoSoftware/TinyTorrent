@@ -9,7 +9,10 @@ import {
 import { useConnectionConfig, buildRpcEndpoint } from "@/app/context/ConnectionConfigContext";
 import { TransmissionAdapter } from "@/services/rpc/rpc-base";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
+<<<<<<< Updated upstream
 import { NativeShell } from "@/app/runtime";
+=======
+>>>>>>> Stashed changes
 
 const ClientContext = createContext<EngineAdapter | null>(null);
 
@@ -59,6 +62,7 @@ export function ClientProvider({ children }: { children: ReactNode }) {
         activeProfile.id,
     ]);
 
+<<<<<<< Updated upstream
     useEffect(() => {
         if (typeof sessionStorage === "undefined") return;
         if (activeProfile.token) {
@@ -89,6 +93,8 @@ export function ClientProvider({ children }: { children: ReactNode }) {
         });
         return unsubscribe;
     }, []);
+=======
+>>>>>>> Stashed changes
 
     return (
         <ClientContext.Provider value={client}>

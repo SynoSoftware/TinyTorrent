@@ -16,8 +16,13 @@ type NativeOverride = {
     host?: string;
     port?: string;
     scheme?: ConnectionScheme;
-    token?: string;
 };
+
+// TODO: If the ShellAgent needs to override the RPC endpoint, keep only `{host,port,scheme}` and document:
+// TODO: - precedence (native override vs selected profile)
+// TODO: - scope (default profile only vs any profile)
+// TODO: - when it applies (native host only, never in browser)
+
 
 export interface ConnectionProfile {
     id: string;
@@ -27,7 +32,6 @@ export interface ConnectionProfile {
     port: string;
     username: string;
     password: string;
-    token: string;
 }
 
 interface ConnectionConfigContextValue {
@@ -61,7 +65,6 @@ const DEFAULT_RPC_PORT = "9091";
 const DEFAULT_RPC_SCHEME: ConnectionProfile["scheme"] = "http";
 const DEFAULT_USERNAME = import.meta.env.VITE_RPC_USERNAME ?? "";
 const DEFAULT_PASSWORD = import.meta.env.VITE_RPC_PASSWORD ?? "";
-const DEFAULT_RPC_TOKEN = import.meta.env.VITE_RPC_TOKEN ?? "";
 
 const detectNativeInfo = (): NativeOverride => {
     if (typeof window === "undefined") {
@@ -89,12 +92,12 @@ const detectNativeInfo = (): NativeOverride => {
             : info.scheme === "http"
             ? "http"
             : undefined;
-    const token =
-        typeof info.token === "string" && info.token
-            ? info.token
-            : undefined;
-    return { host, port, scheme, token };
+    return { host, port, scheme };
 };
+<<<<<<< Updated upstream
+=======
+// TODO: Normalize connection profiles with the capability helper (loopback/native shell), so capability derivation and browsing policies are consistent across app layers.
+>>>>>>> Stashed changes
 
 const parseRpcEndpoint = (
     raw?: string
@@ -161,7 +164,6 @@ const createDefaultProfile = (): ConnectionProfile => ({
     port: DEFAULT_RPC_PORT,
     username: DEFAULT_USERNAME,
     password: DEFAULT_PASSWORD,
-    token: DEFAULT_RPC_TOKEN,
 });
 
 const generateId = () =>
@@ -206,10 +208,6 @@ const sanitizeProfile = (
         typeof entry.username === "string" ? entry.username : DEFAULT_USERNAME;
     const password =
         typeof entry.password === "string" ? entry.password : DEFAULT_PASSWORD;
-    const token =
-        typeof entry.token === "string" && entry.token.trim()
-            ? entry.token.trim()
-            : DEFAULT_RPC_TOKEN;
     return {
         id,
         label,
@@ -218,7 +216,6 @@ const sanitizeProfile = (
         port,
         username,
         password,
-        token,
     };
 };
 
@@ -314,6 +311,7 @@ export function ConnectionConfigProvider({
         window.localStorage.setItem(ACTIVE_KEY, activeProfileId);
     }, [activeProfileId]);
 
+<<<<<<< Updated upstream
     useEffect(() => {
         const unsubscribe = NativeShell.onEvent("auth-token", (payload) => {
             setNativeOverride((prev) => {
@@ -356,6 +354,8 @@ export function ConnectionConfigProvider({
         return unsubscribe;
     }, []);
 
+=======
+>>>>>>> Stashed changes
     const addProfile = useCallback(() => {
         const newProfile: ConnectionProfile = {
             id: generateId(),
@@ -365,7 +365,10 @@ export function ConnectionConfigProvider({
             port: DEFAULT_RPC_PORT,
             username: "",
             password: "",
+<<<<<<< Updated upstream
             token: "",
+=======
+>>>>>>> Stashed changes
         };
         setProfiles((prev) => [...prev, newProfile]);
         setActiveProfileId(newProfile.id);
@@ -411,11 +414,9 @@ export function ConnectionConfigProvider({
         const hostOverride =
             baseActiveProfile.host.trim().toLowerCase() !== DEFAULT_RPC_HOST;
         const portOverride = baseActiveProfile.port.trim() !== DEFAULT_RPC_PORT;
-        const tokenOverride = Boolean(baseActiveProfile.token.trim());
         const userOverride =
             hostOverride ||
             portOverride ||
-            tokenOverride ||
             Boolean(baseActiveProfile.username.trim()) ||
             Boolean(baseActiveProfile.password.trim());
         return !userOverride;
@@ -428,7 +429,6 @@ export function ConnectionConfigProvider({
                 host: nativeOverride.host ?? DEFAULT_RPC_HOST,
                 port: nativeOverride.port ?? DEFAULT_RPC_PORT,
                 scheme: nativeOverride.scheme ?? DEFAULT_RPC_SCHEME,
-                token: nativeOverride.token ?? baseActiveProfile.token,
             };
         }
         return baseActiveProfile;
