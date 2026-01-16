@@ -4,6 +4,8 @@ export type WorkspaceStyle = "classic" | "immersive";
 
 const WORKSPACE_STYLE_KEY = "tiny-torrent.workspace-style";
 const HUD_DISMISSED_KEY = "tiny-torrent.hud-dismissed";
+// TODO: Fold these settings into the Preferences provider (see `todo.md` task 15). Avoid having many leaf hooks own their own localStorage keys and serialization rules.
+// TODO: Keep “dismissed HUD cards” as UI-only state. It must not be coupled to engine connection state or ShellAgent presence.
 
 const readWorkspaceStyle = (): WorkspaceStyle => {
     if (typeof window === "undefined") return "classic";

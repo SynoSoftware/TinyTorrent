@@ -3,6 +3,8 @@
 **Role:** Authoritative Architecture Document
 **Target:** Engineering Team (C++ Backend & TypeScript Frontend)
 
+> TODO: Align this spec with `ARCHITECTURE.md`, `docs/EXE architecutre.md` (intentional repo spelling), and `docs/Recovery UX - Final Acceptance Specification (Post-Implementation).md` so the frontend team sees the same invariants about UiMode, shell adapter, view models, and heartbeat authority.
+
 ## **1. Architecture & Protocol Upgrade**
 
 The daemon operates in two modes to ensure broad compatibility while enabling modern features.

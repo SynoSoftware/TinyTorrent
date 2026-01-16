@@ -5,6 +5,11 @@ import { STATUS } from "@/shared/status";
 // Single-owner export for all config consumers
 export const CONFIG = constants;
 
+// TODO: Keep `config/logic.ts` as a central “knob registry” and shared constants authority:
+// TODO: - UI/UX timing constants (polling cadence, animation delays, debounce windows) should be sourced from here (or from `constants.json`) and not hardcoded in leaf components.
+// TODO: - Do not encode protocol/engine concepts here. Transmission RPC is the daemon contract; `uiMode = "Full" | "Rpc"` is a UI/runtime capability derived elsewhere.
+// TODO: - If you find the same numeric literal used in multiple components, do not copy it: add a named token/constant (or flag it) so edits remain safe.
+
 // Design-system authority declaration
 export const DESIGN_SYSTEM_AUTHORITY = {
     source: "index.css",

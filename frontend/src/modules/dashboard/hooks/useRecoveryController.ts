@@ -42,6 +42,7 @@ export function useRecoveryController(params: {
         envelope?.fingerprint ??
         String(detail?.id ?? detail?.hash ?? "<no-fp>");
     const isBusy = false;
+    // TODO: Align this hook with the Recovery UX spec: consume deterministic gate outputs (state + confidence), surface only mapped UI-friendly outcomes, and avoid ad-hoc engine calls here.
 
 
     const mapGateOutcomeToRecoveryOutcome = useCallback(
@@ -117,6 +118,7 @@ export function useRecoveryController(params: {
         dispatch,
         t,
     ]);
+    // TODO: This hook should not decide engine actions; rely on the single recovery gate/state machine for sequencing, then map outcomes to UI-friendly messages only.
 
     const handlePickPath = useCallback(
         async (path: string): Promise<RecoveryOutcome> => {

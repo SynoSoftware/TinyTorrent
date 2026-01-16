@@ -36,6 +36,9 @@ export const getSetLocationOutcomeMessage = (
     surface: SetLocationSurface,
     connectionMode: ConnectionMode
 ): SetLocationOutcomeMessage | null => {
+    // TODO: Deprecate `connectionMode` and switch this helper to `uiMode: "Full" | "Rpc"`.
+    // TODO: The only UX distinction we need here is whether ShellExtensions browsing is available (Full) or not (Rpc).
+    // TODO: When migrated, remove any “tinytorrent-*” naming from translation keys and replace with `set_location.reason.browse_unavailable_full` vs `..._rpc` (or equivalent).
     if (
         !outcome ||
         (outcome.kind !== "unsupported" && outcome.kind !== "conflict")

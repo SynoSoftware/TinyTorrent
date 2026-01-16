@@ -23,6 +23,11 @@ import { TEXT_ROLES } from "../hooks/utils/textRoles";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 import { ShieldCheck, Zap, Ban, Copy, UserPlus, Info } from "lucide-react";
 
+// TODO: Keep PeersTab presentational:
+// TODO: - No RPC calls and no ShellExtensions calls here. Emit `PeerContextAction` and let a higher layer execute (command bus/view-model).
+// TODO: - Avoid inventing additional global listeners/timers inside the view; centralize if needed (todo.md task 19).
+// TODO: - If hover/selection state needs to be shared across peer list + peer map, define a small `PeersViewModel` contract and keep computation outside render.
+
 export type PeerContextAction = "add_peer" | "ban_ip" | "copy_ip";
 
 type PeerContextMenuState = {

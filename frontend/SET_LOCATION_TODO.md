@@ -1,4 +1,6 @@
-## Set Download Path / Set Location — Connection-Scoped Capability TODO
+## Set Download Path / Set Location - Connection-Scoped Capability TODO
+
+> These steps support the architectural invariant that shell-bound flows (browse, recovery messaging, set-location gates) must obey the single capability model (`UiMode`) documented in `ARCHITECTURE.md` and the recovery gate contract in `docs/Recovery UX - Final Acceptance Specification (Post-Implementation).md`.
 
 1. [x] Verify `setLocationCapability` now reflects the active RPC profile host (`127.0.0.1` only) so browse is only offered for the native daemon.
 2. [x] Surface-aware outcome state: avoid storing a single `lastSetLocationOutcome` so context menu, general tab, and recovery modal do not share stale unsupported/conflict reasons.
@@ -12,3 +14,5 @@
 10. [x] Outline reconciliation rules for inline editor state/drafts/browse promises when `connectionMode` changes so mode transitions cancel or adjust UI immediately.
 11. [x] Split “open folder” vs “browse for folder” capability flags (both NativeShell-owned) and enforce them separately when rendering buttons or invoking helpers, especially for remote paths.
 12. [x] Ensure the status bar / transport chip renders the canonical `connectionMode` (TransmissionRemote / TinyTorrentRemote / TinyTorrentLocalShell) so tooltips/status text always explain why browse is hidden or enabled.
+13. [ ] Align recovery UX messaging with the recovery gate confidence states (unknown -> "Location unavailable", etc.) so `SetLocation` outcomes simply feed the approved texts; never infer capability from stale `lastSetLocationOutcome`.
+14. [ ] Source all recovery/set-location copy, gating rules, and manual editor lifecycle from the recovery gate ViewModel output (state + confidence) instead of ad-hoc heuristics; editors/modals must remain open until the gate resolves and the ability to browse/manual is recomputed through `UiMode`.

@@ -71,10 +71,7 @@ export function useOpenTorrentFolder() {
             if (lastError) {
                 console.error("open folder failed", lastError);
             }
-            showFeedback(
-                t("recovery.feedback.open_path_failed"),
-                "warning"
-            );
+            showFeedback(t("recovery.feedback.open_path_failed"), "warning");
         },
         [showFeedback, shellAgent, t]
     );

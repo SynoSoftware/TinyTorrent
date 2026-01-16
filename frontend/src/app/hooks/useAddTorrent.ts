@@ -23,6 +23,12 @@ interface UseAddTorrentParams {
     addGhostTorrent: (options: GhostTorrentOptions) => string;
     removeGhostTorrent: (id: string) => void;
 }
+// TODO: Reduce parameter surface area. This hook currently mixes:
+// TODO: - orchestration (RPC add + refresh)
+// TODO: - ghost UI state management
+// TODO: - error reporting policy
+// TODO: Target: `useAddTorrent(viewModelDeps)` where deps are grouped objects (client, refresh, ghostStore) provided by the App/Dashboard view-model, not individually threaded params.
+// TODO: Align with `todo.md` task 13 (ViewModel contracts) and task 17 (Add-torrent defaults service) so add flows live behind one owner and UI components stay “dumb”.
 
 interface AddTorrentPayload {
     magnetLink?: string;

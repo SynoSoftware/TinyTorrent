@@ -145,6 +145,18 @@ interface WorkspaceShellProps {
     ) => void;
     tableWatermarkEnabled: boolean;
 }
+// TODO: WorkspaceShellProps is too large to be a stable human/AI-facing API.
+// TODO: Replace this “many props” surface with a single `WorkspaceShellViewModel` object that groups ownership clearly, e.g.:
+// TODO: - `dnd`: { getRootProps, getInputProps, isDragActive }
+// TODO: - `filters`: { filter, setFilter, searchQuery, setSearchQuery }
+// TODO: - `workspace`: { style, toggleStyle, openSettings }
+// TODO: - `table`: { torrents, ghostTorrents, isLoading, optimisticStatuses, capabilities }
+// TODO: - `detail`: { data, onRequestDetails, onClose, peerSortStrategy, inspectorTabCommand, onInspectorTabCommandHandled }
+// TODO: - `recovery`: { isDetailRecoveryBlocked } and actions come from Recovery/TorrentActions contexts
+// TODO: - `telemetry`: { sessionStats, transportStatus, uiMode } (replace engineType/connectionMode labels with UiMode)
+// TODO: - `deleteFlow`: { pendingDelete, clear, confirm }
+// TODO: - `hud`: { visibleCards, dismissCard, restoreCards, hasDismissedInsights }
+// TODO: Keep “who owns what” obvious: WorkspaceShell is presentation-only and should not require callers to understand orchestrator internals.
 
 export function WorkspaceShell({
     getRootProps,
@@ -204,6 +216,7 @@ export function WorkspaceShell({
         rpcStatus: lifecycleRpcStatus,
         nativeIntegration,
     } = useLifecycle();
+    // TODO: Stop consuming `serverClass` here. Once the app is Transmission-only, all engine-specific UX should be removed and any host-backed features should come from a single capability provider.
     const { t } = useTranslation();
     const { selectedIds } = useSelection();
     const { handleBulkAction, openAddTorrentPicker, openAddMagnet } =
@@ -234,6 +247,8 @@ export function WorkspaceShell({
         },
         []
     );
+    // TODO: Route window commands through the ShellAgent/ShellExtensions adapter instead of calling `NativeShell` directly.
+    // TODO: Locality rule: window commands are host-only (they must never be exposed when running the UI against a remote daemon).
     const isNativeHost = Runtime.isNativeHost;
     const isImmersiveShell = workspaceStyle === "immersive";
 
@@ -317,6 +332,7 @@ export function WorkspaceShell({
             torrents={torrents}
         />
     );
+    // TODO: Have StatusBar consume session/capability data from a shared provider rather than prop drilling torrents/stats; reduces recompute churn and wiring overhead.
 
     const renderDeleteModal = () => (
         <RemoveConfirmationModal

@@ -11,6 +11,11 @@ import {
     type AnimationSuppressionKey,
 } from "@/modules/dashboard/hooks/useTableAnimationGuard";
 
+// TODO: Column sizing is complex and easy to regress. Keep a single owner:
+// TODO: - Avoid re-implementing auto-fit/sizing logic in other places (headers, persistence, layout).
+// TODO: - Prefer “one table view-model owns sizing” and the view renders CSS vars only (todo.md task 13).
+// TODO: - Ensure any timing/measurement (ResizeObserver, effects) is consistent with the app’s scheduling authority (todo.md task 19).
+
 const normalizeColumnSizingState = (s?: Record<string, number>) => {
     if (!s) return {};
     const out: Record<string, number> = {};

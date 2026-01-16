@@ -1,4 +1,8 @@
 // All config tokens imported from '@/config/logic'. Icon sizing uses ICON_STROKE_WIDTH from config. SCALE_BASES tokenization flagged for follow-up.
+// TODO: Unify language preference ownership (todo.md task 15):
+// TODO: - `LanguageMenu` should not directly read/write localStorage or duplicate supported-language logic.
+// TODO: - `src/i18n/index.ts` should not implement a separate storage policy from the menu.
+// TODO: Target: `usePreferences()` exposes `{ language, setLanguage, supportedLanguages, isSystemLanguage }` and both i18n init + menu consume it.
 
 import {
     Dropdown,
@@ -97,6 +101,7 @@ export function ZhFlagIcon({ className, ...props }: FlagProps) {
 }
 
 const STORAGE_KEY = "tiny-torrent-language";
+// TODO: Remove direct localStorage usage once preferences provider exists; keep this constant only as a migration key if needed.
 
 const languages: LanguageOption[] = [
     { code: "en", labelKey: "language.english", flagIcon: <UsFlagIcon /> },

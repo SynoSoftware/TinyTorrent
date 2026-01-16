@@ -33,6 +33,9 @@ export interface ConnectionProfile {
     username: string;
     password: string;
 }
+// TODO: Remove `token` from ConnectionProfile entirely. Transmission RPC does not use a custom token; only Basic Auth (username/password) + X-Transmission-Session-Id handled by the transport.
+// TODO: After removal, delete all UI strings/fields for token entry and remove env var `VITE_RPC_TOKEN` usage.
+// TODO: Migration detail: when loading stored profiles, tolerate legacy `token` fields but ignore them; ensure no “hidden auth state” survives in sessionStorage/localStorage.
 
 interface ConnectionConfigContextValue {
     profiles: ConnectionProfile[];
@@ -54,6 +57,7 @@ const LEGACY_DEFAULT_PROFILE_LABELS = new Set([
     "Local Transmission",
     "Local server",
 ]);
+// TODO: i18n/ownership: do not embed English labels as magic strings. If we keep legacy matching, centralize them behind an internal constant and document that they are *data migration keys* (not UI text).
 const DEFAULT_PROFILE_LABEL = "";
 
 const DEFAULT_RPC_PATH = CONFIG.defaults.rpc_endpoint;
@@ -94,10 +98,8 @@ const detectNativeInfo = (): NativeOverride => {
             : undefined;
     return { host, port, scheme };
 };
-<<<<<<< Updated upstream
-=======
 // TODO: Normalize connection profiles with the capability helper (loopback/native shell), so capability derivation and browsing policies are consistent across app layers.
->>>>>>> Stashed changes
+// TODO: Remove token detection from native info; native overrides must never inject auth state into the UI process.
 
 const parseRpcEndpoint = (
     raw?: string
@@ -165,6 +167,7 @@ const createDefaultProfile = (): ConnectionProfile => ({
     username: DEFAULT_USERNAME,
     password: DEFAULT_PASSWORD,
 });
+// TODO: After removing ConnectionProfile.token, also remove this default token initialization.
 
 const generateId = () =>
     typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
@@ -353,6 +356,9 @@ export function ConnectionConfigProvider({
         });
         return unsubscribe;
     }, []);
+    // TODO: Remove `auth-token` event handling entirely.
+    // TODO: Rationale: Token auth is not part of the Transmission RPC contract; do not let the ShellAgent inject credentials into the UI via events.
+    // TODO: If a native override is still needed, replace this event with a *non-secret* endpoint override event (host/port/scheme only) and apply it in one place (ConnectionConfigProvider) with explicit precedence rules.
 
 =======
 >>>>>>> Stashed changes
@@ -365,10 +371,6 @@ export function ConnectionConfigProvider({
             port: DEFAULT_RPC_PORT,
             username: "",
             password: "",
-<<<<<<< Updated upstream
-            token: "",
-=======
->>>>>>> Stashed changes
         };
         setProfiles((prev) => [...prev, newProfile]);
         setActiveProfileId(newProfile.id);
@@ -421,6 +423,7 @@ export function ConnectionConfigProvider({
             Boolean(baseActiveProfile.password.trim());
         return !userOverride;
     }, [activeProfileId, baseActiveProfile, isNativeHost]);
+    // TODO: After removing ConnectionProfile.token, remove tokenOverride from this decision; native overrides should be blocked only when the user explicitly set host/port/scheme/credentials.
 
     const activeProfile = useMemo(() => {
         if (shouldApplyNativeOverride) {
@@ -433,6 +436,7 @@ export function ConnectionConfigProvider({
         }
         return baseActiveProfile;
     }, [baseActiveProfile, nativeOverride, shouldApplyNativeOverride]);
+    // TODO: After removing token support, drop `token` merge logic entirely; keep only endpoint overrides (host/port/scheme) where applicable.
 
     const value = useMemo(
         () => ({

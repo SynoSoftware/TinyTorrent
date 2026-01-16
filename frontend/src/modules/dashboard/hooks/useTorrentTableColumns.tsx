@@ -26,6 +26,8 @@ export function useTorrentTableColumns({
 }): { columns: ColumnDef<Torrent>[]; tableMeta: DashboardTableMeta } {
     const { handleRetry } = useRecoveryContext();
     const { serverClass } = useLifecycle();
+    // TODO: Replace `serverClass` in table meta with `uiMode = Full | Rpc`.
+    // TODO: Table rendering should not carry daemon identity through meta; only UI capability tier matters.
     const columns = useMemo<ColumnDef<Torrent>[]>(() => {
         const cols = DEFAULT_COLUMN_ORDER.map((colId) => {
             const id = colId as ColumnId;
@@ -86,6 +88,7 @@ export function useTorrentTableColumns({
         }),
         [openFolder, optimisticStatuses, speedHistoryRef, serverClass]
     );
+    // TODO: After migration, DashboardTableMeta should include `uiMode` (or `canBrowse/canOpenFolder` booleans) instead of serverClass.
 
     return { columns, tableMeta };
 }

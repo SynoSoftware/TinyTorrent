@@ -14,6 +14,10 @@ interface UseHudCardsParams {
     isDragActive: boolean;
     dismissedHudCardSet: Set<string>;
 }
+// TODO: Align HUD cards with the “single authority” model:
+// TODO: - Connection/engine labels shown to users must come from the Session+UiMode provider, not raw `engineInfo`.
+// TODO: - In user-facing UX, prefer `uiMode="Full" => TinyTorrent` and `uiMode="Rpc" => Transmission` (both are Transmission RPC; uiMode is about ShellExtensions).
+// TODO: - Keep `engineInfo` only for diagnostics panels / debug overlays.
 
 export function useHudCards({
     rpcStatus,

@@ -131,6 +131,14 @@ export interface UseTorrentOrchestratorParams {
     markRemoved: (key: string) => void;
     unmarkRemoved: (key: string) => void;
 }
+// TODO: Reduce cognitive load: `UseTorrentOrchestratorParams` is too wide and mixes unrelated responsibilities (RPC client, UI feedback, settings persistence, selection/remove state).
+// TODO: Replace with a smaller, explicit contract, e.g.:
+// TODO: - `deps.client`: { client, clientRef, rpcStatus }
+// TODO: - `deps.data`: { torrents, detailData, refreshTorrents, refreshStats, refreshDetail }
+// TODO: - `deps.ui`: { showFeedback, reportCommandError, t }
+// TODO: - `deps.settings`: { settingsConfig, setSettingsConfig }
+// TODO: - `deps.selection/remove`: move to a single “App view-model” owner (avoid passing markRemoved/unmarkRemoved/clearDetail into orchestrator)
+// TODO: Also shrink orchestrator output: return grouped APIs (`addTorrent`, `recovery`, `setLocation`, `deleteFlow`, `uiMode`) instead of dozens of top-level fields.
 
 // --- Helpers ---
 
@@ -178,6 +186,10 @@ const PROBE_TTL_MS = 5000;
 // --- Main Hook ---
 
 export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
+    // TODO: Architectural ownership (ViewModel):
+    // TODO: - Treat this hook as a domain ViewModel/controller for torrents (add/remove/recovery/set-location), not a dumping ground for unrelated app wiring.
+    // TODO: - Split into small internal modules/services with explicit ownership: `addTorrentController`, `recoveryController`, `setLocationController`, `deleteController`, `capabilityController`.
+    // TODO: - Return a small, grouped API (objects) rather than dozens of top-level fields; AppContent should consume a single `useAppViewModel()` instead of destructuring everything here.
     const {
         client,
         clientRef,
@@ -205,11 +217,16 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
     const { shellAgent, uiMode } = useShellAgent();
     const transportHost = transportCapabilities?.host ?? "";
     const [serverClass, setServerClass] = useState<ServerClass>("unknown");
+    // TODO: Deprecate `serverClass` for UX decisions. With “RPC extensions: NONE”, the daemon is Transmission RPC; UX must hinge on `uiMode` (Full|Rpc), not on daemon identity strings.
     const hasNativeHostShell = useMemo(
         () =>
             uiMode === "Full" && isLoopbackHost(transportHost),
         [transportHost, uiMode]
     );
+    // TODO: Replace `hasNativeHostShell/serverClass/connectionMode` with `uiMode = "Full" | "Rpc"` derived from:
+    // TODO: - endpoint is loopback (localhost) AND ShellAgent/ShellExtensions bridge available => Full
+    // TODO: - otherwise => Rpc
+    // TODO: This removes “tinytorrent-*” string branching that confuses maintainers and AI.
     const setLocationCapability = useMemo(
         () => ({
             canBrowse: Boolean(
@@ -223,6 +240,7 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
             transportCapabilities?.supportsManual,
         ]
     );
+    // TODO: Extract capability derivation (browse/manual/open folder) into a shared helper driven by adapter caps + host (Transmission-first, no serverClass branching); keep UI hooks oblivious to transport logic.
     const canOpenFolder = Boolean(
         transportCapabilities?.supportsOpenFolder && hasNativeHostShell
     );
@@ -250,6 +268,7 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
             if (!active) return;
             setServerClass(client?.getServerClass?.() ?? "unknown");
         };
+        // TODO: Once RPC extensions are removed, delete this entire “extended capabilities” probe and treat `serverClass` as `transmission` (or remove it entirely).
         void updateServerClass();
         return () => {
             active = false;
@@ -484,8 +503,10 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
             resolve: (result: RecoveryGateOutcome) => void;
         }>
     >([]);
+    // TODO: Move recovery queue + abort/cancel handling into the recovery controller layer so UI consumers just request recovery and observe state; avoid queue refs in UI hooks.
     const recoverySessionActiveRef = useRef(false);
 
+    // TODO: Align recovery controller with the Recovery UX spec: single authoritative gate, deterministic state/confidence outputs (S1–S4 with certain/likely/unknown), and enforce Retry semantics = probe-only.
     const runMissingFilesFlow = useCallback(
         async (
             torrent: Torrent | TorrentDetail,
@@ -657,6 +678,7 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
         },
         []
     );
+    // TODO: Model recovery flows as a simple state machine (idle -> awaiting-action -> resolving -> done) and expose via a small service to reduce scattered refs/queues that confuse implementers.
 
     const processNextRecoveryQueueEntry = useCallback(() => {
         if (recoverySession) return;
@@ -758,6 +780,7 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
         },
         [runMissingFilesFlow, createRecoveryQueueEntry, enqueueRecoveryEntry]
     );
+    // TODO: Ensure gate deduplication/in-flight locking matches spec (one gate, one promise per torrent), and that confidence messaging for blockingOutcome drives user-friendly UI text.
 
     const finalizeRecovery = useCallback(
         (result: RecoveryGateOutcome) => {
@@ -1155,6 +1178,9 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
     const recoveryRequestBrowse = useCallback(
         async (currentPath?: string | null) => {
             if (!setLocationCapability.canBrowse) return null;
+            // TODO: Replace direct `NativeShell.openFolderDialog` usage with the ShellAgent adapter.
+            // TODO: Gating: browsing is allowed only in `uiMode="Full"` (loopback + ShellAgent bridge). In `uiMode="Rpc"`, this must return `null`/unsupported deterministically.
+            // TODO: Do not derive browse capability from daemon/server identity; the daemon is Transmission in both modes.
             try {
                 return (
                     (await shellAgent.browseDirectory(
@@ -1208,6 +1234,7 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
     const [setLocationOutcomes, setSetLocationOutcomes] = useState<
         Record<string, SetLocationOutcome>
     >({});
+    // TODO: Simplify inline set-location: track a single editingLocationId + drafts, derive conflicts instead of persisting outcome/owner maps; clear drafts/outcomes on removal/success.
 
     const getDraftPathForTorrent = useCallback(
         (key: string | null, fallback: string): string => {
@@ -1550,6 +1577,7 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
             recordSetLocationOutcome,
         ]
     );
+    // TODO: Split set-location into two clear paths: (a) browse flow (if allowed) with minimal steps, (b) inline/manual flow with a tiny reducer managing draft/status/errors; avoid interleaving recovery/resume logic in UI handler.
 
     useEffect(() => {
         const current = inlineSetLocationState;
@@ -1619,6 +1647,8 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
     // --- 8. UI Lifecycle ---
     useEffect(() => {
         if (!client) return;
+        // TODO: Remove UI lifecycle calls (`notifyUiReady/notifyUiDetached`) once RPC extensions are deleted.
+        // TODO: Rationale: the daemon must be stateless toward UI (see `docs/EXE architecutre.md`). “UI attach/detach” was part of the deprecated RPC-extended path.
         void client.notifyUiReady?.();
         const detachUi = () => {
             try {

@@ -57,6 +57,8 @@ class UiClock {
 }
 
 const uiClock = new UiClock();
+// TODO: Consolidate scheduling: this creates another global interval source. Inventory all timers (heartbeat, orchestrator probes, modal timers) and converge on one scheduling authority (see todo.md task 19).
+// TODO: Contract goal: “one place to change polling cadence” and “no hidden background work” when the UI is closed/minimized (especially important for WebView2 memory/CPU discipline).
 
 export const subscribeUiClock = (subscriber: UiClockSubscriber) =>
     uiClock.subscribe(subscriber);

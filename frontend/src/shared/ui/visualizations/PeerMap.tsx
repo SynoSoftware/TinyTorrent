@@ -1,5 +1,12 @@
 // All config and geometry tokens are imported from '@/config/logic'.
 // No magic numbers or relative imports remain. Deterministic layout enforced.
+// TODO: This file conflicts with AGENTS.md “No Magic Numbers” and duplicates the newer peer-map implementation:
+// TODO: - `src/modules/dashboard/components/TorrentDetails_Peers_Map.tsx` (SPD-based, config-driven)
+// TODO: Decide on a single peer visualization implementation and delete the other to reduce confusion for humans/AI.
+// TODO: If this component remains:
+// TODO: - move all geometry/animation constants into `config/logic.ts` tokens (no hardcoded numbers)
+// TODO: - ensure scheduling uses the shared timer authority (todo.md task 19) and does not create hidden work
+// TODO: If it is obsolete, replace usages with the SPD peer map and remove this file.
 
 import { Button, Tooltip, cn } from "@heroui/react";
 import type { PointerEvent, WheelEvent } from "react";

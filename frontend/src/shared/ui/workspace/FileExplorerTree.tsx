@@ -35,6 +35,12 @@ interface FileExplorerTreeProps {
         entry: FileExplorerEntry
     ) => void;
 }
+// TODO: Keep FileExplorerTree as a pure “view” component:
+// TODO: - It must not call RPC or ShellExtensions directly (no `EngineAdapter`, no `NativeShell`, no filesystem probing).
+// TODO: - It emits *UI intents* via `onFilesToggle` / `onFileContextAction` and a higher layer (Dashboard/App view-model) decides:
+// TODO:   - whether “open file/folder” is allowed (based on `uiMode = "Full" | "Rpc"`)
+// TODO:   - how to execute it (ShellAgent adapter vs unsupported)
+// TODO: - This prevents remote/browser UIs from accidentally attempting host integration and keeps the authorization/capability boundary centralized.
 
 export type FileExplorerContextAction =
     | "priority_high"
@@ -42,6 +48,10 @@ export type FileExplorerContextAction =
     | "priority_low"
     | "open_file"
     | "open_folder";
+// TODO: Consider renaming these actions to explicitly separate “engine actions” vs “shell actions”:
+// TODO: - Engine: priority_* and wanted/unwanted toggles
+// TODO: - Shell: open_file/open_folder (only when `uiMode="Full"`)
+// TODO: This improves readability for maintainers and reduces accidental cross-layer calls.
 
 type FileContextMenuState = {
     file: FileExplorerEntry;

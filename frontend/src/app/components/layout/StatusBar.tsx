@@ -52,6 +52,9 @@ const TRANSPORT_LABELS: Record<string, string> = {
     polling: "status_bar.transport_polling",
     offline: "status_bar.transport_offline",
 };
+// TODO: With “RPC extensions: NONE”, remove websocket transport UX entirely:
+// TODO: - Delete websocket labels/strings and collapse transport status to `polling | offline`.
+// TODO: - Ensure the UI never describes websocket as a supported transport (it should not exist in this architecture).
 
 const RPC_STATUS_LABEL: Record<string, string> = {
     [STATUS.connection.CONNECTED]: "status_bar.rpc_connected",
@@ -64,6 +67,8 @@ const RPC_STATUS_LABEL: Record<string, string> = {
 /* ------------------------------------------------------------------ */
 
 export type EngineDisplayType = "tinytorrent" | "transmission" | "unknown";
+// TODO: Collapse EngineDisplayType to `transmission | unknown` once serverClass/“tinytorrent” branching is removed across the app.
+// TODO: Engine identity should come from Transmission RPC session-get (or be inferred as “unknown” when disconnected), not from custom capability probes.
 type TransportStatus = HeartbeatSource | "offline";
 type DiskState = "ok" | "warn" | "bad" | "unknown";
 
@@ -118,6 +123,7 @@ function useNetworkTelemetry() {
 
     return telemetry;
 }
+// TODO: Avoid direct Heartbeat subscriptions in StatusBar; consume telemetry via a shared session provider to prevent multiple schedulers and simplify wiring.
 
 /* ------------------------------------------------------------------ */
 /* SMALL PRIMITIVES */
@@ -521,6 +527,8 @@ export function StatusBar({
     const client = useTorrentClient();
     const { rpcStatus } = useLifecycle();
     const { connectionMode } = useRecoveryContext();
+    // TODO: Replace `connectionMode` with `uiMode = Full | Rpc` (from the Session+UiMode provider).
+    // TODO: StatusBar should not reflect internal transport/daemon variants; it should show the user-facing mode (“TinyTorrent” for Full, “Transmission” for Rpc).
 
     // StatusBar must not independently fetch the full torrent list; prefer
     // the parent-provided `torrents` (from Heartbeat) to avoid N+1 storms.
@@ -599,6 +607,15 @@ export function StatusBar({
                 ? t("status_bar.engine_name_transmission")
                 : t("status_bar.engine_unknown")
             : t("status_bar.transport_offline_desc");
+    // TODO: Replace `engineType/serverTypeLabel` with `uiMode` naming:
+    // TODO: - `uiMode=Full` => show TinyTorrent label
+    // TODO: - `uiMode=Rpc`  => show Transmission label
+    // TODO: The tooltip must not imply different daemon protocols; both modes talk to Transmission RPC, and `uiMode` only describes ShellExtensions availability.
+    // TODO: Replace `connectionMode` with `uiMode = "Full" | "Rpc"` and remove these connection_mode_* translation keys.
+    // TODO: StatusBar should show only what users care about:
+    // TODO: - `uiMode=Full`: “TinyTorrent” (ShellExtensions available)
+    // TODO: - `uiMode=Rpc`: “Transmission” (RPC-only)
+    // TODO: Avoid surfacing transport/internal distinctions that confuse users (no tinytorrent-remote/local-shell labels).
     const connectionModeKey = connectionMode.replace(/-/g, "_");
     const connectionModeLabel = t(
         `status_bar.connection_mode_${connectionModeKey}`,
