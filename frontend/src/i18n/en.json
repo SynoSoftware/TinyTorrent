@@ -58,7 +58,7 @@
         "enter_path": "Enter path:",
         "path_label": "Path",
         "root_label": "File System",
-        "select": "Use this folder",
+        "select": "Set download path",
         "title": "Choose Folder",
         "up": "Up one level"
     },

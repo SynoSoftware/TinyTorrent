@@ -64,6 +64,7 @@ export interface RecoveryContextValue {
     setLocationCapability: SetLocationCapability;
     inlineSetLocationState: InlineSetLocationState | null;
     cancelInlineSetLocation: () => void;
+    releaseInlineSetLocation: () => void;
     confirmInlineSetLocation: () => Promise<boolean>;
     handleInlineLocationChange: (value: string) => void;
     getLocationOutcome: (

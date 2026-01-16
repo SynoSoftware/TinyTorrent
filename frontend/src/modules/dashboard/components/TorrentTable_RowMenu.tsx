@@ -51,7 +51,7 @@ export default function TorrentTable_RowMenu({
 }) {
     const {
         inlineSetLocationState,
-        cancelInlineSetLocation,
+        releaseInlineSetLocation,
         confirmInlineSetLocation,
         handleInlineLocationChange,
         getLocationOutcome,
@@ -94,7 +94,11 @@ export default function TorrentTable_RowMenu({
         });
     };
     const handleInlineCancel = () => {
-        cancelInlineSetLocation();
+        releaseInlineSetLocation();
+        onClose();
+    };
+    const handleMenuClose = () => {
+        releaseInlineSetLocation();
         onClose();
     };
     const handleSetDownloadPath = () => {
@@ -106,7 +110,7 @@ export default function TorrentTable_RowMenu({
         <AnimatePresence>
                 <Dropdown
                     isOpen
-                    onClose={onClose}
+                    onClose={handleMenuClose}
                     placement="bottom-start"
                     shouldBlockScroll={false}
                     shouldFlip
