@@ -1,10 +1,4 @@
-import {
-    useCallback,
-    useEffect,
-    useMemo,
-    useRef,
-    useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
 import { STATUS } from "@/shared/status";
 import Runtime from "@/app/runtime";
@@ -106,13 +100,16 @@ type AppContentProps = {
     closeSettings: ReturnType<typeof useWorkspaceModals>["closeSettings"];
     announceAction: ReturnType<typeof useActionFeedback>["announceAction"];
     showFeedback: ReturnType<typeof useActionFeedback>["showFeedback"];
-    reportCommandError: ReturnType<typeof useTransmissionSession>["reportCommandError"];
+    reportCommandError: ReturnType<
+        typeof useTransmissionSession
+    >["reportCommandError"];
     capabilities: CapabilityStore;
     handleReconnect: () => void;
     torrentClientRef: MutableRefObject<EngineAdapter | null>;
     refreshTorrentsRef: MutableRefObject<() => Promise<void>>;
     refreshSessionStatsDataRef: MutableRefObject<() => Promise<void>>;
 };
+// TODO: Split App into: data providers (client/session/torrents), a view-model layer that derives UI state/actions, and a thin presentational shell; shrink this prop list. Keep optional/complex features disabled by default unless clearly needed.
 
 // -----------------------------------------------------------------------------
 // AppContent: The UI shell that lives INSIDE the providers.
@@ -178,14 +175,17 @@ function AppContent({
         { enableOnFormTags: true, enableOnContentEditable: true },
         [setCommandPaletteOpen]
     );
+    // TODO: Centralize global hotkeys (palette/search) in one host to avoid per-component bindings and collisions.
 
     const handleInspectorTabCommandHandled = useCallback(() => {
         setInspectorTabCommand(null);
     }, []);
 
     const { markRemoved, unmarkRemoved } = useUIActionGateController();
+    // TODO: Collapse UIActionGate + orchestrator concerns into a single view-model so removal/recovery/selection logic is not split across multiple controllers.
 
     // -- Orchestrator & Selection Wiring --
+    // TODO: Consolidate orchestration/wiring into a thin container and keep the visible shell presentational; avoid duplicating this with the root split note above. Optional complexity should stay gated/disabled by default.
     const orchestrator = useTorrentOrchestrator({
         client: torrentClient,
         clientRef: torrentClientRef,
@@ -319,6 +319,7 @@ function AppContent({
                 : undefined
         );
     }, [activeId, detailData, loadDetail, selectedTorrents]);
+    // TODO: Extract detail-selection sync into a dedicated hook (e.g., useDetailSelectionSync) to isolate side-effects and make the selection->detail coupling testable.
 
     useEffect(() => {
         if (!detailData) return;
@@ -334,6 +335,11 @@ function AppContent({
 
     // -- Engine Display --
     const engineType = useMemo<EngineDisplayType>(() => {
+        // TODO: Replace `engineType/serverClass/connectionMode` with `uiMode = "Full" | "Rpc"` (Single source of truth).
+        // TODO: UI label policy:
+        // TODO: - `uiMode=Full` => show “TinyTorrent” (full ShellExtensions available)
+        // TODO: - `uiMode=Rpc`  => show “Transmission” (RPC-only)
+        // TODO: This must not imply a different daemon/protocol; both modes talk to Transmission RPC. `uiMode` is a UI bridge/capability tier only.
         if (serverClass === "tinytorrent") return "tinytorrent";
         if (serverClass === "transmission") return "transmission";
         if (engineInfo?.type === "libtorrent") return "tinytorrent";
@@ -440,16 +446,16 @@ function AppContent({
             switch (action) {
                 case "pause":
                     return dispatch(TorrentIntents.ensureSelectionPaused(ids));
-            case "resume":
-                {
-                    const targets = selectedTorrents.filter((torrent) =>
-                        ids.includes(torrent.id)
-                    );
-                    for (const torrent of targets) {
-                        await resumeTorrent(torrent);
+                case "resume":
+                    {
+                        const targets = selectedTorrents.filter((torrent) =>
+                            ids.includes(torrent.id)
+                        );
+                        for (const torrent of targets) {
+                            await resumeTorrent(torrent);
+                        }
                     }
-                }
-                return;
+                    return;
                 case "recheck":
                     return dispatch(TorrentIntents.ensureSelectionValid(ids));
                 default:
@@ -468,7 +474,12 @@ function AppContent({
             openAddMagnet,
             openAddTorrentPicker,
         }),
-        [handleTorrentAction, handleBulkAction, openAddMagnet, openAddTorrentPicker]
+        [
+            handleTorrentAction,
+            handleBulkAction,
+            openAddMagnet,
+            openAddTorrentPicker,
+        ]
     );
 
     // -- Shell & Layout State --
@@ -600,6 +611,7 @@ function AppContent({
         setFilter,
         t,
     ]);
+    // TODO: Move command palette action factories into a utility/hook that consumes stable deps; keep AppContent free of list-building logic.
 
     const getContextActions = useCallback(
         ({ activePart }: CommandPaletteContext) => {
@@ -743,15 +755,17 @@ function AppContent({
                     getLocationOutcome,
                 }}
             >
-                    <WorkspaceShell
-                        getRootProps={getRootProps}
-                        getInputProps={getInputProps}
-                        isDragActive={isDragActive}
-                        filter={filter}
-                        searchQuery={searchQuery}
-                        setSearchQuery={setSearchQuery}
-                        setFilter={setFilter}
-                        openSettings={openSettings}
+                {/* TODO: Introduce a recovery view-model/provider that wraps orchestrator state/actions so RecoveryProvider consumes a minimal interface and stays decoupled from add-torrent wiring. */}
+                {/* TODO: Recovery view-model should expose only what the UI needs (state + a few callbacks) and hide orchestration internals. */}
+                <WorkspaceShell
+                    getRootProps={getRootProps}
+                    getInputProps={getInputProps}
+                    isDragActive={isDragActive}
+                    filter={filter}
+                    searchQuery={searchQuery}
+                    setSearchQuery={setSearchQuery}
+                    setFilter={setFilter}
+                    openSettings={openSettings}
                     rehashStatus={rehashStatus}
                     workspaceStyle={workspaceStyle}
                     toggleWorkspaceStyle={toggleWorkspaceStyle}
@@ -768,7 +782,9 @@ function AppContent({
                     optimisticStatuses={optimisticStatuses}
                     peerSortStrategy={peerSortStrategy}
                     inspectorTabCommand={inspectorTabCommand}
-                    onInspectorTabCommandHandled={handleInspectorTabCommandHandled}
+                    onInspectorTabCommandHandled={
+                        handleInspectorTabCommandHandled
+                    }
                     sessionStats={sessionStats}
                     liveTransportStatus={liveTransportStatus}
                     engineType={engineType}
@@ -919,6 +935,7 @@ export default function App() {
         capabilities.superSeeding,
         updateCapabilityState,
     ]);
+    // TODO: Extract capability state detection (sequential/super-seeding) into a reusable hook collocated with capability store logic so consumers read from a single source of truth.
 
     const isMountedRef = useRef(false);
     const { sessionStats, refreshSessionStatsData, liveTransportStatus } =
@@ -928,6 +945,7 @@ export default function App() {
             isMountedRef,
             sessionReady: rpcStatus === STATUS.connection.CONNECTED,
         });
+    // TODO: Consider a single "session context" provider that bundles rpcStatus, engineInfo, capabilities, and sessionStats to reduce prop drilling and simplify wiring.
 
     // Workbench zoom: initialize global scale hook
     const { increase, decrease, reset } = useWorkbenchScale();
@@ -1022,6 +1040,7 @@ export default function App() {
         markTransportConnected,
         reportReadError,
     });
+    // TODO: Extract data-loading concerns (torrents/detail/stats) into a composable data provider to isolate side effects from App wiring and make polling intervals/config centralized.
 
     useEffect(() => {
         refreshTorrentsRef.current = refreshTorrents;
@@ -1070,6 +1089,7 @@ export default function App() {
             reportCommandError,
         ]
     );
+    // TODO: Move dispatch creation into TorrentActionsProvider (or a factory hook) to avoid re-creating it here and reduce App responsibilities; App should only wire providers.
 
     // Create the stable Actions object to pass down
     const actions = useMemo(
@@ -1094,9 +1114,9 @@ export default function App() {
                                 torrents={torrents}
                                 ghostTorrents={ghostTorrents}
                                 isInitialLoadFinished={isInitialLoadFinished}
-                            refreshTorrents={refreshTorrents}
-                            refreshDetailData={refreshDetailData}
-                            detailData={detailData}
+                                refreshTorrents={refreshTorrents}
+                                refreshDetailData={refreshDetailData}
+                                detailData={detailData}
                                 loadDetail={loadDetail}
                                 clearDetail={clearDetail}
                                 mutateDetail={mutateDetail}
@@ -1104,13 +1124,15 @@ export default function App() {
                                 settingsFlow={settingsFlow}
                                 torrentClientRef={torrentClientRef}
                                 refreshTorrentsRef={refreshTorrentsRef}
-                                refreshSessionStatsDataRef={refreshSessionStatsDataRef}
+                                refreshSessionStatsDataRef={
+                                    refreshSessionStatsDataRef
+                                }
                                 openSettings={openSettings}
                                 isSettingsOpen={isSettingsOpen}
                                 closeSettings={closeSettings}
                                 announceAction={announceAction}
-                            showFeedback={showFeedback}
-                            reportCommandError={reportCommandError}
+                                showFeedback={showFeedback}
+                                reportCommandError={reportCommandError}
                                 capabilities={capabilities}
                                 handleReconnect={handleReconnect}
                             />

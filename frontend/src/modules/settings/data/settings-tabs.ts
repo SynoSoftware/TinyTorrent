@@ -12,6 +12,13 @@ import {
 } from "lucide-react";
 import { type SettingsConfig, type ConfigKey } from "./config";
 
+// TODO: Treat `settings-tabs.ts` as *pure UI schema* (what controls exist), not as an engine/runtime policy layer.
+// TODO: Policy/ownership rules:
+// TODO: - Do not encode “TinyTorrent server type / rpc extended” concepts here. Transmission RPC is the daemon contract.
+// TODO: - Runtime capability gating (ShellExtensions available vs not) must be driven by `uiMode = "Full" | "Rpc"` in the Settings view-model/context, not by embedding conditions in tab definitions.
+// TODO: - “System” tab blocks that call ShellExtensions must render disabled with clear copy when `uiMode="Rpc"` (remote/browser).
+// TODO: This file is part of the “single authority” mental model for Settings: engineers should be able to review what settings exist without needing to understand RPC/capability wiring.
+
 export type SettingsTab =
     | "speed"
     | "network"
@@ -151,6 +158,7 @@ export interface TabDefinition {
 }
 
 export const SETTINGS_TABS: TabDefinition[] = [
+    // TODO: Keep tab ordering and availability stable. If we need to hide/disable tabs based on `uiMode`, do it in the Settings view-model, not here.
     {
         id: "speed",
         labelKey: "settings.tabs.speed",

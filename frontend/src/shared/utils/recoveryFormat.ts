@@ -1,6 +1,15 @@
 import type { ErrorEnvelope } from "@/services/rpc/entities";
 import type { TFunction } from "i18next";
 
+// TODO: Move recovery formatting to accept the *recovery gate output* (typed `{state, confidence, recommendedActions}`) instead of parsing `ErrorEnvelope` directly.
+// TODO: Rationale:
+// TODO: - `ErrorEnvelope` is a low-level projection of engine truth; UI should render from a single “gate/view-model” authority.
+// TODO: - This file currently contains regex/message heuristics and implicit mappings that are easy to desync from Recovery UX acceptance specs.
+// TODO: Migration plan:
+// TODO: - Keep these helpers temporarily as “legacy formatters”.
+// TODO: - Add new formatters that accept gate state and remove reliance on `errorMessage` string parsing.
+// TODO: Align with todo.md tasks 9, 10, 12.
+
 const RECOVERY_HINT_KEY: Record<string, string> = {
     changeLocation: "recovery.hint.changeLocation",
     forceRecheck: "recovery.hint.forceRecheck",
@@ -166,6 +175,8 @@ export const deriveMissingFilesStateKind = (
     envelope: ErrorEnvelope | undefined | null,
     path?: string
 ): MissingFilesStateKind => {
+    // TODO: Replace this heuristic parsing with controller/gate-provided classification once recovery emits deterministic state/confidence.
+    // TODO: The UI should not infer “volume loss vs path loss” by scanning strings; that logic belongs in one place (recovery controller).
     const errorClass = envelope?.errorClass;
     if (errorClass === "permissionDenied") {
         return "accessDenied";

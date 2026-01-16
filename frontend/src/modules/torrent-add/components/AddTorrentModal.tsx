@@ -235,6 +235,7 @@ export function AddTorrentModal({
     checkFreeSpace,
     onBrowseDirectory,
 }: AddTorrentModalProps) {
+    // TODO: Move add-torrent defaults/state (downloadDir, start/paused, filters) into a helper/service so this modal remains a dumb form; align with orchestrator flow.
     const { t } = useTranslation();
     const { rowHeight } = useLayoutMetrics();
 
@@ -491,6 +492,9 @@ export function AddTorrentModal({
             setFreeSpace(null);
             return;
         }
+        // TODO: Clarify contract: `checkFreeSpace` must be a Transmission RPC call (`free-space`) against the daemon and reports daemon-side free space.
+        // TODO: Do not call `NativeShell.checkFreeSpace` here (or anywhere in the modal). Local-disk probing (if ever needed) belongs to ShellAgent and must be gated by `uiMode="Full"`.
+        // TODO: If connected to a remote daemon (`uiMode="Rpc"`), the UI must treat this as remote free space (and copy must not imply it is local disk space).
         let active = true;
         setIsCheckingSpace(true);
         checkFreeSpace(downloadDir.trim())

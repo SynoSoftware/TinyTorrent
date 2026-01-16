@@ -22,6 +22,8 @@ export const useDetailTabs = ({
     onInspectorTabCommandHandled,
 }: UseDetailTabsParams) => {
     const STORAGE_KEY = "tt.inspector.active_tab";
+    // TODO: Move inspector tab persistence behind the Preferences provider (see `todo.md` task 15) so storage access/migrations are centralized.
+    // TODO: Ensure this remains UI-only and does not become another “hidden global truth” that different surfaces fight over.
 
     const readStored = (): DetailTab | null => {
         try {

@@ -49,6 +49,12 @@ export default function TorrentTable_RowMenu({
     isClipboardSupported?: boolean;
     getEmphasisClassForAction?: (a?: string) => string;
 }) {
+    // TODO: ViewModel boundary: this component should be a pure View.
+    // TODO: Replace this inline prop-bag (translator + callbacks + capability checks) with a single `RowMenuViewModel`:
+    // TODO: - `items`: prebuilt menu items with ids/labels/shortcuts/enabled/emphasis
+    // TODO: - `setLocation`: { canSetLocation, inlineEditorState, outcomeMessageKey, onOpen, onChange, onSubmit, onCancel }
+    // TODO: - `clipboard`: { supported }
+    // TODO: This removes local decision logic and prevents regressions when AI edits only one surface.
     const {
         inlineSetLocationState,
         releaseInlineSetLocation,
@@ -59,6 +65,9 @@ export default function TorrentTable_RowMenu({
         canOpenFolder,
         connectionMode,
     } = useRecoveryContext();
+    // TODO: Ensure all recovery/set-location actions here route through the single recovery gate/state machine; no local sequencing or ad-hoc handling for “set-download-path” should exist.
+    // TODO: Replace `connectionMode` usage here with `uiMode = "Full" | "Rpc"` from the capability provider; UI should not branch on tinytorrent-* strings.
+    // TODO: Update `getSetLocationOutcomeMessage(...)` to accept uiMode instead of connectionMode.
     if (!contextMenu) return null;
     const shouldShowOpenFolder = canOpenFolder;
     const canSetLocation =
@@ -105,6 +114,7 @@ export default function TorrentTable_RowMenu({
         if (!canSetLocation) return;
         void handleContextMenuAction("set-download-path");
     };
+    // TODO: Inline editor UX: ensure outcome/confidence messaging aligns with Recovery UX spec (“Location unavailable” on unknown) and avoid closing the menu until recovery gate reports completion.
     const rect = contextMenu.virtualElement.getBoundingClientRect();
     return (
         <AnimatePresence>

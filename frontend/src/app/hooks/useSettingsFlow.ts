@@ -60,6 +60,7 @@ const persistUserPreferences = (config: SettingsConfig) => {
     };
     window.localStorage.setItem(USER_PREFERENCES_KEY, JSON.stringify(payload));
 };
+// TODO: Move settings/user-preferences (refresh interval, timeouts, watermark) into a dedicated preferences provider to reduce localStorage wiring in hooks and simplify edits.
 
 const mapSessionToConfig = (
     session: TransmissionSessionSettings

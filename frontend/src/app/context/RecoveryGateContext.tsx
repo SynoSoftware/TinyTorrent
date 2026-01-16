@@ -60,6 +60,8 @@ export interface RecoveryGateProviderProps {
     serverClass: ServerClass;
     children: ReactNode | ((value: RecoveryGateContextValue) => ReactNode);
 }
+// TODO: Deprecate `serverClass` in RecoveryGateProviderProps and replace with `uiMode = Full | Rpc` (or a derived `filesystemProbeSupport` flag).
+// TODO: The recovery gate must not depend on a daemon-reported class. It should depend on whether the current UI runtime can perform filesystem probing via ShellExtensions (Full) or not (Rpc).
 
 export function RecoveryGateProvider({
     clientRef,
@@ -93,6 +95,7 @@ export function RecoveryGateProvider({
                 serverClass,
                 { torrentId: torrent.id ?? torrent.hash }
             );
+            // TODO: Once `uiMode` exists, use it to drive classification/probing policy instead of `serverClass`.
             try {
                 return await runMissingFilesRecoverySequence({
                     client,
@@ -109,6 +112,8 @@ export function RecoveryGateProvider({
         },
         [serverClass, clientRef]
     );
+    // TODO: De-dup recovery gate logic: ensure a single gate shared with orchestrator; remove parallel implementations to simplify maintenance and AI changes.
+    // TODO: ViewModel boundary: RecoveryGateProvider should be the single authoritative sequencing engine for recovery; all UI surfaces (modal/table/general/menu) should render from its outputs only.
 
     const { showFeedback } = useActionFeedback();
     const { dispatch } = useRequiredTorrentActions();

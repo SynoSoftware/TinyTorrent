@@ -78,6 +78,7 @@ export function useTransmissionSession(
             }
             return;
         }
+        // TODO: Treat `engineInfo` as debug/diagnostics only. UI mode (TinyTorrent vs Transmission UX) must be derived from `uiMode = "Full" | "Rpc"` (loopback + ShellExtensions availability), not from engine detection.
         setIsDetectingEngine(true);
         void client
             .detectEngine()
@@ -97,6 +98,7 @@ export function useTransmissionSession(
             active = false;
         };
     }, [client, rpcStatus]);
+    // TODO: Pull session detection/rpcStatus/engineInfo into the planned Session provider so AppContent reads from one source of truth instead of hook chaining.
 
     return {
         client,

@@ -65,6 +65,7 @@ export function useTorrentWorkflow({
         () => torrents.filter((torrent) => selectedTorrentIdsSet.has(torrent.id)),
         [selectedTorrentIdsSet, torrents]
     );
+    // TODO: Move selection-aware action logic into a view-model/shared handler (aligned with App split) so workflow is not tightly coupled to SelectionContext and prop drilling.
 
     const requestDelete = useCallback(
         (

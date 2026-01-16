@@ -30,6 +30,12 @@ interface AddMagnetModalProps {
     onSubmit: (link: string) => void;
 }
 
+// TODO: Keep AddMagnetModal as a pure view:
+// TODO: - No RPC calls and no ShellExtensions calls here.
+// TODO: - Magnet normalization/validation belongs to a dedicated utility/service (already exists in orchestrator flow) and should not be duplicated in the modal.
+// TODO: - Deep-link ingestion (ShellAgent “magnet-link” event) must be centralized in one place (ShellAgent adapter/provider), not in the modal.
+// TODO: This ensures the same Add Magnet UX works in Browser (Rpc mode) and WebView host (Full mode) without leaking host assumptions.
+
 export function AddMagnetModal({
     isOpen,
     initialValue,

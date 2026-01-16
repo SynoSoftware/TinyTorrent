@@ -21,6 +21,12 @@ import { LanguageMenu } from "@/shared/ui/controls/LanguageMenu";
 import { BufferedInput } from "@/modules/settings/components/BufferedInput";
 import { useSettingsForm } from "@/modules/settings/context/SettingsFormContext";
 
+// TODO: Architectural boundary: SettingsBlockRenderers must be view-only.
+// TODO: - No RPC calls, no ShellExtensions calls, no capability inference.
+// TODO: - Any “can browse directories / can run system integration” flags must come from the Settings view-model/context (which itself derives from `uiMode = "Full" | "Rpc"`).
+// TODO: - Keep these renderers deterministic: render based on `block` schema + current `config` + injected action handlers only.
+// TODO: This prevents “random feature gating” from spreading and makes Settings safe for AI edits.
+
 /* --- 1. Primitive Renderers --- */
 
 export function SwitchSliderRenderer({

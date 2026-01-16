@@ -23,6 +23,10 @@ export function useSessionStats({
     const [sessionStats, setSessionStats] = useState<SessionStats | null>(null);
     const [liveTransportStatus, setLiveTransportStatus] =
         useState<HeartbeatSource>("polling");
+    // TODO: With “RPC extensions: NONE”, HeartbeatSource must collapse to polling-only. Update this hook to:
+    // TODO: - remove websocket-related source variants from the type
+    // TODO: - avoid logging transport status transitions as an app concern
+    // TODO: - rely on the planned Session+UiMode provider as the single source of truth for “connected vs offline” and refresh scheduling
 
     const refreshSessionStatsData = useCallback(async () => {
         try {

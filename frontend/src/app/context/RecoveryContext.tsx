@@ -14,6 +14,10 @@ export interface SetLocationCapability {
     canBrowse: boolean;
     supportsManual: boolean;
 }
+// TODO: Align SetLocationCapability with `UiMode = Full | Rpc`:
+// TODO: - `canBrowse` should mean “ShellAgent/ShellExtensions browse dialog is available AND we are connected to a localhost daemon”.
+// TODO: - `supportsManual` is a UI policy knob (manual path entry allowed) and should remain true even in `UiMode=Rpc` unless explicitly disabled by product decision.
+// TODO: This type must be produced by a single capability/locality provider and consumed by UI; do not recompute it in components/hooks.
 
 export type SetLocationUnsupportedReason =
     | "browse-unavailable"
@@ -25,6 +29,8 @@ export type ConnectionMode =
     | "transmission-remote"
     | "tinytorrent-remote"
     | "tinytorrent-local-shell";
+// TODO: Deprecate ConnectionMode in favor of `UiMode = Full | Rpc`.
+// TODO: “tinytorrent-local-shell” is a UI bridge state, not a daemon identity; naming it as “tinytorrent” caused confusion.
 
 export type SetLocationOutcome =
     | { kind: "browsed" }
@@ -72,6 +78,10 @@ export interface RecoveryContextValue {
         torrentKey: string | null
     ) => SetLocationOutcome | null;
 }
+// TODO: Clarify RecoveryContext contract: expose only minimal recovery/set-location API, keep internal orchestration (queues, drafts, state machine) hidden behind a view-model/provider; align contract with Recovery UX acceptance specs.
+// TODO: Deprecate `serverClass` + `connectionMode` from this context. Replace with:
+// TODO: - `uiMode: "Full" | "Rpc"` (full desktop vs RPC-only)
+// TODO: - derived booleans needed for recovery/set-location (canBrowse/canOpenFolder/supportsManual)
 
 const RecoveryContext = createContext<RecoveryContextValue | null>(null);
 

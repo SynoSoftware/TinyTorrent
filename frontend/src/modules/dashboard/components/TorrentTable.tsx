@@ -1,4 +1,9 @@
 // All imports use '@/...' aliases. Clipboard logic and magic numbers flagged for follow-up refactor.
+// TODO: TorrentTable is a “composition root” for many table sub-hooks (virtualization, persistence, context menus, clipboard, open folder, queue reorder).
+// TODO: To reduce cognitive load and regression risk:
+// TODO: - Introduce a single `TorrentTableViewModel` (or `useTorrentTableViewModel`) that owns the wiring between these hooks and exposes a small surface to the view.
+// TODO: - Keep this file as a view-only renderer: it should not decide policy (capabilities/uiMode), should not call ShellExtensions directly, and should not own persistence keys.
+// TODO: - Ensure all host-backed actions route through the ShellAgent adapter and are gated by `uiMode`, not by ad-hoc checks in leaf hooks.
 
 import { DndContext, DragOverlay, closestCenter } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";

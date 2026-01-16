@@ -13,6 +13,15 @@ import type { FrameHandle } from "../hooks/utils/canvasUtils";
 import { DETAILS_PIECE_MAP_CONFIG } from "@/config/logic";
 import { TEXT_ROLES } from "@/modules/dashboard/hooks/utils/textRoles";
 
+// TODO: Consolidate ad-hoc window events and global debug hooks (see todo.md task 20).
+// TODO: This module currently:
+// TODO: - mutates `window.__piecesMap*` at module scope (global side-effects)
+// TODO: - emits/listens to stringly-typed `CustomEvent("tiny-torrent:...")`
+// TODO: Target architecture:
+// TODO: - Move event names into a shared `events.ts` (single source of truth) and document who owns dispatch/listen.
+// TODO: - Gate debug helpers behind a DEV-only import or a dedicated “debug registry” module so production behavior can’t drift.
+// TODO: - Avoid coupling debug triggers to DOM queries (`getElementById`, `querySelector`) without an owning boundary.
+
 // Provide persistent debug helpers on `window` so they exist even if React
 // unmounts/remounts the component. These helpers are intentionally
 // defined at module scope (browser runtime) rather than inside the

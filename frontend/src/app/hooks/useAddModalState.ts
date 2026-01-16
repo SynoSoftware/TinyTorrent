@@ -25,12 +25,7 @@ export function useAddModalState({
         [onOpenAddTorrentFromFile]
     );
 
-    const {
-        getRootProps,
-        getInputProps,
-        isDragActive,
-        open,
-    } = useDropzone({
+    const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
         onDrop,
         noClick: true,
         noKeyboard: true,

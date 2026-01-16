@@ -15,6 +15,8 @@ type WorkspaceModalContextValue = {
 const WorkspaceModalContext = createContext<WorkspaceModalContextValue | null>(
     null
 );
+// TODO: Consolidate modal/command visibility state into a single Workbench/App ViewModel provider (see `todo.md` task 13) to reduce the number of small contexts and “global state islands”.
+// TODO: Rule: UI surfaces should consume a small number of well-defined providers (session/uiMode, preferences, workbench viewmodel), not many ad-hoc contexts.
 
 export function WorkspaceModalProvider({ children }: { children: ReactNode }) {
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);

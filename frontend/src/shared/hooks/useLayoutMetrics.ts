@@ -13,6 +13,10 @@ export type LayoutMetrics = {
     zoomLevel: number;
     iconSize: number;
 };
+// TODO: Clarify ownership:
+// TODO: - `useLayoutMetrics` reads CSS-derived metrics and exposes a minimal, stable shape for views (table row height, menu geometry).
+// TODO: - It must not become a dumping ground for unrelated preferences or runtime capability flags (uiMode/ShellExtensions).
+// TODO: If multiple components introduce their own geometry readers, consolidate them here to maintain “single source of truth” for layout measurements.
 
 function parseZoom(raw: string | null | undefined, fallback: number) {
     if (!raw) return fallback;

@@ -31,6 +31,13 @@ import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
 import type { ServerClass } from "@/services/rpc/entities";
 import { InterfaceTabContent } from "@/modules/settings/components/InterfaceTabContent";
 import { useRecoveryContext } from "@/app/context/RecoveryContext";
+// TODO: Settings must NOT decide capabilities by probing transport/daemon types. It must read a single capability/locality source of truth (from a provider) and render accordingly.
+// TODO: With “RPC extensions: NONE”:
+// TODO: - There is no “TinyTorrent server” mode, no websocket mode, no `tt-get-capabilities`, and no `X-TT-Auth` token flow.
+// TODO: - The only engine is `transmission-daemon` (Transmission RPC).
+// TODO: - “NativeShell present + connected to localhost” means *ShellAgent/ShellExtensions available*, not a different daemon/server class.
+// TODO: Replace direct NativeShell calls (persist window state, browseDirectory) with the ShellAgent/ShellExtensions adapter; adapter enforces locality (localhost only).
+// TODO: Remove `serverClass` from SettingsModal props once capability/locality context is introduced; Settings should not receive “tinytorrent/transmission” variants.
 
 type LiveUserPreferencePatch = Partial<
     Pick<
@@ -125,6 +132,10 @@ export function SettingsModal({
 
     const hasNativeShellBridge =
         connectionMode === "tinytorrent-local-shell";
+    // TODO: Replace `connectionMode` checks with `uiMode = Full | Rpc`.
+    // TODO: Settings should not know about tinytorrent-local-shell naming; it should read `uiMode` from the Session+UiMode provider and derive:
+    // TODO: - `effectiveNativeMode = isNativeMode && uiMode === "Full"`
+    // TODO: - `canBrowseDirectories = uiMode === "Full"`
     const [jsonCopyStatus, setJsonCopyStatus] = useState<
         "idle" | "copied" | "failed"
     >("idle");
