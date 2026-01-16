@@ -8,6 +8,12 @@ Licensed under the Apache License, Version 2.0. See `LICENSES.md` for details.
 **Status:** Revised for Webview2
 **Dependencies:** TinyTorrent Security Model v1.0 (Mandatory)
 
+> TODO: This document is deprecated. Current architecture is “RPC extensions: NONE”:
+> TODO: - No `tt-get-capabilities`
+> TODO: - No WebSockets / delta-sync
+> TODO: - No `X-TT-Auth` token auth
+> TODO: Keep this file only as historical reference until it is archived/moved out of the active docs set.
+
 ---
 
 ## **1. Capability Discovery & Architecture**

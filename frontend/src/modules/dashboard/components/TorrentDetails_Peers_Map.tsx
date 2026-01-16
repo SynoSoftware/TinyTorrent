@@ -11,6 +11,12 @@ import { useUiClock } from "@/shared/hooks/useUiClock";
 import type { TorrentPeerEntity } from "@/services/rpc/entities";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 
+// TODO: Consolidate peer map implementations: this SPD peer map should be the single canonical visualization (see also `src/shared/ui/visualizations/PeerMap.tsx`).
+// TODO: Scheduling: this component currently depends on `useUiClock()` for redraw cadence. Ensure redraw cadence is part of the unified scheduling authority (todo.md task 19) so we don’t accumulate per-component timers.
+// TODO: Keep this component view-only:
+// TODO: - no RPC calls, no ShellExtensions calls
+// TODO: - accept all data as props and emit UI events only (hover/click), leaving commands to the view-model layer.
+
 // SPD PHYSICS SCHEMA (Zero-Inline Policy)
 const SPD_PHYSICS = {
     DECAY_MS: 5000,

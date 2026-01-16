@@ -29,6 +29,10 @@ function applyNativeHostDataset() {
 }
 
 applyNativeHostDataset();
+// TODO: Centralize runtime environment detection into a single authority:
+// TODO: - `RuntimeEnvironment = Browser | WebViewHost` (bridge present) should be computed once and provided via context.
+// TODO: - `uiMode = "Full" | "Rpc"` should be computed from (a) RPC endpoint locality (loopback) and (b) ShellAgent/ShellExtensions bridge availability.
+// TODO: Avoid scattering “native host” heuristics across `main.tsx`, `runtime.ts`, and multiple components; this is a major source of regressions when AI edits the wrong layer.
 
 createRoot(document.getElementById("root")!).render(
     <StrictMode>

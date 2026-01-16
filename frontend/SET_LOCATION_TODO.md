@@ -12,3 +12,5 @@
 10. [x] Outline reconciliation rules for inline editor state/drafts/browse promises when `connectionMode` changes so mode transitions cancel or adjust UI immediately.
 11. [x] Split “open folder” vs “browse for folder” capability flags (both NativeShell-owned) and enforce them separately when rendering buttons or invoking helpers, especially for remote paths.
 12. [x] Ensure the status bar / transport chip renders the canonical `connectionMode` (TransmissionRemote / TinyTorrentRemote / TinyTorrentLocalShell) so tooltips/status text always explain why browse is hidden or enabled.
+13. [ ] Ensure recovery UX messaging aligns with confidence rules (unknown -> "Location unavailable") and that set-location outcomes feed those user-friendly texts without guesswork.
+14. [ ] Drive all recovery/set-location UI copy and flows from the recovery gate state+confidence (no re-classification), keep editors/modals open until the gate resolves, and sanity-check user-friendly paths for path/volume/access/unknown scenarios.

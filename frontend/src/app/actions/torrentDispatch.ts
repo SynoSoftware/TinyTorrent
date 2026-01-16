@@ -14,6 +14,12 @@ export interface CreateTorrentDispatchOptions {
     refreshDetailData: () => Promise<void>;
     reportCommandError?: (error: unknown) => void;
 }
+// TODO: This dispatch builder has a “do-everything” surface (client selection + refresh policy + intent mapping) and is another source of AI regressions.
+// TODO: Target architecture:
+// TODO: - Define a single “command bus” boundary (e.g., `TorrentCommandBus`) with a small, stable API.
+// TODO: - Move refresh policy into one owner (Session provider / ViewModel), not per-intent switch cases.
+// TODO: - Collapse `client/clientRef` duplication: one authority selects the active client.
+// TODO: - Ensure intent mapping exists in exactly one place (avoid duplicates across hooks/orchestrators).
 
 export function createTorrentDispatch({
     client,
@@ -57,6 +63,9 @@ export function createTorrentDispatch({
         const activeClient = clientRef.current || client;
         if (!activeClient) return;
 
+        // TODO: Replace this large `switch` with a table-driven mapping:
+        // TODO: - `intent.type` => `{ run(client), refresh: {torrents,detail,stats}, optimistic?: ... }`
+        // TODO: - makes behavior explicit, reduces chance of missing a refresh, and improves testability.
         switch (intent.type) {
             case "ENSURE_TORRENT_ACTIVE":
                 await activeClient.resume([String(intent.torrentId)]);

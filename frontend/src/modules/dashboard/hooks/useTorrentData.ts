@@ -17,6 +17,15 @@ type UseTorrentDataOptions = {
     markTransportConnected?: () => void;
     reportReadError: ReportReadErrorFn;
 };
+// TODO: Make `useTorrentData` the single authority for “torrents list truth in UI” (polling/heartbeat subscription + snapshot reconciliation).
+// TODO: Current risks / sources of regressions:
+// TODO: - Multiple scheduling sources across the app (heartbeat manager, UiClock, orchestrator probes) can cause duplicated fetches and race conditions.
+// TODO: - This hook owns hidden caches (`snapshotCacheRef`, `snapshotOrderRef`, `ghostTimersRef`) and reconciliation rules that are easy to break.
+// TODO: Target architecture:
+// TODO: - Expose a `TorrentListViewModel` from a single provider that owns refresh cadence and emits typed updates (torrents, session stats, transport status).
+// TODO: - Keep ghost torrents as a dedicated store with explicit lifecycle rules (creation, timeout, reconciliation).
+// TODO: - Ensure no UI layer re-derives “order” or “initial load finished” differently.
+// TODO: Align with todo.md task 7 (Session+UiMode provider) and task 19 (unify timers/scheduling authority).
 
 export type QueueActionHandlers = {
     moveToTop: (ids: string[]) => Promise<void>;

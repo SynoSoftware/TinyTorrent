@@ -16,6 +16,15 @@ import { useAsyncToggle } from "@/modules/settings/hooks/useAsyncToggle";
 import { useSettingsForm } from "@/modules/settings/context/SettingsFormContext";
 import type { ReactNode } from "react";
 import { SettingsSection } from "@/modules/settings/components/SettingsSection";
+// TODO: Replace direct NativeShell system-integration calls with the ShellAgent/ShellExtensions adapter; enforce locality rules (only when connected to localhost) and render a clear “ShellExtensions unavailable” state for remote/browser connections.
+// TODO: IMPORTANT: This file should NOT *determine* locality/ShellExtensions availability. It should *consume* a single capability/locality source of truth (context/provider).
+// TODO: Gating rule for these controls is `uiMode === "Full"` (single source of truth). `uiMode` must be computed once from:
+// TODO: - endpoint is loopback (localhost/127.0.0.1/::1) AND
+// TODO: - ShellAgent bridge is available
+// TODO: Otherwise (`uiMode === "Rpc"`), render disabled with clear UX explaining why (remote daemon or browser runtime => no host integration).
+// TODO: Do not model this as `serverClass === "tinytorrent"`: that label conflates “daemon protocol” with “host integration available”.
+// TODO: In the current architecture, the daemon is always `transmission-daemon` (Transmission RPC). “Host integration available” is a separate, local-only capability.
+// TODO: Remove any mention of TT token/security protocol from this surface; it is not relevant in Transmission-only mode.
 
 const POWER_PREF_KEY = "tiny-torrent.system.prevent-sleep";
 const UPDATE_PREF_KEY = "tiny-torrent.system.auto-update";
@@ -62,9 +71,16 @@ interface SystemSectionCardProps {
     children: ReactNode;
 }
 
-function SystemSectionCard({ title, description, children }: SystemSectionCardProps) {
+function SystemSectionCard({
+    title,
+    description,
+    children,
+}: SystemSectionCardProps) {
     return (
-        <Card shadow="sm" className="bg-content1/50 border border-content1/20 rounded-2xl p-panel">
+        <Card
+            shadow="sm"
+            className="bg-content1/50 border border-content1/20 rounded-2xl p-panel"
+        >
             {title && (
                 <h3
                     className="text-scaled font-bold uppercase text-foreground/40 mb-panel leading-tight"
@@ -94,11 +110,27 @@ interface SystemRowProps {
     disabled?: boolean;
 }
 
-function SystemRow({ label, control, status, helper, disabled }: SystemRowProps) {
+function SystemRow({
+    label,
+    control,
+    status,
+    helper,
+    disabled,
+}: SystemRowProps) {
     return (
-        <div className={cn("flex flex-col gap-tight", disabled && "opacity-50 pointer-events-none")}>
+        <div
+            className={cn(
+                "flex flex-col gap-tight",
+                disabled && "opacity-50 pointer-events-none"
+            )}
+        >
             <div className="flex items-center justify-between h-row px-panel">
-                <span className={cn("text-scaled font-medium text-foreground/80", disabled && "opacity-40")}>
+                <span
+                    className={cn(
+                        "text-scaled font-medium text-foreground/80",
+                        disabled && "opacity-40"
+                    )}
+                >
                     {label}
                 </span>
                 <div className="flex items-center gap-tools whitespace-nowrap">
@@ -107,7 +139,12 @@ function SystemRow({ label, control, status, helper, disabled }: SystemRowProps)
                 </div>
             </div>
             {helper && (
-                <p className={cn("px-panel text-label text-foreground/60", disabled && "opacity-40")}>
+                <p
+                    className={cn(
+                        "px-panel text-label text-foreground/60",
+                        disabled && "opacity-40"
+                    )}
+                >
                     {helper}
                 </p>
             )}
@@ -123,7 +160,13 @@ function StatusChip({
     color?: ChipProps["color"];
 }) {
     return (
-        <Chip size="sm" variant="flat" color={color} radius="sm" className="font-semibold text-scaled tracking-tight">
+        <Chip
+            size="sm"
+            variant="flat"
+            color={color}
+            radius="sm"
+            className="font-semibold text-scaled tracking-tight"
+        >
             {label}
         </Chip>
     );
@@ -137,18 +180,17 @@ export function SystemTabContent({ isNativeMode }: SystemTabContentProps) {
     const { t } = useTranslation();
     const { config, updateConfig } = useSettingsForm();
 
-    const [powerManagementEnabled, setPowerManagementEnabled] = useLocalPreference(
-        POWER_PREF_KEY,
-        DEFAULT_POWER_STATE
-    );
+    const [powerManagementEnabled, setPowerManagementEnabled] =
+        useLocalPreference(POWER_PREF_KEY, DEFAULT_POWER_STATE);
     const [autoUpdateEnabled, setAutoUpdateEnabled] = useLocalPreference(
         UPDATE_PREF_KEY,
         DEFAULT_UPDATE_STATE
     );
-    const [closeButtonAction, setCloseButtonAction] = useLocalPreference<CloseAction>(
-        CLOSE_ACTION_PREF_KEY,
-        DEFAULT_CLOSE_ACTION
-    );
+    const [closeButtonAction, setCloseButtonAction] =
+        useLocalPreference<CloseAction>(
+            CLOSE_ACTION_PREF_KEY,
+            DEFAULT_CLOSE_ACTION
+        );
 
     const [integrationStatus, setIntegrationStatus] = useState({
         autorun: false,
@@ -222,7 +264,9 @@ export function SystemTabContent({ isNativeMode }: SystemTabContentProps) {
     const associationChipColor =
         isNativeMode && !integrationLoading && integrationStatus.associations
             ? "success"
-            : isNativeMode && !integrationLoading && !integrationStatus.associations
+            : isNativeMode &&
+              !integrationLoading &&
+              !integrationStatus.associations
             ? "danger"
             : "default";
 
@@ -238,7 +282,8 @@ export function SystemTabContent({ isNativeMode }: SystemTabContentProps) {
                 : t("settings.system.autorun_disabled")
             : t("settings.system.autorun_unknown");
 
-    const autorunDisabled = !isNativeMode || integrationLoading || autorunToggle.pending;
+    const autorunDisabled =
+        !isNativeMode || integrationLoading || autorunToggle.pending;
 
     const silentStartDisabled =
         !isNativeMode || integrationLoading || !integrationStatus.autorun;
@@ -250,8 +295,12 @@ export function SystemTabContent({ isNativeMode }: SystemTabContentProps) {
                 description={t("settings.descriptions.system_integration")}
             >
                 <div className="mt-panel flex flex-col gap-tight">
-                    <p className="text-scaled text-foreground/80">{t("settings.system.notice")}</p>
-                    <p className="text-label text-foreground/60">{t("settings.system.instructions")}</p>
+                    <p className="text-scaled text-foreground/80">
+                        {t("settings.system.notice")}
+                    </p>
+                    <p className="text-label text-foreground/60">
+                        {t("settings.system.instructions")}
+                    </p>
                 </div>
             </SettingsSection>
         );
@@ -272,13 +321,20 @@ export function SystemTabContent({ isNativeMode }: SystemTabContentProps) {
                             radius="full"
                             onPress={handleAssociationAction}
                             isDisabled={
-                            associationPending || !isNativeMode || integrationLoading
+                                associationPending ||
+                                !isNativeMode ||
+                                integrationLoading
                             }
                         >
                             {associationButtonLabel}
                         </Button>
                     }
-                    status={<StatusChip label={associationLabel} color={associationChipColor} />}
+                    status={
+                        <StatusChip
+                            label={associationLabel}
+                            color={associationChipColor}
+                        />
+                    }
                 />
                 <SystemRow
                     label={t("settings.labels.preventSleep")}
@@ -324,7 +380,10 @@ export function SystemTabContent({ isNativeMode }: SystemTabContentProps) {
                     }
                 />
             </SystemSectionCard>
-            <SystemSectionCard title={t("settings.sections.startup")} description={t("settings.descriptions.startup")}>
+            <SystemSectionCard
+                title={t("settings.sections.startup")}
+                description={t("settings.descriptions.startup")}
+            >
                 <SystemRow
                     label={t("settings.labels.launchOnStartup")}
                     control={
@@ -345,7 +404,9 @@ export function SystemTabContent({ isNativeMode }: SystemTabContentProps) {
                         <Checkbox
                             size="md"
                             isSelected={config.autorun_hidden}
-                            onValueChange={(next) => updateConfig("autorun_hidden", next)}
+                            onValueChange={(next) =>
+                                updateConfig("autorun_hidden", next)
+                            }
                             isDisabled={silentStartDisabled}
                         />
                     }

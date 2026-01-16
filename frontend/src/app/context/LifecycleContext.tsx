@@ -15,6 +15,13 @@ export type LifecycleState = {
     rpcStatus: ConnectionStatus;
     nativeIntegration: boolean;
 };
+// TODO: Replace LifecycleState.serverClass/nativeIntegration with a single “capabilities/locality” model:
+// TODO: - Transmission is the only engine; do not surface “tinytorrent” as a first-class variant.
+// TODO: - Host-backed features must be derived from endpoint locality (localhost) + ShellAgent/ShellExtensions adapter availability.
+// TODO: - Publish explicit capability flags (browse/open folder/system integration) once, and have UI consume them (no probing in components).
+// TODO: - Publish `uiMode = "Full" | "Rpc"` as the only UX switch:
+// TODO:   - `Full`: “TinyTorrent” experience (ShellExtensions enabled)
+// TODO:   - `Rpc`:  “Transmission” experience (RPC-only; ShellExtensions disabled)
 
 const LifecycleContext = createContext<LifecycleState | null>(null);
 
@@ -28,9 +35,12 @@ export function LifecycleProvider({ children }: { children: ReactNode }) {
             : engineInfo?.type === "transmission"
             ? "transmission"
             : "unknown")) as ServerClass;
+    // TODO: Remove serverClass inference once RPC extensions are gone; treat EngineInfo as Transmission-only and use “unknown” when disconnected.
 
     const nativeIntegration =
         Runtime.isNativeHost || serverClass === "tinytorrent";
+    // TODO: Replace nativeIntegration heuristic with ShellAgent/ShellExtensions capability: “native host present AND connected to localhost endpoint”.
+    // TODO: Do not depend on `serverClass === "tinytorrent"` for any UX gating. Local Transmission can also be `uiMode=Full` if ShellExtensions is available.
 
     const value = useMemo(
         () => ({ serverClass, rpcStatus, nativeIntegration }),

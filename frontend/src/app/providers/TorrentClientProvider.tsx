@@ -10,6 +10,7 @@ import { useConnectionConfig, buildRpcEndpoint } from "@/app/context/ConnectionC
 import { TransmissionAdapter } from "@/services/rpc/rpc-base";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import { NativeShell } from "@/app/runtime";
+// TODO: Stop importing `NativeShell` here once ShellAgent/ShellExtensions adapter exists; client provider should not subscribe to native events or store auth tokens.
 
 const ClientContext = createContext<EngineAdapter | null>(null);
 
@@ -67,6 +68,8 @@ export function ClientProvider({ children }: { children: ReactNode }) {
             sessionStorage.removeItem("tt-auth-token");
         }
     }, [activeProfile.token]);
+    // TODO: Remove this entire sessionStorage `tt-auth-token` flow. With “RPC extensions: NONE”, there is no TT token and no `X-TT-Auth` header; only Transmission Basic Auth is supported.
+    // TODO: Ensure any remaining session ID handling is strictly `X-Transmission-Session-Id` via the transport layer (no UI-managed token storage).
 
     useEffect(() => {
         const unsubscribe = NativeShell.onEvent("auth-token", (payload) => {
@@ -89,6 +92,8 @@ export function ClientProvider({ children }: { children: ReactNode }) {
         });
         return unsubscribe;
     }, []);
+    // TODO: Remove `NativeShell.onEvent("auth-token")` entirely. Any “native override” should be limited to endpoint host/port/scheme (if needed) and should not include auth tokens.
+    // TODO: After removal, this provider should only (a) build the Transmission RPC endpoint, (b) pass username/password, and (c) recreate/destroy the adapter on profile changes.
 
     return (
         <ClientContext.Provider value={client}>

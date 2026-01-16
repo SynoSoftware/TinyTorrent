@@ -458,6 +458,10 @@ async function ensurePathReady({
     ready: boolean;
     blockingOutcome?: RecoveryOutcome;
 }> {
+    // TODO: Boundary: this helper must not rely on daemon RPC for host filesystem mutations.
+    // TODO: - `checkFreeSpace(path)` is a Transmission RPC call and reports *daemon-side* free space. Keep it, but ensure UI copy clarifies that remote daemons report remote disk.
+    // TODO: - Creating folders (`createDirectory`) is NOT a Transmission RPC feature. Remove `EngineAdapter.createDirectory` usage and route folder creation through ShellAgent/ShellExtensions *only when* `uiMode="Full"` (localhost + ShellAgent bridge).
+    // TODO: - In `uiMode="Rpc"` (remote/browser), auto-create must be disabled and surfaced as an explicit unsupported outcome, not a silent best-effort.
     if (!client.checkFreeSpace) {
         return {
             ready: false,
@@ -490,6 +494,7 @@ async function ensurePathReady({
                 Boolean(options?.autoCreateMissingFolder);
             if (shouldCreateFolder) {
                 if (client.createDirectory) {
+                    // TODO: Remove `client.createDirectory` call. This is a host concern and must be implemented by the ShellAgent adapter, not the daemon RPC adapter.
                     try {
                         await client.createDirectory(path);
                         return { ready: true };

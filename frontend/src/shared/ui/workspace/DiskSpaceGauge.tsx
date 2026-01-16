@@ -14,6 +14,12 @@ export interface DiskSpaceGaugeProps {
     isInsufficient?: boolean;
 }
 
+// TODO: Clarify disk-space semantics for maintainers:
+// TODO: - `freeBytes/totalBytes` must come from Transmission RPC `free-space` (daemon-side disk).
+// TODO: - For remote connections, this reports *remote* disk space; UI copy must reflect that (no “your disk” language).
+// TODO: - Do not probe local disk via ShellExtensions for this gauge; that would break the “daemon is king” architecture and confuse users in remote/browser mode.
+// TODO: Align with todo.md task 8a (remove check-free-space bridge) and task 10 (Recovery UX spec compliance).
+
 export function DiskSpaceGauge({
     freeBytes,
     totalBytes,

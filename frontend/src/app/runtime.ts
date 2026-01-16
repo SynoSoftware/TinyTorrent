@@ -7,6 +7,8 @@ type NativeShellAuthPayload = string | {
     port?: string;
     scheme?: "http" | "https";
 };
+// TODO: Remove `token` from this payload type once TT token auth is deleted. The ShellAgent must never send daemon auth secrets to the UI process.
+// TODO: If endpoint overrides are still needed, define a dedicated non-secret payload type (host/port/scheme only) and rename the event away from “auth-token”.
 
 type NativeShellRequestMessage = {
     type: "request";
@@ -24,6 +26,8 @@ type NativeShellResponseMessage = {
 };
 
 export type NativeShellEventName = "magnet-link" | "auth-token";
+// TODO: Remove `auth-token` event once TT token auth is deleted (RPC extensions: NONE).
+// TODO: The ShellAgent must not inject daemon auth state into the UI process; only endpoint overrides (host/port/scheme) are acceptable if needed.
 
 type NativeShellEventMessage = {
     type: "event";
@@ -219,6 +223,15 @@ export const NativeShell = {
         await sendBridgeRequest("set-system-integration", features);
     },
 };
+// TODO: Treat `NativeShell` as a *low-level bridge* (WebView host IPC), not an app-level capability surface.
+// TODO: Create a ShellAgent/ShellExtensions adapter (hook or provider) that is the *only* UI import point and enforces the locality rules:
+// TODO: - Do not expose ShellExtensions when connected to a non-loopback RPC endpoint (remote daemon) or when running in a plain browser (no bridge).
+// TODO: - Prefer a single `uiMode = "Full" | "Rpc"` published by one provider; UI components should check uiMode, not `NativeShell.isAvailable`.
+// TODO: The adapter must own/centralize all bridge calls/events so review is easy and "random NativeShell usage" cannot spread:
+// TODO: - requests: browse directory, open file dialog, open path, window commands, system integration status/set, persist window state
+// TODO: - events: magnet-link (and explicitly remove/avoid auth-token; Transmission-only)
+// TODO: IMPORTANT: Transmission RPC already supports `free-space`. The UI's `checkFreeSpace` must call the daemon via `EngineAdapter.checkFreeSpace`.
+// TODO: Delete the `check-free-space` bridge request and `NativeShell.checkFreeSpace` once all call sites use the daemon RPC method.
 
 export const Runtime = {
     get isNativeHost() {

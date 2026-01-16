@@ -1,4 +1,8 @@
-// Types-only: canonical Phase-3 torrent intent taxonomy
+// Types-only: canonical torrent intent taxonomy
+// TODO: Keep intents stable and implementation-agnostic:
+// TODO: - UI components emit intents; a single command bus/dispatcher executes them (EngineAdapter + ShellAgent), not the view itself.
+// TODO: - Do not add “RPC extended” or “tinytorrent server mode” semantics here; Transmission RPC is the daemon contract.
+// TODO: - If you need new commands, prefer adding them to a command registry (todo.md task 16) and mapping registry ids -> intents in one place.
 
 export type EnsureTorrentActive = {
     type: "ENSURE_TORRENT_ACTIVE";

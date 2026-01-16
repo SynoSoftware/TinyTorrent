@@ -119,6 +119,8 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
                 </span>
             </div>
 
+            {/* TODO: Replace local recovery formatting with gate-driven state/confidence; avoid deriving UI hints from errorEnvelope directly. */}
+
             {/* CENTER */}
             <div className="flex  items-center w-full gap-panel">
                 <div className="flex items-center gap-tight">

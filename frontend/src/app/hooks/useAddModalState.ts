@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { useDropzone } from "react-dropzone";
 
 import { NativeShell } from "@/app/runtime";
+// TODO: Replace direct NativeShell usage with the ShellAgent/ShellExtensions adapter so deep-link events are centralized and automatically disabled when not connected to localhost.
 import { normalizeMagnetLink } from "@/app/utils/magnet";
 
 interface UseAddModalStateParams {
@@ -52,6 +53,7 @@ export function useAddModalState({
         const cleanup = NativeShell.onEvent("magnet-link", handleMagnetEvent);
         return cleanup;
     }, [onOpenAddMagnet]);
+    // TODO: If ShellAgent is unavailable (remote daemon/no bridge), ensure magnet deep-links are either disabled or handled via browser URL scheme, but never by calling NativeShell directly.
 
     return {
         getRootProps,

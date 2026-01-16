@@ -81,6 +81,11 @@ interface DashboardLayoutProps {
     isDropActive?: boolean;
     tableWatermarkEnabled?: boolean;
 }
+// TODO: DashboardLayoutProps is still too wide (many independent concerns). Convert to a single `DashboardViewModel` prop with grouped sub-objects:
+// TODO: - `table`: { torrents, ghostTorrents, filter, searchQuery, isLoading, optimisticStatuses, capabilities, tableWatermarkEnabled }
+// TODO: - `detail`: { data, onRequestDetails, onCloseDetail, isRecoveryBlocked, peerSortStrategy, inspectorTabCommand, onInspectorTabCommandHandled }
+// TODO: - `dnd`: { isDropActive }
+// TODO: Keep this component purely presentational: no orchestration, no capability inference, no engine calls.
 
 export function Dashboard_Layout({
     workspaceStyle,
@@ -141,6 +146,7 @@ export function Dashboard_Layout({
         },
         [onRequestDetails, setActivePart]
     );
+    // TODO: Ensure detail/recovery/selection flows here consume the unified view-model (session/recovery/selection) rather than wiring callbacks; avoid per-component orchestration.
 
     const handleDetailFullscreenRequest = useCallback(
         (torrent: Torrent) => {

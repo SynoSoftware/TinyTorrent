@@ -25,6 +25,12 @@ import type {
 } from "@/shared/ui/workspace/FileExplorerTree";
 import type { CapabilityStore } from "@/app/types/capabilities";
 
+// TODO: TorrentDetailsProps is still large. Reduce to a `TorrentDetailsViewModel`:
+// TODO: - `header`: { title, status, onClose, actions }
+// TODO: - `tabs`: { activeTab, setActiveTab, tabModels... }
+// TODO: - `capabilities/uiMode`: required booleans only (no serverClass/connectionMode)
+// TODO: Keep tabs presentational and push orchestration/dispatch decisions into the dashboard/app view-model (todo.md task 13).
+
 export interface TorrentDetailsProps {
     torrent?: TorrentDetail | null;
     className?: string;

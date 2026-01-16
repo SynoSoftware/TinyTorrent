@@ -35,6 +35,7 @@ export function useRpcConnection(
 
     const reportTransportError = useCallback(
         (error?: unknown) => {
+            // TODO: Standardize log prefixes to “Transmission RPC” (not “tiny-torrent”) once legacy RPC-extended paths are removed.
             console.error("[tiny-torrent][rpc] transport error", error);
             updateStatus(STATUS.connection.ERROR);
         },
@@ -46,17 +47,20 @@ export function useRpcConnection(
     }, [updateStatus]);
 
     const reportCommandError = useCallback((error?: unknown) => {
+        // TODO: Unify error reporting through a single logger/telemetry boundary (Session provider), so leaf hooks don’t each invent their own logging semantics.
         console.warn("[tiny-torrent][rpc] command error", error);
     }, []);
 
     const reportReadError = useCallback((error?: unknown) => {
+        // TODO: Clarify terminology: this is not a “read error” vs “transport status” distinction users care about. Replace with a single app-level status model (connected/offline/degraded) owned by the Session provider.
         console.warn(
             "[tiny-torrent][rpc] read RPC error - transport status remains connected",
             error
         );
     }, []);
 
-    // Probe to verify connectivity. Adapter/Transport handle session handshakes.
+    // Probe to verify connectivity. Adapter/Transport handle Transmission RPC session handshakes.
+    // TODO: Ensure this hook never triggers any TinyTorrent-only handshake (`tt-get-capabilities`, websocket setup, etc.). Those must be deleted from the adapter layer (see todo.md task 1).
     const connect = useCallback(async () => {
         updateStatus(STATUS.connection.IDLE);
         setIsReady(false);

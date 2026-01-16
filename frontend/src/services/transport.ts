@@ -80,6 +80,8 @@ export class TransmissionRpcTransport {
             });
         } catch {}
     }
+    // TODO: This transport is Transmission-only. Do not add TinyTorrent token auth / websocket logic here.
+    // TODO: Capability/locality decisions (localhost vs remote, ShellAgent/ShellExtensions bridge availability) belong to a UI capability provider, not this transport.
 
     // Probe promise to dedupe concurrent probes for X-Transmission-Session-Id
     // and sessionBarrier are static so multiple Transport instances (e.g.
@@ -515,6 +517,7 @@ export class TransmissionRpcTransport {
         const res = await this.fetchWithSession(requestInit, controller, false);
 
         // Handle unauthorized responses explicitly so callers can react.
+        // TODO: Rename these error messages to “Transmission RPC ...” (not “TinyTorrent RPC ...”) once the codebase is fully Transmission-only; keep errors consistent across transports/adapters.
         if (res.status === 401) {
             const e = new Error("TinyTorrent RPC unauthorized");
             (e as unknown as { status?: number }).status = 401;

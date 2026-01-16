@@ -11,6 +11,8 @@ export const STATUS = {
         OFFLINE: "offline",
         POLLING: "polling",
         WEBSOCKET: "websocket",
+        // TODO: Remove `WEBSOCKET` once RPC extensions + websocket transport are deleted (Transmission RPC polling-only).
+        // TODO: After removal, ensure no UI surfaces refer to “websocket” as a transport and that all status derivation uses polling/offline/connected only.
         ERROR: "error",
         IDLE: "idle",
     },

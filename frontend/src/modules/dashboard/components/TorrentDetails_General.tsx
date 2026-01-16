@@ -131,12 +131,17 @@ export const GeneralTab = ({
         canOpenFolder,
         connectionMode,
     } = useRecoveryContext();
+    // TODO: General tab recovery/set-location actions must use the single recovery gate/state machine; avoid any local sequencing or reclassification in this component.
+    // TODO: ViewModel boundary: GeneralTab should be a pure View. It should not read `serverClass` or `connectionMode` directly.
+    // TODO: Replace `serverClass/connectionMode` usage with `uiMode = Full | Rpc` + recovery gate outputs (state/confidence/actions).
+    // TODO: `probeMode` must not be derived from daemon identity; it should be derived from whether filesystem probing is supported in the current UI mode (Full => allowed via ShellExtensions; Rpc => not supported).
     const currentTorrentKey = getTorrentKey(torrent);
     const outcomeMessage = getSetLocationOutcomeMessage(
         getLocationOutcome("general-tab", currentTorrentKey),
         "general-tab",
         connectionMode
     );
+    // TODO: Replace `getSetLocationOutcomeMessage(..., connectionMode)` with `(..., uiMode)` and remove tinytorrent-* messaging.
     const unsupportedLocationMessage =
         outcomeMessage && t(outcomeMessage.labelKey);
     const probe = useMissingFilesProbe(torrent.id);
@@ -146,6 +151,9 @@ export const GeneralTab = ({
             : serverClass === "transmission"
             ? "remote"
             : "unknown";
+    // TODO: Replace probeMode with a UI-mode based model:
+    // TODO: - `uiMode=Full` => filesystem probing available via ShellExtensions (label can be “full”)
+    // TODO: - `uiMode=Rpc`  => filesystem probing unavailable (label can be “rpc”)
     const probeLines = formatMissingFileDetails(t, probe);
 
     const effectiveState =

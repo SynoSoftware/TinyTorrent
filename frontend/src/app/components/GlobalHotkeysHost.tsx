@@ -15,6 +15,7 @@ interface GlobalHotkeysHostProps {
     handleRequestDetails: (torrent: Torrent) => Promise<void>;
     handleCloseDetail: () => void;
 }
+// TODO: Fold global hotkeys into the centralized host/registry (task 27/37) so shortcut wiring isn’t duplicated across AppContent and this component.
 
 export function GlobalHotkeysHost({
     torrents,

@@ -24,6 +24,10 @@ import { useUiClock } from "@/shared/hooks/useUiClock";
 import { TEXT_ROLES } from "@/modules/dashboard/hooks/utils/textRoles";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 
+// TODO: Scheduling authority: this component uses `useUiClock()` to redraw independent of server updates.
+// TODO: Ensure heatmap redraw cadence is explicitly documented and centralized (todo.md task 19), so engineers can reason about background work and performance.
+// TODO: Keep this as a view-only visualization: no recovery logic, no RPC calls, no ShellExtensions calls. It should render from props and emit UI events only.
+
 interface AvailabilityHeatmapProps {
     pieceAvailability?: number[];
     label: string;

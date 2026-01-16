@@ -530,6 +530,7 @@ export const getFreeSpace = (payload: unknown): TransmissionFreeSpace => {
 };
 
 const zServerClass = z.enum(["tinytorrent", "transmission"]).optional();
+// TODO: Delete `zServerClass` and all TinyTorrent RPC-extended capability parsing. We no longer implement `tt-get-capabilities` or websocket features.
 
 const zTinyTorrentCapabilities = z.object({
     "server-version": z.string().optional(),
@@ -541,6 +542,8 @@ const zTinyTorrentCapabilities = z.object({
     features: z.array(z.string()).default([]),
     "server-class": zServerClass,
 });
+// TODO: Delete `zTinyTorrentCapabilities` once RPC extensions are removed.
+// TODO: If the UI needs host/OS capabilities, they must come from the ShellAgent/ShellExtensions adapter (IPC), not from the daemon.
 
 export const getTinyTorrentCapabilities = (
     payload: unknown
@@ -564,6 +567,7 @@ export const getTinyTorrentCapabilities = (
         throw error;
     }
 };
+// TODO: Delete `getTinyTorrentCapabilities` and any call sites; Transmission-only.
 
 export const zSystemAutorunStatus = z.object({
     enabled: z.boolean(),
@@ -578,6 +582,8 @@ export const zSystemHandlerStatus = z.object({
     magnetRegistered: z.boolean().optional(),
     torrentRegistered: z.boolean().optional(),
 });
+// TODO: These “system-*” schemas belong to the ShellAgent/ShellExtensions adapter boundary, not the Transmission RPC boundary.
+// TODO: After removing RPC extensions, either move these schemas to a `src/app/host/*` module (IPC responses) or delete them if unused.
 
 export const getSystemAutorunStatus = (payload: unknown): AutorunStatus => {
     try {
@@ -629,6 +635,7 @@ export const zTinyTorrentCapabilitiesNormalized =
         features: parsed.features,
         serverClass: parsed["server-class"],
     }));
+// TODO: Delete `zTinyTorrentCapabilitiesNormalized` once RPC extensions are removed.
 
 export const zTransmissionTorrentRenameResult = z.object({
     id: z.number(),
@@ -648,3 +655,5 @@ export const zSystemInstallResult = z.object({
     handlersRegistered: z.boolean().optional(),
     handlerMessage: z.string().optional(),
 });
+// TODO: This schema is not part of Transmission RPC. In the final architecture, “system-install” belongs to ShellAgent IPC.
+// TODO: After removing RPC extensions, either delete `zSystemInstallResult` or move it into the ShellAgent adapter module alongside the IPC request/response types.

@@ -227,6 +227,9 @@ const MissingFilesStatusCell = ({
     const [secondaryBusy, setSecondaryBusy] = useState(false);
 
     const { serverClass } = useRecoveryContext();
+    // TODO: ViewModel boundary: this cell renderer should not run classification logic or depend on `serverClass`.
+    // TODO: Replace `serverClass` with `uiMode = Full | Rpc` and render from recovery gate outputs (state/confidence/recommendedActions).
+    // TODO: After migration, `classifyMissingFilesState(...)` must run only in the recovery controller/gate, not in table cells.
     const downloadDir = torrent.savePath ?? torrent.downloadDir ?? "";
     const classification = useMemo(
         () =>
@@ -245,6 +248,7 @@ const MissingFilesStatusCell = ({
             : serverClass === "transmission"
             ? "remote"
             : "unknown";
+    // TODO: Replace probeMode with a UI-mode based model (Full => filesystem probing possible; Rpc => not supported).
     const probeLines = formatMissingFileDetails(t, probe);
 
     const { dispatch } = useRequiredTorrentActions();
@@ -717,6 +721,7 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
                 handleDownloadMissing,
                 handleSetLocation,
             } = useRecoveryContext();
+            // TODO: Status rendering should consume gate-provided state/confidence, not errorEnvelope; keep retry/missing/download actions going through the single gate.
 
             // Determine effective state (recovery overlay overrides engine state)
             const effectiveState =
