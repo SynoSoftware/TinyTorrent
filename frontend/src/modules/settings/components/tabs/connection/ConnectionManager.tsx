@@ -14,6 +14,14 @@ import {
     DEFAULT_PROFILE_ID,
 } from "@/app/context/ConnectionConfigContext";
 import { useLifecycle } from "@/app/context/LifecycleContext";
+<<<<<<< Updated upstream
+=======
+// TODO: ServerType/serverClass UI still needs consolidation. With “RPC extensions: NONE”, connection manager should manage only:
+// TODO: - Transmission endpoint (host/port/scheme/path)
+// TODO: - Transmission Basic Auth (username/password)
+// TODO: Host-backed UI features are NOT a different server type; they are a locality-derived capability (localhost + ShellAgent/ShellExtensions available).
+// TODO: The “TinyTorrent server” label must be removed from this UX to avoid implying a different daemon protocol.
+>>>>>>> Stashed changes
 
 interface ConnectionManagerProps {
     onReconnect: () => void;
@@ -33,10 +41,7 @@ function useConnectionManagerState(): ConnectionManagerState {
     const handleUpdate = useCallback(
         (
             patch: Partial<
-                Pick<
-                    ConnectionProfile,
-                    "host" | "port" | "username" | "password" | "token"
-                >
+                Pick<ConnectionProfile, "host" | "port" | "username" | "password">
             >
         ) => {
             updateProfile(activeProfile.id, patch);
@@ -284,50 +289,35 @@ export function ConnectionCredentialsCard({
                                 {t("settings.connection.detecting_signin")}
                             </p>
                         )}
+                    <div className="grid gap-tools sm:grid-cols-2">
                         <Input
-                            label={t("settings.connection.token")}
+                            label={t("settings.connection.username")}
                             labelPlacement="outside"
                             variant="bordered"
                             size="md"
-                            value={activeProfile.token}
+                            value={activeProfile.username}
                             onChange={(event) =>
                                 handleUpdate({
-                                    token: event.target.value,
+                                    username: event.target.value,
                                 })
                             }
                             disabled={!remoteInputsEnabled}
                         />
-                        {!activeProfile.token && (
-                            <div className="grid gap-tools sm:grid-cols-2">
-                                <Input
-                                    label={t("settings.connection.username")}
-                                    labelPlacement="outside"
-                                    variant="bordered"
-                                    size="md"
-                                    value={activeProfile.username}
-                                    onChange={(event) =>
-                                        handleUpdate({
-                                            username: event.target.value,
-                                        })
-                                    }
-                                    disabled={!remoteInputsEnabled}
-                                />
-                                <Input
-                                    label={t("settings.connection.password")}
-                                    labelPlacement="outside"
-                                    variant="bordered"
-                                    size="md"
-                                    type="password"
-                                    value={activeProfile.password}
-                                    onChange={(event) =>
-                                        handleUpdate({
-                                            password: event.target.value,
-                                        })
-                                    }
-                                    disabled={!remoteInputsEnabled}
-                                />
-                            </div>
-                        )}
+                        <Input
+                            label={t("settings.connection.password")}
+                            labelPlacement="outside"
+                            variant="bordered"
+                            size="md"
+                            type="password"
+                            value={activeProfile.password}
+                            onChange={(event) =>
+                                handleUpdate({
+                                    password: event.target.value,
+                                })
+                            }
+                            disabled={!remoteInputsEnabled}
+                        />
+                    </div>
                     </>
                 )}
                 {isNativeMode && !showAdvanced && (

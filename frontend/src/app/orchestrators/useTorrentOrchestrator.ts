@@ -10,7 +10,7 @@ import type {
     AddTorrentSelection,
 } from "@/modules/torrent-add/components/AddTorrentModal";
 import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
-import { NativeShell } from "@/app/runtime";
+import { useShellAgent } from "@/app/hooks/useShellAgent";
 import { normalizeMagnetLink } from "@/app/utils/magnet";
 import { useAddModalState } from "@/app/hooks/useAddModalState";
 import type { SettingsConfig } from "@/modules/settings/data/config";
@@ -202,14 +202,13 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
         typeof client?.getServerCapabilities === "function"
             ? client.getServerCapabilities()
             : null;
+    const { shellAgent, uiMode } = useShellAgent();
     const transportHost = transportCapabilities?.host ?? "";
     const [serverClass, setServerClass] = useState<ServerClass>("unknown");
     const hasNativeHostShell = useMemo(
         () =>
-            serverClass === "tinytorrent" &&
-            isLoopbackHost(transportHost) &&
-            NativeShell.isAvailable,
-        [serverClass, transportHost]
+            uiMode === "Full" && isLoopbackHost(transportHost),
+        [transportHost, uiMode]
     );
     const setLocationCapability = useMemo(
         () => ({
@@ -1157,15 +1156,16 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
         async (currentPath?: string | null) => {
             if (!setLocationCapability.canBrowse) return null;
             try {
-                const selected = await NativeShell.openFolderDialog(
-                    currentPath ?? undefined
+                return (
+                    (await shellAgent.browseDirectory(
+                        currentPath ?? undefined
+                    )) ?? null
                 );
-                return selected ?? null;
             } catch {
                 return null;
             }
         },
-        [setLocationCapability.canBrowse]
+        [setLocationCapability.canBrowse, shellAgent]
     );
 
     const handleRecoveryPickPath = useCallback(

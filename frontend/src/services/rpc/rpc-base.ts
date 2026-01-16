@@ -19,6 +19,7 @@ import type {
     SystemInstallResult,
 } from "./types";
 import { z } from "zod";
+<<<<<<< Updated upstream
 import {
     parseRpcResponse,
     zTransmissionTorrentArray,
@@ -36,6 +37,21 @@ import {
     getTorrentList,
     getSessionStats,
 } from "@/services/rpc/schemas";
+=======
+import {
+    parseRpcResponse,
+    zTransmissionTorrentArray,
+    zTransmissionTorrentDetailSingle,
+    zSessionStats,
+    zTransmissionSessionSettings,
+    zTransmissionFreeSpace,
+    zTransmissionTorrentRenameResult,
+    zRpcSuccess,
+    zTransmissionAddTorrentResponse,
+    getTorrentList,
+    getSessionStats,
+} from "@/services/rpc/schemas";
+>>>>>>> Stashed changes
 import {
     CONFIG,
     FOCUS_RESTORE_DELAY_MS,
@@ -43,7 +59,6 @@ import {
     WS_RECONNECT_MAX_DELAY_MS,
 } from "@/config/logic";
 import type { EngineAdapter, ServerCapabilities } from "./engine-adapter";
-import { NativeShell } from "@/app/runtime";
 import { HeartbeatManager } from "./heartbeat";
 import type {
     HeartbeatSubscriberParams,
@@ -56,7 +71,6 @@ import type {
     AddTorrentResult,
     SessionStats,
     EngineInfo,
-    TinyTorrentCapabilities,
     AutorunStatus,
     SystemHandlerStatus,
     ServerClass,
@@ -79,6 +93,7 @@ type RpcSendOptions = {
     _retry409?: boolean;
 };
 
+<<<<<<< Updated upstream
 const READ_ONLY_RPC_METHODS = new Set([
     "torrent-get",
     "session-get",
@@ -86,6 +101,14 @@ const READ_ONLY_RPC_METHODS = new Set([
     "tt-get-capabilities",
     "free-space",
 ]);
+=======
+const READ_ONLY_RPC_METHODS = new Set([
+    "torrent-get",
+    "session-get",
+    "session-stats",
+    "free-space",
+]);
+>>>>>>> Stashed changes
 const READ_ONLY_RPC_RESPONSE_TTL_MS = Number.isFinite(
     (CONFIG as unknown as { performance?: { read_rpc_cache_ms?: number } })
         ?.performance?.read_rpc_cache_ms as number
@@ -153,6 +176,7 @@ export class TransmissionAdapter implements EngineAdapter {
     private readonly heartbeat = new HeartbeatManager(this);
     // Active in-flight request controllers (for abort on destroy)
     private readonly activeControllers = new Set<AbortController>();
+<<<<<<< Updated upstream
     // Track an in-flight promise for fetching extended capabilities to
     // prevent duplicated concurrent requests.
     private inflightGetCapabilities?: Promise<void>;
@@ -169,11 +193,24 @@ export class TransmissionAdapter implements EngineAdapter {
     private transport: TransmissionRpcTransport;
     private serverClass: ServerClass = "unknown";
     private handshakeState: HandshakeState = "invalid";
+=======
+    // Rapid-call detector: tracks recent method call counts to detect
+    // potential race conditions or buggy caller code.
+    private readonly recentMethodCalls = new Map<
+        string,
+        { count: number; firstTs: number }
+    >();
+    private readonly METHOD_CALL_WINDOW_MS = 2000;
+    private readonly METHOD_CALL_WARNING_THRESHOLD = 100;
+    private transport: TransmissionRpcTransport;
+    private readonly serverClass: ServerClass = "transmission";
+    private handshakeState: HandshakeState = "invalid";
+>>>>>>> Stashed changes
     private handshakePromise?: Promise<TransmissionSessionSettings>;
     private handshakeResult?: TransmissionSessionSettings;
     // (sessionIdRefreshPromise removed — Transport owns session-id probing)
     // Cache for potentially expensive network telemetry lookups (free-space).
-    // Prevents invoking disk/FS checks on every websocket tick.
+    // Prevents invoking disk/FS checks on every telemetry refresh.
 
     private networkTelemetryCache?: {
         value: NetworkTelemetry | null;
@@ -185,6 +222,7 @@ export class TransmissionAdapter implements EngineAdapter {
     private _networkTelemetryInflight?: Promise<NetworkTelemetry | null>;
     private readonly NETWORK_TELEMETRY_TTL_MS = 60_000;
 
+<<<<<<< Updated upstream
     private getTinyTorrentAuthToken(): string | undefined {
         const token = sessionStorage.getItem("tt-auth-token");
         return token && token.length > 0 ? token : undefined;
@@ -201,6 +239,12 @@ export class TransmissionAdapter implements EngineAdapter {
         this.invalidateSession("unauthorized");
         this.closeWebSocketSession();
     }
+=======
+    // TODO: Remove all RPC extension scaffolding (TinyTorrent auth token, websocket session/delta-sync, ui-attach, system-* methods) and run Transmission RPC only.
+    private handleUnauthorizedResponse() {
+        this.invalidateSession("unauthorized");
+    }
+>>>>>>> Stashed changes
 
     private transitionHandshakeState(next: HandshakeState, reason: string) {
         const prev = this.handshakeState;
@@ -365,11 +409,15 @@ export class TransmissionAdapter implements EngineAdapter {
                     "Content-Type": "application/json",
                 };
 
+<<<<<<< Updated upstream
                 const ttAuth = this.getTinyTorrentAuthToken();
                 if (ttAuth) {
                     headers["X-TT-Auth"] = ttAuth;
                 }
                 const transportSessionId = this.transport.getSessionId();
+=======
+                const transportSessionId = this.transport.getSessionId();
+>>>>>>> Stashed changes
                 if (transportSessionId) {
                     headers["X-Transmission-Session-Id"] = transportSessionId;
                 }
@@ -411,6 +459,7 @@ export class TransmissionAdapter implements EngineAdapter {
                     throw new Error("Transmission RPC session conflict");
                 }
 
+<<<<<<< Updated upstream
                 if (response.status === 401) {
                     this.handleUnauthorizedResponse();
                     throw new Error("TinyTorrent RPC unauthorized");
@@ -419,6 +468,16 @@ export class TransmissionAdapter implements EngineAdapter {
                     this.handleUnauthorizedResponse();
                     throw new Error("TinyTorrent RPC forbidden");
                 }
+=======
+                if (response.status === 401) {
+                    this.handleUnauthorizedResponse();
+                    throw new Error("Transmission RPC unauthorized");
+                }
+                if (response.status === 403) {
+                    this.handleUnauthorizedResponse();
+                    throw new Error("Transmission RPC forbidden");
+                }
+>>>>>>> Stashed changes
 
                 if (!response.ok) {
                     throw new Error(
@@ -446,22 +505,6 @@ export class TransmissionAdapter implements EngineAdapter {
                     const lower = String(code).toLowerCase();
                     const methodNotFound =
                         /method|not\s*found|not\s*recognized/.test(lower);
-
-                    // Special-case: the optional `tt-get-capabilities` extension
-                    // may not be recognized by plain Transmission servers. Treat
-                    // that as a non-fatal condition: mark the server as
-                    // `transmission`, ensure websocket state is consistent, and
-                    // return null so callers that expect capabilities can
-                    // interpret absence as unsupported.
-                    if (
-                        methodNotFound &&
-                        payload.method === "tt-get-capabilities"
-                    ) {
-                        this.tinyTorrentCapabilities = null;
-                        this.serverClass = "transmission";
-                        this.ensureWebsocketConnection();
-                        return null as unknown as T;
-                    }
 
                     if (methodNotFound) {
                         console.warn(
@@ -631,15 +674,6 @@ export class TransmissionAdapter implements EngineAdapter {
             console.warn("[tiny-torrent][rpc] destroy error:", err);
         }
         try {
-            this.closeWebSocketSession();
-        } catch (err) {
-            // eslint-disable-next-line no-console
-            console.warn(
-                "[tiny-torrent][rpc] closeWebSocketSession error:",
-                err
-            );
-        }
-        try {
             for (const ctrl of Array.from(this.activeControllers)) {
                 try {
                     ctrl.abort();
@@ -673,6 +707,7 @@ export class TransmissionAdapter implements EngineAdapter {
         }
     }
 
+<<<<<<< Updated upstream
     private updateServerClassFromCapabilities(
         capabilities: TinyTorrentCapabilities | null
     ) {
@@ -847,6 +882,9 @@ export class TransmissionAdapter implements EngineAdapter {
     }
 
     public async handshake(): Promise<TransmissionSessionSettings> {
+=======
+    public async handshake(): Promise<TransmissionSessionSettings> {
+>>>>>>> Stashed changes
         return this.handshakeOnce();
     }
 
@@ -891,73 +929,9 @@ export class TransmissionAdapter implements EngineAdapter {
         this.sessionSettingsCache = result;
         this.engineInfoCache = undefined;
         this.applyCapabilities(null);
-        try {
-            await this.refreshExtendedCapabilities(true);
-        } catch (err) {
-            // Defensive: refreshExtendedCapabilities should handle expected
-            // RpcCommandError cases, but if anything unexpected bubbles up
-            // ensure handshake still succeeds using conservative defaults.
-            console.debug(
-                "[tiny-torrent][rpc] refreshExtendedCapabilities error (ignored):",
-                err
-            );
 
-            this.applyCapabilities(null);
-        }
         return result;
     }
-
-    private handleLiveStateUpdate = async ({
-        torrents,
-        session,
-    }: {
-        torrents: TransmissionTorrent[];
-        session: TransmissionSessionStats;
-    }) => {
-        this.syncIdMap(torrents);
-        const normalized = torrents.map(normalizeTorrent);
-        const stats = mapTransmissionSessionStatsToSessionStats(session);
-        // Push the live payload immediately to avoid blocking the websocket
-        // processing pipeline on potentially slow free-space checks.
-        const payload: Partial<
-            import("./heartbeat").HeartbeatPayload & {
-                networkTelemetry?: NetworkTelemetry;
-            }
-        > = {
-            torrents: normalized,
-            sessionStats: stats,
-            timestampMs: Date.now(),
-            source: "websocket",
-        };
-        this.heartbeat.pushLivePayload(
-            payload as import("./heartbeat").HeartbeatPayload
-        );
-
-        // Fetch telemetry asynchronously and push a secondary payload when
-        // available. Do not await — best-effort only.
-        (async () => {
-            try {
-                const nt = await this.fetchNetworkTelemetry();
-                if (!nt) return;
-                const telemetryPayload: Partial<
-                    import("./heartbeat").HeartbeatPayload & {
-                        networkTelemetry?: NetworkTelemetry;
-                    }
-                > = {
-                    torrents: normalized,
-                    sessionStats: stats,
-                    networkTelemetry: nt,
-                    timestampMs: Date.now(),
-                    source: "websocket-telemetry",
-                };
-                this.heartbeat.pushLivePayload(
-                    telemetryPayload as import("./heartbeat").HeartbeatPayload
-                );
-            } catch (err) {
-                // ignore
-            }
-        })();
-    };
 
     private syncIdMap(torrents: TransmissionTorrent[]) {
         const seen = new Set<string>();
@@ -1057,6 +1031,7 @@ export class TransmissionAdapter implements EngineAdapter {
         await this.mutate(method, { ids });
     }
 
+<<<<<<< Updated upstream
     public async notifyUiReady(): Promise<void> {
         if (this.serverClass === "tinytorrent") {
             return;
@@ -1131,6 +1106,8 @@ export class TransmissionAdapter implements EngineAdapter {
         }
     }
 
+=======
+>>>>>>> Stashed changes
     public async fetchSessionSettings(): Promise<TransmissionSessionSettings> {
         const settings = await this.send(
             { method: "session-get" },
@@ -1164,6 +1141,7 @@ export class TransmissionAdapter implements EngineAdapter {
         return info;
     }
 
+<<<<<<< Updated upstream
     public async getExtendedCapabilities(
         force = false
     ): Promise<TinyTorrentCapabilities | null> {
@@ -1194,6 +1172,18 @@ export class TransmissionAdapter implements EngineAdapter {
             supportsManual: true,
         };
     }
+=======
+    public getServerCapabilities(): ServerCapabilities {
+        const host = this.extractEndpointHost();
+        return {
+            host,
+            serverClass: this.serverClass,
+            supportsOpenFolder: false,
+            supportsSetLocation: true,
+            supportsManual: true,
+        };
+    }
+>>>>>>> Stashed changes
 
     public getServerClass(): ServerClass {
         return this.serverClass;
@@ -1307,6 +1297,7 @@ export class TransmissionAdapter implements EngineAdapter {
             // a subsequent handshake/probe will run.
             this.invalidateSession("reset-connection");
         } catch {}
+<<<<<<< Updated upstream
     }
 
     public async checkFreeSpace(path: string): Promise<TransmissionFreeSpace> {
@@ -1394,6 +1385,53 @@ export class TransmissionAdapter implements EngineAdapter {
     public async systemHandlerDisable(): Promise<void> {
         await this.mutate("system-handler-disable");
     }
+=======
+    }
+
+    public async checkFreeSpace(path: string): Promise<TransmissionFreeSpace> {
+        const fs = await this.send(
+            { method: "free-space", arguments: { path } },
+            zTransmissionFreeSpace
+        );
+        return fs;
+    }
+
+    public async openPath(path: string): Promise<void> {
+        throw new Error("openPath is not supported in Transmission-only mode");
+    }
+
+    // TODO: Delete the entire `system*` block below from the Transmission RPC adapter.
+    // TODO: Rationale: system install/autorun/handlers are host integration features and must be implemented by ShellAgent IPC (local-only), not by the daemon RPC interface.
+    public async systemInstall(
+        _options: SystemInstallOptions = {}
+    ): Promise<SystemInstallResult> {
+        throw new Error("systemInstall is not supported in Transmission-only mode");
+    }
+
+    public async getSystemAutorunStatus(): Promise<AutorunStatus> {
+        throw new Error("getSystemAutorunStatus is not supported in Transmission-only mode");
+    }
+
+    public async getSystemHandlerStatus(): Promise<SystemHandlerStatus> {
+        throw new Error("getSystemHandlerStatus is not supported in Transmission-only mode");
+    }
+
+    public async systemAutorunEnable(_scope = "user"): Promise<void> {
+        throw new Error("systemAutorunEnable is not supported in Transmission-only mode");
+    }
+
+    public async systemAutorunDisable(): Promise<void> {
+        throw new Error("systemAutorunDisable is not supported in Transmission-only mode");
+    }
+
+    public async systemHandlerEnable(): Promise<void> {
+        throw new Error("systemHandlerEnable is not supported in Transmission-only mode");
+    }
+
+    public async systemHandlerDisable(): Promise<void> {
+        throw new Error("systemHandlerDisable is not supported in Transmission-only mode");
+    }
+>>>>>>> Stashed changes
 
     private async fetchTransmissionTorrents(): Promise<TransmissionTorrent[]> {
         const list = await this.send(
@@ -1516,16 +1554,14 @@ export class TransmissionAdapter implements EngineAdapter {
             args["files-unwanted"] = payload.filesUnwanted;
         }
 
-        if (this.serverClass !== "tinytorrent") {
-            if (payload.priorityHigh?.length) {
-                args["priority-high"] = payload.priorityHigh;
-            }
-            if (payload.priorityNormal?.length) {
-                args["priority-normal"] = payload.priorityNormal;
-            }
-            if (payload.priorityLow?.length) {
-                args["priority-low"] = payload.priorityLow;
-            }
+        if (payload.priorityHigh?.length) {
+            args["priority-high"] = payload.priorityHigh;
+        }
+        if (payload.priorityNormal?.length) {
+            args["priority-normal"] = payload.priorityNormal;
+        }
+        if (payload.priorityLow?.length) {
+            args["priority-low"] = payload.priorityLow;
         }
 
         const response = await this.send(
@@ -1880,342 +1916,4 @@ function mapTransmissionSessionStatsToSessionStats(
         // Preserve undefined when the engine does not provide DHT telemetry.
         dhtNodes: stats.dhtNodes === undefined ? undefined : stats.dhtNodes,
     };
-}
-
-interface TinyTorrentWebSocketSessionOptions {
-    getToken: () => string | undefined;
-    onUpdate: (data: {
-        torrents: TransmissionTorrent[];
-        session: TransmissionSessionStats;
-    }) => void;
-    onConnected?: () => void;
-    onDisconnected?: () => void;
-    onError?: (error: unknown) => void;
-    onUiFocus?: () => void;
-}
-
-type SyncSnapshotMessage = {
-    type: "sync-snapshot";
-    data: {
-        session?: unknown;
-        torrents?: TransmissionTorrent[];
-    };
-};
-
-type SyncPatchMessage = {
-    type: "sync-patch";
-    data: {
-        session?: unknown;
-        torrents?: {
-            removed?: number[];
-            added?: TransmissionTorrent[];
-            updated?: TransmissionTorrent[];
-        };
-    };
-};
-
-type TinyTorrentEventMessage = {
-    type: "event";
-    data?: {
-        event?: string;
-    };
-};
-
-type TinyTorrentWebSocketMessage =
-    | SyncSnapshotMessage
-    | SyncPatchMessage
-    | TinyTorrentEventMessage;
-
-class TinyTorrentWebSocketSession {
-    private static nextSessionId = 1;
-    private readonly sessionId: number;
-    private readonly logPrefix: string;
-    private baseUrl?: URL;
-    private socket?: WebSocket;
-    private reconnectTimer?: number;
-    private reconnectDelay = WS_RECONNECT_INITIAL_DELAY_MS;
-    private readonly maxReconnectDelay = WS_RECONNECT_MAX_DELAY_MS;
-    private shouldReconnect = false;
-    private isConnected = false;
-    private readonly torrentsMap = new Map<number, TransmissionTorrent>();
-    private lastSessionStats?: TransmissionSessionStats;
-    private readonly options: TinyTorrentWebSocketSessionOptions;
-    private focusRestoreTimer?: number;
-    private connectAttempt = 0;
-
-    constructor(options: TinyTorrentWebSocketSessionOptions) {
-        this.sessionId = TinyTorrentWebSocketSession.nextSessionId++;
-        this.logPrefix = `[tiny-torrent][ws #${this.sessionId}]`;
-        this.options = options;
-        console.log(`${this.logPrefix} session created`);
-    }
-
-    private handleUiFocusSignal() {
-        if (typeof window === "undefined") {
-            return;
-        }
-        const token = this.options.getToken();
-        const focusKey = token ? `TT-FOCUS-${token}` : null;
-        const originalTitle =
-            typeof document !== "undefined" ? document.title : "";
-
-        if (focusKey) {
-            document.title = focusKey;
-        }
-
-        if (typeof window.focus === "function") {
-            window.focus();
-        }
-
-        if (!focusKey) {
-            return;
-        }
-
-        if (this.focusRestoreTimer) {
-            window.clearTimeout(this.focusRestoreTimer);
-        }
-
-        this.focusRestoreTimer = window.setTimeout(() => {
-            if (
-                focusKey &&
-                typeof document !== "undefined" &&
-                document.title === focusKey
-            ) {
-                document.title = originalTitle;
-            }
-            this.focusRestoreTimer = undefined;
-        }, FOCUS_RESTORE_DELAY_MS);
-    }
-
-    public start(baseUrl: URL) {
-        if (typeof window === "undefined" || typeof WebSocket === "undefined") {
-            return;
-        }
-        this.stop();
-        this.baseUrl = baseUrl;
-        console.log(
-            `${this.logPrefix} start requested baseUrl=${baseUrl.toString()}`
-        );
-        this.torrentsMap.clear();
-        this.lastSessionStats = undefined;
-        this.shouldReconnect = true;
-        this.reconnectDelay = WS_RECONNECT_INITIAL_DELAY_MS;
-        this.scheduleConnect(0);
-    }
-
-    public stop() {
-        this.shouldReconnect = false;
-        if (this.reconnectTimer) {
-            window.clearTimeout(this.reconnectTimer);
-            this.reconnectTimer = undefined;
-        }
-        if (this.socket) {
-            this.socket.close();
-            this.socket = undefined;
-        }
-        this.markDisconnected();
-    }
-
-    private scheduleConnect(delay: number) {
-        if (!this.shouldReconnect || !this.baseUrl) return;
-        if (this.reconnectTimer) {
-            window.clearTimeout(this.reconnectTimer);
-        }
-        this.reconnectTimer = window.setTimeout(() => this.openSocket(), delay);
-    }
-
-    /**
-     *
-     *  DO NOT DELETE THIS COMMENT:
-     *
-     *  Transport reconnect timer — ALLOWED EXCEPTION.
-     *  This timer schedules WebSocket reconnect attempts only (transport-level network I/O).
-     *  It does NOT perform engine polling or replace the HeartbeatManager's role.
-     *  The adapter coordinates transport vs polling by calling `heartbeat.disablePolling()`
-     *  when the socket is connected and `heartbeat.enablePolling()` when disconnected.
-     *  Keep reconnect logic here: it's a transport-scoped responsibility, not a heartbeat   polling mechanism.
-     *
-     *  DO NOT DELETE THIS COMMENT:
-     *
-     **/
-
-    private openSocket() {
-        if (!this.shouldReconnect || !this.baseUrl) return;
-        const url = this.buildUrlWithToken();
-        if (!url) {
-            this.options.onError?.(new Error("Invalid WebSocket URL"));
-            return;
-        }
-        const attemptId = ++this.connectAttempt;
-        console.log(
-            `${
-                this.logPrefix
-            } opening WebSocket attempt #${attemptId} to ${url.toString()}`
-        );
-        try {
-            this.socket = new WebSocket(url.toString());
-        } catch (error) {
-            console.error(
-                `${this.logPrefix} connect attempt #${attemptId} failed`,
-                error
-            );
-            this.options.onError?.(error);
-            this.scheduleConnect(this.reconnectDelay);
-            this.reconnectDelay = Math.min(
-                this.maxReconnectDelay,
-                this.reconnectDelay * 2
-            );
-            return;
-        }
-        this.socket.addEventListener("open", this.handleOpen);
-        this.socket.addEventListener("message", this.handleMessage);
-        this.socket.addEventListener("close", this.handleClose);
-        this.socket.addEventListener("error", this.handleError);
-    }
-
-    private buildUrlWithToken(): URL | null {
-        if (!this.baseUrl) return null;
-        const url = new URL(this.baseUrl.toString());
-        const token = this.options.getToken();
-        if (token) {
-            url.searchParams.set("token", token);
-        } else {
-            url.searchParams.delete("token");
-        }
-        return url;
-    }
-
-    private handleOpen = () => {
-        console.log(
-            `${this.logPrefix} websocket opened (attempt #${this.connectAttempt})`
-        );
-        this.reconnectDelay = WS_RECONNECT_INITIAL_DELAY_MS;
-        this.isConnected = true;
-        this.options.onConnected?.();
-    };
-
-    private handleMessage = (event: MessageEvent) => {
-        let parsed: TinyTorrentWebSocketMessage;
-        try {
-            parsed = JSON.parse(event.data);
-        } catch {
-            return;
-        }
-        if (parsed.type === "sync-snapshot") {
-            this.handleSnapshot(parsed.data);
-        } else if (parsed.type === "sync-patch") {
-            this.handlePatch(parsed.data);
-        } else if (parsed.type === "event") {
-            this.handleEvent(parsed.data);
-        }
-    };
-
-    private handleSnapshot(data: SyncSnapshotMessage["data"]) {
-        const session = this.parseSession(data.session);
-        if (!session) {
-            return;
-        }
-        const torrents = this.parseTorrents(data.torrents);
-        this.torrentsMap.clear();
-        torrents.forEach((torrent) => {
-            this.torrentsMap.set(torrent.id, torrent);
-        });
-        this.lastSessionStats = session;
-        this.emitUpdate();
-    }
-
-    private handlePatch(data: SyncPatchMessage["data"]) {
-        const patch = data.torrents;
-        if (patch?.removed) {
-            for (const id of patch.removed) {
-                this.torrentsMap.delete(id);
-            }
-        }
-        if (patch?.added) {
-            this.parseTorrents(patch.added).forEach((torrent) => {
-                this.torrentsMap.set(torrent.id, torrent);
-            });
-        }
-        if (patch?.updated) {
-            this.parseTorrents(patch.updated).forEach((torrent) => {
-                this.torrentsMap.set(torrent.id, torrent);
-            });
-        }
-        const session = this.parseSession(data.session);
-        if (session) {
-            this.lastSessionStats = session;
-        }
-        this.emitUpdate();
-    }
-
-    private handleEvent(data: TinyTorrentEventMessage["data"]) {
-        const eventName = data?.event;
-        if (!eventName) {
-            return;
-        }
-        if (eventName === "ui-focus") {
-            this.options.onUiFocus?.();
-        }
-    }
-
-    private parseTorrents(
-        value: TransmissionTorrent[] | undefined
-    ): TransmissionTorrent[] {
-        if (!value || !value.length) return [];
-        try {
-            return getTorrentList({ torrents: value });
-        } catch (error) {
-            this.options.onError?.(error);
-            return [];
-        }
-    }
-
-    private parseSession(value: unknown): TransmissionSessionStats | undefined {
-        if (!value) return undefined;
-        try {
-            return getSessionStats(value as unknown);
-        } catch (error) {
-            this.options.onError?.(error);
-            return undefined;
-        }
-    }
-
-    private emitUpdate() {
-        if (!this.lastSessionStats) {
-            return;
-        }
-        const torrents = Array.from(this.torrentsMap.values());
-        this.options.onUpdate({
-            torrents,
-            session: this.lastSessionStats,
-        });
-    }
-
-    private handleClose = (event: CloseEvent) => {
-        console.warn(
-            `${this.logPrefix} websocket closed code=${event.code} reason=${event.reason}`
-        );
-        this.markDisconnected();
-        if (this.shouldReconnect) {
-            this.scheduleConnect(this.reconnectDelay);
-            this.reconnectDelay = Math.min(
-                this.maxReconnectDelay,
-                this.reconnectDelay * 2
-            );
-        }
-    };
-
-    private handleError = (event: Event) => {
-        console.error(`${this.logPrefix} websocket error`, event);
-        this.options.onError?.(event);
-    };
-
-    private markDisconnected() {
-        if (!this.isConnected) {
-            return;
-        }
-        console.log(`${this.logPrefix} markDisconnected`);
-        this.isConnected = false;
-        this.options.onDisconnected?.();
-    }
 }

@@ -1,12 +1,20 @@
 import { IS_NATIVE_HOST } from "@/config/logic";
 import type { TransmissionFreeSpace } from "@/services/rpc/types";
 
+<<<<<<< Updated upstream
 type NativeShellAuthPayload = string | {
     token?: string;
     host?: string;
     port?: string;
     scheme?: "http" | "https";
 };
+=======
+type NativeShellEventPayload =
+    | string
+    | {
+          link?: string;
+      };
+>>>>>>> Stashed changes
 
 type NativeShellRequestMessage = {
     type: "request";
@@ -23,12 +31,16 @@ type NativeShellResponseMessage = {
     error?: string;
 };
 
+<<<<<<< Updated upstream
 export type NativeShellEventName = "magnet-link" | "auth-token";
+=======
+export type NativeShellEventName = "magnet-link";
+>>>>>>> Stashed changes
 
 type NativeShellEventMessage = {
     type: "event";
     name: NativeShellEventName;
-    payload?: NativeShellAuthPayload;
+    payload?: NativeShellEventPayload;
 };
 
 type PendingRequest = {
@@ -36,7 +48,7 @@ type PendingRequest = {
     reject: (error: Error) => void;
 };
 
-type NativeShellListener = (payload?: unknown) => void;
+type NativeShellListener = (payload?: NativeShellEventPayload) => void;
 
 type NativeShellBridge = {
     postMessage: (message: NativeShellRequestMessage) => void;
@@ -219,6 +231,18 @@ export const NativeShell = {
         await sendBridgeRequest("set-system-integration", features);
     },
 };
+<<<<<<< Updated upstream
+=======
+// TODO: Treat `NativeShell` as a *low-level bridge* (WebView host IPC), not an app-level capability surface.
+// TODO: Create a ShellAgent/ShellExtensions adapter (hook or provider) that is the *only* UI import point and enforces the locality rules:
+// TODO: - Do not expose ShellExtensions when connected to a non-loopback RPC endpoint (remote daemon) or when running in a plain browser (no bridge).
+// TODO: - Prefer a single `uiMode = "Full" | "Rpc"` published by one provider; UI components should check uiMode, not `NativeShell.isAvailable`.
+// TODO: The adapter must own/centralize all bridge calls/events so review is easy and "random NativeShell usage" cannot spread:
+// TODO: - requests: browse directory, open file dialog, open path, window commands, system integration status/set, persist window state
+// TODO: - events: magnet-link (centralize deep-link handling through the ShellAgent adapter)
+// TODO: IMPORTANT: Transmission RPC already supports `free-space`. The UI's `checkFreeSpace` must call the daemon via `EngineAdapter.checkFreeSpace`.
+// TODO: Delete the `check-free-space` bridge request and `NativeShell.checkFreeSpace` once all call sites use the daemon RPC method.
+>>>>>>> Stashed changes
 
 export const Runtime = {
     get isNativeHost() {

@@ -7,7 +7,7 @@ import {
 } from "react";
 import type { MutableRefObject } from "react";
 import { STATUS } from "@/shared/status";
-import Runtime, { NativeShell } from "@/app/runtime";
+import Runtime from "@/app/runtime";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import { useHotkeys } from "react-hotkeys-hook";
 import useWorkbenchScale from "./hooks/useWorkbenchScale";
@@ -44,6 +44,7 @@ import {
     SelectionProvider,
     useSelection,
 } from "@/app/context/SelectionContext";
+import { useShellAgent } from "@/app/hooks/useShellAgent";
 import { useTorrentOrchestrator } from "./orchestrators/useTorrentOrchestrator";
 import { createTorrentDispatch } from "./actions/torrentDispatch";
 import { LifecycleProvider } from "@/app/context/LifecycleContext";
@@ -202,6 +203,8 @@ function AppContent({
         markRemoved,
         unmarkRemoved,
     });
+
+    const { shellAgent } = useShellAgent();
 
     const {
         serverClass,
@@ -830,11 +833,13 @@ function AppContent({
                     onConfirm={handleTorrentWindowConfirm}
                     checkFreeSpace={torrentClient.checkFreeSpace}
                     onBrowseDirectory={
-                        connectionMode === "tinytorrent-local-shell"
+                        shellAgent.isAvailable
                             ? async (currentPath: string) => {
                                   try {
-                                      return await NativeShell.browseDirectory(
-                                          currentPath
+                                      return (
+                                          (await shellAgent.browseDirectory(
+                                              currentPath || undefined
+                                          )) ?? null
                                       );
                                   } catch {
                                       return null;
