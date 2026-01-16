@@ -3,9 +3,7 @@
 **Role:** Authoritative Architecture Document
 **Target:** Engineering Team (C++ Backend & TypeScript Frontend)
 
-> TODO: Portions of this spec describing `tt-get-capabilities`, WebSockets, and custom daemon “modes” are no longer active.
-> TODO: Current executable architecture is documented in `docs/EXE architecutre.md` and mandates “RPC extensions: NONE” (Transmission RPC only).
-> TODO: Update/trim this spec (or split into historical vs current) to avoid engineers implementing deprecated protocols.
+> TODO: Align this spec with `ARCHITECTURE.md`, `docs/EXE architecutre.md` (intentional repo spelling), and `docs/Recovery UX - Final Acceptance Specification (Post-Implementation).md` so the frontend team sees the same invariants about UiMode, shell adapter, view models, and heartbeat authority.
 
 ## **1. Architecture & Protocol Upgrade**
 

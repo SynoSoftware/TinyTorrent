@@ -5,14 +5,11 @@ Licensed under the Apache License, Version 2.0. See `LICENSES.md` for details.
 # **TinyTorrent RPC-Extended Specification**
 
 **Version:** 1.2.0
-**Status:** Revised for Webview2
-**Dependencies:** TinyTorrent Security Model v1.0 (Mandatory)
+**Status:** Archived historical reference
+**Dependencies:** TinyTorrent Security Model v1.0 (Historical)
 
-> TODO: This document is deprecated. Current architecture is “RPC extensions: NONE”:
-> TODO: - No `tt-get-capabilities`
-> TODO: - No WebSockets / delta-sync
-> TODO: - No `X-TT-Auth` token auth
-> TODO: Keep this file only as historical reference until it is archived/moved out of the active docs set.
+> This document is preserved only for traceability. Do *not* treat it as active guidance; the canonical architecture is `docs/EXE architecutre.md` (note the repo’s spelling) and `ARCHITECTURE.md`.
+> The current product enforces “RPC extensions: NONE” (no `tt-get-capabilities`, no WebSockets/ delta sync, no `X-TT-Auth`).
 
 ---
 
