@@ -203,8 +203,14 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
             ? client.getServerCapabilities()
             : null;
     const transportHost = transportCapabilities?.host ?? "";
-    const hasNativeHostShell =
-        isLoopbackHost(transportHost) && NativeShell.isAvailable;
+    const [serverClass, setServerClass] = useState<ServerClass>("unknown");
+    const hasNativeHostShell = useMemo(
+        () =>
+            serverClass === "tinytorrent" &&
+            isLoopbackHost(transportHost) &&
+            NativeShell.isAvailable,
+        [serverClass, transportHost]
+    );
     const setLocationCapability = useMemo(
         () => ({
             canBrowse: Boolean(
@@ -223,9 +229,9 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
     );
     const pendingDeletionHashesRef = useRef<Set<string>>(new Set());
     const recentlyRemovedKeysRef = useRef<Set<string>>(new Set());
-
-    // --- 1. Capability & Server Class ---
-    const [serverClass, setServerClass] = useState<ServerClass>("unknown");
+    const inlineOwnerRef = useRef<{ surface: SetLocationSurface; torrentKey: string } | null>(
+        null
+    );
 
     useEffect(() => {
         let active = true;
@@ -1388,19 +1394,73 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
         },
         [buildOutcomeKey]
     );
+    const clearLocationOutcome = useCallback(
+        (surface: SetLocationSurface, torrentKey: string | null) => {
+            const key = buildOutcomeKey(surface, torrentKey);
+            setSetLocationOutcomes((prev) => {
+                if (!prev[key]) return prev;
+                const { [key]: _removed, ...rest } = prev;
+                return rest;
+            });
+        },
+        [buildOutcomeKey]
+    );
+    const releaseInlineSetLocation = useCallback(() => {
+        inlineOwnerRef.current = null;
+        const current = inlineSetLocationStateRef.current;
+        inlineSetLocationStateRef.current = null;
+        setInlineSetLocationState(null);
+        if (current) {
+            clearDraftForTorrent(current.torrentKey);
+            clearLocationOutcome(current.surface, current.torrentKey);
+        }
+    }, [clearDraftForTorrent, clearLocationOutcome]);
+    const isInlineOwner = useCallback(
+        (surface: SetLocationSurface, torrentKey: string) => {
+            const owner = inlineOwnerRef.current;
+            if (!owner) return false;
+            return owner.surface === surface && owner.torrentKey === torrentKey;
+        },
+        []
+    );
+    const tryAcquireInlineOwner = useCallback(
+        (surface: SetLocationSurface, torrentKey: string) => {
+            const owner = inlineOwnerRef.current;
+            if (!owner) {
+                inlineOwnerRef.current = { surface, torrentKey };
+                return "acquired" as const;
+            }
+            if (isInlineOwner(surface, torrentKey)) {
+                return "already-owned" as const;
+            }
+            return "conflict" as const;
+        },
+        [isInlineOwner]
+    );
+    const releaseInlineOwner = useCallback(() => {
+        inlineOwnerRef.current = null;
+    }, []);
 
     useEffect(() => {
-        if (!inlineSetLocationState) return;
-        clearDraftForTorrent(inlineSetLocationState.torrentKey);
-        cancelInlineSetLocation();
-    }, [
-        connectionMode,
-        inlineSetLocationState,
-        cancelInlineSetLocation,
-        clearDraftForTorrent,
-    ]);
+        const current = inlineSetLocationStateRef.current;
+        if (!current) return;
+        clearDraftForTorrent(current.torrentKey);
+        releaseInlineSetLocation();
+    }, [connectionMode, clearDraftForTorrent, releaseInlineSetLocation]);
     const getLocationOutcome = useCallback(
         (surface: SetLocationSurface, torrentKey: string | null) => {
+            const owner = inlineOwnerRef.current;
+            if (
+                owner &&
+                (owner.surface !== surface ||
+                    (torrentKey && owner.torrentKey !== torrentKey))
+            ) {
+                return {
+                    kind: "conflict",
+                    reason: "inline-conflict",
+                    surface,
+                } as const;
+            }
             const key = buildOutcomeKey(surface, torrentKey);
             return setLocationOutcomes[key] ?? null;
         },
@@ -1455,26 +1515,18 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
                     torrentKey
                 );
             }
-            const currentInline = inlineSetLocationStateRef.current;
-            if (currentInline && currentInline.surface !== surface) {
-                return recordSetLocationOutcome(
-                    {
-                        kind: "conflict",
-                        reason: "inline-conflict",
-                        surface,
-                    },
-                    surface,
-                    torrentKey
-                );
+            const acquisition = tryAcquireInlineOwner(surface, torrentKey);
+            if (acquisition === "conflict") {
+                return { kind: "conflict", reason: "inline-conflict", surface };
             }
-            if (currentInline && currentInline.surface === surface) {
+            if (acquisition === "already-owned") {
                 return recordSetLocationOutcome(
                     { kind: "manual", surface },
                     surface,
                     torrentKey
                 );
             }
-            cancelInlineSetLocation();
+            releaseInlineSetLocation();
             openInlineSetLocationState({
                 surface,
                 torrentKey,
@@ -1489,7 +1541,8 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
             );
         },
         [
-            cancelInlineSetLocation,
+            releaseInlineSetLocation,
+            tryAcquireInlineOwner,
             openInlineSetLocationState,
             recoveryRequestBrowse,
             setLocationAndRecover,
@@ -1613,6 +1666,7 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
         setLocationCapability,
         inlineSetLocationState,
         cancelInlineSetLocation,
+        releaseInlineSetLocation,
         confirmInlineSetLocation,
         handleInlineLocationChange,
         getLocationOutcome,

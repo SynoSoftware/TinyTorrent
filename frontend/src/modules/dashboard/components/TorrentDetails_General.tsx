@@ -13,7 +13,7 @@ import {
     Trash2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import RemoveConfirmationModal from "@/modules/torrent-remove/components/RemoveConfirmationModal";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
@@ -123,6 +123,7 @@ export const GeneralTab = ({
         handleDownloadMissing,
         inlineSetLocationState,
         cancelInlineSetLocation,
+        releaseInlineSetLocation,
         confirmInlineSetLocation,
         handleInlineLocationChange,
         setLocationCapability,
@@ -180,6 +181,12 @@ export const GeneralTab = ({
         ? t("recovery.status.applying_location")
         : undefined;
     const generalCaption = t(getSurfaceCaptionKey("general-tab"));
+    useEffect(
+        () => () => {
+            releaseInlineSetLocation();
+        },
+        [releaseInlineSetLocation]
+    );
 
     const handleResumeAction = () => {
         void handleTorrentAction("resume", torrent);

@@ -93,6 +93,7 @@ export default function TorrentRecoveryModal({
         handleSetLocation,
         inlineSetLocationState,
         cancelInlineSetLocation,
+        releaseInlineSetLocation,
         confirmInlineSetLocation,
         handleInlineLocationChange,
         setLocationCapability,
@@ -234,11 +235,16 @@ export default function TorrentRecoveryModal({
 
     const showRecreate = isPathLoss && Boolean(onRecreate);
 
+    const handleClose = useCallback(() => {
+        releaseInlineSetLocation();
+        onClose();
+    }, [onClose, releaseInlineSetLocation]);
+
     return (
         <Modal
             isOpen={isOpen}
             onOpenChange={(open) => {
-                if (!open) onClose();
+                if (!open) handleClose();
             }}
             backdrop="blur"
             placement="center"
@@ -265,7 +271,7 @@ export default function TorrentRecoveryModal({
                                 variant="ghost"
                                 color="default"
                                 size="md"
-                                onPress={onClose}
+                                onPress={handleClose}
                                 isDisabled={busy}
                             >
                                 <X />
