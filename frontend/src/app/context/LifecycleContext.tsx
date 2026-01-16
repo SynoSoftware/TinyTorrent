@@ -9,11 +9,13 @@ import { useTransmissionSession } from "@/app/hooks/useTransmissionSession";
 import type { ServerClass } from "@/services/rpc/entities";
 import type { ConnectionStatus } from "@/shared/types/rpc";
 import Runtime from "@/app/runtime";
+import { useUiModeCapabilities } from "@/app/context/UiModeContext";
 
 export type LifecycleState = {
     serverClass: ServerClass;
     rpcStatus: ConnectionStatus;
     nativeIntegration: boolean;
+    uiMode: "Full" | "Rpc";
 };
 // TODO: Replace LifecycleState.serverClass/nativeIntegration with a single “capabilities/locality” model:
 // TODO: - Transmission is the only engine; do not surface “tinytorrent” as a first-class variant.
@@ -37,14 +39,14 @@ export function LifecycleProvider({ children }: { children: ReactNode }) {
             : "unknown")) as ServerClass;
     // TODO: Remove serverClass inference once RPC extensions are gone; treat EngineInfo as Transmission-only and use “unknown” when disconnected.
 
-    const nativeIntegration =
-        Runtime.isNativeHost || serverClass === "tinytorrent";
+    const { uiMode } = useUiModeCapabilities();
+    const nativeIntegration = uiMode === "Full";
     // TODO: Replace nativeIntegration heuristic with ShellAgent/ShellExtensions capability: “native host present AND connected to localhost endpoint”.
     // TODO: Do not depend on `serverClass === "tinytorrent"` for any UX gating. Local Transmission can also be `uiMode=Full` if ShellExtensions is available.
 
     const value = useMemo(
-        () => ({ serverClass, rpcStatus, nativeIntegration }),
-        [serverClass, rpcStatus, nativeIntegration]
+        () => ({ serverClass, rpcStatus, nativeIntegration, uiMode }),
+        [serverClass, rpcStatus, nativeIntegration, uiMode]
     );
 
     return (

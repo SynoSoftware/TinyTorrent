@@ -2,18 +2,13 @@ import { useEffect, useMemo } from "react";
 import Runtime from "@/app/runtime";
 import { useConnectionConfig } from "@/app/context/ConnectionConfigContext";
 import { shellAgent, type ShellUiMode } from "@/app/agents/shell-agent";
-
-const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
-
-const normalizeHost = (host: string) =>
-    host.trim().replace(/^\[|\]$/g, "").toLowerCase();
+import { isLoopbackHost, normalizeHost } from "@/app/utils/hosts";
 
 const computeUiMode = (host: string): ShellUiMode => {
     if (!Runtime.isNativeHost) {
         return "Rpc";
     }
-    const normalized = normalizeHost(host);
-    if (LOOPBACK_HOSTS.has(normalized)) {
+    if (isLoopbackHost(host)) {
         return "Full";
     }
     return "Rpc";

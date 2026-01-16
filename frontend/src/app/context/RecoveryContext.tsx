@@ -1,5 +1,6 @@
 import { createContext, type ReactNode, useContext } from "react";
 import type { ServerClass } from "@/services/rpc/entities";
+import type { ShellUiMode } from "@/app/agents/shell-agent";
 import type {
     Torrent,
     TorrentDetail,
@@ -57,6 +58,7 @@ export interface InlineSetLocationState {
 export interface RecoveryContextValue {
     serverClass: ServerClass;
     connectionMode: ConnectionMode;
+    uiMode: ShellUiMode;
     canOpenFolder: boolean;
     handleRetry: () => Promise<void>;
     handleDownloadMissing: (

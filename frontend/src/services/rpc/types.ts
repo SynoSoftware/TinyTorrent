@@ -167,26 +167,3 @@ export interface TransmissionTorrentRenameResult {
     name: string;
     path: string;
 }
-
-export interface SystemInstallOptions {
-    name?: string;
-    args?: string;
-    locations?: string[];
-    registerHandlers?: boolean;
-    installToProgramFiles?: boolean;
-}
-
-export interface SystemInstallResult {
-    action: "system-install";
-    success: boolean;
-    permissionDenied?: boolean;
-    message?: string;
-    shortcuts?: Record<string, string>;
-    installSuccess?: boolean;
-    installMessage?: string;
-    installedPath?: string;
-    handlersRegistered?: boolean;
-    handlerMessage?: string;
-}
-// TODO: This “system-install” shape is not part of Transmission RPC. In the final architecture, installer/service/association actions belong to the ShellAgent (host bridge), not the daemon.
-// TODO: Decide: (A) delete this feature entirely from the UI, or (B) move it behind the ShellAgent adapter boundary as an IPC response type (e.g. `src/app/shellAgent/types.ts`) and remove from `src/services/rpc/*`.

@@ -15,8 +15,6 @@ import type {
     TransmissionSessionStats,
     TransmissionBandwidthGroupOptions,
     TransmissionTorrentRenameResult,
-    SystemInstallOptions,
-    SystemInstallResult,
 } from "./types";
 import { z } from "zod";
 import {
@@ -51,8 +49,6 @@ import type {
     AddTorrentResult,
     SessionStats,
     EngineInfo,
-    AutorunStatus,
-    SystemHandlerStatus,
     ServerClass,
 } from "./entities";
 import { normalizeTorrent, normalizeTorrentDetail } from "./normalizers";
@@ -155,7 +151,7 @@ export class TransmissionAdapter implements EngineAdapter {
     private readonly METHOD_CALL_WINDOW_MS = 2000;
     private readonly METHOD_CALL_WARNING_THRESHOLD = 100;
     private transport: TransmissionRpcTransport;
-    private readonly serverClass: ServerClass = "transmission";
+    private serverClass: ServerClass = "transmission";
     private handshakeState: HandshakeState = "invalid";
     private handshakePromise?: Promise<TransmissionSessionSettings>;
     private handshakeResult?: TransmissionSessionSettings;
@@ -619,183 +615,6 @@ export class TransmissionAdapter implements EngineAdapter {
         }
     }
 
-    private updateServerClassFromCapabilities(
-        capabilities: TinyTorrentCapabilities | null
-    ) {
-        if (!capabilities || !capabilities.serverClass) {
-            this.serverClass = "unknown";
-            return;
-        }
-        if (capabilities.serverClass === "tinytorrent") {
-            this.serverClass = "tinytorrent";
-            return;
-        }
-        if (capabilities.serverClass === "transmission") {
-            this.serverClass = "transmission";
-            return;
-        }
-        this.serverClass = "unknown";
-    }
-
-    private applyCapabilities(capabilities: TinyTorrentCapabilities | null) {
-        this.tinyTorrentCapabilities = capabilities;
-        this.updateServerClassFromCapabilities(capabilities);
-        this.ensureWebsocketConnection();
-    }
-    // TODO: Delete TinyTorrentCapabilities + serverClass probing from this adapter; capabilities should be derived locally (host + NativeShell bridge) rather than via RPC extensions.
-    private buildWebSocketBaseUrl(path: string): URL | null {
-        if (!path) return null;
-        try {
-            if (path.startsWith("ws://") || path.startsWith("wss://")) {
-                return new URL(path);
-            }
-            const endpointUrl = this.resolveEndpointUrl();
-            if (!endpointUrl) {
-                return null;
-            }
-            const scheme = endpointUrl.protocol === "https:" ? "wss" : "ws";
-            const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-            return new URL(`${scheme}://${endpointUrl.host}${normalizedPath}`);
-        } catch {
-            return null;
-        }
-    }
-
-    private closeWebSocketSession() {
-        this.websocketSession?.stop();
-        this.websocketSession = undefined;
-    }
-
-    private ensureWebsocketConnection() {
-        if (!this.hasWebsocketSupport()) {
-            this.closeWebSocketSession();
-            return;
-        }
-        const endpointPath =
-            this.tinyTorrentCapabilities?.websocketEndpoint ??
-            this.tinyTorrentCapabilities?.websocketPath;
-        if (!endpointPath) {
-            this.closeWebSocketSession();
-            return;
-        }
-        const wsBaseUrl = this.buildWebSocketBaseUrl(endpointPath);
-        if (!wsBaseUrl) {
-            this.closeWebSocketSession();
-            return;
-        }
-        if (!this.websocketSession) {
-            this.websocketSession = new TinyTorrentWebSocketSession({
-                getToken: () => this.getTinyTorrentAuthToken(),
-                onUpdate: this.handleLiveStateUpdate,
-                onConnected: () => this.heartbeat.disablePolling(),
-                onDisconnected: () => this.heartbeat.enablePolling(),
-                onUiFocus: () => {
-                    const self = this as unknown as {
-                        handleUiFocusSignal?: () => void;
-                    };
-                    if (typeof self.handleUiFocusSignal === "function") {
-                        self.handleUiFocusSignal();
-                    }
-                },
-                onError: (error) => {
-                    console.error("[tiny-torrent][ws]", error);
-                },
-            });
-        }
-        this.websocketSession.start(wsBaseUrl);
-    }
-    // TODO: Remove websocket dependency entirely (no ws/delta-sync); polling-only aligns with “RPC extensions: NONE” architecture.
-
-    public async refreshExtendedCapabilities(force = false): Promise<void> {
-        if (
-            !force &&
-            this.tinyTorrentCapabilities !== undefined &&
-            this.tinyTorrentCapabilities !== null
-        ) {
-            this.ensureWebsocketConnection();
-            return;
-        }
-        // Prevent duplicated concurrent tt-get-capabilities calls. If one is
-        // already in flight, await it instead of firing another request.
-        if (this.inflightGetCapabilities) {
-            try {
-                await this.inflightGetCapabilities;
-            } catch {
-                // swallow
-            }
-            return;
-        }
-
-        this.inflightGetCapabilities = (async () => {
-            try {
-                const response = await this.send(
-                    { method: "tt-get-capabilities" },
-                    zTinyTorrentCapabilitiesNormalized,
-                    0,
-                    false,
-                    { bypassHandshake: true }
-                );
-                this.applyCapabilities(response);
-            } catch (error) {
-                // If the server doesn't recognize our extension method, it's
-                // almost certainly a plain Transmission server. Treat that as a
-                // non-fatal condition and mark the server class to avoid
-                // repeatedly attempting the same unsupported RPC.
-                // If the capabilities RPC failed with a command error, the
-                try {
-                    try {
-                        // Ensure transport aborts any internal fetches it is tracking.
-                        const t = this.transport as unknown as {
-                            abortAll?: () => void;
-                        };
-                        t.abortAll?.();
-                    } catch {}
-                } catch {}
-                // server likely does not support our extension. Treat any
-                // RpcCommandError as the server not supporting `tt-get-capabilities`
-                // to avoid failing the handshake flow due to an optional method.
-                if (error instanceof RpcCommandError) {
-                    this.tinyTorrentCapabilities = null;
-                    this.serverClass = "transmission";
-                    this.ensureWebsocketConnection();
-                    console.debug(
-                        "[tiny-torrent][rpc] tt-get-capabilities not supported; marking serverClass=transmission",
-                        error.code
-                    );
-                    return;
-                }
-                console.error(
-                    `[tiny-torrent][rpc] refreshExtendedCapabilities failed`,
-                    error
-                );
-                this.applyCapabilities(null);
-            }
-        })();
-
-        try {
-            await this.inflightGetCapabilities;
-        } finally {
-            this.inflightGetCapabilities = undefined;
-        }
-    }
-    // TODO: Remove `tt-get-capabilities` entirely; treat all servers as vanilla Transmission.
-
-    private hasWebsocketSupport() {
-        const endpointPath =
-            this.tinyTorrentCapabilities?.websocketEndpoint ??
-            this.tinyTorrentCapabilities?.websocketPath;
-        const supportsDeltaSync =
-            this.tinyTorrentCapabilities?.features?.includes(
-                "websocket-delta-sync"
-            );
-        return (
-            this.serverClass === "tinytorrent" &&
-            Boolean(endpointPath) &&
-            Boolean(supportsDeltaSync)
-        );
-    }
-    // TODO: Remove delta-sync websocket feature detection once websocket is deleted.
-
     public async handshake(): Promise<TransmissionSessionSettings> {
         return this.handshakeOnce();
     }
@@ -840,7 +659,6 @@ export class TransmissionAdapter implements EngineAdapter {
         );
         this.sessionSettingsCache = result;
         this.engineInfoCache = undefined;
-        this.applyCapabilities(null);
 
         return result;
     }
@@ -976,32 +794,13 @@ export class TransmissionAdapter implements EngineAdapter {
         return info;
     }
 
-    public async getExtendedCapabilities(
-        force = false
-    ): Promise<TinyTorrentCapabilities | null> {
-        if (
-            force ||
-            this.tinyTorrentCapabilities === undefined ||
-            this.tinyTorrentCapabilities === null
-        ) {
-            await this.refreshExtendedCapabilities();
-        } else {
-            this.ensureWebsocketConnection();
-        }
-        return this.tinyTorrentCapabilities ?? null;
-    }
-
     public getServerCapabilities(): ServerCapabilities {
         const host = this.extractEndpointHost();
         const serverClassValue = this.serverClass ?? "unknown";
-        const hasNativeShell =
-            serverClassValue === "tinytorrent" &&
-            NativeShell.isAvailable &&
-            this.isLoopbackHost(host);
         return {
             host,
             serverClass: serverClassValue,
-            supportsOpenFolder: hasNativeShell,
+            supportsOpenFolder: false,
             supportsSetLocation: true,
             supportsManual: true,
         };
@@ -1129,55 +928,6 @@ export class TransmissionAdapter implements EngineAdapter {
         return fs;
     }
 
-    public async openPath(path: string): Promise<void> {
-        throw new Error("openPath is not supported in Transmission-only mode");
-    }
-
-    // TODO: Delete the entire `system*` block below from the Transmission RPC adapter.
-    // TODO: Rationale: system install/autorun/handlers are host integration features and must be implemented by ShellAgent IPC (local-only), not by the daemon RPC interface.
-    public async systemInstall(
-        _options: SystemInstallOptions = {}
-    ): Promise<SystemInstallResult> {
-        throw new Error(
-            "systemInstall is not supported in Transmission-only mode"
-        );
-    }
-
-    public async getSystemAutorunStatus(): Promise<AutorunStatus> {
-        throw new Error(
-            "getSystemAutorunStatus is not supported in Transmission-only mode"
-        );
-    }
-
-    public async getSystemHandlerStatus(): Promise<SystemHandlerStatus> {
-        throw new Error(
-            "getSystemHandlerStatus is not supported in Transmission-only mode"
-        );
-    }
-
-    public async systemAutorunEnable(_scope = "user"): Promise<void> {
-        throw new Error(
-            "systemAutorunEnable is not supported in Transmission-only mode"
-        );
-    }
-
-    public async systemAutorunDisable(): Promise<void> {
-        throw new Error(
-            "systemAutorunDisable is not supported in Transmission-only mode"
-        );
-    }
-
-    public async systemHandlerEnable(): Promise<void> {
-        throw new Error(
-            "systemHandlerEnable is not supported in Transmission-only mode"
-        );
-    }
-
-    public async systemHandlerDisable(): Promise<void> {
-        throw new Error(
-            "systemHandlerDisable is not supported in Transmission-only mode"
-        );
-    }
     private async fetchTransmissionTorrents(): Promise<TransmissionTorrent[]> {
         const list = await this.send(
             {

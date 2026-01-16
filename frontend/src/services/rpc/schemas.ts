@@ -7,12 +7,6 @@ import type {
     TransmissionTorrent,
     TransmissionTorrentDetail,
 } from "./types";
-import type {
-    AutorunStatus,
-    TinyTorrentCapabilities,
-    SystemHandlerStatus,
-} from "./entities";
-
 const zRpcResponse = z.object({
     result: z.string(),
     arguments: z.record(z.string(), z.unknown()).optional(),
@@ -529,82 +523,6 @@ export const getFreeSpace = (payload: unknown): TransmissionFreeSpace => {
     }
 };
 
-const zServerClass = z.enum(["tinytorrent", "transmission"]).optional();
-// TODO: Delete `zServerClass` and all TinyTorrent RPC-extended capability parsing. We no longer implement `tt-get-capabilities` or websocket features.
-
-const zTinyTorrentCapabilities = z.object({
-    "server-version": z.string().optional(),
-    version: z.string().optional(),
-    "rpc-version": z.number(),
-    "websocket-endpoint": z.string().optional(),
-    "websocket-path": z.string().optional(),
-    platform: z.string().optional(),
-    features: z.array(z.string()).default([]),
-    "server-class": zServerClass,
-});
-// TODO: Delete `zTinyTorrentCapabilities` once RPC extensions are removed.
-// TODO: If the UI needs host/OS capabilities, they must come from the ShellAgent/ShellExtensions adapter (IPC), not from the daemon.
-
-export const getTinyTorrentCapabilities = (
-    payload: unknown
-): TinyTorrentCapabilities => {
-    try {
-        const parsed = zTinyTorrentCapabilities.parse(payload);
-        return {
-            version: parsed.version,
-            serverVersion: parsed["server-version"],
-            rpcVersion: parsed["rpc-version"],
-            websocketEndpoint:
-                parsed["websocket-endpoint"] ?? parsed["websocket-path"],
-            websocketPath:
-                parsed["websocket-path"] ?? parsed["websocket-endpoint"],
-            platform: parsed.platform,
-            features: parsed.features,
-            serverClass: parsed["server-class"],
-        };
-    } catch (error) {
-        logValidationIssue("getTinyTorrentCapabilities", payload, error);
-        throw error;
-    }
-};
-// TODO: Delete `getTinyTorrentCapabilities` and any call sites; Transmission-only.
-
-export const zSystemAutorunStatus = z.object({
-    enabled: z.boolean(),
-    supported: z.boolean(),
-    requiresElevation: z.boolean(),
-});
-
-export const zSystemHandlerStatus = z.object({
-    registered: z.boolean(),
-    supported: z.boolean(),
-    requiresElevation: z.boolean(),
-    magnetRegistered: z.boolean().optional(),
-    torrentRegistered: z.boolean().optional(),
-});
-// TODO: These “system-*” schemas belong to the ShellAgent/ShellExtensions adapter boundary, not the Transmission RPC boundary.
-// TODO: After removing RPC extensions, either move these schemas to a `src/app/host/*` module (IPC responses) or delete them if unused.
-
-export const getSystemAutorunStatus = (payload: unknown): AutorunStatus => {
-    try {
-        return zSystemAutorunStatus.parse(payload);
-    } catch (error) {
-        logValidationIssue("getSystemAutorunStatus", payload, error);
-        throw error;
-    }
-};
-
-export const getSystemHandlerStatus = (
-    payload: unknown
-): SystemHandlerStatus => {
-    try {
-        return zSystemHandlerStatus.parse(payload);
-    } catch (error) {
-        logValidationIssue("getSystemHandlerStatus", payload, error);
-        throw error;
-    }
-};
-
 // --- Exposed Zod schemas for strict parsing in RPC layer ---
 export const zTransmissionTorrentArray = zTorrentListResponse.transform(
     (v) => v.torrents
@@ -623,37 +541,8 @@ export const zSessionStats = zSessionStatsRaw.transform((raw) =>
     normalizeSessionStats(raw)
 );
 
-export const zTinyTorrentCapabilitiesNormalized =
-    zTinyTorrentCapabilities.transform((parsed) => ({
-        version: parsed.version,
-        serverVersion: parsed["server-version"],
-        rpcVersion: parsed["rpc-version"],
-        websocketEndpoint:
-            parsed["websocket-endpoint"] ?? parsed["websocket-path"],
-        websocketPath: parsed["websocket-path"] ?? parsed["websocket-endpoint"],
-        platform: parsed.platform,
-        features: parsed.features,
-        serverClass: parsed["server-class"],
-    }));
-// TODO: Delete `zTinyTorrentCapabilitiesNormalized` once RPC extensions are removed.
-
 export const zTransmissionTorrentRenameResult = z.object({
     id: z.number(),
     name: z.string(),
     path: z.string(),
 });
-
-export const zSystemInstallResult = z.object({
-    action: z.string(),
-    success: z.boolean(),
-    permissionDenied: z.boolean().optional(),
-    message: z.string().optional(),
-    shortcuts: z.record(z.string(), z.unknown()).optional(),
-    installSuccess: z.boolean().optional(),
-    installMessage: z.string().optional(),
-    installedPath: z.string().optional(),
-    handlersRegistered: z.boolean().optional(),
-    handlerMessage: z.string().optional(),
-});
-// TODO: This schema is not part of Transmission RPC. In the final architecture, “system-install” belongs to ShellAgent IPC.
-// TODO: After removing RPC extensions, either delete `zSystemInstallResult` or move it into the ShellAgent adapter module alongside the IPC request/response types.

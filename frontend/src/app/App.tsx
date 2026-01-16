@@ -43,6 +43,7 @@ import { useTorrentOrchestrator } from "./orchestrators/useTorrentOrchestrator";
 import { createTorrentDispatch } from "./actions/torrentDispatch";
 import { LifecycleProvider } from "@/app/context/LifecycleContext";
 import type { EngineDisplayType } from "./components/layout/StatusBar";
+import { UiModeProvider } from "@/app/context/UiModeContext";
 import type {
     CapabilityKey,
     CapabilityState,
@@ -246,6 +247,7 @@ function AppContent({
         performUIActionDelete,
         connectionMode,
         canOpenFolder,
+        uiMode,
     } = orchestrator;
     useEffect(() => {
         if (!probeMissingFilesIfStale) return;
@@ -335,17 +337,12 @@ function AppContent({
 
     // -- Engine Display --
     const engineType = useMemo<EngineDisplayType>(() => {
-        // TODO: Replace `engineType/serverClass/connectionMode` with `uiMode = "Full" | "Rpc"` (Single source of truth).
-        // TODO: UI label policy:
-        // TODO: - `uiMode=Full` => show “TinyTorrent” (full ShellExtensions available)
-        // TODO: - `uiMode=Rpc`  => show “Transmission” (RPC-only)
-        // TODO: This must not imply a different daemon/protocol; both modes talk to Transmission RPC. `uiMode` is a UI bridge/capability tier only.
-        if (serverClass === "tinytorrent") return "tinytorrent";
-        if (serverClass === "transmission") return "transmission";
+        if (uiMode === "Full") return "tinytorrent";
+        if (uiMode === "Rpc") return "transmission";
         if (engineInfo?.type === "libtorrent") return "tinytorrent";
         if (engineInfo?.type === "transmission") return "transmission";
         return "unknown";
-    }, [engineInfo, serverClass]);
+    }, [engineInfo, uiMode]);
 
     // -- Workflow & Actions --
     // Safe to use here because AppContent is wrapped in TorrentActionsProvider
@@ -743,6 +740,7 @@ function AppContent({
                     serverClass,
                     connectionMode,
                     canOpenFolder,
+                    uiMode,
                     handleRetry: handleRecoveryRetry,
                     handleDownloadMissing,
                     handleSetLocation,
@@ -776,8 +774,8 @@ function AppContent({
                     detailData={detailData}
                     closeDetail={handleCloseDetail}
                     handleFileSelectionChange={handleFileSelectionChange}
-                    sequentialToggleHandler={handleSequentialToggle}
-                    superSeedingToggleHandler={handleSuperSeedingToggle}
+                    sequentialToggleHandler={sequentialToggleHandler}
+                    superSeedingToggleHandler={superSeedingToggleHandler}
                     capabilities={capabilities}
                     optimisticStatuses={optimisticStatuses}
                     peerSortStrategy={peerSortStrategy}
@@ -1098,48 +1096,50 @@ export default function App() {
     );
 
     return (
-        <UIActionGateProvider>
-            <FocusProvider>
-                <LifecycleProvider>
-                    <TorrentActionsProvider actions={actions}>
-                        <SelectionProvider>
-                            <AppContent
-                                t={t}
-                                torrentClient={torrentClient}
-                                rpcStatus={rpcStatus}
-                                engineInfo={engineInfo}
-                                isDetectingEngine={isDetectingEngine}
-                                sessionStats={sessionStats}
-                                liveTransportStatus={liveTransportStatus}
-                                torrents={torrents}
-                                ghostTorrents={ghostTorrents}
-                                isInitialLoadFinished={isInitialLoadFinished}
-                                refreshTorrents={refreshTorrents}
-                                refreshDetailData={refreshDetailData}
-                                detailData={detailData}
-                                loadDetail={loadDetail}
-                                clearDetail={clearDetail}
-                                mutateDetail={mutateDetail}
-                                updateCapabilityState={updateCapabilityState}
-                                settingsFlow={settingsFlow}
-                                torrentClientRef={torrentClientRef}
-                                refreshTorrentsRef={refreshTorrentsRef}
-                                refreshSessionStatsDataRef={
-                                    refreshSessionStatsDataRef
-                                }
-                                openSettings={openSettings}
-                                isSettingsOpen={isSettingsOpen}
-                                closeSettings={closeSettings}
-                                announceAction={announceAction}
-                                showFeedback={showFeedback}
-                                reportCommandError={reportCommandError}
-                                capabilities={capabilities}
-                                handleReconnect={handleReconnect}
-                            />
-                        </SelectionProvider>
-                    </TorrentActionsProvider>
-                </LifecycleProvider>
-            </FocusProvider>
-        </UIActionGateProvider>
+        <UiModeProvider>
+            <UIActionGateProvider>
+                <FocusProvider>
+                    <LifecycleProvider>
+                        <TorrentActionsProvider actions={actions}>
+                            <SelectionProvider>
+                                <AppContent
+                                    t={t}
+                                    torrentClient={torrentClient}
+                                    rpcStatus={rpcStatus}
+                                    engineInfo={engineInfo}
+                                    isDetectingEngine={isDetectingEngine}
+                                    sessionStats={sessionStats}
+                                    liveTransportStatus={liveTransportStatus}
+                                    torrents={torrents}
+                                    ghostTorrents={ghostTorrents}
+                                    isInitialLoadFinished={isInitialLoadFinished}
+                                    refreshTorrents={refreshTorrents}
+                                    refreshDetailData={refreshDetailData}
+                                    detailData={detailData}
+                                    loadDetail={loadDetail}
+                                    clearDetail={clearDetail}
+                                    mutateDetail={mutateDetail}
+                                    updateCapabilityState={updateCapabilityState}
+                                    settingsFlow={settingsFlow}
+                                    torrentClientRef={torrentClientRef}
+                                    refreshTorrentsRef={refreshTorrentsRef}
+                                    refreshSessionStatsDataRef={
+                                        refreshSessionStatsDataRef
+                                    }
+                                    openSettings={openSettings}
+                                    isSettingsOpen={isSettingsOpen}
+                                    closeSettings={closeSettings}
+                                    announceAction={announceAction}
+                                    showFeedback={showFeedback}
+                                    reportCommandError={reportCommandError}
+                                    capabilities={capabilities}
+                                    handleReconnect={handleReconnect}
+                                />
+                            </SelectionProvider>
+                        </TorrentActionsProvider>
+                    </LifecycleProvider>
+                </FocusProvider>
+            </UIActionGateProvider>
+        </UiModeProvider>
     );
 }

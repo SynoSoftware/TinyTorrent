@@ -8,7 +8,7 @@ import {
 } from "react";
 import type { ReactNode } from "react";
 import { CONFIG } from "@/config/logic";
-import Runtime, { NativeShell } from "@/app/runtime";
+import Runtime from "@/app/runtime";
 
 type ConnectionScheme = "http" | "https";
 

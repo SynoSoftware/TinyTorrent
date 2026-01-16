@@ -8,10 +8,11 @@ import { X } from "lucide-react";
 import { STATUS } from "@/shared/status";
 import type { ConnectionStatus } from "@/shared/types/rpc";
 
-import Runtime, { NativeShell } from "@/app/runtime";
+import Runtime from "@/app/runtime";
 import { useLifecycle } from "@/app/context/LifecycleContext";
 import { useSelection } from "@/app/context/SelectionContext";
 import { useTorrentCommands } from "@/app/context/TorrentCommandContext";
+import { useShellAgent } from "@/app/hooks/useShellAgent";
 
 import { Dashboard_Layout } from "@/modules/dashboard/components/Dashboard_Layout";
 import { SettingsModal } from "@/modules/settings/components/SettingsModal";
@@ -218,6 +219,7 @@ export function WorkspaceShell({
     } = useLifecycle();
     // TODO: Stop consuming `serverClass` here. Once the app is Transmission-only, all engine-specific UX should be removed and any host-backed features should come from a single capability provider.
     const { t } = useTranslation();
+    const { shellAgent } = useShellAgent();
     const { selectedIds } = useSelection();
     const { handleBulkAction, openAddTorrentPicker, openAddMagnet } =
         useTorrentCommands();
@@ -240,15 +242,14 @@ export function WorkspaceShell({
     }, [handleBulkAction]);
     const handleWindowCommand = useCallback(
         (command: "minimize" | "maximize" | "close") => {
-            if (!Runtime.isNativeHost) {
+            if (!shellAgent.isAvailable) {
                 return;
             }
-            void NativeShell.sendWindowCommand(command);
+            void shellAgent.sendWindowCommand(command);
         },
-        []
+        [shellAgent]
     );
-    // TODO: Route window commands through the ShellAgent/ShellExtensions adapter instead of calling `NativeShell` directly.
-    // TODO: Locality rule: window commands are host-only (they must never be exposed when running the UI against a remote daemon).
+    // Window commands are routed through ShellAgent so locality rules are already enforced.
     const isNativeHost = Runtime.isNativeHost;
     const isImmersiveShell = workspaceStyle === "immersive";
 
