@@ -6,6 +6,11 @@
 export type ThemeMode = "dark" | "light";
 
 const STORAGE_KEY = "tiny-torrent-theme";
+// TODO: Centralize user preferences (theme, language, workbench scale, table layout, etc.) behind a Preferences provider (see todo.md task 15).
+// TODO: This module should be the implementation detail of that provider:
+// TODO: - avoid scattered localStorage keys across unrelated files
+// TODO: - make migrations/versioning explicit
+// TODO: - keep behavior consistent across Browser vs WebView host runtimes
 
 export function getSystemTheme(): ThemeMode {
     if (typeof window === "undefined") return "dark";

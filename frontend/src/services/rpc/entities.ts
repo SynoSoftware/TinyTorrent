@@ -233,6 +233,9 @@ export interface SystemHandlerStatus {
 }
 
 export type ServerClass = "tinytorrent" | "transmission" | "unknown";
+// TODO: Deprecate `ServerClass` as a UX-driving concept. With “RPC extensions: NONE”, all servers speak Transmission RPC.
+// TODO: If retained temporarily, `ServerClass` must be treated as diagnostics-only (logging/debug panels), not as a feature/capability switch.
+// TODO: Any "Full vs Rpc UI" behavior must be expressed via `uiMode = "Full" | "Rpc"` derived locally (endpoint host + ShellAgent/ShellExtensions availability), not via a server-reported class.
 
 export interface TinyTorrentCapabilities {
     version?: string;
@@ -244,6 +247,8 @@ export interface TinyTorrentCapabilities {
     features: string[];
     serverClass?: ServerClass;
 }
+// TODO: Delete `TinyTorrentCapabilities` and all websocket fields (`websocketEndpoint`, `websocketPath`) after removing RPC-extended support.
+// TODO: Do not replace with another daemon-side capability probe; Transmission RPC is the contract and host integration is exposed via the ShellAgent/ShellExtensions adapter (local-only).
 
 export interface NetworkTelemetry {
     dhtEnabled?: boolean;

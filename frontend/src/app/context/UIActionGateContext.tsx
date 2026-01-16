@@ -21,6 +21,7 @@ const UIActionGateReadContext = createContext<UIActionGateReadValue | null>(
 );
 const UIActionGateControllerContext =
     createContext<UIActionGateControllerValue | null>(null);
+// TODO: Fold this gate into the orchestrator/view-model layer (with recovery/selection) to avoid a separate context for removed state.
 
 export function UIActionGateProvider({ children }: { children: ReactNode }) {
     const [removedIds, setRemovedIds] = useState<Set<string>>(() => new Set());

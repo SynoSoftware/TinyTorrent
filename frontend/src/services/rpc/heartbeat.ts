@@ -13,6 +13,9 @@ import STATUS from "@/shared/status";
 export type HeartbeatMode = "background" | "table" | "detail";
 
 export type HeartbeatSource = "polling" | "websocket" | "websocket-telemetry";
+// TODO: Drop WebSocket-related heartbeat sources (`websocket`, `websocket-telemetry`) now that “RPC extensions: NONE”.
+// TODO: After removal, HeartbeatSource should be `polling` only, and any UI labels/metrics derived from websocket transport should be deleted.
+// TODO: Keep a single authoritative polling scheduler (HeartbeatManager) and make it the only source of session/torrent “freshness” signals.
 
 export interface HeartbeatPayload {
     torrents: TorrentEntity[];
@@ -80,6 +83,8 @@ const RECENT_REMOVED_TTL_MS = 30_000; // ms
 const RESYNC_MIN_INTERVAL_MS = 10_000; // avoid repeated resyncs
 
 export class HeartbeatManager {
+    // TODO: Service boundary: HeartbeatManager is an infra/service layer.
+    // TODO: UI components must never instantiate or schedule their own polling; expose a single session/telemetry provider that subscribes once and publishes `SessionState` (rpcStatus/sessionStats/uiMode).
     private readonly subscribers = new Map<symbol, HeartbeatSubscriber>();
     private timerId?: number;
     private isRunning = false;
@@ -427,6 +432,7 @@ export class HeartbeatManager {
         const timestampMs = payload.timestampMs ?? Date.now();
         payload.timestampMs = timestampMs;
         this.lastSource = payload.source ?? "websocket";
+        // TODO: With “RPC extensions: NONE”, remove all websocket sources. After removal, default source must never be `"websocket"`; it should be `"polling"` (or omitted).
         const prev = this.lastTorrents;
         this.lastTorrents = payload.torrents;
         this.pruneDetailCache(payload.torrents);
@@ -491,6 +497,7 @@ export class HeartbeatManager {
         this.pollingEnabled = false;
         this.clearTimer();
         this.setTransportSource("websocket");
+        // TODO: Delete `disablePolling` (or rename/repurpose) once websocket transport is removed. Polling should always be enabled when there are subscribers.
         console.log(
             `[tiny-torrent][heartbeat] disablePolling (subscribers=${this.subscribers.size})`
         );

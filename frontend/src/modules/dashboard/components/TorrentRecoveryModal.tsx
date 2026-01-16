@@ -67,6 +67,9 @@ export interface TorrentRecoveryModalProps {
     onAutoRetry?: () => Promise<void>;
     isBusy?: boolean;
 }
+// TODO: ViewModel boundary: TorrentRecoveryModal should be a pure View driven by a single RecoveryViewModel output.
+// TODO: Delete local classification (`classifyMissingFilesState`) and any dependence on `serverClass/connectionMode`.
+// TODO: This modal should render solely from recovery gate outputs (state + confidence + recommendedActions + uiMode=Full|Rpc) so UX is consistent across table/header/menu surfaces.
 
 const resolveOutcomeMessage = (
     outcome: RecoveryOutcome | null,
@@ -100,6 +103,8 @@ export default function TorrentRecoveryModal({
         getLocationOutcome,
         connectionMode,
     } = useRecoveryContext();
+    // TODO: Consume recovery gate outputs (state + confidence) directly to drive copy/actions; avoid reclassifying in the modal. Keep modal sequencing delegated to the single recovery controller.
+    // TODO: Replace `connectionMode` usage here with `uiMode = "Full" | "Rpc"`; set-location messages should not mention tinytorrent-local-shell vs remote.
     const currentTorrentKey = getTorrentKey(torrent);
     const setLocationOutcomeMessage = getSetLocationOutcomeMessage(
         getLocationOutcome("recovery-modal", currentTorrentKey),
@@ -121,6 +126,7 @@ export default function TorrentRecoveryModal({
             { torrentId: torrent.id ?? torrent.hash }
         );
     }, [torrent, downloadDir, serverClass]);
+    // TODO: Remove local reclassification once the recovery gate exposes state/confidence; the modal should render from gate data, not re-run classifyMissingFilesState.
 
     const shouldRender =
         Boolean(classification) && classification?.kind !== "dataGap" && isOpen;

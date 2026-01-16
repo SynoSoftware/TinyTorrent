@@ -6,6 +6,9 @@ import { TorrentIntents } from "@/app/intents/torrentIntents";
 
 export function useTorrentActions() {
     const { dispatch } = useRequiredTorrentActions();
+    // TODO: This hook duplicates action mapping that exists in `src/app/App.tsx` and orchestrator paths.
+    // TODO: Choose a single authority for mapping `TorrentTableAction -> TorrentIntents` and reuse it everywhere (ViewModel/action service), so changes don't regress one surface but not others.
+    // TODO: Return typed outcomes so callers can render consistent feedback without re-implementing toast logic in multiple places.
 
     const handleTorrentAction = useCallback(
         async (

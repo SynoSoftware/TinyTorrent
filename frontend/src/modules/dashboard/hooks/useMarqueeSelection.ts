@@ -3,6 +3,11 @@ import type { Row } from "@tanstack/react-table";
 
 type MarqueeRect = { left: number; top: number; width: number; height: number };
 
+// TODO: Keep marquee selection logic isolated and deterministic.
+// TODO: - This hook installs DOM event listeners; ensure lifecycle cleanup is correct and avoid adding additional global listeners elsewhere.
+// TODO: - Prefer to call this only from a single table view-model (todo.md task 13) so selection policy has one owner.
+// TODO: - If marquee needs to interact with keyboard focus/selection context, define explicit inputs/outputs (no hidden coupling).
+
 interface UseMarqueeParams<TRow> {
     parentRef: React.RefObject<HTMLElement | null>;
     rowHeight: number;

@@ -17,6 +17,16 @@ import type {
 import { buildErrorEnvelope } from "./recovery";
 import STATUS, { type TorrentStatus } from "@/shared/status";
 
+// TODO: Normalizers are a critical “single authority” boundary: they translate Transmission RPC payloads into app entities.
+// TODO: Keep them deterministic and Transmission-only:
+// TODO: - Do not add TinyTorrent RPC extension branches here (no `tt-get-capabilities`, no websocket deltas).
+// TODO: - Do not infer `uiMode`/ShellExtensions availability here; that is a UI runtime concern.
+// TODO: - Avoid UI heuristics creeping in (formatting strings, toasts, UI status labels). Output typed, stable entities only.
+// TODO: If additional derived fields are needed, document:
+// TODO: - input fields required from Transmission
+// TODO: - invariants (e.g., which states can occur)
+// TODO: - test cases (to prevent regressions when AI edits this layer).
+
 const STATUS_MAP: Record<number, TorrentStatus> = {
     0: STATUS.torrent.PAUSED,
     1: STATUS.torrent.CHECKING,
@@ -67,6 +77,11 @@ type VerifyStateEntry = {
 };
 
 const verifyStateMap = new Map<string, VerifyStateEntry>();
+// TODO: Review/contain global mutable caches. `verifyStateMap` is module-global state that can persist across mounts/navigation.
+// TODO: Decide on an explicit owner for “recent verify completion / stall grace”:
+// TODO: - Either make this fully stateless (preferred) using Transmission fields only, or
+// TODO: - Move stateful tracking into a dedicated session/view-model store that can be reset deterministically.
+// TODO: Hidden module-level state is a frequent source of AI regressions because it is easy to miss during edits.
 
 const isCheckingStatusNum = (statusNum: unknown) =>
     statusNum === 1 || statusNum === 2;

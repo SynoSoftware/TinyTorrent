@@ -546,6 +546,8 @@ const CombinedChart = ({
 /* -------------------------------------------------------------------------- */
 
 const STORAGE_KEY = "speed_chart_layout_pref";
+// TODO: Move this preference behind the Preferences provider (see `todo.md` task 15) so localStorage access is centralized and the key is versioned/migrated consistently.
+// TODO: Clarify ownership: this component is a View for rendering history; it should not become a second telemetry source (no extra polling/heartbeat beyond the shared session provider).
 
 export const SpeedChart = ({
     downHistory,

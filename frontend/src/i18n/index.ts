@@ -5,6 +5,14 @@ import en from "./en.json";
 
 const STORAGE_KEY = "tiny-torrent-language";
 const FALLBACK_LANGUAGE = "en";
+// TODO: Preferences authority: language selection should be owned by the Preferences provider (todo.md task 15).
+// TODO: Avoid duplicated language persistence logic across:
+// TODO: - `src/i18n/index.ts` (initialization)
+// TODO: - `src/shared/ui/controls/LanguageMenu.tsx` (UI selection)
+// TODO: Standardize:
+// TODO: - supported codes
+// TODO: - “system” behavior
+// TODO: - storage key + migration behavior
 
 const resolveNavigatorLang = () => {
     if (typeof navigator === "undefined") return FALLBACK_LANGUAGE;

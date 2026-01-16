@@ -10,6 +10,10 @@ interface InterfaceTabContentProps {
     onToggleWorkspaceStyle?: () => void;
     hasDismissedInsights: boolean;
 }
+// TODO: Keep InterfaceTabContent presentational and preference-driven:
+// TODO: - Theme/language/workspace style/table watermark are UI-only preferences and must be sourced from the Preferences provider (todo.md task 15).
+// TODO: - This component should not own any local persistence logic; it should render from `config` + `buttonActions` coming from SettingsFormContext.
+// TODO: - Reduce props (isImmersive/onToggleWorkspaceStyle/hasDismissedInsights) by folding them into a `SettingsUiViewModel`.
 
 export function InterfaceTabContent({
     isImmersive,

@@ -14,6 +14,11 @@ import {
     DEFAULT_PROFILE_ID,
 } from "@/app/context/ConnectionConfigContext";
 import { useLifecycle } from "@/app/context/LifecycleContext";
+// TODO: Remove `token` and ServerType/serverClass UI. With “RPC extensions: NONE”, connection manager should manage only:
+// TODO: - Transmission endpoint (host/port/scheme/path)
+// TODO: - Transmission Basic Auth (username/password)
+// TODO: Host-backed UI features are NOT a different server type; they are a locality-derived capability (localhost + ShellAgent/ShellExtensions available).
+// TODO: The “TinyTorrent server” label must be removed from this UX to avoid implying a different daemon protocol.
 
 interface ConnectionManagerProps {
     onReconnect: () => void;
@@ -55,13 +60,16 @@ function useConnectionManagerState(): ConnectionManagerState {
         isOffline: rpcStatus === STATUS.connection.ERROR,
     };
 }
+// TODO: Remove `token` from ConnectionProfile update shape once TT tokens are removed.
 
 type ServerType = "tinytorrent" | "transmission" | null;
+// TODO: Delete ServerType entirely. The daemon is Transmission. “TinyTorrent” is the app product name and/or ShellExtensions availability (uiMode), not a server type.
 
 const SERVER_TYPE_LABELS: Record<string, string> = {
     tinytorrent: "settings.connection.server_type_tinytorrent",
     transmission: "settings.connection.server_type_transmission",
 };
+// TODO: Remove `server_type_tinytorrent` label usage. Replace with a “ShellExtensions available (local only)” indicator sourced from the capability/locality provider.
 
 export function ConnectionCredentialsCard({
     onReconnect,
@@ -92,6 +100,10 @@ export function ConnectionCredentialsCard({
         if (serverClass === "tinytorrent") return "tinytorrent";
         return "transmission";
     }, [rpcStatus, serverClass]);
+    // TODO: Replace `serverType/serverClass` with `uiMode = Full | Rpc` from the Session+UiMode provider:
+    // TODO: - `uiMode=Full` => show “TinyTorrent” (full ShellExtensions available)
+    // TODO: - `uiMode=Rpc`  => show “Transmission” (RPC-only)
+    // TODO: Remove `ServerType` and any “TinyTorrent server” wording from this UX once uiMode exists.
 
     const serverTypeLabel = useMemo(() => {
         if (!serverType) return null;
@@ -338,6 +350,7 @@ export function ConnectionCredentialsCard({
                         )}
                     </p>
                 )}
+                {/* TODO: Remove the inline English fallback string passed to `t(...)`. Add/maintain a proper key in `src/i18n/en.json` (per i18n rules). */}
             </div>
         </div>
     );
@@ -346,6 +359,8 @@ export function ConnectionCredentialsCard({
 interface ConnectionExtensionCardProps {
     serverClass: ServerClass;
 }
+// TODO: Delete ConnectionExtensionCard entirely. The “extension/native mode” concept is replaced by `uiMode = Full | Rpc`.
+// TODO: This card is a major source of confusion because it implies daemon protocol differences; keep only a “UI Mode” indicator derived from locality + ShellAgent bridge.
 
 export function ConnectionExtensionCard({
     serverClass,
@@ -362,6 +377,9 @@ export function ConnectionExtensionCard({
         }
         return "settings.connection.transmission_mode_label";
     }, [rpcStatus, serverClass]);
+    // TODO: Replace `serverClass` branching with `uiMode`:
+    // TODO: - Full => `settings.connection.ui_mode_full_label` (new key)
+    // TODO: - Rpc  => `settings.connection.ui_mode_rpc_label`  (new key)
 
     const modeDescriptionKey = useMemo(() => {
         if (rpcStatus !== STATUS.connection.CONNECTED) {
@@ -372,6 +390,7 @@ export function ConnectionExtensionCard({
         }
         return "settings.connection.transmission_mode_summary";
     }, [rpcStatus, serverClass]);
+    // TODO: Replace these summary keys with uiMode equivalents and delete the old “native mode” copy tied to serverClass.
 
     return (
         <div className="space-y-tight">

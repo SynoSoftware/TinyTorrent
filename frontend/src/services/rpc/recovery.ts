@@ -6,6 +6,13 @@ import type {
     ErrorEnvelope,
     EngineCapabilities,
 } from "./entities";
+// TODO: Keep this module Transmission-only and deterministic.
+// TODO: This is a low-level “engine truth -> error envelope” projection and must not contain:
+// TODO: - UI mode / ShellExtensions gating (that is `uiMode = "Full" | "Rpc"` at the UI layer)
+// TODO: - RPC-extended concepts (tt-get-capabilities / websocket) now that “RPC extensions: NONE” is the architecture.
+// TODO: Logging: standardize prefixes to “Transmission RPC” and avoid “tiny-torrent” wording once legacy paths are removed (todo.md task 1/8).
+// TODO: Long-term: UI should render from recovery gate outputs; this envelope should remain a pure input to the controller/gate.
+
 // Lightweight deterministic fingerprint (FNV-1a) for stable keys.
 const fnv1a = (value: string) => {
     let h = 2166136261 >>> 0;
@@ -26,6 +33,8 @@ export const buildErrorEnvelope = (
     detail?: TransmissionTorrentDetail,
     capabilities?: EngineCapabilities
 ): ErrorEnvelope => {
+    // TODO: Ensure this function stays pure: given the same inputs, emit the same envelope (no Date.now(), no random, no hidden module state).
+    // TODO: If we need “time-based grace” (e.g., post-verify stall grace), it must be derived from Transmission fields (activityDate/addedDate) or owned by a higher-level view-model store.
     const msg =
         typeof torrent.errorString === "string" && torrent.errorString.trim()
             ? torrent.errorString.trim()
