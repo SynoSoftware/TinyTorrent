@@ -25,7 +25,7 @@ import { SettingsFormBuilder } from "@/modules/settings/components/SettingsFormB
 import { ConnectionTabContent } from "@/modules/settings/components/tabs/connection/ConnectionTabContent";
 import { SystemTabContent } from "@/modules/settings/components/tabs/system/SystemTabContent";
 import { SettingsFormProvider } from "@/modules/settings/context/SettingsFormContext";
-import { NativeShell } from "@/app/runtime";
+import { useShellAgent } from "@/app/hooks/useShellAgent";
 import { GLASS_MODAL_SURFACE } from "@/shared/ui/layout/glass-surface";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
 import type { ServerClass } from "@/services/rpc/entities";

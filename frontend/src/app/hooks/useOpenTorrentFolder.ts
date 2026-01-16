@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { useActionFeedback } from "@/app/hooks/useActionFeedback";
 import { useRecoveryContext } from "@/app/context/RecoveryContext";
-import { NativeShell } from "@/app/runtime";
+import { useShellAgent } from "@/app/hooks/useShellAgent";
 
 function normalizePath(value: string) {
     return value.replace(/[\\/]+$/, "");
@@ -34,15 +34,12 @@ function getDriveRoot(value: string) {
 
 export function useOpenTorrentFolder() {
     const { showFeedback } = useActionFeedback();
-    const { connectionMode } = useRecoveryContext();
+    const { shellAgent } = useShellAgent();
     const { t } = useTranslation();
     return useCallback(
         async (path?: string | null) => {
             if (!path) return;
-            const canOpen =
-                connectionMode === "tinytorrent-local-shell" &&
-                NativeShell.isAvailable;
-            if (!canOpen) {
+            if (!shellAgent.isAvailable) {
                 showFeedback(
                     t("recovery.feedback.open_remote_folder"),
                     "warning"
@@ -59,7 +56,7 @@ export function useOpenTorrentFolder() {
             for (const target of attempts) {
                 if (!target) continue;
                 try {
-                    await NativeShell.openPath(target);
+                    await shellAgent.openPath(target);
                     if (target !== path) {
                         showFeedback(
                             t("recovery.feedback.folder_parent_opened"),
@@ -79,6 +76,6 @@ export function useOpenTorrentFolder() {
                 "warning"
             );
         },
-        [showFeedback, t]
+        [showFeedback, shellAgent, t]
     );
 }

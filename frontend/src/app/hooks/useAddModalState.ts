@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useDropzone } from "react-dropzone";
 
-import { NativeShell } from "@/app/runtime";
+import { useShellAgent } from "@/app/hooks/useShellAgent";
 import { normalizeMagnetLink } from "@/app/utils/magnet";
 
 interface UseAddModalStateParams {
@@ -14,6 +14,7 @@ export function useAddModalState({
     onOpenAddTorrentFromFile,
 }: UseAddModalStateParams) {
     const deepLinkHandledRef = useRef(false);
+    const { shellAgent } = useShellAgent();
 
     const onDrop = useCallback(
         (acceptedFiles: File[]) => {
@@ -49,9 +50,9 @@ export function useAddModalState({
             deepLinkHandledRef.current = true;
             onOpenAddMagnet(normalized);
         };
-        const cleanup = NativeShell.onEvent("magnet-link", handleMagnetEvent);
+        const cleanup = shellAgent.onMagnetLink(handleMagnetEvent);
         return cleanup;
-    }, [onOpenAddMagnet]);
+    }, [onOpenAddMagnet, shellAgent]);
 
     return {
         getRootProps,
