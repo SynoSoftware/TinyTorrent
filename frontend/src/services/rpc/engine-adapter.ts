@@ -5,9 +5,6 @@ import type {
     AddTorrentPayload,
     AddTorrentResult,
     SessionStats,
-    TinyTorrentCapabilities,
-    AutorunStatus,
-    SystemHandlerStatus,
     ServerClass,
 } from "./entities";
 // TODO: Remove `TinyTorrentCapabilities` once RPC extensions are removed; Transmission RPC is the only daemon contract.
@@ -15,8 +12,6 @@ import type {
 import type {
     TransmissionSessionSettings,
     TransmissionFreeSpace,
-    SystemInstallOptions,
-    SystemInstallResult,
 } from "./types";
 import type {
     HeartbeatSubscriberParams,
@@ -65,24 +60,10 @@ export interface EngineAdapter {
     setSuperSeeding?(id: string, enabled: boolean): Promise<void>;
     forceTrackerReannounce?(id: string): Promise<void>;
     detectEngine?(): Promise<EngineInfo>;
-    getExtendedCapabilities?(
-        force?: boolean
-    ): Promise<TinyTorrentCapabilities | null>;
-    // TODO: Remove `getExtendedCapabilities` entirely (no `tt-get-capabilities` handshake).
     updateRequestTimeout?(timeout: number): void;
     subscribeToHeartbeat(
         params: HeartbeatSubscriberParams
     ): HeartbeatSubscription;
-    openPath?(path: string): Promise<void>;
-    // TODO: Remove `openPath` from EngineAdapter; opening paths is ShellAgent/ShellExtensions responsibility (IPC), not daemon RPC.
-    systemInstall?(options: SystemInstallOptions): Promise<SystemInstallResult>;
-    getSystemAutorunStatus?(): Promise<AutorunStatus>;
-    systemAutorunEnable?(scope?: string): Promise<void>;
-    systemAutorunDisable?(): Promise<void>;
-    getSystemHandlerStatus?(): Promise<SystemHandlerStatus>;
-    systemHandlerEnable?(): Promise<void>;
-    systemHandlerDisable?(): Promise<void>;
-    // TODO: Remove `system*` methods from EngineAdapter; these are host integration features and should live behind the ShellAgent/ShellExtensions adapter boundary.
     createDirectory?(path: string): Promise<void>;
     // TODO: Remove `createDirectory` from EngineAdapter. Directory creation is a host filesystem operation and must be handled by ShellAgent (local-only) rather than daemon RPC.
     getSpeedHistory?(id: string): Promise<{ down: number[]; up: number[] }>;

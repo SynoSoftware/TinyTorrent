@@ -21,7 +21,7 @@ type NativeShellResponseMessage = {
     error?: string;
 };
 
-export type NativeShellEventName = "magnet-link" | "auth-token";
+export type NativeShellEventName = "magnet-link";
 
 type NativeShellEventMessage = {
     type: "event";
@@ -199,13 +199,6 @@ export const NativeShell = {
         const response = await sendBridgeRequest("open-file-dialog");
         return extractPathFromResponse(response);
     },
-    async checkFreeSpace(path: string): Promise<TransmissionFreeSpace> {
-        const response = await sendBridgeRequest("check-free-space", { path });
-        if (!response || typeof response !== "object") {
-            throw new Error("Invalid free space response");
-        }
-        return response as TransmissionFreeSpace;
-    },
     async openPath(path: string) {
         await sendBridgeRequest("open-path", { path });
     },
@@ -231,9 +224,7 @@ export const NativeShell = {
 // TODO: - Prefer a single `uiMode = "Full" | "Rpc"` published by one provider; UI components should check uiMode, not `NativeShell.isAvailable`.
 // TODO: The adapter must own/centralize all bridge calls/events so review is easy and "random NativeShell usage" cannot spread:
 // TODO: - requests: browse directory, open file dialog, open path, window commands, system integration status/set, persist window state
-// TODO: - events: magnet-link (and explicitly remove/avoid auth-token; Transmission-only)
-// TODO: IMPORTANT: Transmission RPC already supports `free-space`. The UI's `checkFreeSpace` must call the daemon via `EngineAdapter.checkFreeSpace`.
-// TODO: Delete the `check-free-space` bridge request and `NativeShell.checkFreeSpace` once all call sites use the daemon RPC method.
+// TODO: - events: magnet-link (Transmission-only)
 
 export const Runtime = {
     get isNativeHost() {

@@ -11,11 +11,12 @@ import {
 import type { ChipProps } from "@heroui/react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { NativeShell } from "@/app/runtime";
 import { useAsyncToggle } from "@/modules/settings/hooks/useAsyncToggle";
 import { useSettingsForm } from "@/modules/settings/context/SettingsFormContext";
 import type { ReactNode } from "react";
 import { SettingsSection } from "@/modules/settings/components/SettingsSection";
+import { useShellAgent } from "@/app/hooks/useShellAgent";
+import { useUiModeCapabilities } from "@/app/context/UiModeContext";
 // TODO: Replace direct NativeShell system-integration calls with the ShellAgent/ShellExtensions adapter; enforce locality rules (only when connected to localhost) and render a clear “ShellExtensions unavailable” state for remote/browser connections.
 // TODO: IMPORTANT: This file should NOT *determine* locality/ShellExtensions availability. It should *consume* a single capability/locality source of truth (context/provider).
 // TODO: Gating rule for these controls is `uiMode === "Full"` (single source of truth). `uiMode` must be computed once from:
@@ -179,6 +180,8 @@ interface SystemTabContentProps {
 export function SystemTabContent({ isNativeMode }: SystemTabContentProps) {
     const { t } = useTranslation();
     const { config, updateConfig } = useSettingsForm();
+    const { shellAgent } = useShellAgent();
+    const { uiMode } = useUiModeCapabilities();
 
     const [powerManagementEnabled, setPowerManagementEnabled] =
         useLocalPreference(POWER_PREF_KEY, DEFAULT_POWER_STATE);
@@ -198,15 +201,17 @@ export function SystemTabContent({ isNativeMode }: SystemTabContentProps) {
     });
     const [integrationLoading, setIntegrationLoading] = useState(true);
     const [associationPending, setAssociationPending] = useState(false);
+    const canUseShell =
+        isNativeMode && uiMode === "Full" && shellAgent.isAvailable;
 
     const refreshIntegration = useCallback(async () => {
-        if (!isNativeMode) {
+        if (!canUseShell) {
             setIntegrationLoading(false);
             return;
         }
         setIntegrationLoading(true);
         try {
-            const status = await NativeShell.getSystemIntegrationStatus();
+            const status = await shellAgent.getSystemIntegrationStatus();
             setIntegrationStatus({
                 autorun: Boolean(status.autorun),
                 associations: Boolean(status.associations),
@@ -216,14 +221,15 @@ export function SystemTabContent({ isNativeMode }: SystemTabContentProps) {
         } finally {
             setIntegrationLoading(false);
         }
-    }, []);
+    }, [canUseShell, shellAgent]);
 
     useEffect(() => {
-        if (!isNativeMode) {
+        if (!canUseShell) {
+            setIntegrationLoading(false);
             return;
         }
         void refreshIntegration();
-    }, [isNativeMode, refreshIntegration]);
+    }, [canUseShell, refreshIntegration]);
 
     const setAutorunState = useCallback((next: boolean) => {
         setIntegrationStatus((prev) => ({ ...prev, autorun: next }));
@@ -233,62 +239,62 @@ export function SystemTabContent({ isNativeMode }: SystemTabContentProps) {
         Boolean(integrationStatus.autorun),
         setAutorunState,
         async (next) => {
-            if (!isNativeMode) {
-                throw new Error("Native shell unavailable");
+            if (!canUseShell) {
+                throw new Error("ShellAgent unavailable");
             }
-            await NativeShell.setSystemIntegration({ autorun: next });
+            await shellAgent.setSystemIntegration({ autorun: next });
             await refreshIntegration();
         }
     );
 
     const handleAssociationAction = useCallback(async () => {
-        if (!isNativeMode) {
+        if (!canUseShell) {
             return;
         }
         setAssociationPending(true);
         try {
-            await NativeShell.setSystemIntegration({ associations: true });
+            await shellAgent.setSystemIntegration({ associations: true });
         } finally {
             setAssociationPending(false);
             await refreshIntegration();
         }
-    }, [refreshIntegration]);
+    }, [canUseShell, refreshIntegration, shellAgent]);
 
     const associationLabel =
-        isNativeMode && !integrationLoading
+        canUseShell && !integrationLoading
             ? integrationStatus.associations
                 ? t("settings.install.handlers_registered")
                 : t("settings.install.handlers_not_registered")
             : t("settings.system.handlers_unknown");
 
     const associationChipColor =
-        isNativeMode && !integrationLoading && integrationStatus.associations
+        canUseShell && !integrationLoading && integrationStatus.associations
             ? "success"
-            : isNativeMode &&
-              !integrationLoading &&
-              !integrationStatus.associations
+            : canUseShell && !integrationLoading
             ? "danger"
             : "default";
 
     const associationButtonLabel =
-        integrationStatus.associations && isNativeMode && !integrationLoading
+        integrationStatus.associations &&
+        canUseShell &&
+        !integrationLoading
             ? t("settings.system.checkAssociation")
             : t("settings.system.repairAssociation");
 
     const autorunLabel =
-        isNativeMode && !integrationLoading
+        canUseShell && !integrationLoading
             ? integrationStatus.autorun
                 ? t("settings.system.autorun_enabled")
                 : t("settings.system.autorun_disabled")
             : t("settings.system.autorun_unknown");
 
     const autorunDisabled =
-        !isNativeMode || integrationLoading || autorunToggle.pending;
+        !canUseShell || integrationLoading || autorunToggle.pending;
 
     const silentStartDisabled =
-        !isNativeMode || integrationLoading || !integrationStatus.autorun;
+        !canUseShell || integrationLoading || !integrationStatus.autorun;
 
-    if (!isNativeMode) {
+    if (!canUseShell) {
         return (
             <SettingsSection
                 title={t("settings.headers.system")}
@@ -322,7 +328,7 @@ export function SystemTabContent({ isNativeMode }: SystemTabContentProps) {
                             onPress={handleAssociationAction}
                             isDisabled={
                                 associationPending ||
-                                !isNativeMode ||
+                                !canUseShell ||
                                 integrationLoading
                             }
                         >

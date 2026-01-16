@@ -47,6 +47,7 @@ import type {
     SetLocationSurface,
 } from "@/app/context/RecoveryContext";
 import { resolveTorrentPath } from "@/modules/dashboard/utils/torrentPaths";
+import { isLoopbackHost } from "@/app/utils/hosts";
 
 const BASE32_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 const MAGNET_INFOHASH_REGEX = /xt=urn:btih:([0-9a-zA-Z]+)/i;
@@ -91,23 +92,6 @@ const extractMagnetInfoHash = (magnetLink: string): string | null => {
 
 const getTorrentKey = (torrent: Torrent | TorrentDetail) =>
     torrent.id?.toString() ?? torrent.hash ?? "";
-
-const normalizeHostValue = (host: string) =>
-    host
-        .trim()
-        .toLowerCase()
-        .replace(/^\[(.*)\]$/, "$1");
-
-const isLoopbackHost = (host: string) => {
-    const normalized = normalizeHostValue(host);
-    if (!normalized) return false;
-    return (
-        normalized === "127.0.0.1" ||
-        normalized === "localhost" ||
-        normalized === "::1" ||
-        normalized === "0:0:0:0:0:0:0:1"
-    );
-};
 
 // --- Types ---
 
@@ -216,12 +200,16 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
             : null;
     const { shellAgent, uiMode } = useShellAgent();
     const transportHost = transportCapabilities?.host ?? "";
-    const [serverClass, setServerClass] = useState<ServerClass>("unknown");
+    const serverClass = client?.getServerClass?.() ?? "unknown";
     // TODO: Deprecate `serverClass` for UX decisions. With “RPC extensions: NONE”, the daemon is Transmission RPC; UX must hinge on `uiMode` (Full|Rpc), not on daemon identity strings.
+    const isLoopbackTransport = useMemo(
+        () => isLoopbackHost(transportHost),
+        [transportHost]
+    );
+    const shellAvailable = shellAgent.isAvailable;
     const hasNativeHostShell = useMemo(
-        () =>
-            uiMode === "Full" && isLoopbackHost(transportHost),
-        [transportHost, uiMode]
+        () => uiMode === "Full" && shellAvailable && isLoopbackTransport,
+        [uiMode, shellAvailable, isLoopbackTransport]
     );
     // TODO: Replace `hasNativeHostShell/serverClass/connectionMode` with `uiMode = "Full" | "Rpc"` derived from:
     // TODO: - endpoint is loopback (localhost) AND ShellAgent/ShellExtensions bridge available => Full
@@ -229,61 +217,28 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
     // TODO: This removes “tinytorrent-*” string branching that confuses maintainers and AI.
     const setLocationCapability = useMemo(
         () => ({
-            canBrowse: Boolean(
-                transportCapabilities?.supportsSetLocation && hasNativeHostShell
-            ),
-            supportsManual: transportCapabilities?.supportsManual ?? true,
+            canBrowse: hasNativeHostShell,
+            supportsManual: true,
         }),
-        [
-            hasNativeHostShell,
-            transportCapabilities?.supportsSetLocation,
-            transportCapabilities?.supportsManual,
-        ]
+        [hasNativeHostShell]
     );
     // TODO: Extract capability derivation (browse/manual/open folder) into a shared helper driven by adapter caps + host (Transmission-first, no serverClass branching); keep UI hooks oblivious to transport logic.
-    const canOpenFolder = Boolean(
-        transportCapabilities?.supportsOpenFolder && hasNativeHostShell
-    );
+    const canOpenFolder = hasNativeHostShell;
     const pendingDeletionHashesRef = useRef<Set<string>>(new Set());
     const recentlyRemovedKeysRef = useRef<Set<string>>(new Set());
     const inlineOwnerRef = useRef<{ surface: SetLocationSurface; torrentKey: string } | null>(
         null
     );
 
-    useEffect(() => {
-        let active = true;
-        if (rpcStatus !== "connected") {
-            if (active) setServerClass("unknown");
-            return () => {
-                active = false;
-            };
-        }
-
-        const updateServerClass = async () => {
-            try {
-                await client?.getExtendedCapabilities?.();
-            } catch {
-                /* ignore */
-            }
-            if (!active) return;
-            setServerClass(client?.getServerClass?.() ?? "unknown");
-        };
-        // TODO: Once RPC extensions are removed, delete this entire “extended capabilities” probe and treat `serverClass` as `transmission` (or remove it entirely).
-        void updateServerClass();
-        return () => {
-            active = false;
-        };
-    }, [rpcStatus, client]);
-
     const connectionMode = useMemo<ConnectionMode>(() => {
-        if (serverClass === "tinytorrent" && hasNativeHostShell) {
+        if (hasNativeHostShell) {
             return "tinytorrent-local-shell";
         }
         if (serverClass === "tinytorrent") {
             return "tinytorrent-remote";
         }
         return "transmission-remote";
-    }, [serverClass, hasNativeHostShell]);
+    }, [hasNativeHostShell, serverClass]);
 
     // --- 2. Settings & Add Torrent Persistence ---
     const [lastDownloadDir, setLastDownloadDir] = useState(() => {
@@ -1473,7 +1428,7 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
         if (!current) return;
         clearDraftForTorrent(current.torrentKey);
         releaseInlineSetLocation();
-    }, [connectionMode, clearDraftForTorrent, releaseInlineSetLocation]);
+    }, [hasNativeHostShell, clearDraftForTorrent, releaseInlineSetLocation]);
     const getLocationOutcome = useCallback(
         (surface: SetLocationSurface, torrentKey: string | null) => {
             const owner = inlineOwnerRef.current;
@@ -1662,6 +1617,7 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
     return {
         serverClass,
         connectionMode,
+        uiMode,
         canOpenFolder,
         lastDownloadDir,
         addSource,
