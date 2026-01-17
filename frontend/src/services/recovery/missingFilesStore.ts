@@ -52,6 +52,12 @@ export function getClassificationOverride(id?: string | number | null) {
     return classificationOverrides.get(id);
 }
 
+export function useMissingFilesClassification(id?: string | number | null) {
+    const subscribeToStore = (listener: Listener) => subscribe(listener);
+    const getSnapshot = () => getClassificationOverride(id);
+    return useSyncExternalStore(subscribeToStore, getSnapshot, getSnapshot);
+}
+
 export function subscribe(listener: Listener) {
     listeners.add(listener);
     return () => listeners.delete(listener);

@@ -17,7 +17,7 @@ import { useShellAgent } from "@/app/hooks/useShellAgent";
 import { Dashboard_Layout } from "@/modules/dashboard/components/Dashboard_Layout";
 import { SettingsModal } from "@/modules/settings/components/SettingsModal";
 import { Navbar } from "./layout/Navbar";
-import { StatusBar, type EngineDisplayType } from "./layout/StatusBar";
+import { StatusBar } from "./layout/StatusBar";
 import type { SettingsConfig } from "@/modules/settings/data/config";
 import {
     ICON_STROKE_WIDTH,
@@ -118,7 +118,6 @@ interface WorkspaceShellProps {
     onInspectorTabCommandHandled: () => void;
     sessionStats: SessionStats | null;
     liveTransportStatus: HeartbeatSource;
-    engineType: EngineDisplayType;
     handleReconnect: () => void;
     pendingDelete: DeleteIntent | null;
     clearPendingDelete: () => void;
@@ -192,7 +191,6 @@ export function WorkspaceShell({
     onInspectorTabCommandHandled,
     sessionStats,
     liveTransportStatus,
-    engineType,
     // isNativeIntegrationActive removed — read from LifecycleContext
     handleReconnect,
     pendingDelete,
@@ -329,7 +327,6 @@ export function WorkspaceShell({
             liveTransportStatus={liveTransportStatus}
             selectedCount={selectedIds.length}
             onEngineClick={handleReconnect}
-            engineType={engineType}
             torrents={torrents}
         />
     );
@@ -581,7 +578,6 @@ export function WorkspaceShell({
                 onRestoreInsights={restoreHudCards}
                 onToggleWorkspaceStyle={toggleWorkspaceStyle}
                 onReconnect={handleReconnect}
-                serverClass={serverClass}
                 isNativeMode={nativeIntegration}
                 isImmersive={workspaceStyle === "immersive"}
                 hasDismissedInsights={hasDismissedInsights}

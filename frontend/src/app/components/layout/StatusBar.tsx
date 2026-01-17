@@ -17,11 +17,11 @@ import { cn } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 
-import { useRpcConnection } from "@/app/hooks/useRpcConnection";
 import { useTorrentClient } from "@/app/providers/TorrentClientProvider";
 import { StatusIcon } from "@/shared/ui/components/StatusIcon";
 import { TinyTorrentIcon } from "@/shared/ui/components/TinyTorrentIcon";
 import { NetworkGraph } from "@/shared/ui/graphs/NetworkGraph";
+import { useSession } from "@/app/context/SessionContext";
 
 import { formatBytes, formatSpeed } from "@/shared/utils/format";
 import { getShellTokens, UI_BASES, STATUS_VISUALS } from "@/config/logic";
@@ -37,8 +37,7 @@ import type { TorrentEntity } from "@/services/rpc/entities";
 import type { HeartbeatSource } from "@/services/rpc/heartbeat";
 import type { ConnectionStatus } from "@/shared/types/rpc";
 import type { WorkspaceStyle } from "@/app/hooks/useWorkspaceShell";
-import { useLifecycle } from "@/app/context/LifecycleContext";
-import { useRecoveryContext } from "@/app/context/RecoveryContext";
+import type { UiMode } from "@/app/utils/uiMode";
 
 const DISK_LABELS: Record<string, string> = {
     ok: "status_bar.disk_ok",
@@ -47,14 +46,10 @@ const DISK_LABELS: Record<string, string> = {
     unknown: "status_bar.disk_unknown",
 };
 
-const TRANSPORT_LABELS: Record<string, string> = {
-    websocket: "status_bar.transport_websocket",
+const TRANSPORT_LABELS: Record<TransportStatus, string> = {
     polling: "status_bar.transport_polling",
     offline: "status_bar.transport_offline",
 };
-// TODO: With “RPC extensions: NONE”, remove websocket transport UX entirely:
-// TODO: - Delete websocket labels/strings and collapse transport status to `polling | offline`.
-// TODO: - Ensure the UI never describes websocket as a supported transport (it should not exist in this architecture).
 
 const RPC_STATUS_LABEL: Record<string, string> = {
     [STATUS.connection.CONNECTED]: "status_bar.rpc_connected",
@@ -66,10 +61,7 @@ const RPC_STATUS_LABEL: Record<string, string> = {
 /* TYPES */
 /* ------------------------------------------------------------------ */
 
-export type EngineDisplayType = "tinytorrent" | "transmission" | "unknown";
-// TODO: Collapse EngineDisplayType to `transmission | unknown` once serverClass/“tinytorrent” branching is removed across the app.
-// TODO: Engine identity should come from Transmission RPC session-get (or be inferred as “unknown” when disconnected), not from custom capability probes.
-type TransportStatus = HeartbeatSource | "offline";
+type TransportStatus = "polling" | "offline";
 type DiskState = "ok" | "warn" | "bad" | "unknown";
 
 interface StatusBarProps {
@@ -78,7 +70,6 @@ interface StatusBarProps {
     liveTransportStatus: HeartbeatSource;
     selectedCount?: number;
     onEngineClick?: () => void;
-    engineType: EngineDisplayType;
     torrents: TorrentEntity[];
 }
 
@@ -305,8 +296,6 @@ function StatusTelemetryGrid({
     const engineIcon =
         rpcStatus === STATUS.connection.ERROR
             ? AlertCircle
-            : transportStatus === "websocket"
-            ? Zap
             : transportStatus === "polling"
             ? ArrowUpDown
             : Activity;
@@ -421,12 +410,12 @@ function StatusTelemetryGrid({
 
 function EngineControlChip({
     rpcStatus,
-    engineType,
+    uiMode,
     onClick,
     tooltip,
 }: {
     rpcStatus: ConnectionStatus;
-    engineType: EngineDisplayType;
+    uiMode: UiMode;
     onClick?: () => void;
     tooltip: string;
 }) {
@@ -437,8 +426,7 @@ function EngineControlChip({
         STATUS_VISUALS[rpcStatus] ??
         STATUS_VISUALS[STATUS.connection.CONNECTED] ??
         Object.values(STATUS_VISUALS)[0];
-    const EngineIcon =
-        engineType === "tinytorrent" ? TinyTorrentIcon : TransmissionIcon;
+    const EngineIcon = uiMode === "Full" ? TinyTorrentIcon : TransmissionIcon;
 
     const renderEngineLogo = () => {
         if (rpcStatus === STATUS.connection.IDLE) {
@@ -517,18 +505,13 @@ export function StatusBar({
     liveTransportStatus,
     selectedCount = 0,
     onEngineClick,
-    engineType,
     torrents,
 }: StatusBarProps) {
     const { t } = useTranslation();
     const shell = getShellTokens(workspaceStyle);
     const telemetry = useNetworkTelemetry();
-    const rpcConnection = useRpcConnection();
-    const client = useTorrentClient();
-    const { rpcStatus } = useLifecycle();
-    const { connectionMode } = useRecoveryContext();
-    // TODO: Replace `connectionMode` with `uiMode = Full | Rpc` (from the Session+UiMode provider).
-    // TODO: StatusBar should not reflect internal transport/daemon variants; it should show the user-facing mode (“TinyTorrent” for Full, “Transmission” for Rpc).
+    const { rpcStatus, uiCapabilities } = useSession();
+    const { uiMode } = uiCapabilities;
 
     // StatusBar must not independently fetch the full torrent list; prefer
     // the parent-provided `torrents` (from Heartbeat) to avoid N+1 storms.
@@ -599,34 +582,14 @@ export function StatusBar({
     });
 
     // Determine a localized server type label for the control tooltip.
-    const serverTypeLabel =
+    const modeLabel =
         rpcStatus === STATUS.connection.CONNECTED
-            ? engineType === "tinytorrent"
-                ? t("status_bar.engine_name_tinytorrent")
-                : engineType === "transmission"
-                ? t("status_bar.engine_name_transmission")
-                : t("status_bar.engine_unknown")
+            ? uiMode === "Full"
+                ? t("settings.connection.ui_mode_full_label")
+                : t("settings.connection.ui_mode_rpc_label")
             : t("status_bar.transport_offline_desc");
-    // TODO: Replace `engineType/serverTypeLabel` with `uiMode` naming:
-    // TODO: - `uiMode=Full` => show TinyTorrent label
-    // TODO: - `uiMode=Rpc`  => show Transmission label
-    // TODO: The tooltip must not imply different daemon protocols; both modes talk to Transmission RPC, and `uiMode` only describes ShellExtensions availability.
-    // TODO: Replace `connectionMode` with `uiMode = "Full" | "Rpc"` and remove these connection_mode_* translation keys.
-    // TODO: StatusBar should show only what users care about:
-    // TODO: - `uiMode=Full`: “TinyTorrent” (ShellExtensions available)
-    // TODO: - `uiMode=Rpc`: “Transmission” (RPC-only)
-    // TODO: Avoid surfacing transport/internal distinctions that confuse users (no tinytorrent-remote/local-shell labels).
-    const connectionModeKey = connectionMode.replace(/-/g, "_");
-    const connectionModeLabel = t(
-        `status_bar.connection_mode_${connectionModeKey}`,
-        {
-            defaultValue: t("status_bar.connection_mode_unknown"),
-        }
-    );
-
     const engineControlTooltip = t("status_bar.engine_control_tooltip", {
-        serverType: serverTypeLabel,
-        connectionMode: connectionModeLabel,
+        mode: modeLabel,
     });
 
     const torrentStatLabel = isSelection
@@ -753,7 +716,7 @@ export function StatusBar({
 
                     <EngineControlChip
                         rpcStatus={rpcStatus}
-                        engineType={engineType}
+                        uiMode={uiMode}
                         onClick={onEngineClick}
                         tooltip={engineControlTooltip}
                     />

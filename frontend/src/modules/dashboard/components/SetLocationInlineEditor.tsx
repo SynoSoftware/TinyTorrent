@@ -9,7 +9,6 @@ interface SetLocationInlineEditorProps {
     onChange: (value: string) => void;
     onSubmit: () => void;
     onCancel: () => void;
-    onBrowse?: () => void;
     helpText?: string;
     caption?: string;
     statusMessage?: string;
@@ -24,7 +23,6 @@ export function SetLocationInlineEditor({
     onChange,
     onSubmit,
     onCancel,
-    onBrowse,
     helpText,
     caption,
     statusMessage,
@@ -64,17 +62,6 @@ export function SetLocationInlineEditor({
                 </div>
             )}
             <div className="flex flex-wrap items-center gap-tools">
-                {onBrowse && (
-                    <Button
-                        variant="light"
-                        size="md"
-                        color="default"
-                        onPress={onBrowse}
-                        isDisabled={isBusy}
-                    >
-                        {t("recovery.action_locate")}
-                    </Button>
-                )}
                 <Button
                     variant="shadow"
                     size="md"

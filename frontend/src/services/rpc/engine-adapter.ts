@@ -69,24 +69,4 @@ export interface EngineAdapter {
     getSpeedHistory?(id: string): Promise<{ down: number[]; up: number[] }>;
     destroy?(): void;
     resetConnection?(): void;
-    getServerCapabilities?: () => ServerCapabilities;
 }
-
-export interface ServerCapabilities {
-    host: string;
-    serverClass: ServerClass;
-    supportsOpenFolder: boolean;
-    supportsSetLocation: boolean;
-    supportsManual: boolean;
-}
-// TODO: These flags are UI-facing capabilities, but this type currently mixes two concepts:
-// TODO: - daemon/protocol identity (`serverClass`)
-// TODO: - UI runtime/bridge capabilities (open folder, browse, set-location)
-// TODO: With the new model:
-// TODO: - The daemon is Transmission RPC (no RPC extensions), so `serverClass` should not drive “full vs limited” UX.
-// TODO: - Introduce `UiMode = "Full" | "Rpc"` derived from (a) endpoint is loopback + (b) ShellAgent/ShellExtensions bridge available.
-// TODO: - UI should only branch on UiMode (TinyTorrent vs Transmission UX). Protocol “server class” (if retained at all) must be treated as debug-only.
-// TODO: Replace `ServerCapabilities` with a UI-level `UiCapabilities` / `UiMode` output from a single provider/helper:
-// TODO: - `UiMode=Full`: ShellExtensions actions enabled (browse directory, open folder, system integration)
-// TODO: - `UiMode=Rpc`: ShellExtensions actions disabled (manual path entry may still be allowed as a UI policy)
-// TODO: Standardize wording: use “ShellAgent/ShellExtensions” (not “HostAgent”) across code/docs/comments to match our chosen term.

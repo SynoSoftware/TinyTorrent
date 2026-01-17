@@ -4,6 +4,7 @@ import type { ErrorEnvelope, RecoveryState } from "@/services/rpc/entities";
 import type { MissingFilesClassification } from "@/services/recovery/recovery-controller";
 import {
     classifyMissingFilesState,
+    deriveRecommendedActions,
     recordVerifyAttempt,
     resetVerifyGuard,
     runMissingFilesRecoverySequence,
@@ -152,6 +153,7 @@ describe("recovery-controller helpers", () => {
             confidence: "unknown",
             path: "D:\\Drive",
             root: "D:",
+            recommendedActions: deriveRecommendedActions("volumeLoss"),
         };
 
         const run1 = runMissingFilesRecoverySequence({
@@ -193,6 +195,7 @@ describe("recovery-controller helpers", () => {
             confidence: "unknown",
             path: "D:\\Drive",
             root: "D:",
+            recommendedActions: deriveRecommendedActions("volumeLoss"),
         };
         const result = await runMissingFilesRecoverySequence({
             client: client as EngineAdapter,
@@ -229,6 +232,7 @@ describe("recovery-controller helpers", () => {
             confidence: "likely",
             path: "D:\\Drive",
             root: "D:",
+            recommendedActions: deriveRecommendedActions("pathLoss"),
         };
         await runMissingFilesRecoverySequence({
             client: client as EngineAdapter,
@@ -257,6 +261,7 @@ describe("recovery-controller helpers", () => {
             confidence: "unknown",
             path: "D:\\Drive",
             root: "D:",
+            recommendedActions: deriveRecommendedActions("volumeLoss"),
         };
         const result = await runMissingFilesRecoverySequence({
             client: client as EngineAdapter,
@@ -297,6 +302,7 @@ describe("recovery-controller helpers", () => {
             kind: "pathLoss",
             confidence: "unknown",
             path: "C:\\Missing",
+            recommendedActions: deriveRecommendedActions("pathLoss"),
         };
         const result = await runMissingFilesRecoverySequence({
             client: client as EngineAdapter,
@@ -341,6 +347,7 @@ describe("recovery-controller helpers", () => {
             kind: "pathLoss",
             confidence: "unknown",
             path: "C:\\Missing",
+            recommendedActions: deriveRecommendedActions("pathLoss"),
         };
         const result = await runMissingFilesRecoverySequence({
             client: client as EngineAdapter,

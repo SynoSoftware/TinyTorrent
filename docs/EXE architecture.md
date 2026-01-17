@@ -193,11 +193,29 @@ Tray sleeps. UI wakes.
 
 ---
 
-## 7. RPC Extension: NONE
+ ## 7. Daemon RPC Extensions: NONE
+
+Transmission-daemon is consumed strictly via vanilla Transmission RPC.
+No TinyTorrent-specific RPC methods, tokens, or transports exist at the daemon layer.
 
 ---
 
-## 8. Final corrected mental model (lock this in)
+## 8. Host Agent Contract (Mandatory)
+
+The host agent exposes a **strict, versioned Host API** for filesystem and OS integration.
+
+This API is:
+* not Transmission RPC
+* not accessible remotely
+* not callable unless locality = loopback
+* authoritative for OS facts
+
+The UI may only request host actions through this contract.
+
+
+---
+
+## 9. Final corrected mental model (lock this in)
 
 * **Daemon**: truth, engine, minimal, dumb
 * **Host agent**: OS bridge, intents, filesystem facts

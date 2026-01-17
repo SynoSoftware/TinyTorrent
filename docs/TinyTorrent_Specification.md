@@ -1,3 +1,20 @@
+⚠️ LEGACY DOCUMENT — NOT ACTIVE
+
+This document describes an abandoned architecture where TinyTorrent
+owned a custom daemon, protocol extensions, and websocket sync.
+
+It is preserved for historical context only.
+
+DO NOT implement from this document.
+DO NOT extend this document.
+DO NOT treat this as authoritative.
+
+See:
+docs/EXE_architecture.md
+docs/Host_Agent_Contract.md
+
+
+
 # **TinyTorrent Master Specification (v1.1)**
 
 **Role:** Authoritative Architecture Document

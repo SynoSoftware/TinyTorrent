@@ -13,15 +13,11 @@ import { AlertTriangle, HardDrive, X } from "lucide-react";
 
 import { INTERACTION_CONFIG } from "@/config/logic";
 import { GLASS_MODAL_SURFACE } from "@/shared/ui/layout/glass-surface";
-import { classifyMissingFilesState } from "@/services/recovery/recovery-controller";
-import type { RecoveryOutcome } from "@/services/recovery/recovery-controller";
+import type { RecoveryOutcome, RecoveryRecommendedAction } from "@/services/recovery/recovery-controller";
 import type { TorrentEntity } from "@/services/rpc/entities";
 import { useRecoveryContext } from "@/app/context/RecoveryContext";
 import { SetLocationInlineEditor } from "@/modules/dashboard/components/SetLocationInlineEditor";
-import {
-    getSetLocationOutcomeMessage,
-    getSurfaceCaptionKey,
-} from "@/app/utils/setLocation";
+import { getSurfaceCaptionKey } from "@/app/utils/setLocation";
 
 const MODAL_CLASSES =
     "w-full max-w-modal-compact flex flex-col overflow-hidden";
@@ -92,41 +88,28 @@ export default function TorrentRecoveryModal({
     const { t } = useTranslation();
     const busy = Boolean(isBusy);
     const {
-        serverClass,
         handleSetLocation,
+        handleDownloadMissing,
         inlineSetLocationState,
         cancelInlineSetLocation,
         releaseInlineSetLocation,
         confirmInlineSetLocation,
         handleInlineLocationChange,
         setLocationCapability,
-        getLocationOutcome,
-        connectionMode,
+        recoverySession,
     } = useRecoveryContext();
     // TODO: Consume recovery gate outputs (state + confidence) directly to drive copy/actions; avoid reclassifying in the modal. Keep modal sequencing delegated to the single recovery controller.
     // TODO: Replace `connectionMode` usage here with `uiMode = "Full" | "Rpc"`; set-location messages should not mention tinytorrent-local-shell vs remote.
     const currentTorrentKey = getTorrentKey(torrent);
-    const setLocationOutcomeMessage = getSetLocationOutcomeMessage(
-        getLocationOutcome("recovery-modal", currentTorrentKey),
-        "recovery-modal",
-        connectionMode
-    );
-    const unsupportedLocationMessage =
-        setLocationOutcomeMessage && t(setLocationOutcomeMessage.labelKey);
-
     const downloadDir =
         torrent?.downloadDir ?? torrent?.savePath ?? torrent?.downloadDir ?? "";
 
     const classification = useMemo(() => {
-        if (!torrent) return null;
-        return classifyMissingFilesState(
-            torrent.errorEnvelope ?? null,
-            downloadDir,
-            serverClass,
-            { torrentId: torrent.id ?? torrent.hash }
-        );
-    }, [torrent, downloadDir, serverClass]);
-    // TODO: Remove local reclassification once the recovery gate exposes state/confidence; the modal should render from gate data, not re-run classifyMissingFilesState.
+        if (!recoverySession) return null;
+        const sessionKey = getTorrentKey(recoverySession.torrent);
+        if (!sessionKey || sessionKey !== currentTorrentKey) return null;
+        return recoverySession.classification;
+    }, [currentTorrentKey, recoverySession]);
 
     const shouldRender =
         Boolean(classification) && classification?.kind !== "dataGap" && isOpen;
@@ -187,15 +170,18 @@ export default function TorrentRecoveryModal({
         t("labels.unknown");
 
     const inlineStateKey = inlineSetLocationState?.torrentKey ?? "";
-    const showInlineEditor =
+    const showInlineEditor = Boolean(
         inlineSetLocationState?.surface === "recovery-modal" &&
-        inlineStateKey &&
-        inlineStateKey === currentTorrentKey;
+            inlineStateKey &&
+            inlineStateKey === currentTorrentKey
+    );
     const recoveryIsVerifying =
         inlineSetLocationState?.status === "verifying";
     const recoveryIsBusy = inlineSetLocationState?.status !== "idle";
     const recoveryStatusMessage = recoveryIsVerifying
         ? t("recovery.status.applying_location")
+        : isUnknownConfidence
+        ? t("recovery.inline_fallback")
         : undefined;
     const recoveryCaption = t(getSurfaceCaptionKey("recovery-modal"));
 
@@ -220,24 +206,86 @@ export default function TorrentRecoveryModal({
         };
     }, [isOpen, isVolumeLoss, onAutoRetry, busy]);
 
-    const handleBrowseAction = useCallback(() => {
-        if (!torrent || !handleSetLocation || busy) return;
-        void handleSetLocation(torrent, { surface: "recovery-modal" });
-    }, [busy, handleSetLocation, torrent]);
-
-    const manualOnly =
-        !setLocationCapability.canBrowse &&
-        setLocationCapability.supportsManual;
     const canSetLocation =
         setLocationCapability.canBrowse ||
         setLocationCapability.supportsManual;
-    const primaryLabel = manualOnly
-        ? t("recovery.action.change_location")
-        : isAccessDenied
-        ? t("recovery.action.choose_location")
-        : t("recovery.action_locate");
-    const primaryDisabled = busy || showInlineEditor || !canSetLocation;
-    const primaryAction = handleBrowseAction;
+
+    const buildRecoveryAction = (
+        action?: RecoveryRecommendedAction
+    ): {
+        label: string;
+        handler: () => void;
+        isDisabled: boolean;
+    } | null => {
+        if (!action || !torrent) return null;
+        const base = { isDisabled: busy || showInlineEditor };
+        switch (action) {
+            case "downloadMissing":
+                if (!handleDownloadMissing) return null;
+                return {
+                    ...base,
+                    label: t("recovery.action_download"),
+                    handler: () => {
+                        void handleDownloadMissing(torrent);
+                    },
+                };
+            case "locate":
+                if (!handleSetLocation || !canSetLocation) return null;
+                return {
+                    ...base,
+                    label: t("recovery.action_locate"),
+                    handler: () => {
+                        void handleSetLocation(torrent, {
+                            surface: "recovery-modal",
+                            mode: "browse",
+                        });
+                    },
+                };
+            case "chooseLocation":
+                if (!handleSetLocation || !canSetLocation) return null;
+                return {
+                    ...base,
+                    label: t("recovery.action.choose_location"),
+                    handler: () => {
+                        void handleSetLocation(torrent, {
+                            surface: "recovery-modal",
+                            mode: "manual",
+                        });
+                    },
+                };
+            case "retry":
+                if (!onAutoRetry) return null;
+                return {
+                    ...base,
+                    label: t("recovery.action_retry"),
+                    handler: () => {
+                        void onAutoRetry();
+                    },
+                };
+            case "openFolder":
+                return null;
+            default:
+                return null;
+        }
+    };
+
+    const recommendedActions = classification?.recommendedActions ?? [];
+    const primaryActionConfig = buildRecoveryAction(
+        recommendedActions[0]
+    );
+    const primaryLabel =
+        primaryActionConfig?.label ?? t("recovery.action_locate");
+    const primaryDisabled = primaryActionConfig
+        ? primaryActionConfig.isDisabled
+        : true;
+    const primaryAction = primaryActionConfig
+        ? primaryActionConfig.handler
+        : undefined;
+    const handlePrimaryPress = () => {
+        if (primaryAction) {
+            primaryAction();
+        }
+    };
 
     const showRecreate = isPathLoss && Boolean(onRecreate);
 
@@ -317,11 +365,6 @@ export default function TorrentRecoveryModal({
                                     onCancel={cancelInlineSetLocation}
                                 />
                             )}
-                            {unsupportedLocationMessage && (
-                                <div className="surface-layer-1 rounded-panel p-tight text-label text-warning/80">
-                                    {unsupportedLocationMessage}
-                                </div>
-                            )}
                             {isVolumeLoss && (
                                 <div className="text-label text-foreground/60">
                                     {t("recovery.status.waiting_for_drive")}
@@ -362,7 +405,7 @@ export default function TorrentRecoveryModal({
                                     variant="shadow"
                                     color="primary"
                                     size="lg"
-                                    onPress={primaryAction}
+                                    onPress={handlePrimaryPress}
                                     isDisabled={primaryDisabled}
                                     className="font-bold"
                                 >

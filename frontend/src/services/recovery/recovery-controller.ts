@@ -37,11 +37,19 @@ export interface RecoveryControllerDeps {
 
 export type ConfidenceLevel = "certain" | "likely" | "unknown";
 
+export type RecoveryRecommendedAction =
+    | "downloadMissing"
+    | "locate"
+    | "retry"
+    | "openFolder"
+    | "chooseLocation";
+
 export interface MissingFilesClassification {
     kind: MissingFilesStateKind;
     confidence: ConfidenceLevel;
     path?: string;
     root?: string;
+    recommendedActions: readonly RecoveryRecommendedAction[];
 }
 
 export type MissingFilesProbeResult =
@@ -197,6 +205,7 @@ export function classifyMissingFilesState(
         confidence,
         path: override?.path ?? downloadDir,
         root: override?.root ?? root,
+        recommendedActions: deriveRecommendedActions(kind),
     };
 }
 
@@ -235,6 +244,22 @@ const RECOVERY_ERROR_CLASSES: ReadonlySet<string> = new Set([
     "permissionDenied",
     "diskFull",
 ]);
+
+const RECOVERY_RECOMMENDED_ACTIONS: Record<
+    MissingFilesStateKind,
+    readonly RecoveryRecommendedAction[]
+> = {
+    dataGap: ["downloadMissing", "openFolder"],
+    pathLoss: ["locate", "downloadMissing"],
+    volumeLoss: ["retry", "locate"],
+    accessDenied: ["chooseLocation", "locate"],
+};
+
+export function deriveRecommendedActions(
+    kind: MissingFilesStateKind
+): readonly RecoveryRecommendedAction[] {
+    return RECOVERY_RECOMMENDED_ACTIONS[kind] ?? ["locate"];
+}
 
 function normalizePathForComparison(path?: string): string {
     if (!path) return "";

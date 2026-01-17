@@ -1,10 +1,14 @@
 import { createContext, type ReactNode, useContext } from "react";
-import type { ServerClass } from "@/services/rpc/entities";
-import type { ShellUiMode } from "@/app/agents/shell-agent";
+import type { UiMode } from "@/app/utils/uiMode";
 import type {
     Torrent,
     TorrentDetail,
 } from "@/modules/dashboard/types/torrent";
+import type {
+    MissingFilesClassification,
+    RecoveryOutcome,
+} from "@/services/recovery/recovery-controller";
+import type { RecoveryGateAction } from "@/app/types/recoveryGate";
 
 export type SetLocationSurface =
     | "context-menu"
@@ -15,34 +19,11 @@ export interface SetLocationCapability {
     canBrowse: boolean;
     supportsManual: boolean;
 }
-// TODO: Align SetLocationCapability with `UiMode = Full | Rpc`:
-// TODO: - `canBrowse` should mean “ShellAgent/ShellExtensions browse dialog is available AND we are connected to a localhost daemon”.
-// TODO: - `supportsManual` is a UI policy knob (manual path entry allowed) and should remain true even in `UiMode=Rpc` unless explicitly disabled by product decision.
-// TODO: This type must be produced by a single capability/locality provider and consumed by UI; do not recompute it in components/hooks.
 
-export type SetLocationUnsupportedReason =
-    | "browse-unavailable"
-    | "manual-disabled";
-
-export type SetLocationPolicyReason = "inline-conflict";
-
-export type ConnectionMode =
-    | "transmission-remote"
-    | "tinytorrent-remote"
-    | "tinytorrent-local-shell";
-// TODO: Deprecate ConnectionMode in favor of `UiMode = Full | Rpc`.
-// TODO: “tinytorrent-local-shell” is a UI bridge state, not a daemon identity; naming it as “tinytorrent” caused confusion.
-
-export type SetLocationOutcome =
-    | { kind: "browsed" }
-    | { kind: "canceled" }
-    | { kind: "manual"; surface: SetLocationSurface }
-    | {
-          kind: "unsupported";
-          reason: SetLocationUnsupportedReason;
-          surface: SetLocationSurface;
-      }
-    | { kind: "conflict"; reason: SetLocationPolicyReason; surface: SetLocationSurface };
+export type SetLocationOptions = {
+    mode?: "browse" | "manual";
+    surface?: SetLocationSurface;
+};
 
 export interface InlineSetLocationState {
     surface: SetLocationSurface;
@@ -55,10 +36,15 @@ export interface InlineSetLocationState {
     intentId: number;
 }
 
+export interface RecoverySessionInfo {
+    torrent: Torrent | TorrentDetail;
+    action: RecoveryGateAction;
+    outcome: RecoveryOutcome;
+    classification: MissingFilesClassification;
+}
+
 export interface RecoveryContextValue {
-    serverClass: ServerClass;
-    connectionMode: ConnectionMode;
-    uiMode: ShellUiMode;
+    uiMode: UiMode;
     canOpenFolder: boolean;
     handleRetry: () => Promise<void>;
     handleDownloadMissing: (
@@ -67,18 +53,16 @@ export interface RecoveryContextValue {
     ) => Promise<void>;
     handleSetLocation: (
         torrent: Torrent | TorrentDetail,
-        options?: { surface?: SetLocationSurface }
-    ) => Promise<SetLocationOutcome>;
+        options?: SetLocationOptions
+    ) => Promise<void>;
     setLocationCapability: SetLocationCapability;
     inlineSetLocationState: InlineSetLocationState | null;
     cancelInlineSetLocation: () => void;
     releaseInlineSetLocation: () => void;
     confirmInlineSetLocation: () => Promise<boolean>;
     handleInlineLocationChange: (value: string) => void;
-    getLocationOutcome: (
-        surface: SetLocationSurface,
-        torrentKey: string | null
-    ) => SetLocationOutcome | null;
+    recoverySession: RecoverySessionInfo | null;
+    getRecoverySessionForKey: (torrentKey: string | null) => RecoverySessionInfo | null;
 }
 // TODO: Clarify RecoveryContext contract: expose only minimal recovery/set-location API, keep internal orchestration (queues, drafts, state machine) hidden behind a view-model/provider; align contract with Recovery UX acceptance specs.
 // TODO: Deprecate `serverClass` + `connectionMode` from this context. Replace with:

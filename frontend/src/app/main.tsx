@@ -10,6 +10,7 @@ import { HotkeysProvider } from "react-hotkeys-hook";
 import { DEFAULT_KEYBOARD_SCOPE } from "@/shared/hooks/useKeyboardScope";
 import { KEY_SCOPE } from "@/config/logic";
 import { ConnectionConfigProvider } from "./context/ConnectionConfigContext";
+import { SessionProvider } from "./context/SessionContext";
 import { CONFIG, IS_NATIVE_HOST } from "@/config/logic";
 import { applyCssTokenBases } from "@/config/logic";
 // Apply CSS variable bases from constants.json before rendering
@@ -41,9 +42,10 @@ createRoot(document.getElementById("root")!).render(
         >
             <ConnectionConfigProvider>
                 <ClientProvider>
-                    <WorkspaceModalProvider>
-                        <App />
-                        <ToastProvider
+                    <SessionProvider>
+                        <WorkspaceModalProvider>
+                            <App />
+                            <ToastProvider
                             placement="bottom-right"
                             toastOffset={16}
                             toastProps={{
@@ -61,7 +63,8 @@ createRoot(document.getElementById("root")!).render(
                                 className: "z-top",
                             }}
                         />
-                    </WorkspaceModalProvider>
+                        </WorkspaceModalProvider>
+                    </SessionProvider>
                 </ClientProvider>
             </ConnectionConfigProvider>
         </HotkeysProvider>
