@@ -13,7 +13,7 @@ import {
     Trash2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import RemoveConfirmationModal from "@/modules/torrent-remove/components/RemoveConfirmationModal";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
@@ -32,14 +32,16 @@ import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
 import {
     formatMissingFileDetails,
 } from "@/modules/dashboard/utils/missingFiles";
-import { useMissingFilesProbe } from "@/services/recovery/missingFilesStore";
+import { extractDriveLabel } from "@/shared/utils/recoveryFormat";
+import {
+    useMissingFilesProbe,
+    useMissingFilesClassification,
+} from "@/services/recovery/missingFilesStore";
+import { resolveRecoveryClassification } from "@/modules/dashboard/utils/recoveryClassification";
 import { useOpenTorrentFolder } from "@/app/hooks/useOpenTorrentFolder";
 import STATUS from "@/shared/status";
 import { SetLocationInlineEditor } from "@/modules/dashboard/components/SetLocationInlineEditor";
-import {
-    getSetLocationOutcomeMessage,
-    getSurfaceCaptionKey,
-} from "@/app/utils/setLocation";
+import { getSurfaceCaptionKey } from "@/app/utils/setLocation";
 
 interface GeneralTabProps {
     torrent: TorrentDetail;
@@ -118,7 +120,6 @@ export const GeneralTab = ({
 
     const peerCount = activePeers;
     const {
-        serverClass,
         handleSetLocation,
         handleDownloadMissing,
         inlineSetLocationState,
@@ -127,43 +128,66 @@ export const GeneralTab = ({
         confirmInlineSetLocation,
         handleInlineLocationChange,
         setLocationCapability,
-        getLocationOutcome,
         canOpenFolder,
-        connectionMode,
+        getRecoverySessionForKey,
     } = useRecoveryContext();
     // TODO: General tab recovery/set-location actions must use the single recovery gate/state machine; avoid any local sequencing or reclassification in this component.
     // TODO: ViewModel boundary: GeneralTab should be a pure View. It should not read `serverClass` or `connectionMode` directly.
     // TODO: Replace `serverClass/connectionMode` usage with `uiMode = Full | Rpc` + recovery gate outputs (state/confidence/actions).
     // TODO: `probeMode` must not be derived from daemon identity; it should be derived from whether filesystem probing is supported in the current UI mode (Full => allowed via ShellExtensions; Rpc => not supported).
     const currentTorrentKey = getTorrentKey(torrent);
-    const outcomeMessage = getSetLocationOutcomeMessage(
-        getLocationOutcome("general-tab", currentTorrentKey),
-        "general-tab",
-        connectionMode
-    );
-    // TODO: Replace `getSetLocationOutcomeMessage(..., connectionMode)` with `(..., uiMode)` and remove tinytorrent-* messaging.
-    const unsupportedLocationMessage =
-        outcomeMessage && t(outcomeMessage.labelKey);
     const probe = useMissingFilesProbe(torrent.id);
-    const probeMode =
-        serverClass === "tinytorrent"
-            ? "local"
-            : serverClass === "transmission"
-            ? "remote"
-            : "unknown";
-    // TODO: Replace probeMode with a UI-mode based model:
-    // TODO: - `uiMode=Full` => filesystem probing available via ShellExtensions (label can be “full”)
-    // TODO: - `uiMode=Rpc`  => filesystem probing unavailable (label can be “rpc”)
     const probeLines = formatMissingFileDetails(t, probe);
-
     const effectiveState =
         torrent.errorEnvelope?.recoveryState &&
         torrent.errorEnvelope.recoveryState !== "ok"
             ? torrent.errorEnvelope.recoveryState
             : torrent.state;
-
     const showMissingFilesError =
         effectiveState === STATUS.torrent.MISSING_FILES;
+
+    const torrentKey = getTorrentKey(torrent);
+    const recoverySession = getRecoverySessionForKey(torrentKey);
+    const storedClassification = useMissingFilesClassification(
+        torrent.id ?? torrent.hash ?? undefined
+    );
+    const classification = useMemo(
+        () =>
+            resolveRecoveryClassification({
+                sessionClassification: recoverySession?.classification ?? null,
+                storedClassification,
+            }),
+        [recoverySession?.classification, storedClassification]
+    );
+    const classificationLabel = classification
+        ? (() => {
+              if (classification.confidence === "unknown") {
+                  return t("recovery.inline_fallback");
+              }
+              switch (classification.kind) {
+                  case "pathLoss":
+                      return t("recovery.status.folder_not_found", {
+                          path:
+                              classification.path ??
+                              downloadDir ??
+                              t("labels.unknown"),
+                      });
+                  case "volumeLoss":
+                      return t("recovery.status.drive_disconnected", {
+                          drive:
+                              classification.root ??
+                              extractDriveLabel(
+                                  classification.path ?? downloadDir
+                              ) ??
+                              t("labels.unknown"),
+                      });
+                  case "accessDenied":
+                      return t("recovery.status.access_denied");
+                  default:
+                      return t("recovery.generic_header");
+              }
+          })()
+        : null;
 
     const openFolder = useOpenTorrentFolder();
     const currentPath =
@@ -174,7 +198,10 @@ export const GeneralTab = ({
         setLocationCapability.canBrowse || setLocationCapability.supportsManual;
     const handleSetLocationAction = () => {
         if (!handleSetLocation) return;
-        void handleSetLocation(torrent, { surface: "general-tab" });
+        void handleSetLocation(torrent, {
+            surface: "general-tab",
+            mode: "manual",
+        });
     };
 
     const inlineEditorKey = inlineSetLocationState?.torrentKey ?? "";
@@ -185,8 +212,11 @@ export const GeneralTab = ({
     const generalIsVerifying =
         inlineSetLocationState?.status === "verifying";
     const generalIsBusy = inlineSetLocationState?.status !== "idle";
+    const showUnknownConfidence = classification?.confidence === "unknown";
     const generalStatusMessage = generalIsVerifying
         ? t("recovery.status.applying_location")
+        : showUnknownConfidence
+        ? t("recovery.inline_fallback")
         : undefined;
     const generalCaption = t(getSurfaceCaptionKey("general-tab"));
     useEffect(
@@ -327,6 +357,11 @@ export const GeneralTab = ({
                                 <span key={line}>{line}</span>
                             ))}
                         </div>
+                        {classificationLabel && (
+                            <div className="text-label text-foreground/70">
+                                {classificationLabel}
+                            </div>
+                        )}
                         {recoveryBlockedMessage && (
                             <div className="text-label text-warning/80">
                                 {recoveryBlockedMessage}
@@ -445,11 +480,6 @@ export const GeneralTab = ({
                                         </>
                                     </Button>
                                 </div>
-                                {unsupportedLocationMessage && (
-                                    <div className="text-label text-warning/80">
-                                        {unsupportedLocationMessage}
-                                    </div>
-                                )}
                             </div>
                         </div>
                     </GlassPanel>

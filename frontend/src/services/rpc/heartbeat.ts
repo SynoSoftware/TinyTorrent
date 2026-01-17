@@ -12,10 +12,7 @@ import STATUS from "@/shared/status";
 
 export type HeartbeatMode = "background" | "table" | "detail";
 
-export type HeartbeatSource = "polling" | "websocket" | "websocket-telemetry";
-// TODO: Drop WebSocket-related heartbeat sources (`websocket`, `websocket-telemetry`) now that “RPC extensions: NONE”.
-// TODO: After removal, HeartbeatSource should be `polling` only, and any UI labels/metrics derived from websocket transport should be deleted.
-// TODO: Keep a single authoritative polling scheduler (HeartbeatManager) and make it the only source of session/torrent “freshness” signals.
+export type HeartbeatSource = "polling";
 
 export interface HeartbeatPayload {
     torrents: TorrentEntity[];
@@ -92,7 +89,6 @@ export class HeartbeatManager {
     private lastTorrentHash: string = "";
     private lastTorrents?: TorrentEntity[];
     private lastSessionStats?: SessionStats;
-    private lastSource?: HeartbeatSource;
     private lastPayloadTimestampMs?: number;
     private readonly detailCache = new Map<
         string,
@@ -418,7 +414,7 @@ export class HeartbeatManager {
             detailId,
             detail:
                 detailId == null ? undefined : this.getCachedDetail(detailId),
-            source: this.lastSource,
+            source: "polling",
         };
         // If we previously stored telemetry on sessionStats, expose it as a
         // top-level `networkTelemetry` field for subscribers that consume it.
@@ -431,8 +427,7 @@ export class HeartbeatManager {
     public pushLivePayload(payload: HeartbeatPayload) {
         const timestampMs = payload.timestampMs ?? Date.now();
         payload.timestampMs = timestampMs;
-        this.lastSource = payload.source ?? "websocket";
-        // TODO: With “RPC extensions: NONE”, remove all websocket sources. After removal, default source must never be `"websocket"`; it should be `"polling"` (or omitted).
+        payload.source = "polling";
         const prev = this.lastTorrents;
         this.lastTorrents = payload.torrents;
         this.pruneDetailCache(payload.torrents);
@@ -467,52 +462,13 @@ export class HeartbeatManager {
                     detailId == null
                         ? undefined
                         : this.getCachedDetail(detailId),
-                source: payload.source ?? this.lastSource,
+                source: "polling",
             };
             try {
                 params.onUpdate(combined);
             } catch {
                 // swallow subscriber errors
             }
-        }
-    }
-
-    private setTransportSource(source: HeartbeatSource) {
-        if (this.lastSource === source) return;
-        this.lastSource = source;
-        if (!this.lastTorrents || !this.lastSessionStats) return;
-        const payload: any = {
-            torrents: this.lastTorrents,
-            sessionStats: this.lastSessionStats,
-            timestampMs: this.lastPayloadTimestampMs ?? Date.now(),
-            source,
-        };
-        const telemetry = this.lastSessionStats?.networkTelemetry;
-        if (telemetry) payload.networkTelemetry = telemetry;
-        this.broadcastToSubscribers(payload);
-    }
-
-    public disablePolling() {
-        if (!this.pollingEnabled) return;
-        this.pollingEnabled = false;
-        this.clearTimer();
-        this.setTransportSource("websocket");
-        // TODO: Delete `disablePolling` (or rename/repurpose) once websocket transport is removed. Polling should always be enabled when there are subscribers.
-        console.log(
-            `[tiny-torrent][heartbeat] disablePolling (subscribers=${this.subscribers.size})`
-        );
-        this.rescheduleLoop();
-    }
-
-    public enablePolling() {
-        if (this.pollingEnabled) return;
-        this.pollingEnabled = true;
-        this.setTransportSource("polling");
-        console.log(
-            `[tiny-torrent][heartbeat] enablePolling (subscribers=${this.subscribers.size})`
-        );
-        if (this.subscribers.size > 0) {
-            this.rescheduleLoop();
         }
     }
 
@@ -966,7 +922,6 @@ export class HeartbeatManager {
 
             const timestampMs = Date.now();
             this.lastPayloadTimestampMs = timestampMs;
-            this.lastSource = "polling";
 
             for (const subEntry of snapshot) {
                 const { params } = subEntry;

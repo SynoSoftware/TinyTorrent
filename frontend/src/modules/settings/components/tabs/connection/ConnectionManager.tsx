@@ -1,11 +1,9 @@
-import { Button, Chip, Input, Switch } from "@heroui/react";
-import { RefreshCw, CheckCircle, XCircle, Download } from "lucide-react";
+import { Button, Chip, Input } from "@heroui/react";
+import { RefreshCw, CheckCircle, XCircle } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ICON_STROKE_WIDTH } from "@/config/logic";
 import { STATUS } from "@/shared/status";
-import type { ConnectionStatus } from "@/shared/types/rpc";
-import type { ServerClass } from "@/services/rpc/entities";
 import {
     useConnectionConfig,
     buildRpcEndpoint,
@@ -13,7 +11,7 @@ import {
     type ConnectionProfile,
     DEFAULT_PROFILE_ID,
 } from "@/app/context/ConnectionConfigContext";
-import { useLifecycle } from "@/app/context/LifecycleContext";
+import { useSession } from "@/app/context/SessionContext";
 // TODO: Remove `token` and ServerType/serverClass UI. With “RPC extensions: NONE”, connection manager should manage only:
 // TODO: - Transmission endpoint (host/port/scheme/path)
 // TODO: - Transmission Basic Auth (username/password)
@@ -22,7 +20,6 @@ import { useLifecycle } from "@/app/context/LifecycleContext";
 
 interface ConnectionManagerProps {
     onReconnect: () => void;
-    serverClass: ServerClass;
     isNativeMode: boolean;
 }
 
@@ -52,7 +49,7 @@ function useConnectionManagerState(): ConnectionManagerState {
         () => buildRpcEndpoint(activeProfile),
         [activeProfile]
     );
-    const { rpcStatus } = useLifecycle();
+    const { rpcStatus } = useSession();
     return {
         activeProfile,
         handleUpdate,
@@ -62,25 +59,15 @@ function useConnectionManagerState(): ConnectionManagerState {
 }
 // TODO: Remove `token` from ConnectionProfile update shape once TT tokens are removed.
 
-type ServerType = "tinytorrent" | "transmission" | null;
-// TODO: Delete ServerType entirely. The daemon is Transmission. “TinyTorrent” is the app product name and/or ShellExtensions availability (uiMode), not a server type.
-
-const SERVER_TYPE_LABELS: Record<string, string> = {
-    tinytorrent: "settings.connection.server_type_tinytorrent",
-    transmission: "settings.connection.server_type_transmission",
-};
-// TODO: Remove `server_type_tinytorrent` label usage. Replace with a “ShellExtensions available (local only)” indicator sourced from the capability/locality provider.
-
 export function ConnectionCredentialsCard({
     onReconnect,
-    serverClass,
     isNativeMode,
 }: ConnectionManagerProps) {
     const { t } = useTranslation();
     const [showAdvanced, setShowAdvanced] = useState(false);
     const { activeProfile, handleUpdate, isOffline } =
         useConnectionManagerState();
-    const { rpcStatus } = useLifecycle();
+    const { rpcStatus, uiCapabilities } = useSession();
     const connectionStatusLabel = useMemo(() => {
         const map: Record<string, string> = {
             [STATUS.connection.CONNECTED]: t("status_bar.rpc_connected"),
@@ -95,24 +82,24 @@ export function ConnectionCredentialsCard({
         return "warning";
     }, [rpcStatus]);
 
-    const serverType = useMemo<ServerType>(() => {
-        if (rpcStatus !== STATUS.connection.CONNECTED) return null;
-        if (serverClass === "tinytorrent") return "tinytorrent";
-        return "transmission";
-    }, [rpcStatus, serverClass]);
-    // TODO: Replace `serverType/serverClass` with `uiMode = Full | Rpc` from the Session+UiMode provider:
-    // TODO: - `uiMode=Full` => show “TinyTorrent” (full ShellExtensions available)
-    // TODO: - `uiMode=Rpc`  => show “Transmission” (RPC-only)
-    // TODO: Remove `ServerType` and any “TinyTorrent server” wording from this UX once uiMode exists.
-
-    const serverTypeLabel = useMemo(() => {
-        if (!serverType) return null;
-
-        return t(
-            SERVER_TYPE_LABELS[serverType] ??
-                `settings.connection.server_type_${serverType}`
-        );
-    }, [serverType, t]);
+    const { uiMode } = uiCapabilities;
+    const isFullMode = uiMode === "Full";
+    const modeLabelKey = useMemo(() => {
+        if (rpcStatus !== STATUS.connection.CONNECTED) {
+            return "settings.connection.detecting_mode_label";
+        }
+        return isFullMode
+            ? "settings.connection.ui_mode_full_label"
+            : "settings.connection.ui_mode_rpc_label";
+    }, [rpcStatus, isFullMode]);
+    const modeSummaryKey = useMemo(() => {
+        if (rpcStatus !== STATUS.connection.CONNECTED) {
+            return "settings.connection.detecting_mode_summary";
+        }
+        return isFullMode
+            ? "settings.connection.ui_mode_full_summary"
+            : "settings.connection.ui_mode_rpc_summary";
+    }, [rpcStatus, isFullMode]);
 
     const remoteInputsEnabled = !isNativeMode || showAdvanced;
 
@@ -207,29 +194,17 @@ export function ConnectionCredentialsCard({
                         >
                             {connectionStatusLabel}
                         </Chip>
-                        {serverType && serverTypeLabel && (
-                            <Chip
-                                size="md"
-                                variant="shadow"
-                                color="default"
-                                startContent={
-                                    serverType === "tinytorrent" ? (
-                                        <img
-                                            src="/tinyTorrent.svg"
-                                            alt=""
-                                            className="size-dot"
-                                        />
-                                    ) : serverType === "transmission" ? (
-                                        <Download
-                                            strokeWidth={ICON_STROKE_WIDTH}
-                                            className="toolbar-icon-size-sm shrink-0"
-                                        />
-                                    ) : null
-                                }
-                            >
-                                {serverTypeLabel}
-                            </Chip>
-                        )}
+                        <div className="space-y-tight">
+                            <p className="text-label uppercase text-foreground/60">
+                                {t("settings.connection.ui_mode_label")}
+                            </p>
+                            <p className="text-scaled font-semibold text-foreground">
+                                {t(modeLabelKey)}
+                            </p>
+                            <p className="text-label text-foreground/60">
+                                {t(modeSummaryKey)}
+                            </p>
+                        </div>
                     </div>
                     <Button
                         size="md"
@@ -341,67 +316,6 @@ export function ConnectionCredentialsCard({
     );
 }
 
-interface ConnectionExtensionCardProps {
-    serverClass: ServerClass;
-}
-// TODO: Delete ConnectionExtensionCard entirely. The “extension/native mode” concept is replaced by `uiMode = Full | Rpc`.
-// TODO: This card is a major source of confusion because it implies daemon protocol differences; keep only a “UI Mode” indicator derived from locality + ShellAgent bridge.
-
-export function ConnectionExtensionCard({
-    serverClass,
-}: ConnectionExtensionCardProps) {
-    const { t } = useTranslation();
-    const { rpcStatus } = useLifecycle();
-
-    const modeLabelKey = useMemo(() => {
-        if (rpcStatus !== STATUS.connection.CONNECTED) {
-            return "settings.connection.detecting_mode_label";
-        }
-        if (serverClass === "tinytorrent") {
-            return "settings.connection.native_mode_label";
-        }
-        return "settings.connection.transmission_mode_label";
-    }, [rpcStatus, serverClass]);
-    // TODO: Replace `serverClass` branching with `uiMode`:
-    // TODO: - Full => `settings.connection.ui_mode_full_label` (new key)
-    // TODO: - Rpc  => `settings.connection.ui_mode_rpc_label`  (new key)
-
-    const modeDescriptionKey = useMemo(() => {
-        if (rpcStatus !== STATUS.connection.CONNECTED) {
-            return "settings.connection.detecting_mode_summary";
-        }
-        if (serverClass === "tinytorrent") {
-            return "settings.connection.native_mode_summary";
-        }
-        return "settings.connection.transmission_mode_summary";
-    }, [rpcStatus, serverClass]);
-    // TODO: Replace these summary keys with uiMode equivalents and delete the old “native mode” copy tied to serverClass.
-
-    return (
-        <div className="space-y-tight">
-            <p className="text-label uppercase text-foreground/60">
-                {t("settings.connection.mode_label")}
-            </p>
-            <p className="text-scaled font-semibold text-foreground">
-                {t(modeLabelKey)}
-            </p>
-            <p className="text-label text-foreground/60">
-                {t(modeDescriptionKey)}
-            </p>
-            {rpcStatus === STATUS.connection.ERROR && (
-                <p className="text-label text-warning">
-                    {t("settings.connection.offline_warning")}
-                </p>
-            )}
-        </div>
-    );
-}
-
 export function ConnectionManager(props: ConnectionManagerProps) {
-    return (
-        <>
-            <ConnectionCredentialsCard {...props} />
-            <ConnectionExtensionCard {...props} />
-        </>
-    );
+    return <ConnectionCredentialsCard {...props} />;
 }

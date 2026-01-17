@@ -1,13 +1,7 @@
-import { Divider } from "@heroui/react";
 import { useTranslation } from "react-i18next";
-import {
-    ConnectionCredentialsCard,
-    ConnectionExtensionCard,
-} from "@/modules/settings/components/tabs/connection/ConnectionManager";
+import { ConnectionCredentialsCard } from "@/modules/settings/components/tabs/connection/ConnectionManager";
 import { SettingsSection } from "@/modules/settings/components/SettingsSection";
 import { useSettingsForm } from "@/modules/settings/context/SettingsFormContext";
-import { useLifecycle } from "@/app/context/LifecycleContext";
-import type { ServerClass } from "@/services/rpc/entities";
 // TODO: With “RPC extensions: NONE”, remove the extension card and any serverClass-driven connection UX.
 // TODO: Connection tab should show only:
 // TODO: - Transmission RPC endpoint + Basic Auth (username/password)
@@ -17,17 +11,12 @@ import type { ServerClass } from "@/services/rpc/entities";
 // TODO: Replace `isNativeMode` prop with a capability-derived flag (or uiMode) so browser/remote are treated consistently.
 
 interface ConnectionTabContentProps {
-    serverClass: ServerClass;
     isNativeMode: boolean;
 }
 
-export function ConnectionTabContent({
-    serverClass,
-    isNativeMode,
-}: ConnectionTabContentProps) {
+export function ConnectionTabContent({ isNativeMode }: ConnectionTabContentProps) {
     const { t } = useTranslation();
     const { onReconnect } = useSettingsForm();
-    const { rpcStatus } = useLifecycle();
 
     return (
         <SettingsSection
@@ -37,11 +26,8 @@ export function ConnectionTabContent({
             <div className="space-y-stage">
                 <ConnectionCredentialsCard
                     onReconnect={onReconnect}
-                    serverClass={serverClass}
                     isNativeMode={isNativeMode}
                 />
-                <Divider className="my-panel opacity-50" />
-                <ConnectionExtensionCard serverClass={serverClass} />
             </div>
         </SettingsSection>
     );

@@ -1,7 +1,6 @@
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { useActionFeedback } from "@/app/hooks/useActionFeedback";
-import { useRecoveryContext } from "@/app/context/RecoveryContext";
 import { useShellAgent } from "@/app/hooks/useShellAgent";
 
 function normalizePath(value: string) {

@@ -1,8 +1,14 @@
 import { useTranslation } from "react-i18next";
+import { useRecoveryContext } from "@/app/context/RecoveryContext";
+import { useMissingFilesClassification } from "@/services/recovery/missingFilesStore";
+import { resolveRecoveryClassification } from "@/modules/dashboard/utils/recoveryClassification";
 import {
     formatPrimaryActionHint,
+    formatPrimaryActionHintFromClassification,
     formatRecoveryStatus,
+    formatRecoveryStatusFromClassification,
     formatRecoveryTooltip,
+    formatRecoveryTooltipFromClassification,
 } from "@/shared/utils/recoveryFormat";
 import { Pin, PinOff, X, Info } from "lucide-react";
 import { cn } from "@heroui/react";
@@ -65,6 +71,40 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
         t("general.unknown")
     );
 
+    const torrentKey =
+        torrent?.id?.toString() ?? torrent?.hash ?? torrent?.name ?? null;
+    const { getRecoverySessionForKey } = useRecoveryContext();
+    const sessionClassification = getRecoverySessionForKey(torrentKey ?? null)
+        ?.classification ?? null;
+    const storedClassification = useMissingFilesClassification(
+        torrent?.id ?? torrent?.hash ?? undefined
+    );
+    const classification = resolveRecoveryClassification({
+        sessionClassification,
+        storedClassification,
+    });
+    const hasClassification = Boolean(classification);
+
+    const statusLabel = hasClassification
+        ? formatRecoveryStatusFromClassification(classification, t)
+        : formatRecoveryStatus(
+              torrent?.errorEnvelope,
+              t,
+              torrent?.state,
+              "general.unknown"
+          );
+    const tooltip = hasClassification
+        ? formatRecoveryTooltipFromClassification(classification, t)
+        : formatRecoveryTooltip(
+              torrent?.errorEnvelope,
+              t,
+              torrent?.state,
+              "general.unknown"
+          );
+    const primaryHint = hasClassification
+        ? formatPrimaryActionHintFromClassification(classification, t)
+        : formatPrimaryActionHint(torrent?.errorEnvelope ?? null, t);
+
     return (
         <div
             className={cn(
@@ -86,15 +126,29 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
                 />
                 <span className="truncate min-w-0 text-foreground font-semibold">
                     {renderedName}
-                    {torrent?.errorEnvelope && (
+                    {hasClassification ? (
                         <span
                             className="text-label text-foreground/60 block"
-                            title={formatRecoveryTooltip(
-                                torrent.errorEnvelope,
-                                t,
-                                torrent?.state,
-                                "general.unknown"
+                            title={tooltip}
+                        >
+                            {statusLabel}
+                            {primaryHint && (
+                                <em className="text-label text-foreground/50">
+                                    — {primaryHint}
+                                </em>
                             )}
+                        </span>
+                    ) : torrent?.errorEnvelope ? (
+                        <span
+                            className="text-label text-foreground/60 block"
+                            title={
+                                formatRecoveryTooltip(
+                                    torrent.errorEnvelope,
+                                    t,
+                                    torrent?.state,
+                                    "general.unknown"
+                                )
+                            }
                         >
                             {formatRecoveryStatus(
                                 torrent.errorEnvelope,
@@ -115,7 +169,7 @@ export const TorrentDetailHeader = (props: TorrentDetailHeaderProps) => {
                                 </em>
                             ) : null}
                         </span>
-                    )}
+                    ) : null}
                 </span>
             </div>
 

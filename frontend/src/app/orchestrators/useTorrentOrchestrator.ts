@@ -1,9 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useReducer, useState } from "react";
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
-import type {
-    EngineAdapter,
-    ServerCapabilities,
-} from "@/services/rpc/engine-adapter";
+import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import type { ServerClass } from "@/services/rpc/entities";
 import type {
     AddTorrentSource,
@@ -21,6 +18,7 @@ import {
     probeMissingFiles,
     clearVerifyGuardEntry,
     pollPathAvailability,
+    type MissingFilesClassification,
     type RecoveryOutcome,
     type RecoverySequenceOptions,
 } from "@/services/recovery/recovery-controller";
@@ -37,17 +35,17 @@ import {
     getProbe as getCachedProbe,
     setProbe as setCachedProbe,
     clearProbe as clearCachedProbe,
+    setClassificationOverride,
 } from "@/services/recovery/missingFilesStore";
 import STATUS from "@/shared/status";
 import { useSelection } from "@/app/context/SelectionContext";
 import type {
-    ConnectionMode,
     InlineSetLocationState,
-    SetLocationOutcome,
+    SetLocationOptions,
     SetLocationSurface,
 } from "@/app/context/RecoveryContext";
+import { useUiModeCapabilities } from "@/app/context/UiModeContext";
 import { resolveTorrentPath } from "@/modules/dashboard/utils/torrentPaths";
-import { isLoopbackHost } from "@/app/utils/hosts";
 
 const BASE32_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 const MAGNET_INFOHASH_REGEX = /xt=urn:btih:([0-9a-zA-Z]+)/i;
@@ -194,22 +192,17 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
     const { settingsConfig, setSettingsConfig } = settingsFlow;
     const { dispatch } = useRequiredTorrentActions();
     const { setSelectedIds, setActiveId } = useSelection();
-    const transportCapabilities =
-        typeof client?.getServerCapabilities === "function"
-            ? client.getServerCapabilities()
-            : null;
     const { shellAgent, uiMode } = useShellAgent();
-    const transportHost = transportCapabilities?.host ?? "";
     const serverClass = client?.getServerClass?.() ?? "unknown";
+    const {
+        canBrowse,
+        canOpenFolder: canOpenFolderCapability,
+        supportsManual,
+    } = useUiModeCapabilities();
     // TODO: Deprecate `serverClass` for UX decisions. With “RPC extensions: NONE”, the daemon is Transmission RPC; UX must hinge on `uiMode` (Full|Rpc), not on daemon identity strings.
-    const isLoopbackTransport = useMemo(
-        () => isLoopbackHost(transportHost),
-        [transportHost]
-    );
-    const shellAvailable = shellAgent.isAvailable;
     const hasNativeHostShell = useMemo(
-        () => uiMode === "Full" && shellAvailable && isLoopbackTransport,
-        [uiMode, shellAvailable, isLoopbackTransport]
+        () => uiMode === "Full" && shellAgent.isAvailable,
+        [uiMode, shellAgent]
     );
     // TODO: Replace `hasNativeHostShell/serverClass/connectionMode` with `uiMode = "Full" | "Rpc"` derived from:
     // TODO: - endpoint is loopback (localhost) AND ShellAgent/ShellExtensions bridge available => Full
@@ -217,28 +210,18 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
     // TODO: This removes “tinytorrent-*” string branching that confuses maintainers and AI.
     const setLocationCapability = useMemo(
         () => ({
-            canBrowse: hasNativeHostShell,
-            supportsManual: true,
+            canBrowse,
+            supportsManual,
         }),
-        [hasNativeHostShell]
+        [canBrowse, supportsManual]
     );
     // TODO: Extract capability derivation (browse/manual/open folder) into a shared helper driven by adapter caps + host (Transmission-first, no serverClass branching); keep UI hooks oblivious to transport logic.
-    const canOpenFolder = hasNativeHostShell;
+    const canOpenFolder = canOpenFolderCapability;
     const pendingDeletionHashesRef = useRef<Set<string>>(new Set());
     const recentlyRemovedKeysRef = useRef<Set<string>>(new Set());
     const inlineOwnerRef = useRef<{ surface: SetLocationSurface; torrentKey: string } | null>(
         null
     );
-
-    const connectionMode = useMemo<ConnectionMode>(() => {
-        if (hasNativeHostShell) {
-            return "tinytorrent-local-shell";
-        }
-        if (serverClass === "tinytorrent") {
-            return "tinytorrent-remote";
-        }
-        return "transmission-remote";
-    }, [hasNativeHostShell, serverClass]);
 
     // --- 2. Settings & Add Torrent Persistence ---
     const [lastDownloadDir, setLastDownloadDir] = useState(() => {
@@ -437,7 +420,8 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
     const [recoverySession, setRecoverySession] = useState<{
         torrent: Torrent | TorrentDetail;
         action: RecoveryGateAction;
-        outcome?: RecoveryOutcome | null;
+        outcome: RecoveryOutcome;
+        classification: MissingFilesClassification;
     } | null>(null);
 
     const recoveryResolverRef = useRef<
@@ -448,16 +432,16 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
         null
     );
     const recoveryAbortControllerRef = useRef<AbortController | null>(null);
-    const pendingRecoveryQueueRef = useRef<
-        Array<{
-            torrent: Torrent | TorrentDetail;
-            action: RecoveryGateAction;
-            outcome: RecoveryOutcome;
-            fingerprint: string;
-            promise: Promise<RecoveryGateOutcome>;
-            resolve: (result: RecoveryGateOutcome) => void;
-        }>
-    >([]);
+    type RecoveryQueueEntry = {
+        torrent: Torrent | TorrentDetail;
+        action: RecoveryGateAction;
+        outcome: RecoveryOutcome;
+        classification: MissingFilesClassification;
+        fingerprint: string;
+        promise: Promise<RecoveryGateOutcome>;
+        resolve: (result: RecoveryGateOutcome) => void;
+    };
+    const pendingRecoveryQueueRef = useRef<Array<RecoveryQueueEntry>>([]);
     // TODO: Move recovery queue + abort/cancel handling into the recovery controller layer so UI consumers just request recovery and observe state; avoid queue refs in UI hooks.
     const recoverySessionActiveRef = useRef(false);
 
@@ -478,6 +462,10 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
                 serverClass,
                 { torrentId: torrent.id ?? torrent.hash }
             );
+            const classificationKey = torrent.id ?? torrent.hash;
+            if (classificationKey) {
+                setClassificationOverride(classificationKey, classification);
+            }
 
             try {
                 const missingBytes =
@@ -612,20 +600,14 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
     }, [torrents, unmarkRemoved]);
 
     const startRecoverySession = useCallback(
-        (entry: {
-            torrent: Torrent | TorrentDetail;
-            action: RecoveryGateAction;
-            outcome: RecoveryOutcome;
-            fingerprint: string;
-            promise: Promise<RecoveryGateOutcome>;
-            resolve: (result: RecoveryGateOutcome) => void;
-        }) => {
+        (entry: RecoveryQueueEntry) => {
             recoveryAbortControllerRef.current?.abort();
             recoveryAbortControllerRef.current = new AbortController();
             setRecoverySession({
                 torrent: entry.torrent,
                 action: entry.action,
                 outcome: entry.outcome,
+                classification: entry.classification,
             });
             recoveryResolverRef.current = entry.resolve;
             recoveryFingerprintRef.current = entry.fingerprint;
@@ -647,6 +629,7 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
             torrent: Torrent | TorrentDetail,
             action: RecoveryGateAction,
             outcome: RecoveryOutcome,
+            classification: MissingFilesClassification,
             fingerprint: string
         ) => {
             let resolver: (result: RecoveryGateOutcome) => void = () => {};
@@ -657,6 +640,7 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
                 torrent,
                 action,
                 outcome,
+                classification,
                 fingerprint,
                 promise,
                 resolve: resolver,
@@ -689,6 +673,17 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
             if (!envelope) return null;
             if (action === "setLocation") return null;
 
+            const downloadDir =
+                torrent.savePath ?? torrent.downloadDir ?? "";
+            const fallbackClassification = classifyMissingFilesState(
+                envelope,
+                downloadDir,
+                serverClass,
+                { torrentId: torrent.id ?? torrent.hash }
+            );
+            let flowClassification: MissingFilesClassification =
+                fallbackClassification;
+
             let blockingOutcome: RecoveryOutcome | null = null;
             try {
                 const flowResult = await runMissingFilesFlow(
@@ -696,6 +691,9 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
                     options,
                     recoveryAbortControllerRef.current?.signal
                 );
+                if (flowResult?.classification) {
+                    flowClassification = flowResult.classification;
+                }
                 if (flowResult?.status === "resolved") {
                     clearVerifyGuardEntry(getRecoveryFingerprint(torrent));
                     if (torrent.id ?? torrent.hash) {
@@ -729,6 +727,7 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
                 torrent,
                 action,
                 blockingOutcome,
+                flowClassification,
                 fingerprint
             );
             return enqueueRecoveryEntry(entry);
@@ -886,12 +885,13 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
                     return true;
                 }
                 if (flowResult.status === "needsModal") {
-                    if (flowResult.blockingOutcome) {
+                    const outcome = flowResult.blockingOutcome;
+                    if (outcome) {
                         setRecoverySession((prev) =>
                             prev
                                 ? {
                                       ...prev,
-                                      outcome: flowResult.blockingOutcome,
+                                      outcome,
                                   }
                                 : prev
                         );
@@ -1092,22 +1092,12 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
             } catch (err) {
                 console.error("refresh after retry probe failed", err);
             }
-            const targetId = target.id ?? target.hash;
-            const shouldResume =
-                !gateResult || gateResult.status === "continue";
-            if (shouldResume && targetId) {
-                try {
-                    await dispatch(TorrentIntents.ensureActive(targetId));
-                } catch (err) {
-                    console.error("retry resume failed", err);
-                }
-            }
-            if (!shouldResume) {
+
+            if (gateResult && gateResult.status !== "continue") {
                 showFeedback(t("recovery.feedback.retry_failed"), "warning");
-                return;
             }
         },
-        [clientRef, requestRecovery, refreshAfterRecovery, dispatch]
+        [clientRef, requestRecovery, refreshAfterRecovery, showFeedback, t]
     );
 
     const handleRecoveryRetry = useCallback(async () => {
@@ -1179,17 +1169,160 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
         [resumeTorrentWithRecovery]
     );
 
-    const inlineSetLocationStateRef = useRef<InlineSetLocationState | null>(
+    type ManualEditorStatus = InlineSetLocationState["status"];
+    type ManualEditorState = InlineSetLocationState;
+
+    type ManualEditorAction =
+        | {
+              type: "open";
+              payload: {
+                  surface: SetLocationSurface;
+                  torrentKey: string;
+                  draft: string;
+                  intentId: number;
+              };
+          }
+        | { type: "update"; payload: { draft: string } }
+        | { type: "submitting" }
+        | { type: "verifying"; payload: { fingerprint: string } }
+        | { type: "error"; payload: { message: string } }
+        | { type: "close" }
+        | { type: "set"; payload: ManualEditorState | null };
+
+    const manualEditorReducer = (
+        state: ManualEditorState | null,
+        action: ManualEditorAction
+    ): ManualEditorState | null => {
+        if (!state && action.type !== "open") {
+            return state;
+        }
+        switch (action.type) {
+            case "open":
+                return {
+                    surface: action.payload.surface,
+                    torrentKey: action.payload.torrentKey,
+                    initialPath: action.payload.draft,
+                    inputPath: action.payload.draft,
+                    status: "idle",
+                    intentId: action.payload.intentId,
+                    awaitingRecoveryFingerprint: null,
+                    error: undefined,
+                };
+            case "update":
+                return {
+                    ...state!,
+                    inputPath: action.payload.draft,
+                    error: undefined,
+                };
+            case "submitting":
+                return {
+                    ...state!,
+                    status: "submitting",
+                    error: undefined,
+                };
+            case "verifying":
+                return {
+                    ...state!,
+                    status: "verifying",
+                    awaitingRecoveryFingerprint: action.payload.fingerprint,
+                    error: undefined,
+                };
+            case "error":
+                return {
+                    ...state!,
+                    status: "idle",
+                    error: action.payload.message,
+                    awaitingRecoveryFingerprint: null,
+                };
+            case "close":
+                return null;
+            case "set":
+                return action.payload;
+            default:
+                return state;
+        }
+    };
+
+    const inlineSetLocationStateRef = useRef<ManualEditorState | null>(null);
+    const inlineDraftsRef = useRef(new Map<string, string>());
+    const inlineIntentCounterRef = useRef(0);
+    const [inlineSetLocationState, dispatchInlineSetLocation] = useReducer(
+        manualEditorReducer,
         null
     );
-    const [inlineSetLocationState, setInlineSetLocationState] =
-        useState<InlineSetLocationState | null>(null);
-    const inlineIntentCounterRef = useRef(0);
-    const inlineDraftsRef = useRef<Map<string, string>>(new Map());
-    const [setLocationOutcomes, setSetLocationOutcomes] = useState<
-        Record<string, SetLocationOutcome>
-    >({});
-    // TODO: Simplify inline set-location: track a single editingLocationId + drafts, derive conflicts instead of persisting outcome/owner maps; clear drafts/outcomes on removal/success.
+    const setInlineSetLocationState = useCallback(
+        (value: ManualEditorState | null) => {
+            dispatchInlineSetLocation({
+                type: "set",
+                payload: value,
+            });
+        },
+        []
+    );
+    useEffect(() => {
+        inlineSetLocationStateRef.current = inlineSetLocationState;
+    }, [inlineSetLocationState]);
+    const manualIntentCounterRef = useRef(0);
+
+    const openManualEditor = useCallback(
+        (surface: SetLocationSurface, torrentKey: string, draft: string) => {
+            manualIntentCounterRef.current += 1;
+            dispatchInlineSetLocation({
+                type: "open",
+                payload: {
+                    surface,
+                    torrentKey,
+                    draft,
+                    intentId: manualIntentCounterRef.current,
+                },
+            });
+        },
+        []
+    );
+
+    const closeManualEditor = useCallback(() => {
+        dispatchInlineSetLocation({ type: "close" });
+    }, []);
+
+    const updateManualDraft = useCallback((value: string) => {
+        dispatchInlineSetLocation({
+            type: "update",
+            payload: { draft: value },
+        });
+    }, []);
+
+    const manualSetLocationError = useCallback((message: string) => {
+        dispatchInlineSetLocation({
+            type: "error",
+            payload: { message },
+        });
+    }, []);
+
+    const manualSetLocationSubmitting = useCallback(() => {
+        dispatchInlineSetLocation({ type: "submitting" });
+    }, []);
+
+    const manualSetLocationVerifying = useCallback((fingerprint: string) => {
+        dispatchInlineSetLocation({
+            type: "verifying",
+            payload: { fingerprint },
+        });
+    }, []);
+
+    useEffect(() => {
+        if (!inlineSetLocationState || inlineSetLocationState.status !== "verifying")
+            return;
+        const torrentKey = inlineSetLocationState.torrentKey;
+        if (!recoverySession) {
+            closeManualEditor();
+            return;
+        }
+        const sessionKey = getTorrentKey(recoverySession.torrent);
+        if (sessionKey !== torrentKey) {
+            return;
+        }
+        // Keep editor open until the gate resolves.
+    }, [inlineSetLocationState, recoverySession, closeManualEditor]);
 
     const getDraftPathForTorrent = useCallback(
         (key: string | null, fallback: string): string => {
@@ -1356,37 +1489,6 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
         },
         [patchInlineSetLocationState, saveDraftForTorrent]
     );
-    const buildOutcomeKey = useCallback(
-        (surface: SetLocationSurface, torrentKey: string | null) =>
-            `${surface}:${torrentKey ?? ""}`,
-        []
-    );
-    const recordSetLocationOutcome = useCallback(
-        (
-            outcome: SetLocationOutcome,
-            surface: SetLocationSurface,
-            torrentKey: string | null
-        ) => {
-            const key = buildOutcomeKey(surface, torrentKey);
-            setSetLocationOutcomes((prev) => ({
-                ...prev,
-                [key]: outcome,
-            }));
-            return outcome;
-        },
-        [buildOutcomeKey]
-    );
-    const clearLocationOutcome = useCallback(
-        (surface: SetLocationSurface, torrentKey: string | null) => {
-            const key = buildOutcomeKey(surface, torrentKey);
-            setSetLocationOutcomes((prev) => {
-                if (!prev[key]) return prev;
-                const { [key]: _removed, ...rest } = prev;
-                return rest;
-            });
-        },
-        [buildOutcomeKey]
-    );
     const releaseInlineSetLocation = useCallback(() => {
         inlineOwnerRef.current = null;
         const current = inlineSetLocationStateRef.current;
@@ -1394,9 +1496,8 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
         setInlineSetLocationState(null);
         if (current) {
             clearDraftForTorrent(current.torrentKey);
-            clearLocationOutcome(current.surface, current.torrentKey);
         }
-    }, [clearDraftForTorrent, clearLocationOutcome]);
+    }, [clearDraftForTorrent]);
     const isInlineOwner = useCallback(
         (surface: SetLocationSurface, torrentKey: string) => {
             const owner = inlineOwnerRef.current;
@@ -1419,94 +1520,15 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
         },
         [isInlineOwner]
     );
-    const releaseInlineOwner = useCallback(() => {
-        inlineOwnerRef.current = null;
-    }, []);
-
-    useEffect(() => {
-        const current = inlineSetLocationStateRef.current;
-        if (!current) return;
-        clearDraftForTorrent(current.torrentKey);
-        releaseInlineSetLocation();
-    }, [hasNativeHostShell, clearDraftForTorrent, releaseInlineSetLocation]);
-    const getLocationOutcome = useCallback(
-        (surface: SetLocationSurface, torrentKey: string | null) => {
-            const owner = inlineOwnerRef.current;
-            if (
-                owner &&
-                (owner.surface !== surface ||
-                    (torrentKey && owner.torrentKey !== torrentKey))
-            ) {
-                return {
-                    kind: "conflict",
-                    reason: "inline-conflict",
-                    surface,
-                } as const;
-            }
-            const key = buildOutcomeKey(surface, torrentKey);
-            return setLocationOutcomes[key] ?? null;
-        },
-        [buildOutcomeKey, setLocationOutcomes]
-    );
-
-    const handleSetLocation = useCallback(
-        async (
-            torrent: Torrent | TorrentDetail,
-            options?: { surface?: SetLocationSurface }
-        ): Promise<SetLocationOutcome> => {
-            const surface = options?.surface ?? "general-tab";
-            const basePath = resolveTorrentPath(torrent);
-            const torrentKey = getTorrentKey(torrent);
-            if (setLocationCapability.canBrowse) {
-                if (!recoveryRequestBrowse) {
-                    return recordSetLocationOutcome(
-                        {
-                            kind: "unsupported",
-                            reason: "browse-unavailable",
-                            surface,
-                        },
-                        surface,
-                        torrentKey
-                    );
-                }
-                const pickedPath = await recoveryRequestBrowse(
-                    basePath || undefined
-                );
-                if (pickedPath) {
-                    await setLocationAndRecover(torrent, pickedPath);
-                    return recordSetLocationOutcome(
-                        { kind: "browsed" },
-                        surface,
-                        torrentKey
-                    );
-                }
-                return recordSetLocationOutcome(
-                    { kind: "canceled" },
-                    surface,
-                    torrentKey
-                );
-            }
-            if (!setLocationCapability.supportsManual) {
-                return recordSetLocationOutcome(
-                    {
-                        kind: "unsupported",
-                        reason: "manual-disabled",
-                        surface,
-                    },
-                    surface,
-                    torrentKey
-                );
-            }
+    const openManualEditorForTorrent = useCallback(
+        (surface: SetLocationSurface, torrentKey: string, basePath: string) => {
+            if (!torrentKey) return;
             const acquisition = tryAcquireInlineOwner(surface, torrentKey);
             if (acquisition === "conflict") {
-                return { kind: "conflict", reason: "inline-conflict", surface };
+                return;
             }
             if (acquisition === "already-owned") {
-                return recordSetLocationOutcome(
-                    { kind: "manual", surface },
-                    surface,
-                    torrentKey
-                );
+                return;
             }
             releaseInlineSetLocation();
             openInlineSetLocationState({
@@ -1516,20 +1538,58 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
                 inputPath: basePath,
                 status: "idle",
             });
-            return recordSetLocationOutcome(
-                { kind: "manual", surface },
-                surface,
-                torrentKey
-            );
         },
         [
             releaseInlineSetLocation,
-            tryAcquireInlineOwner,
             openInlineSetLocationState,
+            tryAcquireInlineOwner,
+        ]
+    );
+    const releaseInlineOwner = useCallback(() => {
+        inlineOwnerRef.current = null;
+    }, []);
+
+    useEffect(() => {
+        const current = inlineSetLocationStateRef.current;
+        if (!current) return;
+        clearDraftForTorrent(current.torrentKey);
+        releaseInlineSetLocation();
+    }, [
+        setLocationCapability.canBrowse,
+        clearDraftForTorrent,
+        releaseInlineSetLocation,
+    ]);
+    const handleSetLocation = useCallback(
+        async (
+            torrent: Torrent | TorrentDetail,
+            options?: SetLocationOptions
+        ): Promise<void> => {
+            const surface = options?.surface ?? "general-tab";
+            const basePath = resolveTorrentPath(torrent);
+            const torrentKey = getTorrentKey(torrent);
+            const requestedManual = options?.mode === "manual";
+            if (
+                !requestedManual &&
+                setLocationCapability.canBrowse &&
+                recoveryRequestBrowse
+            ) {
+                const pickedPath = await recoveryRequestBrowse(
+                    basePath || undefined
+                );
+                if (pickedPath) {
+                    await setLocationAndRecover(torrent, pickedPath);
+                    return;
+                }
+            }
+            if (setLocationCapability.supportsManual) {
+                openManualEditorForTorrent(surface, torrentKey, basePath);
+            }
+        },
+        [
             recoveryRequestBrowse,
             setLocationAndRecover,
             setLocationCapability,
-            recordSetLocationOutcome,
+            openManualEditorForTorrent,
         ]
     );
     // TODO: Split set-location into two clear paths: (a) browse flow (if allowed) with minimal steps, (b) inline/manual flow with a tiny reducer managing draft/status/errors; avoid interleaving recovery/resume logic in UI handler.
@@ -1562,6 +1622,16 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
             getRecoveryFingerprint(recoverySession.torrent)
         );
     }, [detailData, recoverySession]);
+
+    const getRecoverySessionForKey = useCallback(
+        (torrentKey: string | null) => {
+            if (!torrentKey || !recoverySession) return null;
+            const sessionKey = getTorrentKey(recoverySession.torrent);
+            if (!sessionKey) return null;
+            return sessionKey === torrentKey ? recoverySession : null;
+        },
+        [recoverySession]
+    );
 
     // --- 6. Event Listeners ---
     const findTorrentById = useCallback(
@@ -1615,8 +1685,6 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
     }, [client]);
 
     return {
-        serverClass,
-        connectionMode,
         uiMode,
         canOpenFolder,
         lastDownloadDir,
@@ -1655,11 +1723,11 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
         releaseInlineSetLocation,
         confirmInlineSetLocation,
         handleInlineLocationChange,
-        getLocationOutcome,
         handleRecoveryRecreateFolder,
         resumeTorrentWithRecovery,
         probeMissingFilesIfStale,
         performUIActionDelete,
+        getRecoverySessionForKey,
     };
 }
 

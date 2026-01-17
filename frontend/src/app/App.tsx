@@ -7,11 +7,9 @@ import { useHotkeys } from "react-hotkeys-hook";
 import useWorkbenchScale from "./hooks/useWorkbenchScale";
 import { useTranslation } from "react-i18next";
 
-import { useTransmissionSession } from "./hooks/useTransmissionSession";
 import { useWorkspaceShell } from "./hooks/useWorkspaceShell";
 import { useWorkspaceModals } from "./WorkspaceModalContext";
 import { useSettingsFlow } from "./hooks/useSettingsFlow";
-import { useSessionStats } from "./hooks/useSessionStats";
 import { useTorrentWorkflow } from "./hooks/useTorrentWorkflow";
 import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
 import { useActionFeedback } from "./hooks/useActionFeedback";
@@ -38,12 +36,11 @@ import {
     SelectionProvider,
     useSelection,
 } from "@/app/context/SelectionContext";
-import { useShellAgent } from "@/app/hooks/useShellAgent";
 import { useTorrentOrchestrator } from "./orchestrators/useTorrentOrchestrator";
 import { createTorrentDispatch } from "./actions/torrentDispatch";
+import { useSession } from "@/app/context/SessionContext";
+import { useShellAgent } from "@/app/hooks/useShellAgent";
 import { LifecycleProvider } from "@/app/context/LifecycleContext";
-import type { EngineDisplayType } from "./components/layout/StatusBar";
-import { UiModeProvider } from "@/app/context/UiModeContext";
 import type {
     CapabilityKey,
     CapabilityState,
@@ -71,15 +68,6 @@ type TranslationFn = ReturnType<typeof useTranslation>["t"];
 type AppContentProps = {
     t: TranslationFn;
     torrentClient: EngineAdapter;
-    rpcStatus: ReturnType<typeof useTransmissionSession>["rpcStatus"];
-    engineInfo: ReturnType<typeof useTransmissionSession>["engineInfo"];
-    isDetectingEngine: ReturnType<
-        typeof useTransmissionSession
-    >["isDetectingEngine"];
-    sessionStats: ReturnType<typeof useSessionStats>["sessionStats"];
-    liveTransportStatus: ReturnType<
-        typeof useSessionStats
-    >["liveTransportStatus"];
     torrents: Torrent[];
     ghostTorrents: Torrent[];
     isInitialLoadFinished: ReturnType<
@@ -101,11 +89,7 @@ type AppContentProps = {
     closeSettings: ReturnType<typeof useWorkspaceModals>["closeSettings"];
     announceAction: ReturnType<typeof useActionFeedback>["announceAction"];
     showFeedback: ReturnType<typeof useActionFeedback>["showFeedback"];
-    reportCommandError: ReturnType<
-        typeof useTransmissionSession
-    >["reportCommandError"];
     capabilities: CapabilityStore;
-    handleReconnect: () => void;
     torrentClientRef: MutableRefObject<EngineAdapter | null>;
     refreshTorrentsRef: MutableRefObject<() => Promise<void>>;
     refreshSessionStatsDataRef: MutableRefObject<() => Promise<void>>;
@@ -119,11 +103,6 @@ type AppContentProps = {
 function AppContent({
     t,
     torrentClient,
-    rpcStatus,
-    engineInfo,
-    isDetectingEngine,
-    sessionStats,
-    liveTransportStatus,
     ghostTorrents,
     isInitialLoadFinished,
     refreshTorrents,
@@ -140,13 +119,27 @@ function AppContent({
     closeSettings,
     announceAction,
     showFeedback,
-    reportCommandError,
     capabilities,
-    handleReconnect,
     torrentClientRef,
     refreshTorrentsRef,
     refreshSessionStatsDataRef,
 }: AppContentProps) {
+    const {
+        rpcStatus,
+        reportCommandError,
+        sessionStats,
+        liveTransportStatus,
+        refreshSessionStatsData,
+        reconnect,
+        engineInfo,
+        isDetectingEngine,
+    } = useSession();
+    useEffect(() => {
+        refreshSessionStatsDataRef.current = refreshSessionStatsData;
+    }, [refreshSessionStatsData, refreshSessionStatsDataRef]);
+    const handleReconnect = useCallback(() => {
+        reconnect();
+    }, [reconnect]);
     // -- Local UI State --
     const [filter, setFilter] = useState("all");
     const [searchQuery, setSearchQuery] = useState("");
@@ -208,7 +201,6 @@ function AppContent({
     const { shellAgent } = useShellAgent();
 
     const {
-        serverClass,
         addModalState,
         openAddTorrentPicker,
         openAddMagnet,
@@ -231,7 +223,7 @@ function AppContent({
         handleRecoveryPickPath,
         handleSetLocation,
         setLocationCapability,
-        getLocationOutcome,
+        getRecoverySessionForKey,
         inlineSetLocationState,
         cancelInlineSetLocation,
         releaseInlineSetLocation,
@@ -245,7 +237,6 @@ function AppContent({
         executeRedownload,
         executeRetryFetch,
         performUIActionDelete,
-        connectionMode,
         canOpenFolder,
         uiMode,
     } = orchestrator;
@@ -336,14 +327,6 @@ function AppContent({
     }, [detailData, handleCloseDetail, torrents]);
 
     // -- Engine Display --
-    const engineType = useMemo<EngineDisplayType>(() => {
-        if (uiMode === "Full") return "tinytorrent";
-        if (uiMode === "Rpc") return "transmission";
-        if (engineInfo?.type === "libtorrent") return "tinytorrent";
-        if (engineInfo?.type === "transmission") return "transmission";
-        return "unknown";
-    }, [engineInfo, uiMode]);
-
     // -- Workflow & Actions --
     // Safe to use here because AppContent is wrapped in TorrentActionsProvider
     const { dispatch } = useRequiredTorrentActions();
@@ -737,10 +720,8 @@ function AppContent({
             />
             <RecoveryProvider
                 value={{
-                    serverClass,
-                    connectionMode,
-                    canOpenFolder,
                     uiMode,
+                    canOpenFolder,
                     handleRetry: handleRecoveryRetry,
                     handleDownloadMissing,
                     handleSetLocation,
@@ -750,7 +731,8 @@ function AppContent({
                     releaseInlineSetLocation,
                     confirmInlineSetLocation,
                     handleInlineLocationChange,
-                    getLocationOutcome,
+                    getRecoverySessionForKey,
+                    recoverySession,
                 }}
             >
                 {/* TODO: Introduce a recovery view-model/provider that wraps orchestrator state/actions so RecoveryProvider consumes a minimal interface and stays decoupled from add-torrent wiring. */}
@@ -774,8 +756,8 @@ function AppContent({
                     detailData={detailData}
                     closeDetail={handleCloseDetail}
                     handleFileSelectionChange={handleFileSelectionChange}
-                    sequentialToggleHandler={sequentialToggleHandler}
-                    superSeedingToggleHandler={superSeedingToggleHandler}
+                    sequentialToggleHandler={handleSequentialToggle}
+                    superSeedingToggleHandler={handleSuperSeedingToggle}
                     capabilities={capabilities}
                     optimisticStatuses={optimisticStatuses}
                     peerSortStrategy={peerSortStrategy}
@@ -785,7 +767,6 @@ function AppContent({
                     }
                     sessionStats={sessionStats}
                     liveTransportStatus={liveTransportStatus}
-                    engineType={engineType}
                     handleReconnect={handleReconnect}
                     pendingDelete={pendingDelete}
                     clearPendingDelete={clearPendingDelete}
@@ -878,19 +859,9 @@ export default function App() {
     const { announceAction, showFeedback } = useActionFeedback();
     const torrentClient = useTorrentClient();
     const torrentClientRef = useRef<EngineAdapter | null>(null);
-    torrentClientRef.current = torrentClient;
-
-    const {
-        rpcStatus,
-        reconnect,
-        refreshSessionSettings,
-        markTransportConnected,
-        reportCommandError,
-        reportReadError,
-        updateRequestTimeout,
-        engineInfo,
-        isDetectingEngine,
-    } = useTransmissionSession(torrentClient);
+    useEffect(() => {
+        torrentClientRef.current = torrentClient;
+    }, [torrentClient]);
 
     const [capabilities, setCapabilities] = useState<CapabilityStore>(
         DEFAULT_CAPABILITY_STORE
@@ -905,6 +876,21 @@ export default function App() {
         },
         []
     );
+
+    const session = useSession();
+    const {
+        rpcStatus,
+        refreshSessionSettings,
+        markTransportConnected,
+        reportCommandError,
+        reportReadError,
+        updateRequestTimeout,
+        engineInfo,
+        isDetectingEngine,
+        sessionStats,
+        liveTransportStatus,
+        refreshSessionStatsData,
+    } = session;
 
     useEffect(() => {
         if (!torrentClient.setSequentialDownload) {
@@ -936,14 +922,6 @@ export default function App() {
     // TODO: Extract capability state detection (sequential/super-seeding) into a reusable hook collocated with capability store logic so consumers read from a single source of truth.
 
     const isMountedRef = useRef(false);
-    const { sessionStats, refreshSessionStatsData, liveTransportStatus } =
-        useSessionStats({
-            torrentClient,
-            reportReadError,
-            isMountedRef,
-            sessionReady: rpcStatus === STATUS.connection.CONNECTED,
-        });
-    // TODO: Consider a single "session context" provider that bundles rpcStatus, engineInfo, capabilities, and sessionStats to reduce prop drilling and simplify wiring.
 
     // Workbench zoom: initialize global scale hook
     const { increase, decrease, reset } = useWorkbenchScale();
@@ -1064,10 +1042,6 @@ export default function App() {
         };
     }, []);
 
-    const handleReconnect = () => {
-        reconnect();
-    };
-
     const torrentDispatch = useMemo(
         () =>
             createTorrentDispatch({
@@ -1096,50 +1070,41 @@ export default function App() {
     );
 
     return (
-        <UiModeProvider>
-            <UIActionGateProvider>
-                <FocusProvider>
-                    <LifecycleProvider>
-                        <TorrentActionsProvider actions={actions}>
-                            <SelectionProvider>
-                                <AppContent
-                                    t={t}
-                                    torrentClient={torrentClient}
-                                    rpcStatus={rpcStatus}
-                                    engineInfo={engineInfo}
-                                    isDetectingEngine={isDetectingEngine}
-                                    sessionStats={sessionStats}
-                                    liveTransportStatus={liveTransportStatus}
-                                    torrents={torrents}
-                                    ghostTorrents={ghostTorrents}
-                                    isInitialLoadFinished={isInitialLoadFinished}
-                                    refreshTorrents={refreshTorrents}
-                                    refreshDetailData={refreshDetailData}
-                                    detailData={detailData}
-                                    loadDetail={loadDetail}
-                                    clearDetail={clearDetail}
-                                    mutateDetail={mutateDetail}
-                                    updateCapabilityState={updateCapabilityState}
-                                    settingsFlow={settingsFlow}
-                                    torrentClientRef={torrentClientRef}
-                                    refreshTorrentsRef={refreshTorrentsRef}
-                                    refreshSessionStatsDataRef={
-                                        refreshSessionStatsDataRef
-                                    }
-                                    openSettings={openSettings}
-                                    isSettingsOpen={isSettingsOpen}
-                                    closeSettings={closeSettings}
-                                    announceAction={announceAction}
-                                    showFeedback={showFeedback}
-                                    reportCommandError={reportCommandError}
-                                    capabilities={capabilities}
-                                    handleReconnect={handleReconnect}
-                                />
-                            </SelectionProvider>
-                        </TorrentActionsProvider>
-                    </LifecycleProvider>
-                </FocusProvider>
-            </UIActionGateProvider>
-        </UiModeProvider>
+        <UIActionGateProvider>
+            <FocusProvider>
+                <LifecycleProvider>
+                    <TorrentActionsProvider actions={actions}>
+                        <SelectionProvider>
+                            <AppContent
+                                t={t}
+                                torrentClient={torrentClient}
+                                torrents={torrents}
+                                ghostTorrents={ghostTorrents}
+                                isInitialLoadFinished={isInitialLoadFinished}
+                                refreshTorrents={refreshTorrents}
+                                refreshDetailData={refreshDetailData}
+                                detailData={detailData}
+                                loadDetail={loadDetail}
+                                clearDetail={clearDetail}
+                                mutateDetail={mutateDetail}
+                                updateCapabilityState={updateCapabilityState}
+                                settingsFlow={settingsFlow}
+                                torrentClientRef={torrentClientRef}
+                                refreshTorrentsRef={refreshTorrentsRef}
+                                refreshSessionStatsDataRef={
+                                    refreshSessionStatsDataRef
+                                }
+                                openSettings={openSettings}
+                                isSettingsOpen={isSettingsOpen}
+                                closeSettings={closeSettings}
+                                announceAction={announceAction}
+                                showFeedback={showFeedback}
+                                capabilities={capabilities}
+                            />
+                        </SelectionProvider>
+                    </TorrentActionsProvider>
+                </LifecycleProvider>
+            </FocusProvider>
+        </UIActionGateProvider>
     );
 }

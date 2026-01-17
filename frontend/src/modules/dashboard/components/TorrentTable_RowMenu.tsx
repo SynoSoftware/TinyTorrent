@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { AnimatePresence } from "framer-motion";
 import {
     Dropdown,
@@ -13,11 +13,9 @@ import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { ContextMenuVirtualElement } from "@/shared/hooks/ui/useContextMenuPosition";
 import { useRecoveryContext } from "@/app/context/RecoveryContext";
 import { SetLocationInlineEditor } from "@/modules/dashboard/components/SetLocationInlineEditor";
-import type { SetLocationOutcome } from "@/app/context/RecoveryContext";
-import {
-    getSetLocationOutcomeMessage,
-    getSurfaceCaptionKey,
-} from "@/app/utils/setLocation";
+import { getSurfaceCaptionKey } from "@/app/utils/setLocation";
+import { useMissingFilesClassification } from "@/services/recovery/missingFilesStore";
+import { resolveRecoveryClassification } from "@/modules/dashboard/utils/recoveryClassification";
 
 const getTorrentKey = (
     entry?: { id?: string | number; hash?: string } | null
@@ -40,9 +38,7 @@ export default function TorrentTable_RowMenu({
         torrent: Torrent;
     } | null;
     onClose: () => void;
-    handleContextMenuAction: (
-        key?: string
-    ) => Promise<SetLocationOutcome | undefined>;
+    handleContextMenuAction: (key?: string) => Promise<void>;
     queueMenuActions: QueueMenuAction[];
     getContextMenuShortcut: (key: string) => string | undefined;
     t: (k: string, opts?: Record<string, unknown>) => string;
@@ -60,10 +56,9 @@ export default function TorrentTable_RowMenu({
         releaseInlineSetLocation,
         confirmInlineSetLocation,
         handleInlineLocationChange,
-        getLocationOutcome,
         setLocationCapability,
         canOpenFolder,
-        connectionMode,
+        getRecoverySessionForKey,
     } = useRecoveryContext();
     // TODO: Ensure all recovery/set-location actions here route through the single recovery gate/state machine; no local sequencing or ad-hoc handling for “set-download-path” should exist.
     // TODO: Replace `connectionMode` usage here with `uiMode = "Full" | "Rpc"` from the capability provider; UI should not branch on tinytorrent-* strings.
@@ -72,6 +67,21 @@ export default function TorrentTable_RowMenu({
     const shouldShowOpenFolder = canOpenFolder;
     const canSetLocation =
         setLocationCapability.canBrowse || setLocationCapability.supportsManual;
+    const torrentKey = getTorrentKey(contextMenu.torrent);
+    const sessionClassification =
+        getRecoverySessionForKey(torrentKey)?.classification ?? null;
+    const storedClassification = useMissingFilesClassification(
+        contextMenu.torrent.id ?? contextMenu.torrent.hash ?? undefined
+    );
+    const classification = useMemo(
+        () =>
+            resolveRecoveryClassification({
+                sessionClassification,
+                storedClassification,
+            }),
+        [sessionClassification, storedClassification]
+    );
+    const showUnknownConfidence = classification?.confidence === "unknown";
     const inlineStateKey = inlineSetLocationState?.torrentKey ?? "";
     const currentKey = getTorrentKey(contextMenu.torrent);
     const shouldShowInlineEditor =
@@ -82,19 +92,12 @@ export default function TorrentTable_RowMenu({
         inlineSetLocationState?.status === "verifying";
     const inlineStatusMessage = inlineIsVerifying
         ? t("recovery.status.applying_location")
+        : showUnknownConfidence
+        ? t("recovery.inline_fallback")
         : undefined;
     const inlineCaption = t(getSurfaceCaptionKey("context-menu"));
     const inlineIsBusy =
         inlineSetLocationState?.status !== "idle" || inlineIsVerifying;
-    const outcomeMessage = getSetLocationOutcomeMessage(
-        getLocationOutcome("context-menu", inlineStateKey || currentKey),
-        "context-menu",
-        connectionMode
-    );
-    const unsupportedMessage =
-        outcomeMessage && !shouldShowInlineEditor
-            ? t(outcomeMessage.labelKey)
-            : null;
     const handleInlineSubmit = () => {
         void confirmInlineSetLocation().then((success) => {
             if (success) {
@@ -283,17 +286,6 @@ export default function TorrentTable_RowMenu({
                                     onCancel={handleInlineCancel}
                                 />
                             </DropdownItem>
-                        </DropdownSection>
-                    ) : null}
-                    {unsupportedMessage && !shouldShowInlineEditor ? (
-                        <DropdownSection
-                            key="set-location-unsupported"
-                            title=""
-                            className="border-t border-content1/20 px-panel pt-panel"
-                        >
-                            <div className="text-label text-warning/80">
-                                {unsupportedMessage}
-                            </div>
                         </DropdownSection>
                     ) : null}
                 </DropdownMenu>

@@ -28,9 +28,8 @@ import { SettingsFormProvider } from "@/modules/settings/context/SettingsFormCon
 import { useShellAgent } from "@/app/hooks/useShellAgent";
 import { GLASS_MODAL_SURFACE } from "@/shared/ui/layout/glass-surface";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
-import type { ServerClass } from "@/services/rpc/entities";
 import { InterfaceTabContent } from "@/modules/settings/components/InterfaceTabContent";
-import { useUiModeCapabilities } from "@/app/context/UiModeContext";
+import { useSession } from "@/app/context/SessionContext";
 // TODO: Settings must NOT decide capabilities by probing transport/daemon types. It must read a single capability/locality source of truth (from a provider) and render accordingly.
 // TODO: With “RPC extensions: NONE”:
 // TODO: - There is no “TinyTorrent server” mode, no websocket mode, no `tt-get-capabilities`, and no `X-TT-Auth` token flow.
@@ -78,7 +77,6 @@ interface SettingsModalProps {
     onRestoreInsights?: () => void;
     onToggleWorkspaceStyle?: () => void;
     onReconnect: () => void;
-    serverClass: ServerClass;
     isNativeMode: boolean;
     isImmersive?: boolean;
     hasDismissedInsights: boolean;
@@ -101,7 +99,6 @@ export function SettingsModal({
     onRestoreInsights,
     onToggleWorkspaceStyle,
     onReconnect,
-    serverClass,
     isNativeMode,
     isImmersive,
     hasDismissedInsights,
@@ -126,8 +123,9 @@ export function SettingsModal({
     const wasOpenRef = useRef(false);
 
     const { shellAgent } = useShellAgent();
-    const { uiMode, canBrowse, shellAgentAvailable } =
-        useUiModeCapabilities();
+    const {
+        uiCapabilities: { uiMode, canBrowse, shellAgentAvailable },
+    } = useSession();
     const [modalFeedback, setModalFeedback] = useState<ModalFeedback | null>(
         null
     );
@@ -604,10 +602,7 @@ export function SettingsModal({
                                     >
                                         {activeTabDefinition.id ===
                                         "connection" ? (
-                                            <ConnectionTabContent
-                                                serverClass={serverClass}
-                                                isNativeMode={isNativeMode}
-                                            />
+                                        <ConnectionTabContent isNativeMode={isNativeMode} />
                                         ) : activeTabDefinition.id ===
                                           "system" ? (
                                             <SystemTabContent

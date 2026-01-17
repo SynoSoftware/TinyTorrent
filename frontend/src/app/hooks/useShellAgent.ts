@@ -2,17 +2,11 @@ import { useEffect, useMemo } from "react";
 import Runtime from "@/app/runtime";
 import { useConnectionConfig } from "@/app/context/ConnectionConfigContext";
 import { shellAgent, type ShellUiMode } from "@/app/agents/shell-agent";
-import { isLoopbackHost, normalizeHost } from "@/app/utils/hosts";
+import { normalizeHost } from "@/app/utils/hosts";
+import { computeUiMode } from "@/app/utils/uiMode";
 
-const computeUiMode = (host: string): ShellUiMode => {
-    if (!Runtime.isNativeHost) {
-        return "Rpc";
-    }
-    if (isLoopbackHost(host)) {
-        return "Full";
-    }
-    return "Rpc";
-};
+const computeMode = (host: string): ShellUiMode =>
+    computeUiMode(host, Runtime.isNativeHost);
 
 export function useShellAgent() {
     const { activeProfile } = useConnectionConfig();
@@ -20,7 +14,7 @@ export function useShellAgent() {
         () => normalizeHost(activeProfile.host || ""),
         [activeProfile.host]
     );
-    const uiMode = useMemo(() => computeUiMode(host), [host]);
+    const uiMode = useMemo(() => computeMode(host), [host]);
     useEffect(() => {
         shellAgent.setUiMode(uiMode);
     }, [uiMode]);

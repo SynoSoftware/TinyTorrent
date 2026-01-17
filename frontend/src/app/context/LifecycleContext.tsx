@@ -4,12 +4,9 @@ import React, {
     useMemo,
     type ReactNode,
 } from "react";
-import { useTorrentClient } from "@/app/providers/TorrentClientProvider";
-import { useTransmissionSession } from "@/app/hooks/useTransmissionSession";
 import type { ServerClass } from "@/services/rpc/entities";
 import type { ConnectionStatus } from "@/shared/types/rpc";
-import Runtime from "@/app/runtime";
-import { useUiModeCapabilities } from "@/app/context/UiModeContext";
+import { useSession } from "@/app/context/SessionContext";
 
 export type LifecycleState = {
     serverClass: ServerClass;
@@ -28,21 +25,19 @@ export type LifecycleState = {
 const LifecycleContext = createContext<LifecycleState | null>(null);
 
 export function LifecycleProvider({ children }: { children: ReactNode }) {
-    const client = useTorrentClient();
-    const { rpcStatus, engineInfo } = useTransmissionSession(client);
+    const {
+        rpcStatus,
+        engineInfo,
+        uiCapabilities: { uiMode },
+    } = useSession();
 
-    const serverClass: ServerClass = (client.getServerClass?.() ??
-        (engineInfo?.type === "libtorrent"
-            ? "tinytorrent"
-            : engineInfo?.type === "transmission"
-            ? "transmission"
-            : "unknown")) as ServerClass;
-    // TODO: Remove serverClass inference once RPC extensions are gone; treat EngineInfo as Transmission-only and use “unknown” when disconnected.
+    const serverClass: ServerClass = ((engineInfo?.type === "libtorrent"
+        ? "tinytorrent"
+        : engineInfo?.type === "transmission"
+        ? "transmission"
+        : "unknown") as ServerClass);
 
-    const { uiMode } = useUiModeCapabilities();
     const nativeIntegration = uiMode === "Full";
-    // TODO: Replace nativeIntegration heuristic with ShellAgent/ShellExtensions capability: “native host present AND connected to localhost endpoint”.
-    // TODO: Do not depend on `serverClass === "tinytorrent"` for any UX gating. Local Transmission can also be `uiMode=Full` if ShellExtensions is available.
 
     const value = useMemo(
         () => ({ serverClass, rpcStatus, nativeIntegration, uiMode }),

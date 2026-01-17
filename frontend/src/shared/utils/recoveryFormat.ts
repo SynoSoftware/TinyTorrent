@@ -1,4 +1,5 @@
 import type { ErrorEnvelope } from "@/services/rpc/entities";
+import type { MissingFilesClassification } from "@/services/recovery/recovery-controller";
 import type { TFunction } from "i18next";
 
 // TODO: Move recovery formatting to accept the *recovery gate output* (typed `{state, confidence, recommendedActions}`) instead of parsing `ErrorEnvelope` directly.
@@ -198,4 +199,59 @@ export const deriveMissingFilesStateKind = (
         return "pathLoss";
     }
     return "dataGap";
+};
+
+const CLASSIFICATION_STATUS_KEY: Record<
+    MissingFilesStateKind,
+    string
+> = {
+    dataGap: "recovery.generic_header",
+    pathLoss: "recovery.status.folder_not_found",
+    volumeLoss: "recovery.status.drive_disconnected",
+    accessDenied: "recovery.status.access_denied",
+};
+
+export const formatRecoveryStatusFromClassification = (
+    classification: MissingFilesClassification | null,
+    t: TFunction
+) => {
+    if (!classification) return t("recovery.generic_header");
+    if (classification.confidence === "unknown") {
+        return t("recovery.inline_fallback");
+    }
+    const key = CLASSIFICATION_STATUS_KEY[classification.kind] ?? "recovery.generic_header";
+    switch (classification.kind) {
+        case "pathLoss":
+            return t(key, {
+                path: classification.path ?? t("labels.unknown"),
+            });
+        case "volumeLoss": {
+            const drive =
+                classification.root ??
+                extractDriveLabel(classification.path ?? "") ??
+                t("labels.unknown");
+            return t(key, { drive });
+        }
+        default:
+            return t(key);
+    }
+};
+
+export const formatRecoveryTooltipFromClassification = (
+    classification: MissingFilesClassification | null,
+    t: TFunction
+) => {
+    return formatRecoveryStatusFromClassification(classification, t);
+};
+
+export const formatPrimaryActionHintFromClassification = (
+    classification: MissingFilesClassification | null,
+    t: TFunction
+) => {
+    if (!classification || !classification.recommendedActions.length) {
+        return null;
+    }
+    const action = classification.recommendedActions[0];
+    const key = RECOVERY_HINT_KEY[action] ?? `recovery.hint.${action}`;
+    return t(key);
 };

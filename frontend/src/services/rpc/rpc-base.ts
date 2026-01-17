@@ -36,7 +36,7 @@ import {
     WS_RECONNECT_INITIAL_DELAY_MS,
     WS_RECONNECT_MAX_DELAY_MS,
 } from "@/config/logic";
-import type { EngineAdapter, ServerCapabilities } from "./engine-adapter";
+import type { EngineAdapter } from "./engine-adapter";
 import { HeartbeatManager } from "./heartbeat";
 import type {
     HeartbeatSubscriberParams,
@@ -568,16 +568,12 @@ export class TransmissionAdapter implements EngineAdapter {
     // Synchronously destroy the adapter and release resources.
     public destroy(): void {
         try {
-            this.heartbeat.disablePolling();
-            // ensure heartbeat removes any global listeners it installed
-            try {
-                const hb = this.heartbeat as unknown as {
-                    dispose?: () => void;
-                };
-                if (typeof hb.dispose === "function") {
-                    hb.dispose();
-                }
-            } catch {}
+            const hb = this.heartbeat as unknown as {
+                dispose?: () => void;
+            };
+            if (typeof hb.dispose === "function") {
+                hb.dispose();
+            }
         } catch (err) {
             console.warn("[tiny-torrent][rpc] destroy error:", err);
         }
@@ -792,18 +788,6 @@ export class TransmissionAdapter implements EngineAdapter {
         };
         this.engineInfoCache = info;
         return info;
-    }
-
-    public getServerCapabilities(): ServerCapabilities {
-        const host = this.extractEndpointHost();
-        const serverClassValue = this.serverClass ?? "unknown";
-        return {
-            host,
-            serverClass: serverClassValue,
-            supportsOpenFolder: false,
-            supportsSetLocation: true,
-            supportsManual: true,
-        };
     }
 
     public getServerClass(): ServerClass {
