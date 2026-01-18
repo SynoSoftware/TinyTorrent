@@ -82,6 +82,16 @@ export const ContentTab = ({
                   count: filesCount,
               });
 
+    const fileExplorerViewModel = useMemo(
+        () => ({
+            files: displayFiles,
+            emptyMessage,
+            onFilesToggle: toggle,
+            onFileContextAction,
+        }),
+        [displayFiles, emptyMessage, toggle, onFileContextAction]
+    );
+
     if (filesCount === 0) {
         return (
             <div className="flex h-full min-h-0 flex-col gap-panel">
@@ -187,12 +197,7 @@ export const ContentTab = ({
                         className="h-full min-h-0 overflow-y-auto px-panel py-panel"
                         style={{ maxHeight: DETAILS_TAB_CONTENT_MAX_HEIGHT }}
                     >
-                        <FileExplorerTree
-                            files={displayFiles}
-                            emptyMessage={emptyMessage}
-                            onFilesToggle={toggle}
-                            onFileContextAction={onFileContextAction}
-                        />
+                        <FileExplorerTree viewModel={fileExplorerViewModel} />
                     </div>
                 </div>
             </GlassPanel>

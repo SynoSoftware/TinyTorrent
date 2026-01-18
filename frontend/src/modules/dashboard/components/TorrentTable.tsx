@@ -30,9 +30,9 @@ import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { getEmphasisClassForAction } from "@/shared/utils/recoveryFormat";
 
-import type { OptimisticStatusMap } from "@/modules/dashboard/types/optimistic";
 import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
+import type { TorrentTableViewModel } from "@/app/viewModels/useAppViewModel";
 
 import { BLOCK_SHADOW } from "@/shared/ui/layout/glass-surface";
 import useLayoutMetrics from "@/shared/hooks/useLayoutMetrics";
@@ -120,16 +120,11 @@ const getContextMenuShortcut = (action: ContextMenuKey) =>
 // Row height and other CSS-derived metrics are provided by `useLayoutMetrics`
 
 interface TorrentTableProps {
-    torrents: Torrent[];
-    filter: string;
-    searchQuery: string;
-    isLoading?: boolean;
+    viewModel: TorrentTableViewModel;
     embedded?: boolean;
+    disableDetailOpen?: boolean;
     onRequestDetails?: (torrent: Torrent) => void;
     onRequestDetailsFullscreen?: (torrent: Torrent) => void;
-    optimisticStatuses?: OptimisticStatusMap;
-    disableDetailOpen?: boolean;
-    ghostTorrents?: Torrent[];
 }
 
 // --- HELPERS ---
@@ -149,17 +144,20 @@ type QueueMenuAction = { key: TorrentTableAction; label: string };
 
 // --- MAIN COMPONENT ---
 export function TorrentTable({
-    torrents,
-    filter,
-    searchQuery,
-    isLoading = false,
+    viewModel,
     embedded = false,
+    disableDetailOpen = false,
     onRequestDetails,
     onRequestDetailsFullscreen,
-    optimisticStatuses = {},
-    disableDetailOpen = false,
-    ghostTorrents,
 }: TorrentTableProps) {
+    const {
+        torrents,
+        filter,
+        searchQuery,
+        isLoading = false,
+        optimisticStatuses = {},
+        ghostTorrents,
+    } = viewModel;
     const { t } = useTranslation();
     // actions provided by TorrentActionsContext (declared above)
     // Wiring state required by the extracted hooks/components

@@ -17,11 +17,9 @@ import { cn } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 
-import { useTorrentClient } from "@/app/providers/TorrentClientProvider";
 import { StatusIcon } from "@/shared/ui/components/StatusIcon";
 import { TinyTorrentIcon } from "@/shared/ui/components/TinyTorrentIcon";
 import { NetworkGraph } from "@/shared/ui/graphs/NetworkGraph";
-import { useSession } from "@/app/context/SessionContext";
 
 import { formatBytes, formatSpeed } from "@/shared/utils/format";
 import { getShellTokens, UI_BASES, STATUS_VISUALS } from "@/config/logic";
@@ -38,6 +36,7 @@ import type { HeartbeatSource } from "@/services/rpc/heartbeat";
 import type { ConnectionStatus } from "@/shared/types/rpc";
 import type { WorkspaceStyle } from "@/app/hooks/useWorkspaceShell";
 import type { UiMode } from "@/app/utils/uiMode";
+import type { StatusBarViewModel } from "@/app/viewModels/useAppViewModel";
 
 const DISK_LABELS: Record<string, string> = {
     ok: "status_bar.disk_ok",
@@ -65,56 +64,12 @@ type TransportStatus = "polling" | "offline";
 type DiskState = "ok" | "warn" | "bad" | "unknown";
 
 interface StatusBarProps {
-    workspaceStyle: WorkspaceStyle;
-    sessionStats: SessionStats | null;
-    liveTransportStatus: HeartbeatSource;
-    selectedCount?: number;
-    onEngineClick?: () => void;
-    torrents: TorrentEntity[];
+    viewModel: StatusBarViewModel;
 }
 
 /* ------------------------------------------------------------------ */
 /* HOOKS */
 /* ------------------------------------------------------------------ */
-
-function useNetworkTelemetry() {
-    const client = useTorrentClient();
-    const [telemetry, setTelemetry] = React.useState<NetworkTelemetry | null>(
-        null
-    );
-
-    React.useEffect(() => {
-        let mounted = true;
-        // Subscribe to the central HeartbeatManager via the adapter.
-        // This ensures there is exactly one authoritative scheduler for network polling.
-        const sub = client.subscribeToHeartbeat({
-            mode: "background",
-            onUpdate: (payload) => {
-                if (!mounted) return;
-                // payload.sessionStats is the authoritative session telemetry.
-                // Map it to NetworkTelemetry shape if necessary, otherwise null.
-                // Keep this conservative: avoid issuing any new network calls here.
-                const net: NetworkTelemetry | null =
-                    (payload as any).networkTelemetry ?? null;
-                setTelemetry(net);
-            },
-            onError: () => {
-                if (!mounted) return;
-                setTelemetry(null);
-            },
-        });
-
-        return () => {
-            mounted = false;
-            try {
-                sub.unsubscribe();
-            } catch {}
-        };
-    }, [client]);
-
-    return telemetry;
-}
-// TODO: Avoid direct Heartbeat subscriptions in StatusBar; consume telemetry via a shared session provider to prevent multiple schedulers and simplify wiring.
 
 /* ------------------------------------------------------------------ */
 /* SMALL PRIMITIVES */
@@ -499,19 +454,20 @@ function EngineControlChip({
 /* MAIN */
 /* ------------------------------------------------------------------ */
 
-export function StatusBar({
-    workspaceStyle,
-    sessionStats,
-    liveTransportStatus,
-    selectedCount = 0,
-    onEngineClick,
-    torrents,
-}: StatusBarProps) {
+export function StatusBar({ viewModel }: StatusBarProps) {
+    const {
+        workspaceStyle,
+        sessionStats,
+        transportStatus,
+        telemetry,
+        rpcStatus,
+        uiMode,
+        handleReconnect,
+        selectedCount = 0,
+        torrents,
+    } = viewModel;
     const { t } = useTranslation();
     const shell = getShellTokens(workspaceStyle);
-    const telemetry = useNetworkTelemetry();
-    const { rpcStatus, uiCapabilities } = useSession();
-    const { uiMode } = uiCapabilities;
 
     // StatusBar must not independently fetch the full torrent list; prefer
     // the parent-provided `torrents` (from Heartbeat) to avoid N+1 storms.
@@ -519,11 +475,6 @@ export function StatusBar({
     const [fetchedTorrents, setFetchedTorrents] = React.useState<
         TorrentEntity[] | null
     >(null);
-
-    const transportStatus: TransportStatus =
-        rpcStatus === STATUS.connection.CONNECTED
-            ? liveTransportStatus
-            : "offline";
 
     // Disk safety calculation (canonical logic)
     const freeBytes =
@@ -717,7 +668,7 @@ export function StatusBar({
                     <EngineControlChip
                         rpcStatus={rpcStatus}
                         uiMode={uiMode}
-                        onClick={onEngineClick}
+                        onClick={handleReconnect}
                         tooltip={engineControlTooltip}
                     />
                 </div>

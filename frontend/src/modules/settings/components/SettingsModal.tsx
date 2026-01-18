@@ -30,6 +30,7 @@ import { GLASS_MODAL_SURFACE } from "@/shared/ui/layout/glass-surface";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
 import { InterfaceTabContent } from "@/modules/settings/components/InterfaceTabContent";
 import { useSession } from "@/app/context/SessionContext";
+import type { SettingsModalViewModel } from "@/app/viewModels/useAppViewModel";
 // TODO: Settings must NOT decide capabilities by probing transport/daemon types. It must read a single capability/locality source of truth (from a provider) and render accordingly.
 // TODO: With “RPC extensions: NONE”:
 // TODO: - There is no “TinyTorrent server” mode, no websocket mode, no `tt-get-capabilities`, and no `X-TT-Auth` token flow.
@@ -67,20 +68,7 @@ const configsAreEqual = (a: SettingsConfig, b: SettingsConfig) =>
     JSON.stringify(stripLivePreferences(b));
 
 interface SettingsModalProps {
-    isOpen: boolean;
-    onClose: () => void;
-    initialConfig: SettingsConfig;
-    isSaving: boolean;
-    onSave: (config: SettingsConfig) => Promise<void>;
-    settingsLoadError?: boolean;
-    onTestPort?: () => void;
-    onRestoreInsights?: () => void;
-    onToggleWorkspaceStyle?: () => void;
-    onReconnect: () => void;
-    isNativeMode: boolean;
-    isImmersive?: boolean;
-    hasDismissedInsights: boolean;
-    onApplyUserPreferencesPatch?: (patch: LiveUserPreferencePatch) => void;
+    viewModel: SettingsModalViewModel;
 }
 
 type ModalFeedback = {
@@ -88,22 +76,23 @@ type ModalFeedback = {
     text: string;
 };
 
-export function SettingsModal({
-    isOpen,
-    onClose,
-    initialConfig,
-    isSaving,
-    onSave,
-    settingsLoadError,
-    onTestPort,
-    onRestoreInsights,
-    onToggleWorkspaceStyle,
-    onReconnect,
-    isNativeMode,
-    isImmersive,
-    hasDismissedInsights,
-    onApplyUserPreferencesPatch,
-}: SettingsModalProps) {
+export function SettingsModal({ viewModel }: SettingsModalProps) {
+    const {
+        isOpen,
+        onClose,
+        initialConfig,
+        isSaving,
+        onSave,
+        settingsLoadError,
+        onTestPort,
+        onRestoreInsights,
+        onToggleWorkspaceStyle,
+        onReconnect,
+        isNativeMode,
+        isImmersive,
+        hasDismissedInsights,
+        onApplyUserPreferencesPatch,
+    } = viewModel;
     const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState<SettingsTab>("speed");
 

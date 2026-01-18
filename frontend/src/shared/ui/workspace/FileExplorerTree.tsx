@@ -26,7 +26,7 @@ import type {
 export type FileExplorerEntry = TorrentFileEntity;
 
 // FileExplorerTreeProps interface (redeclare for local use)
-interface FileExplorerTreeProps {
+export interface FileExplorerTreeViewModel {
     files: FileExplorerEntry[];
     emptyMessage?: string;
     onFilesToggle?: (indexes: number[], wanted: boolean) => void;
@@ -34,6 +34,9 @@ interface FileExplorerTreeProps {
         action: FileExplorerContextAction,
         entry: FileExplorerEntry
     ) => void;
+}
+interface FileExplorerTreeProps {
+    viewModel: FileExplorerTreeViewModel;
 }
 // TODO: Keep FileExplorerTree as a pure “view” component:
 // TODO: - It must not call RPC or ShellExtensions directly (no `EngineAdapter`, no `NativeShell`, no filesystem probing).
@@ -151,12 +154,9 @@ const flattenVisibleNodes = (
 // Row height is driven by CSS token `--tt-row-h` (fallback to 32)
 // We read the token inside the component to provide a numeric estimate to the virtualizer.
 
-export function FileExplorerTree({
-    files,
-    emptyMessage,
-    onFilesToggle,
-    onFileContextAction,
-}: FileExplorerTreeProps) {
+export function FileExplorerTree({ viewModel }: FileExplorerTreeProps) {
+    const { files, emptyMessage, onFilesToggle, onFileContextAction } =
+        viewModel;
     const [search, setSearch] = useState("");
     const [extensionFilter, setExtensionFilter] = useState("");
     const { t } = useTranslation();

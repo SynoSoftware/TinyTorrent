@@ -12,28 +12,15 @@ import { useTranslation } from "react-i18next";
 import { useFocusState } from "@/app/context/FocusContext";
 
 import { TorrentTable } from "./TorrentTable";
-import type { OptimisticStatusMap } from "@/modules/dashboard/types/optimistic";
-import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
 import { TorrentDetails } from "./TorrentDetails";
-import type {
-    DetailTab,
-    PeerSortStrategy,
-} from "@/modules/dashboard/types/torrentDetail";
-import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
 import {
     ICON_STROKE_WIDTH,
     getShellTokens,
     MIN_HANDLE_VISUAL_WIDTH,
 } from "@/config/logic";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
-import type { CapabilityStore } from "@/app/types/capabilities";
-import type { WorkspaceStyle } from "@/app/hooks/useWorkspaceShell";
-import type { TorrentPeerEntity } from "@/services/rpc/entities";
-import type {
-    FileExplorerContextAction,
-    FileExplorerEntry,
-} from "@/shared/ui/workspace/FileExplorerTree";
-import type { PeerContextAction } from "./TorrentDetails_Peers";
+import type { Torrent } from "@/modules/dashboard/types/torrent";
+import type { DashboardViewModel } from "@/app/viewModels/useAppViewModel";
 
 const ANIMATION = {
     spring: {
@@ -45,75 +32,41 @@ const ANIMATION = {
 } as const;
 
 interface DashboardLayoutProps {
-    workspaceStyle: WorkspaceStyle;
-    torrents: Torrent[];
-    filter: string;
-    searchQuery: string;
-    isTableLoading: boolean;
-    detailSplitDirection?: "horizontal" | "vertical";
-    // action props removed — use TorrentActionsContext in leaf components
-    onRequestDetails?: (torrent: Torrent) => void;
-    detailData: TorrentDetail | null;
-    onCloseDetail: () => void;
-    onFilesToggle?: (
-        indexes: number[],
-        wanted: boolean
-    ) => Promise<void> | void;
-    ghostTorrents?: Torrent[];
-    // onOpenFolder removed — use TorrentActionsContext in leaf components
-    onFileContextAction?: (
-        action: FileExplorerContextAction,
-        entry: FileExplorerEntry
-    ) => void;
-    onPeerContextAction?: (
-        action: PeerContextAction,
-        peer: TorrentPeerEntity
-    ) => void;
-    onSequentialToggle?: (enabled: boolean) => Promise<void> | void;
-    onSuperSeedingToggle?: (enabled: boolean) => Promise<void> | void;
-    // action callbacks removed — use TorrentActionsContext in leaf components
-    isDetailRecoveryBlocked?: boolean;
-    capabilities: CapabilityStore;
-    optimisticStatuses?: OptimisticStatusMap;
-    peerSortStrategy?: PeerSortStrategy;
-    inspectorTabCommand?: DetailTab | null;
-    onInspectorTabCommandHandled?: () => void;
-    isDropActive?: boolean;
-    tableWatermarkEnabled?: boolean;
+    viewModel: DashboardViewModel;
 }
-// TODO: DashboardLayoutProps is still too wide (many independent concerns). Convert to a single `DashboardViewModel` prop with grouped sub-objects:
-// TODO: - `table`: { torrents, ghostTorrents, filter, searchQuery, isLoading, optimisticStatuses, capabilities, tableWatermarkEnabled }
-// TODO: - `detail`: { data, onRequestDetails, onCloseDetail, isRecoveryBlocked, peerSortStrategy, inspectorTabCommand, onInspectorTabCommandHandled }
-// TODO: - `dnd`: { isDropActive }
-// TODO: Keep this component purely presentational: no orchestration, no capability inference, no engine calls.
 
 export function Dashboard_Layout({
-    workspaceStyle,
-    torrents,
-    filter,
-    searchQuery,
-    isTableLoading,
-
-    onRequestDetails,
-    detailData,
-    onCloseDetail,
-    onFilesToggle,
-    ghostTorrents,
-    onFileContextAction,
-    onPeerContextAction,
-    onSequentialToggle,
-    onSuperSeedingToggle,
-    isDetailRecoveryBlocked,
-    // onOpenFolder removed from props
-    capabilities,
-    optimisticStatuses,
-    peerSortStrategy,
-    inspectorTabCommand,
-    onInspectorTabCommandHandled,
-    isDropActive = false,
-    detailSplitDirection = "vertical",
-    tableWatermarkEnabled = true,
+    viewModel,
 }: DashboardLayoutProps) {
+    const {
+        workspaceStyle,
+        filter,
+        searchQuery,
+        table,
+        detail,
+        detailSplitDirection,
+    } = viewModel;
+    const {
+        torrents,
+        ghostTorrents,
+        isLoading,
+        capabilities,
+        optimisticStatuses,
+        tableWatermarkEnabled,
+        isDropActive = false,
+    } = table;
+    const {
+        detailData,
+        handleRequestDetails,
+        closeDetail,
+        handleFileSelectionChange,
+        sequentialToggleHandler,
+        superSeedingToggleHandler,
+        peerSortStrategy,
+        inspectorTabCommand,
+        onInspectorTabCommandHandled,
+        isDetailRecoveryBlocked,
+    } = detail;
     const { t } = useTranslation();
     const { activePart, setActivePart } = useFocusState();
 
@@ -121,7 +74,7 @@ export function Dashboard_Layout({
 
     const shell = getShellTokens(workspaceStyle);
 
-    const splitDirection = detailSplitDirection;
+    const splitDirection = detailSplitDirection ?? "vertical";
     const isHorizontalSplit = splitDirection === "horizontal";
     const detailPanelRef = useRef<ImperativePanelHandle | null>(null);
     const focusReturnRef = useRef<string | null>(null);
@@ -142,9 +95,9 @@ export function Dashboard_Layout({
             focusReturnRef.current = torrent.id;
             setActivePart("inspector");
             setIsDetailFullscreen(false);
-            onRequestDetails?.(torrent);
+            handleRequestDetails(torrent);
         },
-        [onRequestDetails, setActivePart]
+        [handleRequestDetails, setActivePart]
     );
     // TODO: Ensure detail/recovery/selection flows here consume the unified view-model (session/recovery/selection) rather than wiring callbacks; avoid per-component orchestration.
 
@@ -153,16 +106,16 @@ export function Dashboard_Layout({
             focusReturnRef.current = torrent.id;
             setActivePart("inspector");
             setIsDetailFullscreen(true);
-            onRequestDetails?.(torrent);
+            handleRequestDetails(torrent);
         },
-        [onRequestDetails, setActivePart]
+        [handleRequestDetails, setActivePart]
     );
 
     const handleDetailClose = useCallback(() => {
         setIsDetailFullscreen(false);
         setActivePart("table");
-        onCloseDetail();
-    }, [onCloseDetail, setActivePart]);
+        closeDetail();
+    }, [closeDetail, setActivePart]);
 
     const handleDetailDock = useCallback(() => {
         setIsDetailFullscreen(false);
@@ -304,26 +257,17 @@ export function Dashboard_Layout({
                                     className="torrent-table-watermark absolute inset-0 z-0 pointer-events-none"
                                 />
                             )}
-                            <div
-                                className="relative z-10 h-full min-h-0"
-                                style={{ borderRadius: "inherit" }}
-                            >
-                                <TorrentTable
-                                    embedded={isImmersiveShell}
-                                    torrents={torrents}
-                                    filter={filter}
-                                    searchQuery={searchQuery}
-                                    isLoading={isTableLoading}
-                                    onRequestDetails={handleDetailRequest}
-                                    onRequestDetailsFullscreen={
-                                        handleDetailFullscreenRequest
-                                    }
-                                    optimisticStatuses={optimisticStatuses}
-                                    ghostTorrents={ghostTorrents}
-                                    /* onOpenFolder removed; leaf components use TorrentActionsContext */
-                                    /* onSetLocation removed: use TorrentActionsContext.setLocation */
-                                />
-                            </div>
+                                <div
+                                    className="relative z-10 h-full min-h-0"
+                                    style={{ borderRadius: "inherit" }}
+                                >
+                                    <TorrentTable
+                                        embedded={isImmersiveShell}
+                                        viewModel={table}
+                                        /* onOpenFolder removed; leaf components use TorrentActionsContext */
+                                        /* onSetLocation removed: use TorrentActionsContext.setLocation */
+                                    />
+                                </div>
                         </div>
                         {dropOverlay}
                     </div>
@@ -401,16 +345,14 @@ export function Dashboard_Layout({
                                 <TorrentDetails
                                     torrent={detailData}
                                     onClose={handleDetailClose}
-                                    onFilesToggle={onFilesToggle}
-                                    onFileContextAction={onFileContextAction}
-                                    onPeerContextAction={onPeerContextAction}
+                                    onFilesToggle={handleFileSelectionChange}
                                     peerSortStrategy={peerSortStrategy}
                                     inspectorTabCommand={inspectorTabCommand}
                                     onInspectorTabCommandHandled={
                                         onInspectorTabCommandHandled
                                     }
-                                onSequentialToggle={onSequentialToggle}
-                                onSuperSeedingToggle={onSuperSeedingToggle}
+                                    onSequentialToggle={sequentialToggleHandler}
+                                    onSuperSeedingToggle={superSeedingToggleHandler}
                                     /* onSetLocation removed: use TorrentActionsContext.setLocation */
                                     /* redownload handled via TorrentActionsContext */
 
@@ -456,16 +398,14 @@ export function Dashboard_Layout({
                             <TorrentDetails
                                 torrent={detailData}
                                 onClose={handleDetailClose}
-                                onFilesToggle={onFilesToggle}
-                                onFileContextAction={onFileContextAction}
-                                onPeerContextAction={onPeerContextAction}
+                                onFilesToggle={handleFileSelectionChange}
                                 peerSortStrategy={peerSortStrategy}
                                 inspectorTabCommand={inspectorTabCommand}
                                 onInspectorTabCommandHandled={
                                     onInspectorTabCommandHandled
                                 }
-                                onSequentialToggle={onSequentialToggle}
-                                onSuperSeedingToggle={onSuperSeedingToggle}
+                                onSequentialToggle={sequentialToggleHandler}
+                                onSuperSeedingToggle={superSeedingToggleHandler}
                                 /* onSetLocation removed: use TorrentActionsContext.setLocation */
                                 /* redownload handled via TorrentActionsContext */
 
