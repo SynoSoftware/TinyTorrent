@@ -62,6 +62,14 @@ import {
     UIActionGateProvider,
     useUIActionGateController,
 } from "@/app/context/UIActionGateContext";
+import {
+    useAppViewModel,
+    type WorkspaceShellViewModel,
+    type StatusBarViewModel,
+    type DashboardViewModel,
+    type NavbarViewModel,
+    type StatusBarTransportStatus,
+} from "@/app/viewModels/useAppViewModel";
 
 type TranslationFn = ReturnType<typeof useTranslation>["t"];
 
@@ -133,6 +141,7 @@ function AppContent({
         reconnect,
         engineInfo,
         isDetectingEngine,
+        uiCapabilities,
     } = useSession();
     useEffect(() => {
         refreshSessionStatsDataRef.current = refreshSessionStatsData;
@@ -140,6 +149,11 @@ function AppContent({
     const handleReconnect = useCallback(() => {
         reconnect();
     }, [reconnect]);
+    const telemetry = sessionStats?.networkTelemetry ?? null;
+    const transportStatus: StatusBarTransportStatus =
+        rpcStatus === STATUS.connection.CONNECTED
+            ? liveTransportStatus
+            : "offline";
     // -- Local UI State --
     const [filter, setFilter] = useState("all");
     const [searchQuery, setSearchQuery] = useState("");
@@ -461,6 +475,47 @@ function AppContent({
             openAddTorrentPicker,
         ]
     );
+    const handleEnsureSelectionActive = useCallback(() => {
+        void handleBulkAction("resume");
+    }, [handleBulkAction]);
+    const handleEnsureSelectionPaused = useCallback(() => {
+        void handleBulkAction("pause");
+    }, [handleBulkAction]);
+    const handleEnsureSelectionValid = useCallback(() => {
+        void handleBulkAction("recheck");
+    }, [handleBulkAction]);
+    const handleEnsureSelectionRemoved = useCallback(() => {
+        void handleBulkAction("remove");
+    }, [handleBulkAction]);
+    const emphasizeActions = useMemo(
+        () => ({
+            pause: selectedTorrents.some(
+                (t) => t.errorEnvelope?.primaryAction === "pause"
+            ),
+            reannounce: selectedTorrents.some(
+                (t) => t.errorEnvelope?.primaryAction === "reannounce"
+            ),
+            changeLocation: selectedTorrents.some(
+                (t) => t.errorEnvelope?.primaryAction === "changeLocation"
+            ),
+            openFolder: selectedTorrents.some(
+                (t) => t.errorEnvelope?.primaryAction === "openFolder"
+            ),
+            forceRecheck: selectedTorrents.some(
+                (t) => t.errorEnvelope?.primaryAction === "forceRecheck"
+            ),
+        }),
+        [selectedTorrents]
+    );
+    const handleWindowCommand = useCallback(
+        (command: "minimize" | "maximize" | "close") => {
+            if (!shellAgent.isAvailable) {
+                return;
+            }
+            void shellAgent.sendWindowCommand(command);
+        },
+        [shellAgent]
+    );
 
     // -- Shell & Layout State --
     const {
@@ -508,6 +563,234 @@ function AppContent({
             label,
         };
     }, [t, torrents]);
+
+    const tableWatermarkEnabled = Boolean(
+        settingsFlow.settingsConfig.table_watermark_enabled
+    );
+
+    const dashboardViewModel = useMemo<DashboardViewModel>(
+        () => ({
+            workspaceStyle,
+            filter,
+            searchQuery,
+            detailSplitDirection: undefined,
+            table: {
+                torrents,
+                ghostTorrents,
+                isLoading: !isInitialLoadFinished,
+                capabilities,
+                optimisticStatuses,
+                tableWatermarkEnabled,
+                filter,
+                searchQuery,
+                isDropActive: isDragActive,
+            },
+            detail: {
+                detailData,
+                handleRequestDetails,
+                closeDetail: handleCloseDetail,
+                handleFileSelectionChange,
+                sequentialToggleHandler: handleSequentialToggle,
+                superSeedingToggleHandler: handleSuperSeedingToggle,
+                peerSortStrategy,
+                inspectorTabCommand,
+                onInspectorTabCommandHandled: handleInspectorTabCommandHandled,
+                isDetailRecoveryBlocked,
+            },
+        }),
+        [
+            workspaceStyle,
+            filter,
+            searchQuery,
+            torrents,
+            ghostTorrents,
+            isInitialLoadFinished,
+            capabilities,
+            optimisticStatuses,
+            tableWatermarkEnabled,
+            detailData,
+            handleRequestDetails,
+            handleCloseDetail,
+            handleFileSelectionChange,
+            handleSequentialToggle,
+            handleSuperSeedingToggle,
+            peerSortStrategy,
+            inspectorTabCommand,
+            handleInspectorTabCommandHandled,
+            isDetailRecoveryBlocked,
+            isDragActive,
+        ]
+    );
+
+    const statusBarViewModel = useMemo<StatusBarViewModel>(
+        () => ({
+            workspaceStyle,
+            sessionStats,
+            liveTransportStatus,
+            transportStatus,
+            telemetry,
+            rpcStatus,
+            uiMode: uiCapabilities.uiMode,
+            handleReconnect,
+            selectedCount: selectedIds.length,
+            torrents,
+        }),
+        [
+            workspaceStyle,
+            sessionStats,
+            liveTransportStatus,
+            transportStatus,
+            telemetry,
+            rpcStatus,
+            uiCapabilities.uiMode,
+            handleReconnect,
+            selectedIds.length,
+            torrents,
+        ]
+    );
+
+    const navbarViewModel = useMemo<NavbarViewModel>(
+        () => ({
+            filter,
+            searchQuery,
+            setFilter,
+            setSearchQuery,
+            onAddTorrent: openAddTorrentPicker,
+            onAddMagnet: openAddMagnet,
+            onSettings: openSettings,
+            hasSelection: selectedIds.length > 0,
+            emphasizeActions,
+            selectionActions: {
+                ensureActive: handleEnsureSelectionActive,
+                ensurePaused: handleEnsureSelectionPaused,
+                ensureValid: handleEnsureSelectionValid,
+                ensureRemoved: handleEnsureSelectionRemoved,
+            },
+            rehashStatus,
+            workspaceStyle,
+            onWindowCommand: handleWindowCommand,
+        }),
+        [
+            filter,
+            searchQuery,
+            setFilter,
+            setSearchQuery,
+            openAddTorrentPicker,
+            openAddMagnet,
+            openSettings,
+            selectedIds.length,
+            emphasizeActions,
+            handleEnsureSelectionActive,
+            handleEnsureSelectionPaused,
+            handleEnsureSelectionValid,
+            handleEnsureSelectionRemoved,
+            rehashStatus,
+            workspaceStyle,
+            handleWindowCommand,
+        ]
+    );
+
+    const workspaceShellViewModel = useMemo<WorkspaceShellViewModel>(
+        () => ({
+            dragAndDrop: {
+                getRootProps,
+                getInputProps,
+                isDragActive,
+            },
+            filters: {
+                filter,
+                searchQuery,
+                setFilter,
+                setSearchQuery,
+            },
+            workspaceStyle: {
+                workspaceStyle,
+                toggleWorkspaceStyle,
+                rehashStatus,
+            },
+            settingsModal: {
+                isOpen: isSettingsOpen,
+                onClose: closeSettings,
+                initialConfig: settingsFlow.settingsConfig,
+                isSaving: settingsFlow.isSettingsSaving,
+                onSave: settingsFlow.handleSaveSettings,
+                settingsLoadError: settingsFlow.settingsLoadError ?? undefined,
+                onTestPort: settingsFlow.handleTestPort,
+                onRestoreInsights: restoreHudCards,
+                onToggleWorkspaceStyle: toggleWorkspaceStyle,
+                onReconnect: handleReconnect,
+                onOpen: openSettings,
+                isNativeMode: shellAgent.isAvailable,
+                isImmersive: workspaceStyle === "immersive",
+                hasDismissedInsights,
+                onApplyUserPreferencesPatch:
+                    settingsFlow.applyUserPreferencesPatch,
+            },
+            dashboard: dashboardViewModel,
+            telemetry: {
+                sessionStats,
+                liveTransportStatus,
+                handleReconnect,
+            },
+            navOptions: {
+                rehashStatus,
+            },
+            hud: {
+                visibleHudCards,
+                dismissHudCard,
+                hasDismissedInsights,
+            },
+            deletion: {
+                pendingDelete,
+                clearPendingDelete,
+                confirmDelete,
+            },
+            recovery: {
+                isDetailRecoveryBlocked,
+            },
+            navbar: navbarViewModel,
+            statusBar: statusBarViewModel,
+        }),
+        [
+            getRootProps,
+            getInputProps,
+            isDragActive,
+            filter,
+            searchQuery,
+            setFilter,
+            setSearchQuery,
+            workspaceStyle,
+            toggleWorkspaceStyle,
+            rehashStatus,
+            isSettingsOpen,
+            closeSettings,
+            settingsFlow.settingsConfig,
+            settingsFlow.isSettingsSaving,
+            settingsFlow.handleSaveSettings,
+            settingsFlow.settingsLoadError,
+            settingsFlow.handleTestPort,
+            settingsFlow.applyUserPreferencesPatch,
+            restoreHudCards,
+            openSettings,
+            shellAgent,
+            hasDismissedInsights,
+            visibleHudCards,
+            dismissHudCard,
+            pendingDelete,
+            clearPendingDelete,
+            confirmDelete,
+            isDetailRecoveryBlocked,
+            dashboardViewModel,
+            statusBarViewModel,
+            navbarViewModel,
+        ]
+    );
+
+    const viewModel = useAppViewModel({
+        workspaceShell: workspaceShellViewModel,
+        statusBar: statusBarViewModel,
+        dashboard: dashboardViewModel,
+    });
 
     // -- Command Palette Configuration --
     const commandActions = useMemo(() => {
@@ -737,59 +1020,7 @@ function AppContent({
             >
                 {/* TODO: Introduce a recovery view-model/provider that wraps orchestrator state/actions so RecoveryProvider consumes a minimal interface and stays decoupled from add-torrent wiring. */}
                 {/* TODO: Recovery view-model should expose only what the UI needs (state + a few callbacks) and hide orchestration internals. */}
-                <WorkspaceShell
-                    getRootProps={getRootProps}
-                    getInputProps={getInputProps}
-                    isDragActive={isDragActive}
-                    filter={filter}
-                    searchQuery={searchQuery}
-                    setSearchQuery={setSearchQuery}
-                    setFilter={setFilter}
-                    openSettings={openSettings}
-                    rehashStatus={rehashStatus}
-                    workspaceStyle={workspaceStyle}
-                    toggleWorkspaceStyle={toggleWorkspaceStyle}
-                    torrents={torrents}
-                    ghostTorrents={ghostTorrents}
-                    isTableLoading={!isInitialLoadFinished}
-                    handleRequestDetails={handleRequestDetails}
-                    detailData={detailData}
-                    closeDetail={handleCloseDetail}
-                    handleFileSelectionChange={handleFileSelectionChange}
-                    sequentialToggleHandler={handleSequentialToggle}
-                    superSeedingToggleHandler={handleSuperSeedingToggle}
-                    capabilities={capabilities}
-                    optimisticStatuses={optimisticStatuses}
-                    peerSortStrategy={peerSortStrategy}
-                    inspectorTabCommand={inspectorTabCommand}
-                    onInspectorTabCommandHandled={
-                        handleInspectorTabCommandHandled
-                    }
-                    sessionStats={sessionStats}
-                    liveTransportStatus={liveTransportStatus}
-                    handleReconnect={handleReconnect}
-                    pendingDelete={pendingDelete}
-                    clearPendingDelete={clearPendingDelete}
-                    confirmDelete={confirmDelete}
-                    visibleHudCards={visibleHudCards}
-                    dismissHudCard={dismissHudCard}
-                    hasDismissedInsights={hasDismissedInsights}
-                    isSettingsOpen={isSettingsOpen}
-                    closeSettings={closeSettings}
-                    settingsConfig={settingsFlow.settingsConfig}
-                    isSettingsSaving={settingsFlow.isSettingsSaving}
-                    settingsLoadError={settingsFlow.settingsLoadError}
-                    handleSaveSettings={settingsFlow.handleSaveSettings}
-                    handleTestPort={settingsFlow.handleTestPort}
-                    restoreHudCards={restoreHudCards}
-                    applyUserPreferencesPatch={
-                        settingsFlow.applyUserPreferencesPatch
-                    }
-                    tableWatermarkEnabled={
-                        settingsFlow.settingsConfig.table_watermark_enabled
-                    }
-                    isDetailRecoveryBlocked={isDetailRecoveryBlocked}
-                />
+                <WorkspaceShell workspaceViewModel={viewModel.workspace} />
                 <TorrentRecoveryModal
                     isOpen={Boolean(recoverySession)}
                     torrent={recoverySession?.torrent ?? null}

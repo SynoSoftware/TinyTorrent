@@ -32,57 +32,32 @@ import {
 } from "@/shared/ui/layout/glass-surface";
 import { getShellTokens } from "@/config/logic";
 
+import type { NavbarViewModel } from "@/app/viewModels/useAppViewModel";
+
 interface NavbarProps {
-    filter: string;
-    searchQuery: string;
-    setSearchQuery: (value: string) => void;
-    setFilter: (key: string) => void;
-    onAddTorrent: () => void;
-    onAddMagnet: () => void;
-    onSettings: () => void;
-    hasSelection: boolean;
-    onEnsureSelectionActive: () => void;
-    onEnsureSelectionPaused: () => void;
-    onEnsureSelectionValid: () => void;
-    onEnsureSelectionRemoved: () => void;
-    rehashStatus?: {
-        active: boolean;
-        value: number;
-        label: string;
-    };
-    workspaceStyle: "classic" | "immersive";
-    onWindowCommand: (command: "minimize" | "maximize" | "close") => void;
-    emphasizeActions?: {
-        pause?: boolean;
-        reannounce?: boolean;
-        changeLocation?: boolean;
-        openFolder?: boolean;
-        forceRecheck?: boolean;
-    };
+    viewModel: NavbarViewModel;
 }
 // TODO: Reduce Navbar prop surface (cognitive load + regression risk):
 // TODO: - Replace dozens of independent callbacks with a single `NavbarViewModel` prop (grouped: search/filter, selectionActions, addActions, windowControls, status).
 // TODO: - Prefer command ids from a central command registry (todo.md task 16) instead of passing individual “ensure selection” handlers.
 // TODO: - Window commands must be routed through the ShellAgent adapter and gated by runtime (WebView host only). Navbar should just emit `{commandId}`.
 
-export function Navbar({
-    filter,
-    searchQuery,
-    setSearchQuery,
-    setFilter,
-    onAddTorrent,
-    onAddMagnet,
-    onSettings,
-    hasSelection,
-    onEnsureSelectionActive,
-    onEnsureSelectionPaused,
-    onEnsureSelectionValid,
-    onEnsureSelectionRemoved,
-    rehashStatus,
-    workspaceStyle,
-    onWindowCommand,
-    emphasizeActions,
-}: NavbarProps) {
+export function Navbar({ viewModel }: NavbarProps) {
+    const {
+        filter,
+        searchQuery,
+        setSearchQuery,
+        setFilter,
+        onAddTorrent,
+        onAddMagnet,
+        onSettings,
+        hasSelection,
+        rehashStatus,
+        workspaceStyle,
+        onWindowCommand,
+        emphasizeActions,
+        selectionActions,
+    } = viewModel;
     const { t } = useTranslation();
     const { setActivePart } = useFocusState();
     const shell = getShellTokens(workspaceStyle);
@@ -285,7 +260,7 @@ export function Navbar({
                                 Icon={Play}
                                 ariaLabel={t("toolbar.resume")}
                                 title={t("toolbar.resume")}
-                                onPress={onEnsureSelectionActive}
+                                onPress={selectionActions.ensureActive}
                                 disabled={!hasSelection}
                                 className="text-success hover:text-success-600 hover:bg-success/10"
                                 iconSize="lg"
@@ -294,7 +269,7 @@ export function Navbar({
                                 Icon={Pause}
                                 ariaLabel={t("toolbar.pause")}
                                 title={t("toolbar.pause")}
-                                onPress={onEnsureSelectionPaused}
+                                onPress={selectionActions.ensurePaused}
                                 disabled={!hasSelection}
                                 className={cn(
                                     "text-warning hover:text-warning-600 hover:bg-warning/10",
@@ -309,7 +284,7 @@ export function Navbar({
                                     Icon={RotateCcw}
                                     ariaLabel={t("toolbar.recheck")}
                                     title={t("toolbar.recheck")}
-                                    onPress={onEnsureSelectionValid}
+                                    onPress={selectionActions.ensureValid}
                                     disabled={!hasSelection}
                                     className={cn(
                                         "text-default-500 hover:text-foreground hover:bg-default-200",
@@ -323,7 +298,7 @@ export function Navbar({
                                     Icon={Trash2}
                                     ariaLabel={t("toolbar.remove")}
                                     title={t("toolbar.remove")}
-                                    onPress={onEnsureSelectionRemoved}
+                                    onPress={selectionActions.ensureRemoved}
                                     disabled={!hasSelection}
                                     className="text-danger hover:text-danger-600 hover:bg-danger/10"
                                     iconSize="lg"

@@ -1,24 +1,15 @@
-import { useCallback, useMemo } from "react";
-import type { HTMLAttributes, InputHTMLAttributes } from "react";
 import { AnimatePresence, motion, type Transition } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import { Button, cn } from "@heroui/react";
 import RemoveConfirmationModal from "@/modules/torrent-remove/components/RemoveConfirmationModal";
 import { X } from "lucide-react";
 import { STATUS } from "@/shared/status";
-import type { ConnectionStatus } from "@/shared/types/rpc";
 
 import Runtime from "@/app/runtime";
-import { useLifecycle } from "@/app/context/LifecycleContext";
-import { useSelection } from "@/app/context/SelectionContext";
-import { useTorrentCommands } from "@/app/context/TorrentCommandContext";
-import { useShellAgent } from "@/app/hooks/useShellAgent";
-
 import { Dashboard_Layout } from "@/modules/dashboard/components/Dashboard_Layout";
 import { SettingsModal } from "@/modules/settings/components/SettingsModal";
 import { Navbar } from "./layout/Navbar";
 import { StatusBar } from "./layout/StatusBar";
-import type { SettingsConfig } from "@/modules/settings/data/config";
 import {
     ICON_STROKE_WIDTH,
     IMMERSIVE_CHROME_PADDING,
@@ -30,42 +21,8 @@ import {
     IMMERSIVE_MAIN_PADDING,
     INTERACTION_CONFIG,
 } from "@/config/logic";
-import { GLASS_MODAL_SURFACE } from "@/shared/ui/layout/glass-surface";
 import { StatusIcon } from "@/shared/ui/components/StatusIcon";
-import type {
-    AmbientHudCard,
-    DeleteIntent,
-    RehashStatus,
-} from "@/app/types/workspace";
-import type {
-    FileExplorerContextAction,
-    FileExplorerEntry,
-} from "@/shared/ui/workspace/FileExplorerTree";
-import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
-import type { OptimisticStatusMap } from "@/modules/dashboard/types/optimistic";
-import type { PeerContextAction } from "@/modules/dashboard/components/TorrentDetails_Peers";
-import type {
-    DetailTab,
-    PeerSortStrategy,
-} from "@/modules/dashboard/types/torrentDetail";
-import type {
-    SessionStats,
-    TorrentPeerEntity,
-    ServerClass,
-} from "@/services/rpc/entities";
-import type { HeartbeatSource } from "@/services/rpc/heartbeat";
-import type { AddTorrentContext } from "@/app/hooks/useAddTorrent";
-import type { CapabilityStore } from "@/app/types/capabilities";
-import type { WorkspaceStyle } from "@/app/hooks/useWorkspaceShell";
-
-type AddTorrentPayload = {
-    magnetLink?: string;
-    metainfo?: string;
-    metainfoPath?: string;
-    downloadDir: string;
-    startNow: boolean;
-    filesUnwanted?: number[];
-};
+import type { WorkspaceShellViewModel } from "@/app/viewModels/useAppViewModel";
 
 const MODAL_SPRING_TRANSITION = INTERACTION_CONFIG.modalBloom.transition;
 const TOAST_SPRING_TRANSITION: Transition = {
@@ -74,263 +31,44 @@ const TOAST_SPRING_TRANSITION: Transition = {
     damping: 28,
 };
 
+const HUD_COLUMNS = {
+    0: "grid-cols-1",
+    1: "grid-cols-1",
+    2: "md:grid-cols-2",
+    3: "xl:grid-cols-3",
+};
+
 interface WorkspaceShellProps {
-    getRootProps: () => HTMLAttributes<HTMLElement>;
-    getInputProps: () => InputHTMLAttributes<HTMLInputElement>;
-    isDragActive: boolean;
-    filter: string;
-    searchQuery: string;
-    setSearchQuery: (value: string) => void;
-    setFilter: (key: string) => void;
-    openSettings: () => void;
-    // Bulk actions are routed through TorrentCommandContext now.
-    rehashStatus?: RehashStatus;
-    workspaceStyle: WorkspaceStyle;
-    toggleWorkspaceStyle: () => void;
-    torrents: Torrent[];
-    ghostTorrents: Torrent[];
-    isTableLoading: boolean;
-    handleRequestDetails: (torrent: Torrent) => Promise<void>;
-    detailData: TorrentDetail | null;
-    closeDetail: () => void;
-    handleFileSelectionChange: (
-        indexes: number[],
-        wanted: boolean
-    ) => Promise<void>;
-    onFileContextAction?: (
-        action: FileExplorerContextAction,
-        entry: FileExplorerEntry
-    ) => void;
-    onPeerContextAction?: (
-        action: PeerContextAction,
-        peer: TorrentPeerEntity
-    ) => void;
-    sequentialToggleHandler?: (enabled: boolean) => Promise<void>;
-    superSeedingToggleHandler?: (enabled: boolean) => Promise<void>;
-
-    // onRetry removed — use TorrentActionsContext in leaf components
-    capabilities: CapabilityStore;
-    optimisticStatuses: OptimisticStatusMap;
-    isDetailRecoveryBlocked?: boolean;
-    // handleOpenFolder removed — use TorrentActionsContext in leaf components
-    peerSortStrategy: PeerSortStrategy;
-    inspectorTabCommand: DetailTab | null;
-    onInspectorTabCommandHandled: () => void;
-    sessionStats: SessionStats | null;
-    liveTransportStatus: HeartbeatSource;
-    handleReconnect: () => void;
-    pendingDelete: DeleteIntent | null;
-    clearPendingDelete: () => void;
-    confirmDelete: (overrideDeleteData?: boolean) => Promise<void>;
-    visibleHudCards: AmbientHudCard[];
-    dismissHudCard: (cardId: string) => void;
-    hasDismissedInsights: boolean;
-    isSettingsOpen: boolean;
-    closeSettings: () => void;
-    settingsConfig: SettingsConfig;
-    isSettingsSaving: boolean;
-    settingsLoadError?: boolean;
-    handleSaveSettings: (config: SettingsConfig) => Promise<void>;
-    handleTestPort: () => Promise<void>;
-    restoreHudCards: () => void;
-    applyUserPreferencesPatch: (
-        patch: Partial<
-            Pick<
-                SettingsConfig,
-                | "refresh_interval_ms"
-                | "request_timeout_ms"
-                | "table_watermark_enabled"
-            >
-        >
-    ) => void;
-    tableWatermarkEnabled: boolean;
+    workspaceViewModel: WorkspaceShellViewModel;
 }
-// TODO: WorkspaceShellProps is too large to be a stable human/AI-facing API.
-// TODO: Replace this “many props” surface with a single `WorkspaceShellViewModel` object that groups ownership clearly, e.g.:
-// TODO: - `dnd`: { getRootProps, getInputProps, isDragActive }
-// TODO: - `filters`: { filter, setFilter, searchQuery, setSearchQuery }
-// TODO: - `workspace`: { style, toggleStyle, openSettings }
-// TODO: - `table`: { torrents, ghostTorrents, isLoading, optimisticStatuses, capabilities }
-// TODO: - `detail`: { data, onRequestDetails, onClose, peerSortStrategy, inspectorTabCommand, onInspectorTabCommandHandled }
-// TODO: - `recovery`: { isDetailRecoveryBlocked } and actions come from Recovery/TorrentActions contexts
-// TODO: - `telemetry`: { sessionStats, transportStatus, uiMode } (replace engineType/connectionMode labels with UiMode)
-// TODO: - `deleteFlow`: { pendingDelete, clear, confirm }
-// TODO: - `hud`: { visibleCards, dismissCard, restoreCards, hasDismissedInsights }
-// TODO: Keep “who owns what” obvious: WorkspaceShell is presentation-only and should not require callers to understand orchestrator internals.
 
-export function WorkspaceShell({
-    getRootProps,
-    getInputProps,
-    isDragActive,
-    filter,
-    searchQuery,
-    setSearchQuery,
-    setFilter,
-    openSettings,
-
-    rehashStatus,
-    workspaceStyle,
-    toggleWorkspaceStyle,
-    torrents,
-    ghostTorrents,
-    isTableLoading,
-    handleRequestDetails,
-    detailData,
-    closeDetail,
-    handleFileSelectionChange,
-    onFileContextAction,
-    onPeerContextAction,
-    sequentialToggleHandler,
-    superSeedingToggleHandler,
-    isDetailRecoveryBlocked,
-    capabilities,
-    optimisticStatuses,
-    // handleOpenFolder removed — leaf components should call TorrentActionsContext
-    peerSortStrategy,
-    inspectorTabCommand,
-    onInspectorTabCommandHandled,
-    sessionStats,
-    liveTransportStatus,
-    // isNativeIntegrationActive removed — read from LifecycleContext
-    handleReconnect,
-    pendingDelete,
-    clearPendingDelete,
-    confirmDelete,
-    visibleHudCards,
-    dismissHudCard,
-    hasDismissedInsights,
-    isSettingsOpen,
-    closeSettings,
-    settingsConfig,
-    isSettingsSaving,
-    settingsLoadError,
-    handleSaveSettings,
-    handleTestPort,
-    restoreHudCards,
-    applyUserPreferencesPatch,
-    tableWatermarkEnabled,
-}: WorkspaceShellProps) {
+export function WorkspaceShell({ workspaceViewModel }: WorkspaceShellProps) {
     const {
-        serverClass,
-        rpcStatus: lifecycleRpcStatus,
-        nativeIntegration,
-    } = useLifecycle();
-    // TODO: Stop consuming `serverClass` here. Once the app is Transmission-only, all engine-specific UX should be removed and any host-backed features should come from a single capability provider.
-    const { t } = useTranslation();
-    const { shellAgent } = useShellAgent();
-    const { selectedIds } = useSelection();
-    const { handleBulkAction, openAddTorrentPicker, openAddMagnet } =
-        useTorrentCommands();
-    const selectedIdsSet = useMemo(() => new Set(selectedIds), [selectedIds]);
-    const selectedTorrents = useMemo(
-        () => torrents.filter((torrent) => selectedIdsSet.has(torrent.id)),
-        [selectedIdsSet, torrents]
-    );
-    const handleEnsureSelectionActive = useCallback(() => {
-        void handleBulkAction("resume");
-    }, [handleBulkAction]);
-    const handleEnsureSelectionPaused = useCallback(() => {
-        void handleBulkAction("pause");
-    }, [handleBulkAction]);
-    const handleEnsureSelectionValid = useCallback(() => {
-        void handleBulkAction("recheck");
-    }, [handleBulkAction]);
-    const handleEnsureSelectionRemoved = useCallback(() => {
-        void handleBulkAction("remove");
-    }, [handleBulkAction]);
-    const handleWindowCommand = useCallback(
-        (command: "minimize" | "maximize" | "close") => {
-            if (!shellAgent.isAvailable) {
-                return;
-            }
-            void shellAgent.sendWindowCommand(command);
-        },
-        [shellAgent]
-    );
-    // Window commands are routed through ShellAgent so locality rules are already enforced.
-    const isNativeHost = Runtime.isNativeHost;
+        dragAndDrop,
+        workspaceStyle: workspaceStyleControls,
+        settingsModal,
+        dashboard,
+        hud,
+        deletion,
+        navbar,
+        statusBar,
+    } = workspaceViewModel;
+    const { getRootProps, getInputProps } = dragAndDrop;
+    const { workspaceStyle, toggleWorkspaceStyle } = workspaceStyleControls;
+    const { visibleHudCards, dismissHudCard, hasDismissedInsights } = hud;
+    const { pendingDelete, clearPendingDelete, confirmDelete } = deletion;
+    const { rpcStatus, handleReconnect } = statusBar;
     const isImmersiveShell = workspaceStyle === "immersive";
+    const isNativeHost = Runtime.isNativeHost;
+    const { t } = useTranslation();
 
-    const renderNavbar = () => (
-        // Compute selection-based emphasis hints from ErrorEnvelope.primaryAction
-        // (presentational only — no behavior change).
-            <Navbar
-                filter={filter}
-                setFilter={setFilter}
-                searchQuery={searchQuery}
-                setSearchQuery={setSearchQuery}
-                onAddTorrent={openAddTorrentPicker}
-                onAddMagnet={openAddMagnet}
-                onSettings={() => openSettings()}
-            hasSelection={selectedIds.length > 0}
-            onEnsureSelectionActive={handleEnsureSelectionActive}
-            onEnsureSelectionPaused={handleEnsureSelectionPaused}
-            onEnsureSelectionValid={handleEnsureSelectionValid}
-            onEnsureSelectionRemoved={handleEnsureSelectionRemoved}
-            rehashStatus={rehashStatus}
-            workspaceStyle={workspaceStyle}
-            onWindowCommand={handleWindowCommand}
-            emphasizeActions={{
-                pause: selectedTorrents.some(
-                    (t) => t.errorEnvelope?.primaryAction === "pause"
-                ),
-                reannounce: selectedTorrents.some(
-                    (t) => t.errorEnvelope?.primaryAction === "reannounce"
-                ),
-                changeLocation: selectedTorrents.some(
-                    (t) => t.errorEnvelope?.primaryAction === "changeLocation"
-                ),
-                openFolder: selectedTorrents.some(
-                    (t) => t.errorEnvelope?.primaryAction === "openFolder"
-                ),
-                forceRecheck: selectedTorrents.some(
-                    (t) => t.errorEnvelope?.primaryAction === "forceRecheck"
-                ),
-            }}
-        />
-    );
+    const renderNavbar = () => <Navbar viewModel={navbar} />;
 
     const renderModeLayoutSection = () => (
-        <Dashboard_Layout
-            workspaceStyle={workspaceStyle}
-            torrents={torrents}
-            filter={filter}
-            searchQuery={searchQuery}
-            isTableLoading={isTableLoading}
-            // onAction/handleBulkAction handled via TorrentActionsContext in leaf components
-            onRequestDetails={handleRequestDetails}
-            detailData={detailData}
-            onCloseDetail={closeDetail}
-            onFilesToggle={handleFileSelectionChange}
-            onFileContextAction={onFileContextAction}
-            onPeerContextAction={onPeerContextAction}
-            onSequentialToggle={sequentialToggleHandler}
-            onSuperSeedingToggle={superSeedingToggleHandler}
-            /* onSetLocation removed: use TorrentActionsContext.setLocation */
-            capabilities={capabilities}
-            optimisticStatuses={optimisticStatuses}
-            peerSortStrategy={peerSortStrategy}
-            inspectorTabCommand={inspectorTabCommand}
-            onInspectorTabCommandHandled={onInspectorTabCommandHandled}
-            ghostTorrents={ghostTorrents}
-            isDropActive={isDragActive}
-            /* onOpenFolder removed; leaf components use TorrentActionsContext */
-            tableWatermarkEnabled={tableWatermarkEnabled}
-            isDetailRecoveryBlocked={isDetailRecoveryBlocked}
-        />
+        <Dashboard_Layout viewModel={dashboard} />
     );
 
-    const renderStatusBarSection = () => (
-        <StatusBar
-            workspaceStyle={workspaceStyle}
-            sessionStats={sessionStats}
-            liveTransportStatus={liveTransportStatus}
-            selectedCount={selectedIds.length}
-            onEngineClick={handleReconnect}
-            torrents={torrents}
-        />
-    );
-    // TODO: Have StatusBar consume session/capability data from a shared provider rather than prop drilling torrents/stats; reduces recompute churn and wiring overhead.
+    const renderStatusBarSection = () => <StatusBar viewModel={statusBar} />;
 
     const renderDeleteModal = () => (
         <RemoveConfirmationModal
@@ -344,6 +82,10 @@ export function WorkspaceShell({
             defaultDeleteData={Boolean(pendingDelete?.deleteData)}
         />
     );
+
+    const hudGridClass =
+        HUD_COLUMNS[Math.min(visibleHudCards.length, 3) as keyof typeof HUD_COLUMNS] ??
+        "grid-cols-1";
 
     return (
         <div
@@ -364,7 +106,7 @@ export function WorkspaceShell({
             )}
 
             <AnimatePresence>
-                {lifecycleRpcStatus === STATUS.connection.ERROR && (
+                {rpcStatus === STATUS.connection.ERROR && (
                     <motion.div
                         initial={{ opacity: 0, y: 6 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -447,7 +189,12 @@ export function WorkspaceShell({
                                 </main>
                             </div>
                             {visibleHudCards.length > 0 ? (
-                                <section className="tt-shell-no-drag grid gap-panel md:grid-cols-2 xl:grid-cols-3">
+                                <section
+                                    className={cn(
+                                        "tt-shell-no-drag grid gap-panel",
+                                        hudGridClass
+                                    )}
+                                >
                                     <AnimatePresence>
                                         {visibleHudCards.map((card) => {
                                             const Icon = card.icon;
@@ -539,7 +286,7 @@ export function WorkspaceShell({
                                     </AnimatePresence>
                                 </section>
                             ) : (
-                                <> </>
+                                <></>
                             )}
 
                             <div
@@ -567,22 +314,7 @@ export function WorkspaceShell({
 
             {renderDeleteModal()}
 
-            <SettingsModal
-                isOpen={isSettingsOpen}
-                onClose={closeSettings}
-                initialConfig={settingsConfig}
-                isSaving={isSettingsSaving}
-                settingsLoadError={settingsLoadError}
-                onSave={handleSaveSettings}
-                onTestPort={handleTestPort}
-                onRestoreInsights={restoreHudCards}
-                onToggleWorkspaceStyle={toggleWorkspaceStyle}
-                onReconnect={handleReconnect}
-                isNativeMode={nativeIntegration}
-                isImmersive={workspaceStyle === "immersive"}
-                hasDismissedInsights={hasDismissedInsights}
-                onApplyUserPreferencesPatch={applyUserPreferencesPatch}
-            />
+            <SettingsModal viewModel={settingsModal} />
         </div>
     );
 }

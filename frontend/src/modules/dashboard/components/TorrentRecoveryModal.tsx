@@ -13,11 +13,45 @@ import { AlertTriangle, HardDrive, X } from "lucide-react";
 
 import { INTERACTION_CONFIG } from "@/config/logic";
 import { GLASS_MODAL_SURFACE } from "@/shared/ui/layout/glass-surface";
-import type { RecoveryOutcome, RecoveryRecommendedAction } from "@/services/recovery/recovery-controller";
+import type {
+    RecoveryOutcome,
+    RecoveryRecommendedAction,
+} from "@/services/recovery/recovery-controller";
 import type { TorrentEntity } from "@/services/rpc/entities";
 import { useRecoveryContext } from "@/app/context/RecoveryContext";
 import { SetLocationInlineEditor } from "@/modules/dashboard/components/SetLocationInlineEditor";
 import { getSurfaceCaptionKey } from "@/app/utils/setLocation";
+
+interface RecoveryModalViewModel {
+    isOpen: boolean;
+    torrent: TorrentEntity | undefined | null;
+    outcome: RecoveryOutcome | null | undefined;
+    busy: boolean;
+    classification:
+        | {
+              kind: string;
+              confidence?: string;
+              path?: string;
+              root?: string;
+          }
+        | null;
+    downloadDir: string;
+    statusText: string;
+    title: string;
+    bodyText: string;
+    locationLabel: string;
+    inlineEditor: {
+        visible: boolean;
+        caption: string;
+        statusMessage?: string;
+        isBusy: boolean;
+    };
+    recommendedActions: readonly RecoveryRecommendedAction[];
+    isUnknownConfidence: boolean;
+    isPathLoss: boolean;
+    isVolumeLoss: boolean;
+    isAccessDenied: boolean;
+}
 
 const MODAL_CLASSES =
     "w-full max-w-modal-compact flex flex-col overflow-hidden";
@@ -98,92 +132,141 @@ export default function TorrentRecoveryModal({
         setLocationCapability,
         recoverySession,
     } = useRecoveryContext();
+    const viewModel = useMemo<RecoveryModalViewModel>(() => {
+        const currentTorrentKey = getTorrentKey(torrent);
+        const downloadDir =
+            torrent?.downloadDir ??
+            torrent?.savePath ??
+            torrent?.downloadDir ??
+            "";
+        const sessionKey = recoverySession
+            ? getTorrentKey(recoverySession.torrent)
+            : null;
+        const classification =
+            sessionKey && sessionKey === currentTorrentKey
+                ? recoverySession?.classification ?? null
+                : null;
+        const isUnknownConfidence = classification?.confidence === "unknown";
+        const isPathLoss = classification?.kind === "pathLoss";
+        const isVolumeLoss = classification?.kind === "volumeLoss";
+        const isAccessDenied = classification?.kind === "accessDenied";
+
+        const title = (() => {
+            if (isUnknownConfidence) {
+                return t("recovery.modal_title_fallback");
+            }
+            if (isPathLoss) return t("recovery.modal_title_folder");
+            if (isVolumeLoss) return t("recovery.modal_title_drive");
+            if (isAccessDenied) return t("recovery.modal_title_access");
+            return t("recovery.modal_title_fallback");
+        })();
+
+        const bodyText = (() => {
+            if (isUnknownConfidence) {
+                return t("recovery.modal_body_fallback");
+            }
+            if (isPathLoss) return t("recovery.modal_body_folder");
+            if (isVolumeLoss) return t("recovery.modal_body_drive");
+            if (isAccessDenied) return t("recovery.modal_body_access");
+            return t("recovery.modal_body_fallback");
+        })();
+
+        const statusText = (() => {
+            if (isUnknownConfidence) {
+                return t("recovery.inline_fallback");
+            }
+            if (isPathLoss) {
+                return t("recovery.status.folder_not_found", {
+                    path: (classification?.path ?? downloadDir) || t("labels.unknown"),
+                });
+            }
+            if (isVolumeLoss) {
+                return t("recovery.status.drive_disconnected", {
+                    drive: classification.root ?? t("labels.unknown"),
+                });
+            }
+            if (isAccessDenied) {
+                return t("recovery.status.access_denied");
+            }
+            return t("recovery.generic_header");
+        })();
+
+        const locationLabel =
+            ((isVolumeLoss ? classification?.root : classification?.path) ??
+                downloadDir) ||
+            t("labels.unknown");
+
+        const inlineStateKey = inlineSetLocationState?.torrentKey ?? "";
+        const showInlineEditor = Boolean(
+            inlineSetLocationState?.surface === "recovery-modal" &&
+                inlineStateKey &&
+                inlineStateKey === currentTorrentKey
+        );
+        const recoveryIsVerifying =
+            inlineSetLocationState?.status === "verifying";
+        const recoveryIsBusy = inlineSetLocationState?.status !== "idle";
+        const recoveryStatusMessage = recoveryIsVerifying
+            ? t("recovery.status.applying_location")
+            : isUnknownConfidence
+            ? t("recovery.inline_fallback")
+            : undefined;
+        const recoveryCaption = t(getSurfaceCaptionKey("recovery-modal"));
+
+        return {
+            isOpen,
+            torrent,
+            outcome,
+            busy,
+            classification,
+            downloadDir,
+            title,
+            bodyText,
+            statusText,
+            locationLabel,
+            inlineEditor: {
+                visible: showInlineEditor,
+                caption: recoveryCaption,
+                statusMessage: recoveryStatusMessage,
+                isBusy: recoveryIsBusy,
+            },
+            recommendedActions: classification?.recommendedActions ?? [],
+            isUnknownConfidence,
+            isPathLoss,
+            isVolumeLoss,
+            isAccessDenied,
+        };
+    }, [
+        isOpen,
+        torrent,
+        outcome,
+        busy,
+        recoverySession,
+        inlineSetLocationState,
+        t,
+    ]);
     // TODO: Consume recovery gate outputs (state + confidence) directly to drive copy/actions; avoid reclassifying in the modal. Keep modal sequencing delegated to the single recovery controller.
     // TODO: Replace `connectionMode` usage here with `uiMode = "Full" | "Rpc"`; set-location messages should not mention tinytorrent-local-shell vs remote.
     const currentTorrentKey = getTorrentKey(torrent);
     const downloadDir =
         torrent?.downloadDir ?? torrent?.savePath ?? torrent?.downloadDir ?? "";
 
-    const classification = useMemo(() => {
-        if (!recoverySession) return null;
-        const sessionKey = getTorrentKey(recoverySession.torrent);
-        if (!sessionKey || sessionKey !== currentTorrentKey) return null;
-        return recoverySession.classification;
-    }, [currentTorrentKey, recoverySession]);
+    const {
+        classification,
+        title,
+        bodyText,
+        statusText,
+        locationLabel,
+        inlineEditor,
+        recommendedActions,
+        isVolumeLoss,
+        isPathLoss,
+        isUnknownConfidence,
+        isAccessDenied,
+        isOpen: viewIsOpen,
+    } = viewModel;
 
     const shouldRender =
-        Boolean(classification) && classification?.kind !== "dataGap" && isOpen;
-    if (!shouldRender) {
-        return null;
-    }
-
-    const isUnknownConfidence = classification?.confidence === "unknown";
-    const isPathLoss = classification?.kind === "pathLoss";
-    const isVolumeLoss = classification?.kind === "volumeLoss";
-    const isAccessDenied = classification?.kind === "accessDenied";
-
-    const title = (() => {
-        if (isUnknownConfidence) {
-            return t("recovery.modal_title_fallback");
-        }
-        if (isPathLoss) return t("recovery.modal_title_folder");
-        if (isVolumeLoss) return t("recovery.modal_title_drive");
-        if (isAccessDenied) return t("recovery.modal_title_access");
-        return t("recovery.modal_title_fallback");
-    })();
-
-    const bodyText = (() => {
-        if (isUnknownConfidence) {
-            return t("recovery.modal_body_fallback");
-        }
-        if (isPathLoss) return t("recovery.modal_body_folder");
-        if (isVolumeLoss) return t("recovery.modal_body_drive");
-        if (isAccessDenied) return t("recovery.modal_body_access");
-        return t("recovery.modal_body_fallback");
-    })();
-
-    const statusText = (() => {
-        if (isUnknownConfidence) {
-            return t("recovery.inline_fallback");
-        }
-        if (isPathLoss) {
-            return t("recovery.status.folder_not_found", {
-                path:
-                    (classification?.path ?? downloadDir) ||
-                    t("labels.unknown"),
-            });
-        }
-        if (isVolumeLoss) {
-            return t("recovery.status.drive_disconnected", {
-                drive: classification.root ?? t("labels.unknown"),
-            });
-        }
-        if (isAccessDenied) {
-            return t("recovery.status.access_denied");
-        }
-        return t("recovery.generic_header");
-    })();
-
-    const locationLabel =
-        ((isVolumeLoss ? classification?.root : classification?.path) ??
-            downloadDir) ||
-        t("labels.unknown");
-
-    const inlineStateKey = inlineSetLocationState?.torrentKey ?? "";
-    const showInlineEditor = Boolean(
-        inlineSetLocationState?.surface === "recovery-modal" &&
-            inlineStateKey &&
-            inlineStateKey === currentTorrentKey
-    );
-    const recoveryIsVerifying =
-        inlineSetLocationState?.status === "verifying";
-    const recoveryIsBusy = inlineSetLocationState?.status !== "idle";
-    const recoveryStatusMessage = recoveryIsVerifying
-        ? t("recovery.status.applying_location")
-        : isUnknownConfidence
-        ? t("recovery.inline_fallback")
-        : undefined;
-    const recoveryCaption = t(getSurfaceCaptionKey("recovery-modal"));
+        Boolean(classification) && classification?.kind !== "dataGap" && viewIsOpen;
 
     const recoveryOutcomeMessage = useMemo(
         () => resolveOutcomeMessage(outcome, t),
@@ -218,7 +301,7 @@ export default function TorrentRecoveryModal({
         isDisabled: boolean;
     } | null => {
         if (!action || !torrent) return null;
-        const base = { isDisabled: busy || showInlineEditor };
+        const base = { isDisabled: busy || inlineEditor.visible };
         switch (action) {
             case "downloadMissing":
                 if (!handleDownloadMissing) return null;
@@ -269,7 +352,6 @@ export default function TorrentRecoveryModal({
         }
     };
 
-    const recommendedActions = classification?.recommendedActions ?? [];
     const primaryActionConfig = buildRecoveryAction(
         recommendedActions[0]
     );
@@ -350,14 +432,14 @@ export default function TorrentRecoveryModal({
                                     {locationLabel}
                                 </span>
                             </div>
-                            {showInlineEditor && inlineSetLocationState && (
+                            {inlineEditor.visible && inlineSetLocationState && (
                                 <SetLocationInlineEditor
                                     value={inlineSetLocationState.inputPath}
                                     error={inlineSetLocationState.error}
-                                    isBusy={recoveryIsBusy}
-                                    caption={recoveryCaption}
-                                    statusMessage={recoveryStatusMessage}
-                                    disableCancel={recoveryIsVerifying}
+                                    isBusy={inlineEditor.isBusy}
+                                    caption={inlineEditor.caption}
+                                    statusMessage={inlineEditor.statusMessage}
+                                    disableCancel={inlineEditor.isBusy}
                                     onChange={handleInlineLocationChange}
                                     onSubmit={() =>
                                         void confirmInlineSetLocation()
