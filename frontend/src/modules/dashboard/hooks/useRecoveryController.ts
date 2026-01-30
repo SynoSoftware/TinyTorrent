@@ -48,6 +48,7 @@ import type {
 import type { ShellAgent } from "@/app/agents/shell-agent";
 import { useSession } from "@/app/context/SessionContext";
 import { useActionFeedback } from "@/app/hooks/useActionFeedback";
+import { useTranslation } from "react-i18next";
 
 const PROBE_TTL_MS = 5000;
 const PROBE_RUN_INTERVAL_MS = 5000;
@@ -106,7 +107,6 @@ interface RecoveryControllerServices {
 
 interface RecoveryControllerEnvironment {
     setLocationCapability: SetLocationCapability;
-    t: (key: string) => string;
 }
 
 interface RecoveryControllerData {
@@ -191,9 +191,10 @@ export function useRecoveryController({
     refresh,
 }: UseRecoveryControllerParams): RecoveryControllerResult {
     const { clientRef, dispatch, shellAgent } = services;
-    const { setLocationCapability, t } = environment;
+    const { setLocationCapability } = environment;
     const { engineCapabilities, reportCommandError } = useSession();
     const { showFeedback } = useActionFeedback();
+    const { t } = useTranslation();
     const { torrents, detailData } = data;
     const {
         refreshTorrentsRef,

@@ -12,8 +12,6 @@ import type { RecoveryControllerResult } from "@/modules/dashboard/hooks/useReco
 import { useAddTorrentController } from "@/app/orchestrators/useAddTorrentController";
 import type { UseAddTorrentControllerResult } from "@/app/orchestrators/useAddTorrentController";
 
-import { useTranslation } from "react-i18next";
-
 export interface UseTorrentOrchestratorParams {
     client: EngineAdapter | null | undefined;
     clientRef: MutableRefObject<EngineAdapter | null>;
@@ -50,7 +48,7 @@ export function useTorrentOrchestrator({
     const { settingsConfig, setSettingsConfig } = settingsFlow;
     const { dispatch } = useRequiredTorrentActions();
     const { shellAgent, uiMode } = useShellAgent();
-    const { t } = useTranslation();
+
     const {
         canBrowse,
         canOpenFolder: canOpenFolderCapability,
@@ -81,7 +79,6 @@ export function useTorrentOrchestrator({
         },
         environment: {
             setLocationCapability: localSetLocationCapability,
-            t,
         },
         data: {
             torrents,
