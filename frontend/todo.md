@@ -12,11 +12,50 @@
 [x] 10. high - Recovery UX spec compliance - Update recovery controller/gate to emit deterministic `{state, confidence, recommendedActions}` for S1-S4 and enforce Retry=probe-only; UI copy must follow confidence rules (unknown => "Location unavailable"); verify sequencing rules (verify vs skip) are encoded once in the controller - src/services/recovery/*, src/modules/dashboard/components/TorrentRecoveryModal.tsx, src/modules/dashboard/components/TorrentDetails_General.tsx, src/modules/dashboard/components/TorrentTable_RowMenu.tsx
 [x] 11. medium - Set-location flow split - Refactor set-location into two explicit flows: (A) browse (rendered only when uiMode="Full"; not rendered at all in uiMode="Rpc"), (B) manual input (always available unless explicitly disabled); manage manual editor state via reducer `{draft,status,error}`; keep editor/modal open until gate resolves; Host-backed UI elements must be absent, not disabled, when unavailable; remove scattered owner/outcome maps and derive conflict states - src/app/orchestrators/useTorrentOrchestrator.ts, src/modules/dashboard/components/SetLocationInlineEditor.tsx  
 [x] 12. medium - Recovery display from gate - Remove recovery display derivation from `errorEnvelope` formatting in table/status/header; display should render only from gate-provided {state, confidence} (no inference from raw errors) and show the correct primary action hint; Host-backed UI elements must be absent, not disabled, when unavailable; keep formatting utilities but make them accept gate state not raw envelope - src/modules/dashboard/components/TorrentTable_ColumnDefs.tsx, src/modules/dashboard/components/TorrentDetails_Header.tsx, src/shared/utils/recoveryFormat.ts
-[x] 13. high - ViewModel contracts + prop consolidation - Split AppContent into: (1) `useAppViewModel()` (or provider) that wires selection/actions/recovery/settings/session + produces a small, grouped UI model, and (2) presentational Views (WorkspaceShell/Dashboard/StatusBar/Settings/Recovery/Navbar/Table) that render from ViewModel outputs only; explicitly replace "dozens of props" with `WorkspaceShellViewModel` + `DashboardViewModel` + `NavbarViewModel` + `TorrentTableViewModel` contracts and document ownership rules (Views render only; ViewModels/orchestrators sequence/derive; adapters do IO) - src/app/App.tsx, src/app/components/WorkspaceShell.tsx, src/modules/dashboard/components/Dashboard_Layout.tsx, src/modules/dashboard/components/TorrentTable.tsx, src/app/components/layout/StatusBar.tsx, src/app/components/layout/Navbar.tsx, src/modules/settings/components/SettingsModal.tsx, src/modules/dashboard/components/TorrentRecoveryModal.tsx, src/modules/dashboard/components/TorrentTable_RowMenu.tsx, src/shared/ui/workspace/FileExplorerTree.tsx
-[ ] 14. medium - Unify action gate + workflows - Remove separate UIActionGate context or fold it into view-model; centralize "removed" state and selection-aware workflow decisions in one place so optimistic UI and delete/resume flows are not spread across contexts/hooks - src/app/context/UIActionGateContext.tsx, src/app/hooks/useTorrentWorkflow.ts, src/app/context/SelectionContext.tsx
-[ ] 15. medium - Preferences provider - Centralize all UI-only preferences behind one provider (explicit schema + migrations): refresh interval, request timeout, table watermark, workbench scale, workspace style, HUD dismissed cards, theme, and language. Leaf hooks/components must not read/write localStorage directly; they consume `usePreferences()` instead - src/app/hooks/useSettingsFlow.ts, src/app/hooks/useWorkbenchScale.ts, src/app/hooks/useWorkspaceShell.ts, src/shared/utils/theme.ts, src/i18n/index.ts, src/shared/ui/controls/LanguageMenu.tsx, src/modules/dashboard/hooks/useTorrentTablePersistence.ts, src/modules/dashboard/components/TorrentDetails_Speed_Chart.tsx, src/modules/settings/*
-[ ] 16. low - Command registry + hotkeys - Create a command registry that defines commands (id, group, title, description, shortcuts) once; CommandPalette and GlobalHotkeysHost consume it; remove duplicated hotkey registration in AppContent/GlobalHotkeysHost - src/app/components/CommandPalette.tsx, src/app/components/GlobalHotkeysHost.tsx, src/app/App.tsx
-[ ] 17. medium - Add-torrent defaults service - Extract add-torrent defaults (last download dir, start/paused) into a dedicated service/hook; AddTorrentModal becomes a pure form that receives values/handlers; orchestrator owns persistence - src/app/orchestrators/useTorrentOrchestrator.ts, src/modules/torrent-add/components/AddTorrentModal.tsx
-[ ] 18. low - Deprecate RPC-extended docs - Mark RPC-extended documentation as historical and prevent it from being treated as active guidance; ensure engineers follow `docs/EXE architecutre.md` (Transmission RPC only) - docs/TinyTorrent_RPC_Extended.md, docs/TinyTorrent_Specification.md
-[ ] 19. medium - Unify timers/scheduling authority - Inventory and consolidate background polling timers (heartbeat refresh, UiClock tick, recovery modal timers, orchestrator probes) behind one scheduler/provider so engineers don’t add “just one more interval”; document what runs when the UI is open and how it scales with list size - src/services/rpc/heartbeat.ts, src/shared/hooks/useUiClock.ts, src/app/orchestrators/useTorrentOrchestrator.ts, src/modules/dashboard/components/TorrentRecoveryModal.tsx
-[ ] 20. low - Consolidate ad-hoc window events/debug hooks - Replace stringly-typed `CustomEvent` names and module-scope `window.__*` debug helpers with a centralized `events.ts`/debug module; ensure dev-only helpers cannot ship/affect prod behavior - src/modules/dashboard/components/TorrentDetails_Pieces_Map.tsx, src/app/hooks/useWorkbenchScale.ts
+[_] 13a. high - App + WorkspaceShell view-model boundary - Introduce `useAppViewModel()` or equivalent provider that wires session/preference/recovery/orchestrator data and exposes a single `WorkspaceShellViewModel`; ensure `App.tsx` + `WorkspaceShell` stop threading configuration/handlers individually and only render from the model. Acceptance: App only passes grouped view-model props to `WorkspaceShell`, the prop pile comments referencing task 13 disappear, and `WorkspaceShell` no longer imports orchestration helpers directly.
+[_] 13b. high - Torrent table view-model - Build a `TorrentTableViewModel` that owns filtering, selection, virtualization, column sizing, and capability checks, then feed it into `TorrentTable`/`TorrentTable_Body`/`TorrentTable_Header` so these components are pure. Acceptance: Table body/header receive a single view-model + command callbacks, `useColumnSizingController`/`useMarqueeSelection` are owned solely by the view-model provider, and table-related task-13 TODOs are cleared.
+[_] 13c. high - Detail inspector view-model - Create a `DashboardDetailViewModel` that drives `TorrentDetails`, `TorrentDetails_Content`, `TorrentDetails_Peers`, `TorrentDetails_Trackers`, and the peer/trackers map: they should only render props/events from the view-model without owning selection/file toggles. Acceptance: Detail tabs/components receive only view-model outputs, `onFilesToggle`/tracker actions route through that model, and the corresponding TODO notes are resolved.
+[_] 13d. medium - Settings/Recovery view-model cleanup - Ensure Settings components, the recovery modal, and related helpers derive gating/capabilities from dedicated view-model fragments rather than embedding logic. Acceptance: Settings/recovery tooling consume view-model outputs for `uiMode`/recovery state, and any TODO instructing logic to move to view-models is satisfied.
+[x] 14. high — Establish a single torrent-action dispatch authority  
+Choose exactly one canonical surface for TorrentTableAction → TorrentIntents dispatch (TorrentActionsContext).  
+Collapse the duplicate switches into `src/app/utils/torrentActionDispatcher.ts` and call it wherever UI actions originate.  
+All UI surfaces (row, toolbar, hotkeys, details) must dispatch through this API while preserving optimistic state, recovery gating, feedback identity, selection safety, and uiMode gating.  
+No UI refactors or behavioral changes in this step—just structure the command surface.  
+Files: src/app/context/TorrentActionsContext.tsx, src/app/App.tsx, src/app/context/TorrentCommandContext.tsx, src/app/utils/torrentActionDispatcher.ts
+
+[_] 15. medium — Collapse UIActionGate into the action/workflow owner  
+Move “removed” state and delete-lifecycle ownership into the same layer that owns torrent action dispatch/workflows.  
+SelectionContext remains authoritative for selection only.  
+After this step, there must be a single owner for: optimistic delete masking, selection clearing, and delete sequencing.  
+Update or delete any TODOs/comments that assume split ownership.  
+Files: src/app/hooks/useTorrentWorkflow.ts, src/app/orchestrators/useTorrentOrchestrator.ts
+
+[x] 16. medium — Centralize UI-only preferences behind a Preferences provider  
+Introduce a Preferences provider with an explicit schema and migration path.  
+Move all UI-only persistence (refresh interval, timeouts, watermark, workbench scale, workspace style, HUD dismissals, theme, language) behind this provider.  
+Leaf hooks/components must not read/write localStorage directly.  
+No UX changes.  
+Files: src/app/hooks/useSettingsFlow.ts, src/app/hooks/useWorkbenchScale.ts, src/app/hooks/useWorkspaceShell.ts, src/shared/utils/theme.ts, src/i18n/index.ts, src/modules/settings/*
+
+[x] 17. low — Command registry + hotkey consolidation  
+Define commands (id, label, group, shortcuts) in one registry.  
+CommandPalette and GlobalHotkeysHost consume this registry.  
+Remove duplicated hotkey wiring from AppContent and other ad-hoc hosts.  
+Files: src/app/components/CommandPalette.tsx, src/app/components/GlobalHotkeysHost.tsx, src/app/App.tsx
+
+[x] 18. medium — Add-torrent defaults service  
+Extract add-torrent defaults (last path, start paused/running) into a dedicated service/hook.  
+AddTorrentModal becomes a pure form; orchestrator owns persistence and side effects.  
+Files: src/app/orchestrators/useTorrentOrchestrator.ts, src/modules/torrent-add/components/AddTorrentModal.tsx
+
+[x] 19. low — Deprecate RPC-extended documentation  
+Mark TinyTorrent RPC-extended docs as historical.  
+Ensure active guidance points only to Transmission RPC architecture.  
+No code changes required unless docs are referenced at runtime.  
+Files: docs/TinyTorrent_RPC_Extended.md, docs/TinyTorrent_Specification.md
+
+[x] 20. medium — Unify timers and background scheduling  
+Inventory all polling/timers (heartbeat, UiClock, recovery probes, modal timers).  
+Consolidate behind a single scheduling authority or provider.  
+Document what runs, when, and how it scales with list size.  
+Files: src/services/rpc/heartbeat.ts, src/shared/hooks/useUiClock.ts, src/app/orchestrators/useTorrentOrchestrator.ts, src/modules/dashboard/components/TorrentRecoveryModal.tsx

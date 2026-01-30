@@ -18,6 +18,7 @@ import type {
     RecoveryRecommendedAction,
 } from "@/services/recovery/recovery-controller";
 import type { TorrentEntity } from "@/services/rpc/entities";
+import { scheduler } from "@/app/services/scheduler";
 import { useRecoveryContext } from "@/app/context/RecoveryContext";
 import { SetLocationInlineEditor } from "@/modules/dashboard/components/SetLocationInlineEditor";
 import { getSurfaceCaptionKey } from "@/app/utils/setLocation";
@@ -276,7 +277,7 @@ export default function TorrentRecoveryModal({
     const autoRetryRef = useRef(false);
     useEffect(() => {
         if (!isOpen || !isVolumeLoss || !onAutoRetry || busy) return;
-        const interval = setInterval(() => {
+        const task = scheduler.scheduleRecurringTask(async () => {
             if (autoRetryRef.current) return;
             autoRetryRef.current = true;
             void onAutoRetry().finally(() => {
@@ -284,7 +285,7 @@ export default function TorrentRecoveryModal({
             });
         }, 2000);
         return () => {
-            clearInterval(interval);
+            task.cancel();
             autoRetryRef.current = false;
         };
     }, [isOpen, isVolumeLoss, onAutoRetry, busy]);

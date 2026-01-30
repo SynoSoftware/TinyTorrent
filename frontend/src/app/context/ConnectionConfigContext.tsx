@@ -9,32 +9,17 @@ import {
 import type { ReactNode } from "react";
 import { CONFIG } from "@/config/logic";
 import Runtime from "@/app/runtime";
-
-type ConnectionScheme = "http" | "https";
+import { usePreferences } from "@/app/context/PreferencesContext";
+import type {
+    ConnectionProfile,
+    ConnectionScheme,
+} from "@/app/types/connection-profile";
 
 type NativeOverride = {
     host?: string;
     port?: string;
     scheme?: ConnectionScheme;
 };
-
-// TODO: If the ShellAgent needs to override the RPC endpoint, keep only `{host,port,scheme}` and document:
-// TODO: - precedence (native override vs selected profile)
-// TODO: - scope (default profile only vs any profile)
-// TODO: - when it applies (native host only, never in browser)
-
-export interface ConnectionProfile {
-    id: string;
-    label: string;
-    scheme: ConnectionScheme;
-    host: string;
-    port: string;
-    username: string;
-    password: string;
-}
-// TODO: Remove `token` from ConnectionProfile entirely. Transmission RPC does not use a custom token; only Basic Auth (username/password) + X-Transmission-Session-Id handled by the transport.
-// TODO: After removal, delete all UI strings/fields for token entry and remove env var `VITE_RPC_TOKEN` usage.
-// TODO: Migration detail: when loading stored profiles, tolerate legacy `token` fields but ignore them; ensure no “hidden auth state” survives in sessionStorage/localStorage.
 
 interface ConnectionConfigContextValue {
     profiles: ConnectionProfile[];
@@ -49,14 +34,7 @@ interface ConnectionConfigContextValue {
     ) => void;
 }
 
-const STORAGE_KEY = "tiny-torrent.connection.profiles";
-const ACTIVE_KEY = "tiny-torrent.connection.active";
 export const DEFAULT_PROFILE_ID = "default-connection";
-const LEGACY_DEFAULT_PROFILE_LABELS = new Set([
-    "Local Transmission",
-    "Local server",
-]);
-// TODO: i18n/ownership: do not embed English labels as magic strings. If we keep legacy matching, centralize them behind an internal constant and document that they are *data migration keys* (not UI text).
 const DEFAULT_PROFILE_LABEL = "";
 
 const DEFAULT_RPC_PATH = CONFIG.defaults.rpc_endpoint;
@@ -173,100 +151,6 @@ const generateId = () =>
         ? crypto.randomUUID()
         : Math.random().toString(36).slice(2, 10);
 
-const sanitizeProfile = (
-    raw: unknown,
-    fallbackLabel: string
-): ConnectionProfile | null => {
-    if (!raw || typeof raw !== "object") {
-        return null;
-    }
-    const entry = raw as Record<string, unknown>;
-    const parsed = parseRpcEndpoint(
-        typeof entry.endpoint === "string" ? entry.endpoint : undefined
-    );
-    const host =
-        typeof entry.host === "string" && entry.host.trim()
-            ? entry.host.trim()
-            : parsed.host;
-    const port =
-        typeof entry.port === "string" && entry.port.trim()
-            ? entry.port.trim()
-            : parsed.port;
-    const scheme =
-        entry.scheme === "https"
-            ? "https"
-            : entry.scheme === "http"
-            ? "http"
-            : parsed.scheme;
-    const id =
-        typeof entry.id === "string" && entry.id.trim()
-            ? entry.id
-            : `${DEFAULT_PROFILE_ID}-${generateId()}`;
-    const label =
-        typeof entry.label === "string" && entry.label.trim()
-            ? entry.label.trim()
-            : fallbackLabel;
-    const username =
-        typeof entry.username === "string" ? entry.username : DEFAULT_USERNAME;
-    const password =
-        typeof entry.password === "string" ? entry.password : DEFAULT_PASSWORD;
-    return {
-        id,
-        label,
-        scheme,
-        host,
-        port,
-        username,
-        password,
-    };
-};
-
-const loadProfiles = (): ConnectionProfile[] => {
-    if (typeof window === "undefined") {
-        return [createDefaultProfile()];
-    }
-    try {
-        const stored = window.localStorage.getItem(STORAGE_KEY);
-        if (!stored) {
-            return [createDefaultProfile()];
-        }
-        const parsed = JSON.parse(stored);
-        if (!Array.isArray(parsed)) {
-            return [createDefaultProfile()];
-        }
-        const sanitized = parsed
-            .map((raw, index) =>
-                sanitizeProfile(raw, `Connection ${index + 1}`)
-            )
-            .filter(Boolean) as ConnectionProfile[];
-        if (sanitized.length === 0) {
-            return [createDefaultProfile()];
-        }
-        const migrated = sanitized.map((profile) => {
-            if (
-                profile.id === DEFAULT_PROFILE_ID &&
-                LEGACY_DEFAULT_PROFILE_LABELS.has(profile.label)
-            ) {
-                return { ...profile, label: DEFAULT_PROFILE_LABEL };
-            }
-            return profile;
-        });
-        return migrated;
-    } catch {
-        return [createDefaultProfile()];
-    }
-};
-
-const loadActiveProfileId = (profiles: ConnectionProfile[]): string => {
-    if (typeof window === "undefined") {
-        return profiles[0].id;
-    }
-    const stored = window.localStorage.getItem(ACTIVE_KEY);
-    if (stored && profiles.some((profile) => profile.id === stored)) {
-        return stored;
-    }
-    return profiles[0].id;
-};
 
 const ConnectionConfigContext = createContext<
     ConnectionConfigContextValue | undefined
@@ -278,88 +162,118 @@ export function ConnectionConfigProvider({
     children: ReactNode;
 }) {
     const isNativeHost = Runtime.isNativeHost;
-    const initialProfiles = useMemo(() => loadProfiles(), []);
-    const [profiles, setProfiles] =
-        useState<ConnectionProfile[]>(initialProfiles);
-    const [activeProfileId, setActiveProfileId] = useState<string>(() => {
-        if (isNativeHost) {
-            const fallback =
-                initialProfiles.find(
-                    (profile) => profile.id === DEFAULT_PROFILE_ID
-                ) ??
-                initialProfiles[0] ??
-                createDefaultProfile();
-            return fallback.id;
+    const {
+        preferences: {
+            connectionProfiles,
+            activeConnectionProfileId,
+        },
+        setConnectionProfiles,
+        setActiveConnectionProfileId,
+    } = usePreferences();
+
+    const baseProfiles = useMemo<ConnectionProfile[]>(() => {
+        if (connectionProfiles && connectionProfiles.length) {
+            return connectionProfiles;
         }
-        return loadActiveProfileId(initialProfiles);
-    });
+        return [createDefaultProfile()];
+    }, [connectionProfiles]);
+
+    const activeProfileId = useMemo(() => {
+        if (
+            activeConnectionProfileId &&
+            baseProfiles.some((profile) => profile.id === activeConnectionProfileId)
+        ) {
+            return activeConnectionProfileId;
+        }
+        return baseProfiles[0]?.id ?? DEFAULT_PROFILE_ID;
+    }, [activeConnectionProfileId, baseProfiles]);
+
+    useEffect(() => {
+        if (!connectionProfiles.length) {
+            setConnectionProfiles(baseProfiles);
+        }
+    }, [connectionProfiles.length, baseProfiles, setConnectionProfiles]);
+
+    useEffect(() => {
+        if (!activeConnectionProfileId && baseProfiles.length > 0) {
+            setActiveConnectionProfileId(baseProfiles[0].id);
+        }
+    }, [activeConnectionProfileId, baseProfiles, setActiveConnectionProfileId]);
+
+    useEffect(() => {
+        if (
+            activeConnectionProfileId &&
+            !baseProfiles.some((profile) => profile.id === activeConnectionProfileId)
+        ) {
+            setActiveConnectionProfileId(baseProfiles[0].id);
+        }
+    }, [
+        activeConnectionProfileId,
+        baseProfiles,
+        setActiveConnectionProfileId,
+    ]);
+
     const initialNativeOverride = useMemo(() => detectNativeInfo(), []);
     //TODO: check this block below if not out of date
     const [nativeOverride, setNativeOverride] = useState<NativeOverride>(
         initialNativeOverride
     );
 
-    useEffect(() => {
-        if (!profiles.find((profile) => profile.id === activeProfileId)) {
-            setActiveProfileId(profiles[0]?.id ?? DEFAULT_PROFILE_ID);
-        }
-    }, [profiles, activeProfileId]);
-
-    useEffect(() => {
-        if (typeof window === "undefined") return;
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(profiles));
-    }, [profiles]);
-
-    useEffect(() => {
-        if (typeof window === "undefined") return;
-        window.localStorage.setItem(ACTIVE_KEY, activeProfileId);
-    }, [activeProfileId]);
     const addProfile = useCallback(() => {
         const newProfile: ConnectionProfile = {
             id: generateId(),
-            label: `Connection ${profiles.length + 1}`,
+            label: `Connection ${baseProfiles.length + 1}`,
             scheme: DEFAULT_RPC_SCHEME,
             host: DEFAULT_RPC_HOST,
             port: DEFAULT_RPC_PORT,
             username: "",
             password: "",
         };
-        setProfiles((prev) => [...prev, newProfile]);
-        setActiveProfileId(newProfile.id);
-    }, [profiles.length]);
+        setConnectionProfiles([...baseProfiles, newProfile]);
+        setActiveConnectionProfileId(newProfile.id);
+    }, [
+        baseProfiles,
+        setConnectionProfiles,
+        setActiveConnectionProfileId,
+    ]);
 
     const removeProfile = useCallback(
         (id: string) => {
-            if (profiles.length === 1) return;
-            const next = profiles.filter((profile) => profile.id !== id);
+            if (baseProfiles.length === 1) return;
+            const next = baseProfiles.filter((profile) => profile.id !== id);
             const fallback =
                 next.length === 0 ? [createDefaultProfile()] : next;
-            setProfiles(fallback);
+            setConnectionProfiles(fallback);
             if (activeProfileId === id) {
-                setActiveProfileId(fallback[0].id);
+                setActiveConnectionProfileId(fallback[0].id);
             }
         },
-        [profiles, activeProfileId]
+        [
+            baseProfiles,
+            activeProfileId,
+            setConnectionProfiles,
+            setActiveConnectionProfileId,
+        ]
     );
 
     const updateProfile = useCallback(
         (id: string, patch: Partial<Omit<ConnectionProfile, "id">>) => {
-            setProfiles((prev) =>
-                prev.map((profile) =>
+            setConnectionProfiles(
+                baseProfiles.map((profile) =>
                     profile.id === id ? { ...profile, ...patch } : profile
                 )
             );
         },
-        []
+        [baseProfiles, setConnectionProfiles]
     );
 
     const baseActiveProfile = useMemo(() => {
         return (
-            profiles.find((profile) => profile.id === activeProfileId) ??
-            profiles[0] ??
+            baseProfiles.find((profile) => profile.id === activeProfileId) ??
+            baseProfiles[0] ??
             createDefaultProfile()
         );
-    }, [profiles, activeProfileId]);
+    }, [baseProfiles, activeProfileId]);
 
     const shouldApplyNativeOverride = useMemo(() => {
         if (!isNativeHost || activeProfileId !== DEFAULT_PROFILE_ID) {
@@ -390,9 +304,16 @@ export function ConnectionConfigProvider({
     }, [baseActiveProfile, nativeOverride, shouldApplyNativeOverride]);
     // TODO: After removing token support, drop `token` merge logic entirely; keep only endpoint overrides (host/port/scheme) where applicable.
 
+    const setActiveProfileId = useCallback(
+        (id: string) => {
+            setActiveConnectionProfileId(id);
+        },
+        [setActiveConnectionProfileId]
+    );
+
     const value = useMemo(
         () => ({
-            profiles,
+            profiles: baseProfiles,
             activeProfileId,
             activeProfile,
             setActiveProfileId,
@@ -401,9 +322,10 @@ export function ConnectionConfigProvider({
             updateProfile,
         }),
         [
-            profiles,
+            baseProfiles,
             activeProfileId,
             activeProfile,
+            setActiveProfileId,
             addProfile,
             removeProfile,
             updateProfile,

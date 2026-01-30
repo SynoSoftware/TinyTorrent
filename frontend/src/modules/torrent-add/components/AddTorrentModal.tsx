@@ -39,6 +39,7 @@ import { useTranslation } from "react-i18next";
 import { useKeyboardScope } from "@/shared/hooks/useKeyboardScope";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { KEY_SCOPE, INTERACTION_CONFIG, CONFIG } from "@/config/logic";
+import { usePreferences } from "@/app/context/PreferencesContext";
 
 // Use design config where possible. Fall back to explicit values when token missing (FLAGs added where appropriate).
 const VIRTUALIZER_OVERSCAN = CONFIG.layout?.table?.overscan ?? 10;
@@ -86,6 +87,7 @@ import type { TransmissionFreeSpace } from "@/services/rpc/types";
 import useLayoutMetrics from "@/shared/hooks/useLayoutMetrics";
 import { StatusIcon } from "@/shared/ui/components/StatusIcon";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
+import type { AddTorrentCommitMode } from "@/modules/torrent-add/types";
 
 // --- TYPES ---
 
@@ -106,8 +108,6 @@ export type AddTorrentSource =
           errorMessage?: string | null;
       };
 
-export type AddTorrentCommitMode = "start" | "paused" | "top";
-
 export type AddTorrentSelection = {
     downloadDir: string;
     name: string;
@@ -126,7 +126,10 @@ export type AddTorrentSelection = {
 export interface AddTorrentModalProps {
     isOpen: boolean;
     source: AddTorrentSource | null;
-    initialDownloadDir: string;
+    downloadDir: string;
+    commitMode: AddTorrentCommitMode;
+    onDownloadDirChange: (value: string) => void;
+    onCommitModeChange: (value: AddTorrentCommitMode) => void;
     isSubmitting: boolean;
     isResolvingSource?: boolean;
     onCancel: () => void;
@@ -149,7 +152,6 @@ type SmartSelectCommand = "videos" | "largest" | "invert" | "all" | "none";
 // --- CONSTANTS & HELPERS ---
 
 // Rename candidates documented in `RENAME_CANDIDATES.md`
-const HISTORY_KEY = "tt-add-save-history";
 // NON-VISUAL: history limit governs saved-path history length and is intentionally a small integer (non-visual system parameter)
 const HISTORY_LIMIT = 6;
 
@@ -226,7 +228,10 @@ function getFileIcon(type: "video" | "text" | "other") {
 export function AddTorrentModal({
     isOpen,
     source,
-    initialDownloadDir,
+    downloadDir,
+    commitMode,
+    onDownloadDirChange,
+    onCommitModeChange,
     isSubmitting,
     isResolvingSource = false,
     onCancel,
@@ -235,14 +240,11 @@ export function AddTorrentModal({
     checkFreeSpace,
     onBrowseDirectory,
 }: AddTorrentModalProps) {
-    // TODO: Move add-torrent defaults/state (downloadDir, start/paused, filters) into a helper/service so this modal remains a dumb form; align with orchestrator flow.
     const { t } = useTranslation();
     const { rowHeight } = useLayoutMetrics();
 
     // -- State --
-    const [downloadDir, setDownloadDir] = useState(initialDownloadDir);
     const [name, setName] = useState(source?.metadata?.name ?? "");
-    const [commitMode, setCommitMode] = useState<AddTorrentCommitMode>("start");
     const [filter, setFilter] = useState("");
     const [selected, setSelected] = useState<Set<number>>(new Set());
     const [priorities, setPriorities] = useState<
@@ -274,15 +276,11 @@ export function AddTorrentModal({
 
     // UX State
     const [dropActive, setDropActive] = useState(false);
-    const [recentPaths, setRecentPaths] = useState<string[]>(() => {
-        if (typeof window === "undefined") return [];
-        try {
-            const raw = window.localStorage.getItem(HISTORY_KEY);
-            return raw ? JSON.parse(raw) : [];
-        } catch {
-            return [];
-        }
-    });
+    const {
+        preferences: { addTorrentHistory },
+        setAddTorrentHistory,
+    } = usePreferences();
+    const recentPaths = addTorrentHistory;
 
     const scrollParentRef = useRef<HTMLDivElement | null>(null);
     const formRef = useRef<HTMLFormElement | null>(null);
@@ -327,18 +325,7 @@ export function AddTorrentModal({
         // Reset View modes
         setIsFullscreen(false);
         setIsSettingsCollapsed(false);
-
-        if (typeof window !== "undefined") {
-            window.localStorage.setItem(
-                HISTORY_KEY,
-                JSON.stringify(recentPaths)
-            );
-        }
-    }, [source, files, isOpen, recentPaths]);
-
-    useEffect(() => {
-        setDownloadDir(initialDownloadDir);
-    }, [initialDownloadDir, isOpen]);
+    }, [source, files, isOpen]);
 
     // -- Logic: Toggle Views --
     const toggleSettingsPanel = useCallback(() => {
@@ -354,22 +341,26 @@ export function AddTorrentModal({
     }, [isSettingsCollapsed]);
 
     // -- Logic: History & Drops --
-    const pushRecentPath = useCallback((path: string) => {
-        const trimmed = path.trim();
-        if (!trimmed) return;
-        setRecentPaths((prev) => {
-            const next = [trimmed, ...prev.filter((item) => item !== trimmed)];
-            return next.slice(0, HISTORY_LIMIT);
-        });
-    }, []);
+    const pushRecentPath = useCallback(
+        (path: string) => {
+            const trimmed = path.trim();
+            if (!trimmed) return;
+            const next = [
+                trimmed,
+                ...recentPaths.filter((item: string) => item !== trimmed),
+            ];
+            setAddTorrentHistory(next.slice(0, HISTORY_LIMIT));
+        },
+        [recentPaths, setAddTorrentHistory]
+    );
 
     const applyDroppedPath = useCallback(
         (path?: string) => {
             if (!path) return;
-            setDownloadDir(path);
+            onDownloadDirChange(path);
             pushRecentPath(path);
         },
-        [pushRecentPath]
+        [onDownloadDirChange, pushRecentPath]
     );
 
     const handleDrop = useCallback(
@@ -900,7 +891,7 @@ export function AddTorrentModal({
                                             <Input
                                                 value={downloadDir}
                                                 onChange={(e) =>
-                                                    setDownloadDir(
+                                                    onDownloadDirChange(
                                                         e.target.value
                                                     )
                                                 }
@@ -942,7 +933,7 @@ export function AddTorrentModal({
                                                     )}
                                                 >
                                                     {recentPaths.length > 0 ? (
-                                                        recentPaths.map((p) => (
+                                                        recentPaths.map((p: string) => (
                                                             <DropdownItem
                                                                 key={p}
                                                                 description={detectDriveKind(
@@ -1018,7 +1009,7 @@ export function AddTorrentModal({
                                                 labelPlacement="outside"
                                                 selectedKeys={[commitMode]}
                                                 onChange={(e) =>
-                                                    setCommitMode(
+                                                    onCommitModeChange(
                                                         e.target
                                                             .value as AddTorrentCommitMode
                                                     )

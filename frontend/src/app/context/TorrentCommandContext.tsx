@@ -9,7 +9,6 @@ export interface TorrentCommandAPI {
     openAddMagnet: (magnetLink?: string) => void;
 }
 // TODO: Replace “void commands” with typed outcomes (success/canceled/unsupported/failed) so UI surfaces do not infer results from side-effects or missing errors (see AGENTS.md “Outcomes are data”).
-// TODO: Avoid duplicating action mapping logic across AppContent + hooks. This context should be backed by a single action/viewmodel layer that owns dispatch sequencing (see `todo.md` task 13).
 
 const TorrentCommandContext = createContext<TorrentCommandAPI | null>(null);
 

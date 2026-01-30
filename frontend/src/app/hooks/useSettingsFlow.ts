@@ -13,12 +13,7 @@ import {
     DEFAULT_SETTINGS_CONFIG,
     type SettingsConfig,
 } from "@/modules/settings/data/config";
-
-const USER_PREFERENCES_KEY = "tiny-torrent.user-preferences";
-type PreferencePayload = Pick<
-    SettingsConfig,
-    "refresh_interval_ms" | "request_timeout_ms" | "table_watermark_enabled"
->;
+import { usePreferences } from "@/app/context/PreferencesContext";
 
 const padTime = (value: number) => String(value).padStart(2, "0");
 const minutesToTimeString = (time: number | undefined, fallback: string) => {
@@ -35,32 +30,26 @@ const timeStringToMinutes = (time: string) => {
     return hours * 60 + minutes;
 };
 
-const readUserPreferences = (): Partial<PreferencePayload> => {
-    if (typeof window === "undefined") return {};
-    try {
-        const stored = window.localStorage.getItem(USER_PREFERENCES_KEY);
-        if (!stored) return {};
-        return JSON.parse(stored) as Partial<PreferencePayload>;
-    } catch {
-        return {};
+const applyPreferencesToConfig = (
+    config: SettingsConfig,
+    preferences: {
+        refreshIntervalMs: number;
+        requestTimeoutMs: number;
+        tableWatermarkEnabled: boolean;
     }
-};
-
-const mergeWithUserPreferences = (config: SettingsConfig): SettingsConfig => ({
+): SettingsConfig => ({
     ...config,
-    ...readUserPreferences(),
+    refresh_interval_ms: preferences.refreshIntervalMs,
+    request_timeout_ms: preferences.requestTimeoutMs,
+    table_watermark_enabled: preferences.tableWatermarkEnabled,
 });
 
-const persistUserPreferences = (config: SettingsConfig) => {
-    if (typeof window === "undefined") return;
-    const payload: PreferencePayload = {
-        refresh_interval_ms: config.refresh_interval_ms,
-        request_timeout_ms: config.request_timeout_ms,
-        table_watermark_enabled: config.table_watermark_enabled,
-    };
-    window.localStorage.setItem(USER_PREFERENCES_KEY, JSON.stringify(payload));
-};
-// TODO: Move settings/user-preferences (refresh interval, timeouts, watermark) into a dedicated preferences provider to reduce localStorage wiring in hooks and simplify edits.
+type PreferencePayload = Partial<
+    Pick<
+        SettingsConfig,
+        "refresh_interval_ms" | "request_timeout_ms" | "table_watermark_enabled"
+    >
+>;
 
 const mapSessionToConfig = (
     session: TransmissionSessionSettings
@@ -237,8 +226,9 @@ export function useSettingsFlow({
     isMountedRef,
     updateRequestTimeout,
 }: UseSettingsFlowParams) {
+    const { preferences, updatePreferences } = usePreferences();
     const [settingsConfig, setSettingsConfig] = useState<SettingsConfig>(() =>
-        mergeWithUserPreferences({ ...DEFAULT_SETTINGS_CONFIG })
+        applyPreferencesToConfig({ ...DEFAULT_SETTINGS_CONFIG }, preferences)
     );
     const [sessionSettings, setSessionSettings] =
         useState<TransmissionSessionSettings | null>(null);
@@ -248,6 +238,16 @@ export function useSettingsFlow({
     useEffect(() => {
         updateRequestTimeout(settingsConfig.request_timeout_ms);
     }, [settingsConfig.request_timeout_ms, updateRequestTimeout]);
+
+    useEffect(() => {
+        setSettingsConfig((prev) =>
+            applyPreferencesToConfig(prev, preferences)
+        );
+    }, [
+        preferences.refreshIntervalMs,
+        preferences.requestTimeoutMs,
+        preferences.tableWatermarkEnabled,
+    ]);
 
     useEffect(() => {
         if (!isSettingsOpen || rpcStatus !== STATUS.connection.CONNECTED)
@@ -262,7 +262,10 @@ export function useSettingsFlow({
                 setSessionSettings(session);
                 if (active) {
                     setSettingsConfig(
-                        mergeWithUserPreferences(mapSessionToConfig(session))
+                        applyPreferencesToConfig(
+                            mapSessionToConfig(session),
+                            preferences
+                        )
                     );
                 }
             } catch {
@@ -292,7 +295,6 @@ export function useSettingsFlow({
                 await torrentClient.updateSessionSettings(sessionPayload);
                 if (isMountedRef.current) {
                     setSettingsConfig(config);
-                    persistUserPreferences(config);
                     if (sessionPayload) {
                         setSessionSettings((prev) => ({
                             ...(prev ?? {}),
@@ -349,14 +351,26 @@ export function useSettingsFlow({
 
     const applyUserPreferencesPatch = useCallback(
         (patch: Partial<PreferencePayload>) => {
-            if (typeof window === "undefined") return;
-            setSettingsConfig((prev) => {
-                const next: SettingsConfig = { ...prev, ...patch };
-                persistUserPreferences(next);
-                return next;
+            setSettingsConfig((prev) => ({
+                ...prev,
+                ...patch,
+            }));
+            updatePreferences({
+                refreshIntervalMs:
+                    patch.refresh_interval_ms ?? preferences.refreshIntervalMs,
+                requestTimeoutMs:
+                    patch.request_timeout_ms ?? preferences.requestTimeoutMs,
+                tableWatermarkEnabled:
+                    patch.table_watermark_enabled ??
+                    preferences.tableWatermarkEnabled,
             });
         },
-        []
+        [
+            preferences.refreshIntervalMs,
+            preferences.requestTimeoutMs,
+            preferences.tableWatermarkEnabled,
+            updatePreferences,
+        ]
     );
 
     return {

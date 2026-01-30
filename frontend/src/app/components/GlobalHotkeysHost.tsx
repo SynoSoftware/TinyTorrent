@@ -1,12 +1,10 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import { useFocusState } from "@/app/context/FocusContext";
 import { useSelection } from "@/app/context/SelectionContext";
-import { KEYMAP, KEY_SCOPE, ShortcutIntent } from "@/config/logic";
-import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
-import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
-import STATUS from "@/shared/status";
 import { useTorrentCommands } from "@/app/context/TorrentCommandContext";
+import { createGlobalHotkeyBindings } from "@/app/commandRegistry";
+import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
 
 interface GlobalHotkeysHostProps {
     torrents: Torrent[];
@@ -15,7 +13,6 @@ interface GlobalHotkeysHostProps {
     handleRequestDetails: (torrent: Torrent) => Promise<void>;
     handleCloseDetail: () => void;
 }
-// TODO: Fold global hotkeys into the centralized host/registry (task 27/37) so shortcut wiring isn’t duplicated across AppContent and this component.
 
 export function GlobalHotkeysHost({
     torrents,
@@ -73,120 +70,87 @@ export function GlobalHotkeysHost({
     useEffect(() => {
         handleBulkActionRef.current = handleBulkAction;
     }, [handleBulkAction]);
-    const scope = KEY_SCOPE.Dashboard;
+
+    const hotkeys = useMemo(
+        () =>
+            createGlobalHotkeyBindings({
+                refs: {
+                    torrentsRef,
+                    selectedIdsRef,
+                    selectedTorrentsRef,
+                    activeIdRef,
+                    detailDataRef,
+                    handleRequestDetailsRef,
+                    handleCloseDetailRef,
+                    handleBulkActionRef,
+                    handleTorrentActionRef,
+                },
+                setSelectedIds,
+                setActiveId,
+                setActivePart,
+            }),
+        [
+            torrentsRef,
+            selectedIdsRef,
+            selectedTorrentsRef,
+            activeIdRef,
+            detailDataRef,
+            handleRequestDetailsRef,
+            handleCloseDetailRef,
+            handleBulkActionRef,
+            handleTorrentActionRef,
+            setSelectedIds,
+            setActiveId,
+            setActivePart,
+        ]
+    );
 
     useHotkeys(
-        KEYMAP[ShortcutIntent.SelectAll],
-        (event) => {
-            event.preventDefault();
-            const ids = torrentsRef.current
-                .filter((torrent) => !torrent.isGhost)
-                .flatMap((torrent) => torrent.id ? [torrent.id] : []);
-            setSelectedIds(ids);
-            setActiveId(ids[0] ?? null);
-        },
-        { scopes: scope },
+        hotkeys.selectAll.keys,
+        hotkeys.selectAll.handler,
+        hotkeys.selectAll.options,
         []
     );
 
     useHotkeys(
-        KEYMAP[ShortcutIntent.Delete],
-        (event) => {
-            event.preventDefault();
-            const handleBulk = handleBulkActionRef.current;
-            const selection = selectedIdsRef.current;
-            if (!handleBulk || !selection.length) return;
-            void handleBulk("remove");
-        },
-        { scopes: scope },
+        hotkeys.remove.keys,
+        hotkeys.remove.handler,
+        hotkeys.remove.options,
         []
     );
 
     useHotkeys(
-        KEYMAP[ShortcutIntent.ShowDetails],
-        (event) => {
-            event.preventDefault();
-            const handler = handleRequestDetailsRef.current;
-            const primaryTorrent = selectedTorrentsRef.current.find(
-                (torrent) => torrent.id === activeIdRef.current
-            ) ?? selectedTorrentsRef.current[0];
-            if (!handler || !primaryTorrent) return;
-            handler(primaryTorrent);
-        },
-        { scopes: scope },
+        hotkeys.showDetails.keys,
+        hotkeys.showDetails.handler,
+        hotkeys.showDetails.options,
         []
     );
 
     useHotkeys(
-        KEYMAP[ShortcutIntent.TogglePause],
-        (event) => {
-            event.preventDefault();
-            const handler = handleTorrentActionRef.current;
-            const primaryTorrent = selectedTorrentsRef.current.find(
-                (torrent) => torrent.id === activeIdRef.current
-            ) ?? selectedTorrentsRef.current[0];
-            if (!handler || !primaryTorrent) return;
-            const isActive =
-                primaryTorrent.state === STATUS.torrent.DOWNLOADING ||
-                primaryTorrent.state === STATUS.torrent.SEEDING;
-            const action: TorrentTableAction = isActive ? "pause" : "resume";
-            void handler(action, primaryTorrent);
-        },
-        { scopes: scope },
+        hotkeys.toggleInspector.keys,
+        hotkeys.toggleInspector.handler,
+        hotkeys.toggleInspector.options,
         []
     );
 
     useHotkeys(
-        KEYMAP[ShortcutIntent.Recheck],
-        (event) => {
-            event.preventDefault();
-            const handleBulk = handleBulkActionRef.current;
-            const selection = selectedIdsRef.current;
-            if (!handleBulk || !selection.length) return;
-            void handleBulk("recheck");
-        },
-        { scopes: scope },
+        hotkeys.togglePause.keys,
+        hotkeys.togglePause.handler,
+        hotkeys.togglePause.options,
         []
     );
 
     useHotkeys(
-        KEYMAP[ShortcutIntent.RemoveWithData],
-        (event) => {
-            event.preventDefault();
-            const handleBulk = handleBulkActionRef.current;
-            const selection = selectedIdsRef.current;
-            if (!handleBulk || !selection.length) return;
-            void handleBulk("remove-with-data");
-        },
-        { scopes: scope },
+        hotkeys.recheck.keys,
+        hotkeys.recheck.handler,
+        hotkeys.recheck.options,
         []
     );
 
     useHotkeys(
-        "cmd+i,ctrl+i",
-        (event) => {
-            event.preventDefault();
-            const closeDetail = handleCloseDetailRef.current;
-            const requestDetails = handleRequestDetailsRef.current;
-            const selection = selectedTorrentsRef.current;
-            const currentDetail = detailDataRef.current;
-            if (currentDetail) {
-                closeDetail?.();
-                setActivePart("table");
-                return;
-            }
-            const target =
-                selection.find((torrent) => torrent.id === activeIdRef.current) ??
-                selection[0];
-            if (!target || !requestDetails) return;
-            setActivePart("inspector");
-            requestDetails(target);
-        },
-        {
-            scopes: scope,
-            enableOnFormTags: true,
-            enableOnContentEditable: true,
-        },
+        hotkeys.removeWithData.keys,
+        hotkeys.removeWithData.handler,
+        hotkeys.removeWithData.options,
         []
     );
 

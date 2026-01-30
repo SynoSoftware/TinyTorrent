@@ -35,6 +35,7 @@ export interface TorrentTableViewModel {
     optimisticStatuses: OptimisticStatusMap;
     tableWatermarkEnabled: boolean;
     capabilities: CapabilityStore;
+    removedIds: Set<string>;
 }
 
 export interface DashboardDetailViewModel {
@@ -111,6 +112,7 @@ export interface WorkspaceShellViewModel {
     };
     navbar: NavbarViewModel;
     statusBar: StatusBarViewModel;
+    isNativeHost: boolean;
 }
 
 export interface NavbarViewModel {

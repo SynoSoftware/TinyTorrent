@@ -5,7 +5,6 @@ import RemoveConfirmationModal from "@/modules/torrent-remove/components/RemoveC
 import { X } from "lucide-react";
 import { STATUS } from "@/shared/status";
 
-import Runtime from "@/app/runtime";
 import { Dashboard_Layout } from "@/modules/dashboard/components/Dashboard_Layout";
 import { SettingsModal } from "@/modules/settings/components/SettingsModal";
 import { Navbar } from "./layout/Navbar";
@@ -52,6 +51,7 @@ export function WorkspaceShell({ workspaceViewModel }: WorkspaceShellProps) {
         deletion,
         navbar,
         statusBar,
+        isNativeHost,
     } = workspaceViewModel;
     const { getRootProps, getInputProps } = dragAndDrop;
     const { workspaceStyle, toggleWorkspaceStyle } = workspaceStyleControls;
@@ -59,7 +59,6 @@ export function WorkspaceShell({ workspaceViewModel }: WorkspaceShellProps) {
     const { pendingDelete, clearPendingDelete, confirmDelete } = deletion;
     const { rpcStatus, handleReconnect } = statusBar;
     const isImmersiveShell = workspaceStyle === "immersive";
-    const isNativeHost = Runtime.isNativeHost;
     const { t } = useTranslation();
 
     const renderNavbar = () => <Navbar viewModel={navbar} />;

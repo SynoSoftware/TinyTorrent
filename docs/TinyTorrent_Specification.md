@@ -13,6 +13,8 @@ See:
 docs/EXE_architecture.md
 docs/Host_Agent_Contract.md
 
+**Active architecture and RPC decisions now live in `docs/EXE architecture.md`, which describes the Transmission RPC-only contract.** Treat this specification as historical material; do not allow it to influence any current implementation choices.
+
 
 
 # **TinyTorrent Master Specification (v1.1)**
@@ -419,4 +421,3 @@ These concepts may only exist **globally**, or not at all.
 > **Warnings are not moved between modes — they are deleted from item-level UI entirely.**
 
 Once this is enforced, consistency is automatic and hacks disappear.
-

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type KeyboardEvent } from "react";
 import type { DetailTab } from "@/modules/dashboard/types/torrentDetail";
+import { usePreferences } from "@/app/context/PreferencesContext";
 
 export const DETAIL_TABS: DetailTab[] = [
     "general",
@@ -21,36 +22,19 @@ export const useDetailTabs = ({
     inspectorTabCommand,
     onInspectorTabCommandHandled,
 }: UseDetailTabsParams) => {
-    const STORAGE_KEY = "tt.inspector.active_tab";
-    // TODO: Move inspector tab persistence behind the Preferences provider (see `todo.md` task 15) so storage access/migrations are centralized.
-    // TODO: Ensure this remains UI-only and does not become another “hidden global truth” that different surfaces fight over.
-
-    const readStored = (): DetailTab | null => {
-        try {
-            if (typeof window === "undefined") return null;
-            const raw = localStorage.getItem(STORAGE_KEY);
-            if (!raw) return null;
-            if (DETAIL_TABS.includes(raw as DetailTab)) return raw as DetailTab;
-            return null;
-        } catch (e) {
-            return null;
-        }
-    };
+    const {
+        preferences: { inspectorTab },
+        setInspectorTab,
+    } = usePreferences();
 
     const [active, setActiveInternal] = useState<DetailTab>(
-        () => readStored() ?? "general"
+        () => inspectorTab ?? "general"
     );
 
     const setActive = (tab: DetailTab | ((t: DetailTab) => DetailTab)) => {
         setActiveInternal((prev) => {
             const next = typeof tab === "function" ? tab(prev) : tab;
-            try {
-                if (typeof window !== "undefined") {
-                    localStorage.setItem(STORAGE_KEY, next);
-                }
-            } catch (e) {
-                // ignore
-            }
+            setInspectorTab(next);
             return next;
         });
     };
@@ -76,9 +60,8 @@ export const useDetailTabs = ({
     // dock/undock/new-instance scenarios. If no stored tab exists, fall back
     // to "general".
     useEffect(() => {
-        const stored = readStored();
-        setActive(stored ?? "general");
-    }, [activeTorrentId]);
+        setActiveInternal(inspectorTab ?? "general");
+    }, [activeTorrentId, inspectorTab]);
 
     const handleKeyDown = useCallback(
         (event: KeyboardEvent) => {
