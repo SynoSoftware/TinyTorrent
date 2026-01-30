@@ -33,10 +33,15 @@ interface UseTorrentWorkflowParams {
     announceAction?: (
         action: FeedbackAction,
         stage: "start" | "done",
-        count: number
+        count: number,
+        actionId?: string
     ) => void;
     showFeedback?: (message: string, tone: FeedbackTone) => void;
 }
+
+// TODO: Collapse feedback params into a single CommandDescriptor object once this
+// workflow view-model stabilizes. That object should carry actionId/count/tone/stage
+// so we stop growing the signature while keeping this identity-based model intact.
 
 export function useTorrentWorkflow({
     torrents,
@@ -66,6 +71,20 @@ export function useTorrentWorkflow({
         [selectedTorrentIdsSet, torrents]
     );
     // TODO: Move selection-aware action logic into a view-model/shared handler (aligned with App split) so workflow is not tightly coupled to SelectionContext and prop drilling.
+
+    const buildActionId = (
+        action: FeedbackAction,
+        targets: (Torrent | { id?: string | number; hash?: string })[]
+    ) => {
+        // Guardrail: actionId must be deterministic and stable (no randomness/timing).
+        const ids = targets
+            .map((torrent) => torrent.id ?? torrent.hash ?? "unknown")
+            .map(String)
+            .filter(Boolean)
+            .sort();
+        const suffix = ids.length ? ids.join(",") : "unknown";
+        return `${action}:${suffix}`;
+    };
 
     const requestDelete = useCallback(
         (
@@ -160,12 +179,13 @@ export function useTorrentWorkflow({
             }
             const hasFeedback = action in GLOBAL_ACTION_FEEDBACK_CONFIG;
             const actionKey = action as FeedbackAction;
+            const actionId = buildActionId(actionKey, [torrent]);
             if (hasFeedback) {
-                announceAction(actionKey, "start", 1);
+                announceAction(actionKey, "start", 1, actionId);
             }
             const success = await runActionsWithOptimism(action, [torrent]);
             if (hasFeedback && success) {
-                announceAction(actionKey, "done", 1);
+                announceAction(actionKey, "done", 1, actionId);
             }
         },
         [announceAction, requestDelete, runActionsWithOptimism]
@@ -181,12 +201,13 @@ export function useTorrentWorkflow({
             }
             const hasFeedback = action in GLOBAL_ACTION_FEEDBACK_CONFIG;
             const actionKey = action as FeedbackAction;
+            const actionId = buildActionId(actionKey, targets);
             if (hasFeedback) {
-                announceAction(actionKey, "start", targets.length);
+                announceAction(actionKey, "start", targets.length, actionId);
             }
             const success = await runActionsWithOptimism(action, targets);
             if (hasFeedback && success) {
-                announceAction(actionKey, "done", targets.length);
+                announceAction(actionKey, "done", targets.length, actionId);
             }
         },
         [
@@ -210,8 +231,9 @@ export function useTorrentWorkflow({
             const count = toDelete.length;
             const hasFeedback = action in GLOBAL_ACTION_FEEDBACK_CONFIG;
             const actionKey = action as FeedbackAction;
+            const actionId = buildActionId(actionKey, toDelete);
             if (hasFeedback) {
-                announceAction(actionKey, "start", count);
+                announceAction(actionKey, "start", count, actionId);
             }
 
             toDelete.forEach((torrent) => {
@@ -235,7 +257,7 @@ export function useTorrentWorkflow({
             }
 
             if (hasFeedback) {
-                announceAction(actionKey, "done", count);
+                announceAction(actionKey, "done", count, actionId);
             }
         },
         [

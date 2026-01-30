@@ -240,9 +240,9 @@ const MissingFilesStatusCell = ({
 
     const { uiMode, getRecoverySessionForKey, setLocationCapability } =
         useRecoveryContext();
-    // TODO: ViewModel boundary: this cell renderer should not run classification logic or depend on `serverClass`.
-    // TODO: Replace `serverClass` with `uiMode = Full | Rpc` and render from recovery gate outputs (state/confidence/recommendedActions).
-    // TODO: After migration, `classifyMissingFilesState(...)` must run only in the recovery controller/gate, not in table cells.
+    // TODO: ViewModel boundary: this cell renderer should not re-run recovery classification logic or derive side channels.
+    // TODO: Render from recovery gate outputs (state/confidence/recommendedActions + uiMode = Full | Rpc) instead of `errorEnvelope` heuristics.
+    // TODO: After migration, `classifyMissingFilesState(...)` must live only inside the recovery controller/gate, not in table cells.
     const torrentKey = torrent.id?.toString() ?? torrent.hash ?? null;
     const downloadDir = torrent.savePath ?? torrent.downloadDir ?? "";
     const sessionClassification =

@@ -74,50 +74,34 @@ export function useRecoveryController(params: {
         []
     );
 
-    const handlePrimaryRecovery =
-        useCallback(async (): Promise<RecoveryOutcome> => {
+    const handlePrimaryRecovery = useCallback(
+        async (): Promise<RecoveryOutcome> => {
             if (!client || !detail || !envelope || !requestRecovery) {
                 const r: RecoveryOutcome = {
                     kind: "error",
-                    message: t(
-                        "recovery.errors.missing_client_detail_envelope"
-                    ),
+                    message: t("recovery.errors.missing_client_detail_envelope"),
                 };
                 setLastOutcome(r);
                 return r;
             }
 
-            // First consult the recovery gate to determine whether recovery should proceed.
             const gateOutcome = await requestRecovery({
                 torrent: detail,
                 action: "resume",
             });
-        const mapped = mapGateOutcomeToRecoveryOutcome(gateOutcome);
-        setLastOutcome(mapped);
-
-        // If the gate indicates we should continue, delegate the engine action
-        // to the TorrentActions provider (single action owner).
-        if (gateOutcome && gateOutcome.status === "continue") {
-            try {
-                await dispatch(
-                    TorrentIntents.ensureActive(detail.id ?? detail.hash)
-                );
-                return { kind: "resolved", message: "recovery_handled" };
-            } catch (err) {
-                return { kind: "error", message: String(err ?? "error") };
-            }
-        }
-
-        return mapped;
-    }, [
-        client,
-        detail,
-        envelope,
-        requestRecovery,
-        mapGateOutcomeToRecoveryOutcome,
-        dispatch,
-        t,
-    ]);
+            const mapped = mapGateOutcomeToRecoveryOutcome(gateOutcome);
+            setLastOutcome(mapped);
+            return mapped;
+        },
+        [
+            client,
+            detail,
+            envelope,
+            requestRecovery,
+            mapGateOutcomeToRecoveryOutcome,
+            t,
+        ]
+    );
     // TODO: This hook should not decide engine actions; rely on the single recovery gate/state machine for sequencing, then map outcomes to UI-friendly messages only.
 
     const handlePickPath = useCallback(

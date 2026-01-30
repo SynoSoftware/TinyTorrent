@@ -81,19 +81,18 @@ export default function TorrentTable_RowMenu({
         canOpenFolder,
         getRecoverySessionForKey,
     } = useRecoveryContext();
-    // TODO: Ensure all recovery/set-location actions here route through the single recovery gate/state machine; no local sequencing or ad-hoc handling for “set-download-path” should exist.
-    // TODO: Replace `connectionMode` usage here with `uiMode = "Full" | "Rpc"` from the capability provider; UI should not branch on tinytorrent-* strings.
-    // TODO: Update `getSetLocationOutcomeMessage(...)` to accept uiMode instead of connectionMode.
-    if (!contextMenu) return null;
-    const shouldShowOpenFolder = canOpenFolder;
-    const canSetLocation =
-        setLocationCapability.canBrowse || setLocationCapability.supportsManual;
-    const torrentKey = getTorrentKey(contextMenu.torrent);
+
+    const contextTorrent = contextMenu?.torrent ?? null;
+    const torrentKey = getTorrentKey(contextTorrent ?? undefined);
     const sessionClassification =
         getRecoverySessionForKey(torrentKey)?.classification ?? null;
     const storedClassification = useMissingFilesClassification(
-        contextMenu.torrent.id ?? contextMenu.torrent.hash ?? undefined
+        contextTorrent?.id ?? contextTorrent?.hash ?? undefined
     );
+    const shouldShowOpenFolder = Boolean(contextTorrent && canOpenFolder);
+    const canSetLocation =
+        setLocationCapability.canBrowse || setLocationCapability.supportsManual;
+    // TODO: Ensure all recovery/set-location actions here route through the single recovery gate/state machine; no local sequencing or ad-hoc handling for “set-download-path” should exist.
     const classification = useMemo(
         () =>
             resolveRecoveryClassification({
@@ -104,7 +103,7 @@ export default function TorrentTable_RowMenu({
     );
     const showUnknownConfidence = classification?.confidence === "unknown";
     const inlineStateKey = inlineSetLocationState?.torrentKey ?? "";
-    const currentKey = getTorrentKey(contextMenu.torrent);
+    const currentKey = getTorrentKey(contextTorrent ?? undefined);
     const shouldShowInlineEditor = Boolean(
         inlineSetLocationState?.surface === "context-menu" &&
             inlineStateKey &&
@@ -144,7 +143,7 @@ export default function TorrentTable_RowMenu({
             queueActions: queueMenuActions,
             dataTitle: t("table.data.title"),
             showOpenFolder: shouldShowOpenFolder,
-            openFolderDisabled: !contextMenu?.torrent?.savePath,
+            openFolderDisabled: !contextTorrent?.savePath,
             inlineEditor: {
                 visible: shouldShowInlineEditor,
                 caption: inlineCaption,
@@ -157,12 +156,15 @@ export default function TorrentTable_RowMenu({
         queueMenuActions,
         getContextMenuShortcut,
         shouldShowOpenFolder,
-        contextMenu,
+        contextTorrent,
         inlineCaption,
         inlineStatusMessage,
         inlineIsBusy,
         shouldShowInlineEditor,
+        contextTorrent,
     ]);
+
+    if (!contextMenu) return null;
     const handleInlineSubmit = () => {
         void confirmInlineSetLocation().then((success) => {
             if (success) {
@@ -217,26 +219,25 @@ export default function TorrentTable_RowMenu({
                             {item.label}
                         </DropdownItem>
                     ))}
-                    <div
-                        key="queue-section"
-                        className="border-t border-content1/20 px-panel pt-panel"
+                    <DropdownItem
+                        key="queue-heading"
+                        isDisabled
+                        className="border-t border-content1/20 px-panel pt-panel text-xs uppercase tracking-tight text-foreground/50"
                     >
-                        <div className="text-xs uppercase tracking-tight text-foreground/50">
-                            {rowMenuViewModel.dataTitle}
-                        </div>
-                        {rowMenuViewModel.queueActions.map((action) => (
-                            <DropdownItem
-                                key={action.key}
-                                className="pl-stage text-sm"
-                                shortcut={getContextMenuShortcut(action.key)}
-                                onPress={() =>
-                                    void handleContextMenuAction(action.key)
-                                }
-                            >
-                                {action.label}
-                            </DropdownItem>
-                        ))}
-                    </div>
+                        {rowMenuViewModel.dataTitle}
+                    </DropdownItem>
+                    {rowMenuViewModel.queueActions.map((action) => (
+                        <DropdownItem
+                            key={action.key}
+                            className="pl-stage text-sm"
+                            shortcut={getContextMenuShortcut(action.key)}
+                            onPress={() =>
+                                void handleContextMenuAction(action.key)
+                            }
+                        >
+                            {action.label}
+                        </DropdownItem>
+                    ))}
                     <DropdownItem
                         key="data-title"
                         isDisabled
@@ -322,16 +323,13 @@ export default function TorrentTable_RowMenu({
                     </DropdownItem>
                     {rowMenuViewModel.inlineEditor.visible &&
                     inlineSetLocationState ? (
-                        <div
+                        <DropdownItem
                             key="set-location-inline"
-                            className="border-t border-content1/20 px-panel pt-panel"
+                            className="border-t border-content1/20 p-0"
+                            role="presentation"
+                            textValue={t("table.actions.set_download_path")}
                         >
-                            <DropdownItem
-                                key="inline-editor-wrapper"
-                                className="p-0"
-                                role="presentation"
-                                textValue={t("table.actions.set_download_path")}
-                            >
+                            <div className="px-panel pt-panel">
                                 <SetLocationInlineEditor
                                     value={inlineSetLocationState.inputPath}
                                     error={inlineSetLocationState.error}
@@ -347,8 +345,8 @@ export default function TorrentTable_RowMenu({
                                     onSubmit={handleInlineSubmit}
                                     onCancel={handleInlineCancel}
                                 />
-                            </DropdownItem>
-                        </div>
+                            </div>
+                        </DropdownItem>
                     ) : null}
                 </DropdownMenu>
             </Dropdown>

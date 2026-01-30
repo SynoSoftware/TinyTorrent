@@ -18,10 +18,10 @@ import { getColumnWidthCss } from "./TorrentTable_Shared";
 const SUPPORTS_POINTER_EVENTS =
     typeof window !== "undefined" && "PointerEvent" in window;
 
-// TODO: Keep header rendering presentational:
-// TODO: - Drag/sort/resize behaviors should be owned by the table view-model and passed in as stable handlers/state (todo.md task 13).
-// TODO: - Avoid capability inference or engine calls in header components.
-// TODO: - If pointer-event handling needs special cases, centralize the policy in one place to avoid inconsistent interactions across header/body.
+// Keep header rendering presentational:
+// - Drag/sort/resize behaviors are still orchestrated by shared hooks; keep exposing only stable handlers/state so the view-model remains the single owner (todo.md task 13).
+// - Avoid capability inference or engine calls in header components; rely on the same view-model/command surface that drives the body.
+// - Centralize any pointer-event special cases higher up so both header and body share consistent interaction policies.
 
 // --- SUB-COMPONENT: DRAGGABLE HEADER ---
 const TorrentTable_Header = memo(

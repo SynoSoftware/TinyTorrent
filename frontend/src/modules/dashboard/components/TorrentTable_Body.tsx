@@ -66,11 +66,10 @@ export interface TorrentTableBodyProps {
         height: number;
     } | null;
 }
-// TODO: Reduce this props surface (regression risk):
-// TODO: - `TorrentTable_Body` should accept a small `TorrentTableBodyViewModel` containing grouped sub-objects:
-// TODO:   - `virtualization`, `dnd`, `selection`, `rows`, `renderers`, `state`
-// TODO: - Avoid passing through config constants and handlers individually; wire them once in a table view-model (see todo.md task 13).
-// TODO: - Keep the body purely presentational: no policy decisions (uiMode/capabilities), no engine calls, no persistence.
+// TODO: Reduce this props surface (regression risk). Once the planned table view-model emerges, bundle these props into a grouped `TorrentTableBodyViewModel`:
+// TODO:   - `virtualization`, `dnd`, `selection`, `row/column renderers`, and other state snapshots.
+// TODO: - Reuse the view-model to avoid threading config constants and handlers individually (see todo.md task 13).
+// TODO: - Keep this body purely presentational: no policy decisions (uiMode/capabilities), no engine calls, no persistence logic.
 
 export const TorrentTable_Body: React.FC<TorrentTableBodyProps> = (props) => {
     const {
