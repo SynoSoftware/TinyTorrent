@@ -55,18 +55,8 @@ export function Dashboard_Layout({
         tableWatermarkEnabled,
         isDropActive = false,
     } = table;
-    const {
-        detailData,
-        handleRequestDetails,
-        closeDetail,
-        handleFileSelectionChange,
-        sequentialToggleHandler,
-        superSeedingToggleHandler,
-        peerSortStrategy,
-        inspectorTabCommand,
-        onInspectorTabCommandHandled,
-        isDetailRecoveryBlocked,
-    } = detail;
+    const { detailData, handleRequestDetails, closeDetail, isDetailRecoveryBlocked } =
+        detail;
     const { t } = useTranslation();
     const { activePart, setActivePart } = useFocusState();
 
@@ -346,24 +336,13 @@ export function Dashboard_Layout({
                                 transition={ANIMATION.entry}
                             >
                                 <TorrentDetails
-                                    torrent={detailData}
-                                    onClose={handleDetailClose}
-                                    onFilesToggle={handleFileSelectionChange}
-                                    peerSortStrategy={peerSortStrategy}
-                                    inspectorTabCommand={inspectorTabCommand}
-                                    onInspectorTabCommandHandled={
-                                        onInspectorTabCommandHandled
-                                    }
-                                    onSequentialToggle={sequentialToggleHandler}
-                                    onSuperSeedingToggle={superSeedingToggleHandler}
-                                    /* onSetLocation removed: use TorrentActionsContext.setLocation */
-                                    /* redownload handled via TorrentActionsContext */
-
+                                    viewModel={detail}
                                     capabilities={capabilities}
                                     isDetailFullscreen={false}
                                     isRecoveryBlocked={isDetailRecoveryBlocked}
                                     onDock={handleDetailDock}
                                     onPopout={handleDetailPopout}
+                                    onClose={handleDetailClose}
                                 />
                             </motion.div>
                         </div>
@@ -399,25 +378,14 @@ export function Dashboard_Layout({
                             transition={{ duration: 0.25 }}
                         >
                             <TorrentDetails
-                                torrent={detailData}
-                                onClose={handleDetailClose}
-                                onFilesToggle={handleFileSelectionChange}
-                                peerSortStrategy={peerSortStrategy}
-                                inspectorTabCommand={inspectorTabCommand}
-                                onInspectorTabCommandHandled={
-                                    onInspectorTabCommandHandled
-                                }
-                                onSequentialToggle={sequentialToggleHandler}
-                                onSuperSeedingToggle={superSeedingToggleHandler}
-                                /* onSetLocation removed: use TorrentActionsContext.setLocation */
-                                /* redownload handled via TorrentActionsContext */
-
+                                viewModel={detail}
                                 capabilities={capabilities}
                                 isDetailFullscreen={isDetailFullscreen}
                                 isRecoveryBlocked={isDetailRecoveryBlocked}
                                 isStandalone={true}
                                 onDock={handleDetailDock}
                                 onPopout={handleDetailPopout}
+                                onClose={handleDetailClose}
                             />
                         </motion.div>
                     </motion.div>

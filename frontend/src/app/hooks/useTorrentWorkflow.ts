@@ -26,7 +26,7 @@ interface UseTorrentWorkflowParams {
     executeBulkRemove: (ids: string[], deleteData: boolean) => Promise<void>;
     executeSelectionAction: (
         action: TorrentTableAction,
-        ids: string[]
+        targets: Torrent[]
     ) => Promise<void>;
     onPrepareDelete?: (torrent: Torrent, deleteData: boolean) => void;
     /** Optional externally-provided feedback functions (injected by host). */
@@ -190,12 +190,11 @@ export function useTorrentWorkflow({
 
             let succeeded = false;
             try {
-                if (torrentsToUpdate.length > 1) {
-                    const ids = torrentsToUpdate.map((t) => t.id);
-                    await executeSelectionAction(action, ids);
-                } else {
-                    await executeTorrentAction(action, torrentsToUpdate[0]);
-                }
+            if (torrentsToUpdate.length > 1) {
+                await executeSelectionAction(action, torrentsToUpdate);
+            } else {
+                await executeTorrentAction(action, torrentsToUpdate[0]);
+            }
                 succeeded = true;
             } catch {
                 showFeedback(t("toolbar.feedback.failed"), "danger");

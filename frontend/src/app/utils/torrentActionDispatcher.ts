@@ -59,7 +59,7 @@ export async function dispatchTorrentAction({
 interface DispatchTorrentSelectionActionParams {
     action: TorrentTableAction;
     ids: string[];
-    selectedTorrents: Torrent[];
+    torrents: Torrent[];
     dispatch: DispatchFn;
     resume?: (torrent: Torrent) => Promise<void>;
 }
@@ -67,7 +67,7 @@ interface DispatchTorrentSelectionActionParams {
 export async function dispatchTorrentSelectionAction({
     action,
     ids,
-    selectedTorrents,
+    torrents,
     dispatch,
     resume,
 }: DispatchTorrentSelectionActionParams) {
@@ -78,13 +78,16 @@ export async function dispatchTorrentSelectionAction({
             return dispatch(TorrentIntents.ensureSelectionPaused(ids));
         case "resume": {
             if (resume) {
-                const targets = selectedTorrents.filter(
-                    (torrent) => torrent.id && ids.includes(torrent.id)
+                const recoveryTargets = torrents.filter(
+                    (torrent) => Boolean(torrent.errorEnvelope)
                 );
-                for (const torrent of targets) {
-                    await resume(torrent);
+                if (recoveryTargets.length) {
+                    for (const torrent of recoveryTargets) {
+                        if (!torrent.id) continue;
+                        await resume(torrent);
+                    }
+                    return;
                 }
-                return;
             }
             return dispatch(TorrentIntents.ensureSelectionActive(ids));
         }

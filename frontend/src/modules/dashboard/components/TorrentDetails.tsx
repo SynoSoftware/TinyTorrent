@@ -6,55 +6,25 @@ import { PiecesTab } from "./TorrentDetails_Pieces";
 import { SpeedTab } from "./TorrentDetails_Speed";
 import { PeersTab } from "./TorrentDetails_Peers";
 import { TrackersTab } from "./TorrentDetails_Trackers";
-import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
-import type { PeerContextAction } from "./TorrentDetails_Peers";
-import type { TorrentPeerEntity } from "@/services/rpc/entities";
 import { TorrentDetailHeader } from "./TorrentDetails_Header";
 import { useDetailTabs } from "../hooks/useDetailTabs";
 import {
     BLOCK_SHADOW,
     GLASS_BLOCK_SURFACE,
 } from "@/shared/ui/layout/glass-surface";
-import type {
-    DetailTab,
-    PeerSortStrategy,
-} from "@/modules/dashboard/types/torrentDetail";
-import type {
-    FileExplorerContextAction,
-    FileExplorerEntry,
-} from "@/shared/ui/workspace/FileExplorerTree";
 import type { CapabilityStore } from "@/app/types/capabilities";
-
-// TODO: TorrentDetailsProps is still large. Reduce to a `TorrentDetailsViewModel`:
-// TODO: - `header`: { title, status, onClose, actions }
-// TODO: - `tabs`: { activeTab, setActiveTab, tabModels... }
-// TODO: - `capabilities/uiMode`: required booleans only (no serverClass/connectionMode)
-// TODO: Keep tabs presentational and push orchestration/dispatch decisions into the dashboard/app view-model (todo.md task 13).
+import type { DashboardDetailViewModel } from "@/app/viewModels/useAppViewModel";
 
 export interface TorrentDetailsProps {
-    torrent?: TorrentDetail | null;
+    viewModel: DashboardDetailViewModel;
     className?: string;
-    onClose?: () => void;
-    onFilesToggle?: (
-        indexes: number[],
-        wanted: boolean
-    ) => void | Promise<void>;
-    onFileContextAction?: (
-        action: FileExplorerContextAction,
-        entry: FileExplorerEntry
-    ) => void;
-    onPeerContextAction?: (
-        action: PeerContextAction,
-        peer: TorrentPeerEntity
-    ) => void;
-    peerSortStrategy?: PeerSortStrategy;
-    inspectorTabCommand?: DetailTab | null;
-    onInspectorTabCommandHandled?: () => void;
-    onSequentialToggle?: (enabled: boolean) => void | Promise<void>;
-    onSuperSeedingToggle?: (enabled: boolean) => void | Promise<void>;
-    isRecoveryBlocked?: boolean;
     capabilities: CapabilityStore;
+    isRecoveryBlocked?: boolean;
     isStandalone?: boolean;
+    isDetailFullscreen?: boolean;
+    onDock?: () => void;
+    onPopout?: () => void;
+    onClose?: () => void;
 }
 
 /**
@@ -63,19 +33,10 @@ export interface TorrentDetailsProps {
  * components implemented under `details/tabs/`.
  */
 export function TorrentDetails({
-    torrent,
+    viewModel,
     className,
-    onFilesToggle,
-    onFileContextAction,
-    onPeerContextAction,
-    peerSortStrategy,
-    inspectorTabCommand,
-    onInspectorTabCommandHandled,
-    onSequentialToggle,
-    onSuperSeedingToggle,
-
-    isRecoveryBlocked,
     capabilities,
+    isRecoveryBlocked,
     isDetailFullscreen = false,
     isStandalone = false,
     onDock,
@@ -87,6 +48,17 @@ export function TorrentDetails({
     onPopout?: () => void;
 }) {
     const { t } = useTranslation();
+    const {
+        detailData: torrent,
+        handleFileSelectionChange,
+        sequentialToggleHandler,
+        superSeedingToggleHandler,
+        peerSortStrategy,
+        inspectorTabCommand,
+        onInspectorTabCommandHandled,
+        isDetailRecoveryBlocked,
+        handlePeerContextAction,
+    } = viewModel;
     const { active, setActive, handleKeyDown } = useDetailTabs({
         activeTorrentId: torrent?.id,
         inspectorTabCommand,
@@ -97,7 +69,6 @@ export function TorrentDetails({
         <div
             className={cn(
                 className,
-
                 cn(GLASS_BLOCK_SURFACE, BLOCK_SHADOW),
                 isStandalone ? "overflow-y-auto" : null,
                 "h-full min-h-0 flex flex-col outline-none rounded-2xl"
@@ -124,8 +95,8 @@ export function TorrentDetails({
                         downloadDir={torrent.downloadDir ?? ""}
                         sequentialCapability={capabilities.sequentialDownload}
                         superSeedingCapability={capabilities.superSeeding}
-                        onSequentialToggle={onSequentialToggle}
-                        onSuperSeedingToggle={onSuperSeedingToggle}
+                        onSequentialToggle={sequentialToggleHandler}
+                        onSuperSeedingToggle={superSeedingToggleHandler}
                         /* set-location handled via TorrentActionsContext */
                         progressPercent={Math.round(
                             (torrent.progress ?? 0) * 100
@@ -139,8 +110,7 @@ export function TorrentDetails({
                     <ContentTab
                         files={torrent.files ?? []}
                         emptyMessage={t("torrent_modal.files_empty")}
-                        onFilesToggle={onFilesToggle}
-                        onFileContextAction={onFileContextAction}
+                        onFilesToggle={handleFileSelectionChange}
                         /* redownload handled via TorrentActionsContext */
                         torrent={torrent}
                         isStandalone={isStandalone}
@@ -165,7 +135,7 @@ export function TorrentDetails({
                 {active === "peers" && torrent && (
                     <PeersTab
                         peers={torrent.peers ?? []}
-                        onPeerContextAction={onPeerContextAction}
+                        onPeerContextAction={handlePeerContextAction}
                         torrentProgress={torrent.progress ?? 0}
                         sortBySpeed={peerSortStrategy === "speed"}
                         isStandalone={isStandalone}

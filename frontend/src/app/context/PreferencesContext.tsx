@@ -83,6 +83,31 @@ const DEFAULT_ADD_TORRENT_HISTORY: string[] = [];
 const DEFAULT_CONNECTION_PROFILES: ConnectionProfile[] = [];
 const DEFAULT_ACTIVE_CONNECTION_PROFILE_ID = "";
 
+const LEGACY_STORAGE_KEYS_TO_REMOVE = [
+    LEGACY_USER_PREFERENCES_KEY,
+    LEGACY_WORKBENCH_SCALE_KEY,
+    LEGACY_WORKSPACE_STYLE_KEY,
+    LEGACY_HUD_DISMISSED_KEY,
+    SYSTEM_POWER_KEY,
+    SYSTEM_UPDATE_KEY,
+    SYSTEM_CLOSE_ACTION_KEY,
+    DETAIL_TAB_KEY,
+    TABLE_STATE_KEY,
+    SPEED_CHART_LAYOUT_KEY,
+    ADD_TORRENT_DEFAULTS_KEY,
+    ADD_TORRENT_LEGACY_DOWNLOAD_KEY,
+    ADD_TORRENT_HISTORY_KEY,
+    CONNECTION_PROFILES_KEY,
+    CONNECTION_ACTIVE_PROFILE_KEY,
+];
+
+const removeLegacyPreferences = () => {
+    if (typeof window === "undefined") return;
+    for (const key of LEGACY_STORAGE_KEYS_TO_REMOVE) {
+        window.localStorage.removeItem(key);
+    }
+};
+
 // Final PreferencesState shape (must cover every persisted preference managed by the provider):
 //   version, refreshIntervalMs, requestTimeoutMs, tableWatermarkEnabled,
 //   workbenchScale, workspaceStyle, dismissedHudCardIds,
@@ -462,6 +487,7 @@ const readStoredPreferences = (): PreferencesState => {
     }
     const legacy = readLegacyPreferences();
     persistPreferences(legacy);
+    removeLegacyPreferences();
     return legacy;
 };
 
