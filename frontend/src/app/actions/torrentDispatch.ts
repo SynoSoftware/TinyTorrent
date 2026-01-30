@@ -67,21 +67,23 @@ export function createTorrentDispatch({
         // TODO: - `intent.type` => `{ run(client), refresh: {torrents,detail,stats}, optimistic?: ... }`
         // TODO: - makes behavior explicit, reduces chance of missing a refresh, and improves testability.
         switch (intent.type) {
-            case "ENSURE_TORRENT_ACTIVE":
-                await activeClient.resume([String(intent.torrentId)]);
-                break;
-            case "ENSURE_TORRENT_PAUSED":
-                await activeClient.pause([String(intent.torrentId)]);
-                break;
-            case "ENSURE_TORRENT_REMOVED":
-                await activeClient.remove(
-                    [String(intent.torrentId)],
-                    Boolean(intent.deleteData)
-                );
-                break;
-            case "ENSURE_TORRENT_VALID":
+        case "ENSURE_TORRENT_ACTIVE":
+            await activeClient.resume([String(intent.torrentId)]);
+            break;
+        case "ENSURE_TORRENT_PAUSED":
+            await activeClient.pause([String(intent.torrentId)]);
+            break;
+        case "ENSURE_TORRENT_REMOVED":
+            await activeClient.remove(
+                [String(intent.torrentId)],
+                Boolean(intent.deleteData)
+            );
+            break;
+        case "ENSURE_TORRENT_VALID":
+            await runWithRefresh(async () => {
                 await activeClient.verify([String(intent.torrentId)]);
-                break;
+            });
+            break;
             case "SET_TORRENT_FILES_WANTED": {
                 const updateFileSelection = activeClient.updateFileSelection;
                 if (!updateFileSelection) return;
@@ -134,17 +136,19 @@ export function createTorrentDispatch({
                     (intent.torrentIds || []).map(String)
                 );
                 break;
-            case "ENSURE_SELECTION_REMOVED":
-                await activeClient.remove(
-                    (intent.torrentIds || []).map(String),
-                    Boolean(intent.deleteData)
-                );
-                break;
-            case "ENSURE_SELECTION_VALID":
+        case "ENSURE_SELECTION_REMOVED":
+            await activeClient.remove(
+                (intent.torrentIds || []).map(String),
+                Boolean(intent.deleteData)
+            );
+            break;
+        case "ENSURE_SELECTION_VALID":
+            await runWithRefresh(async () => {
                 await activeClient.verify(
                     (intent.torrentIds || []).map(String)
                 );
-                break;
+            });
+            break;
         case "QUEUE_MOVE": {
             const q = intent as QueueMoveIntent;
             const tid = String(q.torrentId);

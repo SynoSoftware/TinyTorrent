@@ -1,27 +1,8 @@
-[x] 1. high - Remove RPC extensions - Delete *all* TinyTorrent extension scaffolding so the UI talks to `transmission-daemon` via vanilla Transmission RPC only: remove `tt-get-capabilities`, websocket/delta-sync session code, `X-TT-Auth` token handling, `session-ui-attach/detach`, and any TinyTorrent-only RPC method surface; ensure build has no references to these methods/headers/features and that polling is the only sync model - src/services/rpc/rpc-base.ts, src/services/rpc/*
-[x] 2. high - Remove TT token plumbing - Remove `token` from connection profiles and delete any sessionStorage writes/reads for `tt-auth-token` plus any `NativeShell.onEvent("auth-token")` consumers; after this, only Transmission username/password are used for auth and remote profile switching - src/app/providers/TorrentClientProvider.tsx, src/app/context/ConnectionConfigContext.tsx
-[x] 3. high - ShellAgent/ShellExtensions adapter - Create a single adapter (interface + implementation) that owns *all* ShellExtensions bridge calls/events in one place (for review + AI safety), and refactor call sites to import the adapter/provider instead of importing `NativeShell` directly. Required surface (minimum): `browseDirectory/openFolderDialog`, `openFileDialog`, `openPath`, `sendWindowCommand`, `getSystemIntegrationStatus`, `setSystemIntegration`, `request("persist-window-state")`, and event `magnet-link`. Explicitly remove/avoid `auth-token` (Transmission-only). Adapter must enforce locality rules by consuming `uiMode` (no-op/unsupported outcomes when `uiMode="Rpc"`). IMPORTANT: `checkFreeSpace` must NOT be a ShellExtensions call; Transmission RPC already exposes free-space and that is the only supported source of truth. If we keep "install/registration/handlers" features, they must also move behind this adapter (and be removed from `src/services/rpc/*`). - src/app/runtime.ts, src/app/hooks/useOpenTorrentFolder.ts, src/app/hooks/useAddModalState.ts, src/app/components/WorkspaceShell.tsx, src/modules/settings/components/SettingsModal.tsx, src/modules/settings/components/tabs/system/SystemTabContent.tsx, src/app/orchestrators/useTorrentOrchestrator.ts, src/app/App.tsx
-[x] 4. high - Capability helper (locality) - Implement a shared helper that computes UI mode/capabilities from (a) endpoint host (loopback vs remote) and (b) ShellAgent/ShellExtensions bridge availability; deprecate `serverClass`/`ServerType`/`connectionMode` for UI decisions; introduce `UiMode = "Full" | "Rpc"` and a UI-level capability model; replace `ServerCapabilities` with `UiMode/UiCapabilities` - src/services/rpc/engine-adapter.ts, src/app/context/ConnectionConfigContext.tsx, src/app/context/LifecycleContext.tsx, src/app/context/RecoveryContext.tsx
-[x] 5. medium - Capability contract tests - Add tests verifying the capability helper: loopback+shell => ShellExtensions enabled; loopback+no-shell => manual only; remote/browser => no shell features; ensure no UI path calls the ShellAgent adapter when `uiMode="Rpc"` - tests (new), src/services/rpc/engine-adapter.ts
-[x] 6. high - Settings UI: Transmission + UiMode only - Update SettingsModal + Connection/System tabs to remove "TinyTorrent server" language, extension cards, websocket transport mentions, and token/security protocol UI. Settings must consume `UiMode = "Full" | "Rpc"` and render ShellExtensions features only when `uiMode="Full"`; remote/browser must show disabled controls + explicit explanation. - src/modules/settings/components/SettingsModal.tsx, src/modules/settings/components/tabs/connection/ConnectionTabContent.tsx, src/modules/settings/components/tabs/connection/ConnectionManager.tsx, src/modules/settings/components/tabs/system/SystemTabContent.tsx, src/i18n/en.json
-[x] 7. high - Session + UiMode provider - Introduce a single provider that exposes `rpcStatus`, `sessionStats`, and `uiMode = "Full" | "Rpc"` (derived from endpoint locality + ShellAgent/ShellExtensions bridge availability); refactor StatusBar/Settings/AppShell to consume this provider and stop passing `serverClass/connectionMode/engineType` around - src/app/App.tsx, src/app/components/layout/StatusBar.tsx, src/modules/settings/components/SettingsModal.tsx, src/app/context/LifecycleContext.tsx, src/app/context/RecoveryContext.tsx
-[x] 7a. medium - UiMode naming + translation cleanup - Standardize user-facing naming: `uiMode="Full"` maps to "TinyTorrent" and `uiMode="Rpc"` maps to "Transmission"; delete `connection_mode_tinytorrent_*` and "TinyTorrent server type" strings once uiMode replaces serverClass/connectionMode; ensure all UX copy matches the simplified mental model - src/i18n/en.json, src/app/components/layout/StatusBar.tsx, src/modules/settings/components/tabs/connection/ConnectionManager.tsx, src/app/utils/setLocation.ts
-[x] 8. medium - Remove websocket UX surfaces - Remove websocket/delta-sync references in UI labels/types (StatusBar transport status, HeartbeatSource variants, websocket translation keys) so transport is described as polling-only; keep refresh intervals/telemetry provider as the single scheduling authority - src/services/rpc/heartbeat.ts, src/app/components/layout/StatusBar.tsx, src/i18n/en.json
-[x] 8a. medium - Remove ShellExtensions "check-free-space" bridge - Delete the `check-free-space` IPC/NativeShell method and all callers; ensure `checkFreeSpace` in the UI is always `EngineAdapter.checkFreeSpace()` (Transmission RPC `free-space`) and document that it returns *daemon-side* disk space (remote daemon => remote disk) - src/app/runtime.ts, src/services/rpc/rpc-base.ts, src/modules/torrent-add/components/AddTorrentModal.tsx, src/services/recovery/recovery-controller.ts
-[x] 9. high - Single recovery gate - Choose one recovery gate implementation and delete the other: all recovery entry points call the same `requestRecovery` and receive the same promise (dedupe by torrent fingerprint/id); UI components do not run recovery sequences directly - src/app/context/RecoveryGateContext.tsx, src/app/orchestrators/useTorrentOrchestrator.ts, src/modules/dashboard/hooks/useRecoveryController.ts
-[x] 10. high - Recovery UX spec compliance - Update recovery controller/gate to emit deterministic `{state, confidence, recommendedActions}` for S1-S4 and enforce Retry=probe-only; UI copy must follow confidence rules (unknown => "Location unavailable"); verify sequencing rules (verify vs skip) are encoded once in the controller - src/services/recovery/*, src/modules/dashboard/components/TorrentRecoveryModal.tsx, src/modules/dashboard/components/TorrentDetails_General.tsx, src/modules/dashboard/components/TorrentTable_RowMenu.tsx
-[x] 11. medium - Set-location flow split - Refactor set-location into two explicit flows: (A) browse (rendered only when uiMode="Full"; not rendered at all in uiMode="Rpc"), (B) manual input (always available unless explicitly disabled); manage manual editor state via reducer `{draft,status,error}`; keep editor/modal open until gate resolves; Host-backed UI elements must be absent, not disabled, when unavailable; remove scattered owner/outcome maps and derive conflict states - src/app/orchestrators/useTorrentOrchestrator.ts, src/modules/dashboard/components/SetLocationInlineEditor.tsx  
-[x] 12. medium - Recovery display from gate - Remove recovery display derivation from `errorEnvelope` formatting in table/status/header; display should render only from gate-provided {state, confidence} (no inference from raw errors) and show the correct primary action hint; Host-backed UI elements must be absent, not disabled, when unavailable; keep formatting utilities but make them accept gate state not raw envelope - src/modules/dashboard/components/TorrentTable_ColumnDefs.tsx, src/modules/dashboard/components/TorrentDetails_Header.tsx, src/shared/utils/recoveryFormat.ts
+
 [x] 13a. high - App + WorkspaceShell view-model boundary - Introduce `useAppViewModel()` or equivalent provider that wires session/preference/recovery/orchestrator data and exposes a single `WorkspaceShellViewModel`; ensure `App.tsx` + `WorkspaceShell` stop threading configuration/handlers individually and only render from the model. Acceptance: App only passes grouped view-model props to `WorkspaceShell`, the prop pile comments referencing task 13 disappear, and `WorkspaceShell` no longer imports orchestration helpers directly.
 [_] 13b. high - Torrent table view-model - Build a `TorrentTableViewModel` that owns filtering, selection, virtualization, column sizing, and capability checks, then feed it into `TorrentTable`/`TorrentTable_Body`/`TorrentTable_Header` so these components are pure. Acceptance: Table body/header receive a single view-model + command callbacks, `useColumnSizingController`/`useMarqueeSelection` are owned solely by the view-model provider, and table-related task-13 TODOs are cleared.
 [x] 13c. high - Detail inspector view-model - Create a `DashboardDetailViewModel` that drives `TorrentDetails`, `TorrentDetails_Content`, `TorrentDetails_Peers`, `TorrentDetails_Trackers`, and the peer/trackers map: they should only render props/events from the view-model without owning selection/file toggles. Acceptance: Detail tabs/components receive only view-model outputs, `onFilesToggle`/tracker actions route through that model, and the corresponding TODO notes are resolved.
-[_] 13d. medium - Settings/Recovery view-model cleanup - Ensure Settings components, the recovery modal, and related helpers derive gating/capabilities from dedicated view-model fragments rather than embedding logic. Acceptance: Settings/recovery tooling consume view-model outputs for `uiMode`/recovery state, and any TODO instructing logic to move to view-models is satisfied.
-[x] 14. high — Establish a single torrent-action dispatch authority  
-Choose exactly one canonical surface for TorrentTableAction → TorrentIntents dispatch (TorrentActionsContext).  
-Collapse the duplicate switches into `src/app/utils/torrentActionDispatcher.ts` and call it wherever UI actions originate.  
-All UI surfaces (row, toolbar, hotkeys, details) must dispatch through this API while preserving optimistic state, recovery gating, feedback identity, selection safety, and uiMode gating.  
-No UI refactors or behavioral changes in this step—just structure the command surface.  
-Files: src/app/context/TorrentActionsContext.tsx, src/app/App.tsx, src/app/context/TorrentCommandContext.tsx, src/app/utils/torrentActionDispatcher.ts
+[_] 13d. medium - Settings/Recovery view-model cleanup  - Ensure Settings components, the recovery modal, and related helpers derive gating/capabilities from dedicated view-model fragments rather than embedding logic. Acceptance: Settings/recovery tooling consume view-model outputs for `uiMode`/recovery state, and any TODO instructing logic to move to view-models is satisfied.
 
 [_] 15. medium — Collapse UIActionGate into the action/workflow owner  
 Move “removed” state and delete-lifecycle ownership into the same layer that owns torrent action dispatch/workflows.  
@@ -29,33 +10,124 @@ SelectionContext remains authoritative for selection only.
 After this step, there must be a single owner for: optimistic delete masking, selection clearing, and delete sequencing.  
 Update or delete any TODOs/comments that assume split ownership.  
 Files: src/app/hooks/useTorrentWorkflow.ts, src/app/orchestrators/useTorrentOrchestrator.ts
-
-[x] 16. medium — Centralize UI-only preferences behind a Preferences provider  
-Introduce a Preferences provider with an explicit schema and migration path.  
-Move all UI-only persistence (refresh interval, timeouts, watermark, workbench scale, workspace style, HUD dismissals, theme, language) behind this provider.  
-Leaf hooks/components must not read/write localStorage directly.  
-No UX changes.  
-Files: src/app/hooks/useSettingsFlow.ts, src/app/hooks/useWorkbenchScale.ts, src/app/hooks/useWorkspaceShell.ts, src/shared/utils/theme.ts, src/i18n/index.ts, src/modules/settings/*
-
-[x] 17. low — Command registry + hotkey consolidation  
-Define commands (id, label, group, shortcuts) in one registry.  
-CommandPalette and GlobalHotkeysHost consume this registry.  
-Remove duplicated hotkey wiring from AppContent and other ad-hoc hosts.  
-Files: src/app/components/CommandPalette.tsx, src/app/components/GlobalHotkeysHost.tsx, src/app/App.tsx
-
-[x] 18. medium — Add-torrent defaults service  
-Extract add-torrent defaults (last path, start paused/running) into a dedicated service/hook.  
-AddTorrentModal becomes a pure form; orchestrator owns persistence and side effects.  
-Files: src/app/orchestrators/useTorrentOrchestrator.ts, src/modules/torrent-add/components/AddTorrentModal.tsx
-
-[x] 19. low — Deprecate RPC-extended documentation  
-Mark TinyTorrent RPC-extended docs as historical.  
-Ensure active guidance points only to Transmission RPC architecture.  
-No code changes required unless docs are referenced at runtime.  
-Files: docs/TinyTorrent_RPC_Extended.md, docs/TinyTorrent_Specification.md
-
-[x] 20. medium — Unify timers and background scheduling  
+ 
+[x] 21. architectural - Recovery orchestration boundary - Move all recovery sequencing, queue state, and inline set-location state out of `useTorrentOrchestrator.ts` into a focused recovery controller so the orchestrator merely coordinates recovery requests and responses; without that separation it owns add-torrent, recovery queues, and RPC telemetry, which makes the Recovery UX spec hard to reason about.
+[_] 22. architectural - Recovery capability clarity - Explicitly surface any host-side filesystem expectations (missing-files classification, directory creation, free-space checks) through the EngineAdapter contract and guard UI code on those capabilities; the current conditional logic that infers Local vs Remote behavior leaves the Recovery UX execution model unstable.
+[_] 23. architectural - Recovery lifetime ownership - Attach `missingFilesStore`/probe caches to a clear owner (client/session/recovery gate) instead of module-level maps that must be manually cleared from unrelated helpers; the spec requires recovery state to reset whenever the client/session changes, which the current globals cannot guarantee.
 Inventory all polling/timers (heartbeat, UiClock, recovery probes, modal timers).  
 Consolidate behind a single scheduling authority or provider.  
 Document what runs, when, and how it scales with list size.  
 Files: src/services/rpc/heartbeat.ts, src/shared/hooks/useUiClock.ts, src/app/orchestrators/useTorrentOrchestrator.ts, src/modules/dashboard/components/TorrentRecoveryModal.tsx
+[ ] 24. architectural – Orchestrator responsibility collapse
+`useTorrentOrchestrator.ts` still aggregates multiple independent lifecycles (add-torrent flows, global listeners, RPC/telemetry wiring, timers). Recovery extraction reduces pressure but does not resolve the broader issue: the orchestrator acts as a god-object for UI-side coordination. A future pass must either split responsibilities by domain (recovery / creation / lifecycle) or introduce a thin composition layer so no single hook owns unrelated concerns.
+[ ] 25. architectural – Scheduling authority
+Polling and timers (heartbeat, UI clock, recovery probes, modal delays) are currently created across multiple modules with no single owner. This makes scaling behavior, teardown correctness, and regression analysis unclear. Inventory existing timers and document ownership, then consolidate under a single scheduling authority or provider in a future pass.
+
+
+### ✅ Completed (Do Not Revisit)
+
+These items are **finished, integrated, and should not be reopened** unless a regression is found.
+
+* [x] **1. Remove RPC extensions**
+  UI talks to `transmission-daemon` via vanilla Transmission RPC only. No TinyTorrent RPC surface remains.
+
+* [x] **2. Remove TT token plumbing**
+  All TT auth/token/sessionStorage handling removed. Transmission auth only.
+
+* [x] **3. ShellAgent / ShellExtensions adapter**
+  Single adapter owns all NativeShell interactions. No direct imports elsewhere. Locality enforced via `uiMode`.
+
+* [x] **4. Capability helper (locality)**
+  `UiMode = "Full" | "Rpc"` replaces serverClass/connectionMode for UI decisions.
+
+* [x] **5. Capability contract tests**
+  Tests ensure ShellExtensions never run in `uiMode="Rpc"`.
+
+* [x] **6. Settings UI cleanup (Transmission + UiMode only)**
+  All TinyTorrent server / websocket / token UX removed.
+
+* [x] **7. Session + UiMode provider**
+  Single provider exposes `rpcStatus`, `sessionStats`, and `uiMode`.
+
+* [x] **7a. UiMode naming + translation cleanup**
+
+* [x] **8. Remove websocket UX surfaces**
+  UI is polling-only; no delta-sync language remains.
+
+* [x] **8a. Remove ShellExtensions free-space bridge**
+  `checkFreeSpace` is Transmission RPC only.
+
+* [x] **9. Single recovery gate**
+  All recovery entry points dedupe through one gate.
+
+* [x] **10. Recovery UX spec compliance (core)**
+  Deterministic `{state, confidence}` output; Retry = probe-only; verify sequencing centralized.
+
+* [x] **11. Set-location flow split**
+  Explicit browse vs manual flows; host-backed UI absent in `uiMode="Rpc"`.
+
+* [x] **12. Recovery display from gate**
+  UI renders only from gate output, not raw error envelopes.
+
+* [x] **13a. App + WorkspaceShell view-model boundary**
+  App renders via a single `WorkspaceShellViewModel`.
+
+* [x] **13c. Detail inspector view-model**
+  Details panels are pure view-model consumers.
+
+* [x] **14. Single torrent-action dispatch authority**
+  All UI surfaces dispatch through one canonical dispatcher.
+
+* [x] **15. Collapse UIActionGate into workflow owner**
+  Delete lifecycle ownership unified.
+
+* [x] **16. Centralize UI-only preferences provider**
+
+* [x] **17. Command registry + hotkey consolidation**
+
+* [x] **18. Add-torrent defaults service**
+
+* [x] **19. Deprecate RPC-extended documentation**
+
+* [x] **20. Unify timers and background scheduling (partial)**
+  Core scheduling consolidated; architectural follow-up remains (see 25).
+
+---
+
+### ⏳ Actionable Now (Implementable Without Broad Redesign)
+
+These are **the last refactor steps that can be completed cleanly**.
+
+* [ ] **21. Architectural — Recovery orchestration boundary**
+  Move all recovery sequencing, queue state, and inline set-location state out of
+  `useTorrentOrchestrator.ts` into a focused recovery controller.
+  Orchestrator coordinates only; does not own recovery logic or state.
+
+* [ ] **22. Architectural — Recovery capability clarity**
+  Explicitly surface host-side filesystem expectations (classification, directory creation, free-space checks) via the `EngineAdapter` contract.
+  Local vs Rpc execution model must be explicit; no inferred fallbacks.
+
+* [ ] **23. Architectural — Recovery lifetime ownership**
+  Attach `missingFilesStore` / probe caches to a clear owner (client / session / recovery gate).
+  Recovery state must reset on client/session change; no module-level globals.
+
+---
+
+### ⏸ Deferred (Future Pass, Intentionally Not Now)
+
+These are **valid architectural issues**, but **out of scope for the current closure**.
+
+* [–] **13b. Torrent table view-model** _(blocked / deferred)_
+  Requires deeper table lifecycle consolidation and is not needed to close recovery or orchestration boundaries.
+
+* [–] **13d. Settings / Recovery view-model cleanup** _(deferred)_
+  Settings and recovery UI still read some capabilities via contexts.
+  This is a boundary hygiene task, not required for correctness.
+
+* [–] **24. Architectural — Orchestrator responsibility collapse**
+  `useTorrentOrchestrator.ts` still aggregates unrelated lifecycles (creation, listeners, telemetry, timers).
+  Requires a broader composition pass.
+
+* [–] **25. Architectural — Scheduling authority**
+  Polling/timers exist across modules (heartbeat, UI clock, recovery probes, modal delays).
+  Requires a dedicated scheduling authority and scaling analysis.

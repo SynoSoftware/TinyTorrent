@@ -215,6 +215,8 @@ interface UseSettingsFlowParams {
     updateRequestTimeout: (timeoutMs: number) => void;
 }
 
+export type UseSettingsFlowResult = ReturnType<typeof useSettingsFlow>;
+
 export function useSettingsFlow({
     torrentClient,
     refreshTorrentsRef,
@@ -233,12 +235,7 @@ export function useSettingsFlow({
 
     const settingsConfig = useMemo(
         () => applyPreferencesToConfig(settingsConfigBase, preferences),
-        [
-            settingsConfigBase,
-            preferences.refreshIntervalMs,
-            preferences.requestTimeoutMs,
-            preferences.tableWatermarkEnabled,
-        ]
+        [settingsConfigBase, preferences]
     );
     const [sessionSettings, setSessionSettings] =
         useState<TransmissionSessionSettings | null>(null);
@@ -278,7 +275,7 @@ export function useSettingsFlow({
         return () => {
             active = false;
         };
-    }, [isSettingsOpen, refreshSessionSettings, rpcStatus]);
+    }, [isSettingsOpen, refreshSessionSettings, rpcStatus, preferences]);
 
     const handleSaveSettings = useCallback(
         async (config: SettingsConfig) => {
