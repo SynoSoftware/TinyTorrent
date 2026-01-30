@@ -1,9 +1,8 @@
 // All imports use '@/...' aliases. Clipboard logic and magic numbers flagged for follow-up refactor.
-// TODO: TorrentTable is a “composition root” for many table sub-hooks (virtualization, persistence, context menus, clipboard, open folder, queue reorder).
-// TODO: To reduce cognitive load and regression risk:
-// TODO: - Introduce a single `TorrentTableViewModel` (or `useTorrentTableViewModel`) that owns the wiring between these hooks and exposes a small surface to the view.
-// TODO: - Keep this file as a view-only renderer: it should not decide policy (capabilities/uiMode), should not call ShellExtensions directly, and should not own persistence keys.
-// TODO: - Ensure all host-backed actions route through the ShellAgent adapter and are gated by `uiMode`, not by ad-hoc checks in leaf hooks.
+// TorrentTable remains the composition root for virtualization, persistence, context menus, queue reordering, etc.
+// The App/Dashboard view-models now produce a `TorrentTableViewModel`, so this file must continue to stay presentational:
+// it renders the data/hook outputs, delegates policy decisions to the view-model/orchestrator layer, and never calls ShellExtensions or reclaims persistence keys directly.
+// Host-backed actions must continue to run through the ShellAgent adapter (guarded by `uiMode`) inside shared hooks rather than in this view layer.
 
 import { DndContext, DragOverlay, closestCenter } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
@@ -724,9 +723,9 @@ export function TorrentTable({
 
     // header context/menu computation extracted to TorrentTable_HeaderContext.tsx
 
-    const headerContainerClass = cn(
+    const headerContainerClass = (cn(
         "flex w-full sticky top-0 z-20 border-b border-content1/20 bg-content1/10 backdrop-blur-sm "
-    );
+    ) ?? "") as string;
     const tableShellClass = cn(
         "relative flex-1 h-full min-h-0 flex flex-col overflow-hidden",
         "rounded-panel border border-default/10"

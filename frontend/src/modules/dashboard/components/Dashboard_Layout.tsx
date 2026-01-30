@@ -99,7 +99,6 @@ export function Dashboard_Layout({
         },
         [handleRequestDetails, setActivePart]
     );
-    // TODO: Ensure detail/recovery/selection flows here consume the unified view-model (session/recovery/selection) rather than wiring callbacks; avoid per-component orchestration.
 
     const handleDetailFullscreenRequest = useCallback(
         (torrent: Torrent) => {
@@ -257,17 +256,21 @@ export function Dashboard_Layout({
                                     className="torrent-table-watermark absolute inset-0 z-0 pointer-events-none"
                                 />
                             )}
-                                <div
-                                    className="relative z-10 h-full min-h-0"
-                                    style={{ borderRadius: "inherit" }}
-                                >
-                                    <TorrentTable
-                                        embedded={isImmersiveShell}
-                                        viewModel={table}
-                                        /* onOpenFolder removed; leaf components use TorrentActionsContext */
-                                        /* onSetLocation removed: use TorrentActionsContext.setLocation */
-                                    />
-                                </div>
+                            <div
+                                className="relative z-10 h-full min-h-0"
+                                style={{ borderRadius: "inherit" }}
+                            >
+                                <TorrentTable
+                                    embedded={isImmersiveShell}
+                                    viewModel={table}
+                                    onRequestDetails={handleDetailRequest}
+                                    onRequestDetailsFullscreen={
+                                        handleDetailFullscreenRequest
+                                    }
+                                    /* onOpenFolder removed; leaf components use TorrentActionsContext */
+                                    /* onSetLocation removed: use TorrentActionsContext.setLocation */
+                                />
+                            </div>
                         </div>
                         {dropOverlay}
                     </div>

@@ -15,11 +15,7 @@ import type {
     PeerSortStrategy,
     DetailTab,
 } from "@/modules/dashboard/types/torrentDetail";
-import type {
-    AmbientHudCard,
-    DeleteIntent,
-    RehashStatus,
-} from "@/app/types/workspace";
+import type { AmbientHudCard, DeleteIntent } from "@/app/types/workspace";
 import type { ConnectionStatus } from "@/shared/types/rpc";
 import type { UiMode } from "@/app/utils/uiMode";
 
@@ -39,8 +35,6 @@ export interface TorrentTableViewModel {
     optimisticStatuses: OptimisticStatusMap;
     tableWatermarkEnabled: boolean;
     capabilities: CapabilityStore;
-    onRequestDetails?: (torrent: Torrent) => Promise<void>;
-    onRequestDetailsFullscreen?: (torrent: Torrent) => Promise<void>;
 }
 
 export interface DashboardDetailViewModel {
@@ -99,27 +93,12 @@ export interface WorkspaceShellViewModel {
         getInputProps: () => InputHTMLAttributes<HTMLInputElement>;
         isDragActive: boolean;
     };
-    filters: {
-        filter: string;
-        searchQuery: string;
-        setFilter: (value: string) => void;
-        setSearchQuery: (value: string) => void;
-    };
     workspaceStyle: {
         workspaceStyle: WorkspaceStyle;
         toggleWorkspaceStyle: () => void;
-        rehashStatus?: RehashStatus;
     };
     settingsModal: SettingsModalViewModel;
     dashboard: DashboardViewModel;
-    telemetry: {
-        sessionStats: SessionStats | null;
-        liveTransportStatus: HeartbeatSource;
-        handleReconnect: () => void;
-    };
-    navOptions: {
-        rehashStatus?: RehashStatus;
-    };
     hud: {
         visibleHudCards: AmbientHudCard[];
         dismissHudCard: (cardId: string) => void;
@@ -129,9 +108,6 @@ export interface WorkspaceShellViewModel {
         pendingDelete: DeleteIntent | null;
         clearPendingDelete: () => void;
         confirmDelete: (overrideDeleteData?: boolean) => Promise<void>;
-    };
-    recovery: {
-        isDetailRecoveryBlocked?: boolean;
     };
     navbar: NavbarViewModel;
     statusBar: StatusBarViewModel;

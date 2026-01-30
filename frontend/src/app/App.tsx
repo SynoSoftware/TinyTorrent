@@ -3,8 +3,8 @@ import type { MutableRefObject } from "react";
 import { STATUS } from "@/shared/status";
 import Runtime from "@/app/runtime";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
-import { useHotkeys } from "react-hotkeys-hook";
 import useWorkbenchScale from "./hooks/useWorkbenchScale";
+import { useCommandPalette } from "./hooks/useCommandPalette";
 import { useTranslation } from "react-i18next";
 
 import { useWorkspaceShell } from "./hooks/useWorkspaceShell";
@@ -157,7 +157,7 @@ function AppContent({
     // -- Local UI State --
     const [filter, setFilter] = useState("all");
     const [searchQuery, setSearchQuery] = useState("");
-    const [isCommandPaletteOpen, setCommandPaletteOpen] = useState(false);
+    const commandPalette = useCommandPalette();
     const [peerSortStrategy, setPeerSortStrategy] =
         useState<PeerSortStrategy>("none");
     const [inspectorTabCommand, setInspectorTabCommand] =
@@ -173,16 +173,6 @@ function AppContent({
         searchInput.focus();
         searchInput.select();
     }, []);
-
-    useHotkeys(
-        "cmd+k,ctrl+k",
-        (event) => {
-            event.preventDefault();
-            setCommandPaletteOpen((prev) => !prev);
-        },
-        { enableOnFormTags: true, enableOnContentEditable: true },
-        [setCommandPaletteOpen]
-    );
     // TODO: Centralize global hotkeys (palette/search) in one host to avoid per-component bindings and collisions.
 
     const handleInspectorTabCommandHandled = useCallback(() => {
@@ -697,16 +687,9 @@ function AppContent({
                 getInputProps,
                 isDragActive,
             },
-            filters: {
-                filter,
-                searchQuery,
-                setFilter,
-                setSearchQuery,
-            },
             workspaceStyle: {
                 workspaceStyle,
                 toggleWorkspaceStyle,
-                rehashStatus,
             },
             settingsModal: {
                 isOpen: isSettingsOpen,
@@ -727,14 +710,6 @@ function AppContent({
                     settingsFlow.applyUserPreferencesPatch,
             },
             dashboard: dashboardViewModel,
-            telemetry: {
-                sessionStats,
-                liveTransportStatus,
-                handleReconnect,
-            },
-            navOptions: {
-                rehashStatus,
-            },
             hud: {
                 visibleHudCards,
                 dismissHudCard,
@@ -745,9 +720,6 @@ function AppContent({
                 clearPendingDelete,
                 confirmDelete,
             },
-            recovery: {
-                isDetailRecoveryBlocked,
-            },
             navbar: navbarViewModel,
             statusBar: statusBarViewModel,
         }),
@@ -755,13 +727,8 @@ function AppContent({
             getRootProps,
             getInputProps,
             isDragActive,
-            filter,
-            searchQuery,
-            setFilter,
-            setSearchQuery,
             workspaceStyle,
             toggleWorkspaceStyle,
-            rehashStatus,
             isSettingsOpen,
             closeSettings,
             settingsFlow.settingsConfig,
@@ -779,7 +746,6 @@ function AppContent({
             pendingDelete,
             clearPendingDelete,
             confirmDelete,
-            isDetailRecoveryBlocked,
             dashboardViewModel,
             statusBarViewModel,
             navbarViewModel,
@@ -1034,8 +1000,8 @@ function AppContent({
                 />
             </RecoveryProvider>
             <CommandPalette
-                isOpen={isCommandPaletteOpen}
-                onOpenChange={setCommandPaletteOpen}
+                isOpen={commandPalette.isOpen}
+                onOpenChange={commandPalette.setIsOpen}
                 actions={commandActions}
                 getContextActions={getContextActions}
             />

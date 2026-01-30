@@ -37,10 +37,6 @@ import type { NavbarViewModel } from "@/app/viewModels/useAppViewModel";
 interface NavbarProps {
     viewModel: NavbarViewModel;
 }
-// TODO: Reduce Navbar prop surface (cognitive load + regression risk):
-// TODO: - Replace dozens of independent callbacks with a single `NavbarViewModel` prop (grouped: search/filter, selectionActions, addActions, windowControls, status).
-// TODO: - Prefer command ids from a central command registry (todo.md task 16) instead of passing individual “ensure selection” handlers.
-// TODO: - Window commands must be routed through the ShellAgent adapter and gated by runtime (WebView host only). Navbar should just emit `{commandId}`.
 
 export function Navbar({ viewModel }: NavbarProps) {
     const {
