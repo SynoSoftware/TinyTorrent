@@ -6,35 +6,34 @@ import {
     type MutableRefObject,
 } from "react";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
-import type { ReportReadErrorFn } from "@/shared/types/rpc";
+import { useSession } from "@/app/context/SessionContext";
+import { STATUS } from "@/shared/status";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
 
 interface UseTorrentDetailParams {
     torrentClient: EngineAdapter;
-    reportReadError: ReportReadErrorFn;
     isMountedRef: MutableRefObject<boolean>;
-    sessionReady: boolean;
 }
 
 interface UseTorrentDetailResult {
     detailData: TorrentDetail | null;
     loadDetail: (
         torrentId: string,
-        placeholder?: TorrentDetail
+        placeholder?: TorrentDetail,
     ) => Promise<void>;
     refreshDetailData: () => Promise<void>;
     clearDetail: () => void;
     mutateDetail: (
-        updater: (current: TorrentDetail) => TorrentDetail | null
+        updater: (current: TorrentDetail) => TorrentDetail | null,
     ) => void;
 }
 
 export function useTorrentDetail({
     torrentClient,
-    reportReadError,
     isMountedRef,
-    sessionReady,
 }: UseTorrentDetailParams): UseTorrentDetailResult {
+    const { reportReadError, rpcStatus } = useSession();
+    const sessionReady = rpcStatus === STATUS.connection.CONNECTED;
     const [detailData, setDetailData] = useState<TorrentDetail | null>(null);
     const activeDetailIdRef = useRef<string | null>(null);
     const detailTimestampRef = useRef(0);
@@ -50,7 +49,7 @@ export function useTorrentDetail({
                 ? { id: detail.id, hash: detail.hash }
                 : null;
         },
-        [isMountedRef]
+        [isMountedRef],
     );
 
     // FIX: Removed the direct RPC call.
@@ -71,7 +70,7 @@ export function useTorrentDetail({
                 commitDetailState({ id: torrentId } as TorrentDetail, 0);
             }
         },
-        [commitDetailState]
+        [commitDetailState],
     );
 
     const refreshDetailData = useCallback(async () => {
@@ -92,7 +91,7 @@ export function useTorrentDetail({
                 return next;
             });
         },
-        [isMountedRef]
+        [isMountedRef],
     );
 
     const clearDetail = useCallback(() => {

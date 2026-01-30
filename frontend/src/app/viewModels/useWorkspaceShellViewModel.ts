@@ -48,7 +48,7 @@ import type {
     WorkspaceShellViewModel,
 } from "./useAppViewModel";
 
-import { useActionFeedback } from "@/app/hooks/useActionFeedback";
+// action feedback should be consumed by lower-level hooks when needed
 import { useCommandPalette } from "@/app/hooks/useCommandPalette";
 import { useWorkspaceShell } from "@/app/hooks/useWorkspaceShell";
 import { useWorkspaceModals } from "@/app/WorkspaceModalContext";
@@ -77,7 +77,7 @@ export interface WorkspaceShellController {
         handleTorrentAction: (
             action: TorrentTableAction,
             torrent: Torrent,
-            options?: { deleteData?: boolean }
+            options?: { deleteData?: boolean },
         ) => Promise<void>;
         handleBulkAction: (action: TorrentTableAction) => Promise<void>;
         openAddMagnet: () => void;
@@ -126,25 +126,20 @@ export function useWorkspaceShellViewModel({
     const torrentClient = useTorrentClient();
     const {
         rpcStatus,
-        reportCommandError,
         reportReadError,
-        engineInfo,
-        isDetectingEngine,
         sessionStats,
         liveTransportStatus,
         refreshSessionStatsData,
         reconnect,
-        refreshSessionSettings,
         markTransportConnected,
         uiCapabilities,
-        updateRequestTimeout,
     } = useSession();
-    const { announceAction, showFeedback } = useActionFeedback();
+    // feedback handled within lower-level hooks when needed
     const commandPalette = useCommandPalette();
     const focusSearchInput = useCallback(() => {
         if (typeof document === "undefined") return;
         const searchInput = document.querySelector(
-            'input[data-command-search="true"]'
+            'input[data-command-search="true"]',
         ) as HTMLInputElement | null;
         if (!searchInput) return;
         searchInput.focus();
@@ -157,7 +152,7 @@ export function useWorkspaceShellViewModel({
             try {
                 return (
                     (await shellAgent.browseDirectory(
-                        currentPath || undefined
+                        currentPath || undefined,
                     )) ?? null
                 );
             } catch {
@@ -167,8 +162,9 @@ export function useWorkspaceShellViewModel({
     }, [shellAgent]);
     const { isSettingsOpen, openSettings, closeSettings } =
         useWorkspaceModals();
-    const [capabilities, setCapabilities] =
-        useState<CapabilityStore>(DEFAULT_CAPABILITY_STORE);
+    const [capabilities, setCapabilities] = useState<CapabilityStore>(
+        DEFAULT_CAPABILITY_STORE,
+    );
 
     const isMountedRef = useRef(false);
 
@@ -194,16 +190,24 @@ export function useWorkspaceShellViewModel({
                 return { ...prev, [capability]: state };
             });
         },
-        []
+        [],
     );
 
     useEffect(() => {
         if (!torrentClient.setSequentialDownload) {
-            updateCapabilityState("sequentialDownload", "unsupported");
+            // schedule state update to avoid synchronous setState within effect
+            setTimeout(
+                () =>
+                    updateCapabilityState("sequentialDownload", "unsupported"),
+                0,
+            );
             return;
         }
         if (capabilities.sequentialDownload === "unsupported") {
-            updateCapabilityState("sequentialDownload", "unknown");
+            setTimeout(
+                () => updateCapabilityState("sequentialDownload", "unknown"),
+                0,
+            );
         }
     }, [
         torrentClient.setSequentialDownload,
@@ -213,11 +217,17 @@ export function useWorkspaceShellViewModel({
 
     useEffect(() => {
         if (!torrentClient.setSuperSeeding) {
-            updateCapabilityState("superSeeding", "unsupported");
+            setTimeout(
+                () => updateCapabilityState("superSeeding", "unsupported"),
+                0,
+            );
             return;
         }
         if (capabilities.superSeeding === "unsupported") {
-            updateCapabilityState("superSeeding", "unknown");
+            setTimeout(
+                () => updateCapabilityState("superSeeding", "unknown"),
+                0,
+            );
         }
     }, [
         torrentClient.setSuperSeeding,
@@ -229,17 +239,13 @@ export function useWorkspaceShellViewModel({
         torrentClient,
         refreshTorrentsRef,
         refreshSessionStatsDataRef,
-        refreshSessionSettings,
-        reportCommandError,
-        rpcStatus,
         isSettingsOpen,
         isMountedRef,
-        updateRequestTimeout,
     });
 
     const pollingIntervalMs = Math.max(
         1000,
-        settingsFlow.settingsConfig.refresh_interval_ms
+        settingsFlow.settingsConfig.refresh_interval_ms,
     );
 
     const {
@@ -267,9 +273,7 @@ export function useWorkspaceShellViewModel({
         mutateDetail,
     } = useTorrentDetail({
         torrentClient,
-        reportReadError,
         isMountedRef,
-        sessionReady: rpcStatus === STATUS.connection.CONNECTED,
     });
 
     useEffect(() => {
@@ -284,11 +288,7 @@ export function useWorkspaceShellViewModel({
         refreshDetailData,
         torrents,
         detailData,
-        rpcStatus,
         settingsFlow,
-        showFeedback,
-        reportCommandError,
-        t,
         clearDetail,
     });
 
@@ -331,25 +331,15 @@ export function useWorkspaceShellViewModel({
         retry: handleRecoveryRetry,
         autoRetry: handleRecoveryAutoRetry,
         recreateFolder: handleRecoveryRecreateFolder,
-        pickPath: handleRecoveryPickPath,
     } = recoveryModal;
 
-    const {
-        state: inlineSetLocationState,
-        cancel: cancelInlineSetLocation,
-        release: releaseInlineSetLocation,
-        confirm: confirmInlineSetLocation,
-        change: handleInlineLocationChange,
-    } = inlineEditor;
+    /* inline editor controls are accessed via `inlineEditor` directly where needed */
 
-    const {
-        capability: setLocationCapability,
-        handler: handleSetLocation,
-    } = setLocation;
+    const { capability: setLocationCapability, handler: handleSetLocation } =
+        setLocation;
 
     const {
         executeRedownload,
-        executeRetryFetch,
         resumeTorrentWithRecovery: resumeTorrent,
         probeMissingFilesIfStale,
         handlePrepareDelete,
@@ -359,7 +349,9 @@ export function useWorkspaceShellViewModel({
     useEffect(() => {
         if (!probeMissingFilesIfStale) return;
         const errored = torrents.filter(
-            (torrent) => torrent.errorEnvelope !== undefined && torrent.errorEnvelope !== null
+            (torrent) =>
+                torrent.errorEnvelope !== undefined &&
+                torrent.errorEnvelope !== null,
         );
         errored.forEach((torrent) => {
             void probeMissingFilesIfStale(torrent);
@@ -371,15 +363,18 @@ export function useWorkspaceShellViewModel({
     const selectedIdsSet = useMemo(() => new Set(selectedIds), [selectedIds]);
     const selectedTorrents = useMemo(
         () => torrents.filter((torrent) => selectedIdsSet.has(torrent.id)),
-        [selectedIdsSet, torrents]
+        [selectedIdsSet, torrents],
     );
 
-    const { handleFileSelectionChange, handleSequentialToggle, handleSuperSeedingToggle } =
-        useDetailControls({
-            detailData,
-            mutateDetail,
-            updateCapabilityState,
-        });
+    const {
+        handleFileSelectionChange,
+        handleSequentialToggle,
+        handleSuperSeedingToggle,
+    } = useDetailControls({
+        detailData,
+        mutateDetail,
+        updateCapabilityState,
+    });
 
     const handleRequestDetails = useCallback(
         async (torrent: Torrent) => {
@@ -391,7 +386,7 @@ export function useWorkspaceShellViewModel({
                 peers: [],
             } as TorrentDetail);
         },
-        [loadDetail, setActiveId]
+        [loadDetail, setActiveId],
     );
 
     const handleCloseDetail = useCallback(() => {
@@ -413,7 +408,7 @@ export function useWorkspaceShellViewModel({
                       files: [],
                       peers: [],
                   } as TorrentDetail)
-                : undefined
+                : undefined,
         );
     }, [activeId, detailData, loadDetail, selectedTorrents]);
 
@@ -422,12 +417,12 @@ export function useWorkspaceShellViewModel({
         const detailKey = detailData.id ?? detailData.hash;
         if (!detailKey) return;
         const isStillPresent = torrents.some(
-            (torrent) => torrent.id === detailKey || torrent.hash === detailKey
+            (torrent) => torrent.id === detailKey || torrent.hash === detailKey,
         );
         if (isStillPresent) return;
         clearProbe(detailKey);
         handleCloseDetail();
-    }, [detailData, clearDetail, torrents]);
+    }, [detailData, clearDetail, torrents, handleCloseDetail]);
 
     const { dispatch } = useRequiredTorrentActions();
 
@@ -435,13 +430,13 @@ export function useWorkspaceShellViewModel({
         async (torrent: Torrent, options?: { recreateFolder?: boolean }) => {
             await executeRedownload(torrent, options);
         },
-        [executeRedownload]
+        [executeRedownload],
     );
 
     const executeTorrentActionViaDispatch = (
         action: TorrentTableAction,
         torrent: Torrent,
-        options?: { deleteData?: boolean }
+        options?: { deleteData?: boolean },
     ) =>
         dispatchTorrentAction({
             action,
@@ -453,7 +448,7 @@ export function useWorkspaceShellViewModel({
 
     const executeBulkRemoveViaDispatch = async (
         ids: string[],
-        deleteData: boolean
+        deleteData: boolean,
     ) => {
         return dispatch(TorrentIntents.ensureSelectionRemoved(ids, deleteData));
     };
@@ -483,8 +478,6 @@ export function useWorkspaceShellViewModel({
                 resume: resumeTorrent,
             });
         },
-        announceAction,
-        showFeedback,
     });
 
     const commandApi = useMemo(
@@ -494,7 +487,12 @@ export function useWorkspaceShellViewModel({
             openAddMagnet,
             openAddTorrentPicker,
         }),
-        [handleTorrentAction, handleBulkAction, openAddMagnet, openAddTorrentPicker]
+        [
+            handleTorrentAction,
+            handleBulkAction,
+            openAddMagnet,
+            openAddTorrentPicker,
+        ],
     );
 
     const handleEnsureSelectionActive = useCallback(() => {
@@ -520,7 +518,7 @@ export function useWorkspaceShellViewModel({
             }
             void shellAgent.sendWindowCommand(command);
         },
-        [shellAgent]
+        [shellAgent],
     );
 
     const {
@@ -533,9 +531,6 @@ export function useWorkspaceShellViewModel({
     const hasDismissedInsights = Boolean(dismissedHudCardSet.size);
 
     const hudCards = useHudCards({
-        rpcStatus,
-        engineInfo,
-        isDetectingEngine,
         isDragActive,
         dismissedHudCardSet,
     });
@@ -544,12 +539,12 @@ export function useWorkspaceShellViewModel({
 
     const tableWatermarkEnabled = useMemo(
         () => Boolean(settingsFlow.settingsConfig.table_watermark_enabled),
-        [settingsFlow.settingsConfig.table_watermark_enabled]
+        [settingsFlow.settingsConfig.table_watermark_enabled],
     );
 
     const rehashStatus = useMemo(() => {
         const verifyingTorrents = torrents.filter(
-            (torrent) => torrent.state === "checking"
+            (torrent) => torrent.state === "checking",
         );
         if (!verifyingTorrents.length) {
             return undefined;
@@ -557,7 +552,7 @@ export function useWorkspaceShellViewModel({
         const totalProgress = verifyingTorrents.reduce(
             (acc, torrent) =>
                 acc + (torrent.verificationProgress ?? torrent.progress ?? 0),
-            0
+            0,
         );
         const value = (totalProgress / verifyingTorrents.length) * 100;
         const label =
@@ -580,22 +575,19 @@ export function useWorkspaceShellViewModel({
             ? liveTransportStatus
             : "offline";
 
-    const emphasizeActions = useMemo(
-        () => {
-            const matches = (action: string) =>
-                selectedTorrents.some(
-                    (torrent) => torrent.errorEnvelope?.primaryAction === action
-                );
-            return {
-                pause: matches("pause"),
-                reannounce: matches("reannounce"),
-                changeLocation: matches("changeLocation"),
-                openFolder: matches("openFolder"),
-                forceRecheck: matches("forceRecheck"),
-            };
-        },
-        [selectedTorrents]
-    );
+    const emphasizeActions = useMemo(() => {
+        const matches = (action: string) =>
+            selectedTorrents.some(
+                (torrent) => torrent.errorEnvelope?.primaryAction === action,
+            );
+        return {
+            pause: matches("pause"),
+            reannounce: matches("reannounce"),
+            changeLocation: matches("changeLocation"),
+            openFolder: matches("openFolder"),
+            forceRecheck: matches("forceRecheck"),
+        };
+    }, [selectedTorrents]);
 
     const [filter, setFilter] = useState("all");
     const [searchQuery, setSearchQuery] = useState("");
@@ -618,7 +610,7 @@ export function useWorkspaceShellViewModel({
             searchQuery,
             isDragActive,
             tableWatermarkEnabled,
-        ]
+        ],
     );
 
     const dashboardTableState = useMemo(
@@ -629,7 +621,13 @@ export function useWorkspaceShellViewModel({
             optimisticStatuses,
             removedIds,
         }),
-        [torrents, ghostTorrents, isInitialLoadFinished, optimisticStatuses, removedIds]
+        [
+            torrents,
+            ghostTorrents,
+            isInitialLoadFinished,
+            optimisticStatuses,
+            removedIds,
+        ],
     );
 
     const dashboardDetailState = useMemo(
@@ -639,7 +637,12 @@ export function useWorkspaceShellViewModel({
             inspectorTabCommand,
             isDetailRecoveryBlocked,
         }),
-        [detailData, peerSortStrategy, inspectorTabCommand, isDetailRecoveryBlocked]
+        [
+            detailData,
+            peerSortStrategy,
+            inspectorTabCommand,
+            isDetailRecoveryBlocked,
+        ],
     );
 
     const dashboardDetailControls = useMemo(
@@ -658,12 +661,12 @@ export function useWorkspaceShellViewModel({
             handleSequentialToggle,
             handleSuperSeedingToggle,
             setInspectorTabCommand,
-        ]
+        ],
     );
 
     const dashboardCapabilities = useMemo(
         () => ({ capabilities }),
-        [capabilities]
+        [capabilities],
     );
 
     const dashboardViewModel = useDashboardViewModel(
@@ -671,7 +674,7 @@ export function useWorkspaceShellViewModel({
         dashboardTableState,
         dashboardDetailState,
         dashboardDetailControls,
-        dashboardCapabilities
+        dashboardCapabilities,
     );
 
     const statusBarViewModel = useStatusBarViewModel({
@@ -698,7 +701,7 @@ export function useWorkspaceShellViewModel({
             handleEnsureSelectionPaused,
             handleEnsureSelectionValid,
             handleEnsureSelectionRemoved,
-        ]
+        ],
     );
 
     const navbarQueryState = useMemo(
@@ -709,7 +712,7 @@ export function useWorkspaceShellViewModel({
             setSearchQuery,
             hasSelection: selectedIds.length > 0,
         }),
-        [filter, searchQuery, setFilter, setSearchQuery, selectedIds.length]
+        [filter, searchQuery, setFilter, setSearchQuery, selectedIds.length],
     );
 
     const navbarDerivedState = useMemo(
@@ -718,7 +721,7 @@ export function useWorkspaceShellViewModel({
             selectionActions: navbarSelectionActions,
             rehashStatus,
         }),
-        [emphasizeActions, navbarSelectionActions, rehashStatus]
+        [emphasizeActions, navbarSelectionActions, rehashStatus],
     );
 
     const navbarNavigation = useMemo(
@@ -727,7 +730,7 @@ export function useWorkspaceShellViewModel({
             openAddMagnet,
             openSettings,
         }),
-        [openAddTorrentPicker, openAddMagnet, openSettings]
+        [openAddTorrentPicker, openAddMagnet, openSettings],
     );
 
     const navbarShellControls = useMemo(
@@ -735,14 +738,14 @@ export function useWorkspaceShellViewModel({
             workspaceStyle,
             handleWindowCommand,
         }),
-        [workspaceStyle, handleWindowCommand]
+        [workspaceStyle, handleWindowCommand],
     );
 
     const navbarViewModel = useNavbarViewModel(
         navbarQueryState,
         navbarDerivedState,
         navbarNavigation,
-        navbarShellControls
+        navbarShellControls,
     );
 
     const settingsSnapshot = useMemo<SettingsSnapshot>(
@@ -755,7 +758,7 @@ export function useWorkspaceShellViewModel({
             settingsFlow.settingsConfig,
             settingsFlow.isSettingsSaving,
             settingsFlow.settingsLoadError,
-        ]
+        ],
     );
 
     const settingsActions = useMemo<SettingsActions>(
@@ -768,7 +771,7 @@ export function useWorkspaceShellViewModel({
             settingsFlow.handleSaveSettings,
             settingsFlow.handleTestPort,
             settingsFlow.applyUserPreferencesPatch,
-        ]
+        ],
     );
 
     const settingsModalViewModel = useSettingsModalViewModel({
@@ -818,12 +821,12 @@ export function useWorkspaceShellViewModel({
     const getContextActions = useCallback(
         ({ activePart }: CommandPaletteContext) =>
             buildContextCommandActions(commandPaletteDeps, activePart),
-        [commandPaletteDeps]
+        [commandPaletteDeps],
     );
 
     const commandPaletteActions = useMemo(
         () => buildCommandPaletteActions(commandPaletteDeps),
-        [commandPaletteDeps]
+        [commandPaletteDeps],
     );
 
     const commandPaletteModel = useMemo(
@@ -831,7 +834,7 @@ export function useWorkspaceShellViewModel({
             actions: commandPaletteActions,
             getContextActions,
         }),
-        [commandPaletteActions, getContextActions]
+        [commandPaletteActions, getContextActions],
     );
 
     const workspaceShellModel = useWorkspaceShellModel({
@@ -856,7 +859,7 @@ export function useWorkspaceShellViewModel({
             uiMode,
             canOpenFolder,
         }),
-        [uiMode, canOpenFolder]
+        [uiMode, canOpenFolder],
     );
 
     const recoveryInlineEditorControls = useMemo(
@@ -873,12 +876,12 @@ export function useWorkspaceShellViewModel({
             inlineEditor.release,
             inlineEditor.confirm,
             inlineEditor.change,
-        ]
+        ],
     );
 
     const recoverySessionState = useMemo(
         () => ({ recoverySession }),
-        [recoverySession]
+        [recoverySession],
     );
 
     const recoveryContextSnapshot = useRecoveryContextModel(
@@ -886,7 +889,7 @@ export function useWorkspaceShellViewModel({
         recoveryInlineEditorControls,
         recoverySessionState,
         setLocationCapability,
-        getRecoverySessionForKey
+        getRecoverySessionForKey,
     );
 
     const recoveryContext = useMemo(
@@ -901,7 +904,7 @@ export function useWorkspaceShellViewModel({
             handleRecoveryRetry,
             handleDownloadMissing,
             handleSetLocation,
-        ]
+        ],
     );
 
     const recoveryModalProps = useRecoveryModalProps({

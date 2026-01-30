@@ -1,14 +1,20 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import {
+    useCallback,
+    useEffect,
+    useMemo,
+    useReducer,
+    useRef,
+    useState,
+} from "react";
 import type { MutableRefObject } from "react";
-import type {
-    EngineAdapter,
-    EngineCapabilities,
-} from "@/services/rpc/engine-adapter";
-import type { ServerClass } from "@/services/rpc/entities";
+import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import { scheduler } from "@/app/services/scheduler";
 import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
 import { resolveTorrentPath } from "@/modules/dashboard/utils/torrentPaths";
-import { TorrentIntents, type TorrentIntentExtended } from "@/app/intents/torrentIntents";
+import {
+    TorrentIntents,
+    type TorrentIntentExtended,
+} from "@/app/intents/torrentIntents";
 import { STATUS } from "@/shared/status";
 import type { FeedbackTone } from "@/shared/types/feedback";
 import {
@@ -41,6 +47,7 @@ import type {
 } from "@/app/context/RecoveryContext";
 import type { ShellAgent } from "@/app/agents/shell-agent";
 import { useSession } from "@/app/context/SessionContext";
+import { useActionFeedback } from "@/app/hooks/useActionFeedback";
 
 const PROBE_TTL_MS = 5000;
 const PROBE_RUN_INTERVAL_MS = 5000;
@@ -94,9 +101,7 @@ type RecoveryQueueEntry = {
 interface RecoveryControllerServices {
     clientRef: MutableRefObject<EngineAdapter | null>;
     dispatch: (intent: TorrentIntentExtended) => Promise<void>;
-    showFeedback: (message: string, tone: FeedbackTone) => void;
     shellAgent: ShellAgent;
-    reportCommandError?: (error: unknown) => void;
 }
 
 interface RecoveryControllerEnvironment {
@@ -150,14 +155,18 @@ interface InlineEditorControls {
 interface RecoveryActions {
     executeRedownload: (
         target: Torrent | TorrentDetail,
-        options?: { recreateFolder?: boolean }
+        options?: { recreateFolder?: boolean },
     ) => Promise<void>;
     executeRetryFetch: (target: Torrent | TorrentDetail) => Promise<void>;
-    resumeTorrentWithRecovery: (torrent: Torrent | TorrentDetail) => Promise<void>;
-    probeMissingFilesIfStale: (torrent: Torrent | TorrentDetail) => Promise<void>;
+    resumeTorrentWithRecovery: (
+        torrent: Torrent | TorrentDetail,
+    ) => Promise<void>;
+    probeMissingFilesIfStale: (
+        torrent: Torrent | TorrentDetail,
+    ) => Promise<void>;
     handlePrepareDelete: (torrent: Torrent, deleteData?: boolean) => void;
     getRecoverySessionForKey: (
-        torrentKey: string | null
+        torrentKey: string | null,
     ) => RecoverySessionInfo | null;
 }
 
@@ -169,7 +178,7 @@ export interface RecoveryControllerResult {
         capability: SetLocationCapability;
         handler: (
             torrent: Torrent | TorrentDetail,
-            options?: SetLocationOptions
+            options?: SetLocationOptions,
         ) => Promise<void>;
     };
     actions: RecoveryActions;
@@ -181,15 +190,10 @@ export function useRecoveryController({
     data,
     refresh,
 }: UseRecoveryControllerParams): RecoveryControllerResult {
-    const {
-        clientRef,
-        dispatch,
-        shellAgent,
-        showFeedback,
-        reportCommandError,
-    } = services;
+    const { clientRef, dispatch, shellAgent } = services;
     const { setLocationCapability, t } = environment;
-    const { engineCapabilities } = useSession();
+    const { engineCapabilities, reportCommandError } = useSession();
+    const { showFeedback } = useActionFeedback();
     const { torrents, detailData } = data;
     const {
         refreshTorrentsRef,
@@ -205,12 +209,17 @@ export function useRecoveryController({
         ((result: RecoveryGateOutcome) => void) | null
     >(null);
     const recoveryFingerprintRef = useRef<string | null>(null);
-    const recoveryPromiseRef = useRef<Promise<RecoveryGateOutcome> | null>(null);
+    const recoveryPromiseRef = useRef<Promise<RecoveryGateOutcome> | null>(
+        null,
+    );
     const recoveryAbortControllerRef = useRef<AbortController | null>(null);
     const pendingRecoveryQueueRef = useRef<Array<RecoveryQueueEntry>>([]);
     const volumeLossPollingRef = useRef(new Set<string>());
     const torrentsRef = useRef(torrents);
-    const inlineOwnerRef = useRef<{ surface: SetLocationSurface; torrentKey: string } | null>(null);
+    const inlineOwnerRef = useRef<{
+        surface: SetLocationSurface;
+        torrentKey: string;
+    } | null>(null);
 
     useEffect(() => {
         torrentsRef.current = torrents;
@@ -220,7 +229,7 @@ export function useRecoveryController({
         async (
             torrent: Torrent | TorrentDetail,
             options?: RecoverySequenceOptions,
-            signal?: AbortSignal
+            signal?: AbortSignal,
         ) => {
             const activeClient = clientRef.current;
             const envelope = torrent.errorEnvelope;
@@ -232,7 +241,7 @@ export function useRecoveryController({
                 {
                     torrentId: torrent.id ?? torrent.hash,
                     engineCapabilities,
-                }
+                },
             );
             const classificationKey = torrent.id ?? torrent.hash;
             if (classificationKey) {
@@ -277,7 +286,7 @@ export function useRecoveryController({
                 throw err;
             }
         },
-        [clientRef, engineCapabilities]
+        [clientRef, engineCapabilities],
     );
 
     const probeMissingFilesIfStale = useCallback(
@@ -297,14 +306,14 @@ export function useRecoveryController({
                 const probe = await probeMissingFiles(
                     torrent,
                     activeClient,
-                    engineCapabilities
+                    engineCapabilities,
                 );
                 setCachedProbe(id, probe);
             } catch (err) {
                 console.error("probeMissingFiles failed", err);
             }
         },
-        [clientRef, engineCapabilities]
+        [clientRef, engineCapabilities],
     );
 
     useEffect(() => {
@@ -312,7 +321,7 @@ export function useRecoveryController({
             const errored = torrentsRef.current.filter(
                 (torrent) =>
                     torrent.errorEnvelope !== undefined &&
-                    torrent.errorEnvelope !== null
+                    torrent.errorEnvelope !== null,
             );
             errored.forEach((torrent) => {
                 void probeMissingFilesIfStale(torrent);
@@ -321,7 +330,7 @@ export function useRecoveryController({
         runProbe();
         const probeTask = scheduler.scheduleRecurringTask(
             runProbe,
-            PROBE_RUN_INTERVAL_MS
+            PROBE_RUN_INTERVAL_MS,
         );
         return () => probeTask.cancel();
     }, [probeMissingFilesIfStale]);
@@ -361,7 +370,7 @@ export function useRecoveryController({
             action: RecoveryGateAction,
             outcome: RecoveryOutcome,
             classification: MissingFilesClassification,
-            fingerprint: string
+            fingerprint: string,
         ): RecoveryQueueEntry => {
             let resolver: (result: RecoveryGateOutcome) => void = () => {};
             const promise = new Promise<RecoveryGateOutcome>((resolve) => {
@@ -377,7 +386,7 @@ export function useRecoveryController({
                 resolve: resolver,
             };
         },
-        []
+        [],
     );
 
     const enqueueRecoveryEntry = useCallback(
@@ -387,7 +396,7 @@ export function useRecoveryController({
                 return entry.promise;
             }
             const duplicate = pendingRecoveryQueueRef.current.find(
-                (pending) => pending.fingerprint === entry.fingerprint
+                (pending) => pending.fingerprint === entry.fingerprint,
             );
             if (duplicate) {
                 return duplicate.promise;
@@ -395,7 +404,7 @@ export function useRecoveryController({
             pendingRecoveryQueueRef.current.push(entry);
             return entry.promise;
         },
-        [recoverySession, startRecoverySession]
+        [recoverySession, startRecoverySession],
     );
 
     const requestRecovery: RecoveryGateCallback = useCallback(
@@ -404,15 +413,14 @@ export function useRecoveryController({
             if (!envelope) return null;
             if (action === "setLocation") return null;
 
-            const downloadDir =
-                torrent.savePath ?? torrent.downloadDir ?? "";
+            const downloadDir = torrent.savePath ?? torrent.downloadDir ?? "";
             const fallbackClassification = classifyMissingFilesState(
                 envelope,
                 downloadDir,
                 {
                     torrentId: torrent.id ?? torrent.hash,
                     engineCapabilities,
-                }
+                },
             );
             let flowClassification: MissingFilesClassification =
                 fallbackClassification;
@@ -422,7 +430,7 @@ export function useRecoveryController({
                 const flowResult = await runMissingFilesFlow(
                     torrent,
                     options,
-                    recoveryAbortControllerRef.current?.signal
+                    recoveryAbortControllerRef.current?.signal,
                 );
                 if (flowResult?.classification) {
                     flowClassification = flowResult.classification;
@@ -437,7 +445,7 @@ export function useRecoveryController({
                 if (flowResult?.status === "needsModal") {
                     blockingOutcome = flowResult.blockingOutcome ?? null;
                 }
-            } catch (err) {
+            } catch {
                 blockingOutcome = {
                     kind: "path-needed",
                     reason: derivePathReason(envelope.errorClass),
@@ -461,11 +469,11 @@ export function useRecoveryController({
                 action,
                 blockingOutcome,
                 flowClassification,
-                fingerprint
+                fingerprint,
             );
             return enqueueRecoveryEntry(entry);
         },
-        [runMissingFilesFlow, createRecoveryQueueEntry, enqueueRecoveryEntry]
+        [runMissingFilesFlow, createRecoveryQueueEntry, enqueueRecoveryEntry],
     );
 
     const finalizeRecovery = useCallback(
@@ -480,7 +488,7 @@ export function useRecoveryController({
             resolver?.(result);
             processNextRecoveryQueueEntry();
         },
-        [processNextRecoveryQueueEntry]
+        [processNextRecoveryQueueEntry],
     );
 
     const handleRecoveryClose = useCallback(() => {
@@ -502,7 +510,7 @@ export function useRecoveryController({
             refreshSessionStatsDataRef,
             refreshTorrentsRef,
             detailData,
-        ]
+        ],
     );
 
     const resolveRecoverySession = useCallback(
@@ -511,7 +519,7 @@ export function useRecoveryController({
             options?: RecoverySequenceOptions & {
                 delayAfterSuccessMs?: number;
                 notifyDriveDetected?: boolean;
-            }
+            },
         ) => {
             try {
                 const {
@@ -522,7 +530,7 @@ export function useRecoveryController({
                 const flowResult = await runMissingFilesFlow(
                     torrent,
                     sequenceOptions,
-                    recoveryAbortControllerRef.current?.signal
+                    recoveryAbortControllerRef.current?.signal,
                 );
                 if (!flowResult) return false;
                 if (flowResult.status === "resolved") {
@@ -539,7 +547,7 @@ export function useRecoveryController({
                     if (notifyDriveDetected) {
                         showFeedback(
                             t("recovery.toast_drive_detected"),
-                            "info"
+                            "info",
                         );
                     }
                     const feedbackKey =
@@ -562,7 +570,7 @@ export function useRecoveryController({
                                       ...prev,
                                       outcome,
                                   }
-                                : prev
+                                : prev,
                         );
                     }
                 }
@@ -570,12 +578,18 @@ export function useRecoveryController({
             } catch (err) {
                 console.error(
                     "recovery resolution failed for recreate/pick-path",
-                    err
+                    err,
                 );
                 return false;
             }
         },
-        [runMissingFilesFlow, refreshAfterRecovery, showFeedback, t, finalizeRecovery]
+        [
+            runMissingFilesFlow,
+            refreshAfterRecovery,
+            showFeedback,
+            t,
+            finalizeRecovery,
+        ],
     );
 
     useEffect(() => {
@@ -583,7 +597,11 @@ export function useRecoveryController({
         const task = scheduler.scheduleRecurringTask(() => {
             const client = clientRef.current;
             const currentTorrents = torrentsRef.current;
-            if (!client || !engineCapabilities.canCheckFreeSpace || !currentTorrents.length) {
+            if (
+                !client ||
+                !engineCapabilities.canCheckFreeSpace ||
+                !currentTorrents.length
+            ) {
                 return;
             }
             currentTorrents.forEach((torrent) => {
@@ -605,7 +623,7 @@ export function useRecoveryController({
                     {
                         torrentId: id,
                         engineCapabilities,
-                    }
+                    },
                 );
                 if (classification.kind !== "volumeLoss") return;
                 if (!downloadDir) return;
@@ -649,7 +667,7 @@ export function useRecoveryController({
             }
             return false;
         },
-        [clientRef]
+        [clientRef],
     );
 
     const resumeTorrentWithRecovery = useCallback(
@@ -673,8 +691,8 @@ export function useRecoveryController({
                     const toastKey = isAllVerified
                         ? "recovery.feedback.all_verified_resuming"
                         : resumed
-                        ? "recovery.feedback.download_resumed"
-                        : "recovery.feedback.resume_queued";
+                          ? "recovery.feedback.download_resumed"
+                          : "recovery.feedback.resume_queued";
                     const tone: FeedbackTone =
                         isAllVerified || resumed ? "info" : "warning";
                     showFeedback(t(toastKey), tone);
@@ -692,7 +710,14 @@ export function useRecoveryController({
             }
             await dispatch(TorrentIntents.ensureActive(id));
         },
-        [dispatch, requestRecovery, refreshAfterRecovery, showFeedback, t, waitForActiveState]
+        [
+            dispatch,
+            requestRecovery,
+            refreshAfterRecovery,
+            showFeedback,
+            t,
+            waitForActiveState,
+        ],
     );
 
     const redownloadInFlight = useRef<Set<string>>(new Set());
@@ -700,7 +725,7 @@ export function useRecoveryController({
     const executeRedownload = useCallback(
         async (
             target: Torrent | TorrentDetail,
-            options?: { recreateFolder?: boolean }
+            options?: { recreateFolder?: boolean },
         ) => {
             const key = getRecoveryFingerprint(target);
             if (redownloadInFlight.current.has(key)) return;
@@ -718,7 +743,7 @@ export function useRecoveryController({
                         await refreshAfterRecovery(target);
                         showFeedback(
                             t("recovery.feedback.download_resumed"),
-                            "info"
+                            "info",
                         );
                     }
                     return;
@@ -735,7 +760,7 @@ export function useRecoveryController({
             showFeedback,
             t,
             reportCommandError,
-        ]
+        ],
     );
 
     const executeRetryFetch = useCallback(
@@ -761,7 +786,7 @@ export function useRecoveryController({
                 showFeedback(t("recovery.feedback.retry_failed"), "warning");
             }
         },
-        [clientRef, requestRecovery, refreshAfterRecovery, showFeedback, t]
+        [clientRef, requestRecovery, refreshAfterRecovery, showFeedback, t],
     );
 
     const handleRecoveryRetry = useCallback(async () => {
@@ -790,14 +815,14 @@ export function useRecoveryController({
             try {
                 return (
                     (await shellAgent.browseDirectory(
-                        currentPath ?? undefined
+                        currentPath ?? undefined,
                     )) ?? null
                 );
             } catch {
                 return null;
             }
         },
-        [setLocationCapability.canBrowse, shellAgent]
+        [setLocationCapability.canBrowse, shellAgent],
     );
 
     const handleRecoveryPickPath = useCallback(
@@ -806,8 +831,8 @@ export function useRecoveryController({
             await dispatch(
                 TorrentIntents.ensureAtLocation(
                     recoverySession.torrent.id ?? recoverySession.torrent.hash,
-                    path
-                )
+                    path,
+                ),
             );
             const updatedTorrent: Torrent | TorrentDetail = {
                 ...recoverySession.torrent,
@@ -818,7 +843,7 @@ export function useRecoveryController({
                 delayAfterSuccessMs: PICK_PATH_SUCCESS_DELAY_MS,
             });
         },
-        [dispatch, recoverySession, resolveRecoverySession]
+        [dispatch, recoverySession, resolveRecoverySession],
     );
 
     const setLocationAndRecover = useCallback(
@@ -830,7 +855,7 @@ export function useRecoveryController({
             };
             await resumeTorrentWithRecovery(updatedTorrent);
         },
-        [resumeTorrentWithRecovery]
+        [resumeTorrentWithRecovery],
     );
 
     type ManualEditorState = InlineSetLocationState;
@@ -853,7 +878,7 @@ export function useRecoveryController({
 
     const manualEditorReducer = (
         state: ManualEditorState | null,
-        action: ManualEditorAction
+        action: ManualEditorAction,
     ): ManualEditorState | null => {
         if (!state && action.type !== "open") {
             return state;
@@ -910,7 +935,7 @@ export function useRecoveryController({
     const inlineIntentCounterRef = useRef(0);
     const [inlineSetLocationState, dispatchInlineSetLocation] = useReducer(
         manualEditorReducer,
-        null
+        null,
     );
 
     const setInlineSetLocationState = useCallback(
@@ -920,60 +945,24 @@ export function useRecoveryController({
                 payload: value,
             });
         },
-        []
+        [],
     );
 
     useEffect(() => {
         inlineSetLocationStateRef.current = inlineSetLocationState;
     }, [inlineSetLocationState]);
 
-    const openManualEditor = useCallback(
-        (surface: SetLocationSurface, torrentKey: string, draft: string) => {
-            inlineIntentCounterRef.current += 1;
-            dispatchInlineSetLocation({
-                type: "open",
-                payload: {
-                    surface,
-                    torrentKey,
-                    draft,
-                    intentId: inlineIntentCounterRef.current,
-                },
-            });
-        },
-        []
-    );
-
     const closeManualEditor = useCallback(() => {
         dispatchInlineSetLocation({ type: "close" });
     }, []);
 
-    const updateManualDraft = useCallback((value: string) => {
-        dispatchInlineSetLocation({
-            type: "update",
-            payload: { draft: value },
-        });
-    }, []);
-
-    const manualSetLocationError = useCallback((message: string) => {
-        dispatchInlineSetLocation({
-            type: "error",
-            payload: { message },
-        });
-    }, []);
-
-    const manualSetLocationSubmitting = useCallback(() => {
-        dispatchInlineSetLocation({ type: "submitting" });
-    }, []);
-
-    const manualSetLocationVerifying = useCallback((fingerprint: string) => {
-        dispatchInlineSetLocation({
-            type: "verifying",
-            payload: { fingerprint },
-        });
-    }, []);
+    /* Inline manual editor helpers removed — not referenced elsewhere. */
 
     useEffect(() => {
-        if (!inlineSetLocationState || inlineSetLocationState.status !== "verifying")
+        if (
+            !inlineSetLocationState ||
+            inlineSetLocationState.status !== "verifying"
+        )
             return;
         const torrentKey = inlineSetLocationState.torrentKey;
         if (!recoverySession) {
@@ -991,13 +980,16 @@ export function useRecoveryController({
             if (!key) return fallback;
             return inlineDraftsRef.current.get(key) ?? fallback;
         },
-        []
+        [],
     );
 
-    const saveDraftForTorrent = useCallback((key: string | null, path: string) => {
-        if (!key) return;
-        inlineDraftsRef.current.set(key, path);
-    }, []);
+    const saveDraftForTorrent = useCallback(
+        (key: string | null, path: string) => {
+            if (!key) return;
+            inlineDraftsRef.current.set(key, path);
+        },
+        [],
+    );
 
     const clearDraftForTorrent = useCallback((key: string | null) => {
         if (!key) return;
@@ -1008,15 +1000,16 @@ export function useRecoveryController({
         (key: string | null) => {
             if (!key) return null;
             const found =
-                torrents.find((torrent) => getRecoveryFingerprint(torrent) === key) ??
-                null;
+                torrents.find(
+                    (torrent) => getRecoveryFingerprint(torrent) === key,
+                ) ?? null;
             if (found) return found;
             if (detailData && getRecoveryFingerprint(detailData) === key) {
                 return detailData;
             }
             return null;
         },
-        [detailData, torrents]
+        [detailData, torrents],
     );
 
     useEffect(() => {
@@ -1041,7 +1034,7 @@ export function useRecoveryController({
             const torrentKey = state.torrentKey || null;
             const resolvedPath = getDraftPathForTorrent(
                 torrentKey,
-                state.inputPath
+                state.inputPath,
             );
             inlineIntentCounterRef.current += 1;
             const next: InlineSetLocationState = {
@@ -1058,7 +1051,7 @@ export function useRecoveryController({
             setInlineSetLocationState(next);
             return next;
         },
-        [getDraftPathForTorrent]
+        [getDraftPathForTorrent],
     );
 
     const patchInlineSetLocationState = useCallback(
@@ -1070,7 +1063,7 @@ export function useRecoveryController({
             setInlineSetLocationState(next);
             return next;
         },
-        []
+        [],
     );
 
     const cancelInlineSetLocation = useCallback(() => {
@@ -1150,7 +1143,7 @@ export function useRecoveryController({
                 error: undefined,
             });
         },
-        [patchInlineSetLocationState, saveDraftForTorrent]
+        [patchInlineSetLocationState, saveDraftForTorrent],
     );
 
     const releaseInlineSetLocation = useCallback(() => {
@@ -1169,7 +1162,7 @@ export function useRecoveryController({
             if (!owner) return false;
             return owner.surface === surface && owner.torrentKey === torrentKey;
         },
-        []
+        [],
     );
 
     const tryAcquireInlineOwner = useCallback(
@@ -1184,7 +1177,7 @@ export function useRecoveryController({
             }
             return "conflict" as const;
         },
-        [isInlineOwner]
+        [isInlineOwner],
     );
 
     const openManualEditorForTorrent = useCallback(
@@ -1207,12 +1200,10 @@ export function useRecoveryController({
             releaseInlineSetLocation,
             openInlineSetLocationState,
             tryAcquireInlineOwner,
-        ]
+        ],
     );
 
-    const releaseInlineOwner = useCallback(() => {
-        inlineOwnerRef.current = null;
-    }, []);
+    /* releaseInlineOwner removed — inline owner released via other helpers */
 
     useEffect(() => {
         const current = inlineSetLocationStateRef.current;
@@ -1228,7 +1219,7 @@ export function useRecoveryController({
     const handleSetLocation = useCallback(
         async (
             torrent: Torrent | TorrentDetail,
-            options?: SetLocationOptions
+            options?: SetLocationOptions,
         ): Promise<void> => {
             const surface = options?.surface ?? "general-tab";
             const basePath = resolveTorrentPath(torrent);
@@ -1240,7 +1231,7 @@ export function useRecoveryController({
                 recoveryRequestBrowse
             ) {
                 const pickedPath = await recoveryRequestBrowse(
-                    basePath || undefined
+                    basePath || undefined,
                 );
                 if (pickedPath) {
                     await setLocationAndRecover(torrent, pickedPath);
@@ -1256,7 +1247,7 @@ export function useRecoveryController({
             setLocationAndRecover,
             setLocationCapability,
             openManualEditorForTorrent,
-        ]
+        ],
     );
 
     useEffect(() => {
@@ -1300,7 +1291,7 @@ export function useRecoveryController({
             }
             pendingRecoveryQueueRef.current =
                 pendingRecoveryQueueRef.current.filter(
-                    (entry) => entry.fingerprint !== fingerprint
+                    (entry) => entry.fingerprint !== fingerprint,
                 );
             if (
                 recoverySession &&
@@ -1315,7 +1306,7 @@ export function useRecoveryController({
             finalizeRecovery,
             recoverySession,
             pendingDeletionHashesRef,
-        ]
+        ],
     );
 
     const isDetailRecoveryBlocked = useMemo(() => {
@@ -1333,7 +1324,7 @@ export function useRecoveryController({
             if (!sessionKey) return null;
             return sessionKey === torrentKey ? recoverySession : null;
         },
-        [recoverySession]
+        [recoverySession],
     );
 
     return {

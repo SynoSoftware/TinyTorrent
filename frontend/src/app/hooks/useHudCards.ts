@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
+import { useSession } from "@/app/context/SessionContext";
 import { AlertTriangle, Link2, MousePointer, PlugZap } from "lucide-react";
 
 import type { EngineInfo } from "@/services/rpc/entities";
@@ -8,9 +9,6 @@ import type { ConnectionStatus } from "@/shared/types/rpc";
 import type { AmbientHudCard } from "@/app/types/workspace";
 
 interface UseHudCardsParams {
-    rpcStatus: ConnectionStatus;
-    engineInfo: EngineInfo | null;
-    isDetectingEngine: boolean;
     isDragActive: boolean;
     dismissedHudCardSet: Set<string>;
 }
@@ -20,12 +18,10 @@ interface UseHudCardsParams {
 // TODO: - Keep `engineInfo` only for diagnostics panels / debug overlays.
 
 export function useHudCards({
-    rpcStatus,
-    engineInfo,
-    isDetectingEngine,
     isDragActive,
     dismissedHudCardSet,
 }: UseHudCardsParams) {
+    const { rpcStatus, engineInfo, isDetectingEngine } = useSession();
     const { t } = useTranslation();
 
     const hudCards = useMemo<AmbientHudCard[]>(() => {
@@ -49,7 +45,7 @@ export function useHudCards({
                 {
                     engine: engineLabel,
                     version: engineVersionLabel,
-                }
+                },
             );
             connectionSurface =
                 "bg-gradient-to-br from-success/15 via-background/30 to-background/10";
@@ -67,7 +63,7 @@ export function useHudCards({
         } else {
             connectionTitle = t("workspace.stage.connection_error_title");
             connectionDescription = t(
-                "workspace.stage.connection_error_description"
+                "workspace.stage.connection_error_description",
             );
             connectionSurface =
                 "bg-gradient-to-br from-danger/20 via-background/25 to-background/5";
@@ -89,7 +85,7 @@ export function useHudCards({
 
         const deepLinkTitle = t("workspace.stage.deeplink_idle_title");
         const deepLinkDescription = t(
-            "workspace.stage.deeplink_idle_description"
+            "workspace.stage.deeplink_idle_description",
         );
         const deepSurface =
             "bg-gradient-to-br from-foreground/10 via-background/30 to-transparent";
@@ -128,7 +124,7 @@ export function useHudCards({
 
     const visibleHudCards = useMemo(
         () => hudCards.filter((card) => !dismissedHudCardSet.has(card.id)),
-        [hudCards, dismissedHudCardSet]
+        [hudCards, dismissedHudCardSet],
     );
 
     return {

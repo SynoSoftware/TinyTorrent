@@ -1,22 +1,13 @@
-import {
-    createContext,
-    useContext,
-    useEffect,
-    useMemo,
-    useRef,
-} from "react";
+import { createContext, useContext, useEffect, useMemo, useRef } from "react";
 import type { ReactNode } from "react";
 import type {
     EngineAdapter,
     EngineCapabilities,
-    DEFAULT_ENGINE_CAPABILITIES,
 } from "@/services/rpc/engine-adapter";
+import { DEFAULT_ENGINE_CAPABILITIES } from "@/services/rpc/engine-adapter";
 import type { ConnectionStatus } from "@/shared/types/rpc";
 import type { HeartbeatSource } from "@/services/rpc/heartbeat";
-import type {
-    SessionStats,
-    EngineInfo,
-} from "@/services/rpc/entities";
+import type { SessionStats, EngineInfo } from "@/services/rpc/entities";
 import { STATUS } from "@/shared/status";
 import { deriveUiCapabilities } from "@/app/utils/uiMode";
 import type { UiCapabilities } from "@/app/utils/uiMode";
@@ -83,32 +74,28 @@ export function SessionProvider({ children }: SessionProviderProps) {
         }
     }, [torrentClient]);
 
-    const {
-        sessionStats,
-        liveTransportStatus,
-        refreshSessionStatsData,
-    } = useSessionStats({
-        torrentClient,
-        reportReadError,
-        isMountedRef,
-        sessionReady: rpcStatus === STATUS.connection.CONNECTED,
-    });
+    const { sessionStats, liveTransportStatus, refreshSessionStatsData } =
+        useSessionStats({
+            torrentClient,
+            reportReadError,
+            isMountedRef,
+            sessionReady: rpcStatus === STATUS.connection.CONNECTED,
+        });
 
     const { activeProfile } = useConnectionConfig();
     const { shellAgent } = useShellAgent();
     const normalizedHost = useMemo(
         () => normalizeHost(activeProfile.host || ""),
-        [activeProfile.host]
+        [activeProfile.host],
     );
     const uiCapabilities = useMemo(
         () => deriveUiCapabilities(normalizedHost, shellAgent.isAvailable),
-        [normalizedHost, shellAgent.isAvailable]
+        [normalizedHost, shellAgent.isAvailable],
     );
 
     const engineCapabilities = useMemo(
-        () =>
-            torrentClient.getCapabilities?.() ?? DEFAULT_ENGINE_CAPABILITIES,
-        [torrentClient]
+        () => torrentClient.getCapabilities?.() ?? DEFAULT_ENGINE_CAPABILITIES,
+        [torrentClient],
     );
 
     const sessionValue = useMemo(
@@ -145,7 +132,7 @@ export function SessionProvider({ children }: SessionProviderProps) {
             refreshSessionStatsData,
             uiCapabilities,
             engineCapabilities,
-        ]
+        ],
     );
 
     return (
