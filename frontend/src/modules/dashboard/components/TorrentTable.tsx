@@ -16,6 +16,8 @@ import {
     type RowSelectionState,
     type SortingState,
 } from "@tanstack/react-table";
+import type { Virtualizer } from "@tanstack/react-virtual";
+type TableVirtualizer = Virtualizer<HTMLDivElement, Element>;
 import { cn } from "@heroui/react";
 import React, {
     useCallback,
@@ -42,7 +44,6 @@ import {
     TORRENTTABLE_COLUMN_DEFS,
     DEFAULT_COLUMN_ORDER,
     type ColumnId,
-    type DashboardTableMeta,
 } from "@/modules/dashboard/components/TorrentTable_ColumnDefs";
 import { useTorrentSpeedHistory } from "@/modules/dashboard/hooks/useTorrentSpeedHistory";
 import {
@@ -218,7 +219,7 @@ export function TorrentTable({
     >(null);
     const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
     const rowSelectionRef = useRef<RowSelectionState>(rowSelection);
-    const rowVirtualizerRef = useRef<any>(null);
+    const rowVirtualizerRef = useRef<TableVirtualizer | null>(null);
     const selectionBridgeRef = useRef<{
         getSelectionSnapshot: () => RowSelectionState;
         previewSelection: (s: RowSelectionState) => void;
@@ -421,10 +422,8 @@ export function TorrentTable({
 
     const {
         measuredMinWidths,
-        measuredMinWidthsRef,
         measureColumnMinWidths,
         getMeasuredColumnMinWidth,
-        autoFitColumn,
         autoFitAllColumns,
         handleColumnAutoFitRequest,
         handleColumnResizeStart,
@@ -512,7 +511,7 @@ export function TorrentTable({
         columnSizingInfo,
         sorting
     );
-    const { clampContextMenuPosition, createVirtualElement } =
+    const { createVirtualElement } =
         useContextMenuPosition({
             defaultMargin: fileContextMenuMargin,
         });
@@ -919,8 +918,10 @@ export function TorrentTable({
 }
 
 // Module Augmentation for strict typing of 'align'
+/* eslint-disable @typescript-eslint/no-unused-vars */
 declare module "@tanstack/react-table" {
     interface ColumnMeta<TData, TValue> {
         align?: "start" | "center" | "end";
     }
 }
+/* eslint-enable @typescript-eslint/no-unused-vars */

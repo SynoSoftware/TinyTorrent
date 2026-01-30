@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { STATUS } from "@/shared/status";
-import Runtime from "@/app/runtime";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import type { MutableRefObject } from "react";
-import type { AmbientHudCard, DeleteIntent } from "@/app/types/workspace";
 import type {
     CapabilityKey,
     CapabilityState,
@@ -15,40 +13,37 @@ import type {
     DetailTab,
     PeerSortStrategy,
 } from "@/modules/dashboard/types/torrentDetail";
-import type { OptimisticStatusMap } from "@/modules/dashboard/types/optimistic";
 import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
-import type { ConnectionStatus } from "@/shared/types/rpc";
-import type { UiMode } from "@/app/utils/uiMode";
-import type {
-    SessionStats,
-    NetworkTelemetry,
-} from "@/services/rpc/entities";
-import type { HeartbeatSource } from "@/services/rpc/heartbeat";
 import type { WorkspaceStyle } from "@/app/hooks/useWorkspaceShell";
-import type {
-    CommandAction,
-    CommandPaletteContext,
-} from "@/app/components/CommandPalette";
-import type { CommandPaletteDeps } from "@/app/commandRegistry";
+import type { CommandPaletteContext } from "@/app/components/CommandPalette";
 import {
     buildCommandPaletteActions,
     buildContextCommandActions,
 } from "@/app/commandRegistry";
 import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
-import type { RecoveryOutcome } from "@/services/recovery/recovery-controller";
 import type { RecoveryContextValue } from "@/app/context/RecoveryContext";
 import type { TorrentRecoveryModalProps } from "@/modules/dashboard/components/TorrentRecoveryModal";
-import type {
-    AddTorrentModalProps,
-    AddTorrentSource,
-} from "@/modules/torrent-add/components/AddTorrentModal";
+import type { AddTorrentModalProps } from "@/modules/torrent-add/components/AddTorrentModal";
 import type { AddMagnetModalProps } from "@/modules/torrent-add/components/AddMagnetModal";
+import {
+    useCommandPaletteDeps,
+    useDashboardViewModel,
+    useDeletionViewModel,
+    useHudViewModel,
+    useNavbarViewModel,
+    useRecoveryContextModel,
+    useRecoveryModalProps,
+    useAddMagnetModalProps,
+    useAddTorrentModalProps,
+    useSettingsModalViewModel,
+    useStatusBarViewModel,
+    useWorkspaceShellModel,
+} from "@/app/viewModels/workspaceShellModels";
 import type {
-    DashboardViewModel,
-    DashboardDetailViewModel,
-    NavbarViewModel,
-    SettingsModalViewModel,
-    StatusBarViewModel,
+    SettingsSnapshot,
+    SettingsActions,
+} from "@/app/viewModels/workspaceShellModels";
+import type {
     StatusBarTransportStatus,
     WorkspaceShellViewModel,
 } from "./useAppViewModel";
@@ -156,6 +151,20 @@ export function useWorkspaceShellViewModel({
         searchInput.select();
     }, []);
     const { shellAgent } = useShellAgent();
+    const browseDirectory = useMemo(() => {
+        if (!shellAgent.isAvailable) return undefined;
+        return async (currentPath: string) => {
+            try {
+                return (
+                    (await shellAgent.browseDirectory(
+                        currentPath || undefined
+                    )) ?? null
+                );
+            } catch {
+                return null;
+            }
+        };
+    }, [shellAgent]);
     const { isSettingsOpen, openSettings, closeSettings } =
         useWorkspaceModals();
     const [capabilities, setCapabilities] =
@@ -283,6 +292,8 @@ export function useWorkspaceShellViewModel({
         clearDetail,
     });
 
+    const { addTorrent, recovery, canOpenFolder, uiMode } = orchestrator;
+
     const {
         addModalState,
         openAddTorrentPicker,
@@ -298,31 +309,52 @@ export function useWorkspaceShellViewModel({
         isAddingTorrent,
         closeAddTorrentWindow,
         handleTorrentWindowConfirm,
-        recoverySession,
-        isRecoveryBusy,
-        lastRecoveryOutcome,
+    } = addTorrent;
+
+    const {
+        state: recoveryState,
+        modal: recoveryModal,
+        inlineEditor,
+        setLocation,
+        actions: recoveryActions,
+    } = recovery;
+
+    const {
+        session: recoverySession,
+        isBusy: isRecoveryBusy,
+        lastOutcome: lastRecoveryOutcome,
         isDetailRecoveryBlocked,
-        handleRecoveryClose,
-        handleSetLocation,
-        setLocationCapability,
-        getRecoverySessionForKey,
-        inlineSetLocationState,
-        cancelInlineSetLocation,
-        releaseInlineSetLocation,
-        confirmInlineSetLocation,
-        handleInlineLocationChange,
-        handleRecoveryRecreateFolder,
-        handleRecoveryRetry,
-        handleRecoveryPickPath,
-        handleRecoveryAutoRetry,
-        resumeTorrentWithRecovery: resumeTorrent,
-        probeMissingFilesIfStale,
+    } = recoveryState;
+
+    const {
+        close: handleRecoveryClose,
+        retry: handleRecoveryRetry,
+        autoRetry: handleRecoveryAutoRetry,
+        recreateFolder: handleRecoveryRecreateFolder,
+        pickPath: handleRecoveryPickPath,
+    } = recoveryModal;
+
+    const {
+        state: inlineSetLocationState,
+        cancel: cancelInlineSetLocation,
+        release: releaseInlineSetLocation,
+        confirm: confirmInlineSetLocation,
+        change: handleInlineLocationChange,
+    } = inlineEditor;
+
+    const {
+        capability: setLocationCapability,
+        handler: handleSetLocation,
+    } = setLocation;
+
+    const {
         executeRedownload,
         executeRetryFetch,
+        resumeTorrentWithRecovery: resumeTorrent,
+        probeMissingFilesIfStale,
         handlePrepareDelete,
-        canOpenFolder,
-        uiMode,
-    } = orchestrator;
+        getRecoverySessionForKey,
+    } = recoveryActions;
 
     useEffect(() => {
         if (!probeMissingFilesIfStale) return;
@@ -548,7 +580,7 @@ export function useWorkspaceShellViewModel({
             ? liveTransportStatus
             : "offline";
 
-    const emphasizeActions = useMemo<NavbarViewModel["emphasizeActions"]>(
+    const emphasizeActions = useMemo(
         () => {
             const matches = (action: string) =>
                 selectedTorrents.some(
@@ -572,214 +604,216 @@ export function useWorkspaceShellViewModel({
     const [inspectorTabCommand, setInspectorTabCommand] =
         useState<DetailTab | null>(null);
 
-    const dashboardViewModel = useMemo<DashboardViewModel>(() => {
-        return {
+    const dashboardLayoutState = useMemo(
+        () => ({
             workspaceStyle,
             filter,
             searchQuery,
-            detailSplitDirection: undefined,
-            table: {
-                torrents,
-                ghostTorrents,
-                isLoading: !isInitialLoadFinished,
-                capabilities,
-                optimisticStatuses,
-                tableWatermarkEnabled,
-                filter,
-                searchQuery,
-                isDropActive: isDragActive,
-                removedIds,
-            },
-            detail: {
-                detailData,
-                handleRequestDetails,
-                closeDetail: handleCloseDetail,
-                handleFileSelectionChange,
-                sequentialToggleHandler: handleSequentialToggle,
-                superSeedingToggleHandler: handleSuperSeedingToggle,
-                peerSortStrategy,
-                inspectorTabCommand,
-                onInspectorTabCommandHandled: () => setInspectorTabCommand(null),
-                isDetailRecoveryBlocked,
-                handlePeerContextAction: undefined,
-            },
-        };
-    }, [
-        workspaceStyle,
-        filter,
-        searchQuery,
-        torrents,
-        ghostTorrents,
-        isInitialLoadFinished,
-        capabilities,
-        optimisticStatuses,
-        tableWatermarkEnabled,
-        detailData,
-        handleRequestDetails,
-        handleCloseDetail,
-        handleFileSelectionChange,
-        handleSequentialToggle,
-        handleSuperSeedingToggle,
-        peerSortStrategy,
-        inspectorTabCommand,
-        isDetailRecoveryBlocked,
-        isDragActive,
-        removedIds,
-    ]);
-
-    const statusBarViewModel = useMemo<StatusBarViewModel>(
-        () => ({
-            workspaceStyle,
-            sessionStats,
-            liveTransportStatus,
-            transportStatus,
-            telemetry: sessionStats?.networkTelemetry ?? null,
-            rpcStatus,
-            uiMode: uiCapabilities.uiMode,
-            handleReconnect: reconnect,
-            selectedCount: selectedIds.length,
-            torrents,
+            isDragActive,
+            tableWatermarkEnabled,
         }),
         [
             workspaceStyle,
-            sessionStats,
-            liveTransportStatus,
-            transportStatus,
-            rpcStatus,
-            reconnect,
-            uiCapabilities.uiMode,
-            selectedIds.length,
-            torrents,
+            filter,
+            searchQuery,
+            isDragActive,
+            tableWatermarkEnabled,
         ]
     );
 
-    const navbarViewModel = useMemo<NavbarViewModel>(
+    const dashboardTableState = useMemo(
         () => ({
-            filter,
-            searchQuery,
-            setFilter,
-            setSearchQuery,
-            onAddTorrent: openAddTorrentPicker,
-            onAddMagnet: openAddMagnet,
-            onSettings: openSettings,
-            hasSelection: selectedIds.length > 0,
-            emphasizeActions,
-            selectionActions: {
-                ensureActive: handleEnsureSelectionActive,
-                ensurePaused: handleEnsureSelectionPaused,
-                ensureValid: handleEnsureSelectionValid,
-                ensureRemoved: handleEnsureSelectionRemoved,
-            },
-            rehashStatus,
-            workspaceStyle,
-            onWindowCommand: handleWindowCommand,
+            torrents,
+            ghostTorrents,
+            isInitialLoadFinished,
+            optimisticStatuses,
+            removedIds,
+        }),
+        [torrents, ghostTorrents, isInitialLoadFinished, optimisticStatuses, removedIds]
+    );
+
+    const dashboardDetailState = useMemo(
+        () => ({
+            detailData,
+            peerSortStrategy,
+            inspectorTabCommand,
+            isDetailRecoveryBlocked,
+        }),
+        [detailData, peerSortStrategy, inspectorTabCommand, isDetailRecoveryBlocked]
+    );
+
+    const dashboardDetailControls = useMemo(
+        () => ({
+            handleRequestDetails,
+            closeDetail: handleCloseDetail,
+            handleFileSelectionChange,
+            handleSequentialToggle,
+            handleSuperSeedingToggle,
+            setInspectorTabCommand,
         }),
         [
-            filter,
-            searchQuery,
-            setFilter,
-            setSearchQuery,
-            openAddTorrentPicker,
-            openAddMagnet,
-            openSettings,
-            selectedIds.length,
-            emphasizeActions,
-            rehashStatus,
-            workspaceStyle,
+            handleRequestDetails,
+            handleCloseDetail,
+            handleFileSelectionChange,
+            handleSequentialToggle,
+            handleSuperSeedingToggle,
+            setInspectorTabCommand,
+        ]
+    );
+
+    const dashboardCapabilities = useMemo(
+        () => ({ capabilities }),
+        [capabilities]
+    );
+
+    const dashboardViewModel = useDashboardViewModel(
+        dashboardLayoutState,
+        dashboardTableState,
+        dashboardDetailState,
+        dashboardDetailControls,
+        dashboardCapabilities
+    );
+
+    const statusBarViewModel = useStatusBarViewModel({
+        workspaceStyle,
+        sessionStats,
+        liveTransportStatus,
+        transportStatus,
+        rpcStatus,
+        uiCapabilities,
+        reconnect,
+        selectedCount: selectedIds.length,
+        torrents,
+    });
+
+    const navbarSelectionActions = useMemo(
+        () => ({
+            ensureActive: handleEnsureSelectionActive,
+            ensurePaused: handleEnsureSelectionPaused,
+            ensureValid: handleEnsureSelectionValid,
+            ensureRemoved: handleEnsureSelectionRemoved,
+        }),
+        [
             handleEnsureSelectionActive,
             handleEnsureSelectionPaused,
             handleEnsureSelectionValid,
             handleEnsureSelectionRemoved,
-            handleWindowCommand,
         ]
     );
 
-    const settingsModalViewModel = useMemo<SettingsModalViewModel>(() => {
-        return {
-            isOpen: isSettingsOpen,
-            onClose: closeSettings,
-            initialConfig: settingsFlow.settingsConfig,
+    const navbarQueryState = useMemo(
+        () => ({
+            filter,
+            searchQuery,
+            setFilter,
+            setSearchQuery,
+            hasSelection: selectedIds.length > 0,
+        }),
+        [filter, searchQuery, setFilter, setSearchQuery, selectedIds.length]
+    );
+
+    const navbarDerivedState = useMemo(
+        () => ({
+            emphasizeActions,
+            selectionActions: navbarSelectionActions,
+            rehashStatus,
+        }),
+        [emphasizeActions, navbarSelectionActions, rehashStatus]
+    );
+
+    const navbarNavigation = useMemo(
+        () => ({
+            openAddTorrentPicker,
+            openAddMagnet,
+            openSettings,
+        }),
+        [openAddTorrentPicker, openAddMagnet, openSettings]
+    );
+
+    const navbarShellControls = useMemo(
+        () => ({
+            workspaceStyle,
+            handleWindowCommand,
+        }),
+        [workspaceStyle, handleWindowCommand]
+    );
+
+    const navbarViewModel = useNavbarViewModel(
+        navbarQueryState,
+        navbarDerivedState,
+        navbarNavigation,
+        navbarShellControls
+    );
+
+    const settingsSnapshot = useMemo<SettingsSnapshot>(
+        () => ({
+            config: settingsFlow.settingsConfig,
             isSaving: settingsFlow.isSettingsSaving,
-            onSave: settingsFlow.handleSaveSettings,
-            settingsLoadError: settingsFlow.settingsLoadError,
-            onTestPort: settingsFlow.handleTestPort,
-            onRestoreInsights: restoreHudCards,
-            onToggleWorkspaceStyle: toggleWorkspaceStyle,
-            onReconnect: reconnect,
-            isNativeMode: shellAgent.isAvailable,
-            isImmersive: workspaceStyle === "immersive",
-            hasDismissedInsights,
-            onApplyUserPreferencesPatch:
-                settingsFlow.applyUserPreferencesPatch,
-            onOpen: openSettings,
-        };
-    }, [
+            loadError: settingsFlow.settingsLoadError,
+        }),
+        [
+            settingsFlow.settingsConfig,
+            settingsFlow.isSettingsSaving,
+            settingsFlow.settingsLoadError,
+        ]
+    );
+
+    const settingsActions = useMemo<SettingsActions>(
+        () => ({
+            handleSave: settingsFlow.handleSaveSettings,
+            handleTestPort: settingsFlow.handleTestPort,
+            applyUserPreferencesPatch: settingsFlow.applyUserPreferencesPatch,
+        }),
+        [
+            settingsFlow.handleSaveSettings,
+            settingsFlow.handleTestPort,
+            settingsFlow.applyUserPreferencesPatch,
+        ]
+    );
+
+    const settingsModalViewModel = useSettingsModalViewModel({
         isSettingsOpen,
         closeSettings,
-        settingsFlow,
+        snapshot: settingsSnapshot,
+        actions: settingsActions,
         toggleWorkspaceStyle,
         reconnect,
-        shellAgent.isAvailable,
+        shellAgentAvailable: shellAgent.isAvailable,
         workspaceStyle,
         hasDismissedInsights,
         openSettings,
         restoreHudCards,
-    ]);
+    });
 
-    const hudViewModel = useMemo(
-        () => ({
-            visibleHudCards,
-            dismissHudCard,
-            hasDismissedInsights,
-        }),
-        [visibleHudCards, dismissHudCard, hasDismissedInsights]
-    );
+    const hudViewModel = useHudViewModel({
+        visibleHudCards,
+        dismissHudCard,
+        hasDismissedInsights,
+    });
 
-    const deletionViewModel = useMemo(
-        () => ({
-            pendingDelete,
-            clearPendingDelete,
-            confirmDelete,
-        }),
-        [pendingDelete, clearPendingDelete, confirmDelete]
-    );
+    const deletionViewModel = useDeletionViewModel({
+        pendingDelete,
+        clearPendingDelete,
+        confirmDelete,
+    });
 
-    const commandPaletteDeps = useMemo<CommandPaletteDeps>(
-        () => ({
-            t,
-            focusSearchInput,
-            openAddTorrentPicker,
-            openAddMagnet,
-            openSettings,
-            refreshTorrents,
-            setFilter,
-            selectedTorrents,
-            detailData,
-            handleBulkAction,
-            handleRequestDetails,
-            handleFileSelectionChange,
-            setInspectorTabCommand,
-            peerSortStrategy,
-            setPeerSortStrategy,
-        }),
-        [
-            t,
-            focusSearchInput,
-            openAddTorrentPicker,
-            openAddMagnet,
-            openSettings,
-            refreshTorrents,
-            setFilter,
-            selectedTorrents,
-            detailData,
-            handleBulkAction,
-            handleRequestDetails,
-            handleFileSelectionChange,
-            setInspectorTabCommand,
-            peerSortStrategy,
-            setPeerSortStrategy,
-        ]
-    );
+    const commandPaletteDeps = useCommandPaletteDeps({
+        t,
+        focusSearchInput,
+        openAddTorrentPicker,
+        openAddMagnet,
+        openSettings,
+        refreshTorrents,
+        setFilter,
+        selectedTorrents,
+        detailData,
+        handleBulkAction,
+        handleRequestDetails,
+        handleFileSelectionChange,
+        setInspectorTabCommand,
+        peerSortStrategy,
+        setPeerSortStrategy,
+    });
 
     const getContextActions = useCallback(
         ({ activePart }: CommandPaletteContext) =>
@@ -800,163 +834,104 @@ export function useWorkspaceShellViewModel({
         [commandPaletteActions, getContextActions]
     );
 
-    const workspaceShellModel = useMemo<WorkspaceShellViewModel>(
-        () => ({
-            dragAndDrop: {
-                getRootProps,
-                getInputProps,
-                isDragActive,
-            },
-            workspaceStyle: {
-                workspaceStyle,
-                toggleWorkspaceStyle,
-            },
-            settingsModal: settingsModalViewModel,
-            dashboard: dashboardViewModel,
-            hud: hudViewModel,
-            deletion: deletionViewModel,
-            navbar: navbarViewModel,
-            statusBar: statusBarViewModel,
-            isNativeHost: Runtime.isNativeHost,
-            commandPalette: commandPaletteModel,
-        }),
-        [
+    const workspaceShellModel = useWorkspaceShellModel({
+        dragDrop: {
             getRootProps,
             getInputProps,
             isDragActive,
-            workspaceStyle,
-            toggleWorkspaceStyle,
-            settingsModalViewModel,
-            dashboardViewModel,
-            hudViewModel,
-            deletionViewModel,
-            navbarViewModel,
-            statusBarViewModel,
-            commandPaletteModel,
-        ]
-    );
+        },
+        workspaceStyle,
+        toggleWorkspaceStyle,
+        settingsModal: settingsModalViewModel,
+        dashboard: dashboardViewModel,
+        hud: hudViewModel,
+        deletion: deletionViewModel,
+        navbar: navbarViewModel,
+        statusBar: statusBarViewModel,
+        commandPalette: commandPaletteModel,
+    });
 
-    const recoveryContext = useMemo<RecoveryContextValue>(
+    const recoveryContextEnv = useMemo(
         () => ({
             uiMode,
             canOpenFolder,
+        }),
+        [uiMode, canOpenFolder]
+    );
+
+    const recoveryInlineEditorControls = useMemo(
+        () => ({
+            state: inlineEditor.state,
+            cancel: inlineEditor.cancel,
+            release: inlineEditor.release,
+            confirm: inlineEditor.confirm,
+            change: inlineEditor.change,
+        }),
+        [
+            inlineEditor.state,
+            inlineEditor.cancel,
+            inlineEditor.release,
+            inlineEditor.confirm,
+            inlineEditor.change,
+        ]
+    );
+
+    const recoverySessionState = useMemo(
+        () => ({ recoverySession }),
+        [recoverySession]
+    );
+
+    const recoveryContextSnapshot = useRecoveryContextModel(
+        recoveryContextEnv,
+        recoveryInlineEditorControls,
+        recoverySessionState,
+        setLocationCapability,
+        getRecoverySessionForKey
+    );
+
+    const recoveryContext = useMemo(
+        () => ({
+            ...recoveryContextSnapshot,
             handleRetry: handleRecoveryRetry,
             handleDownloadMissing,
             handleSetLocation,
-            setLocationCapability,
-            inlineSetLocationState,
-            cancelInlineSetLocation,
-            releaseInlineSetLocation,
-            confirmInlineSetLocation,
-            handleInlineLocationChange,
-            recoverySession,
-            getRecoverySessionForKey,
         }),
         [
-            uiMode,
-            canOpenFolder,
+            recoveryContextSnapshot,
             handleRecoveryRetry,
             handleDownloadMissing,
             handleSetLocation,
-            setLocationCapability,
-            inlineSetLocationState,
-            cancelInlineSetLocation,
-            releaseInlineSetLocation,
-            confirmInlineSetLocation,
-            handleInlineLocationChange,
-            recoverySession,
-            getRecoverySessionForKey,
         ]
     );
 
-    const recoveryModalProps = useMemo<
-        Pick<
-            TorrentRecoveryModalProps,
-            | "isOpen"
-            | "torrent"
-            | "outcome"
-            | "onClose"
-            | "onRecreate"
-            | "onAutoRetry"
-            | "isBusy"
-        >
-    >(
-        () => ({
-            isOpen: Boolean(recoverySession),
-            torrent: recoverySession?.torrent ?? null,
-            outcome: lastRecoveryOutcome ?? recoverySession?.outcome ?? null,
-            onClose: handleRecoveryClose,
-            onRecreate: handleRecoveryRecreateFolder,
-            onAutoRetry: handleRecoveryAutoRetry,
-            isBusy: isRecoveryBusy,
-        }),
-        [
-            recoverySession,
-            lastRecoveryOutcome,
-            handleRecoveryClose,
-            handleRecoveryRecreateFolder,
-            handleRecoveryAutoRetry,
-            isRecoveryBusy,
-        ]
-    );
+    const recoveryModalProps = useRecoveryModalProps({
+        recoverySession,
+        lastOutcome: lastRecoveryOutcome,
+        isBusy: isRecoveryBusy,
+        onClose: handleRecoveryClose,
+        onRecreate: handleRecoveryRecreateFolder,
+        onAutoRetry: handleRecoveryAutoRetry,
+    });
 
-    const addMagnetModalProps = useMemo<AddMagnetModalProps>(
-        () => ({
-            isOpen: isMagnetModalOpen,
-            initialValue: magnetModalInitialValue,
-            onClose: handleMagnetModalClose,
-            onSubmit: handleMagnetSubmit,
-        }),
-        [
-            isMagnetModalOpen,
-            magnetModalInitialValue,
-            handleMagnetModalClose,
-            handleMagnetSubmit,
-        ]
-    );
+    const addMagnetModalProps = useAddMagnetModalProps({
+        isOpen: isMagnetModalOpen,
+        initialValue: magnetModalInitialValue,
+        onClose: handleMagnetModalClose,
+        onSubmit: handleMagnetSubmit,
+    });
 
-    const addTorrentModalProps = useMemo<AddTorrentModalProps | null>(() => {
-        if (!addSource) return null;
-        return {
-            isOpen: true,
-            source: addSource,
-            downloadDir:
-                addTorrentDefaults.downloadDir ||
-                settingsFlow.settingsConfig.download_dir,
-            commitMode: addTorrentDefaults.commitMode,
-            onDownloadDirChange: addTorrentDefaults.setDownloadDir,
-            onCommitModeChange: addTorrentDefaults.setCommitMode,
-            isSubmitting: isAddingTorrent || isFinalizingExisting,
-            isResolvingSource: isResolvingMagnet,
-            onCancel: closeAddTorrentWindow,
-            onConfirm: handleTorrentWindowConfirm,
-            checkFreeSpace: torrentClient.checkFreeSpace,
-            onBrowseDirectory: shellAgent.isAvailable
-                ? async (currentPath: string) => {
-                      try {
-                          return (
-                              (await shellAgent.browseDirectory(
-                                  currentPath || undefined
-                              )) ?? null
-                          );
-                      } catch {
-                          return null;
-                      }
-                  }
-                : undefined,
-        };
-    }, [
+    const addTorrentModalProps = useAddTorrentModalProps({
         addSource,
         addTorrentDefaults,
-        settingsFlow.settingsConfig.download_dir,
+        settingsConfig: settingsFlow.settingsConfig,
         isAddingTorrent,
         isFinalizingExisting,
         isResolvingMagnet,
-        closeAddTorrentWindow,
-        handleTorrentWindowConfirm,
+        onCancel: closeAddTorrentWindow,
+        onConfirm: handleTorrentWindowConfirm,
         torrentClient,
-        shellAgent,
-    ]);
+        browseDirectory,
+    });
 
     return {
         workspace: workspaceShellModel,

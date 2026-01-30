@@ -15,7 +15,7 @@ type ShellIntegrationFeatures = {
     associations?: boolean;
 };
 
-class ShellAgent {
+export class ShellAgent {
     private uiMode: ShellUiMode = "Rpc";
     private magnetSubscription?: () => void;
     private readonly magnetHandlers = new Set<(link?: string) => void>();
