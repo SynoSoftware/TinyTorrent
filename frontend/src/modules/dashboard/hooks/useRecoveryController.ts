@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
-import type { EngineAdapter } from "@/services/rpc/engine-adapter";
+import type {
+    EngineAdapter,
+    EngineCapabilities,
+} from "@/services/rpc/engine-adapter";
 import type { ServerClass } from "@/services/rpc/entities";
 import { scheduler } from "@/app/services/scheduler";
 import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
@@ -37,6 +40,7 @@ import type {
     SetLocationSurface,
 } from "@/app/context/RecoveryContext";
 import type { ShellAgent } from "@/app/agents/shell-agent";
+import { useSession } from "@/app/context/SessionContext";
 
 const PROBE_TTL_MS = 5000;
 const PROBE_RUN_INTERVAL_MS = 5000;
@@ -87,22 +91,37 @@ type RecoveryQueueEntry = {
     resolve: (result: RecoveryGateOutcome) => void;
 };
 
-interface UseRecoveryControllerParams {
+interface RecoveryControllerServices {
     clientRef: MutableRefObject<EngineAdapter | null>;
-    serverClass: ServerClass;
-    torrents: Array<Torrent | TorrentDetail>;
-    detailData: TorrentDetail | null;
     dispatch: (intent: TorrentIntentExtended) => Promise<void>;
     showFeedback: (message: string, tone: FeedbackTone) => void;
+    shellAgent: ShellAgent;
     reportCommandError?: (error: unknown) => void;
+}
+
+interface RecoveryControllerEnvironment {
+    setLocationCapability: SetLocationCapability;
+    t: (key: string) => string;
+}
+
+interface RecoveryControllerData {
+    torrents: Array<Torrent | TorrentDetail>;
+    detailData: TorrentDetail | null;
+}
+
+interface RecoveryControllerRefreshDeps {
     refreshTorrentsRef: MutableRefObject<() => Promise<void>>;
     refreshSessionStatsDataRef: MutableRefObject<() => Promise<void>>;
     refreshDetailData: () => Promise<void>;
     clearDetail: () => void;
-    shellAgent: ShellAgent;
-    setLocationCapability: SetLocationCapability;
-    t: (key: string) => string;
     pendingDeletionHashesRef: MutableRefObject<Set<string>>;
+}
+
+interface UseRecoveryControllerParams {
+    services: RecoveryControllerServices;
+    environment: RecoveryControllerEnvironment;
+    data: RecoveryControllerData;
+    refresh: RecoveryControllerRefreshDeps;
 }
 
 interface RecoverySessionState {
@@ -156,26 +175,29 @@ export interface RecoveryControllerResult {
     actions: RecoveryActions;
 }
 
-export function useRecoveryController(
-    params: UseRecoveryControllerParams
-): RecoveryControllerResult {
+export function useRecoveryController({
+    services,
+    environment,
+    data,
+    refresh,
+}: UseRecoveryControllerParams): RecoveryControllerResult {
     const {
         clientRef,
-        serverClass,
-        torrents,
-        detailData,
         dispatch,
+        shellAgent,
         showFeedback,
         reportCommandError,
+    } = services;
+    const { setLocationCapability, t } = environment;
+    const { engineCapabilities } = useSession();
+    const { torrents, detailData } = data;
+    const {
         refreshTorrentsRef,
         refreshSessionStatsDataRef,
         refreshDetailData,
         clearDetail,
-        shellAgent,
-        setLocationCapability,
-        t,
         pendingDeletionHashesRef,
-    } = params;
+    } = refresh;
 
     const [recoverySession, setRecoverySession] =
         useState<RecoverySessionInfo | null>(null);
@@ -207,8 +229,10 @@ export function useRecoveryController(
             const classification = classifyMissingFilesState(
                 envelope,
                 torrent.savePath ?? torrent.downloadDir ?? "",
-                serverClass,
-                { torrentId: torrent.id ?? torrent.hash }
+                {
+                    torrentId: torrent.id ?? torrent.hash,
+                    engineCapabilities,
+                }
             );
             const classificationKey = torrent.id ?? torrent.hash;
             if (classificationKey) {
@@ -222,8 +246,10 @@ export function useRecoveryController(
                         : null;
                 const id = torrent.id ?? torrent.hash;
                 const cachedProbe = id ? getCachedProbe(id) : undefined;
+                const isLocalExecution =
+                    engineCapabilities.executionModel === "local";
                 const isLocalEmpty =
-                    serverClass === "tinytorrent" &&
+                    isLocalExecution &&
                     cachedProbe?.kind === "data_missing" &&
                     cachedProbe.expectedBytes > 0 &&
                     cachedProbe.onDiskBytes === 0;
@@ -233,8 +259,7 @@ export function useRecoveryController(
                     skipVerifyIfEmpty:
                         options?.skipVerifyIfEmpty ?? isLocalEmpty,
                     autoCreateMissingFolder:
-                        options?.autoCreateMissingFolder ??
-                        serverClass === "tinytorrent",
+                        options?.autoCreateMissingFolder ?? isLocalExecution,
                 };
                 if (signal) {
                     sequenceOptions.signal = signal;
@@ -244,7 +269,7 @@ export function useRecoveryController(
                     torrent,
                     envelope,
                     classification,
-                    serverClass,
+                    engineCapabilities,
                     options: sequenceOptions,
                 });
             } catch (err) {
@@ -252,7 +277,7 @@ export function useRecoveryController(
                 throw err;
             }
         },
-        [clientRef, serverClass]
+        [clientRef, engineCapabilities]
     );
 
     const probeMissingFilesIfStale = useCallback(
@@ -272,14 +297,14 @@ export function useRecoveryController(
                 const probe = await probeMissingFiles(
                     torrent,
                     activeClient,
-                    serverClass
+                    engineCapabilities
                 );
                 setCachedProbe(id, probe);
             } catch (err) {
                 console.error("probeMissingFiles failed", err);
             }
         },
-        [clientRef, serverClass]
+        [clientRef, engineCapabilities]
     );
 
     useEffect(() => {
@@ -384,8 +409,10 @@ export function useRecoveryController(
             const fallbackClassification = classifyMissingFilesState(
                 envelope,
                 downloadDir,
-                serverClass,
-                { torrentId: torrent.id ?? torrent.hash }
+                {
+                    torrentId: torrent.id ?? torrent.hash,
+                    engineCapabilities,
+                }
             );
             let flowClassification: MissingFilesClassification =
                 fallbackClassification;
@@ -552,11 +579,11 @@ export function useRecoveryController(
     );
 
     useEffect(() => {
-        if (serverClass !== "tinytorrent") return;
+        if (engineCapabilities.executionModel !== "local") return;
         const task = scheduler.scheduleRecurringTask(() => {
             const client = clientRef.current;
             const currentTorrents = torrentsRef.current;
-            if (!client || !client.checkFreeSpace || !currentTorrents.length) {
+            if (!client || !engineCapabilities.canCheckFreeSpace || !currentTorrents.length) {
                 return;
             }
             currentTorrents.forEach((torrent) => {
@@ -575,8 +602,10 @@ export function useRecoveryController(
                 const classification = classifyMissingFilesState(
                     torrent.errorEnvelope ?? null,
                     downloadDir,
-                    serverClass,
-                    { torrentId: id }
+                    {
+                        torrentId: id,
+                        engineCapabilities,
+                    }
                 );
                 if (classification.kind !== "volumeLoss") return;
                 if (!downloadDir) return;
@@ -592,7 +621,13 @@ export function useRecoveryController(
             });
         }, VOLUME_LOSS_CHECK_INTERVAL_MS);
         return () => task.cancel();
-    }, [clientRef, recoverySession, resolveRecoverySession, serverClass]);
+    }, [
+        clientRef,
+        recoverySession,
+        resolveRecoverySession,
+        engineCapabilities.executionModel,
+        engineCapabilities.canCheckFreeSpace,
+    ]);
 
     const waitForActiveState = useCallback(
         async (torrentId: string, timeoutMs = 1000) => {

@@ -6,7 +6,11 @@ import {
     useRef,
 } from "react";
 import type { ReactNode } from "react";
-import type { EngineAdapter } from "@/services/rpc/engine-adapter";
+import type {
+    EngineAdapter,
+    EngineCapabilities,
+    DEFAULT_ENGINE_CAPABILITIES,
+} from "@/services/rpc/engine-adapter";
 import type { ConnectionStatus } from "@/shared/types/rpc";
 import type { HeartbeatSource } from "@/services/rpc/heartbeat";
 import type {
@@ -23,6 +27,7 @@ import { useTorrentClient } from "@/app/providers/TorrentClientProvider";
 import { useSessionStats } from "@/app/hooks/useSessionStats";
 import { useTransmissionSession } from "@/app/hooks/useTransmissionSession";
 import type { TransmissionSessionSettings } from "@/services/rpc/types";
+import { resetMissingFilesStore } from "@/services/recovery/missingFilesStore";
 
 export interface SessionContextValue {
     torrentClient: EngineAdapter;
@@ -39,6 +44,7 @@ export interface SessionContextValue {
     liveTransportStatus: HeartbeatSource;
     refreshSessionStatsData: () => Promise<void>;
     uiCapabilities: UiCapabilities;
+    engineCapabilities: EngineCapabilities;
 }
 
 const SessionContext = createContext<SessionContextValue | null>(null);
@@ -69,6 +75,14 @@ export function SessionProvider({ children }: SessionProviderProps) {
         };
     }, []);
 
+    const previousClientRef = useRef<EngineAdapter | null>(null);
+    useEffect(() => {
+        if (previousClientRef.current !== torrentClient) {
+            resetMissingFilesStore();
+            previousClientRef.current = torrentClient;
+        }
+    }, [torrentClient]);
+
     const {
         sessionStats,
         liveTransportStatus,
@@ -91,6 +105,12 @@ export function SessionProvider({ children }: SessionProviderProps) {
         [normalizedHost, shellAgent.isAvailable]
     );
 
+    const engineCapabilities = useMemo(
+        () =>
+            torrentClient.getCapabilities?.() ?? DEFAULT_ENGINE_CAPABILITIES,
+        [torrentClient]
+    );
+
     const sessionValue = useMemo(
         () => ({
             torrentClient,
@@ -107,6 +127,7 @@ export function SessionProvider({ children }: SessionProviderProps) {
             liveTransportStatus,
             refreshSessionStatsData,
             uiCapabilities,
+            engineCapabilities,
         }),
         [
             torrentClient,
@@ -123,6 +144,7 @@ export function SessionProvider({ children }: SessionProviderProps) {
             liveTransportStatus,
             refreshSessionStatsData,
             uiCapabilities,
+            engineCapabilities,
         ]
     );
 

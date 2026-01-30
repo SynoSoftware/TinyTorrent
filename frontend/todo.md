@@ -98,18 +98,22 @@ These items are **finished, integrated, and should not be reopened** unless a re
 
 These are **the last refactor steps that can be completed cleanly**.
 
-* [ ] **21. Architectural — Recovery orchestration boundary**
+* [x] **21. Architectural — Recovery orchestration boundary**
   Move all recovery sequencing, queue state, and inline set-location state out of
   `useTorrentOrchestrator.ts` into a focused recovery controller.
   Orchestrator coordinates only; does not own recovery logic or state.
+  - done: recovery controller now accepts semantic `services`, `environment`, `data`, and `refresh` bundles while preserving behavior, and the orchestrator now solely wires controllers instead of owning recovery state or queues.
+  - review fixes: removed the `engineCapabilities` tunnel—`useRecoveryController` now reads session-scoped capabilities directly via `useSession()` instead of threading them through the orchestrator and hook signatures.
 
-* [ ] **22. Architectural — Recovery capability clarity**
+* [x] **22. Architectural — Recovery capability clarity**
   Explicitly surface host-side filesystem expectations (classification, directory creation, free-space checks) via the `EngineAdapter` contract.
   Local vs Rpc execution model must be explicit; no inferred fallbacks.
+  - done: `EngineAdapter` now publishes `EngineCapabilities`, `SessionContext` exposes them via `useSession`, and the recovery controller/probe/classification wiring consumes that capability sheet so path handling, classification confidence, and scheduler gating no longer depend on `serverClass` inference.
 
-* [ ] **23. Architectural — Recovery lifetime ownership**
+* [x] **23. Architectural — Recovery lifetime ownership**
   Attach `missingFilesStore` / probe caches to a clear owner (client / session / recovery gate).
   Recovery state must reset on client/session change; no module-level globals.
+  - done: added `resetMissingFilesStore` and now `SessionContext` resets the caches whenever the `torrentClient` identity changes, so probe/classification maps now follow the client/session owner automatically.
 
 ---
 

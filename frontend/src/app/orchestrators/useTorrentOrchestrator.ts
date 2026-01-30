@@ -56,7 +56,6 @@ export function useTorrentOrchestrator({
     const { settingsConfig, setSettingsConfig } = settingsFlow;
     const { dispatch } = useRequiredTorrentActions();
     const { shellAgent, uiMode } = useShellAgent();
-    const serverClass = client?.getServerClass?.() ?? "unknown";
     const {
         canBrowse,
         canOpenFolder: canOpenFolderCapability,
@@ -82,21 +81,28 @@ export function useTorrentOrchestrator({
     });
 
     const recovery = useRecoveryController({
-        clientRef,
-        serverClass,
-        torrents,
-        detailData,
-        dispatch,
-        showFeedback,
-        reportCommandError,
-        refreshTorrentsRef,
-        refreshSessionStatsDataRef,
-        refreshDetailData,
-        clearDetail,
-        shellAgent,
-        setLocationCapability: localSetLocationCapability,
-        t,
-        pendingDeletionHashesRef,
+        services: {
+            clientRef,
+            dispatch,
+            shellAgent,
+            showFeedback,
+            reportCommandError,
+        },
+        environment: {
+            setLocationCapability: localSetLocationCapability,
+            t,
+        },
+        data: {
+            torrents,
+            detailData,
+        },
+        refresh: {
+            refreshTorrentsRef,
+            refreshSessionStatsDataRef,
+            refreshDetailData,
+            clearDetail,
+            pendingDeletionHashesRef,
+        },
     });
 
     const canOpenFolder = canOpenFolderCapability;

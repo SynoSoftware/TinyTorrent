@@ -36,7 +36,7 @@ import {
     WS_RECONNECT_INITIAL_DELAY_MS,
     WS_RECONNECT_MAX_DELAY_MS,
 } from "@/config/logic";
-import type { EngineAdapter } from "./engine-adapter";
+import type { EngineAdapter, EngineCapabilities } from "./engine-adapter";
 import { HeartbeatManager } from "./heartbeat";
 import type {
     HeartbeatSubscriberParams,
@@ -792,6 +792,15 @@ export class TransmissionAdapter implements EngineAdapter {
 
     public getServerClass(): ServerClass {
         return this.serverClass;
+    }
+
+    public getCapabilities(): EngineCapabilities {
+        return {
+            executionModel: "remote",
+            hasHostFileSystemAccess: false,
+            canCheckFreeSpace: Boolean(this.checkFreeSpace),
+            canCreateDirectory: Boolean(this.createDirectory),
+        };
     }
 
     public async updateSessionSettings(
