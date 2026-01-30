@@ -1068,6 +1068,8 @@ If the limit is exceeded, remove props by using Contexts or split the component.
 
 **If a change requires threading values through components, the ownership is wrong. Fix authority, not plumbing.**
 
+- Values with a clear Context owner must not be threaded through hooks or orchestrators as parameters.
+
 ### **Command Context Completeness Rule (Hard)**
 
 If UI components need to invoke behavior (actions, commands, intents):
@@ -1595,4 +1597,3 @@ ABSOLUTE RULE: Never run git restore, git reset, git clean, or checkout -- witho
    - explicit rejection reasons
 
    First writer wins is forbidden unless documented.
-

@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
+import { DEFAULT_ENGINE_CAPABILITIES } from "@/services/rpc/engine-adapter";
 import type { ErrorEnvelope, RecoveryState } from "@/services/rpc/entities";
 import type { MissingFilesClassification } from "@/services/recovery/recovery-controller";
 import {
@@ -24,7 +25,9 @@ describe("recovery-controller helpers", () => {
         const classification = classifyMissingFilesState(
             envelope,
             "C:\\Downloads",
-            "unknown"
+            {
+                engineCapabilities: DEFAULT_ENGINE_CAPABILITIES,
+            }
         );
         expect(classification.kind).toBe("accessDenied");
         expect(classification.confidence).toBe("likely");
@@ -39,7 +42,9 @@ describe("recovery-controller helpers", () => {
         const classification = classifyMissingFilesState(
             envelope,
             "C:\\Movies\\Avatar",
-            "unknown"
+            {
+                engineCapabilities: DEFAULT_ENGINE_CAPABILITIES,
+            }
         );
         expect(classification.kind).toBe("pathLoss");
         expect(classification.confidence).toBe("likely");
@@ -75,7 +80,10 @@ describe("recovery-controller helpers", () => {
         const classification = classifyMissingFilesState(
             envelope,
             "C:\\Missing",
-            "unknown"
+            {
+                torrentId: "torrent-1",
+                engineCapabilities: DEFAULT_ENGINE_CAPABILITIES,
+            }
         );
         const client = {
             checkFreeSpace: async () => {
@@ -89,7 +97,7 @@ describe("recovery-controller helpers", () => {
             torrent,
             envelope,
             classification,
-            serverClass: "unknown",
+            engineCapabilities: DEFAULT_ENGINE_CAPABILITIES,
         });
         expect(result.status).toBe("needsModal");
         expect(result.blockingOutcome?.kind).toBe("path-needed");
@@ -161,14 +169,14 @@ describe("recovery-controller helpers", () => {
             torrent: baseTorrent as any,
             envelope,
             classification,
-            serverClass: "unknown",
+            engineCapabilities: DEFAULT_ENGINE_CAPABILITIES,
         });
         const run2 = runMissingFilesRecoverySequence({
             client: client as EngineAdapter,
             torrent: baseTorrent as any,
             envelope,
             classification,
-            serverClass: "unknown",
+            engineCapabilities: DEFAULT_ENGINE_CAPABILITIES,
         });
         // Both calls should resolve to the same result; compare resolved values
         deferred.resolve({ totalBytes: 100, freeBytes: 50 });
@@ -202,7 +210,7 @@ describe("recovery-controller helpers", () => {
             torrent: baseTorrent as any,
             envelope,
             classification,
-            serverClass: "unknown",
+            engineCapabilities: DEFAULT_ENGINE_CAPABILITIES,
             options: { retryOnly: true },
         });
         expect(result.status).toBe("noop");
@@ -239,7 +247,7 @@ describe("recovery-controller helpers", () => {
             torrent: baseTorrent as any,
             envelope,
             classification,
-            serverClass: "unknown",
+            engineCapabilities: DEFAULT_ENGINE_CAPABILITIES,
         });
         expect(setLocation).toHaveBeenCalledWith(
             "torrent-1",
@@ -268,7 +276,7 @@ describe("recovery-controller helpers", () => {
             torrent: baseTorrent as any,
             envelope,
             classification,
-            serverClass: "unknown",
+            engineCapabilities: DEFAULT_ENGINE_CAPABILITIES,
         });
         expect(result.status).toBe("needsModal");
         expect(result.blockingOutcome?.message).toBe(
@@ -315,7 +323,7 @@ describe("recovery-controller helpers", () => {
             } as any,
             envelope,
             classification,
-            serverClass: "unknown",
+            engineCapabilities: DEFAULT_ENGINE_CAPABILITIES,
         });
         expect(result.status).toBe("resolved");
         expect(setLocation).toHaveBeenCalled();
@@ -360,7 +368,7 @@ describe("recovery-controller helpers", () => {
             } as any,
             envelope,
             classification,
-            serverClass: "unknown",
+            engineCapabilities: DEFAULT_ENGINE_CAPABILITIES,
         });
         expect(result.status).toBe("resolved");
         expect(result.log).toBe("all_verified_resuming");

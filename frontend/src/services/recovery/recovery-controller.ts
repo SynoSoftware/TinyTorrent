@@ -1,9 +1,12 @@
-import type { EngineAdapter } from "@/services/rpc/engine-adapter";
+import type {
+    EngineAdapter,
+    EngineCapabilities,
+    EngineExecutionModel,
+} from "@/services/rpc/engine-adapter";
 import type {
     TorrentDetailEntity,
     TorrentEntity,
     ErrorEnvelope,
-    ServerClass,
 } from "@/services/rpc/entities";
 import { STATUS } from "@/shared/status";
 import {
@@ -111,7 +114,7 @@ export interface RecoverySequenceParams {
     torrent: TorrentEntity | TorrentDetailEntity;
     envelope: ErrorEnvelope;
     classification: MissingFilesClassification;
-    serverClass: ServerClass;
+    engineCapabilities: EngineCapabilities;
     options?: RecoverySequenceOptions;
 }
 
@@ -181,13 +184,17 @@ function getExpectedBytes(torrent: TorrentEntity | TorrentDetailEntity): number 
     return 0;
 }
 
+interface ClassificationOptions {
+    torrentId?: string | number;
+    engineCapabilities: EngineCapabilities;
+}
+
 export function classifyMissingFilesState(
     envelope: ErrorEnvelope | null | undefined,
-    downloadDir?: string,
-    serverClass: ServerClass = "unknown",
-    opts?: { torrentId?: string | number }
+    downloadDir: string | undefined,
+    opts: ClassificationOptions
 ): MissingFilesClassification {
-    const override = opts?.torrentId
+    const override = opts.torrentId
         ? getClassificationOverride(opts.torrentId)
         : undefined;
     const overrideKind = override?.kind ?? envelope?.recoveryKind;
@@ -197,9 +204,10 @@ export function classifyMissingFilesState(
         overrideKind ??
         (envelope ? deriveMissingFilesStateKind(envelope, downloadDir) : "dataGap");
     const root = resolveRootFromPath(downloadDir);
+    const executionModel = opts.engineCapabilities.executionModel;
     const confidence =
         overrideConfidence ??
-        determineConfidence(kind, envelope, serverClass);
+        determineConfidence(kind, envelope, executionModel);
     return {
         kind,
         confidence,
@@ -212,9 +220,9 @@ export function classifyMissingFilesState(
 function determineConfidence(
     kind: MissingFilesStateKind,
     envelope: ErrorEnvelope | null | undefined,
-    serverClass: ServerClass
+    executionModel: EngineExecutionModel
 ): ConfidenceLevel {
-    if (serverClass === "tinytorrent") {
+    if (executionModel === "local") {
         return "certain";
     }
     if (envelope?.errorClass === "missingFiles") {
@@ -403,6 +411,7 @@ export async function runMissingFilesRecoverySequence(
                 client,
                 path: downloadDir,
                 options: sequenceOptions,
+                engineCapabilities,
             });
             if (!ensure.ready) {
                 if (ensure.blockingOutcome) {
@@ -473,6 +482,7 @@ interface EnsurePathParams {
     client: EngineAdapter;
     path: string;
     options?: RecoverySequenceOptions;
+    engineCapabilities: EngineCapabilities;
 }
 
 async function ensurePathReady({
@@ -487,7 +497,7 @@ async function ensurePathReady({
     // TODO: - `checkFreeSpace(path)` is a Transmission RPC call and reports *daemon-side* free space. Keep it, but ensure UI copy clarifies that remote daemons report remote disk.
     // TODO: - Creating folders (`createDirectory`) is NOT a Transmission RPC feature. Remove `EngineAdapter.createDirectory` usage and route folder creation through ShellAgent/ShellExtensions *only when* `uiMode="Full"` (localhost + ShellAgent bridge).
     // TODO: - In `uiMode="Rpc"` (remote/browser), auto-create must be disabled and surfaced as an explicit unsupported outcome, not a silent best-effort.
-    if (!client.checkFreeSpace) {
+    if (!engineCapabilities.canCheckFreeSpace || !client.checkFreeSpace) {
         return {
             ready: false,
             blockingOutcome: {
@@ -517,8 +527,11 @@ async function ensurePathReady({
             const shouldCreateFolder =
                 Boolean(options?.recreateFolder) ||
                 Boolean(options?.autoCreateMissingFolder);
-            if (shouldCreateFolder) {
-                if (client.createDirectory) {
+        if (shouldCreateFolder) {
+            if (
+                engineCapabilities.canCreateDirectory &&
+                client.createDirectory
+            ) {
                     // TODO: Remove `client.createDirectory` call. This is a host concern and must be implemented by the ShellAgent adapter, not the daemon RPC adapter.
                     try {
                         await client.createDirectory(path);
@@ -894,7 +907,7 @@ function delay(ms: number) {
 export async function probeMissingFiles(
     torrent: TorrentEntity | TorrentDetailEntity,
     client: EngineAdapter,
-    serverClass: ServerClass
+    engineCapabilities: EngineCapabilities
 ): Promise<MissingFilesProbeResult> {
     const ts = Date.now();
     const expectedBytes = getExpectedBytes(torrent);
@@ -905,7 +918,7 @@ export async function probeMissingFiles(
         "";
 
     // Local (tinytorrent): attempt authoritative probe
-    if (serverClass === "tinytorrent") {
+    if (engineCapabilities.executionModel === "local") {
         let onDiskBytes: number | null = null;
         if (client.getTorrentDetails) {
             try {
@@ -935,7 +948,7 @@ export async function probeMissingFiles(
 
         // Path probing for missing folder
         let pathExists: boolean | null = null;
-        if (client.checkFreeSpace && path) {
+        if (engineCapabilities.canCheckFreeSpace && client.checkFreeSpace && path) {
             try {
                 await client.checkFreeSpace(path);
                 pathExists = true;
@@ -1006,8 +1019,10 @@ export async function probeMissingFiles(
     const classification = classifyMissingFilesState(
         torrent.errorEnvelope ?? null,
         path,
-        serverClass,
-        { torrentId: torrent.id ?? torrent.hash }
+        {
+            torrentId: torrent.id ?? torrent.hash,
+            engineCapabilities,
+        }
     );
     const kindMap: Record<MissingFilesStateKind, MissingFilesProbeResult["kind"]> =
         {

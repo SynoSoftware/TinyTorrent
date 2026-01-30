@@ -63,6 +63,12 @@ export function subscribe(listener: Listener) {
     return () => listeners.delete(listener);
 }
 
+export function resetMissingFilesStore() {
+    probeCache.clear();
+    classificationOverrides.clear();
+    listeners.forEach((listener) => listener());
+}
+
 export function useMissingFilesProbe(id?: string | number | null) {
     const subscribeToStore = (listener: Listener) => subscribe(listener);
     const getSnapshot = () => getProbe(id);

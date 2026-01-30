@@ -18,9 +18,26 @@ import type {
     HeartbeatSubscription,
 } from "./heartbeat";
 
+export type EngineExecutionModel = "local" | "remote";
+
+export interface EngineCapabilities {
+    executionModel: EngineExecutionModel;
+    hasHostFileSystemAccess: boolean;
+    canCheckFreeSpace: boolean;
+    canCreateDirectory: boolean;
+}
+
+export const DEFAULT_ENGINE_CAPABILITIES: EngineCapabilities = {
+    executionModel: "remote",
+    hasHostFileSystemAccess: false,
+    canCheckFreeSpace: false,
+    canCreateDirectory: false,
+};
+
 export interface EngineAdapter {
     getServerClass?(): ServerClass;
     // TODO: Remove `getServerClass`. Daemon identity should not drive UI capabilities; Transmission-only.
+    getCapabilities?(): EngineCapabilities;
     handshake?(): Promise<unknown>;
     notifyUiReady?(): Promise<void>;
     notifyUiDetached?(): Promise<void>;
