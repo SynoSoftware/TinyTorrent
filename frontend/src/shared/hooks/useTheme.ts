@@ -3,26 +3,22 @@
 // Location: src/shared/theme/useTheme.ts
 // ─────────────────────────────────────────────────────────────
 
-import { useEffect, useState } from "react";
-import {
-    applyTheme,
-    getInitialTheme,
-    persistTheme,
-    type ThemeMode,
-} from "../utils/theme";
+import { useCallback } from "react";
+import { usePreferences } from "@/app/context/PreferencesContext";
 
 export function useTheme() {
-    const [mode, setMode] = useState<ThemeMode>(getInitialTheme);
+    const {
+        preferences: { theme },
+        toggleTheme,
+        setTheme,
+    } = usePreferences();
 
-    useEffect(() => {
-        applyTheme(mode);
-        persistTheme(mode);
-    }, [mode]);
+    const toggle = useCallback(() => toggleTheme(), [toggleTheme]);
 
     return {
-        mode,
-        isDark: mode === "dark",
-        toggle: () => setMode((m) => (m === "dark" ? "light" : "dark")),
-        set: setMode,
+        mode: theme,
+        isDark: theme === "dark",
+        toggle,
+        set: setTheme,
     };
 }

@@ -11,6 +11,7 @@ import {
     getCssToken,
     useCanvasPalette,
 } from "@/modules/dashboard/hooks/utils/canvasUtils";
+import { usePreferences } from "@/app/context/PreferencesContext";
 import {
     SPEED_CHART_LINE_WIDTH,
     SPEED_CHART_DOWN_STROKE_TOKEN,
@@ -545,9 +546,7 @@ const CombinedChart = ({
 /*                                MAIN COMPONENT                              */
 /* -------------------------------------------------------------------------- */
 
-const STORAGE_KEY = "speed_chart_layout_pref";
-// TODO: Move this preference behind the Preferences provider (see `todo.md` task 15) so localStorage access is centralized and the key is versioned/migrated consistently.
-// TODO: Clarify ownership: this component is a View for rendering history; it should not become a second telemetry source (no extra polling/heartbeat beyond the shared session provider).
+// Layout preference is persisted inside PreferencesProvider.
 
 export const SpeedChart = ({
     downHistory,
@@ -567,27 +566,20 @@ export const SpeedChart = ({
     const palette = useCanvasPalette();
 
     const [selectedWindow, setSelectedWindow] = useState<SpeedWindowKey>("1m");
+    const {
+        preferences: { speedChartLayoutMode },
+        setSpeedChartLayoutMode,
+    } = usePreferences();
 
-    // Layout Persistence Logic
-    const [userLayoutPref, setUserLayoutPref] = useState<LayoutMode | null>(
-        () => {
-            if (typeof window !== "undefined") {
-                const saved = localStorage.getItem(STORAGE_KEY);
-                return saved === "combined" || saved === "split"
-                    ? (saved as LayoutMode)
-                    : null;
-            }
-            return null;
-        }
+    const setLayout = useCallback(
+        (mode: LayoutMode) => {
+            setSpeedChartLayoutMode(mode);
+        },
+        [setSpeedChartLayoutMode]
     );
 
-    const setLayout = useCallback((mode: LayoutMode) => {
-        setUserLayoutPref(mode);
-        localStorage.setItem(STORAGE_KEY, mode);
-    }, []);
-
     const layout: LayoutMode =
-        userLayoutPref ?? (isStandalone ? "split" : "combined");
+        speedChartLayoutMode ?? (isStandalone ? "split" : "combined");
 
     const latestDown = downHistory.at(-1) ?? 0;
     const latestUp = upHistory.at(-1) ?? 0;

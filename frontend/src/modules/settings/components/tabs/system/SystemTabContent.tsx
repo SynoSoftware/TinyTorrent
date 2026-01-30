@@ -17,6 +17,9 @@ import type { ReactNode } from "react";
 import { SettingsSection } from "@/modules/settings/components/SettingsSection";
 import { useShellAgent } from "@/app/hooks/useShellAgent";
 import { useUiModeCapabilities } from "@/app/context/UiModeContext";
+import { usePreferences } from "@/app/context/PreferencesContext";
+
+type CloseAction = "minimize" | "quit";
 // TODO: Replace direct NativeShell system-integration calls with the ShellAgent/ShellExtensions adapter; enforce locality rules (only when connected to localhost) and render a clear “ShellExtensions unavailable” state for remote/browser connections.
 // TODO: IMPORTANT: This file should NOT *determine* locality/ShellExtensions availability. It should *consume* a single capability/locality source of truth (context/provider).
 // TODO: Gating rule for these controls is `uiMode === "Full"` (single source of truth). `uiMode` must be computed once from:
@@ -26,45 +29,6 @@ import { useUiModeCapabilities } from "@/app/context/UiModeContext";
 // TODO: Do not model this as `serverClass === "tinytorrent"`: that label conflates “daemon protocol” with “host integration available”.
 // TODO: In the current architecture, the daemon is always `transmission-daemon` (Transmission RPC). “Host integration available” is a separate, local-only capability.
 // TODO: Remove any mention of TT token/security protocol from this surface; it is not relevant in Transmission-only mode.
-
-const POWER_PREF_KEY = "tiny-torrent.system.prevent-sleep";
-const UPDATE_PREF_KEY = "tiny-torrent.system.auto-update";
-const CLOSE_ACTION_PREF_KEY = "tiny-torrent.system.close-action";
-const DEFAULT_POWER_STATE = true;
-const DEFAULT_UPDATE_STATE = true;
-const DEFAULT_CLOSE_ACTION: CloseAction = "minimize";
-
-type CloseAction = "minimize" | "quit";
-
-function useLocalPreference<T>(key: string, fallback: T) {
-    const [value, setValue] = useState<T>(() => {
-        if (typeof window === "undefined") {
-            return fallback;
-        }
-        try {
-            const stored = window.localStorage.getItem(key);
-            if (stored !== null) {
-                return JSON.parse(stored) as T;
-            }
-        } catch {
-            // Ignore invalid JSON.
-        }
-        return fallback;
-    });
-
-    useEffect(() => {
-        if (typeof window === "undefined") {
-            return;
-        }
-        try {
-            window.localStorage.setItem(key, JSON.stringify(value));
-        } catch {
-            // Fail silently if storage is unavailable.
-        }
-    }, [key, value]);
-
-    return [value, setValue] as const;
-}
 
 interface SystemSectionCardProps {
     title?: string;
@@ -182,18 +146,29 @@ export function SystemTabContent({ isNativeMode }: SystemTabContentProps) {
     const { config, updateConfig } = useSettingsForm();
     const { shellAgent } = useShellAgent();
     const { uiMode } = useUiModeCapabilities();
+    const {
+        preferences: { systemPreferences },
+        setSystemPreferences,
+    } = usePreferences();
 
-    const [powerManagementEnabled, setPowerManagementEnabled] =
-        useLocalPreference(POWER_PREF_KEY, DEFAULT_POWER_STATE);
-    const [autoUpdateEnabled, setAutoUpdateEnabled] = useLocalPreference(
-        UPDATE_PREF_KEY,
-        DEFAULT_UPDATE_STATE
+    const setPowerManagementEnabled = useCallback(
+        (value: boolean) => {
+            setSystemPreferences({ preventSleep: value });
+        },
+        [setSystemPreferences]
     );
-    const [closeButtonAction, setCloseButtonAction] =
-        useLocalPreference<CloseAction>(
-            CLOSE_ACTION_PREF_KEY,
-            DEFAULT_CLOSE_ACTION
-        );
+    const setAutoUpdateEnabled = useCallback(
+        (value: boolean) => {
+            setSystemPreferences({ autoUpdate: value });
+        },
+        [setSystemPreferences]
+    );
+    const setCloseButtonAction = useCallback(
+        (value: CloseAction) => {
+            setSystemPreferences({ closeAction: value });
+        },
+        [setSystemPreferences]
+    );
 
     const [integrationStatus, setIntegrationStatus] = useState({
         autorun: false,
@@ -349,14 +324,14 @@ export function SystemTabContent({ isNativeMode }: SystemTabContentProps) {
                         <Switch
                             size="md"
                             color="primary"
-                            isSelected={powerManagementEnabled}
+                            isSelected={systemPreferences.preventSleep}
                             onValueChange={setPowerManagementEnabled}
                         />
                     }
                     status={
                         <StatusChip
                             label={
-                                powerManagementEnabled
+                                systemPreferences.preventSleep
                                     ? t("settings.system.power_active")
                                     : t("settings.system.power_off")
                             }
@@ -370,14 +345,14 @@ export function SystemTabContent({ isNativeMode }: SystemTabContentProps) {
                         <Switch
                             size="md"
                             color="primary"
-                            isSelected={autoUpdateEnabled}
+                            isSelected={systemPreferences.autoUpdate}
                             onValueChange={setAutoUpdateEnabled}
                         />
                     }
                     status={
                         <StatusChip
                             label={
-                                autoUpdateEnabled
+                                systemPreferences.autoUpdate
                                     ? t("settings.system.update_auto")
                                     : t("settings.system.update_manual")
                             }
@@ -429,7 +404,7 @@ export function SystemTabContent({ isNativeMode }: SystemTabContentProps) {
                         <Select
                             size="sm"
                             variant="bordered"
-                            selectedKeys={[closeButtonAction]}
+                            selectedKeys={[systemPreferences.closeAction]}
                             classNames={{ trigger: "h-button" }}
                             onSelectionChange={(keys) => {
                                 const [next] = [...keys];

@@ -26,9 +26,6 @@ interface CommandPaletteProps {
     actions: CommandAction[];
     getContextActions?: (context: CommandPaletteContext) => CommandAction[];
 }
-// TODO: Add a command registry/provider so commands are defined once (with ids/groups/shortcuts) and consumed here, reducing duplication in AppContent.
-// TODO: ViewModel boundary: CommandPalette is a View. It should not receive raw ad-hoc arrays from AppContent.
-// TODO: Prefer `useCommandRegistry()` (ViewModel/provider) that returns a stable list + context-sensitive entries; this prevents AI from breaking shortcuts by editing one surface only.
 
 const PANEL_ANIMATION = {
     initial: { opacity: 0, y: -6, scale: 0.98 },

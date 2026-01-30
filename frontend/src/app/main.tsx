@@ -11,6 +11,7 @@ import { DEFAULT_KEYBOARD_SCOPE } from "@/shared/hooks/useKeyboardScope";
 import { KEY_SCOPE } from "@/config/logic";
 import { ConnectionConfigProvider } from "./context/ConnectionConfigContext";
 import { SessionProvider } from "./context/SessionContext";
+import { PreferencesProvider } from "./context/PreferencesContext";
 import { CONFIG, IS_NATIVE_HOST } from "@/config/logic";
 import { applyCssTokenBases } from "@/config/logic";
 // Apply CSS variable bases from constants.json before rendering
@@ -40,33 +41,35 @@ createRoot(document.getElementById("root")!).render(
         <HotkeysProvider
             initiallyActiveScopes={[DEFAULT_KEYBOARD_SCOPE, KEY_SCOPE.App]}
         >
-            <ConnectionConfigProvider>
-                <ClientProvider>
-                    <SessionProvider>
-                        <WorkspaceModalProvider>
-                            <App />
-                            <ToastProvider
-                            placement="bottom-right"
-                            toastOffset={16}
-                            toastProps={{
-                                timeout: CONFIG.ui.toast_display_duration_ms,
-                                hideCloseButton: true,
-                                variant: "flat",
-                                radius: "lg",
-                                classNames: {
-                                    base: "border border-default/20 bg-content1/80 backdrop-blur-xl shadow-medium",
-                                    title: "text-sm font-semibold text-foreground",
-                                    description: "text-xs text-foreground/70",
-                                },
-                            }}
-                            regionProps={{
-                                className: "z-top",
-                            }}
-                        />
-                        </WorkspaceModalProvider>
-                    </SessionProvider>
-                </ClientProvider>
-            </ConnectionConfigProvider>
+            <PreferencesProvider>
+                <ConnectionConfigProvider>
+                    <ClientProvider>
+                        <SessionProvider>
+                            <WorkspaceModalProvider>
+                                <App />
+                                <ToastProvider
+                                    placement="bottom-right"
+                                    toastOffset={16}
+                                    toastProps={{
+                                        timeout: CONFIG.ui.toast_display_duration_ms,
+                                        hideCloseButton: true,
+                                        variant: "flat",
+                                        radius: "lg",
+                                        classNames: {
+                                            base: "border border-default/20 bg-content1/80 backdrop-blur-xl shadow-medium",
+                                            title: "text-sm font-semibold text-foreground",
+                                            description: "text-xs text-foreground/70",
+                                        },
+                                    }}
+                                    regionProps={{
+                                        className: "z-top",
+                                    }}
+                                />
+                            </WorkspaceModalProvider>
+                        </SessionProvider>
+                    </ClientProvider>
+                </ConnectionConfigProvider>
+            </PreferencesProvider>
         </HotkeysProvider>
     </StrictMode>
 );

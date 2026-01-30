@@ -38,6 +38,14 @@ import {
 } from "@/app/context/SelectionContext";
 import { useTorrentOrchestrator } from "./orchestrators/useTorrentOrchestrator";
 import { createTorrentDispatch } from "./actions/torrentDispatch";
+import {
+    dispatchTorrentAction,
+    dispatchTorrentSelectionAction,
+} from "@/app/utils/torrentActionDispatcher";
+import {
+    buildCommandPaletteActions,
+    buildContextCommandActions,
+} from "@/app/commandRegistry";
 import { useSession } from "@/app/context/SessionContext";
 import { useShellAgent } from "@/app/hooks/useShellAgent";
 import { LifecycleProvider } from "@/app/context/LifecycleContext";
@@ -59,17 +67,15 @@ import { AddTorrentModal } from "@/modules/torrent-add/components/AddTorrentModa
 import { AddMagnetModal } from "@/modules/torrent-add/components/AddMagnetModal";
 import { TorrentCommandProvider } from "@/app/context/TorrentCommandContext";
 import {
-    UIActionGateProvider,
-    useUIActionGateController,
-} from "@/app/context/UIActionGateContext";
-import {
     useAppViewModel,
     type WorkspaceShellViewModel,
     type StatusBarViewModel,
     type DashboardViewModel,
     type NavbarViewModel,
     type StatusBarTransportStatus,
+    type SettingsModalViewModel,
 } from "@/app/viewModels/useAppViewModel";
+import { useWorkspaceShellViewModel } from "@/app/viewModels/useWorkspaceShellViewModel";
 
 type TranslationFn = ReturnType<typeof useTranslation>["t"];
 
@@ -102,7 +108,6 @@ type AppContentProps = {
     refreshTorrentsRef: MutableRefObject<() => Promise<void>>;
     refreshSessionStatsDataRef: MutableRefObject<() => Promise<void>>;
 };
-// TODO: Split App into: data providers (client/session/torrents), a view-model layer that derives UI state/actions, and a thin presentational shell; shrink this prop list. Keep optional/complex features disabled by default unless clearly needed.
 
 // -----------------------------------------------------------------------------
 // AppContent: The UI shell that lives INSIDE the providers.
@@ -173,14 +178,10 @@ function AppContent({
         searchInput.focus();
         searchInput.select();
     }, []);
-    // TODO: Centralize global hotkeys (palette/search) in one host to avoid per-component bindings and collisions.
 
     const handleInspectorTabCommandHandled = useCallback(() => {
         setInspectorTabCommand(null);
     }, []);
-
-    const { markRemoved, unmarkRemoved } = useUIActionGateController();
-    // TODO: Collapse UIActionGate + orchestrator concerns into a single view-model so removal/recovery/selection logic is not split across multiple controllers.
 
     // -- Orchestrator & Selection Wiring --
     // TODO: Consolidate orchestration/wiring into a thin container and keep the visible shell presentational; avoid duplicating this with the root split note above. Optional complexity should stay gated/disabled by default.
@@ -198,8 +199,6 @@ function AppContent({
         reportCommandError,
         t,
         clearDetail,
-        markRemoved,
-        unmarkRemoved,
     });
 
     const { shellAgent } = useShellAgent();
@@ -213,7 +212,7 @@ function AppContent({
         handleMagnetModalClose,
         handleMagnetSubmit,
         addSource,
-        lastDownloadDir,
+        addTorrentDefaults,
         isResolvingMagnet,
         isFinalizingExisting,
         isAddingTorrent,
@@ -240,7 +239,7 @@ function AppContent({
         probeMissingFilesIfStale,
         executeRedownload,
         executeRetryFetch,
-        performUIActionDelete,
+        handlePrepareDelete,
         canOpenFolder,
         uiMode,
     } = orchestrator;
@@ -342,70 +341,18 @@ function AppContent({
         [executeRedownload]
     );
 
-    const executeTorrentActionViaDispatch = async (
+    const executeTorrentActionViaDispatch = (
         action: TorrentTableAction,
         torrent: Torrent,
         options?: { deleteData?: boolean }
-    ) => {
-        switch (action) {
-            case "pause":
-                return dispatch(
-                    TorrentIntents.ensurePaused(torrent.id ?? torrent.hash)
-                );
-            case "resume":
-                return resumeTorrent(torrent);
-            case "recheck":
-                return dispatch(
-                    TorrentIntents.ensureValid(torrent.id ?? torrent.hash)
-                );
-            case "remove":
-                return dispatch(
-                    TorrentIntents.ensureRemoved(
-                        torrent.id ?? torrent.hash,
-                        Boolean(options?.deleteData)
-                    )
-                );
-            case "remove-with-data":
-                return dispatch(
-                    TorrentIntents.ensureRemoved(
-                        torrent.id ?? torrent.hash,
-                        true
-                    )
-                );
-            case "queue-move-top":
-                return dispatch(
-                    TorrentIntents.queueMove(
-                        torrent.id ?? torrent.hash,
-                        "top",
-                        1
-                    )
-                );
-            case "queue-move-bottom":
-                return dispatch(
-                    TorrentIntents.queueMove(
-                        torrent.id ?? torrent.hash,
-                        "bottom",
-                        1
-                    )
-                );
-            case "queue-move-up":
-                return dispatch(
-                    TorrentIntents.queueMove(
-                        torrent.id ?? torrent.hash,
-                        "up",
-                        1
-                    )
-                );
-            case "queue-move-down":
-                return dispatch(
-                    TorrentIntents.queueMove(
-                        torrent.id ?? torrent.hash,
-                        "down",
-                        1
-                    )
-                );
-        }
-    };
+    ) =>
+        dispatchTorrentAction({
+            action,
+            torrent,
+            options,
+            dispatch,
+            resume: resumeTorrent,
+        });
 
     const executeBulkRemoveViaDispatch = async (
         ids: string[],
@@ -421,32 +368,20 @@ function AppContent({
         clearPendingDelete,
         handleTorrentAction,
         handleBulkAction,
+        removedIds,
     } = useTorrentWorkflow({
         torrents,
         executeTorrentAction: executeTorrentActionViaDispatch,
         executeBulkRemove: executeBulkRemoveViaDispatch,
-        performUIActionDelete,
-        executeSelectionAction: async (action, ids) => {
-            switch (action) {
-                case "pause":
-                    return dispatch(TorrentIntents.ensureSelectionPaused(ids));
-                case "resume":
-                    {
-                        const targets = selectedTorrents.filter((torrent) =>
-                            ids.includes(torrent.id)
-                        );
-                        for (const torrent of targets) {
-                            await resumeTorrent(torrent);
-                        }
-                    }
-                    return;
-                case "recheck":
-                    return dispatch(TorrentIntents.ensureSelectionValid(ids));
-                default:
-                    console.warn("Unsupported selection action: " + action);
-                    return;
-            }
-        },
+        onPrepareDelete: handlePrepareDelete,
+        executeSelectionAction: async (action, ids) =>
+            dispatchTorrentSelectionAction({
+                action,
+                ids,
+                dispatch,
+                selectedTorrents,
+                resume: resumeTorrent,
+            }),
         announceAction,
         showFeedback,
     });
@@ -574,6 +509,7 @@ function AppContent({
                 filter,
                 searchQuery,
                 isDropActive: isDragActive,
+                removedIds,
             },
             detail: {
                 detailData,
@@ -680,55 +616,26 @@ function AppContent({
         ]
     );
 
-    const workspaceShellViewModel = useMemo<WorkspaceShellViewModel>(
+    const settingsModalViewModel = useMemo<SettingsModalViewModel>(
         () => ({
-            dragAndDrop: {
-                getRootProps,
-                getInputProps,
-                isDragActive,
-            },
-            workspaceStyle: {
-                workspaceStyle,
-                toggleWorkspaceStyle,
-            },
-            settingsModal: {
-                isOpen: isSettingsOpen,
-                onClose: closeSettings,
-                initialConfig: settingsFlow.settingsConfig,
-                isSaving: settingsFlow.isSettingsSaving,
-                onSave: settingsFlow.handleSaveSettings,
-                settingsLoadError: settingsFlow.settingsLoadError ?? undefined,
-                onTestPort: settingsFlow.handleTestPort,
-                onRestoreInsights: restoreHudCards,
-                onToggleWorkspaceStyle: toggleWorkspaceStyle,
-                onReconnect: handleReconnect,
-                onOpen: openSettings,
-                isNativeMode: shellAgent.isAvailable,
-                isImmersive: workspaceStyle === "immersive",
-                hasDismissedInsights,
-                onApplyUserPreferencesPatch:
-                    settingsFlow.applyUserPreferencesPatch,
-            },
-            dashboard: dashboardViewModel,
-            hud: {
-                visibleHudCards,
-                dismissHudCard,
-                hasDismissedInsights,
-            },
-            deletion: {
-                pendingDelete,
-                clearPendingDelete,
-                confirmDelete,
-            },
-            navbar: navbarViewModel,
-            statusBar: statusBarViewModel,
+            isOpen: isSettingsOpen,
+            onClose: closeSettings,
+            initialConfig: settingsFlow.settingsConfig,
+            isSaving: settingsFlow.isSettingsSaving,
+            onSave: settingsFlow.handleSaveSettings,
+            settingsLoadError: settingsFlow.settingsLoadError ?? undefined,
+            onTestPort: settingsFlow.handleTestPort,
+            onRestoreInsights: restoreHudCards,
+            onToggleWorkspaceStyle: toggleWorkspaceStyle,
+            onReconnect: handleReconnect,
+            onOpen: openSettings,
+            isNativeMode: shellAgent.isAvailable,
+            isImmersive: workspaceStyle === "immersive",
+            hasDismissedInsights,
+            onApplyUserPreferencesPatch:
+                settingsFlow.applyUserPreferencesPatch,
         }),
         [
-            getRootProps,
-            getInputProps,
-            isDragActive,
-            workspaceStyle,
-            toggleWorkspaceStyle,
             isSettingsOpen,
             closeSettings,
             settingsFlow.settingsConfig,
@@ -736,21 +643,53 @@ function AppContent({
             settingsFlow.handleSaveSettings,
             settingsFlow.settingsLoadError,
             settingsFlow.handleTestPort,
-            settingsFlow.applyUserPreferencesPatch,
             restoreHudCards,
+            toggleWorkspaceStyle,
+            handleReconnect,
             openSettings,
-            shellAgent,
+            shellAgent.isAvailable,
+            workspaceStyle,
             hasDismissedInsights,
+            settingsFlow.applyUserPreferencesPatch,
+        ]
+    );
+
+    const hudViewModel = useMemo(
+        () => ({
             visibleHudCards,
             dismissHudCard,
+            hasDismissedInsights,
+        }),
+        [visibleHudCards, dismissHudCard, hasDismissedInsights]
+    );
+
+    const deletionViewModel = useMemo(
+        () => ({
             pendingDelete,
             clearPendingDelete,
             confirmDelete,
-            dashboardViewModel,
-            statusBarViewModel,
-            navbarViewModel,
-        ]
+        }),
+        [pendingDelete, clearPendingDelete, confirmDelete]
     );
+
+    const workspaceShellViewModel = useWorkspaceShellViewModel({
+        dragAndDrop: {
+            getRootProps,
+            getInputProps,
+            isDragActive,
+        },
+        workspaceStyle: {
+            workspaceStyle,
+            toggleWorkspaceStyle,
+        },
+        settingsModal: settingsModalViewModel,
+        dashboard: dashboardViewModel,
+        hud: hudViewModel,
+        deletion: deletionViewModel,
+        navbar: navbarViewModel,
+        statusBar: statusBarViewModel,
+        isNativeHost: Runtime.isNativeHost,
+    });
 
     const viewModel = useAppViewModel({
         workspaceShell: workspaceShellViewModel,
@@ -759,202 +698,52 @@ function AppContent({
     });
 
     // -- Command Palette Configuration --
-    const commandActions = useMemo(() => {
-        const actionGroup = t("command_palette.group.actions");
-        const filterGroup = t("command_palette.group.filters");
-        const searchGroup = t("command_palette.group.search");
-        return [
-            {
-                id: "add-torrent",
-                group: actionGroup,
-                title: t("command_palette.actions.add_torrent"),
-                description: t(
-                    "command_palette.actions.add_torrent_description"
-                ),
-                onSelect: openAddTorrentPicker,
-            },
-            {
-                id: "add-magnet",
-                group: actionGroup,
-                title: t("command_palette.actions.add_magnet"),
-                description: t(
-                    "command_palette.actions.add_magnet_description"
-                ),
-                onSelect: openAddMagnet,
-            },
-            {
-                id: "open-settings",
-                group: actionGroup,
-                title: t("command_palette.actions.open_settings"),
-                description: t(
-                    "command_palette.actions.open_settings_description"
-                ),
-                onSelect: openSettings,
-            },
-            {
-                id: "refresh-torrents",
-                group: actionGroup,
-                title: t("command_palette.actions.refresh"),
-                description: t("command_palette.actions.refresh_description"),
-                onSelect: refreshTorrents,
-            },
-            {
-                id: "focus-search",
-                group: searchGroup,
-                title: t("command_palette.actions.focus_search"),
-                description: t(
-                    "command_palette.actions.focus_search_description"
-                ),
-                onSelect: focusSearchInput,
-            },
-            {
-                id: "filter-all",
-                group: filterGroup,
-                title: t("nav.filter_all"),
-                description: t("command_palette.filters.all_description"),
-                onSelect: () => setFilter("all"),
-            },
-            {
-                id: "filter-downloading",
-                group: filterGroup,
-                title: t("nav.filter_downloading"),
-                description: t(
-                    "command_palette.filters.downloading_description"
-                ),
-                onSelect: () => setFilter(STATUS.torrent.DOWNLOADING),
-            },
-            {
-                id: "filter-seeding",
-                group: filterGroup,
-                title: t("nav.filter_seeding"),
-                description: t("command_palette.filters.seeding_description"),
-                onSelect: () => setFilter(STATUS.torrent.SEEDING),
-            },
-        ];
-    }, [
-        focusSearchInput,
-        openAddTorrentPicker,
-        openAddMagnet,
-        openSettings,
-        refreshTorrents,
-        setFilter,
-        t,
-    ]);
-    // TODO: Move command palette action factories into a utility/hook that consumes stable deps; keep AppContent free of list-building logic.
+    const commandPaletteDeps = useMemo(
+        () => ({
+            t,
+            focusSearchInput,
+            openAddTorrentPicker,
+            openAddMagnet,
+            openSettings,
+            refreshTorrents,
+            setFilter,
+            selectedTorrents,
+            detailData,
+            handleBulkAction,
+            handleRequestDetails,
+            handleFileSelectionChange,
+            setInspectorTabCommand,
+            peerSortStrategy,
+            setPeerSortStrategy,
+        }),
+        [
+            t,
+            focusSearchInput,
+            openAddTorrentPicker,
+            openAddMagnet,
+            openSettings,
+            refreshTorrents,
+            setFilter,
+            selectedTorrents,
+            detailData,
+            handleBulkAction,
+            handleRequestDetails,
+            handleFileSelectionChange,
+            setInspectorTabCommand,
+            peerSortStrategy,
+            setPeerSortStrategy,
+        ]
+    );
+
+    const commandActions = useMemo(
+        () => buildCommandPaletteActions(commandPaletteDeps),
+        [commandPaletteDeps]
+    );
 
     const getContextActions = useCallback(
-        ({ activePart }: CommandPaletteContext) => {
-            const contextGroup = t("command_palette.group.context");
-            const entries: CommandAction[] = [];
-
-            if (activePart === "table" && selectedTorrents.length) {
-                entries.push(
-                    {
-                        id: "context.pause_selected",
-                        group: contextGroup,
-                        title: t("command_palette.actions.pause_selected"),
-                        description: t(
-                            "command_palette.actions.pause_selected_description"
-                        ),
-                        onSelect: () => {
-                            void handleBulkAction("pause");
-                        },
-                    },
-                    {
-                        id: "context.resume_selected",
-                        group: contextGroup,
-                        title: t("command_palette.actions.resume_selected"),
-                        description: t(
-                            "command_palette.actions.resume_selected_description"
-                        ),
-                        onSelect: () => {
-                            void handleBulkAction("resume");
-                        },
-                    },
-                    {
-                        id: "context.recheck_selected",
-                        group: contextGroup,
-                        title: t("command_palette.actions.recheck_selected"),
-                        description: t(
-                            "command_palette.actions.recheck_selected_description"
-                        ),
-                        onSelect: () => {
-                            void handleBulkAction("recheck");
-                        },
-                    }
-                );
-                const targetTorrent = selectedTorrents[0];
-                if (targetTorrent) {
-                    entries.push({
-                        id: "context.open_inspector",
-                        group: contextGroup,
-                        title: t("command_palette.actions.open_inspector"),
-                        description: t(
-                            "command_palette.actions.open_inspector_description"
-                        ),
-                        onSelect: () => handleRequestDetails(targetTorrent),
-                    });
-                }
-            }
-
-            if (activePart === "inspector" && detailData) {
-                const fileIndexes =
-                    detailData.files?.map((file) => file.index) ?? [];
-                if (fileIndexes.length) {
-                    entries.push({
-                        id: "context.select_all_files",
-                        group: contextGroup,
-                        title: t("command_palette.actions.select_all_files"),
-                        description: t(
-                            "command_palette.actions.select_all_files_description"
-                        ),
-                        onSelect: () => {
-                            setInspectorTabCommand("content");
-                            return handleFileSelectionChange(fileIndexes, true);
-                        },
-                    });
-                }
-
-                const hasPeers = Boolean(detailData.peers?.length);
-                if (hasPeers) {
-                    const isSpeedSorted = peerSortStrategy === "speed";
-                    entries.push({
-                        id: isSpeedSorted
-                            ? "context.inspector.reset_peer_sort"
-                            : "context.inspector.sort_peers_by_speed",
-                        group: contextGroup,
-                        title: t(
-                            isSpeedSorted
-                                ? "command_palette.actions.reset_peer_sort"
-                                : "command_palette.actions.sort_peers_by_speed"
-                        ),
-                        description: t(
-                            isSpeedSorted
-                                ? "command_palette.actions.reset_peer_sort_description"
-                                : "command_palette.actions.sort_peers_by_speed_description"
-                        ),
-                        onSelect: () => {
-                            setInspectorTabCommand("peers");
-                            setPeerSortStrategy(
-                                isSpeedSorted ? "none" : "speed"
-                            );
-                        },
-                    });
-                }
-            }
-            return entries;
-        },
-        [
-            detailData,
-            handleFileSelectionChange,
-            handleRequestDetails,
-            peerSortStrategy,
-            selectedTorrents,
-            setInspectorTabCommand,
-            setPeerSortStrategy,
-            t,
-            handleBulkAction,
-        ]
+        ({ activePart }: CommandPaletteContext) =>
+            buildContextCommandActions(commandPaletteDeps, activePart),
+        [commandPaletteDeps]
     );
 
     // -- Render --
@@ -999,12 +788,12 @@ function AppContent({
                     isBusy={isRecoveryBusy}
                 />
             </RecoveryProvider>
-            <CommandPalette
-                isOpen={commandPalette.isOpen}
-                onOpenChange={commandPalette.setIsOpen}
-                actions={commandActions}
-                getContextActions={getContextActions}
-            />
+                <CommandPalette
+                    isOpen={commandPalette.isOpen}
+                    onOpenChange={commandPalette.setIsOpen}
+                    actions={commandActions}
+                    getContextActions={getContextActions}
+                />
             <AddMagnetModal
                 isOpen={isMagnetModalOpen}
                 initialValue={magnetModalInitialValue}
@@ -1015,10 +804,13 @@ function AppContent({
                 <AddTorrentModal
                     isOpen={true}
                     source={addSource}
-                    initialDownloadDir={
-                        lastDownloadDir ||
+                    downloadDir={
+                        addTorrentDefaults.downloadDir ||
                         settingsFlow.settingsConfig.download_dir
                     }
+                    commitMode={addTorrentDefaults.commitMode}
+                    onDownloadDirChange={addTorrentDefaults.setDownloadDir}
+                    onCommitModeChange={addTorrentDefaults.setCommitMode}
                     isSubmitting={isAddingTorrent || isFinalizingExisting}
                     isResolvingSource={isResolvingMagnet}
                     onCancel={closeAddTorrentWindow}
@@ -1267,8 +1059,7 @@ export default function App() {
     );
 
     return (
-        <UIActionGateProvider>
-            <FocusProvider>
+        <FocusProvider>
                 <LifecycleProvider>
                     <TorrentActionsProvider actions={actions}>
                         <SelectionProvider>
@@ -1302,6 +1093,5 @@ export default function App() {
                     </TorrentActionsProvider>
                 </LifecycleProvider>
             </FocusProvider>
-        </UIActionGateProvider>
     );
 }

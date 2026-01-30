@@ -13,6 +13,8 @@ See:
 docs/EXE_architecture.md
 docs/Host_Agent_Contract.md
 
+**Active architecture work happens in `docs/EXE architecture.md` (Transmission RPC only).** Anything that touches RPC contracts, capability mapping, or native integration must follow that doc; this file exists only for historical reference and must not drive implementation.
+
 
 SPDX-License-Identifier: Apache-2.0
 

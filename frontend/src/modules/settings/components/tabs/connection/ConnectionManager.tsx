@@ -4,13 +4,8 @@ import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ICON_STROKE_WIDTH } from "@/config/logic";
 import { STATUS } from "@/shared/status";
-import {
-    useConnectionConfig,
-    buildRpcEndpoint,
-    buildRpcServerUrl,
-    type ConnectionProfile,
-    DEFAULT_PROFILE_ID,
-} from "@/app/context/ConnectionConfigContext";
+import { useConnectionConfig, buildRpcEndpoint, buildRpcServerUrl, DEFAULT_PROFILE_ID } from "@/app/context/ConnectionConfigContext";
+import type { ConnectionProfile } from "@/app/types/connection-profile";
 import { useSession } from "@/app/context/SessionContext";
 // TODO: Remove `token` and ServerType/serverClass UI. With “RPC extensions: NONE”, connection manager should manage only:
 // TODO: - Transmission endpoint (host/port/scheme/path)

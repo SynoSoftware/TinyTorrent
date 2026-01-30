@@ -1,10 +1,9 @@
 import { useEffect, useRef } from "react";
 import type { VisibilityState, SortingState } from "@tanstack/react-table";
+import { usePreferences } from "@/app/context/PreferencesContext";
 
-// Persist table layout state to localStorage.
+// Persist table layout state via the Preferences provider.
 // Extracted from `TorrentTable.tsx` to keep persistence concerns isolated.
-// TODO: Move this persistence behind the Preferences provider (see `todo.md` task 15) so localStorage writes are centralized and versioning/migrations are explicit.
-// TODO: Keep a single authoritative table-state key and migration policy (avoid scattering version strings like `v2.8` across the codebase).
 export const useTorrentTablePersistence = (
     initialState: any,
     columnOrder: string[],
@@ -13,7 +12,7 @@ export const useTorrentTablePersistence = (
     columnSizingInfo: any,
     sorting: SortingState
 ) => {
-    const STORAGE_KEY = "tiny-torrent.table-state.v2.8";
+    const { setTorrentTableState } = usePreferences();
 
     const latestStateRef = useRef({
         columnOrder: initialState.columnOrder,
@@ -24,10 +23,6 @@ export const useTorrentTablePersistence = (
     const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => {
-        if (typeof window === "undefined") {
-            return;
-        }
-
         latestStateRef.current = {
             columnOrder,
             columnVisibility,
@@ -48,10 +43,7 @@ export const useTorrentTablePersistence = (
         }
 
         saveTimeoutRef.current = window.setTimeout(() => {
-            localStorage.setItem(
-                STORAGE_KEY,
-                JSON.stringify(latestStateRef.current)
-            );
+            setTorrentTableState(latestStateRef.current);
             saveTimeoutRef.current = null;
         }, 250);
     }, [
@@ -64,18 +56,12 @@ export const useTorrentTablePersistence = (
 
     useEffect(() => {
         return () => {
-            if (typeof window === "undefined") {
-                return;
-            }
-            // TODO: Ensure this flush behavior is owned by one place (Preferences provider) to avoid multiple components fighting over storage on unload/unmount.
+            // NOTE: The Preferences provider owns storage persistence, so this cleanup simply flushes the last buffered state via `setTorrentTableState` before unmount.
             if (saveTimeoutRef.current) {
                 window.clearTimeout(saveTimeoutRef.current);
                 saveTimeoutRef.current = null;
             }
-            localStorage.setItem(
-                STORAGE_KEY,
-                JSON.stringify(latestStateRef.current)
-            );
+            setTorrentTableState(latestStateRef.current);
         };
     }, []);
 };

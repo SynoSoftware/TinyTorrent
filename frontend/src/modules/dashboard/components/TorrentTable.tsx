@@ -79,7 +79,6 @@ import {
 import TorrentTable_ColumnSettingsModal from "./TorrentTable_ColumnSettingsModal";
 import { useQueueReorderController } from "@/modules/dashboard/hooks/useQueueReorderController";
 import { useRowSelectionController } from "@/modules/dashboard/hooks/useRowSelectionController";
-import { useUIActionGate } from "@/app/context/UIActionGateContext";
 
 const assertDev = (condition: boolean, message: string) => {
     if (import.meta.env.DEV && !condition) {
@@ -156,6 +155,7 @@ export function TorrentTable({
         isLoading = false,
         optimisticStatuses = {},
         ghostTorrents,
+        removedIds,
     } = viewModel;
     const { t } = useTranslation();
     // actions provided by TorrentActionsContext (declared above)
@@ -247,7 +247,11 @@ export function TorrentTable({
         if (!ghostTorrents?.length) return torrents;
         return [...ghostTorrents, ...torrents];
     }, [ghostTorrents, torrents]);
-    const { isRemoved } = useUIActionGate();
+    const isRemoved = useCallback(
+        (id?: string | number | null) =>
+            Boolean(id && removedIds.has(String(id))),
+        [removedIds]
+    );
 
     // Prepare data for the table - memoized to prevent re-processing
     const data = useMemo(() => {
@@ -513,7 +517,7 @@ export function TorrentTable({
         };
     }, [beginAnimationSuppression, endAnimationSuppression]);
 
-    // Persistence: wire persistence hook to keep table layout in localStorage
+    // Persistence: wire persistence hook to keep table layout state synchronized
     useTorrentTablePersistence(
         {
             columnOrder: DEFAULT_COLUMN_ORDER,

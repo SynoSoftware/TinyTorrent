@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { DeleteIntent } from "@/app/types/workspace";
@@ -28,7 +28,7 @@ interface UseTorrentWorkflowParams {
         action: TorrentTableAction,
         ids: string[]
     ) => Promise<void>;
-    performUIActionDelete: (torrent: Torrent, deleteData: boolean) => void;
+    onPrepareDelete?: (torrent: Torrent, deleteData: boolean) => void;
     /** Optional externally-provided feedback functions (injected by host). */
     announceAction?: (
         action: FeedbackAction,
@@ -43,12 +43,17 @@ interface UseTorrentWorkflowParams {
 // workflow view-model stabilizes. That object should carry actionId/count/tone/stage
 // so we stop growing the signature while keeping this identity-based model intact.
 
+const getTorrentKey = (torrent: {
+    id?: string | number;
+    hash?: string;
+}) => torrent.id?.toString() ?? torrent.hash ?? "";
+
 export function useTorrentWorkflow({
     torrents,
     executeTorrentAction,
     executeBulkRemove,
     executeSelectionAction,
-    performUIActionDelete,
+    onPrepareDelete,
     announceAction: injectedAnnounce,
     showFeedback: injectedShowFeedback,
 }: UseTorrentWorkflowParams) {
@@ -61,7 +66,7 @@ export function useTorrentWorkflow({
     const [pendingDelete, setPendingDelete] = useState<DeleteIntent | null>(
         null
     );
-    const { selectedIds } = useSelection();
+    const { selectedIds, setSelectedIds, setActiveId } = useSelection();
     const selectedTorrentIdsSet = useMemo(
         () => new Set(selectedIds),
         [selectedIds]
@@ -71,6 +76,47 @@ export function useTorrentWorkflow({
         [selectedTorrentIdsSet, torrents]
     );
     // TODO: Move selection-aware action logic into a view-model/shared handler (aligned with App split) so workflow is not tightly coupled to SelectionContext and prop drilling.
+
+    const [removedKeys, setRemovedKeys] = useState<Set<string>>(() => new Set());
+    const recentlyRemovedKeysRef = useRef<Set<string>>(new Set());
+
+    useEffect(() => {
+        if (!recentlyRemovedKeysRef.current.size) return;
+        const activeKeys = new Set(
+            torrents
+                .map((torrent) => getTorrentKey(torrent))
+                .filter((key): key is string => Boolean(key))
+        );
+        recentlyRemovedKeysRef.current.forEach((key) => {
+            if (activeKeys.has(key)) {
+                setRemovedKeys((prev) => {
+                    if (!prev.has(key)) return prev;
+                    const next = new Set(prev);
+                    next.delete(key);
+                    return next;
+                });
+                recentlyRemovedKeysRef.current.delete(key);
+            }
+        });
+    }, [torrents]);
+
+    const markRemoved = useCallback((key: string) => {
+        setRemovedKeys((prev) => {
+            if (prev.has(key)) return prev;
+            const next = new Set(prev);
+            next.add(key);
+            return next;
+        });
+    }, []);
+
+    const unmarkRemoved = useCallback((key: string) => {
+        setRemovedKeys((prev) => {
+            if (!prev.has(key)) return prev;
+            const next = new Set(prev);
+            next.delete(key);
+            return next;
+        });
+    }, []);
 
     const buildActionId = (
         action: FeedbackAction,
@@ -218,6 +264,31 @@ export function useTorrentWorkflow({
         ]
     );
 
+    const revertRemovedKeys = useCallback(
+        (targets: Torrent[]) => {
+            targets.forEach((torrent) => {
+                const key = getTorrentKey(torrent);
+                if (key) {
+                    unmarkRemoved(key);
+                }
+            });
+        },
+        [unmarkRemoved]
+    );
+
+    const performUIActionDelete = useCallback(
+        (torrent: Torrent, deleteData = false) => {
+            const key = getTorrentKey(torrent);
+            if (!key) return;
+            markRemoved(key);
+            recentlyRemovedKeysRef.current.add(key);
+            setSelectedIds([]);
+            setActiveId(null);
+            onPrepareDelete?.(torrent, deleteData);
+        },
+        [markRemoved, onPrepareDelete, setActiveId, setSelectedIds]
+    );
+
     const confirmDelete = useCallback(
         async (overrideDeleteData?: boolean) => {
             if (!pendingDelete) return;
@@ -240,23 +311,30 @@ export function useTorrentWorkflow({
                 performUIActionDelete(torrent, deleteData);
             });
 
-            if (
-                toDelete.length > 1 &&
-                (action === "remove" || action === "remove-with-data")
-            ) {
-                const ids = toDelete.map((torrent) => torrent.id);
-                const shouldDeleteData =
-                    action === "remove-with-data" ? true : deleteData;
-                await executeBulkRemove(ids, shouldDeleteData);
-            } else {
-                for (const torrent of toDelete) {
-                    const options =
-                        action === "remove" ? { deleteData } : undefined;
-                    await executeTorrentAction(action, torrent, options);
+            let succeeded = true;
+            try {
+                if (
+                    toDelete.length > 1 &&
+                    (action === "remove" || action === "remove-with-data")
+                ) {
+                    const ids = toDelete.map((torrent) => torrent.id);
+                    const shouldDeleteData =
+                        action === "remove-with-data" ? true : deleteData;
+                    await executeBulkRemove(ids, shouldDeleteData);
+                } else {
+                    for (const torrent of toDelete) {
+                        const options =
+                            action === "remove" ? { deleteData } : undefined;
+                        await executeTorrentAction(action, torrent, options);
+                    }
                 }
+            } catch {
+                succeeded = false;
+                showFeedback(t("toolbar.feedback.failed"), "danger");
+                revertRemovedKeys(toDelete);
             }
 
-            if (hasFeedback) {
+            if (hasFeedback && succeeded) {
                 announceAction(actionKey, "done", count, actionId);
             }
         },
@@ -266,6 +344,9 @@ export function useTorrentWorkflow({
             executeTorrentAction,
             pendingDelete,
             performUIActionDelete,
+            revertRemovedKeys,
+            showFeedback,
+            t,
         ]
     );
 
@@ -277,5 +358,7 @@ export function useTorrentWorkflow({
         showFeedback,
         handleTorrentAction,
         handleBulkAction,
+        removedIds: removedKeys,
+        performUIActionDelete,
     };
 }

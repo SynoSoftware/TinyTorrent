@@ -10,6 +10,8 @@ import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
 import { useShellAgent } from "@/app/hooks/useShellAgent";
 import { normalizeMagnetLink } from "@/app/utils/magnet";
 import { useAddModalState } from "@/app/hooks/useAddModalState";
+import { useAddTorrentDefaults } from "@/app/hooks/useAddTorrentDefaults";
+import { scheduler } from "@/app/services/scheduler";
 import type { SettingsConfig } from "@/modules/settings/data/config";
 import type { FeedbackTone } from "@/shared/types/feedback";
 import {
@@ -38,7 +40,6 @@ import {
     setClassificationOverride,
 } from "@/services/recovery/missingFilesStore";
 import STATUS from "@/shared/status";
-import { useSelection } from "@/app/context/SelectionContext";
 import type {
     InlineSetLocationState,
     SetLocationOptions,
@@ -110,8 +111,6 @@ export interface UseTorrentOrchestratorParams {
     };
     t: (key: string) => string;
     clearDetail: () => void;
-    markRemoved: (key: string) => void;
-    unmarkRemoved: (key: string) => void;
 }
 // TODO: Reduce cognitive load: `UseTorrentOrchestratorParams` is too wide and mixes unrelated responsibilities (RPC client, UI feedback, settings persistence, selection/remove state).
 // TODO: Replace with a smaller, explicit contract, e.g.:
@@ -119,7 +118,7 @@ export interface UseTorrentOrchestratorParams {
 // TODO: - `deps.data`: { torrents, detailData, refreshTorrents, refreshStats, refreshDetail }
 // TODO: - `deps.ui`: { showFeedback, reportCommandError, t }
 // TODO: - `deps.settings`: { settingsConfig, setSettingsConfig }
-// TODO: - `deps.selection/remove`: move to a single “App view-model” owner (avoid passing markRemoved/unmarkRemoved/clearDetail into orchestrator)
+// TODO: - `deps.selection/remove`: keep selection and removed-state ownership consolidated in the workflow/view-model layer so orchestrator only handles transfer-side cleanup (e.g., detail/reset hooks).
 // TODO: Also shrink orchestrator output: return grouped APIs (`addTorrent`, `recovery`, `setLocation`, `deleteFlow`, `uiMode`) instead of dozens of top-level fields.
 
 // --- Helpers ---
@@ -162,7 +161,6 @@ const isRecoveryActiveState = (state?: string) => {
     );
 };
 
-const LAST_DOWNLOAD_DIR_KEY = "tt-add-last-download-dir";
 const PROBE_TTL_MS = 5000;
 
 // --- Main Hook ---
@@ -186,12 +184,9 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
         reportCommandError,
         t,
         clearDetail,
-        markRemoved,
-        unmarkRemoved,
     } = params;
     const { settingsConfig, setSettingsConfig } = settingsFlow;
     const { dispatch } = useRequiredTorrentActions();
-    const { setSelectedIds, setActiveId } = useSelection();
     const { shellAgent, uiMode } = useShellAgent();
     const serverClass = client?.getServerClass?.() ?? "unknown";
     const {
@@ -218,54 +213,29 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
     // TODO: Extract capability derivation (browse/manual/open folder) into a shared helper driven by adapter caps + host (Transmission-first, no serverClass branching); keep UI hooks oblivious to transport logic.
     const canOpenFolder = canOpenFolderCapability;
     const pendingDeletionHashesRef = useRef<Set<string>>(new Set());
-    const recentlyRemovedKeysRef = useRef<Set<string>>(new Set());
     const inlineOwnerRef = useRef<{ surface: SetLocationSurface; torrentKey: string } | null>(
         null
     );
 
-    // --- 2. Settings & Add Torrent Persistence ---
-    const [lastDownloadDir, setLastDownloadDir] = useState(() => {
-        if (typeof window === "undefined") return "";
-        return window.localStorage.getItem(LAST_DOWNLOAD_DIR_KEY) ?? "";
+    const fallbackCommitMode = settingsConfig.start_added_torrents
+        ? "start"
+        : "paused";
+    const addTorrentDefaults = useAddTorrentDefaults({
+        fallbackDownloadDir: settingsConfig.download_dir,
+        fallbackCommitMode,
     });
-
-    const settingsConfigRef = useRef({
-        start_added_torrents: false,
-        download_dir: "",
-    });
-
-    useEffect(() => {
-        settingsConfigRef.current = {
-            start_added_torrents: settingsConfig.start_added_torrents,
-            download_dir: lastDownloadDir || settingsConfig.download_dir,
-        };
-    }, [
-        lastDownloadDir,
-        settingsConfig.download_dir,
-        settingsConfig.start_added_torrents,
-    ]);
+    const {
+        downloadDir: addTorrentDownloadDir,
+        setDownloadDir: setAddTorrentDownloadDir,
+    } = addTorrentDefaults;
 
     useEffect(() => {
-        if (lastDownloadDir || !settingsConfig.download_dir) return;
-        setLastDownloadDir(settingsConfig.download_dir);
-    }, [lastDownloadDir, settingsConfig.download_dir]);
-
-    useEffect(() => {
-        if (typeof window === "undefined") return;
-        if (lastDownloadDir) {
-            window.localStorage.setItem(LAST_DOWNLOAD_DIR_KEY, lastDownloadDir);
-        } else {
-            window.localStorage.removeItem(LAST_DOWNLOAD_DIR_KEY);
-        }
-    }, [lastDownloadDir]);
-
-    useEffect(() => {
-        if (!lastDownloadDir) return;
+        if (!addTorrentDownloadDir) return;
         setSettingsConfig((prev) => {
-            if (prev.download_dir === lastDownloadDir) return prev;
-            return { ...prev, download_dir: lastDownloadDir };
+            if (prev.download_dir === addTorrentDownloadDir) return prev;
+            return { ...prev, download_dir: addTorrentDownloadDir };
         });
-    }, [lastDownloadDir, setSettingsConfig]);
+    }, [addTorrentDownloadDir, setSettingsConfig]);
 
     // --- 3. Add Torrent / Magnet Logic ---
     const [addSource, setAddSource] = useState<AddTorrentSource | null>(null);
@@ -333,11 +303,9 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
             setMagnetModalOpen(false);
             setMagnetModalInitialValue("");
 
-            const startNow = Boolean(
-                settingsConfigRef.current.start_added_torrents
-            );
+            const startNow = Boolean(settingsConfig.start_added_torrents);
             const defaultDir =
-                lastDownloadDir || settingsConfigRef.current.download_dir;
+                addTorrentDownloadDir || settingsConfig.download_dir;
 
             try {
                 await dispatch(
@@ -351,7 +319,14 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
                 console.error("Failed to add magnet", err);
             }
         },
-        [dispatch, lastDownloadDir, showFeedback, t]
+        [
+            dispatch,
+            addTorrentDownloadDir,
+            showFeedback,
+            t,
+            settingsConfig.download_dir,
+            settingsConfig.start_added_torrents,
+        ]
     );
 
     const closeAddTorrentWindow = useCallback(() => {
@@ -362,7 +337,7 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
         async (selection: AddTorrentSelection) => {
             if (!addSource) return;
             const downloadDir = selection.downloadDir.trim();
-            if (downloadDir) setLastDownloadDir(downloadDir);
+            if (downloadDir) setAddTorrentDownloadDir(downloadDir);
 
             const startNow = selection.commitMode !== "paused";
 
@@ -413,7 +388,7 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
                 setIsFinalizingExisting(false);
             }
         },
-        [addSource, closeAddTorrentWindow, dispatch]
+        [addSource, closeAddTorrentWindow, dispatch, setAddTorrentDownloadDir]
     );
 
     // --- 4. Recovery Orchestration ---
@@ -555,8 +530,8 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
             });
         };
         runProbe();
-        const interval = setInterval(runProbe, 5000);
-        return () => clearInterval(interval);
+        const probeTask = scheduler.scheduleRecurringTask(runProbe, 5000);
+        return () => probeTask.cancel();
     }, [probeMissingFilesIfStale]);
 
     useEffect(() => {
@@ -583,21 +558,6 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
             }
         });
     }, [torrents]);
-
-    useEffect(() => {
-        if (!recentlyRemovedKeysRef.current.size) return;
-        const activeKeys = new Set(
-            torrents
-                .map((torrent) => getTorrentKey(torrent))
-                .filter((key): key is string => Boolean(key))
-        );
-        recentlyRemovedKeysRef.current.forEach((key) => {
-            if (activeKeys.has(key)) {
-                unmarkRemoved(key);
-                recentlyRemovedKeysRef.current.delete(key);
-            }
-        });
-    }, [torrents, unmarkRemoved]);
 
     const startRecoverySession = useCallback(
         (entry: RecoveryQueueEntry) => {
@@ -751,8 +711,9 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
         [processNextRecoveryQueueEntry]
     );
 
-    const performUIActionDelete = useCallback(
+    const handlePrepareDelete = useCallback(
         (torrent: Torrent, deleteData = false) => {
+            void deleteData;
             const targetId = torrent.id ?? torrent.hash;
             const key = getTorrentKey(torrent);
             if (!targetId || !key) return;
@@ -760,10 +721,6 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
             if (normalizedHash) {
                 pendingDeletionHashesRef.current.add(normalizedHash);
             }
-            markRemoved(key);
-            recentlyRemovedKeysRef.current.add(key);
-            setSelectedIds([]);
-            setActiveId(null);
             if (detailData && getTorrentKey(detailData) === key) {
                 clearDetail();
             }
@@ -784,26 +741,8 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
             ) {
                 finalizeRecovery({ status: "cancelled" });
             }
-            void dispatch(
-                TorrentIntents.ensureRemoved(targetId, deleteData)
-            ).catch(() => {
-                showFeedback(t("toolbar.feedback.failed"), "danger");
-                unmarkRemoved(key);
-            });
         },
-        [
-            clearDetail,
-            detailData,
-            dispatch,
-            finalizeRecovery,
-            recoverySession,
-            setActiveId,
-            setSelectedIds,
-            showFeedback,
-            t,
-            markRemoved,
-            unmarkRemoved,
-        ]
+        [clearDetail, detailData, finalizeRecovery, recoverySession]
     );
 
     const {
@@ -918,7 +857,7 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
     useEffect(() => {
         if (serverClass !== "tinytorrent") return;
         const checkInterval = 2000;
-        const interval = setInterval(() => {
+        const task = scheduler.scheduleRecurringTask(() => {
             const client = clientRef.current;
             const currentTorrents = torrentsRef.current;
             if (!client || !client.checkFreeSpace || !currentTorrents.length)
@@ -955,7 +894,7 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
                 });
             });
         }, checkInterval);
-        return () => clearInterval(interval);
+        return () => task.cancel();
     }, [clientRef, recoverySession, resolveRecoverySession, serverClass]);
 
     const waitForActiveState = useCallback(
@@ -1687,8 +1626,8 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
     return {
         uiMode,
         canOpenFolder,
-        lastDownloadDir,
         addSource,
+        addTorrentDefaults,
         isResolvingMagnet,
         isMagnetModalOpen,
         magnetModalInitialValue,
@@ -1708,7 +1647,6 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
         closeAddTorrentWindow,
         handleTorrentWindowConfirm,
         setAddSource,
-        setLastDownloadDir,
         requestRecovery,
         executeRedownload,
         executeRetryFetch,
@@ -1726,7 +1664,7 @@ export function useTorrentOrchestrator(params: UseTorrentOrchestratorParams) {
         handleRecoveryRecreateFolder,
         resumeTorrentWithRecovery,
         probeMissingFilesIfStale,
-        performUIActionDelete,
+        handlePrepareDelete,
         getRecoverySessionForKey,
     };
 }

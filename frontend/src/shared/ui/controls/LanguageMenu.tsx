@@ -1,8 +1,5 @@
 // All config tokens imported from '@/config/logic'. Icon sizing uses ICON_STROKE_WIDTH from config. SCALE_BASES tokenization flagged for follow-up.
-// TODO: Unify language preference ownership (todo.md task 15):
-// TODO: - `LanguageMenu` should not directly read/write localStorage or duplicate supported-language logic.
-// TODO: - `src/i18n/index.ts` should not implement a separate storage policy from the menu.
-// TODO: Target: `usePreferences()` exposes `{ language, setLanguage, supportedLanguages, isSystemLanguage }` and both i18n init + menu consume it.
+// Language preference is now managed by the Preferences provider.
 
 import {
     Dropdown,
@@ -12,16 +9,11 @@ import {
     cn,
 } from "@heroui/react";
 import { Check, Globe } from "lucide-react";
-import {
-    type ReactNode,
-    type SVGProps,
-    useEffect,
-    useMemo,
-    useState,
-} from "react";
+import { type ReactNode, type SVGProps, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { ICON_STROKE_WIDTH } from "@/config/logic";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
+import { usePreferences } from "@/app/context/PreferencesContext";
 
 type LanguageCode = "en" | "nl" | "es" | "zh";
 
@@ -100,9 +92,6 @@ export function ZhFlagIcon({ className, ...props }: FlagProps) {
     );
 }
 
-const STORAGE_KEY = "tiny-torrent-language";
-// TODO: Remove direct localStorage usage once preferences provider exists; keep this constant only as a migration key if needed.
-
 const languages: LanguageOption[] = [
     { code: "en", labelKey: "language.english", flagIcon: <UsFlagIcon /> },
     { code: "nl", labelKey: "language.dutch", flagIcon: <NlFlagIcon /> },
@@ -110,55 +99,19 @@ const languages: LanguageOption[] = [
     { code: "zh", labelKey: "language.chinese", flagIcon: <ZhFlagIcon /> },
 ];
 
-const SUPPORTED_CODES: LanguageCode[] = languages.map((option) => option.code);
-
-const normalizeLocale = (value: string) => value.split("-")[0]?.toLowerCase();
-
-const getNavigatorLanguage = (): LanguageCode => {
-    if (typeof navigator === "undefined") return "en";
-
-    const locale = navigator.language ?? navigator.languages?.[0] ?? "en";
-    const normalized = normalizeLocale(locale) as LanguageCode | undefined;
-
-    return SUPPORTED_CODES.includes(normalized ?? "en") ? normalized! : "en";
-};
-
-const getStoredLanguage = (): LanguageCode => {
-    if (typeof window === "undefined") return getNavigatorLanguage();
-
-    const stored = window.localStorage.getItem(STORAGE_KEY)?.toLowerCase() as
-        | LanguageCode
-        | null
-        | undefined;
-
-    if (stored && SUPPORTED_CODES.includes(stored)) {
-        return stored;
-    }
-
-    return getNavigatorLanguage();
-};
-
 export function LanguageMenu() {
-    const { t, i18n } = useTranslation();
-
-    const [selection, setSelection] = useState<LanguageCode>(() =>
-        getStoredLanguage()
-    );
+    const { t } = useTranslation();
+    const {
+        preferences: { language },
+        setLanguage,
+    } = usePreferences();
 
     const activeOption = useMemo(
         () =>
-            languages.find((option) => option.code === selection) ??
+            languages.find((option) => option.code === language) ??
             languages[0],
-        [selection]
+        [language]
     );
-
-    useEffect(() => {
-        i18n.changeLanguage(selection).catch(() => null);
-
-        if (typeof window !== "undefined") {
-            window.localStorage.setItem(STORAGE_KEY, selection);
-        }
-    }, [selection, i18n]);
 
     const activeLabel = t(activeOption.labelKey);
     const icon = (
@@ -204,12 +157,12 @@ export function LanguageMenu() {
                 }}
             >
                 {languages.map((option) => {
-                    const isActive = selection === option.code;
+                    const isActive = language === option.code;
 
                     return (
                         <DropdownItem
                             key={option.code}
-                            onPress={() => setSelection(option.code)}
+                            onPress={() => setLanguage(option.code)}
                             isSelected={isActive}
                             className={
                                 isActive
