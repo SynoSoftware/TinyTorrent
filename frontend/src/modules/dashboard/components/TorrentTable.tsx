@@ -311,25 +311,6 @@ export function TorrentTable({
 
     const openTorrentFolder = useOpenTorrentFolder();
 
-    const { handleContextMenuAction } = useTorrentTableContextActions({
-        contextMenu,
-        findRowElement: (id: string) =>
-            typeof document !== "undefined"
-                ? (document.querySelector(
-                      `[data-torrent-row="${id}"]`
-                  ) as HTMLElement | null)
-                : null,
-        openColumnModal: (triggerElement?: HTMLElement | null) => {
-            // store return focus target and open the modal
-            focusReturnRef.current = triggerElement ?? null;
-            setIsColumnModalOpen(true);
-        },
-        copyToClipboard,
-        buildMagnetLink,
-        setContextMenu,
-        openTorrentFolder,
-    });
-
     // Marquee `mousedown` and drag listeners moved to the virtualization hook.
 
     // Persistence: logic extracted to `useTorrentTablePersistence`.
@@ -591,6 +572,25 @@ export function TorrentTable({
         commitSelection: selection.commitSelection,
         clearSelection: selection.clearSelection,
     };
+
+    const { handleContextMenuAction } = useTorrentTableContextActions({
+        contextMenu,
+        findRowElement: (id: string) =>
+            typeof document !== "undefined"
+                ? (document.querySelector(
+                      `[data-torrent-row="${id}"]`
+                  ) as HTMLElement | null)
+                : null,
+        openColumnModal: (triggerElement?: HTMLElement | null) => {
+            focusReturnRef.current = triggerElement ?? null;
+            setIsColumnModalOpen(true);
+        },
+        copyToClipboard,
+        buildMagnetLink,
+        setContextMenu,
+        openTorrentFolder,
+        selectedTorrents: selection.selectedTorrents,
+    });
 
     const {
         activate: activateDashboardScope,

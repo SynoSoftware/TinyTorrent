@@ -1,7 +1,8 @@
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { useRequiredTorrentActions } from "@/app/context/TorrentActionsContext";
 import { TorrentIntents } from "@/app/intents/torrentIntents";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
+import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
 import type { ContextMenuVirtualElement } from "@/shared/hooks/ui/useContextMenuPosition";
 import { useTorrentCommands } from "@/app/context/TorrentCommandContext";
 import { useRecoveryContext } from "@/app/context/RecoveryContext";
@@ -26,6 +27,7 @@ type UseTorrentTableContextParams = {
         } | null>
     >;
     openTorrentFolder?: (path?: string | null) => void;
+    selectedTorrents: Torrent[];
 };
 
 export const useTorrentTableContextActions = (
@@ -39,11 +41,42 @@ export const useTorrentTableContextActions = (
         buildMagnetLink,
         setContextMenu,
         openTorrentFolder,
+        selectedTorrents = [],
     } = params;
+
+    const selectionTargets = useMemo(() => {
+        if (!contextMenu) return [];
+        const contextTorrent = contextMenu.torrent;
+        if (!contextTorrent) return [];
+        const hasMultiSelection =
+            selectedTorrents.length > 1 &&
+            selectedTorrents.some(
+                (torrent) => torrent.id === contextTorrent.id
+            );
+        return hasMultiSelection ? selectedTorrents : [contextTorrent];
+    }, [contextMenu, selectedTorrents]);
 
     const { dispatch } = useRequiredTorrentActions();
 
-    const { handleTorrentAction } = useTorrentCommands();
+    const { handleTorrentAction, handleBulkAction } = useTorrentCommands();
+    const executeTableAction = useCallback(
+        async (action: TorrentTableAction) => {
+            if (!contextMenu) return;
+            const contextTorrent = contextMenu.torrent;
+            if (!contextTorrent) return;
+            if (selectionTargets.length > 1) {
+                await handleBulkAction(action);
+                return;
+            }
+            await handleTorrentAction(action, contextTorrent);
+        },
+        [
+            contextMenu,
+            handleBulkAction,
+            handleTorrentAction,
+            selectionTargets,
+        ]
+    );
     const { handleSetLocation } = useRecoveryContext();
     const handleContextMenuAction = useCallback(
         async (key?: string): Promise<void> => {
@@ -78,19 +111,19 @@ export const useTorrentTableContextActions = (
                 // Map common table actions to intents when possible
                 switch (key) {
                     case "pause":
-                        await handleTorrentAction("pause", torrent);
+                        await executeTableAction("pause");
                         break;
                     case "resume":
-                        await handleTorrentAction("resume", torrent);
+                        await executeTableAction("resume");
                         break;
                     case "recheck":
-                        await handleTorrentAction("recheck", torrent);
+                        await executeTableAction("recheck");
                         break;
                     case "remove":
-                        await handleTorrentAction("remove", torrent);
+                        await executeTableAction("remove");
                         break;
                     case "remove-with-data":
-                        await handleTorrentAction("remove-with-data", torrent);
+                        await executeTableAction("remove-with-data");
                         break;
                     default:
                         // Unknown key: no-op under intent-only migration
@@ -109,7 +142,7 @@ export const useTorrentTableContextActions = (
             setContextMenu,
             openTorrentFolder,
             dispatch,
-            handleTorrentAction,
+            executeTableAction,
             handleSetLocation,
         ]
     );
