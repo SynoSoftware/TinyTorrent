@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { MutableRefObject } from "react";
 
 import type {
@@ -227,8 +227,18 @@ export function useSettingsFlow({
     updateRequestTimeout,
 }: UseSettingsFlowParams) {
     const { preferences, updatePreferences } = usePreferences();
-    const [settingsConfig, setSettingsConfig] = useState<SettingsConfig>(() =>
+    const [settingsConfigBase, setSettingsConfig] = useState<SettingsConfig>(() =>
         applyPreferencesToConfig({ ...DEFAULT_SETTINGS_CONFIG }, preferences)
+    );
+
+    const settingsConfig = useMemo(
+        () => applyPreferencesToConfig(settingsConfigBase, preferences),
+        [
+            settingsConfigBase,
+            preferences.refreshIntervalMs,
+            preferences.requestTimeoutMs,
+            preferences.tableWatermarkEnabled,
+        ]
     );
     const [sessionSettings, setSessionSettings] =
         useState<TransmissionSessionSettings | null>(null);
@@ -238,16 +248,6 @@ export function useSettingsFlow({
     useEffect(() => {
         updateRequestTimeout(settingsConfig.request_timeout_ms);
     }, [settingsConfig.request_timeout_ms, updateRequestTimeout]);
-
-    useEffect(() => {
-        setSettingsConfig((prev) =>
-            applyPreferencesToConfig(prev, preferences)
-        );
-    }, [
-        preferences.refreshIntervalMs,
-        preferences.requestTimeoutMs,
-        preferences.tableWatermarkEnabled,
-    ]);
 
     useEffect(() => {
         if (!isSettingsOpen || rpcStatus !== STATUS.connection.CONNECTED)

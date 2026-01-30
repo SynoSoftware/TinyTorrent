@@ -5,8 +5,10 @@ import type {
     SessionStats,
     NetworkTelemetry,
     TorrentEntity,
+    TorrentPeerEntity,
 } from "@/services/rpc/entities";
 import type { HeartbeatSource } from "@/services/rpc/heartbeat";
+import type { CommandAction, CommandPaletteContext } from "@/app/components/CommandPalette";
 import type { WorkspaceStyle } from "@/app/hooks/useWorkspaceShell";
 import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
 import type { OptimisticStatusMap } from "@/modules/dashboard/types/optimistic";
@@ -15,6 +17,7 @@ import type {
     PeerSortStrategy,
     DetailTab,
 } from "@/modules/dashboard/types/torrentDetail";
+import type { PeerContextAction } from "@/modules/dashboard/types/peerContextAction";
 import type { AmbientHudCard, DeleteIntent } from "@/app/types/workspace";
 import type { ConnectionStatus } from "@/shared/types/rpc";
 import type { UiMode } from "@/app/utils/uiMode";
@@ -52,6 +55,10 @@ export interface DashboardDetailViewModel {
     inspectorTabCommand: DetailTab | null;
     onInspectorTabCommandHandled: () => void;
     isDetailRecoveryBlocked?: boolean;
+    handlePeerContextAction?: (
+        action: PeerContextAction,
+        peer: TorrentPeerEntity
+    ) => void;
 }
 
 export interface DashboardViewModel {
@@ -113,6 +120,10 @@ export interface WorkspaceShellViewModel {
     navbar: NavbarViewModel;
     statusBar: StatusBarViewModel;
     isNativeHost: boolean;
+    commandPalette: {
+        actions: CommandAction[];
+        getContextActions: (context: CommandPaletteContext) => CommandAction[];
+    };
 }
 
 export interface NavbarViewModel {

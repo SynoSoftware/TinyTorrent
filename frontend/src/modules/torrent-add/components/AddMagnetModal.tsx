@@ -23,7 +23,7 @@ import { GLASS_MODAL_SURFACE } from "@/shared/ui/layout/glass-surface";
 import { StatusIcon } from "@/shared/ui/components/StatusIcon";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
 
-interface AddMagnetModalProps {
+export interface AddMagnetModalProps {
     isOpen: boolean;
     initialValue?: string;
     onClose: () => void;
