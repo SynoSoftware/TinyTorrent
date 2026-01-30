@@ -78,7 +78,7 @@ const READ_ONLY_RPC_METHODS = new Set([
 ]);
 const READ_ONLY_RPC_RESPONSE_TTL_MS = Number.isFinite(
     (CONFIG as unknown as { performance?: { read_rpc_cache_ms?: number } })
-        ?.performance?.read_rpc_cache_ms as number
+        ?.performance?.read_rpc_cache_ms as number,
 )
     ? ((CONFIG as unknown as { performance?: { read_rpc_cache_ms?: number } })
           .performance!.read_rpc_cache_ms as number)
@@ -151,6 +151,7 @@ export class TransmissionAdapter implements EngineAdapter {
     private readonly METHOD_CALL_WINDOW_MS = 2000;
     private readonly METHOD_CALL_WARNING_THRESHOLD = 100;
     private transport: TransmissionRpcTransport;
+    public createDirectory?: (path: string) => Promise<void>;
     private serverClass: ServerClass = "transmission";
     private handshakeState: HandshakeState = "invalid";
     private handshakePromise?: Promise<TransmissionSessionSettings>;
@@ -181,7 +182,7 @@ export class TransmissionAdapter implements EngineAdapter {
                 "[tiny-torrent][rpc] session invalid -> handshaking",
                 {
                     reason,
-                }
+                },
             );
         } else if (prev === "handshaking" && next === "ready") {
             console.debug("[tiny-torrent][rpc] handshaking -> ready", {
@@ -277,7 +278,7 @@ export class TransmissionAdapter implements EngineAdapter {
         schema: z.ZodSchema<T>,
         retryCount = 0,
         keepalive = false,
-        options?: RpcSendOptions
+        options?: RpcSendOptions,
     ): Promise<T> {
         void retryCount;
         // Hard gate: do not send RPCs unless we have completed a handshake
@@ -297,7 +298,7 @@ export class TransmissionAdapter implements EngineAdapter {
         if (this.requestTimeout && this.requestTimeout > 0) {
             timeoutId = window.setTimeout(
                 () => controller.abort(),
-                this.requestTimeout
+                this.requestTimeout,
             );
         }
 
@@ -322,7 +323,7 @@ export class TransmissionAdapter implements EngineAdapter {
                     const lastWarn = recentWarningTs.get(m) ?? 0;
                     if (now - lastWarn >= WARNING_THROTTLE_MS) {
                         console.warn(
-                            `[tiny-torrent][rpc] Rapid repeated calls to RPC method '${m}' (${cur.count} times in ${this.METHOD_CALL_WINDOW_MS}ms). This may indicate a race condition or bad caller code.`
+                            `[tiny-torrent][rpc] Rapid repeated calls to RPC method '${m}' (${cur.count} times in ${this.METHOD_CALL_WINDOW_MS}ms). This may indicate a race condition or bad caller code.`,
                         );
                         recentWarningTs.set(m, now);
                     }
@@ -357,7 +358,7 @@ export class TransmissionAdapter implements EngineAdapter {
                 const response = await this.transport.fetchWithSession(
                     requestInit,
                     controller,
-                    keepalive
+                    keepalive,
                 );
 
                 if (response.status === 409) {
@@ -389,7 +390,7 @@ export class TransmissionAdapter implements EngineAdapter {
 
                 if (!response.ok) {
                     throw new Error(
-                        `Transmission RPC responded with ${response.status}`
+                        `Transmission RPC responded with ${response.status}`,
                     );
                 }
                 // Accept session ID from any response that provides it. Per
@@ -399,7 +400,7 @@ export class TransmissionAdapter implements EngineAdapter {
                 // session context. This prevents handshake churn when servers
                 // don't issue 409 for every new session token.
                 const currentToken = response.headers.get(
-                    "X-Transmission-Session-Id"
+                    "X-Transmission-Session-Id",
                 );
                 if (currentToken && currentToken !== this.sessionId) {
                     this.acceptSessionId(currentToken);
@@ -416,17 +417,17 @@ export class TransmissionAdapter implements EngineAdapter {
 
                     if (methodNotFound) {
                         console.warn(
-                            `[tiny-torrent][rpc] method not recognized for '${payload.method}': ${code}`
+                            `[tiny-torrent][rpc] method not recognized for '${payload.method}': ${code}`,
                         );
                         throw new RpcCommandError(
                             `Transmission RPC responded with ${code}`,
-                            code
+                            code,
                         );
                     }
 
                     throw new RpcCommandError(
                         `Transmission RPC responded with ${parsed.result}`,
-                        parsed.result
+                        parsed.result,
                     );
                 }
                 const args = parsed.arguments ?? {};
@@ -434,19 +435,19 @@ export class TransmissionAdapter implements EngineAdapter {
                     const shouldLog =
                         typeof sessionStorage !== "undefined" &&
                         sessionStorage.getItem(
-                            "tt-debug-raw-torrent-detail"
+                            "tt-debug-raw-torrent-detail",
                         ) === "2";
                     if (shouldLog && payload.method === "torrent-get") {
                         console.debug(
                             "[tiny-torrent][rpc-raw][torrent-get]",
-                            args
+                            args,
                         );
                     }
                     try {
                         const shouldLogSessionGet =
                             typeof sessionStorage !== "undefined" &&
                             sessionStorage.getItem(
-                                "tt-debug-raw-session-get"
+                                "tt-debug-raw-session-get",
                             ) === "1";
                         if (
                             shouldLogSessionGet &&
@@ -454,7 +455,7 @@ export class TransmissionAdapter implements EngineAdapter {
                         ) {
                             console.debug(
                                 "[tiny-torrent][rpc-raw][session-get]",
-                                args
+                                args,
                             );
                         }
                     } catch (e) {
@@ -500,7 +501,7 @@ export class TransmissionAdapter implements EngineAdapter {
         schema: z.ZodSchema<T>,
         retryCount = 0,
         keepalive = false,
-        options?: RpcSendOptions
+        options?: RpcSendOptions,
     ): Promise<T> {
         const method = payload.method ?? "";
         if (READ_ONLY_RPC_METHODS.has(method)) {
@@ -521,7 +522,7 @@ export class TransmissionAdapter implements EngineAdapter {
                 const raw = await this.transport.request(
                     payload.method!,
                     args,
-                    { cache: cacheEnabled }
+                    { cache: cacheEnabled },
                 );
 
                 // Sync transport-owned session id back into adapter state so
@@ -552,7 +553,7 @@ export class TransmissionAdapter implements EngineAdapter {
             schema,
             retryCount,
             keepalive,
-            options
+            options,
         );
         // Deterministic invalidation: any mutating RPC must invalidate
         // short-lived read-only response cache to avoid serving stale data
@@ -586,7 +587,7 @@ export class TransmissionAdapter implements EngineAdapter {
                         // eslint-disable-next-line no-console
                         console.warn(
                             "[tiny-torrent][rpc] abort controller error:",
-                            err
+                            err,
                         );
                     }
                 }
@@ -616,7 +617,7 @@ export class TransmissionAdapter implements EngineAdapter {
     }
 
     private async handshakeOnce(
-        reason: string = "no-session-id"
+        reason: string = "no-session-id",
     ): Promise<TransmissionSessionSettings> {
         if (this.handshakePromise) {
             return this.handshakePromise;
@@ -651,7 +652,7 @@ export class TransmissionAdapter implements EngineAdapter {
             zTransmissionSessionSettings,
             0,
             false,
-            { bypassHandshake: true }
+            { bypassHandshake: true },
         );
         this.sessionSettingsCache = result;
         this.engineInfoCache = undefined;
@@ -694,7 +695,7 @@ export class TransmissionAdapter implements EngineAdapter {
                     fields: SUMMARY_FIELDS,
                 },
             },
-            z.any()
+            z.any(),
         );
 
         return {
@@ -760,7 +761,7 @@ export class TransmissionAdapter implements EngineAdapter {
     public async fetchSessionSettings(): Promise<TransmissionSessionSettings> {
         const settings = await this.send(
             { method: "session-get" },
-            zTransmissionSessionSettings
+            zTransmissionSessionSettings,
         );
         return settings;
     }
@@ -804,11 +805,11 @@ export class TransmissionAdapter implements EngineAdapter {
     }
 
     public async updateSessionSettings(
-        settings: Partial<TransmissionSessionSettings>
+        settings: Partial<TransmissionSessionSettings>,
     ): Promise<void> {
         await this.send(
             { method: "session-set", arguments: settings },
-            zRpcSuccess
+            zRpcSuccess,
         );
         this.sessionSettingsCache = {
             ...(this.sessionSettingsCache ?? {}),
@@ -819,7 +820,7 @@ export class TransmissionAdapter implements EngineAdapter {
     public async testPort(): Promise<boolean> {
         const result = await this.send(
             { method: "session-test" },
-            z.object({ portIsOpen: z.boolean().optional() })
+            z.object({ portIsOpen: z.boolean().optional() }),
         );
         return Boolean(result.portIsOpen);
     }
@@ -828,7 +829,7 @@ export class TransmissionAdapter implements EngineAdapter {
         try {
             const stats = await this.send(
                 { method: "session-stats" },
-                zSessionStats
+                zSessionStats,
             );
             return stats;
         } catch (error) {
@@ -836,7 +837,7 @@ export class TransmissionAdapter implements EngineAdapter {
             // disconnecting the UI on malformed or partial RPC responses.
             console.warn(
                 "[tiny-torrent][rpc] failed to parse session-stats, returning zeroed stats",
-                error
+                error,
             );
             const zeroTotals = {
                 uploadedBytes: 0,
@@ -872,7 +873,7 @@ export class TransmissionAdapter implements EngineAdapter {
     }
 
     public subscribeToHeartbeat(
-        params: HeartbeatSubscriberParams
+        params: HeartbeatSubscriberParams,
     ): HeartbeatSubscription {
         return this.heartbeat.subscribe(params);
     }
@@ -882,7 +883,7 @@ export class TransmissionAdapter implements EngineAdapter {
      * This delegates to the internal HeartbeatManager which maintains fixed-length buffers.
      */
     public async getSpeedHistory(
-        id: string
+        id: string,
     ): Promise<{ down: number[]; up: number[] }> {
         try {
             // HeartbeatManager provides a synchronous getter that returns copies of buffers.
@@ -916,7 +917,7 @@ export class TransmissionAdapter implements EngineAdapter {
     public async checkFreeSpace(path: string): Promise<TransmissionFreeSpace> {
         const fs = await this.send(
             { method: "free-space", arguments: { path } },
-            zTransmissionFreeSpace
+            zTransmissionFreeSpace,
         );
         return fs;
     }
@@ -929,13 +930,13 @@ export class TransmissionAdapter implements EngineAdapter {
                     fields: SUMMARY_FIELDS,
                 },
             },
-            zTransmissionTorrentArray
+            zTransmissionTorrentArray,
         );
         return list as TransmissionTorrent[];
     }
 
     private async fetchTransmissionTorrentSummaryByIdentifier(
-        identifier: string | number
+        identifier: string | number,
     ): Promise<TransmissionTorrent> {
         const list = await this.send(
             {
@@ -945,7 +946,7 @@ export class TransmissionAdapter implements EngineAdapter {
                     ids: [identifier],
                 },
             },
-            zTransmissionTorrentArray
+            zTransmissionTorrentArray,
         );
         const [torrent] = list as TransmissionTorrent[];
         if (!torrent) {
@@ -955,7 +956,7 @@ export class TransmissionAdapter implements EngineAdapter {
     }
 
     private async fetchTransmissionTorrentDetails(
-        id: number
+        id: number,
     ): Promise<TransmissionTorrentDetail> {
         const detail = await this.send(
             {
@@ -965,7 +966,7 @@ export class TransmissionAdapter implements EngineAdapter {
                     ids: [id],
                 },
             },
-            zTransmissionTorrentDetailSingle
+            zTransmissionTorrentDetailSingle,
         );
         if (!detail) {
             throw new Error(`Torrent ${id} not found`);
@@ -991,7 +992,7 @@ export class TransmissionAdapter implements EngineAdapter {
      * subscribe to details simultaneously.
      */
     public async getTorrentDetailsBulk(
-        ids: string[]
+        ids: string[],
     ): Promise<TorrentDetailEntity[]> {
         const rpcIds = await this.resolveIds(ids);
         if (rpcIds.length === 0) return [];
@@ -1004,7 +1005,7 @@ export class TransmissionAdapter implements EngineAdapter {
                     ids: rpcIds,
                 },
             },
-            zTransmissionTorrentArray
+            zTransmissionTorrentArray,
         );
 
         const results: TorrentDetailEntity[] = [];
@@ -1021,7 +1022,7 @@ export class TransmissionAdapter implements EngineAdapter {
     }
 
     public async addTorrent(
-        payload: AddTorrentPayload
+        payload: AddTorrentPayload,
     ): Promise<AddTorrentResult> {
         const args: Record<string, unknown> = {
             paused: payload.paused,
@@ -1054,7 +1055,7 @@ export class TransmissionAdapter implements EngineAdapter {
 
         const response = await this.send(
             { method: "torrent-add", arguments: args },
-            zTransmissionAddTorrentResponse
+            zTransmissionAddTorrentResponse,
         );
         const addedTorrent = response["torrent-added"];
         const duplicateTorrent = response["torrent-duplicate"];
@@ -1067,7 +1068,7 @@ export class TransmissionAdapter implements EngineAdapter {
         const rpcId = torrentEntry.id;
         if (typeof rpcId !== "number" || !Number.isFinite(rpcId)) {
             throw new Error(
-                "Torrent add did not return a numeric RPC identifier"
+                "Torrent add did not return a numeric RPC identifier",
             );
         }
 
@@ -1138,7 +1139,7 @@ export class TransmissionAdapter implements EngineAdapter {
      */
     public async removeTorrents(
         idsOrId: string | string[],
-        deleteData: boolean = false
+        deleteData: boolean = false,
     ): Promise<void> {
         const ids = Array.isArray(idsOrId) ? idsOrId : [idsOrId];
         await this.mutate("torrent-remove", {
@@ -1150,7 +1151,7 @@ export class TransmissionAdapter implements EngineAdapter {
     public async updateFileSelection(
         id: string,
         indexes: number[],
-        wanted: boolean
+        wanted: boolean,
     ): Promise<void> {
         if (!indexes.length) return;
         const key = wanted ? "files-wanted" : "files-unwanted";
@@ -1170,7 +1171,7 @@ export class TransmissionAdapter implements EngineAdapter {
                     ids: [rpcId],
                 },
             },
-            zRpcSuccess
+            zRpcSuccess,
         );
     }
 
@@ -1190,7 +1191,7 @@ export class TransmissionAdapter implements EngineAdapter {
     public async renameTorrentPath(
         id: number,
         path: string,
-        name: string
+        name: string,
     ): Promise<TransmissionTorrentRenameResult> {
         const result = await this.send(
             {
@@ -1201,7 +1202,7 @@ export class TransmissionAdapter implements EngineAdapter {
                     name,
                 },
             },
-            zTransmissionTorrentRenameResult
+            zTransmissionTorrentRenameResult,
         );
         return result;
     }
@@ -1209,24 +1210,24 @@ export class TransmissionAdapter implements EngineAdapter {
     public async setTorrentLocation(
         ids: number | number[],
         location: string,
-        moveData?: boolean
+        moveData?: boolean,
     ): Promise<void>;
     public async setTorrentLocation(
         id: string,
         location: string,
-        moveData?: boolean
+        moveData?: boolean,
     ): Promise<void>;
     public async setTorrentLocation(
         idsOrId: number | number[] | string,
         location: string,
-        moveData = true
+        moveData = true,
     ): Promise<void> {
         const ids =
             typeof idsOrId === "string"
                 ? [await this.resolveRpcId(idsOrId)]
                 : Array.isArray(idsOrId)
-                ? idsOrId
-                : [idsOrId];
+                  ? idsOrId
+                  : [idsOrId];
         await this.mutate("torrent-set-location", {
             ids,
             location,
@@ -1235,7 +1236,7 @@ export class TransmissionAdapter implements EngineAdapter {
     }
 
     public async setBandwidthGroup(
-        options: TransmissionBandwidthGroupOptions
+        options: TransmissionBandwidthGroupOptions,
     ): Promise<void> {
         const args: Record<string, unknown> = { name: options.name };
         if (options.honorsSessionLimits !== undefined) {
@@ -1277,7 +1278,7 @@ export class TransmissionAdapter implements EngineAdapter {
                 // Deterministic telemetry resolution (guarantee downloadDirFreeSpace or null)
                 const settings = await this.send(
                     { method: "session-get" },
-                    zTransmissionSessionSettings
+                    zTransmissionSessionSettings,
                 );
                 const asAny = settings as Record<string, unknown>;
 
@@ -1307,8 +1308,8 @@ export class TransmissionAdapter implements EngineAdapter {
                         typeof asAny["download-dir-free-space"] === "number"
                             ? (asAny["download-dir-free-space"] as number)
                             : typeof asAny["downloadDirFreeSpace"] === "number"
-                            ? (asAny["downloadDirFreeSpace"] as number)
-                            : undefined,
+                              ? (asAny["downloadDirFreeSpace"] as number)
+                              : undefined,
                     downloadQueueEnabled:
                         typeof asAny["download-queue-enabled"] === "boolean"
                             ? (asAny["download-queue-enabled"] as boolean)
@@ -1333,8 +1334,8 @@ export class TransmissionAdapter implements EngineAdapter {
                     typeof asAny["download-dir"] === "string"
                         ? (asAny["download-dir"] as string)
                         : typeof asAny["downloadDir"] === "string"
-                        ? (asAny["downloadDir"] as string)
-                        : undefined;
+                          ? (asAny["downloadDir"] as string)
+                          : undefined;
 
                 if (!downloadDir) {
                     // Deterministic failure: telemetry unavailable for this engine.
@@ -1350,7 +1351,7 @@ export class TransmissionAdapter implements EngineAdapter {
                 telemetry.downloadDirFreeSpace = fs.sizeBytes;
                 console.debug(
                     "[telemetry] Normalized NetworkTelemetry (from free-space):",
-                    telemetry
+                    telemetry,
                 );
                 return telemetry;
             } catch (err) {
@@ -1358,7 +1359,7 @@ export class TransmissionAdapter implements EngineAdapter {
                 // can treat telemetry as optional and avoid thundering-herd errors.
                 console.debug(
                     "[telemetry] fetchNetworkTelemetry failed, returning null",
-                    err
+                    err,
                 );
                 return null;
             }
@@ -1393,7 +1394,7 @@ export class TransmissionAdapter implements EngineAdapter {
 }
 
 function mapTransmissionSessionStatsToSessionStats(
-    stats: TransmissionSessionStats
+    stats: TransmissionSessionStats,
 ): SessionStats {
     return {
         downloadSpeed: stats.downloadSpeed,

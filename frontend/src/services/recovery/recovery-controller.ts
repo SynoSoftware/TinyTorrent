@@ -135,7 +135,7 @@ export function resetVerifyGuard() {
 
 export function shouldSkipVerify(
     fingerprint?: string | null,
-    left?: number | null
+    left?: number | null,
 ) {
     if (!fingerprint || left === null) return false;
     const entry = VERIFY_GUARD.get(fingerprint);
@@ -144,7 +144,7 @@ export function shouldSkipVerify(
 
 export function recordVerifyAttempt(
     fingerprint: string | null,
-    left: number | null
+    left: number | null,
 ) {
     if (!fingerprint) return;
     VERIFY_GUARD.set(fingerprint, left);
@@ -157,7 +157,7 @@ export function clearVerifyGuardEntry(fingerprint?: string | null) {
 
 function deriveFingerprint(
     torrent: TorrentEntity | TorrentDetailEntity,
-    envelope: ErrorEnvelope
+    envelope: ErrorEnvelope,
 ) {
     return (
         envelope.fingerprint ??
@@ -174,7 +174,9 @@ const VERIFY_WATCH_TIMEOUT_MS = 30000;
 const FREE_SPACE_UNSUPPORTED_MESSAGE = "free_space_check_not_supported";
 const IN_FLIGHT_RECOVERY = new Map<string, Promise<RecoverySequenceResult>>();
 
-function getExpectedBytes(torrent: TorrentEntity | TorrentDetailEntity): number {
+function getExpectedBytes(
+    torrent: TorrentEntity | TorrentDetailEntity,
+): number {
     if (typeof torrent.totalSize === "number") {
         return torrent.totalSize;
     }
@@ -192,7 +194,7 @@ interface ClassificationOptions {
 export function classifyMissingFilesState(
     envelope: ErrorEnvelope | null | undefined,
     downloadDir: string | undefined,
-    opts: ClassificationOptions
+    opts: ClassificationOptions,
 ): MissingFilesClassification {
     const override = opts.torrentId
         ? getClassificationOverride(opts.torrentId)
@@ -202,7 +204,9 @@ export function classifyMissingFilesState(
         override?.confidence ?? envelope?.recoveryConfidence;
     const kind =
         overrideKind ??
-        (envelope ? deriveMissingFilesStateKind(envelope, downloadDir) : "dataGap");
+        (envelope
+            ? deriveMissingFilesStateKind(envelope, downloadDir)
+            : "dataGap");
     const root = resolveRootFromPath(downloadDir);
     const executionModel = opts.engineCapabilities.executionModel;
     const confidence =
@@ -220,7 +224,7 @@ export function classifyMissingFilesState(
 function determineConfidence(
     kind: MissingFilesStateKind,
     envelope: ErrorEnvelope | null | undefined,
-    executionModel: EngineExecutionModel
+    executionModel: EngineExecutionModel,
 ): ConfidenceLevel {
     if (executionModel === "local") {
         return "certain";
@@ -228,7 +232,11 @@ function determineConfidence(
     if (envelope?.errorClass === "missingFiles") {
         return "likely";
     }
-    if (kind === "pathLoss" || kind === "volumeLoss" || kind === "accessDenied") {
+    if (
+        kind === "pathLoss" ||
+        kind === "volumeLoss" ||
+        kind === "accessDenied"
+    ) {
         return "likely";
     }
     return "unknown";
@@ -264,7 +272,7 @@ const RECOVERY_RECOMMENDED_ACTIONS: Record<
 };
 
 export function deriveRecommendedActions(
-    kind: MissingFilesStateKind
+    kind: MissingFilesStateKind,
 ): readonly RecoveryRecommendedAction[] {
     return RECOVERY_RECOMMENDED_ACTIONS[kind] ?? ["locate"];
 }
@@ -281,9 +289,9 @@ function appendTrailingSlashForForce(path: string): string {
 }
 
 export async function runMissingFilesRecoverySequence(
-    params: RecoverySequenceParams
+    params: RecoverySequenceParams,
 ): Promise<RecoverySequenceResult> {
-    const { client, torrent, envelope, options } = params;
+    const { client, torrent, envelope, options, engineCapabilities } = params;
     let classification = params.classification;
     if (!envelope || !RECOVERY_ERROR_CLASSES.has(envelope.errorClass ?? "")) {
         return { status: "noop", classification };
@@ -307,7 +315,7 @@ export async function runMissingFilesRecoverySequence(
         (resolve, reject) => {
             deferredHandlers.resolve = resolve;
             deferredHandlers.reject = reject;
-        }
+        },
     );
 
     IN_FLIGHT_RECOVERY.set(fingerprint, deferredPromise);
@@ -319,12 +327,11 @@ export async function runMissingFilesRecoverySequence(
                 torrent.savePath ??
                 torrent.downloadDir ??
                 "";
-            const compareCurrent =
-                normalizePathForComparison(
-                    (torrent as TorrentDetailEntity).downloadDir ??
-                        torrent.savePath ??
-                        torrent.downloadDir
-                );
+            const compareCurrent = normalizePathForComparison(
+                (torrent as TorrentDetailEntity).downloadDir ??
+                    torrent.savePath ??
+                    torrent.downloadDir,
+            );
             const compareRequested = normalizePathForComparison(downloadDir);
             const requestLocation =
                 compareCurrent && compareCurrent === compareRequested
@@ -369,7 +376,7 @@ export async function runMissingFilesRecoverySequence(
                 const probe = await pollPathAvailability(
                     client,
                     downloadDir,
-                    options?.signal
+                    options?.signal,
                 );
                 if (!probe.success) {
                     const reason = deriveReasonFromFsError(probe.errorKind);
@@ -383,8 +390,8 @@ export async function runMissingFilesRecoverySequence(
                                 probe.errorKind === "enospc"
                                     ? "disk_full"
                                     : probe.errorKind === "eacces"
-                                    ? "path_access_denied"
-                                    : "path_check_failed",
+                                      ? "path_access_denied"
+                                      : "path_check_failed",
                         },
                     });
                     return;
@@ -439,11 +446,11 @@ export async function runMissingFilesRecoverySequence(
                     await client.setTorrentLocation(
                         torrent.id,
                         requestLocation,
-                        false
+                        false,
                     );
                 } catch (err) {
                     const reason = deriveReasonFromFsError(
-                        interpretFsError(err)
+                        interpretFsError(err),
                     );
                     deferredHandlers.resolve({
                         status: "needsModal",
@@ -465,7 +472,7 @@ export async function runMissingFilesRecoverySequence(
                     envelope,
                     classification,
                 },
-                options
+                options,
             );
             deferredHandlers.resolve(minimal);
         } catch (err) {
@@ -489,6 +496,7 @@ async function ensurePathReady({
     client,
     path,
     options,
+    engineCapabilities,
 }: EnsurePathParams): Promise<{
     ready: boolean;
     blockingOutcome?: RecoveryOutcome;
@@ -527,11 +535,11 @@ async function ensurePathReady({
             const shouldCreateFolder =
                 Boolean(options?.recreateFolder) ||
                 Boolean(options?.autoCreateMissingFolder);
-        if (shouldCreateFolder) {
-            if (
-                engineCapabilities.canCreateDirectory &&
-                client.createDirectory
-            ) {
+            if (shouldCreateFolder) {
+                if (
+                    engineCapabilities.canCreateDirectory &&
+                    client.createDirectory
+                ) {
                     // TODO: Remove `client.createDirectory` call. This is a host concern and must be implemented by the ShellAgent adapter, not the daemon RPC adapter.
                     try {
                         await client.createDirectory(path);
@@ -614,7 +622,7 @@ type PathProbeResult =
 export async function pollPathAvailability(
     client: EngineAdapter,
     path: string,
-    signal?: AbortSignal
+    signal?: AbortSignal,
 ): Promise<PathProbeResult> {
     if (!client.checkFreeSpace) {
         return { success: false, errorKind: "other" as FsErrorKind };
@@ -648,8 +656,7 @@ function isCheckingState(state?: string) {
 
 function isTerminalErrorState(state?: string) {
     return (
-        state === STATUS.torrent.ERROR ||
-        state === STATUS.torrent.MISSING_FILES
+        state === STATUS.torrent.ERROR || state === STATUS.torrent.MISSING_FILES
     );
 }
 
@@ -663,7 +670,7 @@ interface VerifyWatchResult {
 async function watchVerifyCompletion(
     client: EngineAdapter,
     torrentId: string,
-    signal?: AbortSignal
+    signal?: AbortSignal,
 ): Promise<VerifyWatchResult> {
     if (!client.getTorrentDetails) {
         return { success: true, leftUntilDone: null };
@@ -716,7 +723,7 @@ async function runMinimalSequence(
         envelope: ErrorEnvelope;
         classification: MissingFilesClassification;
     },
-    options?: RecoverySequenceOptions
+    options?: RecoverySequenceOptions,
 ): Promise<RecoverySequenceResult> {
     const { client, torrent, envelope } = params;
     let { classification } = params;
@@ -729,8 +736,7 @@ async function runMinimalSequence(
     let leftAfterVerify: number | null = left;
     const skipVerifyForEmpty = Boolean(options?.skipVerifyIfEmpty);
     const shouldVerify = determineShouldVerify(torrent) && !skipVerifyForEmpty;
-    const skipVerify =
-        shouldVerify && shouldSkipVerify(fingerprint, left);
+    const skipVerify = shouldVerify && shouldSkipVerify(fingerprint, left);
     const signal = options?.signal;
 
     if (shouldVerify) {
@@ -765,7 +771,7 @@ async function runMinimalSequence(
                 const watchResult = await watchVerifyCompletion(
                     client,
                     torrent.id,
-                    signal
+                    signal,
                 );
                 if (!watchResult.success) {
                     if (watchResult.aborted) {
@@ -858,7 +864,7 @@ async function runMinimalSequence(
 }
 
 function determineShouldVerify(
-    torrent: TorrentEntity | TorrentDetailEntity
+    torrent: TorrentEntity | TorrentDetailEntity,
 ): boolean {
     if (isCheckingState(torrent.state)) {
         return false;
@@ -874,8 +880,8 @@ function determineShouldVerify(
         typeof torrent.sizeWhenDone === "number"
             ? torrent.sizeWhenDone
             : typeof torrent.totalSize === "number"
-            ? torrent.totalSize
-            : null;
+              ? torrent.totalSize
+              : null;
     if (
         left !== null &&
         expected !== null &&
@@ -907,7 +913,7 @@ function delay(ms: number) {
 export async function probeMissingFiles(
     torrent: TorrentEntity | TorrentDetailEntity,
     client: EngineAdapter,
-    engineCapabilities: EngineCapabilities
+    engineCapabilities: EngineCapabilities,
 ): Promise<MissingFilesProbeResult> {
     const ts = Date.now();
     const expectedBytes = getExpectedBytes(torrent);
@@ -948,7 +954,11 @@ export async function probeMissingFiles(
 
         // Path probing for missing folder
         let pathExists: boolean | null = null;
-        if (engineCapabilities.canCheckFreeSpace && client.checkFreeSpace && path) {
+        if (
+            engineCapabilities.canCheckFreeSpace &&
+            client.checkFreeSpace &&
+            path
+        ) {
             try {
                 await client.checkFreeSpace(path);
                 pathExists = true;
@@ -1022,17 +1032,18 @@ export async function probeMissingFiles(
         {
             torrentId: torrent.id ?? torrent.hash,
             engineCapabilities,
-        }
+        },
     );
-    const kindMap: Record<MissingFilesStateKind, MissingFilesProbeResult["kind"]> =
-        {
-            dataGap: "unknown",
-            pathLoss: "path_missing",
-            volumeLoss: "path_missing",
-            accessDenied: "data_missing",
-        };
-    const kind =
-        kindMap[classification.kind] ?? "unknown";
+    const kindMap: Record<
+        MissingFilesStateKind,
+        MissingFilesProbeResult["kind"]
+    > = {
+        dataGap: "unknown",
+        pathLoss: "path_missing",
+        volumeLoss: "path_missing",
+        accessDenied: "data_missing",
+    };
+    const kind = kindMap[classification.kind] ?? "unknown";
     if (kind === "path_missing") {
         return {
             kind: "path_missing",
@@ -1067,7 +1078,7 @@ export async function probeMissingFiles(
 }
 
 export async function runPartialFilesRecovery(
-    deps: RecoveryControllerDeps
+    deps: RecoveryControllerDeps,
 ): Promise<RecoveryOutcome> {
     const { client, detail } = deps;
     if (!client.verify) {
@@ -1085,7 +1096,7 @@ export async function runPartialFilesRecovery(
 }
 
 export async function runReannounce(
-    deps: RecoveryControllerDeps
+    deps: RecoveryControllerDeps,
 ): Promise<RecoveryOutcome> {
     const { client, detail } = deps;
     if (!client.forceTrackerReannounce)

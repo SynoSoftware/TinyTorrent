@@ -1,10 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { MutableRefObject } from "react";
 
-import type {
-    ReportCommandErrorFn,
-    ConnectionStatus,
-} from "@/shared/types/rpc";
 import { STATUS } from "@/shared/status";
 import type { TransmissionSessionSettings } from "@/services/rpc/types";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
@@ -14,6 +10,7 @@ import {
     type SettingsConfig,
 } from "@/modules/settings/data/config";
 import { usePreferences } from "@/app/context/PreferencesContext";
+import { useSession } from "@/app/context/SessionContext";
 
 const padTime = (value: number) => String(value).padStart(2, "0");
 const minutesToTimeString = (time: number | undefined, fallback: string) => {
@@ -36,7 +33,7 @@ const applyPreferencesToConfig = (
         refreshIntervalMs: number;
         requestTimeoutMs: number;
         tableWatermarkEnabled: boolean;
-    }
+    },
 ): SettingsConfig => ({
     ...config,
     refresh_interval_ms: preferences.refreshIntervalMs,
@@ -52,7 +49,7 @@ type PreferencePayload = Partial<
 >;
 
 const mapSessionToConfig = (
-    session: TransmissionSessionSettings
+    session: TransmissionSessionSettings,
 ): SettingsConfig => ({
     ...DEFAULT_SETTINGS_CONFIG,
     peer_port: session["peer-port"] ?? DEFAULT_SETTINGS_CONFIG.peer_port,
@@ -82,11 +79,11 @@ const mapSessionToConfig = (
         DEFAULT_SETTINGS_CONFIG.alt_speed_time_enabled,
     alt_speed_begin: minutesToTimeString(
         session["alt-speed-time-begin"],
-        DEFAULT_SETTINGS_CONFIG.alt_speed_begin
+        DEFAULT_SETTINGS_CONFIG.alt_speed_begin,
     ),
     alt_speed_end: minutesToTimeString(
         session["alt-speed-time-end"],
-        DEFAULT_SETTINGS_CONFIG.alt_speed_end
+        DEFAULT_SETTINGS_CONFIG.alt_speed_end,
     ),
     alt_speed_time_day:
         session["alt-speed-time-day"] ??
@@ -140,7 +137,7 @@ const mapSessionToConfig = (
 
 const mapConfigToSession = (
     config: SettingsConfig,
-    sessionSettings?: TransmissionSessionSettings | null
+    sessionSettings?: TransmissionSessionSettings | null,
 ): Partial<TransmissionSessionSettings> => {
     const settings: Partial<TransmissionSessionSettings> = {
         "peer-port": config.peer_port,
@@ -207,12 +204,8 @@ interface UseSettingsFlowParams {
     torrentClient: EngineAdapter;
     refreshTorrentsRef: MutableRefObject<() => Promise<void>>;
     refreshSessionStatsDataRef: MutableRefObject<() => Promise<void>>;
-    refreshSessionSettings: () => Promise<TransmissionSessionSettings>;
-    reportCommandError: ReportCommandErrorFn;
-    rpcStatus: ConnectionStatus;
     isSettingsOpen: boolean;
     isMountedRef: MutableRefObject<boolean>;
-    updateRequestTimeout: (timeoutMs: number) => void;
 }
 
 export type UseSettingsFlowResult = ReturnType<typeof useSettingsFlow>;
@@ -221,21 +214,27 @@ export function useSettingsFlow({
     torrentClient,
     refreshTorrentsRef,
     refreshSessionStatsDataRef,
-    refreshSessionSettings,
-    reportCommandError,
-    rpcStatus,
     isSettingsOpen,
     isMountedRef,
-    updateRequestTimeout,
 }: UseSettingsFlowParams) {
+    const {
+        reportCommandError,
+        rpcStatus,
+        refreshSessionSettings,
+        updateRequestTimeout,
+    } = useSession();
     const { preferences, updatePreferences } = usePreferences();
-    const [settingsConfigBase, setSettingsConfig] = useState<SettingsConfig>(() =>
-        applyPreferencesToConfig({ ...DEFAULT_SETTINGS_CONFIG }, preferences)
+    const [settingsConfigBase, setSettingsConfig] = useState<SettingsConfig>(
+        () =>
+            applyPreferencesToConfig(
+                { ...DEFAULT_SETTINGS_CONFIG },
+                preferences,
+            ),
     );
 
     const settingsConfig = useMemo(
         () => applyPreferencesToConfig(settingsConfigBase, preferences),
-        [settingsConfigBase, preferences]
+        [settingsConfigBase, preferences],
     );
     const [sessionSettings, setSessionSettings] =
         useState<TransmissionSessionSettings | null>(null);
@@ -261,8 +260,8 @@ export function useSettingsFlow({
                     setSettingsConfig(
                         applyPreferencesToConfig(
                             mapSessionToConfig(session),
-                            preferences
-                        )
+                            preferences,
+                        ),
                     );
                 }
             } catch {
@@ -285,7 +284,7 @@ export function useSettingsFlow({
             try {
                 if (!torrentClient.updateSessionSettings) {
                     throw new Error(
-                        "Session settings not supported by this client"
+                        "Session settings not supported by this client",
                     );
                 }
                 sessionPayload = mapConfigToSession(config, sessionSettings);
@@ -328,7 +327,7 @@ export function useSettingsFlow({
             torrentClient,
             isMountedRef,
             sessionSettings,
-        ]
+        ],
     );
 
     const handleTestPort = useCallback(async () => {
@@ -367,7 +366,7 @@ export function useSettingsFlow({
             preferences.requestTimeoutMs,
             preferences.tableWatermarkEnabled,
             updatePreferences,
-        ]
+        ],
     );
 
     return {

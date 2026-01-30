@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
+import { useTranslation } from "react-i18next";
+import { useActionFeedback } from "@/app/hooks/useActionFeedback";
 import { useAddModalState } from "@/app/hooks/useAddModalState";
 import { useAddTorrentDefaults } from "@/app/hooks/useAddTorrentDefaults";
 import { normalizeMagnetLink } from "@/app/utils/magnet";
@@ -11,13 +13,11 @@ import type {
 } from "@/modules/torrent-add/components/AddTorrentModal";
 import { readTorrentFileAsMetainfoBase64 } from "@/modules/torrent-add/services/torrent-metainfo";
 import { TorrentIntents } from "@/app/intents/torrentIntents";
-import type { FeedbackTone } from "@/shared/types/feedback";
+// feedback tone type no longer required here; controller reads feedback hook internally
 import type { TorrentIntentExtended } from "@/app/intents/torrentIntents";
 
 export interface UseAddTorrentControllerParams {
     dispatch: (intent: TorrentIntentExtended) => Promise<void>;
-    showFeedback: (message: string, tone: FeedbackTone) => void;
-    t: (key: string) => string;
     settingsConfig: SettingsConfig;
     setSettingsConfig: Dispatch<SetStateAction<SettingsConfig>>;
     torrents: Array<Torrent | TorrentDetail>;
@@ -32,7 +32,9 @@ export interface UseAddTorrentControllerResult {
     openAddMagnet: (magnetLink?: string) => void;
     handleMagnetModalClose: () => void;
     handleMagnetSubmit: (link: string) => Promise<void>;
-    handleTorrentWindowConfirm: (selection: AddTorrentSelection) => Promise<void>;
+    handleTorrentWindowConfirm: (
+        selection: AddTorrentSelection,
+    ) => Promise<void>;
     closeAddTorrentWindow: () => void;
     isResolvingMagnet: boolean;
     isFinalizingExisting: boolean;
@@ -44,13 +46,13 @@ export interface UseAddTorrentControllerResult {
 
 export function useAddTorrentController({
     dispatch,
-    showFeedback,
-    t,
     settingsConfig,
     setSettingsConfig,
     torrents,
     pendingDeletionHashesRef,
 }: UseAddTorrentControllerParams): UseAddTorrentControllerResult {
+    const { t } = useTranslation();
+    const { showFeedback } = useActionFeedback();
     const [addSource, setAddSource] = useState<AddTorrentSource | null>(null);
     const isResolvingMagnet = false;
     const [isMagnetModalOpen, setMagnetModalOpen] = useState(false);
@@ -88,9 +90,8 @@ export function useAddTorrentController({
         },
         onOpenAddTorrentFromFile: async (file) => {
             try {
-                const { parseTorrentFile } = await import(
-                    "@/shared/utils/torrent"
-                );
+                const { parseTorrentFile } =
+                    await import("@/shared/utils/torrent");
                 const metadata = await parseTorrentFile(file);
                 setAddSource({
                     kind: "file",
@@ -108,17 +109,14 @@ export function useAddTorrentController({
         addModalState.open();
     }, [addModalState]);
 
-    const openAddMagnet = useCallback(
-        (magnetLink?: string) => {
-            const normalized =
-                typeof magnetLink === "string"
-                    ? normalizeMagnetLink(magnetLink)
-                    : undefined;
-            setMagnetModalInitialValue(normalized ?? "");
-            setMagnetModalOpen(true);
-        },
-        []
-    );
+    const openAddMagnet = useCallback((magnetLink?: string) => {
+        const normalized =
+            typeof magnetLink === "string"
+                ? normalizeMagnetLink(magnetLink)
+                : undefined;
+        setMagnetModalInitialValue(normalized ?? "");
+        setMagnetModalOpen(true);
+    }, []);
 
     const handleMagnetModalClose = useCallback(() => {
         setMagnetModalOpen(false);
@@ -146,8 +144,8 @@ export function useAddTorrentController({
                     TorrentIntents.addMagnetTorrent(
                         normalized,
                         defaultDir,
-                        !startNow
-                    )
+                        !startNow,
+                    ),
                 );
             } catch (err) {
                 console.error("Failed to add magnet", err);
@@ -160,7 +158,7 @@ export function useAddTorrentController({
             t,
             settingsConfig,
             pendingDeletionHashesRef,
-        ]
+        ],
     );
 
     const closeAddTorrentWindow = useCallback(() => {
@@ -179,7 +177,7 @@ export function useAddTorrentController({
 
             if (addSource.kind === "file") {
                 const metainfo = await readTorrentFileAsMetainfoBase64(
-                    addSource.file
+                    addSource.file,
                 );
                 if (!metainfo.ok) {
                     closeAddTorrentWindow();
@@ -194,8 +192,8 @@ export function useAddTorrentController({
                             selection.filesUnwanted,
                             selection.priorityHigh,
                             selection.priorityNormal,
-                            selection.priorityLow
-                        )
+                            selection.priorityLow,
+                        ),
                     );
                 } finally {
                     closeAddTorrentWindow();
@@ -215,20 +213,15 @@ export function useAddTorrentController({
                         targetId,
                         downloadDir,
                         selection.filesUnwanted,
-                        startNow
-                    )
+                        startNow,
+                    ),
                 );
                 closeAddTorrentWindow();
             } finally {
                 setIsFinalizingExisting(false);
             }
         },
-        [
-            addSource,
-            closeAddTorrentWindow,
-            dispatch,
-            setAddTorrentDownloadDir,
-        ]
+        [addSource, closeAddTorrentWindow, dispatch, setAddTorrentDownloadDir],
     );
 
     useEffect(() => {
@@ -239,7 +232,7 @@ export function useAddTorrentController({
         const activeHashes = new Set(
             torrents
                 .map((torrent) => torrent.hash?.toLowerCase())
-                .filter((hash): hash is string => Boolean(hash))
+                .filter((hash): hash is string => Boolean(hash)),
         );
         pendingDeletionHashesRef.current.forEach((hash) => {
             if (!activeHashes.has(hash)) {
