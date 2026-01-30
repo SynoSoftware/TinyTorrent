@@ -3,18 +3,13 @@ import { useTranslation } from "react-i18next";
 import { STATUS } from "@/shared/status";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import type { MutableRefObject } from "react";
-import type {
-    CapabilityKey,
-    CapabilityState,
-    CapabilityStore,
-} from "@/app/types/capabilities";
-import { DEFAULT_CAPABILITY_STORE } from "@/app/types/capabilities";
+import { useEngineCapabilities } from "@/app/hooks/useEngineCapabilities";
 import type {
     DetailTab,
     PeerSortStrategy,
 } from "@/modules/dashboard/types/torrentDetail";
 import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
-import type { WorkspaceStyle } from "@/app/hooks/useWorkspaceShell";
+
 import type { CommandPaletteContext } from "@/app/components/CommandPalette";
 import {
     buildCommandPaletteActions,
@@ -162,10 +157,6 @@ export function useWorkspaceShellViewModel({
     }, [shellAgent]);
     const { isSettingsOpen, openSettings, closeSettings } =
         useWorkspaceModals();
-    const [capabilities, setCapabilities] = useState<CapabilityStore>(
-        DEFAULT_CAPABILITY_STORE,
-    );
-
     const isMountedRef = useRef(false);
 
     useEffect(() => {
@@ -183,57 +174,8 @@ export function useWorkspaceShellViewModel({
         };
     }, []);
 
-    const updateCapabilityState = useCallback(
-        (capability: CapabilityKey, state: CapabilityState) => {
-            setCapabilities((prev) => {
-                if (prev[capability] === state) return prev;
-                return { ...prev, [capability]: state };
-            });
-        },
-        [],
-    );
-
-    useEffect(() => {
-        if (!torrentClient.setSequentialDownload) {
-            // schedule state update to avoid synchronous setState within effect
-            setTimeout(
-                () =>
-                    updateCapabilityState("sequentialDownload", "unsupported"),
-                0,
-            );
-            return;
-        }
-        if (capabilities.sequentialDownload === "unsupported") {
-            setTimeout(
-                () => updateCapabilityState("sequentialDownload", "unknown"),
-                0,
-            );
-        }
-    }, [
-        torrentClient.setSequentialDownload,
-        capabilities.sequentialDownload,
-        updateCapabilityState,
-    ]);
-
-    useEffect(() => {
-        if (!torrentClient.setSuperSeeding) {
-            setTimeout(
-                () => updateCapabilityState("superSeeding", "unsupported"),
-                0,
-            );
-            return;
-        }
-        if (capabilities.superSeeding === "unsupported") {
-            setTimeout(
-                () => updateCapabilityState("superSeeding", "unknown"),
-                0,
-            );
-        }
-    }, [
-        torrentClient.setSuperSeeding,
-        capabilities.superSeeding,
-        updateCapabilityState,
-    ]);
+    const [capabilities, updateCapabilityState] =
+        useEngineCapabilities(torrentClient);
 
     const settingsFlow = useSettingsFlow({
         torrentClient,
