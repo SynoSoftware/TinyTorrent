@@ -231,7 +231,7 @@ export function useWorkspaceShellViewModel({
         clearDetail,
     });
 
-    const { addTorrent, recovery, canOpenFolder, uiMode } = orchestrator;
+    const { addTorrent, recovery } = orchestrator;
 
     const {
         addModalState,
@@ -795,10 +795,10 @@ export function useWorkspaceShellViewModel({
 
     const recoveryContextEnv = useMemo(
         () => ({
-            uiMode,
-            canOpenFolder,
+            uiMode: uiCapabilities.uiMode,
+            canOpenFolder: uiCapabilities.canOpenFolder,
         }),
-        [uiMode, canOpenFolder],
+        [uiCapabilities.uiMode, uiCapabilities.canOpenFolder],
     );
 
     const recoveryInlineEditorControls = useMemo(
