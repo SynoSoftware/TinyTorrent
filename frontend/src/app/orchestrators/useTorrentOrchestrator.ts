@@ -4,9 +4,7 @@ import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 // ServerClass type not needed in this orchestrator
 import type { SettingsConfig } from "@/modules/settings/data/config";
 import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
-import { useShellAgent } from "@/app/hooks/useShellAgent";
 import { useRequiredTorrentActions } from "@/app/context/TorrentActionsContext";
-import { useUiModeCapabilities } from "@/app/context/UiModeContext";
 import { useRecoveryController } from "@/modules/dashboard/hooks/useRecoveryController";
 import type { RecoveryControllerResult } from "@/modules/dashboard/hooks/useRecoveryController";
 import { useAddTorrentController } from "@/app/orchestrators/useAddTorrentController";
@@ -28,8 +26,6 @@ export interface UseTorrentOrchestratorParams {
 }
 
 export interface UseTorrentOrchestratorResult {
-    uiMode: "Full" | "Rpc";
-    canOpenFolder: boolean;
     addTorrent: UseAddTorrentControllerResult;
     recovery: RecoveryControllerResult;
 }
@@ -47,20 +43,6 @@ export function useTorrentOrchestrator({
 }: UseTorrentOrchestratorParams): UseTorrentOrchestratorResult {
     const { settingsConfig, setSettingsConfig } = settingsFlow;
     const { dispatch } = useRequiredTorrentActions();
-    const { uiMode } = useShellAgent();
-
-    const {
-        canBrowse,
-        canOpenFolder: canOpenFolderCapability,
-        supportsManual,
-    } = useUiModeCapabilities();
-    const localSetLocationCapability = useMemo(
-        () => ({
-            canBrowse,
-            supportsManual,
-        }),
-        [canBrowse, supportsManual],
-    );
     const pendingDeletionHashesRef = useRef<Set<string>>(new Set());
 
     const addTorrent = useAddTorrentController({
@@ -74,9 +56,6 @@ export function useTorrentOrchestrator({
     const recovery = useRecoveryController({
         services: {
             clientRef,
-        },
-        environment: {
-            setLocationCapability: localSetLocationCapability,
         },
         data: {
             torrents,

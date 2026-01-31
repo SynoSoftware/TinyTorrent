@@ -47,6 +47,7 @@ import { useRequiredTorrentActions } from "@/app/context/TorrentActionsContext";
 import { useSession } from "@/app/context/SessionContext";
 import { useActionFeedback } from "@/app/hooks/useActionFeedback";
 import { useTranslation } from "react-i18next";
+import { useUiModeCapabilities } from "@/app/context/UiModeContext";
 
 const PROBE_TTL_MS = 5000;
 const PROBE_RUN_INTERVAL_MS = 5000;
@@ -101,10 +102,6 @@ interface RecoveryControllerServices {
     clientRef: MutableRefObject<EngineAdapter | null>;
 }
 
-interface RecoveryControllerEnvironment {
-    setLocationCapability: SetLocationCapability;
-}
-
 interface RecoveryControllerData {
     torrents: Array<Torrent | TorrentDetail>;
     detailData: TorrentDetail | null;
@@ -120,7 +117,6 @@ interface RecoveryControllerRefreshDeps {
 
 interface UseRecoveryControllerParams {
     services: RecoveryControllerServices;
-    environment: RecoveryControllerEnvironment;
     data: RecoveryControllerData;
     refresh: RecoveryControllerRefreshDeps;
 }
@@ -182,12 +178,15 @@ export interface RecoveryControllerResult {
 
 export function useRecoveryController({
     services,
-    environment,
     data,
     refresh,
 }: UseRecoveryControllerParams): RecoveryControllerResult {
     const { clientRef } = services;
-    const { setLocationCapability } = environment;
+    const { canBrowse, supportsManual } = useUiModeCapabilities();
+    const setLocationCapability = useMemo(
+        () => ({ canBrowse, supportsManual }),
+        [canBrowse, supportsManual],
+    );
     const { engineCapabilities, reportCommandError } = useSession();
     const { showFeedback } = useActionFeedback();
     const { t } = useTranslation();
