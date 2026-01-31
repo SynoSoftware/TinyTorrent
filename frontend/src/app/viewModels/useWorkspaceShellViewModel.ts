@@ -173,8 +173,7 @@ export function useWorkspaceShellViewModel({
         };
     }, []);
 
-    const [capabilities, updateCapabilityState] =
-        useEngineCapabilities(torrentClient);
+    const capabilities = useEngineCapabilities(torrentClient);
 
     const settingsFlow = useSettingsFlow({
         torrentClient,
@@ -313,7 +312,7 @@ export function useWorkspaceShellViewModel({
     } = useDetailControls({
         detailData,
         mutateDetail,
-        updateCapabilityState,
+        capabilities,
     });
 
     const handleRequestDetails = useCallback(
