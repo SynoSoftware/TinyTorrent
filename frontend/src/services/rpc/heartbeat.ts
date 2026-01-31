@@ -148,9 +148,12 @@ export class HeartbeatManager {
                 changed.push(c.id);
                 continue;
             }
+            const prevVerification = prev.verificationProgress;
+            const currentVerification = c.verificationProgress;
             if (
                 prev.state !== c.state ||
                 prev.progress !== c.progress ||
+                prevVerification !== currentVerification ||
                 prev.speed?.down !== c.speed?.down ||
                 prev.speed?.up !== c.speed?.up ||
                 prev.leftUntilDone !== c.leftUntilDone ||
@@ -580,13 +583,20 @@ export class HeartbeatManager {
                 // Decide whether to use delta or force a full fetch.
                 const clientDelta = this
                     .client as HeartbeatClientWithTelemetry & {
-                    getRecentlyActive?: unknown;
-                };
+                        getRecentlyActive?: unknown;
+                    };
                 const supportsDelta =
                     Array.isArray(torrents) &&
                     torrents.length > 0 &&
                     typeof clientDelta.getRecentlyActive === "function";
-                const forceFull = this.cycleCount >= this.MAX_DELTA_CYCLES;
+                const hasChecking = Array.isArray(torrents)
+                    ? torrents.some(
+                          (torrent) =>
+                              torrent.state === STATUS.torrent.CHECKING,
+                      )
+                    : false;
+                const forceFull =
+                    hasChecking || this.cycleCount >= this.MAX_DELTA_CYCLES;
 
                 // --- 1. Fetch Global Stats ---
                 const sessionStatsCall = this.client.getSessionStats();

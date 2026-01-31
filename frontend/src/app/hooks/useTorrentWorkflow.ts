@@ -28,6 +28,7 @@ interface UseTorrentWorkflowParams {
         action: TorrentTableAction,
         targets: Torrent[],
     ) => Promise<void>;
+    onRecheckComplete?: () => Promise<void>;
     onPrepareDelete?: (torrent: Torrent, deleteData: boolean) => void;
     announceAction?: (
         action: FeedbackAction,
@@ -49,6 +50,7 @@ export function useTorrentWorkflow({
     executeTorrentAction,
     executeBulkRemove,
     executeSelectionAction,
+    onRecheckComplete,
     onPrepareDelete,
     announceAction: injectedAnnounce,
 }: UseTorrentWorkflowParams) {
@@ -203,16 +205,6 @@ export function useTorrentWorkflow({
                 }
             }
 
-            if (
-                succeeded &&
-                action === "recheck" &&
-                optimisticTargets.length
-            ) {
-                updateOptimisticStatuses(
-                    optimisticTargets.map(({ id }) => ({ id })),
-                );
-            }
-
             return succeeded;
         },
         [
@@ -238,11 +230,24 @@ export function useTorrentWorkflow({
                 announceAction(actionKey, "start", 1, actionId);
             }
             const success = await runActionsWithOptimism(action, [torrent]);
-            if (hasFeedback && success) {
+
+            if (
+                success &&
+                action === "recheck" &&
+                typeof onRecheckComplete === "function"
+            ) {
+                try {
+                    await onRecheckComplete();
+                } catch {
+                    // swallow
+                }
+            }
+
+            if (hasFeedback && success && action !== "recheck") {
                 announceAction(actionKey, "done", 1, actionId);
             }
         },
-        [announceAction, requestDelete, runActionsWithOptimism],
+        [announceAction, requestDelete, runActionsWithOptimism, onRecheckComplete],
     );
 
     const handleBulkAction = useCallback(
@@ -260,7 +265,20 @@ export function useTorrentWorkflow({
                 announceAction(actionKey, "start", targets.length, actionId);
             }
             const success = await runActionsWithOptimism(action, targets);
-            if (hasFeedback && success) {
+
+            if (
+                success &&
+                action === "recheck" &&
+                typeof onRecheckComplete === "function"
+            ) {
+                try {
+                    await onRecheckComplete();
+                } catch {
+                    // swallow
+                }
+            }
+
+            if (hasFeedback && success && action !== "recheck") {
                 announceAction(actionKey, "done", targets.length, actionId);
             }
         },
@@ -268,6 +286,7 @@ export function useTorrentWorkflow({
             announceAction,
             requestDelete,
             runActionsWithOptimism,
+            onRecheckComplete,
             selectedTorrents,
         ],
     );

@@ -392,6 +392,13 @@ export function useWorkspaceShellViewModel({
         return dispatch(TorrentIntents.ensureSelectionRemoved(ids, deleteData));
     };
 
+    const refreshAfterRecheck = useCallback(async () => {
+        const refresh = refreshTorrentsRef.current;
+        if (refresh) {
+            await refresh();
+        }
+    }, [refreshTorrentsRef]);
+
     const {
         optimisticStatuses,
         pendingDelete,
@@ -405,6 +412,7 @@ export function useWorkspaceShellViewModel({
         executeTorrentAction: executeTorrentActionViaDispatch,
         executeBulkRemove: executeBulkRemoveViaDispatch,
         onPrepareDelete: handlePrepareDelete,
+        onRecheckComplete: refreshAfterRecheck,
         executeSelectionAction: async (action, targets) => {
             const ids = targets
                 .map((torrent) => torrent.id ?? torrent.hash)
