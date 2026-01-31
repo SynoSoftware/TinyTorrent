@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 // ServerClass type not needed in this orchestrator
@@ -70,8 +70,6 @@ export function useTorrentOrchestrator({
         },
     });
 
-    const canOpenFolder = canOpenFolderCapability;
-
     const findTorrentById = useCallback(
         (idOrHash?: string | null) => {
             if (!idOrHash) return null;
@@ -125,8 +123,6 @@ export function useTorrentOrchestrator({
     }, [client]);
 
     return {
-        uiMode,
-        canOpenFolder,
         addTorrent,
         recovery,
     };
