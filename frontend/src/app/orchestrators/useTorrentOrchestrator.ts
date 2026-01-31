@@ -47,7 +47,7 @@ export function useTorrentOrchestrator({
 }: UseTorrentOrchestratorParams): UseTorrentOrchestratorResult {
     const { settingsConfig, setSettingsConfig } = settingsFlow;
     const { dispatch } = useRequiredTorrentActions();
-    const { shellAgent, uiMode } = useShellAgent();
+    const { uiMode } = useShellAgent();
 
     const {
         canBrowse,
@@ -74,8 +74,6 @@ export function useTorrentOrchestrator({
     const recovery = useRecoveryController({
         services: {
             clientRef,
-            dispatch,
-            shellAgent,
         },
         environment: {
             setLocationCapability: localSetLocationCapability,
@@ -109,13 +107,16 @@ export function useTorrentOrchestrator({
         [detailData],
     );
 
+    // stable alias for effect dependency (avoid depending on whole `recovery` object)
+    const executeRedownload = recovery.actions.executeRedownload;
+
     useEffect(() => {
         if (typeof window === "undefined") return;
 
         const handleRedownloadEvent = async (ev: Event) => {
             const detail = (ev as CustomEvent).detail;
             const target = findTorrentById(detail?.id ?? detail?.hash);
-            if (target) await recovery.actions.executeRedownload(target);
+            if (target) await executeRedownload(target);
         };
 
         window.addEventListener(
@@ -128,7 +129,7 @@ export function useTorrentOrchestrator({
                 handleRedownloadEvent as EventListener,
             );
         };
-    }, [recovery, findTorrentById]);
+    }, [executeRedownload, findTorrentById]);
 
     useEffect(() => {
         if (!client) return;

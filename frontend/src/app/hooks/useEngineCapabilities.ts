@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import type { CapabilityStore } from "@/app/types/capabilities";
 import { DEFAULT_CAPABILITY_STORE } from "@/app/types/capabilities";
@@ -12,60 +12,37 @@ export function useEngineCapabilities(
         state: CapabilityStore[keyof CapabilityStore],
     ) => void,
 ] {
-    const [capabilities, setCapabilities] = useState<CapabilityStore>(
-        DEFAULT_CAPABILITY_STORE,
-    );
+    // Local overrides applied by callers via updateCapabilityState.
+    const [overrides, setOverrides] = useState<Partial<CapabilityStore>>({});
 
-    useEffect(() => {
-        if (!torrentClient) return;
-
-        if (!torrentClient.setSequentialDownload) {
-            Promise.resolve().then(() =>
-                setCapabilities((prev) =>
-                    prev.sequentialDownload === "unsupported"
-                        ? prev
-                        : { ...prev, sequentialDownload: "unsupported" },
-                ),
-            );
-            return;
-        }
-        Promise.resolve().then(() =>
-            setCapabilities((prev) =>
-                prev.sequentialDownload === "unsupported"
-                    ? { ...prev, sequentialDownload: "unknown" }
-                    : prev,
-            ),
-        );
+    const baseCapabilities = useMemo<CapabilityStore>(() => {
+        const sequential = torrentClient?.setSequentialDownload
+            ? "unknown"
+            : "unsupported";
+        const superSeeding = torrentClient?.setSuperSeeding
+            ? "unknown"
+            : "unsupported";
+        return {
+            ...DEFAULT_CAPABILITY_STORE,
+            sequentialDownload:
+                sequential as CapabilityStore["sequentialDownload"],
+            superSeeding: superSeeding as CapabilityStore["superSeeding"],
+        } as CapabilityStore;
     }, [torrentClient]);
 
-    useEffect(() => {
-        if (!torrentClient) return;
-
-        if (!torrentClient.setSuperSeeding) {
-            Promise.resolve().then(() =>
-                setCapabilities((prev) =>
-                    prev.superSeeding === "unsupported"
-                        ? prev
-                        : { ...prev, superSeeding: "unsupported" },
-                ),
-            );
-            return;
-        }
-        Promise.resolve().then(() =>
-            setCapabilities((prev) =>
-                prev.superSeeding === "unsupported"
-                    ? { ...prev, superSeeding: "unknown" }
-                    : prev,
-            ),
-        );
-    }, [torrentClient]);
+    const capabilities = useMemo<CapabilityStore>(() => {
+        return {
+            ...baseCapabilities,
+            ...(overrides as CapabilityStore),
+        };
+    }, [baseCapabilities, overrides]);
 
     const updateCapabilityState = useCallback(
         (
             capability: keyof CapabilityStore,
             state: CapabilityStore[keyof CapabilityStore],
         ) => {
-            setCapabilities((prev) =>
+            setOverrides((prev) =>
                 prev[capability] === state
                     ? prev
                     : { ...prev, [capability]: state },

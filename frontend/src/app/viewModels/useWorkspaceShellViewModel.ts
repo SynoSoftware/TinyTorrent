@@ -121,7 +121,6 @@ export function useWorkspaceShellViewModel({
     const torrentClient = useTorrentClient();
     const {
         rpcStatus,
-        reportReadError,
         sessionStats,
         liveTransportStatus,
         refreshSessionStatsData,
@@ -200,7 +199,6 @@ export function useWorkspaceShellViewModel({
         sessionReady: rpcStatus === STATUS.connection.CONNECTED,
         pollingIntervalMs,
         markTransportConnected,
-        reportReadError,
     });
 
     useEffect(() => {
