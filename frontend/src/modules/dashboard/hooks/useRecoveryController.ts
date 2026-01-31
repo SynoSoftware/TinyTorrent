@@ -11,10 +11,7 @@ import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import { scheduler } from "@/app/services/scheduler";
 import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
 import { resolveTorrentPath } from "@/modules/dashboard/utils/torrentPaths";
-import {
-    TorrentIntents,
-    type TorrentIntentExtended,
-} from "@/app/intents/torrentIntents";
+import { TorrentIntents } from "@/app/intents/torrentIntents";
 import { STATUS } from "@/shared/status";
 import type { FeedbackTone } from "@/shared/types/feedback";
 import {
@@ -45,7 +42,8 @@ import type {
     SetLocationOptions,
     SetLocationSurface,
 } from "@/app/context/RecoveryContext";
-import type { ShellAgent } from "@/app/agents/shell-agent";
+import { useShellAgent } from "@/app/hooks/useShellAgent";
+import { useRequiredTorrentActions } from "@/app/context/TorrentActionsContext";
 import { useSession } from "@/app/context/SessionContext";
 import { useActionFeedback } from "@/app/hooks/useActionFeedback";
 import { useTranslation } from "react-i18next";
@@ -101,8 +99,6 @@ type RecoveryQueueEntry = {
 
 interface RecoveryControllerServices {
     clientRef: MutableRefObject<EngineAdapter | null>;
-    dispatch: (intent: TorrentIntentExtended) => Promise<void>;
-    shellAgent: ShellAgent;
 }
 
 interface RecoveryControllerEnvironment {
@@ -190,11 +186,13 @@ export function useRecoveryController({
     data,
     refresh,
 }: UseRecoveryControllerParams): RecoveryControllerResult {
-    const { clientRef, dispatch, shellAgent } = services;
+    const { clientRef } = services;
     const { setLocationCapability } = environment;
     const { engineCapabilities, reportCommandError } = useSession();
     const { showFeedback } = useActionFeedback();
     const { t } = useTranslation();
+    const { dispatch } = useRequiredTorrentActions();
+    const { shellAgent } = useShellAgent();
     const { torrents, detailData } = data;
     const {
         refreshTorrentsRef,
@@ -474,7 +472,12 @@ export function useRecoveryController({
             );
             return enqueueRecoveryEntry(entry);
         },
-        [runMissingFilesFlow, createRecoveryQueueEntry, enqueueRecoveryEntry],
+        [
+            runMissingFilesFlow,
+            createRecoveryQueueEntry,
+            enqueueRecoveryEntry,
+            engineCapabilities,
+        ],
     );
 
     const finalizeRecovery = useCallback(
@@ -644,6 +647,7 @@ export function useRecoveryController({
         clientRef,
         recoverySession,
         resolveRecoverySession,
+        engineCapabilities,
         engineCapabilities.executionModel,
         engineCapabilities.canCheckFreeSpace,
     ]);
@@ -1052,7 +1056,7 @@ export function useRecoveryController({
             setInlineSetLocationState(next);
             return next;
         },
-        [getDraftPathForTorrent],
+        [getDraftPathForTorrent, setInlineSetLocationState],
     );
 
     const patchInlineSetLocationState = useCallback(
@@ -1064,13 +1068,13 @@ export function useRecoveryController({
             setInlineSetLocationState(next);
             return next;
         },
-        [],
+        [setInlineSetLocationState],
     );
 
     const cancelInlineSetLocation = useCallback(() => {
         inlineSetLocationStateRef.current = null;
         setInlineSetLocationState(null);
-    }, []);
+    }, [setInlineSetLocationState]);
 
     const confirmInlineSetLocation = useCallback(async (): Promise<boolean> => {
         const current = inlineSetLocationStateRef.current;
@@ -1131,6 +1135,7 @@ export function useRecoveryController({
         setLocationAndRecover,
         t,
         getTorrentByKey,
+        clearDraftForTorrent,
     ]);
 
     const handleInlineLocationChange = useCallback(
@@ -1155,7 +1160,7 @@ export function useRecoveryController({
         if (current) {
             clearDraftForTorrent(current.torrentKey);
         }
-    }, [clearDraftForTorrent]);
+    }, [clearDraftForTorrent, setInlineSetLocationState]);
 
     const isInlineOwner = useCallback(
         (surface: SetLocationSurface, torrentKey: string) => {

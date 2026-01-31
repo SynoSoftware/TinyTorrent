@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import type { HeartbeatPayload } from "@/services/rpc/heartbeat";
 import type { ReportReadErrorFn } from "@/shared/types/rpc";
+import { useSession } from "@/app/context/SessionContext";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { TorrentStatus } from "@/services/rpc/entities";
 import STATUS from "@/shared/status";
@@ -15,7 +16,6 @@ type UseTorrentDataOptions = {
     sessionReady: boolean;
     pollingIntervalMs: number;
     markTransportConnected?: () => void;
-    reportReadError: ReportReadErrorFn;
 };
 // TODO: Make `useTorrentData` the single authority for “torrents list truth in UI” (polling/heartbeat subscription + snapshot reconciliation).
 // TODO: Current risks / sources of regressions:
@@ -46,7 +46,7 @@ type UseTorrentDataResult = {
 
 const arePeerSummariesEqual = (
     a: Torrent["peerSummary"],
-    b: Torrent["peerSummary"]
+    b: Torrent["peerSummary"],
 ) =>
     a.connected === b.connected &&
     a.total === b.total &&
@@ -107,8 +107,8 @@ export function useTorrentData({
     sessionReady,
     pollingIntervalMs,
     markTransportConnected,
-    reportReadError,
 }: UseTorrentDataOptions): UseTorrentDataResult {
+    const { reportReadError } = useSession();
     const [torrents, setTorrents] = useState<Torrent[]>([]);
     const [isInitialLoadFinished, setIsInitialLoadFinished] = useState(false);
     const isMountedRef = useRef(false);
@@ -137,7 +137,7 @@ export function useTorrentData({
                         Math.floor(Date.now() / 1000),
                 };
                 const reuseExisting = Boolean(
-                    cached && areTorrentsEqual(cached, normalized)
+                    cached && areTorrentsEqual(cached, normalized),
                 );
                 const nextTorrent = reuseExisting ? cached! : normalized;
                 nextCache.set(incoming.id, nextTorrent);
@@ -175,7 +175,7 @@ export function useTorrentData({
             const nextList = nextOrder.map((id) => nextCache.get(id)!);
             setTorrents(nextList);
         },
-        [markTransportConnected]
+        [markTransportConnected],
     );
 
     const buildGhostTorrent = (options: GhostTorrentOptions): Torrent => ({
@@ -227,7 +227,7 @@ export function useTorrentData({
             setGhosts((prev) => prev.filter((ghost) => ghost.id !== id));
             clearGhostTimer(id);
         },
-        [clearGhostTimer]
+        [clearGhostTimer],
     );
 
     const addGhostTorrent = useCallback(
@@ -245,7 +245,7 @@ export function useTorrentData({
             }
             return ghost.id;
         },
-        [removeGhostTorrent]
+        [removeGhostTorrent],
     );
 
     const refresh = useCallback(async () => {
@@ -349,7 +349,7 @@ export function useTorrentData({
 
             setTorrents(nextOrder.map((id) => nextCache.get(id)!));
         },
-        [markTransportConnected]
+        [markTransportConnected],
     );
 
     useEffect(() => {
