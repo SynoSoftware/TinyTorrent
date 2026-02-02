@@ -9,6 +9,10 @@ interface SettingsFormContextValue {
         key: K,
         value: SettingsConfig[K]
     ) => void;
+    setFieldDraft: (key: ConfigKey, draft: string | null) => void;
+    capabilities: {
+        blocklistSupported: boolean;
+    };
     buttonActions: Record<ButtonActionKey, () => void>;
     canBrowseDirectories: boolean;
     onBrowse: (key: ConfigKey) => void;

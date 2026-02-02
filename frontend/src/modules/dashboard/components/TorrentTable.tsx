@@ -80,6 +80,7 @@ import {
 import TorrentTable_ColumnSettingsModal from "./TorrentTable_ColumnSettingsModal";
 import { useQueueReorderController } from "@/modules/dashboard/hooks/useQueueReorderController";
 import { useRowSelectionController } from "@/modules/dashboard/hooks/useRowSelectionController";
+import { useRecoveryContext } from "@/app/context/RecoveryContext";
 
 const assertDev = (condition: boolean, message: string) => {
     if (import.meta.env.DEV && !condition) {
@@ -311,6 +312,7 @@ export function TorrentTable({
         useTorrentClipboard();
 
     const openTorrentFolder = useOpenTorrentFolder();
+    const { canOpenFolder } = useRecoveryContext();
 
     // Marquee `mousedown` and drag listeners moved to the virtualization hook.
 
@@ -323,7 +325,7 @@ export function TorrentTable({
         t,
         speedHistoryRef,
         optimisticStatuses,
-        openFolder: openTorrentFolder,
+        openFolder: canOpenFolder ? openTorrentFolder : undefined,
     });
 
     const serverOrder = useMemo(() => data.map((d) => d.id), [data]);

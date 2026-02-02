@@ -88,29 +88,40 @@ export function SwitchRenderer({
     block: Extract<SectionBlock, { type: "switch" }>;
 }) {
     const { t } = useTranslation();
-    const { config, updateConfig, isImmersive } = useSettingsForm();
+    const { config, updateConfig, isImmersive, capabilities } = useSettingsForm();
     const dependsOn = block.dependsOn;
     const baseDisabled = dependsOn ? !(config[dependsOn] as boolean) : false;
+    const blocklistUnsupported =
+        block.stateKey === "blocklist_enabled" && !capabilities.blocklistSupported;
     const isDisabled =
-        baseDisabled || (block.disabledWhenNotImmersive && !isImmersive);
+        blocklistUnsupported ||
+        baseDisabled ||
+        (block.disabledWhenNotImmersive && !isImmersive);
 
     return (
-        <div className="flex justify-between items-center h-control-row">
-            <span
-                className={cn(
-                    "text-scaled font-medium text-foreground/80",
-                    isDisabled && "opacity-40"
-                )}
-            >
-                {t(block.labelKey)}
-            </span>
-            <Switch
-                size="md"
-                color={block.color}
-                isSelected={config[block.stateKey] as boolean}
-                onValueChange={(val) => updateConfig(block.stateKey, val)}
-                isDisabled={isDisabled}
-            />
+        <div className="flex flex-col gap-tight">
+            <div className="flex justify-between items-center h-control-row">
+                <span
+                    className={cn(
+                        "text-scaled font-medium text-foreground/80",
+                        isDisabled && "opacity-40"
+                    )}
+                >
+                    {t(block.labelKey)}
+                </span>
+                <Switch
+                    size="md"
+                    color={block.color}
+                    isSelected={config[block.stateKey] as boolean}
+                    onValueChange={(val) => updateConfig(block.stateKey, val)}
+                    isDisabled={isDisabled}
+                />
+            </div>
+            {blocklistUnsupported && (
+                <p className="text-label text-foreground/60">
+                    {t("settings.blocklist.unsupported")}
+                </p>
+            )}
         </div>
     );
 }
@@ -121,6 +132,8 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
     const {
         config,
         updateConfig,
+        setFieldDraft,
+        capabilities,
         buttonActions,
         canBrowseDirectories,
         onBrowse,
@@ -128,6 +141,8 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
 
     const dependsOn = block.dependsOn;
     const isDisabled = dependsOn ? !(config[dependsOn] as boolean) : false;
+    const blocklistUnsupported =
+        block.stateKey === "blocklist_url" && !capabilities.blocklistSupported;
     const configValue = config[block.stateKey];
 
     const displayValue =
@@ -153,7 +168,7 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
 
     const isBrowseAction = sideAction?.type === "browse";
     const hideBrowseAction = isBrowseAction && !canBrowseDirectories;
-    const sideActionDisabled = isDisabled || hideBrowseAction;
+    const sideActionDisabled = isDisabled || hideBrowseAction || blocklistUnsupported;
 
     const handleSideAction = () => {
         if (!sideAction) return;
@@ -174,9 +189,11 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
             const num = Number(val);
             if (Number.isNaN(num)) return false;
             updateConfig(block.stateKey, num);
+            setFieldDraft(block.stateKey, null);
             return true;
         }
         updateConfig(block.stateKey, val);
+        setFieldDraft(block.stateKey, null);
         return true;
     };
 
@@ -189,12 +206,15 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
             variant={block.variant ?? "bordered"}
             value={displayValue}
             type={block.inputType}
-            isDisabled={isDisabled}
+            isDisabled={isDisabled || blocklistUnsupported}
             onCommit={handleCommit}
+            onDraftChange={(next) => setFieldDraft(block.stateKey, next)}
             classNames={{
                 inputWrapper: cn(
                     "h-button transition-colors",
-                    isDisabled ? "opacity-50" : "group-hover:border-primary/50"
+                    isDisabled || blocklistUnsupported
+                        ? "opacity-50"
+                        : "group-hover:border-primary/50"
                 ),
                 input: cn(
                     "text-foreground/90",
@@ -216,23 +236,37 @@ export function SingleInputRenderer({ block }: { block: InputBlock }) {
         />
     );
 
+    const blocklistHelper = blocklistUnsupported ? (
+        <p className="text-label text-foreground/60">
+            {t("settings.blocklist.unsupported")}
+        </p>
+    ) : null;
+
     if (!sideAction || hideBrowseAction) {
-        return <div className="group">{inputNode}</div>;
+        return (
+            <div className="group flex flex-col gap-tight">
+                {inputNode}
+                {blocklistHelper}
+            </div>
+        );
     }
 
     return (
-        <div className="flex w-full items-end gap-tools group">
-            <div className="flex-1 min-w-0">{inputNode}</div>
-            <Button
-                size="md"
-                variant="shadow"
-                color="primary"
-                onPress={handleSideAction}
-                className="h-button px-stage shrink-0 font-semibold text-scaled tracking-wider uppercase bg-primary/10 hover:bg-primary/20 text-primary transition-colors active:scale-95"
-                isDisabled={sideActionDisabled}
-            >
-                {t(sideAction.labelKey)}
-            </Button>
+        <div className="flex flex-col gap-tight group">
+            <div className="flex w-full items-end gap-tools">
+                <div className="flex-1 min-w-0">{inputNode}</div>
+                <Button
+                    size="md"
+                    variant="shadow"
+                    color="primary"
+                    onPress={handleSideAction}
+                    className="h-button px-stage shrink-0 font-semibold text-scaled tracking-wider uppercase bg-primary/10 hover:bg-primary/20 text-primary transition-colors active:scale-95"
+                    isDisabled={sideActionDisabled}
+                >
+                    {t(sideAction.labelKey)}
+                </Button>
+            </div>
+            {blocklistHelper}
         </div>
     );
 }

@@ -8,11 +8,13 @@ interface BufferedInputProps
     extends Omit<InputProps, "value" | "onChange" | "onBlur" | "onKeyDown"> {
     value: string;
     onCommit: (next: string) => boolean | void;
+    onDraftChange?: (next: string) => void;
 }
 
 export function BufferedInput({
     value,
     onCommit,
+    onDraftChange,
     ...props
 }: BufferedInputProps) {
     const [draft, setDraft] = useState(value);
@@ -34,24 +36,28 @@ export function BufferedInput({
                 const awaited = await (result as any);
                 if (awaited === false) {
                     setDraft(value);
+                    onDraftChange?.(value);
                 }
             } else {
                 if (result === false) {
                     setDraft(value);
+                    onDraftChange?.(value);
                 }
             }
         } finally {
             setPendingCommit(false);
             setIsEditing(false);
         }
-    }, [draft, onCommit, value]);
+    }, [draft, onCommit, onDraftChange, value]);
 
     return (
         <Input
             {...props}
             value={draft}
             onChange={(event) => {
-                setDraft(event.target.value);
+                const next = event.target.value;
+                setDraft(next);
+                onDraftChange?.(next);
             }}
             onFocus={() => {
                 setIsEditing(true);

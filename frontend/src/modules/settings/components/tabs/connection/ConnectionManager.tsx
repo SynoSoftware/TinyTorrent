@@ -299,13 +299,9 @@ export function ConnectionCredentialsCard({
                 )}
                 {isNativeMode && !showAdvanced && (
                     <p className="text-label text-foreground/60 mt-tight">
-                        {t(
-                            "settings.connection.local_mode_info",
-                            "Using bundled local daemon - remote settings are disabled."
-                        )}
+                        {t("settings.connection.local_mode_info")}
                     </p>
                 )}
-                {/* TODO: Remove the inline English fallback string passed to `t(...)`. Add/maintain a proper key in `src/i18n/en.json` (per i18n rules). */}
             </div>
         </div>
     );

@@ -279,6 +279,7 @@ export const SETTINGS_TABS: TabDefinition[] = [
             },
             {
                 titleKey: "settings.sections.polling",
+                descriptionKey: "settings.descriptions.polling",
                 blocks: [
                     {
                         type: "input",

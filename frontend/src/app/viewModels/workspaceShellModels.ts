@@ -234,11 +234,14 @@ export interface SettingsSnapshot {
     config: SettingsConfig;
     isSaving: boolean;
     loadError: boolean;
+    capabilities: {
+        blocklistSupported: boolean;
+    };
 }
 
 export interface SettingsActions {
     handleSave: (config: SettingsConfig) => Promise<void>;
-    handleTestPort: () => Promise<void>;
+    handleTestPort: () => Promise<boolean>;
     applyUserPreferencesPatch: (patch: Partial<{
         refresh_interval_ms: number;
         request_timeout_ms: number;
@@ -282,6 +285,7 @@ export function useSettingsModalViewModel({
             onSave: actions.handleSave,
             settingsLoadError: snapshot.loadError,
             onTestPort: actions.handleTestPort,
+            capabilities: snapshot.capabilities,
             onRestoreInsights: restoreHudCards,
             onToggleWorkspaceStyle: toggleWorkspaceStyle,
             onReconnect: reconnect,

@@ -86,6 +86,7 @@ export function SettingsModal({ viewModel }: SettingsModalProps) {
         onSave,
         settingsLoadError,
         onTestPort,
+        capabilities,
         onRestoreInsights,
         onToggleWorkspaceStyle,
         onReconnect,
@@ -99,6 +100,9 @@ export function SettingsModal({ viewModel }: SettingsModalProps) {
 
     // Responsive State
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(true);
+    const [closeConfirmPending, setCloseConfirmPending] = useState(false);
+    const inputDraftsRef = useRef(new Map<ConfigKey, string>());
+    const [draftsVersion, setDraftsVersion] = useState(0);
 
     const safeInitialConfig = useMemo(
         () => initialConfig ?? DEFAULT_SETTINGS_CONFIG,
@@ -108,6 +112,25 @@ export function SettingsModal({ viewModel }: SettingsModalProps) {
     const [config, setConfig] = useState<SettingsConfig>(() => ({
         ...safeInitialConfig,
     }));
+
+    const configKeyInputTypes = useMemo(() => {
+        const map = new Map<ConfigKey, string | undefined>();
+        for (const tab of SETTINGS_TABS) {
+            for (const section of tab.sections) {
+                for (const block of section.blocks) {
+                    if (block.type === "input") {
+                        map.set(block.stateKey, block.inputType);
+                    }
+                    if (block.type === "input-pair") {
+                        for (const input of block.inputs) {
+                            map.set(input.stateKey, input.inputType);
+                        }
+                    }
+                }
+            }
+        }
+        return map;
+    }, []);
 
     const openedConfigRef = useRef<SettingsConfig>({ ...safeInitialConfig });
     const wasOpenRef = useRef(false);
@@ -131,7 +154,53 @@ export function SettingsModal({ viewModel }: SettingsModalProps) {
     >("idle");
     const jsonCopyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    const configJson = useMemo(() => JSON.stringify(config, null, 2), [config]);
+    useEffect(() => {
+        return () => {
+            if (jsonCopyTimerRef.current) {
+                clearTimeout(jsonCopyTimerRef.current);
+            }
+        };
+    }, []);
+
+    const effectiveNativeMode = isNativeMode && hasNativeShellBridge;
+    const canBrowseDirectories = canBrowse;
+
+    const setFieldDraft = useCallback(
+        (key: ConfigKey, draft: string | null) => {
+            if (draft === null) {
+                inputDraftsRef.current.delete(key);
+            } else {
+                inputDraftsRef.current.set(key, draft);
+            }
+            setDraftsVersion((v) => v + 1);
+            if (closeConfirmPending) {
+                setCloseConfirmPending(false);
+            }
+        },
+        [closeConfirmPending]
+    );
+
+    const effectiveConfig = useMemo(() => {
+        if (inputDraftsRef.current.size === 0) return config;
+        const patched: SettingsConfig = { ...config };
+        for (const [key, draft] of inputDraftsRef.current.entries()) {
+            const inputType = configKeyInputTypes.get(key);
+            if (inputType === "number") {
+                if (draft.trim() === "") continue;
+                const num = Number(draft);
+                if (Number.isNaN(num)) continue;
+                (patched as any)[key] = num;
+                continue;
+            }
+            (patched as any)[key] = draft;
+        }
+        return patched;
+    }, [config, configKeyInputTypes, draftsVersion]);
+
+    const configJson = useMemo(
+        () => JSON.stringify(effectiveConfig, null, 2),
+        [effectiveConfig]
+    );
 
     const handleCopyConfigJson = useCallback(async () => {
         const ok = await tryWriteClipboard(configJson);
@@ -144,25 +213,21 @@ export function SettingsModal({ viewModel }: SettingsModalProps) {
         }, CLIPBOARD_BADGE_DURATION_MS);
     }, [configJson]);
 
-    useEffect(() => {
-        return () => {
-            if (jsonCopyTimerRef.current) {
-                clearTimeout(jsonCopyTimerRef.current);
-            }
-        };
-    }, []);
-
-    const effectiveNativeMode = isNativeMode && hasNativeShellBridge;
-    const canBrowseDirectories = canBrowse;
-
     const hasSaveableEdits = useMemo(
-        () => !configsAreEqual(config, openedConfigRef.current),
-        [config]
+        () => !configsAreEqual(effectiveConfig, openedConfigRef.current),
+        [effectiveConfig]
     );
+    const hasPendingDraftEdits = useMemo(
+        () => inputDraftsRef.current.size > 0,
+        [draftsVersion]
+    );
+    const hasUnsavedChanges = hasSaveableEdits || hasPendingDraftEdits;
 
     useEffect(() => {
         if (!isOpen) {
             wasOpenRef.current = false;
+            inputDraftsRef.current.clear();
+            setDraftsVersion((v) => v + 1);
             return;
         }
 
@@ -173,6 +238,9 @@ export function SettingsModal({ viewModel }: SettingsModalProps) {
             setModalFeedback(null);
             setJsonCopyStatus("idle");
             setIsMobileMenuOpen(true);
+            inputDraftsRef.current.clear();
+            setDraftsVersion((v) => v + 1);
+            setCloseConfirmPending(false);
         }
     }, [isOpen, safeInitialConfig]);
 
@@ -192,8 +260,26 @@ export function SettingsModal({ viewModel }: SettingsModalProps) {
         if (!isOpen) {
             setModalFeedback(null);
             setJsonCopyStatus("idle");
+            setCloseConfirmPending(false);
+            inputDraftsRef.current.clear();
+            setDraftsVersion((v) => v + 1);
         }
     }, [isOpen]);
+
+    const requestClose = useCallback(() => {
+        if (isSaving) {
+            setModalFeedback({
+                type: "error",
+                text: t("settings.modal.close_blocked_saving"),
+            });
+            return;
+        }
+        if (hasUnsavedChanges) {
+            setCloseConfirmPending(true);
+            return;
+        }
+        onClose();
+    }, [hasUnsavedChanges, isSaving, onClose, t]);
 
     const persistWindowState = useCallback(async () => {
         if (!shellAgent.isAvailable) return;
@@ -208,26 +294,67 @@ export function SettingsModal({ viewModel }: SettingsModalProps) {
     }, [shellAgent, t]);
 
     const handleSave = useCallback(async () => {
-        await persistWindowState();
-        try {
-            await onSave(config);
-            setModalFeedback(null);
-            onClose();
-        } catch (error) {
-            const message =
-                typeof error === "object" &&
-                error !== null &&
-                "message" in error &&
-                typeof (error as { message?: unknown }).message === "string"
-                    ? (error as { message: string }).message
-                    : t("settings.modal.error_save");
-            setModalFeedback({ type: "error", text: message });
+        const needsSave = !configsAreEqual(
+            effectiveConfig,
+            openedConfigRef.current
+        );
+
+        if (onApplyUserPreferencesPatch) {
+            const patch: LiveUserPreferencePatch = {};
+            if (
+                effectiveConfig.table_watermark_enabled !==
+                config.table_watermark_enabled
+            ) {
+                patch.table_watermark_enabled =
+                    effectiveConfig.table_watermark_enabled;
+            }
+            if (
+                effectiveConfig.refresh_interval_ms !== config.refresh_interval_ms
+            ) {
+                patch.refresh_interval_ms = effectiveConfig.refresh_interval_ms;
+            }
+            if (
+                effectiveConfig.request_timeout_ms !== config.request_timeout_ms
+            ) {
+                patch.request_timeout_ms = effectiveConfig.request_timeout_ms;
+            }
+            if (Object.keys(patch).length) {
+                onApplyUserPreferencesPatch(patch);
+            }
         }
-    }, [config, onSave, onClose, persistWindowState, t]);
+
+        if (needsSave) {
+            await persistWindowState();
+        }
+        try {
+            if (needsSave) {
+                await onSave(effectiveConfig);
+            }
+            setModalFeedback(null);
+            inputDraftsRef.current.clear();
+            setDraftsVersion((v) => v + 1);
+            onClose();
+        } catch {
+            setModalFeedback({
+                type: "error",
+                text: t("settings.modal.error_save"),
+            });
+        }
+    }, [
+        config,
+        effectiveConfig,
+        onApplyUserPreferencesPatch,
+        onClose,
+        onSave,
+        persistWindowState,
+        t,
+    ]);
 
     const handleReset = () => {
         const next: SettingsConfig = { ...DEFAULT_SETTINGS_CONFIG };
         setConfig(next);
+        inputDraftsRef.current.clear();
+        setDraftsVersion((v) => v + 1);
         onApplyUserPreferencesPatch?.({
             refresh_interval_ms: next.refresh_interval_ms,
             request_timeout_ms: next.request_timeout_ms,
@@ -259,18 +386,37 @@ export function SettingsModal({ viewModel }: SettingsModalProps) {
         [t]
     );
 
+    const handleTestPortAction = useCallback(() => {
+        if (!onTestPort) return;
+        void (async () => {
+            try {
+                const isOpen = await onTestPort();
+                setModalFeedback({
+                    type: "success",
+                    text: t(
+                        isOpen
+                            ? "settings.modal.test_port_open"
+                            : "settings.modal.test_port_closed"
+                    ),
+                });
+            } catch {
+                setModalFeedback({
+                    type: "error",
+                    text: t("settings.modal.error_test_port"),
+                });
+            }
+        })();
+    }, [onTestPort, t]);
+
     const buttonActions: Record<ButtonActionKey, () => void> = useMemo(
         () => ({
-            testPort: runAction(
-                () => onTestPort?.(),
-                "settings.modal.error_test_port"
-            ),
+            testPort: handleTestPortAction,
             restoreHud: runAction(
                 () => onRestoreInsights?.(),
                 "settings.modal.error_restore"
             ),
         }),
-        [onRestoreInsights, onTestPort, runAction]
+        [handleTestPortAction, onRestoreInsights, runAction]
     );
 
     const safeReconnect = useMemo(
@@ -296,6 +442,13 @@ export function SettingsModal({ viewModel }: SettingsModalProps) {
 
     const updateConfig = useCallback(
         <K extends ConfigKey>(key: K, value: SettingsConfig[K]) => {
+            if (closeConfirmPending) {
+                setCloseConfirmPending(false);
+            }
+            if (inputDraftsRef.current.has(key)) {
+                inputDraftsRef.current.delete(key);
+                setDraftsVersion((v) => v + 1);
+            }
             const constraint = sliderConstraints[key];
             let nextValue = value;
             if (
@@ -332,7 +485,7 @@ export function SettingsModal({ viewModel }: SettingsModalProps) {
                 });
             }
         },
-        [onApplyUserPreferencesPatch, sliderConstraints]
+        [closeConfirmPending, onApplyUserPreferencesPatch, sliderConstraints]
     );
 
     const handleBrowse = useCallback(
@@ -353,8 +506,6 @@ export function SettingsModal({ viewModel }: SettingsModalProps) {
         },
         [canBrowseDirectories, config, shellAgent, t, updateConfig]
     );
-
-    const hasUnsavedChanges = hasSaveableEdits;
 
     const hasVisibleBlocks = useCallback(
         (blocks: SectionBlock[]) =>
@@ -400,6 +551,8 @@ export function SettingsModal({ viewModel }: SettingsModalProps) {
         () => ({
             config,
             updateConfig,
+            setFieldDraft,
+            capabilities,
             buttonActions,
             canBrowseDirectories,
             onBrowse: handleBrowse,
@@ -419,13 +572,15 @@ export function SettingsModal({ viewModel }: SettingsModalProps) {
             jsonCopyStatus,
             safeReconnect,
             updateConfig,
+            setFieldDraft,
+            capabilities,
             isImmersive,
         ]
     );
     return (
         <Modal
             isOpen={isOpen}
-            onOpenChange={(open) => !open && !isSaving && onClose()}
+            onOpenChange={(open) => !open && requestClose()}
             backdrop="blur"
             placement="center"
             size="5xl"
@@ -461,7 +616,7 @@ export function SettingsModal({ viewModel }: SettingsModalProps) {
                                 variant="shadow"
                                 size="md"
                                 className="sm:hidden text-foreground/50"
-                                onPress={onClose}
+                                onPress={requestClose}
                             >
                                 <X
                                     strokeWidth={ICON_STROKE_WIDTH}
@@ -476,6 +631,7 @@ export function SettingsModal({ viewModel }: SettingsModalProps) {
                                     key={tab.id}
                                     onClick={() => {
                                         setActiveTab(tab.id);
+                                        setCloseConfirmPending(false);
                                         setIsMobileMenuOpen(false);
                                     }}
                                     className={cn(
@@ -542,7 +698,7 @@ export function SettingsModal({ viewModel }: SettingsModalProps) {
                             <ToolbarIconButton
                                 Icon={X}
                                 ariaLabel={t("torrent_modal.actions.close")}
-                                onPress={onClose}
+                                onPress={requestClose}
                                 iconSize="lg"
                                 className="text-foreground/40 hover:text-foreground hidden sm:flex"
                             />
@@ -616,50 +772,92 @@ export function SettingsModal({ viewModel }: SettingsModalProps) {
 
                         {/* Footer Actions */}
                         <div className="sticky bottom-0 z-10 shrink-0 border-t border-content1/10 bg-content1/40 backdrop-blur-xl px-stage py-stage flex items-center justify-between">
-                            <Button
-                                size="md"
-                                variant="shadow"
-                                color="danger"
-                                className="opacity-70 hover:opacity-100"
-                                onPress={handleReset}
-                                startContent={
-                                    <RotateCcw
-                                        strokeWidth={ICON_STROKE_WIDTH}
-                                        className="toolbar-icon-size-sm shrink-0"
-                                    />
-                                }
-                            >
-                                {t("settings.modal.footer.reset_defaults")}
-                            </Button>
-                            <div className="flex gap-tools ml-auto">
-                                <Button
-                                    size="md"
-                                    variant="light"
-                                    onPress={() => !isSaving && onClose()}
-                                    isDisabled={isSaving}
-                                >
-                                    {t("settings.modal.footer.cancel")}
-                                </Button>
-                                <Button
-                                    size="md"
-                                    color="primary"
-                                    variant="shadow"
-                                    onPress={handleSave}
-                                    isLoading={isSaving}
-                                    isDisabled={!hasUnsavedChanges || isSaving}
-                                    startContent={
-                                        !isSaving && (
-                                            <Save
+                            {closeConfirmPending ? (
+                                <div className="w-full flex items-center gap-panel">
+                                    <div className="flex flex-col min-w-0">
+                                        <span className="text-scaled font-semibold text-warning">
+                                            {t("settings.modal.discard_title")}
+                                        </span>
+                                        <span className="text-label text-foreground/60">
+                                            {t("settings.modal.discard_body")}
+                                        </span>
+                                    </div>
+                                    <div className="flex gap-tools ml-auto shrink-0">
+                                        <Button
+                                            size="md"
+                                            variant="light"
+                                            onPress={() =>
+                                                setCloseConfirmPending(false)
+                                            }
+                                        >
+                                            {t("settings.modal.discard_keep")}
+                                        </Button>
+                                        <Button
+                                            size="md"
+                                            variant="shadow"
+                                            color="danger"
+                                            onPress={() => {
+                                                setCloseConfirmPending(false);
+                                                inputDraftsRef.current.clear();
+                                                setDraftsVersion((v) => v + 1);
+                                                onClose();
+                                            }}
+                                        >
+                                            {t("settings.modal.discard_close")}
+                                        </Button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <>
+                                    <Button
+                                        size="md"
+                                        variant="shadow"
+                                        color="danger"
+                                        className="opacity-70 hover:opacity-100"
+                                        onPress={handleReset}
+                                        startContent={
+                                            <RotateCcw
                                                 strokeWidth={ICON_STROKE_WIDTH}
                                                 className="toolbar-icon-size-sm shrink-0"
                                             />
-                                        )
-                                    }
-                                    className="font-semibold shadow-lg shadow-primary/20"
-                                >
-                                    {t("settings.modal.footer.save")}
-                                </Button>
-                            </div>
+                                        }
+                                    >
+                                        {t("settings.modal.footer.reset_defaults")}
+                                    </Button>
+                                    <div className="flex gap-tools ml-auto">
+                                        <Button
+                                            size="md"
+                                            variant="light"
+                                            onPress={requestClose}
+                                        >
+                                            {t("settings.modal.footer.cancel")}
+                                        </Button>
+                                        <Button
+                                            size="md"
+                                            color="primary"
+                                            variant="shadow"
+                                            onPress={handleSave}
+                                            isLoading={isSaving}
+                                            isDisabled={
+                                                !hasUnsavedChanges || isSaving
+                                            }
+                                            startContent={
+                                                !isSaving && (
+                                                    <Save
+                                                        strokeWidth={
+                                                            ICON_STROKE_WIDTH
+                                                        }
+                                                        className="toolbar-icon-size-sm shrink-0"
+                                                    />
+                                                )
+                                            }
+                                            className="font-semibold shadow-lg shadow-primary/20"
+                                        >
+                                            {t("settings.modal.footer.save")}
+                                        </Button>
+                                    </div>
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>

@@ -65,6 +65,46 @@ export default function TorrentTable_RowMenu({
     isClipboardSupported?: boolean;
     getEmphasisClassForAction?: (a?: string) => string;
 }) {
+    return (
+        <AnimatePresence>
+            {contextMenu ? (
+                <TorrentTable_RowMenuInner
+                    contextMenu={contextMenu}
+                    onClose={onClose}
+                    handleContextMenuAction={handleContextMenuAction}
+                    queueMenuActions={queueMenuActions}
+                    getContextMenuShortcut={getContextMenuShortcut}
+                    t={t}
+                    isClipboardSupported={isClipboardSupported}
+                    getEmphasisClassForAction={getEmphasisClassForAction}
+                />
+            ) : null}
+        </AnimatePresence>
+    );
+}
+
+function TorrentTable_RowMenuInner({
+    contextMenu,
+    onClose,
+    handleContextMenuAction,
+    queueMenuActions,
+    getContextMenuShortcut,
+    t,
+    isClipboardSupported,
+    getEmphasisClassForAction,
+}: {
+    contextMenu: {
+        virtualElement: ContextMenuVirtualElement;
+        torrent: Torrent;
+    };
+    onClose: () => void;
+    handleContextMenuAction: (key?: string) => Promise<void>;
+    queueMenuActions: QueueMenuAction[];
+    getContextMenuShortcut: (key: string) => string | undefined;
+    t: (k: string, opts?: Record<string, unknown>) => string;
+    isClipboardSupported?: boolean;
+    getEmphasisClassForAction?: (a?: string) => string;
+}) {
     // TODO: ViewModel boundary: this component should be a pure View.
     // TODO: Replace this inline prop-bag (translator + callbacks + capability checks) with a single `RowMenuViewModel`:
     // TODO: - `items`: prebuilt menu items with ids/labels/shortcuts/enabled/emphasis
@@ -80,16 +120,16 @@ export default function TorrentTable_RowMenu({
         canOpenFolder,
     } = useRecoveryContext();
 
-    const contextTorrent = contextMenu?.torrent ?? null;
-    const torrentKey = getTorrentKey(contextTorrent ?? undefined);
-    const shouldShowOpenFolder = Boolean(contextTorrent && canOpenFolder);
+    const contextTorrent = contextMenu.torrent;
+    const torrentKey = getTorrentKey(contextTorrent);
+    const shouldShowOpenFolder = Boolean(canOpenFolder);
     const canSetLocation =
         setLocationCapability.canBrowse || setLocationCapability.supportsManual;
     // TODO: Ensure all recovery/set-location actions here route through the single recovery gate/state machine; no local sequencing or ad-hoc handling for “set-download-path” should exist.
     const classification = useResolvedRecoveryClassification(contextTorrent);
     const showUnknownConfidence = classification?.confidence === "unknown";
     const inlineStateKey = inlineSetLocationState?.torrentKey ?? "";
-    const currentKey = getTorrentKey(contextTorrent ?? undefined);
+    const currentKey = getTorrentKey(contextTorrent);
     const shouldShowInlineEditor = Boolean(
         inlineSetLocationState?.surface === "context-menu" &&
             inlineStateKey &&
@@ -105,6 +145,17 @@ export default function TorrentTable_RowMenu({
     const inlineCaption = t(getSurfaceCaptionKey("context-menu"));
     const inlineIsBusy =
         inlineSetLocationState?.status !== "idle" || inlineIsVerifying;
+
+    // If this menu unmounts (e.g. parent clears `contextMenu`) while an inline edit is open,
+    // ensure we release the inline session so it doesn't leak across reopens.
+    useEffect(() => {
+        return () => {
+            if (inlineSetLocationState?.surface === "context-menu") {
+                releaseInlineSetLocation();
+            }
+        };
+    }, [inlineSetLocationState?.surface, releaseInlineSetLocation]);
+
     const rowMenuViewModel = useMemo<RowMenuViewModel>(() => {
         const baseActions: RowMenuAction[] = [
             {
@@ -129,7 +180,7 @@ export default function TorrentTable_RowMenu({
             queueActions: queueMenuActions,
             dataTitle: t("table.data.title"),
             showOpenFolder: shouldShowOpenFolder,
-            openFolderDisabled: !contextTorrent?.savePath,
+            openFolderDisabled: !(contextTorrent.savePath || contextTorrent.downloadDir),
             inlineEditor: {
                 visible: shouldShowInlineEditor,
                 caption: inlineCaption,
@@ -147,7 +198,6 @@ export default function TorrentTable_RowMenu({
         inlineStatusMessage,
         inlineIsBusy,
         shouldShowInlineEditor,
-        contextTorrent,
     ]);
 
     const handleInlineSubmit = () => {
@@ -226,11 +276,10 @@ export default function TorrentTable_RowMenu({
                     key="open-folder"
                     isDisabled={rowMenuViewModel.openFolderDisabled}
                     className={cn(
-                        contextMenu?.torrent.errorEnvelope?.primaryAction ===
+                        contextMenu.torrent.errorEnvelope?.primaryAction ===
                             "openFolder"
                             ? getEmphasisClassForAction?.(
-                                  contextMenu?.torrent.errorEnvelope
-                                      ?.primaryAction
+                                  contextMenu.torrent.errorEnvelope?.primaryAction
                               )
                             : ""
                     )}
@@ -245,10 +294,10 @@ export default function TorrentTable_RowMenu({
             <DropdownItem
                 key="set-download-path"
                 className={cn(
-                    contextMenu?.torrent.errorEnvelope?.primaryAction ===
+                    contextMenu.torrent.errorEnvelope?.primaryAction ===
                         "setLocation"
                         ? getEmphasisClassForAction?.(
-                              contextMenu?.torrent.errorEnvelope?.primaryAction
+                              contextMenu.torrent.errorEnvelope?.primaryAction
                           )
                         : ""
                 )}
@@ -334,7 +383,6 @@ export default function TorrentTable_RowMenu({
         return items as unknown as CollectionChildren<object>;
     }, [
         rowMenuViewModel,
-        contextMenu,
         canSetLocation,
         isClipboardSupported,
         inlineSetLocationState,
@@ -349,36 +397,31 @@ export default function TorrentTable_RowMenu({
     ]);
 
     // TODO: Inline editor UX: ensure outcome/confidence messaging aligns with Recovery UX spec (“Location unavailable” on unknown) and avoid closing the menu until recovery gate reports completion.
-    const rect = useMemo(
-        () => contextMenu?.virtualElement.getBoundingClientRect() ?? null,
-        [contextMenu]
-    );
-    if (!contextMenu || !rect) return null;
+    const rect = contextMenu.virtualElement.getBoundingClientRect();
+    if (!rect) return null;
     return (
-        <AnimatePresence>
-                <Dropdown
-                    isOpen
-                    onClose={handleMenuClose}
-                    placement="bottom-start"
-                    shouldBlockScroll={false}
-                    shouldFlip
-                    closeOnSelect={false}
-                >
-                <DropdownTrigger>
-                    <div
-                        style={{
-                            position: "fixed",
-                            top: rect.top,
-                            left: rect.left,
-                            width: 0,
-                            height: 0,
-                        }}
-                    />
-                </DropdownTrigger>
-                <DropdownMenu variant="shadow" className={GLASS_MENU_SURFACE}>
-                    {menuItems}
-                </DropdownMenu>
-            </Dropdown>
-        </AnimatePresence>
+        <Dropdown
+            isOpen
+            onClose={handleMenuClose}
+            placement="bottom-start"
+            shouldBlockScroll={false}
+            shouldFlip
+            closeOnSelect={false}
+        >
+            <DropdownTrigger>
+                <div
+                    style={{
+                        position: "fixed",
+                        top: rect.top,
+                        left: rect.left,
+                        width: 0,
+                        height: 0,
+                    }}
+                />
+            </DropdownTrigger>
+            <DropdownMenu variant="shadow" className={GLASS_MENU_SURFACE}>
+                {menuItems}
+            </DropdownMenu>
+        </Dropdown>
     );
 }

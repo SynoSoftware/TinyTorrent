@@ -83,7 +83,10 @@ export interface SettingsModalViewModel {
     isSaving: boolean;
     onSave: (config: SettingsConfig) => Promise<void>;
     settingsLoadError?: boolean;
-    onTestPort?: () => Promise<void>;
+    onTestPort?: () => Promise<boolean>;
+    capabilities: {
+        blocklistSupported: boolean;
+    };
     onRestoreInsights?: () => void;
     onToggleWorkspaceStyle?: () => void;
     onReconnect: () => void;
