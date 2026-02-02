@@ -23,6 +23,7 @@ import { TEXT_ROLES } from "../hooks/utils/textRoles";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 import { ShieldCheck, Zap, Ban, Copy, UserPlus, Info } from "lucide-react";
 import type { PeerContextAction } from "@/modules/dashboard/types/peerContextAction";
+import { useTorrentClipboard } from "@/modules/dashboard/hooks/useTorrentClipboard";
 
 // TODO: Keep PeersTab presentational:
 // TODO: - No RPC calls and no ShellExtensions calls here. Emit `PeerContextAction` and let a higher layer execute (command bus/view-model).
@@ -68,6 +69,7 @@ export const PeersTab = ({
 }: PeersTabProps) => {
     const { hoveredPeer, setHoveredPeer } = usePeerHover();
     const { t } = useTranslation();
+    const { copyToClipboard } = useTorrentClipboard();
     const listRef = useRef<HTMLDivElement | null>(null);
     const [peerContextMenu, setPeerContextMenu] =
         useState<PeerContextMenuState | null>(null);
@@ -124,10 +126,9 @@ export const PeersTab = ({
 
     const handleAction = (action: PeerContextAction) => {
         if (!peerContextMenu) return;
-        if (action === "copy_ip")
-            navigator.clipboard
-                ?.writeText(peerContextMenu.peer.address)
-                .catch(() => null);
+        if (action === "copy_ip") {
+            void copyToClipboard(peerContextMenu.peer.address);
+        }
         onPeerContextAction?.(action, peerContextMenu.peer);
         setPeerContextMenu(null);
     };

@@ -26,6 +26,7 @@ import { ConnectionTabContent } from "@/modules/settings/components/tabs/connect
 import { SystemTabContent } from "@/modules/settings/components/tabs/system/SystemTabContent";
 import { SettingsFormProvider } from "@/modules/settings/context/SettingsFormContext";
 import { useShellAgent } from "@/app/hooks/useShellAgent";
+import { tryWriteClipboard } from "@/shared/utils/clipboard";
 import { GLASS_MODAL_SURFACE } from "@/shared/ui/layout/glass-surface";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
 import { InterfaceTabContent } from "@/modules/settings/components/InterfaceTabContent";
@@ -133,14 +134,8 @@ export function SettingsModal({ viewModel }: SettingsModalProps) {
     const configJson = useMemo(() => JSON.stringify(config, null, 2), [config]);
 
     const handleCopyConfigJson = useCallback(async () => {
-        if (typeof navigator === "undefined" || !navigator.clipboard) return;
-        let nextStatus: "copied" | "failed" = "copied";
-        try {
-            await navigator.clipboard.writeText(configJson);
-        } catch {
-            nextStatus = "failed";
-        }
-        setJsonCopyStatus(nextStatus);
+        const ok = await tryWriteClipboard(configJson);
+        setJsonCopyStatus(ok ? "copied" : "failed");
         if (jsonCopyTimerRef.current) {
             clearTimeout(jsonCopyTimerRef.current);
         }

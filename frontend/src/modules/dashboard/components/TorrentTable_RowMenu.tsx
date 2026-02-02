@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useEffect, useMemo, useState } from "react";
 import { AnimatePresence } from "framer-motion";
 import {
@@ -8,14 +7,14 @@ import {
     DropdownItem,
     cn,
 } from "@heroui/react";
+import type { CollectionChildren } from "@react-types/shared";
 import { GLASS_MENU_SURFACE } from "@/shared/ui/layout/glass-surface";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { ContextMenuVirtualElement } from "@/shared/hooks/ui/useContextMenuPosition";
 import { useRecoveryContext } from "@/app/context/RecoveryContext";
 import { SetLocationInlineEditor } from "@/modules/dashboard/components/SetLocationInlineEditor";
 import { getSurfaceCaptionKey } from "@/app/utils/setLocation";
-import { useMissingFilesClassification } from "@/services/recovery/missingFilesStore";
-import { resolveRecoveryClassification } from "@/modules/dashboard/utils/recoveryClassification";
+import { useResolvedRecoveryClassification } from "@/modules/dashboard/hooks/useResolvedRecoveryClassification";
 
 type RowMenuAction = {
     key: string;
@@ -79,28 +78,15 @@ export default function TorrentTable_RowMenu({
         handleInlineLocationChange,
         setLocationCapability,
         canOpenFolder,
-        getRecoverySessionForKey,
     } = useRecoveryContext();
 
     const contextTorrent = contextMenu?.torrent ?? null;
     const torrentKey = getTorrentKey(contextTorrent ?? undefined);
-    const sessionClassification =
-        getRecoverySessionForKey(torrentKey)?.classification ?? null;
-    const storedClassification = useMissingFilesClassification(
-        contextTorrent?.id ?? contextTorrent?.hash ?? undefined
-    );
     const shouldShowOpenFolder = Boolean(contextTorrent && canOpenFolder);
     const canSetLocation =
         setLocationCapability.canBrowse || setLocationCapability.supportsManual;
     // TODO: Ensure all recovery/set-location actions here route through the single recovery gate/state machine; no local sequencing or ad-hoc handling for “set-download-path” should exist.
-    const classification = useMemo(
-        () =>
-            resolveRecoveryClassification({
-                sessionClassification,
-                storedClassification,
-            }),
-        [sessionClassification, storedClassification]
-    );
+    const classification = useResolvedRecoveryClassification(contextTorrent);
     const showUnknownConfidence = classification?.confidence === "unknown";
     const inlineStateKey = inlineSetLocationState?.torrentKey ?? "";
     const currentKey = getTorrentKey(contextTorrent ?? undefined);
@@ -164,7 +150,6 @@ export default function TorrentTable_RowMenu({
         contextTorrent,
     ]);
 
-    if (!contextMenu) return null;
     const handleInlineSubmit = () => {
         void confirmInlineSetLocation().then((success) => {
             if (success) {
@@ -184,8 +169,191 @@ export default function TorrentTable_RowMenu({
         if (!canSetLocation) return;
         void handleContextMenuAction("set-download-path");
     };
+
+    const menuItems = useMemo<CollectionChildren<object>>(() => {
+        const items: Array<React.ReactElement> = [];
+
+        items.push(
+            ...rowMenuViewModel.actions.map((item) => (
+                <DropdownItem
+                    key={item.key}
+                    shortcut={item.shortcut}
+                    onPress={() => void handleContextMenuAction(item.key)}
+                    isDisabled={item.disabled}
+                >
+                    {item.label}
+                </DropdownItem>
+            ))
+        );
+
+        items.push(
+            <DropdownItem
+                key="queue-heading"
+                isDisabled
+                className="border-t border-content1/20 px-panel pt-panel text-xs uppercase tracking-tight text-foreground/50"
+            >
+                {rowMenuViewModel.dataTitle}
+            </DropdownItem>
+        );
+
+        items.push(
+            ...rowMenuViewModel.queueActions.map((action) => (
+                <DropdownItem
+                    key={action.key}
+                    className="pl-stage text-sm"
+                    shortcut={getContextMenuShortcut(action.key)}
+                    onPress={() => void handleContextMenuAction(action.key)}
+                >
+                    {action.label}
+                </DropdownItem>
+            ))
+        );
+
+        items.push(
+            <DropdownItem
+                key="data-title"
+                isDisabled
+                className="border-t border-content1/20 mt-tight pt-tight px-panel text-scaled font-bold uppercase text-foreground/50"
+                style={{ letterSpacing: "var(--tt-tracking-ultra)" }}
+            >
+                {t("table.data.title")}
+            </DropdownItem>
+        );
+
+        if (rowMenuViewModel.showOpenFolder) {
+            items.push(
+                <DropdownItem
+                    key="open-folder"
+                    isDisabled={rowMenuViewModel.openFolderDisabled}
+                    className={cn(
+                        contextMenu?.torrent.errorEnvelope?.primaryAction ===
+                            "openFolder"
+                            ? getEmphasisClassForAction?.(
+                                  contextMenu?.torrent.errorEnvelope
+                                      ?.primaryAction
+                              )
+                            : ""
+                    )}
+                    onPress={() => void handleContextMenuAction("open-folder")}
+                >
+                    {t("table.actions.open_folder")}
+                </DropdownItem>
+            );
+        }
+
+        items.push(
+            <DropdownItem
+                key="set-download-path"
+                className={cn(
+                    contextMenu?.torrent.errorEnvelope?.primaryAction ===
+                        "setLocation"
+                        ? getEmphasisClassForAction?.(
+                              contextMenu?.torrent.errorEnvelope?.primaryAction
+                          )
+                        : ""
+                )}
+                isDisabled={!canSetLocation}
+                onPress={handleSetDownloadPath}
+                textValue={t("table.actions.set_download_path")}
+            >
+                {t("table.actions.set_download_path")}
+            </DropdownItem>
+        );
+
+        items.push(
+            <DropdownItem
+                key="copy-hash"
+                isDisabled={isClipboardSupported === false}
+                shortcut={getContextMenuShortcut("copy-hash")}
+                onPress={() => void handleContextMenuAction("copy-hash")}
+            >
+                {t("table.actions.copy_hash")}
+            </DropdownItem>
+        );
+
+        items.push(
+            <DropdownItem
+                key="copy-magnet"
+                isDisabled={isClipboardSupported === false}
+                shortcut={getContextMenuShortcut("copy-magnet")}
+                onPress={() => void handleContextMenuAction("copy-magnet")}
+            >
+                {t("table.actions.copy_magnet")}
+            </DropdownItem>
+        );
+
+        items.push(
+            <DropdownItem
+                key="remove"
+                color="danger"
+                shortcut={getContextMenuShortcut("remove")}
+                onPress={() => void handleContextMenuAction("remove")}
+            >
+                {t("table.actions.remove")}
+            </DropdownItem>
+        );
+
+        items.push(
+            <DropdownItem
+                key="remove-with-data"
+                color="danger"
+                shortcut={getContextMenuShortcut("remove-with-data")}
+                onPress={() => void handleContextMenuAction("remove-with-data")}
+            >
+                {t("table.actions.remove_with_data")}
+            </DropdownItem>
+        );
+
+        if (rowMenuViewModel.inlineEditor.visible && inlineSetLocationState) {
+            items.push(
+                <DropdownItem
+                    key="set-location-inline"
+                    className="border-t border-content1/20 p-0"
+                    role="presentation"
+                    textValue={t("table.actions.set_download_path")}
+                >
+                    <div className="px-panel pt-panel">
+                        <SetLocationInlineEditor
+                            value={inlineSetLocationState.inputPath}
+                            error={inlineSetLocationState.error}
+                            isBusy={rowMenuViewModel.inlineEditor.isBusy}
+                            caption={rowMenuViewModel.inlineEditor.caption}
+                            statusMessage={
+                                rowMenuViewModel.inlineEditor.statusMessage
+                            }
+                            disableCancel={rowMenuViewModel.inlineEditor.isBusy}
+                            onChange={handleInlineLocationChange}
+                            onSubmit={handleInlineSubmit}
+                            onCancel={handleInlineCancel}
+                        />
+                    </div>
+                </DropdownItem>
+            );
+        }
+
+        return items as unknown as CollectionChildren<object>;
+    }, [
+        rowMenuViewModel,
+        contextMenu,
+        canSetLocation,
+        isClipboardSupported,
+        inlineSetLocationState,
+        getContextMenuShortcut,
+        getEmphasisClassForAction,
+        handleContextMenuAction,
+        handleInlineCancel,
+        handleInlineLocationChange,
+        handleInlineSubmit,
+        handleSetDownloadPath,
+        t,
+    ]);
+
     // TODO: Inline editor UX: ensure outcome/confidence messaging aligns with Recovery UX spec (“Location unavailable” on unknown) and avoid closing the menu until recovery gate reports completion.
-    const rect = contextMenu.virtualElement.getBoundingClientRect();
+    const rect = useMemo(
+        () => contextMenu?.virtualElement.getBoundingClientRect() ?? null,
+        [contextMenu]
+    );
+    if (!contextMenu || !rect) return null;
     return (
         <AnimatePresence>
                 <Dropdown
@@ -208,146 +376,7 @@ export default function TorrentTable_RowMenu({
                     />
                 </DropdownTrigger>
                 <DropdownMenu variant="shadow" className={GLASS_MENU_SURFACE}>
-                    {/* @ts-expect-error DropdownMenu expects a CollectionElement<object> */}
-                    {rowMenuViewModel.actions.map((item) => (
-                        <DropdownItem
-                            key={item.key}
-                            shortcut={item.shortcut}
-                            onPress={() => void handleContextMenuAction(item.key)}
-                            isDisabled={item.disabled}
-                        >
-                            {item.label}
-                        </DropdownItem>
-                    ))}
-                    <DropdownItem
-                        key="queue-heading"
-                        isDisabled
-                        className="border-t border-content1/20 px-panel pt-panel text-xs uppercase tracking-tight text-foreground/50"
-                    >
-                        {rowMenuViewModel.dataTitle}
-                    </DropdownItem>
-                    {rowMenuViewModel.queueActions.map((action) => (
-                        <DropdownItem
-                            key={action.key}
-                            className="pl-stage text-sm"
-                            shortcut={getContextMenuShortcut(action.key)}
-                            onPress={() =>
-                                void handleContextMenuAction(action.key)
-                            }
-                        >
-                            {action.label}
-                        </DropdownItem>
-                    ))}
-                    <DropdownItem
-                        key="data-title"
-                        isDisabled
-                        className="border-t border-content1/20 mt-tight pt-tight px-panel text-scaled font-bold uppercase text-foreground/50"
-                        style={{ letterSpacing: "var(--tt-tracking-ultra)" }}
-                    >
-                        {t("table.data.title")}
-                    </DropdownItem>
-                    {rowMenuViewModel.showOpenFolder ? (
-                        <DropdownItem
-                            key="open-folder"
-                            isDisabled={rowMenuViewModel.openFolderDisabled}
-                            className={cn(
-                                contextMenu?.torrent.errorEnvelope
-                                    ?.primaryAction === "openFolder"
-                                    ? getEmphasisClassForAction?.(
-                                          contextMenu?.torrent.errorEnvelope
-                                              ?.primaryAction
-                                      )
-                                    : ""
-                            )}
-                            onPress={() =>
-                                void handleContextMenuAction("open-folder")
-                            }
-                        >
-                            {t("table.actions.open_folder")}
-                        </DropdownItem>
-                    ) : null}
-                    <DropdownItem
-                        key="set-download-path"
-                        className={cn(
-                            contextMenu?.torrent.errorEnvelope
-                                ?.primaryAction === "setLocation"
-                                ? getEmphasisClassForAction?.(
-                                      contextMenu?.torrent.errorEnvelope
-                                          ?.primaryAction
-                                  )
-                                : ""
-                        )}
-                        isDisabled={!canSetLocation}
-                        onPress={handleSetDownloadPath}
-                        textValue={t("table.actions.set_download_path")}
-                    >
-                        {t("table.actions.set_download_path")}
-                    </DropdownItem>
-                    <DropdownItem
-                        key="copy-hash"
-                        isDisabled={isClipboardSupported === false}
-                        shortcut={getContextMenuShortcut("copy-hash")}
-                        onPress={() =>
-                            void handleContextMenuAction("copy-hash")
-                        }
-                    >
-                        {t("table.actions.copy_hash")}
-                    </DropdownItem>
-                    <DropdownItem
-                        key="copy-magnet"
-                        isDisabled={isClipboardSupported === false}
-                        shortcut={getContextMenuShortcut("copy-magnet")}
-                        onPress={() =>
-                            void handleContextMenuAction("copy-magnet")
-                        }
-                    >
-                        {t("table.actions.copy_magnet")}
-                    </DropdownItem>
-                    <DropdownItem
-                        key="remove"
-                        color="danger"
-                        shortcut={getContextMenuShortcut("remove")}
-                        onPress={() => void handleContextMenuAction("remove")}
-                    >
-                        {t("table.actions.remove")}
-                    </DropdownItem>
-                    <DropdownItem
-                        key="remove-with-data"
-                        color="danger"
-                        shortcut={getContextMenuShortcut("remove-with-data")}
-                        onPress={() =>
-                            void handleContextMenuAction("remove-with-data")
-                        }
-                    >
-                        {t("table.actions.remove_with_data")}
-                    </DropdownItem>
-                    {rowMenuViewModel.inlineEditor.visible &&
-                    inlineSetLocationState ? (
-                        <DropdownItem
-                            key="set-location-inline"
-                            className="border-t border-content1/20 p-0"
-                            role="presentation"
-                            textValue={t("table.actions.set_download_path")}
-                        >
-                            <div className="px-panel pt-panel">
-                                <SetLocationInlineEditor
-                                    value={inlineSetLocationState.inputPath}
-                                    error={inlineSetLocationState.error}
-                                    isBusy={rowMenuViewModel.inlineEditor.isBusy}
-                                    caption={rowMenuViewModel.inlineEditor.caption}
-                                    statusMessage={
-                                        rowMenuViewModel.inlineEditor.statusMessage
-                                    }
-                                    disableCancel={
-                                        rowMenuViewModel.inlineEditor.isBusy
-                                    }
-                                    onChange={handleInlineLocationChange}
-                                    onSubmit={handleInlineSubmit}
-                                    onCancel={handleInlineCancel}
-                                />
-                            </div>
-                        </DropdownItem>
-                    ) : null}
+                    {menuItems}
                 </DropdownMenu>
             </Dropdown>
         </AnimatePresence>

@@ -51,6 +51,12 @@ export interface DashboardDetailViewModel {
     ) => Promise<void>;
     sequentialToggleHandler?: (enabled: boolean) => Promise<void>;
     superSeedingToggleHandler?: (enabled: boolean) => Promise<void>;
+    handleEnsureValid?: (torrentId: string | number) => Promise<void>;
+    handleEnsureDataPresent?: (torrentId: string | number) => Promise<void>;
+    handleEnsureAtLocation?: (
+        torrentId: string | number,
+        path: string
+    ) => Promise<void>;
     peerSortStrategy: PeerSortStrategy;
     inspectorTabCommand: DetailTab | null;
     onInspectorTabCommandHandled: () => void;

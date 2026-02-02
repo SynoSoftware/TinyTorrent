@@ -48,7 +48,6 @@ export function useTorrentOrchestrator({
     const addTorrent = useAddTorrentController({
         dispatch,
         settingsConfig,
-        setSettingsConfig,
         torrents,
         pendingDeletionHashesRef,
     });

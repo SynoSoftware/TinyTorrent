@@ -35,9 +35,8 @@ import {
 import { extractDriveLabel } from "@/shared/utils/recoveryFormat";
 import {
     useMissingFilesProbe,
-    useMissingFilesClassification,
 } from "@/services/recovery/missingFilesStore";
-import { resolveRecoveryClassification } from "@/modules/dashboard/utils/recoveryClassification";
+import { useResolvedRecoveryClassification } from "@/modules/dashboard/hooks/useResolvedRecoveryClassification";
 import { useOpenTorrentFolder } from "@/app/hooks/useOpenTorrentFolder";
 import STATUS from "@/shared/status";
 import { SetLocationInlineEditor } from "@/modules/dashboard/components/SetLocationInlineEditor";
@@ -129,7 +128,6 @@ export const GeneralTab = ({
         handleInlineLocationChange,
         setLocationCapability,
         canOpenFolder,
-        getRecoverySessionForKey,
     } = useRecoveryContext();
     // TODO: General tab recovery/set-location actions must use the single recovery gate/state machine; avoid any local sequencing or reclassification in this component.
     // TODO: ViewModel boundary: GeneralTab should be a pure View. It should not read `serverClass` or `connectionMode` directly.
@@ -146,19 +144,7 @@ export const GeneralTab = ({
     const showMissingFilesError =
         effectiveState === STATUS.torrent.MISSING_FILES;
 
-    const torrentKey = getTorrentKey(torrent);
-    const recoverySession = getRecoverySessionForKey(torrentKey);
-    const storedClassification = useMissingFilesClassification(
-        torrent.id ?? torrent.hash ?? undefined
-    );
-    const classification = useMemo(
-        () =>
-            resolveRecoveryClassification({
-                sessionClassification: recoverySession?.classification ?? null,
-                storedClassification,
-            }),
-        [recoverySession?.classification, storedClassification]
-    );
+    const classification = useResolvedRecoveryClassification(torrent);
     const classificationLabel = classification
         ? (() => {
               if (classification.confidence === "unknown") {

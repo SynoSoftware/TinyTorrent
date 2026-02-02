@@ -54,7 +54,6 @@ import { TABLE_LAYOUT, ICON_STROKE_WIDTH_DENSE } from "@/config/logic";
 import useLayoutMetrics from "@/shared/hooks/useLayoutMetrics";
 import { useUiClock } from "@/shared/hooks/useUiClock";
 import { SmoothProgressBar } from "@/shared/ui/components/SmoothProgressBar";
-import { TorrentIntents } from "@/app/intents/torrentIntents";
 import {
     formatBytes,
     formatDate,
@@ -74,13 +73,11 @@ import type {
     SetLocationOptions,
     SetLocationSurface,
 } from "@/app/context/RecoveryContext";
-import { useRequiredTorrentActions } from "@/app/context/TorrentActionsContext";
 import {
     formatMissingFileDetails,
 } from "@/modules/dashboard/utils/missingFiles";
-import { useMissingFilesClassification } from "@/services/recovery/missingFilesStore";
-import { resolveRecoveryClassification } from "@/modules/dashboard/utils/recoveryClassification";
 import { useMissingFilesProbe } from "@/services/recovery/missingFilesStore";
+import { useResolvedRecoveryClassification } from "@/modules/dashboard/hooks/useResolvedRecoveryClassification";
 import type {
     MissingFilesClassification,
     RecoveryRecommendedAction,
@@ -225,6 +222,7 @@ type MissingFilesStatusCellProps = {
         torrent: Torrent,
         options?: SetLocationOptions
     ) => Promise<void>;
+    openFolder?: (path?: string | null) => void;
 };
 
 const MissingFilesStatusCell = ({
@@ -233,31 +231,19 @@ const MissingFilesStatusCell = ({
     handleRetry,
     handleDownloadMissing,
     handleSetLocation,
+    openFolder,
 }: MissingFilesStatusCellProps) => {
     const [statusHint, setStatusHint] = useState<string | null>(null);
     const [primaryBusy, setPrimaryBusy] = useState(false);
     const [secondaryBusy, setSecondaryBusy] = useState(false);
 
-    const { uiMode, getRecoverySessionForKey, setLocationCapability } =
+    const { uiMode, setLocationCapability, canOpenFolder } =
         useRecoveryContext();
     // TODO: ViewModel boundary: this cell renderer should not re-run recovery classification logic or derive side channels.
     // TODO: Render from recovery gate outputs (state/confidence/recommendedActions + uiMode = Full | Rpc) instead of `errorEnvelope` heuristics.
     // TODO: After migration, `classifyMissingFilesState(...)` must live only inside the recovery controller/gate, not in table cells.
-    const torrentKey = torrent.id?.toString() ?? torrent.hash ?? null;
     const downloadDir = torrent.savePath ?? torrent.downloadDir ?? "";
-    const sessionClassification =
-        getRecoverySessionForKey(torrentKey)?.classification ?? null;
-    const storedClassification = useMissingFilesClassification(
-        torrent.id ?? torrent.hash ?? undefined
-    );
-    const classification = useMemo(
-        () =>
-            resolveRecoveryClassification({
-                sessionClassification,
-                storedClassification,
-            }),
-        [sessionClassification, storedClassification]
-    );
+    const classification = useResolvedRecoveryClassification(torrent);
     if (!classification) {
         return (
             <div className="min-w-0 w-full flex items-center justify-center h-full">
@@ -276,12 +262,10 @@ const MissingFilesStatusCell = ({
     const canSetLocation =
         setLocationCapability.canBrowse || setLocationCapability.supportsManual;
 
-    const { dispatch } = useRequiredTorrentActions();
-    const openFolder = useCallback(() => {
-        const targetId = torrent.id ?? torrent.hash;
-        if (!targetId) return;
-        void dispatch(TorrentIntents.openTorrentFolder(targetId));
-    }, [dispatch, torrent.id, torrent.hash]);
+    const handleOpenFolder = useCallback(() => {
+        if (!downloadDir) return;
+        openFolder?.(downloadDir);
+    }, [downloadDir, openFolder]);
 
     useEffect(() => {
         setStatusHint(null);
@@ -367,12 +351,13 @@ const MissingFilesStatusCell = ({
                     isDisabled: !handleRetry,
                 };
             case "openFolder":
+                if (!canOpenFolder) return null;
                 return {
                     ...common,
                     variant: "light" as const,
                     color: "default" as const,
                     label: t("recovery.action_open_folder"),
-                    onPress: openFolder,
+                    onPress: handleOpenFolder,
                     isDisabled: !(torrent.savePath || torrent.downloadDir),
                 };
             default:
@@ -744,7 +729,7 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
         defaultVisible: true,
         sortAccessor: (torrent) => torrent.state,
         headerIcon: Activity,
-        render: ({ torrent, t }) => {
+        render: ({ torrent, t, table }) => {
             const {
                 handleRetry,
                 handleDownloadMissing,
@@ -786,6 +771,10 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
                         handleRetry={handleRetry}
                         handleDownloadMissing={handleDownloadMissing}
                         handleSetLocation={handleSetLocation}
+                        openFolder={
+                            (table.options.meta as DashboardTableMeta | undefined)
+                                ?.openFolder
+                        }
                     />
                 );
             }

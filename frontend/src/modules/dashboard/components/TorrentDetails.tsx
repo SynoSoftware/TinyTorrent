@@ -53,6 +53,9 @@ export function TorrentDetails({
         handleFileSelectionChange,
         sequentialToggleHandler,
         superSeedingToggleHandler,
+        handleEnsureValid,
+        handleEnsureDataPresent,
+        handleEnsureAtLocation,
         peerSortStrategy,
         inspectorTabCommand,
         onInspectorTabCommandHandled,
@@ -111,8 +114,33 @@ export function TorrentDetails({
                         files={torrent.files ?? []}
                         emptyMessage={t("torrent_modal.files_empty")}
                         onFilesToggle={handleFileSelectionChange}
-                        /* redownload handled via TorrentActionsContext */
-                        torrent={torrent}
+                        onRecheck={
+                            torrent.id ?? torrent.hash
+                                ? () =>
+                                      void handleEnsureValid?.(
+                                          torrent.id ?? torrent.hash
+                                      )
+                                : undefined
+                        }
+                        onDownloadMissing={
+                            torrent.id ?? torrent.hash
+                                ? () =>
+                                      void handleEnsureDataPresent?.(
+                                          torrent.id ?? torrent.hash
+                                      )
+                                : undefined
+                        }
+                        onOpenFolder={
+                            (torrent.id ?? torrent.hash) &&
+                            torrent.savePath &&
+                            torrent.savePath.trim().length > 0
+                                ? () =>
+                                      void handleEnsureAtLocation?.(
+                                          torrent.id ?? torrent.hash,
+                                          torrent.savePath ?? ""
+                                      )
+                                : undefined
+                        }
                         isStandalone={isStandalone}
                     />
                 )}

@@ -11,8 +11,6 @@ import { useFileTree } from "@/shared/hooks/useFileTree";
 import { useOptimisticToggle } from "@/shared/hooks/useOptimisticToggle";
 import type { TorrentFileEntity } from "@/services/rpc/entities";
 import { DETAILS_TAB_CONTENT_MAX_HEIGHT } from "@/config/logic";
-import { useRequiredTorrentActions } from "@/app/context/TorrentActionsContext";
-import { TorrentIntents } from "@/app/intents/torrentIntents";
 
 interface ContentTabProps {
     files?: TorrentFileEntity[];
@@ -25,8 +23,9 @@ interface ContentTabProps {
         action: FileExplorerContextAction,
         entry: FileExplorerEntry
     ) => void;
-    torrent?: any;
-    // TODO: Remove `any`. Define the minimal typed shape needed by this tab (id/hash/savePath/etc) or pass only what is needed.
+    onRecheck?: () => void;
+    onDownloadMissing?: () => void;
+    onOpenFolder?: () => void;
     isStandalone?: boolean;
 }
 
@@ -47,11 +46,12 @@ export const ContentTab = ({
     emptyMessage,
     onFilesToggle,
     onFileContextAction,
-    torrent,
+    onRecheck,
+    onDownloadMissing,
+    onOpenFolder,
     isStandalone,
 }: ContentTabProps) => {
     const { t } = useTranslation();
-    const { dispatch } = useRequiredTorrentActions();
 
     const fileEntries = useFileTree(files);
     const filesCount = fileEntries.length;
@@ -107,13 +107,8 @@ export const ContentTab = ({
                             size="md"
                             variant="shadow"
                             color="primary"
-                            onPress={() =>
-                                void dispatch(
-                                    TorrentIntents.ensureValid(
-                                        torrent?.id ?? torrent?.hash
-                                    )
-                                )
-                            }
+                            onPress={onRecheck}
+                            isDisabled={!onRecheck}
                         >
                             {t("toolbar.recheck")}
                         </Button>
@@ -121,13 +116,8 @@ export const ContentTab = ({
                             size="md"
                             variant="shadow"
                             color="danger"
-                            onPress={() =>
-                                void dispatch(
-                                    TorrentIntents.ensureDataPresent(
-                                        torrent?.id ?? torrent?.hash
-                                    )
-                                )
-                            }
+                            onPress={onDownloadMissing}
+                            isDisabled={!onDownloadMissing}
                         >
                             {t("modals.download")}
                         </Button>
@@ -135,14 +125,8 @@ export const ContentTab = ({
                             size="md"
                             variant="shadow"
                             color="default"
-                            onPress={() =>
-                                void dispatch(
-                                    TorrentIntents.ensureAtLocation(
-                                        torrent?.id ?? torrent?.hash,
-                                        torrent?.savePath ?? ""
-                                    )
-                                )
-                            }
+                            onPress={onOpenFolder}
+                            isDisabled={!onOpenFolder}
                         >
                             {t("directory_browser.open")}
                         </Button>

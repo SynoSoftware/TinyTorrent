@@ -109,6 +109,8 @@ export type AddTorrentFromFile = {
     priorityHigh: number[];
     priorityNormal: number[];
     priorityLow: number[];
+    sequentialDownload?: boolean;
+    skipHashCheck?: boolean;
 };
 
 export type FinalizeExistingTorrent = {
@@ -285,7 +287,9 @@ export const TorrentIntents = {
         filesUnwanted: number[],
         priorityHigh: number[],
         priorityNormal: number[],
-        priorityLow: number[]
+        priorityLow: number[],
+        sequentialDownload?: boolean,
+        skipHashCheck?: boolean
     ): AddTorrentFromFile => ({
         type: "ADD_TORRENT_FROM_FILE",
         metainfoBase64,
@@ -295,6 +299,8 @@ export const TorrentIntents = {
         priorityHigh,
         priorityNormal,
         priorityLow,
+        sequentialDownload,
+        skipHashCheck,
     }),
     finalizeExistingTorrent: (
         torrentId: string | number,

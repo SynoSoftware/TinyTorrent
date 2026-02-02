@@ -19,7 +19,6 @@ import type { TorrentIntentExtended } from "@/app/intents/torrentIntents";
 export interface UseAddTorrentControllerParams {
     dispatch: (intent: TorrentIntentExtended) => Promise<void>;
     settingsConfig: SettingsConfig;
-    setSettingsConfig: Dispatch<SetStateAction<SettingsConfig>>;
     torrents: Array<Torrent | TorrentDetail>;
     pendingDeletionHashesRef: MutableRefObject<Set<string>>;
 }
@@ -47,7 +46,6 @@ export interface UseAddTorrentControllerResult {
 export function useAddTorrentController({
     dispatch,
     settingsConfig,
-    setSettingsConfig,
     torrents,
     pendingDeletionHashesRef,
 }: UseAddTorrentControllerParams): UseAddTorrentControllerResult {
@@ -57,6 +55,7 @@ export function useAddTorrentController({
     const isResolvingMagnet = false;
     const [isMagnetModalOpen, setMagnetModalOpen] = useState(false);
     const [magnetModalInitialValue, setMagnetModalInitialValue] = useState("");
+    const [isAddingTorrent, setIsAddingTorrent] = useState(false);
     const [isFinalizingExisting, setIsFinalizingExisting] = useState(false);
 
     const fallbackCommitMode = settingsConfig.start_added_torrents
@@ -70,14 +69,6 @@ export function useAddTorrentController({
         downloadDir: addTorrentDownloadDir,
         setDownloadDir: setAddTorrentDownloadDir,
     } = addTorrentDefaults;
-
-    useEffect(() => {
-        if (!addTorrentDownloadDir) return;
-        setSettingsConfig((prev) => {
-            if (prev.download_dir === addTorrentDownloadDir) return prev;
-            return { ...prev, download_dir: addTorrentDownloadDir };
-        });
-    }, [addTorrentDownloadDir, setSettingsConfig]);
 
     const addModalState = useAddModalState({
         onOpenAddMagnet: (magnetLink?: string) => {
@@ -180,9 +171,11 @@ export function useAddTorrentController({
                     addSource.file,
                 );
                 if (!metainfo.ok) {
+                    showFeedback(t("modals.file_tree_error"), "danger");
                     closeAddTorrentWindow();
                     return;
                 }
+                setIsAddingTorrent(true);
                 try {
                     await dispatch(
                         TorrentIntents.addTorrentFromFile(
@@ -193,10 +186,18 @@ export function useAddTorrentController({
                             selection.priorityHigh,
                             selection.priorityNormal,
                             selection.priorityLow,
+                            selection.options.sequential,
+                            selection.options.skipHashCheck,
                         ),
                     );
-                } finally {
+                    showFeedback(t("toolbar.feedback.added"), "success");
                     closeAddTorrentWindow();
+                } catch (err) {
+                    console.error("Failed to add torrent from file", err);
+                    showFeedback(t("modals.add_error_default"), "danger");
+                    throw err;
+                } finally {
+                    setIsAddingTorrent(false);
                 }
                 return;
             }
@@ -216,12 +217,24 @@ export function useAddTorrentController({
                         startNow,
                     ),
                 );
+                showFeedback(t("recovery.toast_location_updated"), "success");
                 closeAddTorrentWindow();
+            } catch (err) {
+                console.error("Failed to finalize existing torrent", err);
+                showFeedback(t("modals.add_error_default"), "danger");
+                throw err;
             } finally {
                 setIsFinalizingExisting(false);
             }
         },
-        [addSource, closeAddTorrentWindow, dispatch, setAddTorrentDownloadDir],
+        [
+            addSource,
+            closeAddTorrentWindow,
+            dispatch,
+            setAddTorrentDownloadDir,
+            showFeedback,
+            t,
+        ],
     );
 
     useEffect(() => {
@@ -253,7 +266,7 @@ export function useAddTorrentController({
         closeAddTorrentWindow,
         isResolvingMagnet,
         isFinalizingExisting,
-        isAddingTorrent: isFinalizingExisting,
+        isAddingTorrent,
         setAddSource,
         isMagnetModalOpen,
         magnetModalInitialValue,
