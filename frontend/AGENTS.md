@@ -1543,7 +1543,7 @@ TinyTorrent must behave like a desktop tool and look better than desktop tools e
 
 ---
 
-# **Other Rules**
+# **19. Other Rules**
 
 1. Before reporting a task as completed, perform a review of the code and fix all important issues. Repeat until you are fully satisfied.
 
@@ -1561,7 +1561,7 @@ TinyTorrent must behave like a desktop tool and look better than desktop tools e
 
 ABSOLUTE RULE: Never run git restore, git reset, git clean, or checkout -- without explicit confirmation. Preserve all local changes.
 
-# Mandatory Architectural Rules
+# **20. Mandatory Architectural Rules**
 
 1. **Global Truth Over Local Convenience**
    Code MUST optimize for a single, global source of truth.
@@ -1597,3 +1597,98 @@ ABSOLUTE RULE: Never run git restore, git reset, git clean, or checkout -- witho
    - explicit rejection reasons
 
    First writer wins is forbidden unless documented.
+
+
+# **21. Architecture Invariants (Foundational — Hard Rules)**
+
+These rules define the non-negotiable structural laws of the system.
+All subsequent sections (UI, tokens, runtime, RPC, components, hooks)
+are constrained by these invariants.
+
+Violations are regressions, not tradeoffs.
+
+
+## **21.0 Architecture Invariants (Hard Rules; Prevent Refactors)**
+
+These rules exist to prevent hidden coupling and accidental complexity.
+
+### **21.1 Enforcement Clause (Hard)**
+
+Any PR that violates a Hard Rule must be rejected. Refactors that introduce violations are regressions, not progress.
+
+If a rule blocks implementation, the rule must be amended first (in this document), not worked around.
+
+### **21.2 Authority Rule (Hard)**
+
+Every decision in the system must have exactly one authority.
+
+- If a value influences behavior, a single named owner produces it.
+- Logic must not infer behavior from identity, naming, environment, heuristics, or caller position.
+- If authority is unclear, stop and define it before writing code.
+
+### **21.3 Ownership Rule (Hard)**
+
+All mutable state must declare an owner. The owner is responsible for creating, updating, resetting, and destroying that state.
+
+- State without a declared owner is forbidden.
+- Module-level mutable state is forbidden unless the owner is explicit.
+
+### **21.4 Lifecycle Rule (Hard)**
+
+Every stateful construct must define its lifecycle boundary. Acceptable lifetimes:
+
+- per render
+- per hook instance
+- per session
+- per application
+
+State must reset when its lifecycle ends. If the lifecycle cannot be stated in one sentence, the design is invalid.
+
+### **21.5 Explicit Contract Rule (Hard)**
+
+Behavior must be gated by explicit contracts, not inferred properties.
+
+- If code branches on a condition, that condition must be explicitly named, typed, and provided by the authority.
+- Heuristics, naming conventions, and identity checks are forbidden for behavioral decisions.
+
+### **21.6 No Implicit Knowledge Rule**
+
+If a piece of code "just knows" something, that knowledge is wrong.
+
+- All knowledge must be requested from its authority, scoped to a lifecycle, and expressed via a contract.
+
+### **21.7 System Configuration Consistency Rule (Hard)**
+
+The system has exactly one configuration authority.
+
+- All components, hooks, and controllers must read configuration from the same validated source (Context).
+- Configuration is immutable after load.
+
+Forbidden:
+
+- Reading config files outside the provider
+- Local defaults that diverge from the config authority
+- Inferred behavior
+- Environment-based branching inside components
+
+If two components answer the same question differently, the architecture is already broken.
+
+### **21.8 Context vs Parameter Rule (Hard)**
+
+If a value has a Context owner, it must be read from Context at the point of use.
+
+Threading context-owned values through function parameters is forbidden except for:
+
+- testing
+- boundary adapters
+
+### **21.9 Refactor Smell Indicators**
+
+A refactor is likely wrong if it causes:
+
+- parameter lists to grow
+- orchestrators to pass more data
+- hooks to gain "environment" arguments
+- behavior to depend on caller position
+
+These indicate authority leakage.
