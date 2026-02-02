@@ -26,7 +26,7 @@ import { TEXT_ROLES } from "@/modules/dashboard/hooks/utils/textRoles";
 // unmounts/remounts the component. These helpers are intentionally
 // defined at module scope (browser runtime) rather than inside the
 // React component lifecycle so the user can call them from DevTools.
-if (typeof window !== "undefined") {
+ if (import.meta.env.DEV && typeof window !== "undefined") {
     try {
         (window as any).__piecesMapForceResize = function () {
             try {

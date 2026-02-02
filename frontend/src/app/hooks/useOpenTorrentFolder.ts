@@ -40,7 +40,7 @@ export function useOpenTorrentFolder() {
             if (!path) return;
             if (!shellAgent.isAvailable) {
                 showFeedback(
-                    t("recovery.feedback.open_remote_folder"),
+                    t("recovery.open_remote_folder"),
                     "warning"
                 );
                 return;
@@ -70,7 +70,7 @@ export function useOpenTorrentFolder() {
             if (lastError) {
                 console.error("open folder failed", lastError);
             }
-            showFeedback(t("recovery.feedback.open_path_failed"), "warning");
+            showFeedback(t("recovery.open_path_failed"), "warning");
         },
         [showFeedback, shellAgent, t]
     );

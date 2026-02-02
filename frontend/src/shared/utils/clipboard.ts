@@ -1,11 +1,18 @@
-export async function writeClipboard(text?: string) {
-    if (!text) return;
+export async function tryWriteClipboard(text?: string): Promise<boolean> {
+    if (!text) return false;
     try {
-        if (typeof navigator === "undefined" || !navigator.clipboard) return;
+        if (typeof navigator === "undefined" || !navigator.clipboard) {
+            return false;
+        }
         await navigator.clipboard.writeText(text);
-    } catch (e) {
-        // Swallow errors; callers may surface feedback if needed.
+        return true;
+    } catch {
+        return false;
     }
+}
+
+export async function writeClipboard(text?: string) {
+    await tryWriteClipboard(text);
 }
 
 export default writeClipboard;

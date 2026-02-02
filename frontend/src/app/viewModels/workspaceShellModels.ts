@@ -69,6 +69,12 @@ export interface DashboardDetailControls {
     ) => Promise<void>;
     handleSequentialToggle: (enabled: boolean) => Promise<void>;
     handleSuperSeedingToggle: (enabled: boolean) => Promise<void>;
+    handleEnsureValid: (torrentId: string | number) => Promise<void>;
+    handleEnsureDataPresent: (torrentId: string | number) => Promise<void>;
+    handleEnsureAtLocation: (
+        torrentId: string | number,
+        path: string
+    ) => Promise<void>;
     setInspectorTabCommand: (value: DetailTab | null) => void;
 }
 
@@ -108,6 +114,9 @@ export function useDashboardViewModel(
                 handleFileSelectionChange: controls.handleFileSelectionChange,
                 sequentialToggleHandler: controls.handleSequentialToggle,
                 superSeedingToggleHandler: controls.handleSuperSeedingToggle,
+                handleEnsureValid: controls.handleEnsureValid,
+                handleEnsureDataPresent: controls.handleEnsureDataPresent,
+                handleEnsureAtLocation: controls.handleEnsureAtLocation,
                 peerSortStrategy: detail.peerSortStrategy,
                 inspectorTabCommand: detail.inspectorTabCommand,
                 onInspectorTabCommandHandled: () =>

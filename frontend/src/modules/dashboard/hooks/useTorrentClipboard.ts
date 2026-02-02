@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { CONFIG } from "@/config/logic";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
+import { tryWriteClipboard } from "@/shared/utils/clipboard";
 
 const DEFAULT_MAGNET_PREFIX = CONFIG.defaults.magnet_protocol_prefix;
 
@@ -16,18 +17,7 @@ export function useTorrentClipboard() {
     );
 
     const copyToClipboard = useCallback(async (value?: string) => {
-        if (!value) return;
-        if (
-            typeof navigator === "undefined" ||
-            typeof navigator.clipboard?.writeText !== "function"
-        ) {
-            return;
-        }
-        try {
-            await navigator.clipboard.writeText(value);
-        } catch {
-            // ignore
-        }
+        await tryWriteClipboard(value);
     }, []);
 
     return { isClipboardSupported, copyToClipboard, buildMagnetLink };

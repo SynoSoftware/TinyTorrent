@@ -365,6 +365,27 @@ export function useWorkspaceShellViewModel({
 
     const { dispatch } = useRequiredTorrentActions();
 
+    const handleEnsureValid = useCallback(
+        async (torrentId: string | number) => {
+            await dispatch(TorrentIntents.ensureValid(torrentId));
+        },
+        [dispatch],
+    );
+
+    const handleEnsureDataPresent = useCallback(
+        async (torrentId: string | number) => {
+            await dispatch(TorrentIntents.ensureDataPresent(torrentId));
+        },
+        [dispatch],
+    );
+
+    const handleEnsureAtLocation = useCallback(
+        async (torrentId: string | number, path: string) => {
+            await dispatch(TorrentIntents.ensureAtLocation(torrentId, path));
+        },
+        [dispatch],
+    );
+
     const handleDownloadMissing = useCallback(
         async (torrent: Torrent, options?: { recreateFolder?: boolean }) => {
             await executeRedownload(torrent, options);
@@ -599,6 +620,9 @@ export function useWorkspaceShellViewModel({
             handleFileSelectionChange,
             handleSequentialToggle,
             handleSuperSeedingToggle,
+            handleEnsureValid,
+            handleEnsureDataPresent,
+            handleEnsureAtLocation,
             setInspectorTabCommand,
         }),
         [
@@ -607,6 +631,9 @@ export function useWorkspaceShellViewModel({
             handleFileSelectionChange,
             handleSequentialToggle,
             handleSuperSeedingToggle,
+            handleEnsureValid,
+            handleEnsureDataPresent,
+            handleEnsureAtLocation,
             setInspectorTabCommand,
         ],
     );

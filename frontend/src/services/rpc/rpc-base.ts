@@ -1162,6 +1162,22 @@ export class TransmissionAdapter implements EngineAdapter {
         });
     }
 
+    public async setSequentialDownload(id: string, enabled: boolean): Promise<void> {
+        const rpcId = await this.resolveRpcId(id);
+        await this.mutate("torrent-set", {
+            ids: [rpcId],
+            sequentialDownload: enabled,
+        });
+    }
+
+    public async setSuperSeeding(id: string, enabled: boolean): Promise<void> {
+        const rpcId = await this.resolveRpcId(id);
+        await this.mutate("torrent-set", {
+            ids: [rpcId],
+            superSeeding: enabled,
+        });
+    }
+
     public async forceTrackerReannounce(id: string): Promise<void> {
         const rpcId = await this.resolveRpcId(id);
         await this.send(

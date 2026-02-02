@@ -179,15 +179,32 @@ export function createTorrentDispatch({
         case "ADD_TORRENT_FROM_FILE":
             await runWithRefresh(
                 async () => {
-                    await activeClient.addTorrent({
+                    const shouldStart = !intent.paused;
+                    const verifyBeforeStart =
+                        shouldStart && intent.skipHashCheck === false;
+                    const addPaused = verifyBeforeStart ? true : intent.paused;
+
+                    const result = await activeClient.addTorrent({
                         metainfo: intent.metainfoBase64,
                         downloadDir: intent.downloadDir,
-                        paused: intent.paused,
+                        paused: addPaused,
                         filesUnwanted: intent.filesUnwanted,
                         priorityHigh: intent.priorityHigh,
                         priorityNormal: intent.priorityNormal,
                         priorityLow: intent.priorityLow,
                     });
+
+                    if (intent.sequentialDownload) {
+                        const setSequential = activeClient.setSequentialDownload;
+                        if (setSequential) {
+                            await setSequential(result.id, true);
+                        }
+                    }
+
+                    if (verifyBeforeStart) {
+                        await activeClient.verify([result.id]);
+                        await activeClient.resume([result.id]);
+                    }
                 },
                 { refreshStats: false, refreshDetail: false }
             );
