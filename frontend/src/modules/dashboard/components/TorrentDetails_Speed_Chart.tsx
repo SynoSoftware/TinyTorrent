@@ -178,7 +178,8 @@ const useObservedSize = () => {
     useEffect(() => {
         if (typeof window === "undefined") return;
         const el = ref.current;
-        if (!el) return;
+        if (!el || typeof ResizeObserver === "undefined") return;
+        if (!(el instanceof Element)) return;
 
         const ro = new ResizeObserver((entries) => {
             for (const entry of entries) {
@@ -189,7 +190,12 @@ const useObservedSize = () => {
             }
         });
 
-        ro.observe(el);
+        try {
+            ro.observe(el);
+        } catch {
+            ro.disconnect();
+            return;
+        }
         const rect = el.getBoundingClientRect();
         setSize({ width: rect.width || 0, height: rect.height || 0 });
 

@@ -170,9 +170,9 @@ const mapConfigToSession = (
     };
 
     const blocklistSupported =
-        Boolean(sessionSettings) &&
-        ("blocklist-enabled" in (sessionSettings ?? {}) ||
-            "blocklist-url" in (sessionSettings ?? {}));
+        !sessionSettings ||
+        "blocklist-enabled" in sessionSettings ||
+        "blocklist-url" in sessionSettings;
 
     if (!blocklistSupported) {
         delete settings["blocklist-enabled"];
@@ -240,6 +240,13 @@ export function useSettingsFlow({
         useState<TransmissionSessionSettings | null>(null);
     const [isSettingsSaving, setIsSettingsSaving] = useState(false);
     const [settingsLoadError, setSettingsLoadError] = useState(false);
+    const blocklistSupported = useMemo(() => {
+        if (!sessionSettings) return true;
+        return (
+            "blocklist-enabled" in sessionSettings ||
+            "blocklist-url" in sessionSettings
+        );
+    }, [sessionSettings]);
 
     useEffect(() => {
         updateRequestTimeout(settingsConfig.request_timeout_ms);
@@ -330,18 +337,17 @@ export function useSettingsFlow({
         ],
     );
 
-    const handleTestPort = useCallback(async () => {
+    const handleTestPort = useCallback(async (): Promise<boolean> => {
+        if (!torrentClient.testPort) {
+            throw new Error("settings.modal.error_test_port");
+        }
         try {
-            if (!torrentClient.testPort) {
-                throw new Error("Port test not supported");
-            }
-            await torrentClient.testPort();
+            return await torrentClient.testPort();
         } catch (error) {
-            if (isMountedRef.current) {
-                if (!isRpcCommandError(error)) {
-                    reportCommandError(error);
-                }
+            if (isMountedRef.current && !isRpcCommandError(error)) {
+                reportCommandError(error);
             }
+            throw error;
         }
     }, [reportCommandError, torrentClient, isMountedRef]);
 
@@ -377,5 +383,6 @@ export function useSettingsFlow({
         setSettingsConfig,
         applyUserPreferencesPatch,
         settingsLoadError,
+        blocklistSupported,
     };
 }

@@ -727,11 +727,15 @@ export function useWorkspaceShellViewModel({
             config: settingsFlow.settingsConfig,
             isSaving: settingsFlow.isSettingsSaving,
             loadError: settingsFlow.settingsLoadError,
+            capabilities: {
+                blocklistSupported: settingsFlow.blocklistSupported,
+            },
         }),
         [
             settingsFlow.settingsConfig,
             settingsFlow.isSettingsSaving,
             settingsFlow.settingsLoadError,
+            settingsFlow.blocklistSupported,
         ],
     );
 

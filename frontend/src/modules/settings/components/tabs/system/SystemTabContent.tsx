@@ -2,9 +2,6 @@ import {
     Button,
     Card,
     Chip,
-    Checkbox,
-    Select,
-    SelectItem,
     Switch,
     cn,
 } from "@heroui/react";
@@ -12,14 +9,11 @@ import type { ChipProps } from "@heroui/react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAsyncToggle } from "@/modules/settings/hooks/useAsyncToggle";
-import { useSettingsForm } from "@/modules/settings/context/SettingsFormContext";
 import type { ReactNode } from "react";
 import { SettingsSection } from "@/modules/settings/components/SettingsSection";
 import { useShellAgent } from "@/app/hooks/useShellAgent";
 import { useUiModeCapabilities } from "@/app/context/UiModeContext";
-import { usePreferences } from "@/app/context/PreferencesContext";
 
-type CloseAction = "minimize" | "quit";
 // TODO: Replace direct NativeShell system-integration calls with the ShellAgent/ShellExtensions adapter; enforce locality rules (only when connected to localhost) and render a clear “ShellExtensions unavailable” state for remote/browser connections.
 // TODO: IMPORTANT: This file should NOT *determine* locality/ShellExtensions availability. It should *consume* a single capability/locality source of truth (context/provider).
 // TODO: Gating rule for these controls is `uiMode === "Full"` (single source of truth). `uiMode` must be computed once from:
@@ -143,32 +137,8 @@ interface SystemTabContentProps {
 
 export function SystemTabContent({ isNativeMode }: SystemTabContentProps) {
     const { t } = useTranslation();
-    const { config, updateConfig } = useSettingsForm();
     const { shellAgent } = useShellAgent();
     const { uiMode } = useUiModeCapabilities();
-    const {
-        preferences: { systemPreferences },
-        setSystemPreferences,
-    } = usePreferences();
-
-    const setPowerManagementEnabled = useCallback(
-        (value: boolean) => {
-            setSystemPreferences({ preventSleep: value });
-        },
-        [setSystemPreferences]
-    );
-    const setAutoUpdateEnabled = useCallback(
-        (value: boolean) => {
-            setSystemPreferences({ autoUpdate: value });
-        },
-        [setSystemPreferences]
-    );
-    const setCloseButtonAction = useCallback(
-        (value: CloseAction) => {
-            setSystemPreferences({ closeAction: value });
-        },
-        [setSystemPreferences]
-    );
 
     const [integrationStatus, setIntegrationStatus] = useState({
         autorun: false,
@@ -214,18 +184,14 @@ export function SystemTabContent({ isNativeMode }: SystemTabContentProps) {
         Boolean(integrationStatus.autorun),
         setAutorunState,
         async (next) => {
-            if (!canUseShell) {
-                throw new Error("ShellAgent unavailable");
-            }
+            if (!canUseShell) return;
             await shellAgent.setSystemIntegration({ autorun: next });
             await refreshIntegration();
         }
     );
 
-    const handleAssociationAction = useCallback(async () => {
-        if (!canUseShell) {
-            return;
-        }
+    const handleAssociationRepair = useCallback(async () => {
+        if (!canUseShell) return;
         setAssociationPending(true);
         try {
             await shellAgent.setSystemIntegration({ associations: true });
@@ -235,11 +201,16 @@ export function SystemTabContent({ isNativeMode }: SystemTabContentProps) {
         }
     }, [canUseShell, refreshIntegration, shellAgent]);
 
+    const handleAssociationRefresh = useCallback(async () => {
+        if (!canUseShell) return;
+        await refreshIntegration();
+    }, [canUseShell, refreshIntegration]);
+
     const associationLabel =
         canUseShell && !integrationLoading
             ? integrationStatus.associations
-                ? t("settings.install.handlers_registered")
-                : t("settings.install.handlers_not_registered")
+                ? t("settings.system.handlers_registered")
+                : t("settings.system.handlers_not_registered")
             : t("settings.system.handlers_unknown");
 
     const associationChipColor =
@@ -249,12 +220,12 @@ export function SystemTabContent({ isNativeMode }: SystemTabContentProps) {
             ? "danger"
             : "default";
 
-    const associationButtonLabel =
-        integrationStatus.associations &&
-        canUseShell &&
-        !integrationLoading
-            ? t("settings.system.checkAssociation")
-            : t("settings.system.repairAssociation");
+    const associationButtonLabel = integrationStatus.associations
+        ? t("settings.system.refreshAssociation")
+        : t("settings.system.repairAssociation");
+    const handleAssociationAction = integrationStatus.associations
+        ? handleAssociationRefresh
+        : handleAssociationRepair;
 
     const autorunLabel =
         canUseShell && !integrationLoading
@@ -265,9 +236,6 @@ export function SystemTabContent({ isNativeMode }: SystemTabContentProps) {
 
     const autorunDisabled =
         !canUseShell || integrationLoading || autorunToggle.pending;
-
-    const silentStartDisabled =
-        !canUseShell || integrationLoading || !integrationStatus.autorun;
 
     if (!canUseShell) {
         return (
@@ -317,49 +285,6 @@ export function SystemTabContent({ isNativeMode }: SystemTabContentProps) {
                         />
                     }
                 />
-                <SystemRow
-                    label={t("settings.labels.preventSleep")}
-                    helper={t("settings.labels.preventSleepHelper")}
-                    control={
-                        <Switch
-                            size="md"
-                            color="primary"
-                            isSelected={systemPreferences.preventSleep}
-                            onValueChange={setPowerManagementEnabled}
-                        />
-                    }
-                    status={
-                        <StatusChip
-                            label={
-                                systemPreferences.preventSleep
-                                    ? t("settings.system.power_active")
-                                    : t("settings.system.power_off")
-                            }
-                            color="default"
-                        />
-                    }
-                />
-                <SystemRow
-                    label={t("settings.labels.updateChecks")}
-                    control={
-                        <Switch
-                            size="md"
-                            color="primary"
-                            isSelected={systemPreferences.autoUpdate}
-                            onValueChange={setAutoUpdateEnabled}
-                        />
-                    }
-                    status={
-                        <StatusChip
-                            label={
-                                systemPreferences.autoUpdate
-                                    ? t("settings.system.update_auto")
-                                    : t("settings.system.update_manual")
-                            }
-                            color="primary"
-                        />
-                    }
-                />
             </SystemSectionCard>
             <SystemSectionCard
                 title={t("settings.sections.startup")}
@@ -377,50 +302,6 @@ export function SystemTabContent({ isNativeMode }: SystemTabContentProps) {
                         />
                     }
                     status={<StatusChip label={autorunLabel} color="default" />}
-                />
-                <SystemRow
-                    label={t("settings.labels.silentStart")}
-                    helper={t("settings.labels.silentStartHelper")}
-                    control={
-                        <Checkbox
-                            size="md"
-                            isSelected={config.autorun_hidden}
-                            onValueChange={(next) =>
-                                updateConfig("autorun_hidden", next)
-                            }
-                            isDisabled={silentStartDisabled}
-                        />
-                    }
-                    disabled={silentStartDisabled}
-                />
-            </SystemSectionCard>
-            <SystemSectionCard
-                title={t("settings.sections.window_behavior")}
-                description={t("settings.descriptions.window_behavior")}
-            >
-                <SystemRow
-                    label={t("settings.labels.closeButtonAction")}
-                    control={
-                        <Select
-                            size="sm"
-                            variant="bordered"
-                            selectedKeys={[systemPreferences.closeAction]}
-                            classNames={{ trigger: "h-button" }}
-                            onSelectionChange={(keys) => {
-                                const [next] = [...keys];
-                                if (next === "minimize" || next === "quit") {
-                                    setCloseButtonAction(next);
-                                }
-                            }}
-                        >
-                            <SelectItem key="minimize">
-                                {t("settings.options.closeAction.minimize")}
-                            </SelectItem>
-                            <SelectItem key="quit">
-                                {t("settings.options.closeAction.quit")}
-                            </SelectItem>
-                        </Select>
-                    }
                 />
             </SystemSectionCard>
         </div>
