@@ -1,4 +1,5 @@
 import { NativeShell } from "@/app/runtime";
+import type { TransmissionFreeSpace } from "@/services/rpc/types";
 
 export type ShellUiMode = "Full" | "Rpc";
 export type WindowCommand = "minimize" | "maximize" | "close";
@@ -90,6 +91,34 @@ export class ShellAgent {
             throw new Error("ShellAgent openPath requires a non-empty path");
         }
         await NativeShell.openPath(path);
+    }
+
+    async checkFreeSpace(path: string): Promise<TransmissionFreeSpace> {
+        this.ensureAvailable();
+        const trimmed = path.trim();
+        if (!trimmed) {
+            throw new Error("ShellAgent checkFreeSpace requires a non-empty path");
+        }
+        const payload = await NativeShell.request("check-free-space", {
+            path: trimmed,
+        });
+        if (!payload || typeof payload !== "object") {
+            throw new Error("ShellAgent checkFreeSpace returned invalid payload");
+        }
+        const raw = payload as {
+            path?: unknown;
+            sizeBytes?: unknown;
+            totalSize?: unknown;
+        };
+        if (typeof raw.path !== "string" || typeof raw.sizeBytes !== "number") {
+            throw new Error("ShellAgent checkFreeSpace payload missing fields");
+        }
+        return {
+            path: raw.path,
+            sizeBytes: raw.sizeBytes,
+            totalSize:
+                typeof raw.totalSize === "number" ? raw.totalSize : undefined,
+        };
     }
 
     async sendWindowCommand(command: WindowCommand) {

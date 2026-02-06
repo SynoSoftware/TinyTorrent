@@ -1,5 +1,6 @@
 import {
     Button,
+    ButtonGroup,
     Checkbox,
     Chip,
     Divider,
@@ -65,7 +66,6 @@ import {
     Sparkles,
     Wand2,
     X,
-    GripVertical,
     FileVideo,
     FileText,
     File as FileIcon,
@@ -73,7 +73,6 @@ import {
     CheckCircle2,
     PlayCircle,
     PauseCircle,
-    Tag,
     Hash,
     ListOrdered,
     Maximize2,
@@ -85,6 +84,7 @@ import {
 import { formatBytes } from "@/shared/utils/format";
 import {
     GLASS_MODAL_SURFACE,
+    GLASS_PANEL_SURFACE,
 } from "@/shared/ui/layout/glass-surface";
 import type { TorrentMetadata } from "@/shared/utils/torrent";
 import type { TransmissionFreeSpace } from "@/services/rpc/types";
@@ -93,6 +93,10 @@ import { StatusIcon } from "@/shared/ui/components/StatusIcon";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
 import type { AddTorrentCommitMode } from "@/modules/torrent-add/types";
 import { useFreeSpaceProbe } from "@/modules/torrent-add/hooks/useFreeSpaceProbe";
+import {
+    useAddTorrentFileTableLayout,
+    type AddTorrentResizableFileColumn,
+} from "@/modules/torrent-add/hooks/useAddTorrentFileTableLayout";
 import {
     applySmartSelectCommand,
     buildFiles,
@@ -143,14 +147,12 @@ export interface AddTorrentModalProps {
     onDownloadDirChange: (value: string) => void;
     onCommitModeChange: (value: AddTorrentCommitMode) => void;
     isSubmitting: boolean;
-    isResolvingSource?: boolean;
     onCancel: () => void;
     onConfirm: (selection: AddTorrentSelection) => Promise<void>;
-    onResolveMagnet?: () => void;
     checkFreeSpace?: (path: string) => Promise<TransmissionFreeSpace>;
     onBrowseDirectory?: (
         currentPath: string
-    ) => Promise<string | null | undefined>;
+        ) => Promise<string | null | undefined>;
 }
 
 // --- CONSTANTS & HELPERS ---
@@ -163,7 +165,9 @@ const HISTORY_LIMIT = 6;
 const FILE_GRID_TEMPLATE = "var(--tt-file-grid-template)";
 
 const DESTINATION_INPUT_CLASSNAMES = {
-    input: "font-mono text-scaled",
+    // Keep HeroUI's outer wrapper focus ring only.
+    // The inner input outline creates a harsh black/white rectangle in light/dark mode.
+    input: "font-mono text-scaled selection:bg-primary/20 selection:text-foreground !outline-none focus:!outline-none focus-visible:!outline-none",
     inputWrapper:
         "surface-layer-1 transition-colors shadow-none group-hover:border-default/10",
 };
@@ -199,9 +203,10 @@ const FULL_CONTENT_ANIMATION = {
 
 const MODAL_CLASSES =
     "w-full overflow-hidden flex flex-col shadow-2xl border border-default/10";
-const PANE_SURFACE = "flex flex-col min-h-0 bg-transparent";
+const PANE_SURFACE =
+    "flex flex-col min-h-0 overflow-hidden rounded-panel border border-default/20 shadow-small";
 const SECTION_LABEL =
-    "text-label font-bold tracking-widest text-foreground/40 uppercase mb-panel flex items-center gap-tools";
+    "text-label font-bold tracking-wider text-foreground/60 uppercase mb-panel flex items-center gap-tools";
 
 function describePathKind(path: string):
     | { kind: "drive"; drive: string }
@@ -240,10 +245,8 @@ export function AddTorrentModal({
     onDownloadDirChange,
     onCommitModeChange,
     isSubmitting,
-    isResolvingSource = false,
     onCancel,
     onConfirm,
-    onResolveMagnet,
     checkFreeSpace,
     onBrowseDirectory,
 }: AddTorrentModalProps) {
@@ -280,6 +283,7 @@ export function AddTorrentModal({
     // View State (New)
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [isSettingsCollapsed, setIsSettingsCollapsed] = useState(false);
+    const [isPanelResizeActive, setIsPanelResizeActive] = useState(false);
 
     // Free Space Logic
     const [isTouchingDirectory, setIsTouchingDirectory] = useState(false);
@@ -297,6 +301,7 @@ export function AddTorrentModal({
     const scrollParentRef = useRef<HTMLDivElement | null>(null);
     const formRef = useRef<HTMLFormElement | null>(null);
     const settingsPanelRef = useRef<ImperativePanelHandle>(null);
+    const settingsCollapseRequestedRef = useRef(false);
     const isMountedRef = useRef(false);
 
     // -- Keyboard Scope --
@@ -306,6 +311,7 @@ export function AddTorrentModal({
         useKeyboardScope(KEY_SCOPE.Dashboard);
 
     useEffect(() => {
+        if (!isOpen) return;
         deactivateDashboard();
         activateModal();
         return () => {
@@ -317,6 +323,7 @@ export function AddTorrentModal({
         activateModal,
         deactivateDashboard,
         deactivateModal,
+        isOpen,
     ]);
 
     useEffect(() => {
@@ -341,6 +348,12 @@ export function AddTorrentModal({
 
         if (shouldReset) {
             const initialFiles = buildFiles(source?.metadata);
+            const validInitialDestination = isValidDestinationForMode(
+                downloadDir,
+                uiMode
+            )
+                ? downloadDir
+                : "";
             setFilter("");
             setPriorities(new Map());
             setSequential(false);
@@ -354,11 +367,12 @@ export function AddTorrentModal({
             setDropActive(false);
             dropActiveRef.current = false;
             prevFilesCountRef.current = initialFiles.length;
-            setDestinationDraft(downloadDir);
+            setDestinationDraft(validInitialDestination);
 
             // Reset View modes
             setIsFullscreen(false);
             setIsSettingsCollapsed(false);
+            settingsCollapseRequestedRef.current = false;
         }
 
         wasOpenForResetRef.current = isOpen;
@@ -366,7 +380,7 @@ export function AddTorrentModal({
         if (!isOpen) {
             prevFilesCountRef.current = 0;
         }
-    }, [isOpen, source]);
+    }, [downloadDir, isOpen, source, uiMode]);
 
     // If metadata arrives after open (magnet resolution) and nothing was selected yet, default to selecting everything once.
     useEffect(() => {
@@ -390,23 +404,47 @@ export function AddTorrentModal({
             );
             setDestinationGateCompleted(isInitiallyValid);
             setDestinationGateTried(false);
-            setDestinationDraft(downloadDir);
+            setDestinationDraft(isInitiallyValid ? downloadDir : "");
         }
         wasOpenRef.current = isOpen;
     }, [downloadDir, isOpen, uiMode]);
 
     // -- Logic: Toggle Views --
     const toggleSettingsPanel = useCallback(() => {
+        // Rule A: this toggle is valid in both normal and fullscreen modes.
+        // Do not gate this by `isFullscreen`; fullscreen should only affect viewport size.
         const panel = settingsPanelRef.current;
         if (!panel) return;
 
-        if (isSettingsCollapsed) {
-            panel.expand();
+        if (panel.isCollapsed()) {
+            settingsCollapseRequestedRef.current = false;
+            panel.expand(SETTINGS_PANEL_MIN);
         } else {
+            settingsCollapseRequestedRef.current = true;
             panel.collapse();
         }
-        // State updates via onCollapse/onExpand callback in Panel component
-    }, [isSettingsCollapsed]);
+    }, []);
+
+    const handleSettingsPanelCollapse = useCallback(() => {
+        // VS Code-like behavior: drag should resize only, not hide the pane.
+        // Only explicit toggle actions may collapse settings.
+        if (settingsCollapseRequestedRef.current) {
+            settingsCollapseRequestedRef.current = false;
+            setIsSettingsCollapsed(true);
+            return;
+        }
+
+        const panel = settingsPanelRef.current;
+        if (panel) {
+            panel.expand(SETTINGS_PANEL_MIN);
+        }
+        setIsSettingsCollapsed(false);
+    }, []);
+
+    const handleSettingsPanelExpand = useCallback(() => {
+        settingsCollapseRequestedRef.current = false;
+        setIsSettingsCollapsed(false);
+    }, []);
 
     // -- Logic: History & Drops --
     const pushRecentPath = useCallback(
@@ -434,8 +472,11 @@ export function AddTorrentModal({
                 return;
             }
 
-            onDownloadDirChange(trimmed);
-            if (isValidDestinationForMode(trimmed, uiMode)) pushRecentPath(trimmed);
+            setDestinationDraft(trimmed);
+            if (isValidDestinationForMode(trimmed, uiMode)) {
+                onDownloadDirChange(trimmed);
+                pushRecentPath(trimmed);
+            }
         },
         [destinationGateCompleted, onDownloadDirChange, pushRecentPath, uiMode]
     );
@@ -446,10 +487,10 @@ export function AddTorrentModal({
             setDropActive(false);
             dropActiveRef.current = false;
             if (uiMode !== "Full") return;
-            const files = Array.from(event.dataTransfer?.files ?? []);
+            const droppedFiles = Array.from(event.dataTransfer?.files ?? []);
             let path: string | undefined;
-            if (files.length) {
-                const file = files[0] as File & {
+            if (droppedFiles.length) {
+                const file = droppedFiles[0] as File & {
                     path?: string;
                     webkitRelativePath?: string;
                 };
@@ -463,20 +504,26 @@ export function AddTorrentModal({
             // Destination is always a directory; we only accept drops that look like real paths.
             if (/^[a-zA-Z]:[\\/]fakepath[\\/]/i.test(path)) return;
             if (describePathKind(path).kind === "unknown") return;
-            // If a file path was dropped (common on native hosts), prefer the containing folder.
-            // Destination should always be a directory.
-            if (
-                path &&
-                /[\\/]/.test(path) &&
-                !path.endsWith("\\") &&
-                !path.endsWith("/")
-            ) {
-                const parent = path.replace(/[\\/][^\\/]+$/, "");
-                const normalizedParent = /^[a-zA-Z]:$/.test(parent)
-                    ? `${parent}\\`
-                    : parent || (path.startsWith("/") ? "/" : "");
-                if (normalizedParent && normalizedParent !== path)
-                    path = normalizedParent;
+            if (droppedFiles.length > 0 && path) {
+                const droppedName = droppedFiles[0]?.name?.trim();
+                const normalizedPath = path.replace(/\//g, "\\");
+                const droppedLooksLikeFile = Boolean(
+                    droppedName && /\.[^\\/.]+$/.test(droppedName)
+                );
+                if (
+                    droppedLooksLikeFile &&
+                    droppedName &&
+                    normalizedPath
+                        .toLowerCase()
+                        .endsWith(`\\${droppedName.toLowerCase()}`)
+                ) {
+                    const parent = normalizedPath.replace(/[\\][^\\]+$/, "");
+                    if (parent) {
+                        path = /^[a-zA-Z]:$/i.test(parent)
+                            ? `${parent}\\`
+                            : parent;
+                    }
+                }
             }
             applyDroppedPath(path);
         },
@@ -631,16 +678,18 @@ export function AddTorrentModal({
     // TODO: If connected to a remote daemon (`uiMode="Rpc"`), the UI must treat this as remote free space (and copy must not imply it is local disk space).
     const freeSpaceProbe = useFreeSpaceProbe({
         checkFreeSpace,
-        path: downloadDir,
-        enabled: isValidDestinationForMode(downloadDir.trim(), uiMode),
+        path: destinationDraft,
+        enabled: isValidDestinationForMode(destinationDraft.trim(), uiMode),
     });
     const freeSpace =
         freeSpaceProbe.status === "ok" ? freeSpaceProbe.value : null;
     const isCheckingSpace = freeSpaceProbe.status === "loading";
     const spaceError =
         freeSpaceProbe.status === "error"
-            ? t("modals.add_torrent.free_space_unknown")
+            ? t("modals.add_torrent.free_space_unavailable")
             : null;
+    const spaceErrorDetail =
+        freeSpaceProbe.status === "error" ? freeSpaceProbe.message ?? null : null;
 
     // -- Validation & Logic --
     const resolvedState = useMemo(() => {
@@ -654,15 +703,48 @@ export function AddTorrentModal({
     const isDiskSpaceCritical = freeSpace
         ? selectedSize > freeSpace.sizeBytes
         : false;
+    // Disk space is advisory only: warn the user, but never override their selected start behavior.
+    // Transmission/runtime handling remains authoritative for actual out-of-space behavior.
     const isSelectionEmpty = selected.size === 0;
-    const effectiveCommitMode = isDiskSpaceCritical ? "paused" : commitMode;
-    const isDestinationValid = isValidDestinationForMode(downloadDir, uiMode);
+    const activeDestination = destinationDraft.trim();
+    const isDestinationValid = isValidDestinationForMode(activeDestination, uiMode);
     const isDestinationDraftValid = isValidDestinationForMode(
         destinationDraft,
         uiMode
     );
     // Stage 1 vs Stage 2 is state-based (destination validity), never fullscreen-based.
     const showDestinationGate = !destinationGateCompleted;
+    const isDestinationGateRequiredError =
+        destinationGateTried && !destinationDraft.trim();
+    const isDestinationGateInvalidError =
+        !isDestinationDraftValid && Boolean(destinationDraft.trim());
+    const step1HintMessage = uiMode === "Rpc"
+        ? t("modals.add_torrent.destination_prompt_drop_hint_rpc")
+        : t("modals.add_torrent.destination_prompt_drop_hint_full");
+    const step1DestinationMessage = isDestinationGateRequiredError
+        ? t("modals.add_torrent.destination_required_chip")
+        : isDestinationGateInvalidError
+          ? t("modals.add_torrent.destination_prompt_invalid")
+          : step1HintMessage;
+    const step1DestinationTone =
+        isDestinationGateRequiredError || isDestinationGateInvalidError
+            ? "danger"
+            : "neutral";
+    const step2StatusMessage = !isDestinationValid && Boolean(activeDestination)
+        ? t("modals.add_torrent.destination_prompt_invalid")
+        : spaceError && spaceErrorDetail
+          ? spaceErrorDetail
+          : !activeDestination
+        ? uiMode === "Rpc"
+            ? t("modals.add_torrent.destination_prompt_drop_hint_rpc")
+            : t("modals.add_torrent.destination_prompt_drop_hint_full")
+        : t("modals.add_torrent.destination_ready");
+    const step2StatusTone =
+        !isDestinationValid && Boolean(activeDestination)
+            ? "danger"
+            : spaceError && spaceErrorDetail
+              ? "warning"
+              : "neutral";
     const canConfirm =
         !isSelectionEmpty &&
         isDestinationValid &&
@@ -670,13 +752,10 @@ export function AddTorrentModal({
         !isSubmitting &&
         resolvedState === "ready";
     const hasDestination = isDestinationValid;
-    const hasAnyDestination = Boolean(downloadDir.trim());
     const primaryBlockReason = (() => {
         if (submitError) return null;
         if (isDiskSpaceCritical) return null;
         if (isSelectionEmpty) return t("modals.add_torrent.tooltip_select_one");
-        if (!hasAnyDestination) return t("modals.add_torrent.destination_required_chip");
-        if (!isDestinationValid) return t("modals.add_torrent.destination_prompt_invalid");
         if (resolvedState !== "ready")
             return t("modals.add_torrent.tooltip_resolving_metadata");
         return null;
@@ -687,6 +766,27 @@ export function AddTorrentModal({
         : isFullscreen
         ? ("full" as const)
         : ("5xl" as const);
+    // Rule A invariant: fullscreen only changes available space.
+    // Interactive controls (collapse/resize/toggles) must stay identical across normal/fullscreen modes.
+    const canCollapseSettings = true;
+    const handleModalCancel = useCallback(() => {
+        // Clear committed destination when Step 2 draft was cleared and user closes.
+        // Next open will re-enter Step 1 destination gate.
+        if (
+            !showDestinationGate &&
+            destinationDraft.trim().length === 0 &&
+            downloadDir.trim().length > 0
+        ) {
+            onDownloadDirChange("");
+        }
+        onCancel();
+    }, [
+        destinationDraft,
+        downloadDir,
+        onCancel,
+        onDownloadDirChange,
+        showDestinationGate,
+    ]);
 
     const modalMotionProps = useMemo(() => {
         const bloom = INTERACTION_CONFIG.modalBloom;
@@ -711,6 +811,16 @@ export function AddTorrentModal({
         };
     }, []);
 
+    const {
+        tableLayoutRef,
+        handleColumnResizeStart,
+        handleColumnAutoFit,
+        isColumnResizing,
+    } = useAddTorrentFileTableLayout({
+        enabled: isOpen && !showDestinationGate && resolvedState === "ready",
+        rows: filteredFiles,
+    });
+
     const virtualizer = useVirtualizer({
         count: filteredFiles.length,
         getScrollElement: () => scrollParentRef.current,
@@ -731,6 +841,20 @@ export function AddTorrentModal({
         [handleSmartSelect]
     );
 
+    const handleDestinationGateContinue = useCallback(() => {
+        setDestinationGateTried(true);
+        if (!isDestinationDraftValid) return;
+        const committed = destinationDraft.trim();
+        onDownloadDirChange(committed);
+        pushRecentPath(committed);
+        setDestinationGateCompleted(true);
+    }, [
+        destinationDraft,
+        isDestinationDraftValid,
+        onDownloadDirChange,
+        pushRecentPath,
+    ]);
+
     // -- Renderers --
 
     const renderDestinationInput = (wrapperClass?: string) => (
@@ -741,24 +865,41 @@ export function AddTorrentModal({
         >
             <Input
                 autoFocus={showDestinationGate}
-                value={showDestinationGate ? destinationDraft : downloadDir}
+                value={destinationDraft}
                 onChange={(e) => {
                     const next = e.target.value;
-                    if (showDestinationGate) {
-                        setDestinationDraft(next);
-                    } else {
-                        onDownloadDirChange(next);
-                    }
+                    setDestinationDraft(next);
                 }}
                 onBlur={() => {
-                    if (showDestinationGate) return;
-                    if (isValidDestinationForMode(downloadDir, uiMode)) {
-                        pushRecentPath(downloadDir);
+                    if (showDestinationGate) {
+                        setDestinationGateTried(true);
+                        return;
+                    }
+                    const committed = destinationDraft.trim();
+                    if (isValidDestinationForMode(committed, uiMode)) {
+                        onDownloadDirChange(committed);
+                    }
+                }}
+                onKeyDown={(e) => {
+                    if (showDestinationGate && e.key === "Enter") {
+                        // Step 1 must support keyboard-only progression.
+                        // Handle Enter at the input level because HeroUI input handling
+                        // can swallow bubbling key events.
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleDestinationGateContinue();
+                        return;
+                    }
+                    if (!showDestinationGate && e.key === "Enter" && !canConfirm) {
+                        // UX guardrail: invalid destination in Step 2 should stay in-place
+                        // and show validation, never bounce users back to Step 1.
+                        e.preventDefault();
                     }
                 }}
                 aria-label={t("modals.add_torrent.destination_input_aria")}
                 placeholder={t("modals.add_torrent.destination_placeholder")}
                 variant="flat"
+                autoComplete="off"
                 classNames={DESTINATION_INPUT_CLASSNAMES}
                 startContent={
                     <FolderOpen className="toolbar-icon-size-md text-primary mb-tight" />
@@ -767,7 +908,7 @@ export function AddTorrentModal({
         </motion.div>
     );
 
-    const renderFileRow = (file: FileRow) => {
+    const renderFileRow = (file: FileRow, virtualIndex: number) => {
         const priority = priorities.get(file.index) ?? "normal";
         const fileType = classifyFileKind(file.path);
         const Icon = getFileIcon(fileType);
@@ -788,6 +929,7 @@ export function AddTorrentModal({
                     height: rowHeight,
                     minHeight: rowHeight,
                 }}
+                data-index={virtualIndex}
                 ref={virtualizer.measureElement}
                 onClick={(e) => {
                     if ((e.target as HTMLElement).closest(".priority-trigger"))
@@ -834,12 +976,18 @@ export function AddTorrentModal({
                     </span>
                 </div>
 
-                <div className="font-mono text-scaled text-foreground/50 truncate text-right pr-panel">
+                <div
+                    className="font-mono text-scaled text-foreground/50 truncate text-right pr-panel"
+                    data-tt-add-col-size="true"
+                >
                     {formatBytes(file.length)}
                 </div>
 
-                <div className="pr-panel flex justify-end">
-                    <div className="flex items-center">
+                <div
+                    className="pr-panel flex justify-end min-w-0"
+                    data-tt-add-col-priority="true"
+                >
+                    <div className="flex items-center min-w-0">
                         <div
                             className="priority-trigger mr-tight transition-transform"
                             onClick={(e) => e.stopPropagation()}
@@ -882,10 +1030,11 @@ export function AddTorrentModal({
                             }
                             variant="flat"
                             disallowEmptySelection
+                            className="min-w-0"
                             classNames={{
                                 trigger:
-                                    "h-button min-w-status-chip bg-transparent data-[hover=true]:bg-content1/10 priority-trigger pl-tight",
-                                value: "text-label uppercase font-bold text-right",
+                                    "h-button min-w-0 max-w-full bg-transparent data-[hover=true]:bg-content1/10 priority-trigger pl-tight",
+                                value: "text-label uppercase font-bold text-right truncate",
                                 popoverContent: "min-w-badge",
                             }}
                         >
@@ -920,10 +1069,41 @@ export function AddTorrentModal({
         );
     };
 
+    const renderFileColumnResizeHandle = (
+        column: AddTorrentResizableFileColumn,
+        ariaLabel: string
+    ) => (
+        <button
+            type="button"
+            onPointerDown={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                handleColumnResizeStart(column, event.clientX);
+            }}
+            onDoubleClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                handleColumnAutoFit(column);
+            }}
+            onClick={(event) => event.stopPropagation()}
+            aria-label={ariaLabel}
+            className="absolute right-0 top-0 h-full w-handle cursor-col-resize touch-none select-none flex items-center justify-end z-panel"
+        >
+            <div
+                className={cn(
+                    "h-resize-h w-divider rounded-full transition-colors",
+                    isColumnResizing(column)
+                        ? "bg-primary"
+                        : "bg-foreground/20 hover:bg-primary/50"
+                )}
+            />
+        </button>
+    );
+
     return (
         <Modal
             isOpen={isOpen}
-            onOpenChange={(o) => !o && onCancel()}
+            onOpenChange={(o) => !o && handleModalCancel()}
             backdrop="blur"
             placement="center"
             motionProps={modalMotionProps}
@@ -934,17 +1114,17 @@ export function AddTorrentModal({
                 base: cn(
                     GLASS_MODAL_SURFACE,
                     MODAL_CLASSES,
-                    "surface-layer-2 border-default/5",
+                    "surface-layer-2 border-default/20",
                     !showDestinationGate && isFullscreen
-                        ? "h-full rounded-none border-0"
+                        ? "h-full"
                     : showDestinationGate
                         ? "max-h-modal-body"
                         : "max-h-modal-body"
                 ),
-                body: "p-0 bg-content1/90",
+                body: "p-tight bg-background/40",
                 header:
-                    "p-0 border-b border-default/10 select-none bg-background/70 backdrop-blur-sm",
-                footer: "p-0 border-t border-default/10 select-none bg-content1/90",
+                    "p-0 border-b border-default/20 select-none bg-content1/75 backdrop-blur-sm",
+                footer: "p-0 border-t border-default/20 select-none bg-content1/80",
             }}
         >
             <ModalContent>
@@ -957,130 +1137,156 @@ export function AddTorrentModal({
                         onKeyDown={(e) => {
                             if (e.key === "Escape") {
                                 e.preventDefault();
-                                onCancel();
+                                handleModalCancel();
                                 return;
                             }
                             if (e.key === "Enter") {
                                 e.preventDefault();
-                                setDestinationGateTried(true);
-                                if (!isDestinationDraftValid) return;
-                                const committed = destinationDraft.trim();
-                                onDownloadDirChange(committed);
-                                pushRecentPath(committed);
-                                setDestinationGateCompleted(true);
+                                handleDestinationGateContinue();
                             }
                         }}
                     >
                         <ModalHeader className="flex justify-between items-center gap-panel px-stage py-panel">
                             <div className="flex flex-col overflow-hidden gap-tight">
-                                <h2 className="text-label font-bold tracking-widest uppercase text-foreground">
+                                <h2 className="text-scaled font-bold tracking-widest uppercase text-foreground">
                                     {t(
                                         "modals.add_torrent.destination_prompt_title"
                                     )}
                                 </h2>
-                                <span className="text-scaled text-foreground/50 truncate font-mono leading-tight">
+                                <span className="text-label text-foreground/60 truncate font-mono leading-tight">
                                     {source?.label}
                                 </span>
                             </div>
                             <ToolbarIconButton
                                 Icon={X}
-                                onPress={onCancel}
+                                onPress={handleModalCancel}
                                 ariaLabel={t("torrent_modal.actions.close")}
                                 iconSize="lg"
                                 className="text-foreground/60 hover:text-foreground"
                             />
                         </ModalHeader>
                         <ModalBody className="flex-1 min-h-0 flex items-center justify-center">
-                            <div className="w-full max-w-modal-compact p-stage flex flex-col gap-panel">
-                                <div className="flex flex-col gap-tight text-foreground/70">
-                                    <div className="text-label font-mono uppercase tracking-widest text-foreground/40">
-                                        {uiMode === "Rpc"
-                                            ? t(
-                                                  "modals.add_torrent.destination_prompt_mode_rpc"
-                                              )
-                                            : t(
-                                                  "modals.add_torrent.destination_prompt_mode_full"
-                                              )}
-                                    </div>
-                                    <div className="text-scaled">
-                                        {uiMode === "Rpc"
-                                            ? t(
-                                                  "modals.add_torrent.destination_prompt_description_rpc"
-                                              )
-                                            : t(
-                                                  "modals.add_torrent.destination_prompt_description_full"
-                                              )}
-                                    </div>
-                                </div>
+                            <div className="w-full max-w-modal p-stage">
+                                <div className="surface-layer-1 border border-default/10 rounded-panel p-panel flex flex-col gap-panel">
+                                    <Tooltip
+                                        content={t(
+                                            "modals.add_torrent.destination_prompt_help"
+                                        )}
+                                    >
+                                        <div className="flex items-center gap-tools text-label font-mono uppercase tracking-widest text-foreground/40">
+                                            <HardDrive className="toolbar-icon-size-md text-foreground/50" />
+                                            <span>
+                                                {t(
+                                                    "modals.add_torrent.destination_prompt_mode_full"
+                                                )}
+                                            </span>
+                                        </div>
+                                    </Tooltip>
 
-                                <div className="flex gap-tools items-start">
-                                    {renderDestinationInput("flex-1")}
-                                    {showBrowseAction && (
-                                        <Tooltip
-                                            content={t(
-                                                "modals.add_torrent.destination_prompt_browse"
-                                            )}
-                                        >
-                                            <Button
-                                                onPress={handleBrowse}
-                                                isIconOnly
-                                                size="md"
-                                                variant="flat"
-                                                isLoading={isTouchingDirectory}
-                                                aria-label={t(
+                                    <div className="flex gap-tools items-center">
+                                        {renderDestinationInput("flex-1")}
+                                        {showBrowseAction && (
+                                            <Tooltip
+                                                content={t(
                                                     "modals.add_torrent.destination_prompt_browse"
                                                 )}
-                                                className="surface-layer-1 border border-default/10"
                                             >
-                                                <FolderOpen className="toolbar-icon-size-md text-foreground/50" />
-                                            </Button>
-                                        </Tooltip>
-                                    )}
-                                </div>
-
-                                {destinationGateTried &&
-                                    !destinationDraft.trim() && (
-                                    <div className="text-label font-mono text-danger">
-                                        {t(
-                                            "modals.add_torrent.destination_required_chip"
+                                                <Button
+                                                    onPress={handleBrowse}
+                                                    isIconOnly
+                                                    size="md"
+                                                    variant="flat"
+                                                    isLoading={isTouchingDirectory}
+                                                    aria-label={t(
+                                                        "modals.add_torrent.destination_prompt_browse"
+                                                    )}
+                                                    className="surface-layer-1 border border-default/10"
+                                                >
+                                                    <FolderOpen className="toolbar-icon-size-md text-foreground/50" />
+                                                </Button>
+                                            </Tooltip>
                                         )}
                                     </div>
-                                )}
 
-                                {!isDestinationDraftValid &&
-                                    Boolean(destinationDraft.trim()) && (
-                                        <div className="text-label font-mono text-danger">
-                                            {t(
-                                                "modals.add_torrent.destination_prompt_invalid"
+                                    <div className={cn(
+                                        "h-status-chip flex items-center gap-tools text-label",
+                                        step1DestinationTone === "danger"
+                                            ? "text-danger"
+                                            : "text-foreground/60"
+                                    )}>
+                                        <AlertTriangle className="toolbar-icon-size-md shrink-0" />
+                                        <span className="font-bold truncate">
+                                            {step1DestinationMessage}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </ModalBody>
+                        <ModalFooter className="flex justify-between items-center px-stage py-panel">
+                            <div className="flex items-center gap-tools min-w-0">
+                                {freeSpace && (
+                                    <div className="flex items-center gap-tools min-w-0">
+                                        <Chip
+                                            size="sm"
+                                            variant="flat"
+                                            color={
+                                                isDiskSpaceCritical
+                                                    ? "warning"
+                                                    : "default"
+                                            }
+                                            classNames={{
+                                                content:
+                                                    "font-mono whitespace-nowrap uppercase",
+                                            }}
+                                        >
+                                            {formatBytes(freeSpace.sizeBytes)}{" "}
+                                            {t("modals.add_torrent.free")}
+                                        </Chip>
+                                        <Tooltip
+                                            content={t(
+                                                "modals.add_torrent.selected_size_tooltip",
+                                                {
+                                                    size: formatBytes(selectedSize),
+                                                }
                                             )}
-                                        </div>
-                                    )}
-
-                                {!destinationDraft.trim() && (
-                                    <div className="text-label font-mono text-foreground/30">
-                                        {uiMode === "Rpc"
-                                            ? t(
-                                                  "modals.add_torrent.destination_prompt_drop_hint_rpc"
-                                              )
-                                            : t(
-                                                  "modals.add_torrent.destination_prompt_drop_hint_full"
-                                              )}
+                                        >
+                                            <Progress
+                                                value={
+                                                    freeSpace.sizeBytes > 0
+                                                        ? Math.min(
+                                                              100,
+                                                              (selectedSize /
+                                                                  freeSpace.sizeBytes) *
+                                                                  100
+                                                          )
+                                                        : 100
+                                                }
+                                                color={
+                                                    isDiskSpaceCritical
+                                                        ? "danger"
+                                                        : "success"
+                                                }
+                                                className="w-status-chip"
+                                                aria-label={t(
+                                                    "modals.add_torrent.free_space_label"
+                                                )}
+                                            />
+                                        </Tooltip>
+                                    </div>
+                                )}
+                                {isCheckingSpace && !freeSpace && !spaceError && (
+                                    <div className="flex items-center gap-tools text-foreground/40">
+                                        <Spinner size="sm" color="primary" />
+                                        <span className="text-label font-mono">
+                                            {t("modals.add_torrent.free_space_loading")}
+                                        </span>
                                     </div>
                                 )}
                             </div>
-                        </ModalBody>
-                        <ModalFooter className="flex justify-end items-center px-stage py-panel">
                             <Button
                                 color="primary"
                                 variant="shadow"
-                                onPress={() => {
-                                    setDestinationGateTried(true);
-                                    if (!isDestinationDraftValid) return;
-                                    const committed = destinationDraft.trim();
-                                    onDownloadDirChange(committed);
-                                    pushRecentPath(committed);
-                                    setDestinationGateCompleted(true);
-                                }}
+                                onPress={handleDestinationGateContinue}
                                 isDisabled={isTouchingDirectory || !isDestinationDraftValid}
                                 className="font-bold px-stage min-w-button"
                             >
@@ -1103,7 +1309,10 @@ export function AddTorrentModal({
                             setSubmitError(null);
                             setSubmitCloseConfirm(false);
 
-                            pushRecentPath(downloadDir);
+                            const submitDir = destinationDraft.trim();
+                            if (submitDir && submitDir !== downloadDir) {
+                                onDownloadDirChange(submitDir);
+                            }
                             const {
                                 filesUnwanted,
                                 priorityHigh,
@@ -1117,8 +1326,8 @@ export function AddTorrentModal({
 
                             try {
                                 await onConfirm({
-                                    downloadDir,
-                                    commitMode: effectiveCommitMode,
+                                    downloadDir: submitDir,
+                                    commitMode,
                                     filesUnwanted,
                                     priorityHigh,
                                     priorityNormal,
@@ -1128,6 +1337,7 @@ export function AddTorrentModal({
                                         skipHashCheck,
                                     },
                                 });
+                                pushRecentPath(submitDir);
                             } catch {
                                 if (isMountedRef.current) {
                                     setSubmitError(
@@ -1154,7 +1364,7 @@ export function AddTorrentModal({
                                         return;
                                     }
                                 }
-                                onCancel();
+                                handleModalCancel();
                             }
                         }}
                     >
@@ -1210,7 +1420,7 @@ export function AddTorrentModal({
                                         <Button
                                             color="danger"
                                             variant="shadow"
-                                            onPress={onCancel}
+                                            onPress={handleModalCancel}
                                         >
                                             {t(
                                                 "modals.add_torrent.close_anyway"
@@ -1236,10 +1446,10 @@ export function AddTorrentModal({
                                 size="md"
                                 variant="flat"
                                 color={
-                                    hasDestination
-                                        ? isSelectionEmpty
-                                            ? "default"
-                                            : "primary"
+                                    isSelectionEmpty
+                                        ? "default"
+                                        : hasDestination
+                                          ? "primary"
                                         : "warning"
                                 }
                                 startContent={
@@ -1251,15 +1461,9 @@ export function AddTorrentModal({
                                 }
                                 classNames={{ content: "font-mono font-bold" }}
                             >
-                                {hasDestination
-                                    ? t("modals.add_torrent.file_count", {
-                                          count: files.length,
-                                      })
-                                    : hasAnyDestination
-                                    ? t("modals.add_torrent.destination_invalid_chip")
-                                    : t(
-                                          "modals.add_torrent.destination_required_chip"
-                                      )}
+                                {t("modals.add_torrent.file_count", {
+                                    count: files.length,
+                                })}
                             </Chip>
                             <div className="h-status-chip w-px bg-content1/10 mx-tight" />
                             {/* 2. Fullscreen Toggle */}
@@ -1288,7 +1492,9 @@ export function AddTorrentModal({
                              <ToolbarIconButton
                                 Icon={X}
                                 onPress={() =>
-                                    !isSubmitting && !submitLocked && onCancel()
+                                    !isSubmitting &&
+                                    !submitLocked &&
+                                    handleModalCancel()
                                 }
                                 ariaLabel={t("torrent_modal.actions.close")}
                                 iconSize="lg"
@@ -1299,7 +1505,7 @@ export function AddTorrentModal({
                     </ModalHeader>
 
                     {/* --- SPLIT VIEW BODY --- */}
-                    <ModalBody className="flex-1 min-h-0 relative">
+                    <ModalBody className="flex-1 min-h-0 relative p-add-modal-pane-gap">
                         {dropActive && (
                             <div className="absolute inset-0 z-drop-overlay bg-primary/20 backdrop-blur-sm border-(--tt-divider-width) border-primary border-dashed m-panel rounded-xl flex items-center justify-center pointer-events-none">
                                 <div className="bg-background px-stage py-tight rounded-full shadow-xl flex items-center gap-tools animate-pulse">
@@ -1322,137 +1528,60 @@ export function AddTorrentModal({
                         )}
 
                         <LayoutGroup>
-                            {/* Keep the full layout mounted to avoid resize-panel mount flicker. */}
+                            {/* Keep the full layout mounted to avoid resize-panel mount flicker.
+                               IMPORTANT: this wrapper must remain in-flow (not absolute), otherwise
+                               ModalBody can collapse in normal mode and hide Step 2 controls. */}
                             <motion.div
-                                className="absolute inset-0 flex flex-col"
+                                className={cn(
+                                    "flex flex-col flex-1 min-h-settings",
+                                    isFullscreen && "h-full min-h-0"
+                                )}
                                 initial={false}
                                 animate={FULL_CONTENT_ANIMATION.visible}
                                 transition={FULL_CONTENT_ANIMATION.transition}
                                 style={{ pointerEvents: "auto" }}
                             >
-                                <PanelGroup direction="horizontal">
+                                <PanelGroup
+                                    direction="horizontal"
+                                    className="flex-1 min-h-0"
+                                >
                             {/* === LEFT PANEL: CONFIGURATION === */}
                             <Panel
                                 ref={settingsPanelRef}
                                 defaultSize={SETTINGS_PANEL_DEFAULT}
                                 minSize={SETTINGS_PANEL_MIN}
-                                collapsible
-                                onCollapse={() => setIsSettingsCollapsed(true)}
-                                onExpand={() => setIsSettingsCollapsed(false)}
+                                collapsible={canCollapseSettings}
+                                onCollapse={handleSettingsPanelCollapse}
+                                onExpand={handleSettingsPanelExpand}
                                 className={cn(
+                                    GLASS_PANEL_SURFACE,
                                     PANE_SURFACE,
-                                    "bg-content1/20",
-                                    isSettingsCollapsed &&
-                                        "min-w-0 w-0 border-none"
+                                    "bg-background/65",
+                                    isSettingsCollapsed && "min-w-0 w-0 border-none"
                                 )}
                             >
                                 <div className="p-panel flex flex-col flex-1 min-h-0 overflow-y-auto custom-scrollbar">
                                     {/* ... [Content of Left Panel same as before] ... */}
                                     <div
-                                        className="flex flex-col gap-tools mb-panel"
+                                        className="flex flex-col gap-panel mb-panel"
                                         onDragOver={handleDragOver}
                                         onDragLeave={handleDragLeave}
                                         onDrop={handleDrop}
                                     >
-                                        <div className="flex justify-between items-center">
-                                             <label className={SECTION_LABEL}>
-                                                 <HardDrive className="toolbar-icon-size-md" />{" "}
-                                                 {t(
-                                                     "modals.add_torrent.destination"
-                                                 )}
-                                             </label>
-                                             {isCheckingSpace &&
-                                                 !freeSpace &&
-                                                 !spaceError && (
-                                                     <div className="flex items-center gap-tools text-foreground/40">
-                                                         <Spinner
-                                                             size="sm"
-                                                             color="primary"
-                                                         />
-                                                         <span className="text-label font-mono">
-                                                             {t(
-                                                                 "modals.add_torrent.free_space_loading"
-                                                             )}
-                                                         </span>
-                                                     </div>
-                                                 )}
-                                             {!isCheckingSpace &&
-                                                 !freeSpace &&
-                                                 spaceError && (
-                                                     <div className="text-label font-mono text-foreground/40">
-                                                         {spaceError}
-                                                     </div>
-                                                 )}
-                                            {freeSpace && (
-                                                <div className="flex items-center gap-tools">
-                                                     <div className="text-label font-mono text-right">
-                                                         <div className="text-foreground/60">
-                                                             {formatBytes(
-                                                                 freeSpace.sizeBytes
-                                                             )}{" "}
-                                                             <span className="uppercase">
-                                                                {uiMode === "Rpc"
-                                                                    ? t(
-                                                                          "modals.add_torrent.free_daemon"
-                                                                      )
-                                                                    : t(
-                                                                          "modals.add_torrent.free_local"
-                                                                      )}
-                                                             </span>
-                                                         </div>
-                                                     </div>
-                                                     <Tooltip
-                                                         content={t(
-                                                            "modals.add_torrent.selected_size_tooltip",
-                                                            {
-                                                                size: formatBytes(
-                                                                    selectedSize
-                                                                ),
-                                                            }
-                                                        )}
-                                                    >
-                                                        <Progress
-                                                            value={Math.min(
-                                                                100,
-                                                                (selectedSize /
-                                                                    freeSpace.sizeBytes) *
-                                                                    100
-                                                            )}
-                                                            color={
-                                                                isDiskSpaceCritical
-                                                                    ? "danger"
-                                                                    : "success"
-                                                            }
-                                                            className="w-status-chip"
-                                                            aria-label={t(
-                                                                "modals.add_torrent.free_space_label"
-                                                            )}
-                                                        />
-                                                    </Tooltip>
-                                                </div>
-                                            )}
+                                        <div className="flex flex-col gap-tools">
+                                            <Tooltip
+                                                content={t(
+                                                    "modals.add_torrent.destination_prompt_help"
+                                                )}
+                                            >
+                                                <label className={SECTION_LABEL}>
+                                                    <HardDrive className="toolbar-icon-size-md" />{" "}
+                                                    {t(
+                                                        "modals.add_torrent.destination"
+                                                    )}
+                                                </label>
+                                            </Tooltip>
                                         </div>
-                                        <div className="text-label font-mono text-foreground/30">
-                                            <div className="uppercase tracking-wider">
-                                                {uiMode === "Rpc"
-                                                    ? t(
-                                                          "modals.add_torrent.destination_prompt_mode_rpc"
-                                                      )
-                                                    : t(
-                                                          "modals.add_torrent.destination_prompt_mode_full"
-                                                      )}
-                                            </div>
-                                            <div>
-                                                {uiMode === "Rpc"
-                                                    ? t(
-                                                          "modals.add_torrent.destination_prompt_description_rpc"
-                                                      )
-                                                    : t(
-                                                          "modals.add_torrent.destination_prompt_description_full"
-                                                      )}
-                                            </div>
-                                        </div>
-
                                         <div className="flex gap-tools group">
                                             {renderDestinationInput("flex-1")}
                                             {showBrowseAction && (
@@ -1563,139 +1692,29 @@ export function AddTorrentModal({
                                                 </Dropdown>
                                         </div>
 
-                                        {!isDestinationValid &&
-                                            Boolean(downloadDir.trim()) && (
-                                                <div className="text-label font-mono text-danger">
-                                                    {t(
-                                                        "modals.add_torrent.destination_prompt_invalid"
-                                                    )}
-                                                </div>
-                                            )}
-
-                                        {!downloadDir.trim() && (
-                                            <div className="text-label font-mono text-foreground/30">
-                                                {uiMode === "Rpc"
-                                                    ? t(
-                                                          "modals.add_torrent.destination_prompt_drop_hint_rpc"
-                                                      )
-                                                    : t(
-                                                          "modals.add_torrent.destination_prompt_drop_hint_full"
-                                                      )}
-                                            </div>
-                                        )}
+                                        <div className={cn(
+                                            "h-status-chip flex items-center gap-tools text-label font-mono min-w-0",
+                                            step2StatusTone === "danger"
+                                                ? "text-danger"
+                                                : step2StatusTone === "warning"
+                                                  ? "text-warning"
+                                                  : "text-foreground/60"
+                                        )}>
+                                            <AlertTriangle className="toolbar-icon-size-md shrink-0" />
+                                            <span className="truncate">
+                                                {step2StatusMessage}
+                                            </span>
+                                        </div>
 
                                         {/* submitError + disk warnings are rendered in the footer so they're always visible */}
                                     </div>
 
-                                    <Divider className="bg-content1/5 mb-panel" />
-
-                                    <div className="flex flex-col gap-tools mb-panel">
-                                        <label className={SECTION_LABEL}>
-                                            <Tag className="toolbar-icon-size-md" />{" "}
-                                            {t(
-                                                "modals.add_torrent.files_title"
-                                            )}
-                                        </label>
-                                        {isDiskSpaceCritical ? (
-                                            <Tooltip
-                                                content={t(
-                                                    "modals.add_torrent.disk_full_paused"
-                                                )}
-                                            >
-                                                <div>
-                                                    <Select
-                                                        label={t(
-                                                            "modals.add_torrent.start_behavior"
-                                                        )}
-                                                        labelPlacement="outside"
-                                                        selectedKeys={[
-                                                            commitMode,
-                                                        ]}
-                                                        onChange={(e) =>
-                                                            onCommitModeChange(
-                                                                e.target
-                                                                    .value as AddTorrentCommitMode
-                                                            )
-                                                        }
-                                                        isDisabled={
-                                                            isDiskSpaceCritical
-                                                        }
-                                                        variant="bordered"
-                                                        classNames={{
-                                                            trigger:
-                                                                "border-default/10 hover:border-default/20 bg-transparent",
-                                                        }}
-                                                    >
-                                                        <SelectItem
-                                                            key="start"
-                                                            startContent={
-                                                                <PlayCircle className="toolbar-icon-size-md text-success" />
-                                                            }
-                                                        >
-                                                            {t(
-                                                                "modals.add_torrent.add_and_start"
-                                                            )}
-                                                        </SelectItem>
-                                                        <SelectItem
-                                                            key="paused"
-                                                            startContent={
-                                                                <PauseCircle className="toolbar-icon-size-md text-warning" />
-                                                            }
-                                                        >
-                                                            {t(
-                                                                "modals.add_torrent.add_paused"
-                                                            )}
-                                                        </SelectItem>
-                                                    </Select>
-                                                </div>
-                                            </Tooltip>
-                                        ) : (
-                                            <div>
-                                                <Select
-                                                    label={t(
-                                                        "modals.add_torrent.start_behavior"
-                                                    )}
-                                                    labelPlacement="outside"
-                                                    selectedKeys={[commitMode]}
-                                                    onChange={(e) =>
-                                                        onCommitModeChange(
-                                                            e.target
-                                                                .value as AddTorrentCommitMode
-                                                        )
-                                                    }
-                                                    isDisabled={isDiskSpaceCritical}
-                                                    variant="bordered"
-                                                    classNames={{
-                                                        trigger:
-                                                            "border-default/10 hover:border-default/20 bg-transparent",
-                                                    }}
-                                                >
-                                                    <SelectItem
-                                                        key="start"
-                                                        startContent={
-                                                            <PlayCircle className="toolbar-icon-size-md text-success" />
-                                                        }
-                                                    >
-                                                        {t(
-                                                            "modals.add_torrent.add_and_start"
-                                                        )}
-                                                    </SelectItem>
-                                                    <SelectItem
-                                                        key="paused"
-                                                        startContent={
-                                                            <PauseCircle className="toolbar-icon-size-md text-warning" />
-                                                        }
-                                                    >
-                                                        {t(
-                                                            "modals.add_torrent.add_paused"
-                                                        )}
-                                                    </SelectItem>
-                                                </Select>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    <Divider className="bg-content1/5 mb-panel" />
+                                    {source?.kind === "file" && (
+                                        <Divider
+                                            className="my-panel bg-foreground/25"
+                                            aria-hidden="true"
+                                        />
+                                    )}
 
                                     {source?.kind === "file" && (
                                         <div className="flex flex-col gap-tools">
@@ -1705,7 +1724,7 @@ export function AddTorrentModal({
                                                 "modals.add_torrent.transfer_flags"
                                             )}
                                         </label>
-                                        <div className="flex flex-col gap-tools surface-layer-1 rounded-panel p-tight">
+                                        <div className="flex flex-col gap-tools">
                                             <Checkbox
                                                 isSelected={sequential}
                                                 onValueChange={setSequential}
@@ -1741,21 +1760,43 @@ export function AddTorrentModal({
                                 </div>
                             </Panel>
                             {/* === RESIZE HANDLE === */}
-                            {/* Hide handle when collapsed to make space usage cleaner */}
-                            {!isSettingsCollapsed && (
-                                // FLAG: Consider tokenizing handle width and hover scale (e.g. --tt-resize-handle-w, --tt-handle-hover-scale). Avoid numeric literals in layout.
-                                <PanelResizeHandle className="w-resize-handle flex items-center justify-center bg-transparent -ml-2 z-panel hover:bg-primary/5 transition-colors cursor-col-resize group focus:outline-none relative">
-                                    <div className="absolute inset-y-0 left-1/2 w-divider bg-content1/5 group-hover:bg-primary/50 transition-colors" />
-                                    <div className="relative bg-content1 border border-default/10 rounded-full p-tight shadow-xl opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <GripVertical className="toolbar-icon-size-md text-foreground" />
-                                    </div>
-                                </PanelResizeHandle>
-                            )}
+                            {/* Keep splitter footprint always mounted to preserve stable modal geometry.
+                                Collapse should reallocate pane width only, never alter overall modal size. */}
+                            <PanelResizeHandle
+                                onDragging={
+                                    isSettingsCollapsed
+                                        ? undefined
+                                        : setIsPanelResizeActive
+                                }
+                                className={cn(
+                                    "w-add-modal-pane-gap flex items-stretch justify-center bg-transparent z-panel transition-colors group focus:outline-none relative",
+                                    isSettingsCollapsed
+                                        ? "cursor-default pointer-events-none"
+                                        : "cursor-col-resize"
+                                )}
+                            >
+                                <div className="absolute inset-x-0 py-panel flex justify-center pointer-events-none">
+                                    <div
+                                        className={cn(
+                                            "h-full w-divider transition-colors",
+                                            isSettingsCollapsed
+                                                ? "bg-transparent"
+                                                : isPanelResizeActive
+                                                  ? "bg-primary"
+                                                  : "bg-default/30 group-hover:bg-primary/45"
+                                        )}
+                                    />
+                                </div>
+                            </PanelResizeHandle>
                             {/* === RIGHT PANEL: FILE MANAGER === */}
                             <Panel
                                 defaultSize={FILE_PANEL_DEFAULT}
                                 minSize={FILE_PANEL_MIN}
-                                className={PANE_SURFACE}
+                                className={cn(
+                                    GLASS_PANEL_SURFACE,
+                                    PANE_SURFACE,
+                                    "bg-content1/55"
+                                )}
                             >
                                 <div
                                     className="flex flex-col flex-1 min-h-0 outline-none"
@@ -1763,7 +1804,7 @@ export function AddTorrentModal({
                                     onKeyDown={handleFilesKeyDown}
                                 >
                                     {/* Toolbar */}
-                                    <div className="p-tight border-b border-default/5 flex gap-tools items-center bg-content1/5 backdrop-blur-sm">
+                                    <div className="p-tight border-b border-default/20 flex gap-tools items-center bg-content1/10 backdrop-blur-sm">
                                         {/* 3. Panel Toggle Button */}
                                         <Tooltip
                                             content={
@@ -1772,7 +1813,7 @@ export function AddTorrentModal({
                                                           "modals.add_torrent.show_settings"
                                                       )
                                                     : t(
-                                                          "modals.add_torrent.maximize_files"
+                                                          "modals.add_torrent.hide_settings"
                                                       )
                                             }
                                         >
@@ -1787,10 +1828,10 @@ export function AddTorrentModal({
                                                               "modals.add_torrent.show_settings"
                                                           )
                                                         : t(
-                                                              "modals.add_torrent.maximize_files"
+                                                              "modals.add_torrent.hide_settings"
                                                           )
                                                 }
-                                                className="mr-tight text-foreground/50 hover:text-foreground"
+                                                className="mr-tight text-foreground/35 hover:text-foreground/70"
                                             >
                                                 {isSettingsCollapsed ? (
                                                     <SidebarOpen className="toolbar-icon-size-md" />
@@ -1915,149 +1956,159 @@ export function AddTorrentModal({
                                                               "modals.add_torrent.magnet_error"
                                                           )}
                                                 </p>
-                                                {resolvedState === "error" &&
-                                                    onResolveMagnet && (
-                                                        <Button
-                                                            color="primary"
-                                                            onPress={
-                                                                onResolveMagnet
-                                                            }
-                                                            isLoading={
-                                                                isResolvingSource
-                                                            }
-                                                        >
-                                                            {t(
-                                                                "modals.add_torrent.retry"
-                                                            )}
-                                                        </Button>
-                                                    )}
                                             </div>
                                         ) : (
                                             <>
-                                                {/* Sticky Table Header */}
-                                                <div
-                                                    className="grid border-b border-default/5 bg-content1/5 backdrop-blur-md uppercase font-bold tracking-wider text-foreground/40 select-none z-sticky box-border h-row"
-                                                    style={{
-                                                        gridTemplateColumns:
-                                                            FILE_GRID_TEMPLATE,
-                                                    }}
-                                                >
-                                                    <div className="flex items-center justify-center h-full">
+                                                <div className="flex-1 min-h-0 overflow-x-auto overflow-y-hidden custom-scrollbar">
+                                                    <div
+                                                        ref={tableLayoutRef}
+                                                        className="w-full min-w-add-file-table h-full flex flex-col min-h-0"
+                                                    >
+                                                        {/* Sticky Table Header */}
                                                         <div
-                                                            onClick={(event) =>
-                                                                event.stopPropagation()
-                                                            }
+                                                            className="grid border-b border-default/20 bg-content1/10 backdrop-blur-md uppercase font-bold tracking-wider text-foreground/50 select-none z-sticky box-border h-row"
+                                                            style={{
+                                                                gridTemplateColumns:
+                                                                    FILE_GRID_TEMPLATE,
+                                                            }}
                                                         >
-                                                            <Checkbox
-                                                                aria-label={t(
-                                                                    "modals.add_torrent.col_select"
-                                                                )}
-                                                                isSelected={
-                                                                    allFilesSelected
-                                                                }
-                                                                isIndeterminate={
-                                                                    someFilesSelected &&
-                                                                    !allFilesSelected
-                                                                }
-                                                                onValueChange={() =>
-                                                                    handleSmartSelect(
-                                                                        allFilesSelected
-                                                                            ? "none"
-                                                                            : "all"
+                                                            <div className="flex items-center justify-center h-full">
+                                                                <div
+                                                                    onClick={(event) =>
+                                                                        event.stopPropagation()
+                                                                    }
+                                                                >
+                                                                    <Checkbox
+                                                                        aria-label={t(
+                                                                            "modals.add_torrent.col_select"
+                                                                        )}
+                                                                        isSelected={
+                                                                            allFilesSelected
+                                                                        }
+                                                                        isIndeterminate={
+                                                                            someFilesSelected &&
+                                                                            !allFilesSelected
+                                                                        }
+                                                                        onValueChange={() =>
+                                                                            handleSmartSelect(
+                                                                                allFilesSelected
+                                                                                    ? "none"
+                                                                                    : "all"
+                                                                            )
+                                                                        }
+                                                                        classNames={{
+                                                                            wrapper:
+                                                                                "after:bg-primary",
+                                                                        }}
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex items-center h-full pr-panel min-w-0">
+                                                                <span className="text-label">
+                                                                    {t(
+                                                                        "modals.add_torrent.col_name"
+                                                                    )}
+                                                                </span>
+                                                            </div>
+                                                            <div
+                                                                className="relative flex items-center justify-end h-full font-mono pr-panel whitespace-nowrap"
+                                                                data-tt-add-col-size="true"
+                                                            >
+                                                                <span className="text-label">
+                                                                    {t(
+                                                                        "modals.add_torrent.col_size"
+                                                                    )}
+                                                                </span>
+                                                                {renderFileColumnResizeHandle(
+                                                                    "size",
+                                                                    t(
+                                                                        "modals.add_torrent.resize_size_column"
                                                                     )
-                                                                }
-                                                                classNames={{
-                                                                    wrapper:
-                                                                        "after:bg-primary",
+                                                                )}
+                                                            </div>
+                                                            <div
+                                                                className="relative flex items-center h-full pl-tight min-w-0"
+                                                                data-tt-add-col-priority="true"
+                                                            >
+                                                                <span className="text-label">
+                                                                    {t(
+                                                                        "modals.add_torrent.col_priority"
+                                                                    )}
+                                                                </span>
+                                                                {renderFileColumnResizeHandle(
+                                                                    "priority",
+                                                                    t(
+                                                                        "modals.add_torrent.resize_priority_column"
+                                                                    )
+                                                                )}
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Virtual List */}
+                                                        <div
+                                                            ref={scrollParentRef}
+                                                            className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar"
+                                                        >
+                                                            <div
+                                                                style={{
+                                                                    height: virtualizer.getTotalSize(),
+                                                                    position:
+                                                                        "relative",
                                                                 }}
-                                                            />
+                                                            >
+                                                                {virtualizer
+                                                                    .getVirtualItems()
+                                                                    .map(
+                                                                        (
+                                                                            virtualItem
+                                                                        ) => (
+                                                                            <div
+                                                                                key={
+                                                                                    virtualItem.key
+                                                                                }
+                                                                                style={{
+                                                                                    position:
+                                                                                        "absolute",
+                                                                                    top: 0,
+                                                                                    left: 0,
+                                                                                    width: "100%",
+                                                                                    ...virtualRowTransform(
+                                                                                        virtualItem.start
+                                                                                    ),
+                                                                                }}
+                                                                            >
+                                                                                {renderFileRow(
+                                                                                    filteredFiles[
+                                                                                        virtualItem
+                                                                                            .index
+                                                                                    ],
+                                                                                    virtualItem.index
+                                                                                )}
+                                                                            </div>
+                                                                        )
+                                                                    )}
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Selection Footer Stats */}
+                                                        <div className="border-t border-default/20 p-tight text-label font-mono text-center text-foreground/40 bg-content1/10 flex justify-between px-panel">
+                                                            <span>
+                                                                {t(
+                                                                    "modals.add_torrent.selection_footer",
+                                                                    {
+                                                                        selected:
+                                                                            selected.size,
+                                                                        total: files.length,
+                                                                    }
+                                                                )}
+                                                            </span>
+                                                            <span>
+                                                                {formatBytes(
+                                                                    selectedSize
+                                                                )}
+                                                            </span>
                                                         </div>
                                                     </div>
-                                                    <div className="flex items-center h-full pr-panel min-w-0">
-                                                        <span className="text-label">
-                                                            {t(
-                                                                "modals.add_torrent.col_name"
-                                                            )}
-                                                        </span>
-                                                    </div>
-                                                    <div className="flex items-center justify-end h-full font-mono pr-panel whitespace-nowrap">
-                                                        <span className="text-label">
-                                                            {t(
-                                                                "modals.add_torrent.col_size"
-                                                            )}
-                                                        </span>
-                                                    </div>
-                                                    <div className="flex items-center h-full pl-tight">
-                                                        <span className="text-label">
-                                                            {t(
-                                                                "modals.add_torrent.col_priority"
-                                                            )}
-                                                        </span>
-                                                    </div>
-                                                </div>
-
-                                                {/* Virtual List */}
-                                                <div
-                                                    ref={scrollParentRef}
-                                                    className="flex-1 overflow-y-auto custom-scrollbar"
-                                                >
-                                                    <div
-                                                        style={{
-                                                            height: virtualizer.getTotalSize(),
-                                                            position:
-                                                                "relative",
-                                                        }}
-                                                    >
-                                                        {virtualizer
-                                                            .getVirtualItems()
-                                                            .map(
-                                                                (
-                                                                    virtualItem
-                                                                ) => (
-                                                                    <div
-                                                                        key={
-                                                                            virtualItem.key
-                                                                        }
-                                                                        style={{
-                                                                            position:
-                                                                                "absolute",
-                                                                            top: 0,
-                                                                            left: 0,
-                                                                            width: "100%",
-                                                                            ...virtualRowTransform(
-                                                                                virtualItem.start
-                                                                            ),
-                                                                        }}
-                                                                    >
-                                                                        {renderFileRow(
-                                                                            filteredFiles[
-                                                                                virtualItem
-                                                                                    .index
-                                                                            ]
-                                                                        )}
-                                                                    </div>
-                                                                )
-                                                            )}
-                                                    </div>
-                                                </div>
-
-                                                {/* Selection Footer Stats */}
-                                                <div className="border-t border-default/5 p-tight text-label font-mono text-center text-foreground/30 bg-content1/5 flex justify-between px-panel">
-                                                    <span>
-                                                        {t(
-                                                            "modals.add_torrent.selection_footer",
-                                                            {
-                                                                selected:
-                                                                    selected.size,
-                                                                total: files.length,
-                                                            }
-                                                        )}
-                                                    </span>
-                                                    <span>
-                                                        {formatBytes(
-                                                            selectedSize
-                                                        )}
-                                                    </span>
                                                 </div>
                                             </>
                                         )}
@@ -2071,41 +2122,72 @@ export function AddTorrentModal({
                     </ModalBody>
 
                     {/* --- FOOTER --- */}
-                    <ModalFooter className="flex flex-col gap-panel px-stage py-panel sm:flex-row sm:items-end sm:justify-between">
-                            {isSettingsCollapsed && (
+                    <ModalFooter
+                        // Keep footer geometry invariant across collapse/expand.
+                        // Collapse should only reallocate pane space, not resize modal chrome.
+                        className="flex flex-col gap-panel px-stage py-panel sm:flex-row sm:items-end sm:justify-between"
+                    >
+                        <div className="flex items-center gap-tools min-w-0">
+                            {freeSpace && (
                                 <div className="flex items-center gap-tools min-w-0">
-                                    <div className="h-status-chip w-status-chip rounded-panel bg-content1/5 flex items-center justify-center shrink-0">
-                                        <HardDrive className="toolbar-icon-size-md text-foreground/50" />
-                                    </div>
-                                    <div className="flex flex-col min-w-0">
-                                        <span className="text-label uppercase tracking-wider text-foreground/40 font-bold">
-                                            {t("modals.add_torrent.save_path")}
-                                        </span>
-                                        <span
-                                            className={cn(
-                                                "font-mono text-label truncate",
-                                                hasDestination
-                                                    ? "text-foreground/80"
-                                                    : hasAnyDestination
-                                                    ? "text-warning"
-                                                    : "text-foreground/40"
-                                            )}
-                                            title={
-                                                hasAnyDestination
-                                                    ? downloadDir
-                                                    : ""
+                                    <Chip
+                                        size="sm"
+                                        variant="flat"
+                                        color={
+                                            isDiskSpaceCritical
+                                                ? "warning"
+                                                : "default"
+                                        }
+                                        classNames={{
+                                            content:
+                                                "font-mono whitespace-nowrap uppercase",
+                                        }}
+                                    >
+                                        {formatBytes(freeSpace.sizeBytes)}{" "}
+                                        {t("modals.add_torrent.free")}
+                                    </Chip>
+                                    <Tooltip
+                                        content={t(
+                                            "modals.add_torrent.selected_size_tooltip",
+                                            {
+                                                size: formatBytes(selectedSize),
                                             }
-                                        >
-                                            {hasAnyDestination
-                                                ? downloadDir
-                                                : t(
-                                                      "modals.add_torrent.save_path_placeholder"
-                                                  )}
-                                        </span>
-                                    </div>
+                                        )}
+                                    >
+                                        <Progress
+                                            value={
+                                                freeSpace.sizeBytes > 0
+                                                    ? Math.min(
+                                                          100,
+                                                          (selectedSize /
+                                                              freeSpace.sizeBytes) *
+                                                              100
+                                                      )
+                                                    : 100
+                                            }
+                                            color={
+                                                isDiskSpaceCritical
+                                                    ? "danger"
+                                                    : "success"
+                                            }
+                                            className="w-status-chip"
+                                            aria-label={t(
+                                                "modals.add_torrent.free_space_label"
+                                            )}
+                                        />
+                                    </Tooltip>
                                 </div>
                             )}
-                        <div className="flex flex-col gap-tools sm:items-end shrink-0">
+                            {isCheckingSpace && !freeSpace && !spaceError && (
+                                <div className="flex items-center gap-tools text-foreground/40">
+                                    <Spinner size="sm" color="primary" />
+                                    <span className="text-label font-mono">
+                                        {t("modals.add_torrent.free_space_loading")}
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+                        <div className="flex flex-col gap-tools sm:items-end shrink-0 sm:ml-auto">
                             {submitError && (
                                 <div className="flex items-center gap-tools text-danger text-label bg-danger/10 p-tight rounded-panel border border-danger/20 max-w-modal-compact">
                                     <AlertTriangle className="toolbar-icon-size-md shrink-0" />
@@ -2140,7 +2222,7 @@ export function AddTorrentModal({
                                         <div className="inline-block">
                                             <Button
                                                 variant="light"
-                                                onPress={onCancel}
+                                                onPress={handleModalCancel}
                                                 isDisabled={
                                                     isSubmitting || submitLocked
                                                 }
@@ -2154,7 +2236,7 @@ export function AddTorrentModal({
                                     <div className="inline-block">
                                         <Button
                                             variant="light"
-                                            onPress={onCancel}
+                                            onPress={handleModalCancel}
                                             isDisabled={
                                                 isSubmitting || submitLocked
                                             }
@@ -2165,27 +2247,20 @@ export function AddTorrentModal({
                                     </div>
                                 )}
 
-                                <div className="inline-block">
+                                <ButtonGroup
+                                    color={canConfirm ? "primary" : "default"}
+                                    variant={canConfirm ? "shadow" : "flat"}
+                                >
                                     <Button
-                                        color={
-                                            canConfirm
-                                                ? isDiskSpaceCritical
-                                                    ? "warning"
-                                                    : "primary"
-                                                : "default"
-                                        }
-                                        variant={canConfirm ? "shadow" : "flat"}
                                         onPress={() =>
                                             formRef.current?.requestSubmit()
                                         }
                                         isLoading={isSubmitting || submitLocked}
                                         isDisabled={!canConfirm}
                                         startContent={
-                                            canConfirm &&
                                             !isSubmitting &&
                                             !submitLocked &&
-                                            (effectiveCommitMode ===
-                                            "paused" ? (
+                                            (commitMode === "paused" ? (
                                                 <PauseCircle className="toolbar-icon-size-md" />
                                             ) : (
                                                 <PlayCircle className="toolbar-icon-size-md" />
@@ -2193,11 +2268,56 @@ export function AddTorrentModal({
                                         }
                                         className="font-bold px-stage min-w-button"
                                     >
-                                        {effectiveCommitMode === "paused"
+                                        {commitMode === "paused"
                                             ? t("modals.add_torrent.add_paused")
                                             : t("modals.add_torrent.add_and_start")}
                                     </Button>
-                                </div>
+                                    <Dropdown placement="bottom-end">
+                                        <DropdownTrigger>
+                                            <Button
+                                                isIconOnly
+                                                aria-label={t(
+                                                    "modals.add_torrent.commit_mode_aria"
+                                                )}
+                                                isDisabled={
+                                                    isSubmitting || submitLocked
+                                                }
+                                            >
+                                                <ChevronDown className="toolbar-icon-size-md" />
+                                            </Button>
+                                        </DropdownTrigger>
+                                        <DropdownMenu
+                                            aria-label={t(
+                                                "modals.add_torrent.commit_mode_aria"
+                                            )}
+                                            disallowEmptySelection
+                                            selectionMode="single"
+                                            selectedKeys={[commitMode]}
+                                            onAction={(key) =>
+                                                onCommitModeChange(
+                                                    key as AddTorrentCommitMode
+                                                )
+                                            }
+                                        >
+                                            <DropdownItem
+                                                key="start"
+                                                startContent={
+                                                    <PlayCircle className="toolbar-icon-size-md text-success" />
+                                                }
+                                            >
+                                                {t("modals.add_torrent.add_and_start")}
+                                            </DropdownItem>
+                                            <DropdownItem
+                                                key="paused"
+                                                startContent={
+                                                    <PauseCircle className="toolbar-icon-size-md text-warning" />
+                                                }
+                                            >
+                                                {t("modals.add_torrent.add_paused")}
+                                            </DropdownItem>
+                                        </DropdownMenu>
+                                    </Dropdown>
+                                </ButtonGroup>
                             </div>
                         </div>
                         </ModalFooter>

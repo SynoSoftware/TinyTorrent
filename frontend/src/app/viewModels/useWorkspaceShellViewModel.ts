@@ -65,6 +65,7 @@ import { TorrentIntents } from "@/app/intents/torrentIntents";
 import { useShellAgent } from "@/app/hooks/useShellAgent";
 import { useHudCards } from "@/app/hooks/useHudCards";
 import { clearProbe } from "@/services/recovery/missingFilesStore";
+import type { TransmissionFreeSpace } from "@/services/rpc/types";
 
 export interface WorkspaceShellController {
     workspace: WorkspaceShellViewModel;
@@ -154,6 +155,25 @@ export function useWorkspaceShellViewModel({
             }
         };
     }, [shellAgent]);
+
+    const addTorrentCheckFreeSpace = useMemo(() => {
+        const rpcCheckFreeSpace = torrentClient.checkFreeSpace?.bind(torrentClient);
+        if (!rpcCheckFreeSpace) return undefined;
+        if (!shellAgent.isAvailable || uiCapabilities.uiMode !== "Full") {
+            return rpcCheckFreeSpace;
+        }
+        return async (path: string): Promise<TransmissionFreeSpace> => {
+            try {
+                return await shellAgent.checkFreeSpace(path);
+            } catch (shellError) {
+                console.debug(
+                    "[add-torrent][free-space] shell probe failed; falling back to daemon RPC",
+                    shellError,
+                );
+                return rpcCheckFreeSpace(path);
+            }
+        };
+    }, [torrentClient, shellAgent, uiCapabilities.uiMode]);
     const { isSettingsOpen, openSettings, closeSettings } =
         useWorkspaceModals();
     const isMountedRef = useRef(false);
@@ -243,7 +263,6 @@ export function useWorkspaceShellViewModel({
         handleMagnetSubmit,
         addSource,
         addTorrentDefaults,
-        isResolvingMagnet,
         isFinalizingExisting,
         isAddingTorrent,
         closeAddTorrentWindow,
@@ -907,10 +926,10 @@ export function useWorkspaceShellViewModel({
         settingsConfig: settingsFlow.settingsConfig,
         isAddingTorrent,
         isFinalizingExisting,
-        isResolvingMagnet,
         onCancel: closeAddTorrentWindow,
         onConfirm: handleTorrentWindowConfirm,
         torrentClient,
+        checkFreeSpace: addTorrentCheckFreeSpace,
         browseDirectory,
     });
 
