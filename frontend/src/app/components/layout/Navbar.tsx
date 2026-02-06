@@ -63,7 +63,7 @@ export function Navbar({ viewModel }: NavbarProps) {
     return (
         <header
             className={cn(
-                "sticky top-0 z-30 w-full shrink-0 select-none overflow-visible"
+                "sticky top-0 z-30 w-full shrink-0 select-none overflow-visible",
             )}
         >
             <div
@@ -84,7 +84,7 @@ export function Navbar({ viewModel }: NavbarProps) {
                         BLOCK_SHADOW,
                         // remove `px-panel` here so horizontal padding is supplied
                         // centrally by `...shell.frameStyle` (see config/logic.ts)
-                        "flex grow h-full min-w-0 items-center justify-between gap-stage py-tight relative"
+                        "flex grow h-full min-w-0 items-center justify-between gap-stage py-tight relative",
                     )}
                     style={{
                         ...shell.outerStyle,
@@ -217,7 +217,7 @@ export function Navbar({ viewModel }: NavbarProps) {
                     <div
                         className={cn(
                             "flex items-center gap-tools transition-opacity duration-200 shrink-0",
-                            "opacity-100"
+                            "opacity-100",
                         )}
                     >
                         <div className="flex items-center gap-tools min-w-0">
@@ -249,7 +249,7 @@ export function Navbar({ viewModel }: NavbarProps) {
                                 "flex items-center gap-tools transition-opacity duration-200",
                                 !hasSelection
                                     ? "opacity-30 pointer-events-none grayscale"
-                                    : "opacity-100"
+                                    : "opacity-100",
                             )}
                         >
                             <ToolbarIconButton
@@ -271,7 +271,7 @@ export function Navbar({ viewModel }: NavbarProps) {
                                     "text-warning hover:text-warning-600 hover:bg-warning/10",
                                     emphasizeActions?.pause
                                         ? "ring-1 ring-warning/30 shadow-sm"
-                                        : ""
+                                        : "",
                                 )}
                                 iconSize="lg"
                             />
@@ -286,7 +286,7 @@ export function Navbar({ viewModel }: NavbarProps) {
                                         "text-default-500 hover:text-foreground hover:bg-default-200",
                                         emphasizeActions?.forceRecheck
                                             ? "ring-1 ring-default/20 shadow-sm"
-                                            : ""
+                                            : "",
                                     )}
                                     iconSize="lg"
                                 />
@@ -342,7 +342,7 @@ export function Navbar({ viewModel }: NavbarProps) {
                                 <SmoothProgressBar
                                     value={Math.min(
                                         Math.max(rehashStatus.value, 0),
-                                        100
+                                        100,
                                     )}
                                     trackClassName="h-track bg-transparent"
                                     indicatorClassName="h-full bg-gradient-to-r from-primary to-secondary shadow-nav"
@@ -360,7 +360,7 @@ export function Navbar({ viewModel }: NavbarProps) {
                     className={cn(
                         GLASS_BLOCK_SURFACE,
                         BLOCK_SHADOW,
-                        "hidden min-[800px]:flex h-full items-stretch divide-x divide-default/20 overflow-hidden"
+                        "hidden min-[800px]:flex h-full items-stretch divide-x divide-default/20 overflow-hidden",
                     )}
                     style={{
                         ...shell.outerStyle,

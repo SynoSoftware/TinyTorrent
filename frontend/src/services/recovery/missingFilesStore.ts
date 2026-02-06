@@ -31,8 +31,18 @@ export function setProbe(
 }
 
 export function clearProbe(id: string | number) {
-    setProbe(id, undefined);
-    classificationOverrides.delete(id);
+    let changed = false;
+    if (probeCache.has(id)) {
+        probeCache.delete(id);
+        changed = true;
+    }
+    if (classificationOverrides.has(id)) {
+        classificationOverrides.delete(id);
+        changed = true;
+    }
+    if (changed) {
+        listeners.forEach((listener) => listener());
+    }
 }
 
 export function setClassificationOverride(
@@ -67,6 +77,29 @@ export function resetMissingFilesStore() {
     probeCache.clear();
     classificationOverrides.clear();
     listeners.forEach((listener) => listener());
+}
+
+export function pruneMissingFilesStore(
+    activeIds: ReadonlyArray<string | number>,
+) {
+    const activeIdSet = new Set(activeIds);
+    let changed = false;
+
+    probeCache.forEach((_, key) => {
+        if (activeIdSet.has(key)) return;
+        probeCache.delete(key);
+        changed = true;
+    });
+
+    classificationOverrides.forEach((_, key) => {
+        if (activeIdSet.has(key)) return;
+        classificationOverrides.delete(key);
+        changed = true;
+    });
+
+    if (changed) {
+        listeners.forEach((listener) => listener());
+    }
 }
 
 export function useMissingFilesProbe(id?: string | number | null) {

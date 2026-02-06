@@ -1,49 +1,53 @@
-import { Checkbox } from "@heroui/react";
-import { ChevronDown, ChevronRight, FileText, Folder } from "lucide-react";
 import {
-    type KeyboardEvent,
-    type MouseEvent,
+    Button,
+    ButtonGroup,
+    Checkbox,
+    Chip,
+    cn,
+    Dropdown,
+    DropdownItem,
+    DropdownMenu,
+    DropdownTrigger,
+    Input,
+    Progress,
+} from "@heroui/react";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import {
+    ArrowDown,
+    ArrowUp,
+    ChevronDown,
+    ChevronRight,
+    File as FileIcon,
+    FileAudio,
+    FileImage,
+    FileText,
+    FileVideo,
+    Filter,
+    Folder,
+    Minus,
+    Search,
+    X,
+} from "lucide-react";
+import React, {
+    memo,
     useCallback,
     useEffect,
-    useLayoutEffect,
-    useState,
     useMemo,
     useRef,
+    useState,
 } from "react";
-
 import { useTranslation } from "react-i18next";
-import useLayoutMetrics from "@/shared/hooks/useLayoutMetrics";
-import { useContextMenuPosition } from "@/shared/hooks/ui/useContextMenuPosition";
-import { ICON_STROKE_WIDTH } from "@/config/logic";
-import { formatBytes } from "@/shared/utils/format";
-import { useVirtualizer } from "@tanstack/react-virtual";
 
 import type {
     LibtorrentPriority,
     TorrentFileEntity,
 } from "@/services/rpc/entities";
-// FileExplorerEntry is a mapped type for TorrentFileEntity, re-declare here for clarity
-export type FileExplorerEntry = TorrentFileEntity;
+import { formatBytes } from "@/shared/utils/format";
 
-// FileExplorerTreeProps interface (redeclare for local use)
-export interface FileExplorerTreeViewModel {
-    files: FileExplorerEntry[];
-    emptyMessage?: string;
-    onFilesToggle?: (indexes: number[], wanted: boolean) => void;
-    onFileContextAction?: (
-        action: FileExplorerContextAction,
-        entry: FileExplorerEntry
-    ) => void;
-}
-interface FileExplorerTreeProps {
-    viewModel: FileExplorerTreeViewModel;
-}
-// TODO: Keep FileExplorerTree as a pure “view” component:
-// TODO: - It must not call RPC or ShellExtensions directly (no `EngineAdapter`, no `NativeShell`, no filesystem probing).
-// TODO: - It emits *UI intents* via `onFilesToggle` / `onFileContextAction` and a higher layer (Dashboard/App view-model) decides:
-// TODO:   - whether “open file/folder” is allowed (based on `uiMode = "Full" | "Rpc"`)
-// TODO:   - how to execute it (ShellAgent adapter vs unsupported)
-// TODO: - This prevents remote/browser UIs from accidentally attempting host integration and keeps the authorization/capability boundary centralized.
+// -- TYPES --
+
+// Re-export for compatibility
+export type FileExplorerEntry = TorrentFileEntity;
 
 export type FileExplorerContextAction =
     | "priority_high"
@@ -51,698 +55,758 @@ export type FileExplorerContextAction =
     | "priority_low"
     | "open_file"
     | "open_folder";
-// TODO: Consider renaming these actions to explicitly separate “engine actions” vs “shell actions”:
-// TODO: - Engine: priority_* and wanted/unwanted toggles
-// TODO: - Shell: open_file/open_folder (only when `uiMode="Full"`)
-// TODO: This improves readability for maintainers and reduces accidental cross-layer calls.
 
-type FileContextMenuState = {
-    file: FileExplorerEntry;
-    rawX: number;
-    rawY: number;
-    x: number;
-    y: number;
-};
+export interface FileExplorerTreeViewModel {
+    files: FileExplorerEntry[];
+    emptyMessage?: string;
+    onFilesToggle?: (indexes: number[], wanted: boolean) => void;
+    onFileContextAction?: (
+        action: FileExplorerContextAction,
+        entry: FileExplorerEntry,
+    ) => void;
+}
 
-type FileExplorerNode = {
-    id: string;
+interface FileExplorerTreeProps {
+    viewModel: FileExplorerTreeViewModel;
+}
+
+// Internal Node Structure
+type FileNode = {
+    id: string; // Path-based unique ID
     name: string;
+    path: string;
     isFolder: boolean;
-    children?: FileExplorerNode[];
-    indexes?: number[];
-    file?: FileExplorerEntry;
+    depth: number;
+    // For leaf nodes:
+    fileIndex?: number;
+    fileEntry?: FileExplorerEntry;
+    // For folder nodes:
+    children: FileNode[];
+    descendantIndexes: number[]; // All file indexes under this folder
+    totalSize: number;
+    bytesCompleted: number;
 };
 
-const buildFileTree = (entries: FileExplorerEntry[]): FileExplorerNode[] => {
-    if (!entries.length) return [];
-    const root: FileExplorerNode[] = [];
+// -- HELPERS --
+
+const getFileIcon = (filename: string) => {
+    const ext = filename.split(".").pop()?.toLowerCase();
+    if (["mp4", "mkv", "avi", "mov", "webm"].includes(ext || ""))
+        return <FileVideo className="w-4 h-4 text-primary" />;
+    if (["mp3", "wav", "flac", "aac"].includes(ext || ""))
+        return <FileAudio className="w-4 h-4 text-warning" />;
+    if (["jpg", "jpeg", "png", "gif", "webp"].includes(ext || ""))
+        return <FileImage className="w-4 h-4 text-success" />;
+    if (["txt", "md", "pdf", "doc", "docx"].includes(ext || ""))
+        return <FileText className="w-4 h-4 text-default-500" />;
+    return <FileIcon className="w-4 h-4 text-default-400" />;
+};
+
+const buildTreeRecursive = (entries: FileExplorerEntry[]): FileNode[] => {
+    const rootNodes: FileNode[] = [];
+    const levelMap = new Map<string, FileNode>();
+
     entries.forEach((entry) => {
-        const safeName = entry.name?.trim()
-            ? entry.name
-            : `file-${entry.index ?? "unknown"}`;
-        const normalizedPath = safeName.replace(/\\/g, "/").replace(/^\/+/, "");
-        const rawSegments = normalizedPath.split("/");
-        const segments =
-            rawSegments.filter(Boolean).length > 0
-                ? rawSegments.filter(Boolean)
-                : [safeName];
-        let currentList = root;
+        const path = entry.name.replace(/\\/g, "/").replace(/^\/+/, "");
+        const parts = path.split("/").filter(Boolean);
+
         let currentPath = "";
-        segments.forEach((segment, idx) => {
-            const isLeaf = idx === segments.length - 1;
-            currentPath = currentPath ? `${currentPath}/${segment}` : segment;
-            let node = currentList.find(
-                (candidate) =>
-                    candidate.name === segment && candidate.isFolder === !isLeaf
-            );
+
+        for (let i = 0; i < parts.length; i++) {
+            const part = parts[i];
+            const isLeaf = i === parts.length - 1;
+            currentPath = currentPath ? `${currentPath}/${part}` : part;
+
+            let node = levelMap.get(currentPath);
+
             if (!node) {
                 node = {
                     id: currentPath,
-                    name: segment,
+                    name: part,
+                    path: currentPath,
                     isFolder: !isLeaf,
-                    children: !isLeaf ? [] : undefined,
-                    indexes: !isLeaf ? [] : undefined,
-                    file: isLeaf ? entry : undefined,
+                    depth: i, // 0-based depth
+                    children: [],
+                    descendantIndexes: [],
+                    totalSize: 0,
+                    bytesCompleted: 0,
+                    fileIndex: isLeaf ? entry.index : undefined,
+                    fileEntry: isLeaf ? entry : undefined,
                 };
-                currentList.push(node);
-            }
-            if (!isLeaf) {
-                node.indexes?.push(entry.index);
-                currentList = node.children!;
-            }
-        });
-    });
-    return root;
-};
+                levelMap.set(currentPath, node);
 
-// priority badge base classes (visuals) - font size & padding come from CSS tokens
-const PRIORITY_BADGE_BASE = "font-semibold uppercase rounded-full";
-const PRIORITY_BADGE_CLASSES: Record<LibtorrentPriority, string> = {
-    0: "bg-danger/10 text-danger border border-danger/40",
-    1: "bg-foreground/5 text-foreground/70 border border-content1/20",
-    2: "bg-foreground/5 text-foreground/70 border border-content1/20",
-    3: "bg-warning/10 text-warning",
-    4: "bg-foreground/10 text-foreground/80 border border-content1/20",
-    5: "bg-primary/10 text-primary",
-    6: "bg-primary/20 text-primary",
-    7: "bg-success/10 text-success",
-};
-
-type VisibleNode = {
-    id: string;
-    depth: number;
-    node: FileExplorerNode;
-};
-
-const flattenVisibleNodes = (
-    nodes: FileExplorerNode[],
-    expanded: Record<string, boolean>,
-    depth = 0
-): VisibleNode[] => {
-    const result: VisibleNode[] = [];
-    nodes.forEach((node) => {
-        result.push({ id: node.id, depth, node });
-        if (node.isFolder && expanded[node.id] && node.children?.length) {
-            result.push(
-                ...flattenVisibleNodes(node.children, expanded, depth + 1)
-            );
-        }
-    });
-    return result;
-};
-
-// Row height is driven by CSS token `--tt-row-h` (fallback to 32)
-// We read the token inside the component to provide a numeric estimate to the virtualizer.
-
-export function FileExplorerTree({ viewModel }: FileExplorerTreeProps) {
-    const { files, emptyMessage, onFilesToggle, onFileContextAction } =
-        viewModel;
-    const [search, setSearch] = useState("");
-    const [extensionFilter, setExtensionFilter] = useState("");
-    const { t } = useTranslation();
-    const [selectedIndexes, setSelectedIndexes] = useState<Set<number>>(
-        () => new Set()
-    );
-    const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(
-        null
-    );
-    const [fileContextMenu, setFileContextMenu] =
-        useState<FileContextMenuState | null>(null);
-    const selectionMap = useMemo(() => {
-        const map = new Map<number, boolean>();
-        files.forEach((file) => {
-            map.set(file.index, file.wanted ?? true);
-        });
-        return map;
-    }, [files]);
-
-    // Filter files by search and extension
-    const filteredFiles = useMemo(() => {
-        let result = files;
-        if (search.trim()) {
-            const s = search.trim().toLowerCase();
-            result = result.filter((f) => f.name.toLowerCase().includes(s));
-        }
-        if (extensionFilter) {
-            result = result.filter((f) =>
-                f.name.toLowerCase().endsWith(extensionFilter)
-            );
-        }
-        return result;
-    }, [files, search, extensionFilter]);
-    const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-    useEffect(() => {
-        setSelectedIndexes(new Set());
-        setLastSelectedIndex(null);
-        setFileContextMenu(null);
-    }, [files]);
-    useEffect(() => {
-        const handlePointerDown = () => setFileContextMenu(null);
-        window.addEventListener("pointerdown", handlePointerDown);
-        return () => {
-            window.removeEventListener("pointerdown", handlePointerDown);
-        };
-    }, []);
-
-    const toggleExpanded = useCallback((id: string) => {
-        setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
-    }, []);
-
-    const visibleNodes = useMemo(() => {
-        const tree = buildFileTree(filteredFiles);
-        return flattenVisibleNodes(tree, expanded);
-    }, [filteredFiles, expanded]);
-    const visibleFileIndexes = useMemo(() => {
-        return visibleNodes
-            .filter(({ node }) => !node.isFolder && node.file)
-            .map(({ node }) => node.file!.index);
-    }, [visibleNodes]);
-    const visibleIndexPositions = useMemo(() => {
-        const map = new Map<number, number>();
-        visibleFileIndexes.forEach((index, position) => {
-            map.set(index, position);
-        });
-        return map;
-    }, [visibleFileIndexes]);
-
-    const handleFileToggle = useCallback(
-        (indexes: number[], wanted: boolean) => {
-            if (!indexes.length) return;
-            onFilesToggle?.(indexes, wanted);
-        },
-        [onFilesToggle]
-    );
-    const containerRef = useRef<HTMLDivElement>(null);
-    const focusContainer = useCallback(() => {
-        containerRef.current?.focus({ preventScroll: true });
-    }, []);
-    const {
-        rowHeight,
-        fileContextMenuWidth: contextMenuWidth,
-        fileContextMenuMargin: contextMenuMargin,
-    } = useLayoutMetrics();
-
-    const { clampContextMenuPosition } = useContextMenuPosition({
-        containerRef,
-        defaultMargin: contextMenuMargin,
-        defaultMenuWidth: contextMenuWidth,
-    });
-    const getRangeIndexes = useCallback(
-        (targetIndex: number, anchorIndex: number | null) => {
-            if (anchorIndex === null) {
-                return [targetIndex];
-            }
-            const anchorPos = visibleIndexPositions.get(anchorIndex);
-            const targetPos = visibleIndexPositions.get(targetIndex);
-            if (anchorPos === undefined || targetPos === undefined) {
-                return [targetIndex];
-            }
-            const [start, end] =
-                anchorPos < targetPos
-                    ? [anchorPos, targetPos]
-                    : [targetPos, anchorPos];
-            return visibleFileIndexes.slice(start, end + 1);
-        },
-        [visibleFileIndexes, visibleIndexPositions]
-    );
-    const handleRowSelection = useCallback(
-        (event: MouseEvent<HTMLDivElement>, index: number) => {
-            const rangeSelection = event.shiftKey && lastSelectedIndex !== null;
-            const additiveSelection = event.metaKey || event.ctrlKey;
-            if (rangeSelection) {
-                const nextSelection = getRangeIndexes(index, lastSelectedIndex);
-                setSelectedIndexes(new Set(nextSelection));
-            } else if (additiveSelection) {
-                setSelectedIndexes((prev) => {
-                    const next = new Set(prev);
-                    if (next.has(index)) {
-                        next.delete(index);
-                    } else {
-                        next.add(index);
+                // Add to parent
+                if (i === 0) {
+                    rootNodes.push(node);
+                } else {
+                    const parentPath = parts.slice(0, i).join("/");
+                    const parent = levelMap.get(parentPath);
+                    if (parent) {
+                        parent.children.push(node);
                     }
-                    return next;
-                });
-            } else {
-                setSelectedIndexes(new Set([index]));
+                }
             }
-            setLastSelectedIndex(index);
-            focusContainer();
-        },
-        [focusContainer, getRangeIndexes, lastSelectedIndex]
+
+            // Updates
+            if (entry.length) node.totalSize += entry.length;
+            if (entry.bytesCompleted)
+                node.bytesCompleted += entry.bytesCompleted;
+            node.descendantIndexes.push(entry.index);
+        }
+    });
+
+    // Sort: Folders first, then files (A-Z)
+    const sortNodes = (nodes: FileNode[]) => {
+        nodes.sort((a, b) => {
+            if (a.isFolder !== b.isFolder) return a.isFolder ? -1 : 1;
+            return a.name.localeCompare(b.name);
+        });
+        nodes.forEach((n) => {
+            if (n.children.length > 0) sortNodes(n.children);
+        });
+    };
+    sortNodes(rootNodes);
+
+    return rootNodes;
+};
+
+const flattenTree = (
+    nodes: FileNode[],
+    expandedIds: Set<string>,
+    visibleNodes: FileNode[] = [],
+) => {
+    for (const node of nodes) {
+        visibleNodes.push(node);
+        if (node.isFolder && expandedIds.has(node.id)) {
+            flattenTree(node.children, expandedIds, visibleNodes);
+        }
+    }
+    return visibleNodes;
+};
+
+// -- COMPONENT --
+
+export const FileExplorerTree = memo(function FileExplorerTree({
+    viewModel,
+}: FileExplorerTreeProps) {
+    const { files, onFilesToggle, onFileContextAction } = viewModel;
+    const { t } = useTranslation();
+    const parentRef = useRef<HTMLDivElement>(null);
+
+    // Filter Logic
+    const [searchQuery, setSearchQuery] = useState("");
+    const [showOnlyFeatures, setShowOnlyFeatures] = useState<
+        "all" | "video" | "audio"
+    >("all");
+
+    // Tree State
+    const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+    const toggleExpand = useCallback((id: string) => {
+        setExpandedIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    }, []);
+
+    const expandAll = useCallback(() => {
+        const allIds = new Set<string>();
+        const traverse = (nodes: FileNode[]) => {
+            nodes.forEach((n) => {
+                if (n.isFolder) {
+                    allIds.add(n.id);
+                    traverse(n.children);
+                }
+            });
+        };
+        // Re-build clean tree
+        traverse(buildTreeRecursive(files));
+        setExpandedIds(allIds);
+    }, [files]);
+
+    const collapseAll = useCallback(() => setExpandedIds(new Set()), []);
+
+    // Filtered Files -> Tree Calculation
+    const { visibleNodes } = useMemo(() => {
+        let filtered = files;
+
+        // 1. Text Search
+        if (searchQuery.trim()) {
+            const q = searchQuery.toLowerCase();
+            filtered = filtered.filter((f) => f.name.toLowerCase().includes(q));
+        }
+
+        // 2. Type Filter
+        if (showOnlyFeatures === "video") {
+            filtered = filtered.filter((f) =>
+                /\.(mp4|mkv|avi|mov|wmv)$/i.test(f.name),
+            );
+        } else if (showOnlyFeatures === "audio") {
+            filtered = filtered.filter((f) =>
+                /\.(mp3|aac|flac|wav)$/i.test(f.name),
+            );
+        }
+
+        // 3. Build Tree
+        const roots = buildTreeRecursive(filtered);
+
+        // 4. Flatten based on expansion
+        // If searching, auto-expand
+        if (searchQuery.trim() || showOnlyFeatures !== "all") {
+            const allIds = new Set<string>();
+            const traverse = (nodes: FileNode[]) => {
+                nodes.forEach((n) => {
+                    if (n.isFolder) {
+                        allIds.add(n.id);
+                        traverse(n.children);
+                    }
+                });
+            };
+            traverse(roots);
+            const flat = flattenTree(roots, allIds);
+            return { visibleNodes: flat };
+        }
+
+        const flat = flattenTree(roots, expandedIds);
+        return { visibleNodes: flat };
+    }, [files, searchQuery, showOnlyFeatures, expandedIds]);
+
+    // Selection State
+    const [selectedIndexes, setSelectedIndexes] = useState<Set<number>>(
+        new Set(),
     );
-    const handleKeyDown = useCallback(
-        (event: KeyboardEvent<HTMLDivElement>) => {
-            if (event.key === "Escape") {
-                setFileContextMenu(null);
+
+    // Map of fileIndex -> wanted status
+    const fileWantedMap = useMemo(() => {
+        const map = new Map<number, boolean>();
+        files.forEach((f) => map.set(f.index, f.wanted ?? true));
+        return map;
+    }, [files]);
+
+    useEffect(() => {
+        const next = new Set<number>();
+        fileWantedMap.forEach((wanted, index) => {
+            if (wanted) next.add(index);
+        });
+        setSelectedIndexes(next);
+    }, [fileWantedMap]);
+
+    const filePriorityMap = useMemo(() => {
+        const map = new Map<number, LibtorrentPriority>();
+        files.forEach((f) => map.set(f.index, f.priority ?? 4)); // Default 4 (Normal)
+        return map;
+    }, [files]);
+
+    const handleSelectionChange = useCallback(
+        (indexes: number[], mode: "toggle" | "select" | "deselect") => {
+            setSelectedIndexes((prev) => {
+                const next = new Set(prev);
+                indexes.forEach((idx) => {
+                    if (mode === "toggle") {
+                        if (next.has(idx)) next.delete(idx);
+                        else next.add(idx);
+                    } else if (mode === "select") {
+                        next.add(idx);
+                    } else {
+                        next.delete(idx);
+                    }
+                });
+                return next;
+            });
+        },
+        [],
+    );
+
+    const handleSelectAll = useCallback(
+        (v: boolean) => {
+            if (!v) {
+                setSelectedIndexes(new Set());
                 return;
             }
-            if (event.code !== "Space" && event.key !== " ") return;
-            if (!selectedIndexes.size) return;
-            event.preventDefault();
-            const selectedArray = Array.from(selectedIndexes);
-            const allSelectedWanted = selectedArray.every((index) =>
-                selectionMap.get(index)
-            );
-            handleFileToggle(selectedArray, !allSelectedWanted);
+            const allIndexes = visibleNodes.flatMap((n) => n.descendantIndexes);
+            setSelectedIndexes(new Set(allIndexes));
         },
-        [handleFileToggle, selectedIndexes, selectionMap]
+        [visibleNodes],
     );
-    const fileContextMenuItems = useMemo(
-        () => [
-            {
-                key: "open_file" as const,
-                label: t("torrent_modal.context_menu.files.open_file"),
-            },
-            {
-                key: "open_folder" as const,
-                label: t("torrent_modal.context_menu.files.open_folder"),
-            },
-            {
-                key: "priority_high" as const,
-                label: t("torrent_modal.context_menu.files.priority_high"),
-            },
-            {
-                key: "priority_normal" as const,
-                label: t("torrent_modal.context_menu.files.priority_normal"),
-            },
-            {
-                key: "priority_low" as const,
-                label: t("torrent_modal.context_menu.files.priority_low"),
-            },
-        ],
-        [t]
-    );
-    const menuRef = useRef<HTMLDivElement | null>(null);
-    const handleFileContextMenu = useCallback(
-        (event: MouseEvent<HTMLDivElement>, file: FileExplorerEntry) => {
-            event.preventDefault();
-            event.stopPropagation();
-            const rect = containerRef.current?.getBoundingClientRect();
-            const offsetX = rect ? event.clientX - rect.left : event.clientX;
-            const offsetY = rect ? event.clientY - rect.top : event.clientY;
-            const { x, y } = clampContextMenuPosition(offsetX, offsetY);
-            setFileContextMenu({
-                file,
-                rawX: offsetX,
-                rawY: offsetY,
-                x,
-                y,
-            });
-            if (!selectedIndexes.has(file.index)) {
-                setSelectedIndexes(new Set([file.index]));
-                setLastSelectedIndex(file.index);
+
+    // Actions
+    const handleSetPriority = useCallback(
+        (priority: LibtorrentPriority | "skip", targetIndexes?: number[]) => {
+            const indexesToUpdate =
+                targetIndexes ?? Array.from(selectedIndexes);
+            if (indexesToUpdate.length === 0) return;
+
+            if (priority === "skip") {
+                // Needed: Unwanted
+                onFilesToggle?.(indexesToUpdate, false);
+            } else {
+                // Needed: Wanted AND Priority
+                // 1. Set wanted = true
+                onFilesToggle?.(indexesToUpdate, true);
+
+                // 2. Set priority
+                const entryMap = new Map(files.map((f) => [f.index, f]));
+
+                let action: FileExplorerContextAction = "priority_normal";
+                if (priority >= 6) action = "priority_high";
+                if (priority <= 2) action = "priority_low";
+
+                indexesToUpdate.forEach((idx) => {
+                    const entry = entryMap.get(idx);
+                    if (entry) {
+                        onFileContextAction?.(action, entry);
+                    }
+                });
             }
         },
-        [clampContextMenuPosition, selectedIndexes]
-    );
-    const handleFileContextAction = useCallback(
-        (action: FileExplorerContextAction) => {
-            if (!fileContextMenu) return;
-            onFileContextAction?.(action, fileContextMenu.file);
-            setFileContextMenu(null);
-        },
-        [fileContextMenu, onFileContextAction]
+        [selectedIndexes, files, onFilesToggle, onFileContextAction],
     );
 
-    useLayoutEffect(() => {
-        if (!fileContextMenu || !menuRef.current) return;
-        const rect = menuRef.current.getBoundingClientRect();
-        const clamped = clampContextMenuPosition(
-            fileContextMenu.rawX,
-            fileContextMenu.rawY,
-            { menuWidth: rect.width }
-        );
-        if (
-            clamped.x === fileContextMenu.x &&
-            clamped.y === fileContextMenu.y
-        ) {
-            return;
-        }
-        setFileContextMenu((prev) =>
-            prev ? { ...prev, x: clamped.x, y: clamped.y } : prev
-        );
-    }, [clampContextMenuPosition, fileContextMenu]);
-
-    const handleFolderToggle = useCallback(
-        (node: FileExplorerNode) => {
-            const indexes = node.indexes ?? [];
-            if (!indexes.length) return;
-            const allSelected = indexes.every((index) =>
-                selectionMap.get(index)
-            );
-            handleFileToggle(indexes, !allSelected);
-        },
-        [handleFileToggle, selectionMap]
-    );
-
-    // React Compiler warning: do not memoize or pass rowVirtualizer to children
-    const rowVirtualizer = useVirtualizer({
+    // Virtualization
+    const virtualizer = useVirtualizer({
         count: visibleNodes.length,
-        getScrollElement: () => containerRef.current,
-        estimateSize: () => rowHeight,
-        overscan: 6,
-        getItemKey: (index) => visibleNodes[index]?.id ?? index,
+        getScrollElement: () => parentRef.current,
+        estimateSize: () => 36, // Compact Row Height
+        overscan: 10,
     });
 
-    if (!files.length) {
-        return (
-            <div className="rounded-xl border border-content1/20 bg-content1/15 p-panel text-xs text-foreground/50 text-center">
-                {emptyMessage ?? t("torrent_modal.files_empty")}
-            </div>
-        );
-    }
-
-    // Gather all unique file extensions for the select-by-extension tool
-    const allExtensions = useMemo(() => {
-        const set = new Set<string>();
-        files.forEach((f) => {
-            const match = f.name.match(/\.([a-z0-9]+)$/i);
-            if (match) set.add(match[0].toLowerCase());
-        });
-        return Array.from(set).sort();
-    }, [files]);
-
-    // Bulk select by extension
-    const handleSelectByExtension = (ext: string) => {
-        const indexes = files
-            .filter((f) => f.name.toLowerCase().endsWith(ext))
-            .map((f) => f.index);
-        if (indexes.length) {
-            onFilesToggle?.(indexes, true);
-        }
-    };
-
-    if (!visibleNodes.length) {
-        return (
-            <div className="rounded-xl border border-content1/20 bg-content1/15 p-panel text-xs text-foreground/50 text-center">
-                {emptyMessage ?? t("torrent_modal.files_empty")}
-            </div>
-        );
-    }
+    // Header Selection State
+    // All visible descendants selected?
+    const allVisibleIndexes = useMemo(
+        () => visibleNodes.flatMap((n) => n.descendantIndexes),
+        [visibleNodes],
+    );
+    const isAllSelected =
+        allVisibleIndexes.length > 0 &&
+        allVisibleIndexes.every((idx) => selectedIndexes.has(idx));
+    const isIndeterminate =
+        !isAllSelected &&
+        allVisibleIndexes.some((idx) => selectedIndexes.has(idx));
 
     return (
-        <div className="flex flex-col h-full">
-            <div className="flex items-center gap-tools p-tight sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-content1/10">
-                <input
-                    type="text"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder={t("torrent_modal.files_search_placeholder")}
-                    className="flex-1 px-tight py-tight rounded bg-content1/20 text-foreground outline-none"
-                    style={{ minWidth: 0 }}
+        <div className="flex flex-col h-full surface-layer-1 rounded-medium border border-default-200/50 overflow-hidden shadow-sm">
+            {/* Toolbar */}
+            <div className="flex flex-wrap items-center gap-2 p-2 border-b border-default-200/50 bg-content1/30">
+                <Input
+                    classNames={{
+                        base: "max-w-[180px] lg:max-w-[240px]",
+                        inputWrapper: "h-8 min-h-8 text-small",
+                    }}
+                    placeholder={t("actions.search")}
+                    startContent={
+                        <Search className="w-3.5 h-3.5 text-default-400" />
+                    }
+                    value={searchQuery}
+                    onValueChange={setSearchQuery}
+                    isClearable
+                    size="sm"
+                    variant="bordered"
                 />
-                {allExtensions.length > 0 && (
-                    <select
-                        value={extensionFilter}
-                        onChange={(e) => {
-                            setExtensionFilter(e.target.value);
-                            if (e.target.value)
-                                handleSelectByExtension(e.target.value);
-                        }}
-                        className="px-tight py-tight rounded bg-content1/20 text-foreground outline-none"
+
+                <Dropdown>
+                    <DropdownTrigger>
+                        <Button
+                            size="sm"
+                            variant="flat"
+                            isIconOnly
+                            className="min-w-8 w-8 h-8"
+                        >
+                            <Filter className="w-3.5 h-3.5 text-default-600" />
+                        </Button>
+                    </DropdownTrigger>
+                    <DropdownMenu
+                        selectionMode="single"
+                        selectedKeys={new Set([showOnlyFeatures])}
+                        onSelectionChange={(k) =>
+                            setShowOnlyFeatures(
+                                Array.from(k)[0] as "all" | "video" | "audio",
+                            )
+                        }
+                        disallowEmptySelection
                     >
-                        <option value="">
-                            {t("torrent_modal.files_select_extension")}
-                        </option>
-                        {allExtensions.map((ext) => (
-                            <option key={ext} value={ext}>
-                                {ext}
-                            </option>
-                        ))}
-                    </select>
-                )}
+                        <DropdownItem key="all">{t("status.all")}</DropdownItem>
+                        <DropdownItem key="video">
+                            {t("types.video")}
+                        </DropdownItem>
+                        <DropdownItem key="audio">
+                            {t("types.audio")}
+                        </DropdownItem>
+                    </DropdownMenu>
+                </Dropdown>
+
+                <div className="h-4 w-px bg-default-300 mx-1" />
+
+                <ButtonGroup size="sm" variant="flat">
+                    <Button
+                        onPress={expandAll}
+                        isIconOnly
+                        aria-label={t("actions.expand_all")}
+                        className="h-8 w-8 min-w-8"
+                    >
+                        <ArrowDown className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button
+                        onPress={collapseAll}
+                        isIconOnly
+                        aria-label={t("actions.collapse_all")}
+                        className="h-8 w-8 min-w-8"
+                    >
+                        <ArrowUp className="w-3.5 h-3.5" />
+                    </Button>
+                </ButtonGroup>
+
+                <div className="flex-1" />
+
+                <div
+                    className={cn(
+                        "flex items-center gap-2 transition-opacity duration-200",
+                        selectedIndexes.size > 0
+                            ? "opacity-100"
+                            : "opacity-0 pointer-events-none",
+                    )}
+                >
+                    <span className="text-[10px] text-default-500 font-medium hidden sm:inline-block">
+                        {selectedIndexes.size} selected
+                    </span>
+                    <Dropdown>
+                        <DropdownTrigger>
+                            <Button
+                                size="sm"
+                                color="primary"
+                                variant="flat"
+                                endContent={<ChevronDown className="w-3 h-3" />}
+                                className="h-8 text-small"
+                            >
+                                {t("fields.priority")}
+                            </Button>
+                        </DropdownTrigger>
+                        <DropdownMenu
+                            onAction={(k) => {
+                                if (k === "high") handleSetPriority(7);
+                                if (k === "normal") handleSetPriority(4);
+                                if (k === "low") handleSetPriority(1);
+                                if (k === "skip") handleSetPriority("skip");
+                            }}
+                        >
+                            <DropdownItem
+                                key="high"
+                                startContent={
+                                    <ArrowUp className="w-4 h-4 text-success" />
+                                }
+                            >
+                                {t("priority.high")}
+                            </DropdownItem>
+                            <DropdownItem
+                                key="normal"
+                                startContent={
+                                    <Minus className="w-4 h-4 text-primary" />
+                                }
+                            >
+                                {t("priority.normal")}
+                            </DropdownItem>
+                            <DropdownItem
+                                key="low"
+                                startContent={
+                                    <ArrowDown className="w-4 h-4 text-warning" />
+                                }
+                            >
+                                {t("priority.low")}
+                            </DropdownItem>
+                            <DropdownItem
+                                key="skip"
+                                className="text-danger"
+                                startContent={<X className="w-4 h-4" />}
+                            >
+                                {t("priority.dont_download")}
+                            </DropdownItem>
+                        </DropdownMenu>
+                    </Dropdown>
+                </div>
             </div>
+
+            {/* Header */}
+            <div className="grid grid-cols-[40px_1fr_90px_80px_100px] items-center px-4 py-2 border-b border-default-200/50 bg-default-100/50 text-[10px] font-bold uppercase tracking-wider text-default-500 z-10">
+                <div className="flex items-center justify-center">
+                    <Checkbox
+                        size="sm"
+                        isSelected={isAllSelected}
+                        isIndeterminate={isIndeterminate}
+                        onValueChange={handleSelectAll}
+                        classNames={{ wrapper: "after:bg-primary" }}
+                    />
+                </div>
+                <div>{t("fields.name")}</div>
+                <div className="text-center">{t("fields.priority")}</div>
+                <div className="text-center">{t("fields.progress")}</div>
+                <div className="text-right">{t("fields.size")}</div>
+            </div>
+
+            {/* Body */}
             <div
-                ref={containerRef}
-                className="relative h-full overflow-y-auto"
-                tabIndex={0}
-                onKeyDown={handleKeyDown}
+                ref={parentRef}
+                className="flex-1 overflow-auto min-h-0 relative scrollbar-hide"
             >
                 <div
-                    style={{
-                        height: `${rowVirtualizer.getTotalSize()}px`,
-                        position: "relative",
-                    }}
+                    className="relative w-full"
+                    style={{ height: `${virtualizer.getTotalSize()}px` }}
                 >
-                    {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                        const { node, depth } = visibleNodes[virtualRow.index];
-                        const paddingLeft = `calc(var(--tt-file-depth-indent) * ${depth} + var(--tt-file-row-padding-left))`;
-                        const isFolder = node.isFolder;
-                        const rowKey = `${node.id}-${virtualRow.index}`;
-                        if (isFolder) {
-                            const indexes = node.indexes ?? [];
-                            const count = indexes.length;
-                            const allSelected =
-                                count > 0 &&
-                                indexes.every((index) =>
-                                    selectionMap.get(index)
-                                );
-                            const someSelected = indexes.some((index) =>
-                                selectionMap.get(index)
-                            );
-                            const isExpanded = Boolean(expanded[node.id]);
-                            return (
-                                <div
-                                    key={rowKey}
-                                    className="absolute left-0 right-0"
-                                    style={{
-                                        top: virtualRow.start,
-                                        height: virtualRow.size,
-                                    }}
-                                >
-                                    <div
-                                        className="flex items-center gap-tools py-tight cursor-pointer hover:bg-content1/10 rounded pl-tight h-full"
-                                        style={{ paddingLeft }}
-                                        onClick={(event) => {
-                                            if (
-                                                (
-                                                    event.target as Element
-                                                ).closest("button")
-                                            )
-                                                return;
-                                            handleFolderToggle(node);
-                                        }}
-                                    >
-                                        <button
-                                            type="button"
-                                            onClick={(event) => {
-                                                event.stopPropagation();
-                                                toggleExpanded(node.id);
-                                            }}
-                                            className="flex items-center justify-center rounded-full p-tight text-foreground/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
-                                        >
-                                            {isExpanded ? (
-                                                <ChevronDown
-                                                    size={16}
-                                                    strokeWidth={
-                                                        ICON_STROKE_WIDTH
-                                                    }
-                                                    className="text-current"
-                                                />
-                                            ) : (
-                                                <ChevronRight
-                                                    size={16}
-                                                    strokeWidth={
-                                                        ICON_STROKE_WIDTH
-                                                    }
-                                                    className="text-current"
-                                                />
-                                            )}
-                                        </button>
-                                        <div
-                                            onClick={(event) =>
-                                                event.stopPropagation()
-                                            }
-                                        >
-                                            <Checkbox
-                                                isSelected={allSelected}
-                                                isIndeterminate={
-                                                    someSelected && !allSelected
-                                                }
-                                                onValueChange={() =>
-                                                    handleFolderToggle(node)
-                                                }
-                                                classNames={{ wrapper: "" }}
-                                            />
-                                        </div>
-                                        <button
-                                            type="button"
-                                            onClick={(event) => {
-                                                event.stopPropagation();
-                                                toggleExpanded(node.id);
-                                            }}
-                                            className="flex items-center justify-center rounded-full p-tight text-foreground/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
-                                        >
-                                            <Folder
-                                                size={16}
-                                                strokeWidth={ICON_STROKE_WIDTH}
-                                                className="text-current"
-                                            />
-                                        </button>
-                                        <div className="flex flex-col text-sm font-medium text-foreground leading-tight">
-                                            <span className="text-foreground">
-                                                {node.name}
-                                            </span>
-                                            <span
-                                                style={{
-                                                    fontSize:
-                                                        "var(--tt-font-size-base)",
-                                                }}
-                                                className="text-foreground/50"
-                                            >
-                                                {count} file
-                                                {count === 1 ? "" : "s"}
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        }
-                        if (!node.file) return null;
-                        const fileWanted =
-                            selectionMap.get(node.file.index) ?? true;
-                        const priorityLabel =
-                            node.file.priority !== undefined
-                                ? t(
-                                      `inspector.file_priorities.${node.file.priority}`
-                                  )
-                                : null;
-                        const priorityBadgeClass =
-                            node.file.priority !== undefined
-                                ? `${PRIORITY_BADGE_BASE} ${
-                                      PRIORITY_BADGE_CLASSES[node.file.priority]
-                                  }`
-                                : "";
-                        const isRowSelected = selectedIndexes.has(
-                            node.file.index
+                    {virtualizer.getVirtualItems().map((virtualRow) => {
+                        const node = visibleNodes[virtualRow.index];
+                        const isNodeSelected = node.descendantIndexes.every(
+                            (idx) => selectedIndexes.has(idx),
                         );
-                        const rowClasses = `flex items-center gap-tools py-tight rounded cursor-pointer h-full transition-colors ${
-                            isRowSelected
-                                ? "bg-primary/10"
-                                : "hover:bg-content1/10"
-                        }`;
+                        const isNodeIndeterminate =
+                            !isNodeSelected &&
+                            node.descendantIndexes.some((idx) =>
+                                selectedIndexes.has(idx),
+                            );
+
+                        const areAllDescendantsWanted =
+                            node.descendantIndexes.every((idx) =>
+                                fileWantedMap.get(idx),
+                            );
+                        const firstIdx = node.descendantIndexes[0];
+                        const priority = filePriorityMap.get(firstIdx) || 4;
+
                         return (
                             <div
-                                key={rowKey}
-                                className="absolute left-0 right-0"
+                                key={virtualRow.key}
+                                className="absolute top-0 left-0 w-full"
                                 style={{
-                                    top: virtualRow.start,
-                                    height: virtualRow.size,
+                                    height: `${virtualRow.size}px`,
+                                    transform: `translateY(${virtualRow.start}px)`,
                                 }}
                             >
-                                <div
-                                    className={rowClasses}
-                                    style={{ paddingLeft }}
-                                    onClick={(event) =>
-                                        handleRowSelection(
-                                            event,
-                                            node.file!.index
+                                <FileNodeRow
+                                    node={node}
+                                    depth={node.depth}
+                                    isSelected={isNodeSelected}
+                                    isIndeterminate={isNodeIndeterminate}
+                                    isExpanded={expandedIds.has(node.id)}
+                                    isWanted={!!areAllDescendantsWanted}
+                                    priority={priority}
+                                    onToggleExpand={() => toggleExpand(node.id)}
+                                    onSelectionChange={(val) =>
+                                        handleSelectionChange(
+                                            node.descendantIndexes,
+                                            val ? "select" : "deselect",
                                         )
                                     }
-                                    onContextMenu={(event) =>
-                                        handleFileContextMenu(event, node.file!)
-                                    }
-                                    data-selected={isRowSelected}
-                                >
-                                    <div
-                                        onClick={(event) =>
-                                            event.stopPropagation()
-                                        }
-                                    >
-                                        <Checkbox
-                                            isSelected={fileWanted}
-                                            onValueChange={(value) =>
-                                                handleFileToggle(
-                                                    [node.file!.index],
-                                                    Boolean(value)
-                                                )
-                                            }
-                                            classNames={{ wrapper: "" }}
-                                        />
-                                    </div>
-                                    <FileText
-                                        size={16}
-                                        strokeWidth={ICON_STROKE_WIDTH}
-                                        className="text-foreground/50"
-                                    />
-                                    <div className="flex-1 min-w-0 flex flex-col gap-tight">
-                                        <span className="text-sm font-medium text-foreground truncate">
-                                            {node.name}
-                                        </span>
-                                        {priorityLabel && (
-                                            <span
-                                                className={priorityBadgeClass}
-                                                style={{
-                                                    fontSize:
-                                                        "var(--tt-priority-badge-font-size)",
-                                                    padding:
-                                                        "var(--tt-priority-badge-padding-y) var(--tt-priority-badge-padding-x)",
-                                                    letterSpacing:
-                                                        "var(--tt-tracking-wide)",
-                                                }}
-                                            >
-                                                {priorityLabel}
-                                            </span>
-                                        )}
-                                    </div>
-                                    {typeof node.file.length === "number" &&
-                                        node.file.length > 0 && (
-                                            <span
-                                                style={{
-                                                    fontSize:
-                                                        "var(--tt-font-size-base)",
-                                                }}
-                                                className="font-mono text-foreground/50"
-                                            >
-                                                {formatBytes(node.file.length)}
-                                            </span>
-                                        )}
-                                    {typeof node.file.progress === "number" && (
-                                        <span
-                                            style={{
-                                                fontSize:
-                                                    "var(--tt-font-size-base)",
-                                            }}
-                                            className="font-mono text-foreground/40"
-                                        >
-                                            {(node.file.progress * 100).toFixed(
-                                                0
-                                            )}
-                                            %
-                                        </span>
-                                    )}
-                                </div>
+                                    onSetPriority={handleSetPriority}
+                                    t={t}
+                                />
                             </div>
                         );
                     })}
                 </div>
-                {fileContextMenu && (
-                    <div
-                        ref={menuRef}
-                        className="pointer-events-auto absolute z-50 rounded-2xl border border-content1/40 bg-content1/80 p-tight backdrop-blur-3xl shadow-context"
-                        style={{
-                            top: fileContextMenu.y,
-                            left: fileContextMenu.x,
-                            minWidth: contextMenuWidth,
-                        }}
-                        onPointerDown={(event) => event.stopPropagation()}
-                        onContextMenu={(event) => event.preventDefault()}
-                    >
-                        {fileContextMenuItems.map((item) => (
-                            <button
-                                key={item.key}
-                                type="button"
-                                className="w-full rounded-xl px-tight py-tight text-left text-sm font-medium text-foreground transition-colors hover:bg-content2/70 active:bg-content2/80 hover:text-foreground"
-                                onClick={() =>
-                                    handleFileContextAction(item.key)
-                                }
-                            >
-                                {item.label}
-                            </button>
-                        ))}
+                {visibleNodes.length === 0 && (
+                    <div className="flex flex-col items-center justify-center h-full text-default-400 gap-2 absolute inset-0">
+                        <Search className="w-10 h-10 opacity-20" />
+                        <p className="text-small opacity-50">
+                            {t("errors.no_results")}
+                        </p>
                     </div>
                 )}
             </div>
         </div>
     );
+});
+
+// -- SUB-COMPONENT: ROW --
+
+interface FileNodeRowProps {
+    node: FileNode;
+    depth: number;
+    isSelected: boolean;
+    isIndeterminate: boolean;
+    isExpanded: boolean;
+    isWanted: boolean;
+    priority: LibtorrentPriority;
+    onToggleExpand: () => void;
+    onSelectionChange: (selected: boolean) => void;
+    onSetPriority: (p: LibtorrentPriority | "skip", indexes?: number[]) => void;
+    t: (k: string) => string;
 }
+
+const FileNodeRow = memo(
+    ({
+        node,
+        depth,
+        isSelected,
+        isIndeterminate,
+        isExpanded,
+        isWanted,
+        priority,
+        onToggleExpand,
+        onSelectionChange,
+        onSetPriority,
+        t,
+    }: FileNodeRowProps) => {
+        // Indentation: clamp max indent to prevent tiny columns on deep nests
+        const paddingLeft = `${Math.min(depth * 16, 200)}px`;
+
+        const progress = (node.bytesCompleted / (node.totalSize || 1)) * 100;
+
+        const getPriorityColor = (p: number) => {
+            if (!isWanted) return "default";
+            if (p >= 6) return "success";
+            if (p <= 2) return "warning";
+            return "primary";
+        };
+
+        const getPriorityLabel = (p: number) => {
+            if (!isWanted) return t("priority.skip");
+            if (p >= 6) return t("priority.high");
+            if (p <= 2) return t("priority.low");
+            return t("priority.normal");
+        };
+
+        return (
+            <div
+                className={cn(
+                    "grid grid-cols-[40px_1fr_90px_80px_100px] items-center h-full px-4 w-full select-none",
+                    "border-b border-default-100/50 hover:bg-default-100/60 transition-colors",
+                    !isWanted && "opacity-60 grayscale-[0.5]",
+                )}
+            >
+                {/* Checkbox */}
+                <div className="flex items-center justify-center">
+                    <Checkbox
+                        size="sm"
+                        radius="sm"
+                        isSelected={isSelected}
+                        isIndeterminate={isIndeterminate}
+                        onValueChange={onSelectionChange}
+                        classNames={{ wrapper: "after:bg-primary" }}
+                    />
+                </div>
+
+                {/* Name & Tree Structure */}
+                <div
+                    className="flex items-center overflow-hidden min-w-0 pr-4"
+                    style={{ paddingLeft }}
+                >
+                    {node.isFolder ? (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onToggleExpand();
+                            }}
+                            className="mr-1 p-0.5 text-default-400 hover:text-foreground rounded-full hover:bg-default-200/50 transition-colors"
+                        >
+                            {isExpanded ? (
+                                <ChevronDown className="w-3.5 h-3.5" />
+                            ) : (
+                                <ChevronRight className="w-3.5 h-3.5" />
+                            )}
+                        </button>
+                    ) : (
+                        <div className="w-6" />
+                    )}
+
+                    <div className="mr-2 text-default-500 shrink-0">
+                        {node.isFolder ? (
+                            <Folder className="w-4 h-4 fill-default-400/20" />
+                        ) : (
+                            getFileIcon(node.name)
+                        )}
+                    </div>
+
+                    <span
+                        className={cn(
+                            "text-small truncate cursor-default",
+                            node.isFolder
+                                ? "font-medium text-foreground"
+                                : "text-foreground/80",
+                        )}
+                        title={node.name}
+                        onClick={node.isFolder ? onToggleExpand : undefined}
+                    >
+                        {node.name}
+                    </span>
+                </div>
+
+                {/* Priority Actions */}
+                <div className="flex justify-center">
+                    <Dropdown>
+                        <DropdownTrigger>
+                            <Chip
+                                size="sm"
+                                variant="flat"
+                                color={getPriorityColor(priority)}
+                                className="h-6 gap-1 px-1 min-w-16 cursor-pointer hover:opacity-80 transition-opacity"
+                                classNames={{
+                                    content:
+                                        "text-[10px] font-semibold uppercase px-0",
+                                }}
+                            >
+                                {getPriorityLabel(priority)}
+                            </Chip>
+                        </DropdownTrigger>
+                        <DropdownMenu
+                            onAction={(k) => {
+                                const target = node.descendantIndexes;
+                                if (k === "high") onSetPriority(7, target);
+                                if (k === "normal") onSetPriority(4, target);
+                                if (k === "low") onSetPriority(1, target);
+                                if (k === "skip") onSetPriority("skip", target);
+                            }}
+                        >
+                            <DropdownItem
+                                key="high"
+                                startContent={
+                                    <ArrowUp className="w-4 h-4 text-success" />
+                                }
+                            >
+                                {t("priority.high")}
+                            </DropdownItem>
+                            <DropdownItem
+                                key="normal"
+                                startContent={
+                                    <Minus className="w-4 h-4 text-primary" />
+                                }
+                            >
+                                {t("priority.normal")}
+                            </DropdownItem>
+                            <DropdownItem
+                                key="low"
+                                startContent={
+                                    <ArrowDown className="w-4 h-4 text-warning" />
+                                }
+                            >
+                                {t("priority.low")}
+                            </DropdownItem>
+                            <DropdownItem
+                                key="skip"
+                                className="text-danger"
+                                startContent={<X className="w-4 h-4" />}
+                            >
+                                {t("priority.dont_download")}
+                            </DropdownItem>
+                        </DropdownMenu>
+                    </Dropdown>
+                </div>
+
+                {/* Progress */}
+                <div className="flex flex-col justify-center px-1">
+                    <Progress
+                        size="sm"
+                        value={progress}
+                        color={progress === 100 ? "success" : "primary"}
+                        classNames={{
+                            track: "h-1",
+                            indicator: "!transition-all h-1",
+                        }}
+                        aria-label="Download progress"
+                    />
+                </div>
+
+                {/* Size */}
+                <div className="text-right text-[11px] text-default-400 font-mono">
+                    {formatBytes(node.totalSize)}
+                </div>
+            </div>
+        );
+    },
+);

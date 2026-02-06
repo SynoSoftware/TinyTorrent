@@ -11,10 +11,6 @@ import type { Torrent } from "@/modules/dashboard/types/torrent";
 import { useState } from "react";
 import { useSelection } from "@/app/context/SelectionContext";
 
-// TODO: Reduce dependency surface and ownership confusion:
-// TODO: - This controller currently touches both React Table state and the global SelectionContext.
-// TODO: - Target: table selection state is owned by a `TorrentTableViewModel`, which then publishes a minimal selection API to the rest of the app.
-// TODO: - Avoid duplicating selection rules across multiple hooks/components (one authority prevents AI regressions).
 
 type RowSelectionControllerDeps = {
     table?: {

@@ -151,7 +151,6 @@ export class TransmissionAdapter implements EngineAdapter {
     private readonly METHOD_CALL_WINDOW_MS = 2000;
     private readonly METHOD_CALL_WARNING_THRESHOLD = 100;
     private transport: TransmissionRpcTransport;
-    public createDirectory?: (path: string) => Promise<void>;
     private serverClass: ServerClass = "transmission";
     private handshakeState: HandshakeState = "invalid";
     private handshakePromise?: Promise<TransmissionSessionSettings>;
@@ -170,7 +169,6 @@ export class TransmissionAdapter implements EngineAdapter {
     private _networkTelemetryInflight?: Promise<NetworkTelemetry | null>;
     private readonly NETWORK_TELEMETRY_TTL_MS = 60_000;
 
-    // TODO: Remove all RPC extension scaffolding (TinyTorrent auth token, websocket session/delta-sync, ui-attach, system-* methods) and run Transmission RPC only.
     private handleUnauthorizedResponse() {
         this.invalidateSession("unauthorized");
     }
@@ -800,7 +798,6 @@ export class TransmissionAdapter implements EngineAdapter {
             executionModel: "remote",
             hasHostFileSystemAccess: false,
             canCheckFreeSpace: Boolean(this.checkFreeSpace),
-            canCreateDirectory: Boolean(this.createDirectory),
         };
     }
 
@@ -913,7 +910,6 @@ export class TransmissionAdapter implements EngineAdapter {
             this.invalidateSession("reset-connection");
         } catch {}
     }
-    //TODO: check all these if ok... not sure about merge.
     public async checkFreeSpace(path: string): Promise<TransmissionFreeSpace> {
         const normalizedPath = path.trim();
         const fallbackCandidates =

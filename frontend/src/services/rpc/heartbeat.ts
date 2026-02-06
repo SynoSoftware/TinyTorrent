@@ -80,8 +80,10 @@ const RECENT_REMOVED_TTL_MS = 30_000; // ms
 const RESYNC_MIN_INTERVAL_MS = 10_000; // avoid repeated resyncs
 
 export class HeartbeatManager {
-    // TODO: Service boundary: HeartbeatManager is an infra/service layer.
-    // TODO: UI components must never instantiate or schedule their own polling; expose a single session/telemetry provider that subscribes once and publishes `SessionState` (rpcStatus/sessionStats/uiMode).
+    // Timer ownership boundary:
+    // - HeartbeatManager is the transport polling authority.
+    // - It keeps an internal adaptive loop (mode/visibility/delta-aware cadence).
+    // - UI-level timers (clock/recovery probes/modal delays) are owned by app scheduler.
     private readonly subscribers = new Map<symbol, HeartbeatSubscriber>();
     private timerId?: number;
     private isRunning = false;

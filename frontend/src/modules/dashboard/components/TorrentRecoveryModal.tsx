@@ -7,387 +7,65 @@ import {
     ModalHeader,
     cn,
 } from "@heroui/react";
-import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, HardDrive, X } from "lucide-react";
 
 import { INTERACTION_CONFIG } from "@/config/logic";
 import { GLASS_MODAL_SURFACE } from "@/shared/ui/layout/glass-surface";
-import type {
-    RecoveryOutcome,
-    RecoveryRecommendedAction,
-} from "@/services/recovery/recovery-controller";
-import type { TorrentEntity } from "@/services/rpc/entities";
-import { scheduler } from "@/app/services/scheduler";
-import { useRecoveryContext } from "@/app/context/RecoveryContext";
 import { SetLocationInlineEditor } from "@/modules/dashboard/components/SetLocationInlineEditor";
-import { getSurfaceCaptionKey } from "@/app/utils/setLocation";
 
-interface RecoveryModalViewModel {
+export interface RecoveryModalViewModel {
     isOpen: boolean;
-    torrent: TorrentEntity | undefined | null;
-    outcome: RecoveryOutcome | null | undefined;
     busy: boolean;
-    classification:
-        | {
-              kind: string;
-              confidence?: string;
-              path?: string;
-              root?: string;
-          }
-        | null;
-    downloadDir: string;
-    statusText: string;
     title: string;
     bodyText: string;
+    statusText: string;
     locationLabel: string;
     inlineEditor: {
         visible: boolean;
+        value: string;
+        error?: string;
         caption: string;
         statusMessage?: string;
         isBusy: boolean;
+        onChange: (value: string) => void;
+        onSubmit: () => void;
+        onCancel: () => void;
+        disableCancel: boolean;
     };
-    recommendedActions: readonly RecoveryRecommendedAction[];
-    isUnknownConfidence: boolean;
-    isPathLoss: boolean;
-    isVolumeLoss: boolean;
-    isAccessDenied: boolean;
+    showWaitingForDrive: boolean;
+    recoveryOutcomeMessage: string | null;
+    showRecreate: boolean;
+    onRecreate?: () => void;
+    onClose: () => void;
+    primaryAction: {
+        label: string;
+        onPress: () => void;
+        isDisabled: boolean;
+    };
 }
 
 const MODAL_CLASSES =
     "w-full max-w-modal-compact flex flex-col overflow-hidden";
 
-const RECOVERY_MESSAGE_LABEL_KEY: Record<string, string> = {
-    insufficient_free_space: "recovery.message.insufficient_free_space",
-    path_ready: "recovery.message.path_ready",
-    path_check_unknown: "recovery.message.path_check_unknown",
-    directory_created: "recovery.message.directory_created",
-    directory_creation_denied: "recovery.message.directory_creation_denied",
-    directory_creation_failed: "recovery.message.directory_creation_failed",
-    directory_creation_not_supported:
-        "recovery.message.directory_creation_not_supported",
-    path_access_denied: "recovery.message.path_access_denied",
-    disk_full: "recovery.message.disk_full",
-    path_check_failed: "recovery.message.path_check_failed",
-    permission_denied: "recovery.message.permission_denied",
-    no_download_path_known: "recovery.message.no_download_path_known",
-    free_space_check_not_supported:
-        "recovery.message.free_space_check_not_supported",
-    free_space_check_failed: "recovery.message.free_space_check_failed",
-    verify_not_supported: "recovery.message.verify_not_supported",
-    verify_started: "recovery.message.verify_started",
-    verify_failed: "recovery.message.verify_failed",
-    reannounce_not_supported: "recovery.message.reannounce_not_supported",
-    reannounce_started: "recovery.message.reannounce_started",
-    reannounce_failed: "recovery.message.reannounce_failed",
-    location_updated: "recovery.message.location_updated",
-    filesystem_probing_not_supported:
-        "recovery.message.filesystem_probing_not_supported",
-};
-
-const getTorrentKey = (
-    entry?: { id?: string | number; hash?: string } | null
-) => entry?.id?.toString() ?? entry?.hash ?? "";
-
 export interface TorrentRecoveryModalProps {
-    isOpen: boolean;
-    torrent?: TorrentEntity | null;
-    outcome: RecoveryOutcome | null;
-    onClose: () => void;
-    onRecreate?: () => Promise<void>;
-    onAutoRetry?: () => Promise<void>;
-    isBusy?: boolean;
+    viewModel: RecoveryModalViewModel;
 }
-// TODO: ViewModel boundary: TorrentRecoveryModal should be a pure View driven by a single RecoveryViewModel output.
-// TODO: Delete local classification (`classifyMissingFilesState`) and any dependence on `serverClass/connectionMode`.
-// TODO: This modal should render solely from recovery gate outputs (state + confidence + recommendedActions + uiMode=Full|Rpc) so UX is consistent across table/header/menu surfaces.
 
-const resolveOutcomeMessage = (
-    outcome: RecoveryOutcome | null,
-    t: (key: string) => string
-): string | null => {
-    if (!outcome?.message) return null;
-    const key = RECOVERY_MESSAGE_LABEL_KEY[outcome.message];
-    return key ? t(key) : outcome.message;
-};
-
-export default function TorrentRecoveryModal({
-    isOpen,
-    torrent,
-    outcome,
-    onClose,
-    onRecreate,
-    onAutoRetry,
-    isBusy,
-}: TorrentRecoveryModalProps) {
+export default function TorrentRecoveryModal({ viewModel }: TorrentRecoveryModalProps) {
     const { t } = useTranslation();
-    const busy = Boolean(isBusy);
-    const {
-        handleSetLocation,
-        handleDownloadMissing,
-        inlineSetLocationState,
-        cancelInlineSetLocation,
-        releaseInlineSetLocation,
-        confirmInlineSetLocation,
-        handleInlineLocationChange,
-        setLocationCapability,
-        recoverySession,
-    } = useRecoveryContext();
-    const viewModel = useMemo<RecoveryModalViewModel>(() => {
-        const currentTorrentKey = getTorrentKey(torrent);
-        const downloadDir =
-            torrent?.downloadDir ??
-            torrent?.savePath ??
-            torrent?.downloadDir ??
-            "";
-        const sessionKey = recoverySession
-            ? getTorrentKey(recoverySession.torrent)
-            : null;
-        const classification =
-            sessionKey && sessionKey === currentTorrentKey
-                ? recoverySession?.classification ?? null
-                : null;
-        const isUnknownConfidence = classification?.confidence === "unknown";
-        const isPathLoss = classification?.kind === "pathLoss";
-        const isVolumeLoss = classification?.kind === "volumeLoss";
-        const isAccessDenied = classification?.kind === "accessDenied";
-
-        const title = (() => {
-            if (isUnknownConfidence) {
-                return t("recovery.modal_title_fallback");
-            }
-            if (isPathLoss) return t("recovery.modal_title_folder");
-            if (isVolumeLoss) return t("recovery.modal_title_drive");
-            if (isAccessDenied) return t("recovery.modal_title_access");
-            return t("recovery.modal_title_fallback");
-        })();
-
-        const bodyText = (() => {
-            if (isUnknownConfidence) {
-                return t("recovery.modal_body_fallback");
-            }
-            if (isPathLoss) return t("recovery.modal_body_folder");
-            if (isVolumeLoss) return t("recovery.modal_body_drive");
-            if (isAccessDenied) return t("recovery.modal_body_access");
-            return t("recovery.modal_body_fallback");
-        })();
-
-        const statusText = (() => {
-            if (isUnknownConfidence) {
-                return t("recovery.inline_fallback");
-            }
-            if (isPathLoss) {
-                return t("recovery.status.folder_not_found", {
-                    path: (classification?.path ?? downloadDir) || t("labels.unknown"),
-                });
-            }
-            if (isVolumeLoss) {
-                return t("recovery.status.drive_disconnected", {
-                    drive: classification.root ?? t("labels.unknown"),
-                });
-            }
-            if (isAccessDenied) {
-                return t("recovery.status.access_denied");
-            }
-            return t("recovery.generic_header");
-        })();
-
-        const locationLabel =
-            ((isVolumeLoss ? classification?.root : classification?.path) ??
-                downloadDir) ||
-            t("labels.unknown");
-
-        const inlineStateKey = inlineSetLocationState?.torrentKey ?? "";
-        const showInlineEditor = Boolean(
-            inlineSetLocationState?.surface === "recovery-modal" &&
-                inlineStateKey &&
-                inlineStateKey === currentTorrentKey
-        );
-        const recoveryIsVerifying =
-            inlineSetLocationState?.status === "verifying";
-        const recoveryIsBusy = inlineSetLocationState?.status !== "idle";
-        const recoveryStatusMessage = recoveryIsVerifying
-            ? t("recovery.status.applying_location")
-            : isUnknownConfidence
-            ? t("recovery.inline_fallback")
-            : undefined;
-        const recoveryCaption = t(getSurfaceCaptionKey("recovery-modal"));
-
-        return {
-            isOpen,
-            torrent,
-            outcome,
-            busy,
-            classification,
-            downloadDir,
-            title,
-            bodyText,
-            statusText,
-            locationLabel,
-            inlineEditor: {
-                visible: showInlineEditor,
-                caption: recoveryCaption,
-                statusMessage: recoveryStatusMessage,
-                isBusy: recoveryIsBusy,
-            },
-            recommendedActions: classification?.recommendedActions ?? [],
-            isUnknownConfidence,
-            isPathLoss,
-            isVolumeLoss,
-            isAccessDenied,
-        };
-    }, [
-        isOpen,
-        torrent,
-        outcome,
-        busy,
-        recoverySession,
-        inlineSetLocationState,
-        t,
-    ]);
-    // TODO: Consume recovery gate outputs (state + confidence) directly to drive copy/actions; avoid reclassifying in the modal. Keep modal sequencing delegated to the single recovery controller.
-    // TODO: Replace `connectionMode` usage here with `uiMode = "Full" | "Rpc"`; set-location messages should not mention tinytorrent-local-shell vs remote.
-    const currentTorrentKey = getTorrentKey(torrent);
-    const downloadDir =
-        torrent?.downloadDir ?? torrent?.savePath ?? torrent?.downloadDir ?? "";
-
-    const {
-        classification,
-        title,
-        bodyText,
-        statusText,
-        locationLabel,
-        inlineEditor,
-        recommendedActions,
-        isVolumeLoss,
-        isPathLoss,
-        isUnknownConfidence,
-        isAccessDenied,
-        isOpen: viewIsOpen,
-    } = viewModel;
-
-    const shouldRender =
-        Boolean(classification) && classification?.kind !== "dataGap" && viewIsOpen;
-
-    const recoveryOutcomeMessage = useMemo(
-        () => resolveOutcomeMessage(outcome, t),
-        [outcome, t]
-    );
-
-    const autoRetryRef = useRef(false);
-    useEffect(() => {
-        if (!isOpen || !isVolumeLoss || !onAutoRetry || busy) return;
-        const task = scheduler.scheduleRecurringTask(async () => {
-            if (autoRetryRef.current) return;
-            autoRetryRef.current = true;
-            void onAutoRetry().finally(() => {
-                autoRetryRef.current = false;
-            });
-        }, 2000);
-        return () => {
-            task.cancel();
-            autoRetryRef.current = false;
-        };
-    }, [isOpen, isVolumeLoss, onAutoRetry, busy]);
-
-    const canSetLocation =
-        setLocationCapability.canBrowse ||
-        setLocationCapability.supportsManual;
-
-    const buildRecoveryAction = (
-        action?: RecoveryRecommendedAction
-    ): {
-        label: string;
-        handler: () => void;
-        isDisabled: boolean;
-    } | null => {
-        if (!action || !torrent) return null;
-        const base = { isDisabled: busy || inlineEditor.visible };
-        switch (action) {
-            case "downloadMissing":
-                if (!handleDownloadMissing) return null;
-                return {
-                    ...base,
-                    label: t("recovery.action_download"),
-                    handler: () => {
-                        void handleDownloadMissing(torrent);
-                    },
-                };
-            case "locate":
-                if (!handleSetLocation || !canSetLocation) return null;
-                return {
-                    ...base,
-                    label: t("recovery.action_locate"),
-                    handler: () => {
-                        void handleSetLocation(torrent, {
-                            surface: "recovery-modal",
-                            mode: "browse",
-                        });
-                    },
-                };
-            case "chooseLocation":
-                if (!handleSetLocation || !canSetLocation) return null;
-                return {
-                    ...base,
-                    label: t("recovery.action.choose_location"),
-                    handler: () => {
-                        void handleSetLocation(torrent, {
-                            surface: "recovery-modal",
-                            mode: "manual",
-                        });
-                    },
-                };
-            case "retry":
-                if (!onAutoRetry) return null;
-                return {
-                    ...base,
-                    label: t("recovery.action_retry"),
-                    handler: () => {
-                        void onAutoRetry();
-                    },
-                };
-            case "openFolder":
-                return null;
-            default:
-                return null;
-        }
-    };
-
-    const primaryActionConfig = buildRecoveryAction(
-        recommendedActions[0]
-    );
-    const primaryLabel =
-        primaryActionConfig?.label ?? t("recovery.action_locate");
-    const primaryDisabled = primaryActionConfig
-        ? primaryActionConfig.isDisabled
-        : true;
-    const primaryAction = primaryActionConfig
-        ? primaryActionConfig.handler
-        : undefined;
-    const handlePrimaryPress = () => {
-        if (primaryAction) {
-            primaryAction();
-        }
-    };
-
-    const showRecreate = isPathLoss && Boolean(onRecreate);
-
-    const handleClose = useCallback(() => {
-        releaseInlineSetLocation();
-        onClose();
-    }, [onClose, releaseInlineSetLocation]);
 
     return (
         <Modal
-            isOpen={isOpen}
+            isOpen={viewModel.isOpen}
             onOpenChange={(open) => {
-                if (!open) handleClose();
+                if (!open) viewModel.onClose();
             }}
             backdrop="blur"
             placement="center"
             motionProps={INTERACTION_CONFIG.modalBloom}
             hideCloseButton
-            isDismissable={!busy}
+            isDismissable={!viewModel.busy}
             classNames={{
                 base: cn(GLASS_MODAL_SURFACE, MODAL_CLASSES),
             }}
@@ -401,15 +79,15 @@ export default function TorrentRecoveryModal({
                                     <AlertTriangle className="toolbar-icon-size-md text-warning" />
                                 </div>
                                 <h2 className="text-scaled font-bold uppercase tracking-label text-foreground">
-                                    {title}
+                                    {viewModel.title}
                                 </h2>
                             </div>
                             <Button
                                 variant="ghost"
                                 color="default"
                                 size="md"
-                                onPress={handleClose}
-                                isDisabled={busy}
+                                onPress={viewModel.onClose}
+                                isDisabled={viewModel.busy}
                             >
                                 <X />
                             </Button>
@@ -418,56 +96,54 @@ export default function TorrentRecoveryModal({
                         <ModalBody className="flex flex-col gap-stage p-panel">
                             <div className="flex flex-col gap-tight">
                                 <p className="text-scaled font-semibold text-foreground">
-                                    {statusText}
+                                    {viewModel.statusText}
                                 </p>
                                 <p className="text-label text-foreground/70">
-                                    {bodyText}
+                                    {viewModel.bodyText}
                                 </p>
                             </div>
                             <div className="flex items-center gap-tools surface-layer-1 rounded-panel p-tight">
                                 <HardDrive className="toolbar-icon-size-md text-foreground" />
                                 <span
                                     className="font-mono text-label text-foreground truncate"
-                                    title={locationLabel}
+                                    title={viewModel.locationLabel}
                                 >
-                                    {locationLabel}
+                                    {viewModel.locationLabel}
                                 </span>
                             </div>
-                            {inlineEditor.visible && inlineSetLocationState && (
+                            {viewModel.inlineEditor.visible && (
                                 <SetLocationInlineEditor
-                                    value={inlineSetLocationState.inputPath}
-                                    error={inlineSetLocationState.error}
-                                    isBusy={inlineEditor.isBusy}
-                                    caption={inlineEditor.caption}
-                                    statusMessage={inlineEditor.statusMessage}
-                                    disableCancel={inlineEditor.isBusy}
-                                    onChange={handleInlineLocationChange}
-                                    onSubmit={() =>
-                                        void confirmInlineSetLocation()
-                                    }
-                                    onCancel={cancelInlineSetLocation}
+                                    value={viewModel.inlineEditor.value}
+                                    error={viewModel.inlineEditor.error}
+                                    isBusy={viewModel.inlineEditor.isBusy}
+                                    caption={viewModel.inlineEditor.caption}
+                                    statusMessage={viewModel.inlineEditor.statusMessage}
+                                    disableCancel={viewModel.inlineEditor.disableCancel}
+                                    onChange={viewModel.inlineEditor.onChange}
+                                    onSubmit={viewModel.inlineEditor.onSubmit}
+                                    onCancel={viewModel.inlineEditor.onCancel}
                                 />
                             )}
-                            {isVolumeLoss && (
+                            {viewModel.showWaitingForDrive && (
                                 <div className="text-label text-foreground/60">
                                     {t("recovery.status.waiting_for_drive")}
                                 </div>
                             )}
-                            {recoveryOutcomeMessage && (
+                            {viewModel.recoveryOutcomeMessage && (
                                 <div className="surface-layer-1 rounded-panel p-tight text-label text-foreground/70">
-                                    {recoveryOutcomeMessage}
+                                    {viewModel.recoveryOutcomeMessage}
                                 </div>
                             )}
                         </ModalBody>
 
                         <ModalFooter className="flex items-center justify-between gap-tools px-panel py-panel border-t border-divider">
                             <div className="flex items-center gap-tools">
-                                {showRecreate && (
+                                {viewModel.showRecreate && (
                                     <Button
                                         variant="light"
                                         size="md"
-                                        onPress={onRecreate}
-                                        isDisabled={busy}
+                                        onPress={viewModel.onRecreate}
+                                        isDisabled={viewModel.busy}
                                         className="font-medium text-foreground"
                                     >
                                         {t("recovery.action_recreate")}
@@ -478,8 +154,8 @@ export default function TorrentRecoveryModal({
                                 <Button
                                     variant="light"
                                     size="md"
-                                    onPress={onClose}
-                                    isDisabled={busy}
+                                    onPress={viewModel.onClose}
+                                    isDisabled={viewModel.busy}
                                     className="font-medium text-foreground"
                                 >
                                     {t("modals.cancel")}
@@ -488,11 +164,11 @@ export default function TorrentRecoveryModal({
                                     variant="shadow"
                                     color="primary"
                                     size="lg"
-                                    onPress={handlePrimaryPress}
-                                    isDisabled={primaryDisabled}
+                                    onPress={viewModel.primaryAction.onPress}
+                                    isDisabled={viewModel.primaryAction.isDisabled}
                                     className="font-bold"
                                 >
-                                    {primaryLabel}
+                                    {viewModel.primaryAction.label}
                                 </Button>
                             </div>
                         </ModalFooter>

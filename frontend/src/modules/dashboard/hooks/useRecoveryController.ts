@@ -28,6 +28,7 @@ import {
     getProbe as getCachedProbe,
     setProbe as setCachedProbe,
     clearProbe as clearCachedProbe,
+    pruneMissingFilesStore,
     setClassificationOverride,
 } from "@/services/recovery/missingFilesStore";
 import type {
@@ -56,7 +57,7 @@ const PICK_PATH_SUCCESS_DELAY_MS = 600;
 
 const delay = (ms: number) =>
     new Promise<void>((resolve) => {
-        setTimeout(resolve, ms);
+        scheduler.scheduleTimeout(resolve, ms);
     });
 
 const getRecoveryFingerprint = (torrent: Torrent | TorrentDetail) =>
@@ -222,6 +223,31 @@ export function useRecoveryController({
     useEffect(() => {
         torrentsRef.current = torrents;
     }, [torrents]);
+
+    useEffect(() => {
+        const activeIds: Array<string | number> = [];
+        torrents.forEach((torrent) => {
+            const torrentId = torrent.id;
+            if (torrentId) {
+                activeIds.push(torrentId);
+            }
+            const torrentHash = torrent.hash;
+            if (torrentHash) {
+                activeIds.push(torrentHash);
+            }
+        });
+        if (detailData) {
+            const detailId = detailData.id;
+            if (detailId) {
+                activeIds.push(detailId);
+            }
+            const detailHash = detailData.hash;
+            if (detailHash) {
+                activeIds.push(detailHash);
+            }
+        }
+        pruneMissingFilesStore(activeIds);
+    }, [detailData, torrents]);
 
     const runMissingFilesFlow = useCallback(
         async (
