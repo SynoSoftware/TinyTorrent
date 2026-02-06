@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo } from "react";
 import { AnimatePresence } from "framer-motion";
 import {
     Dropdown,
@@ -9,13 +9,18 @@ import {
 } from "@heroui/react";
 import type { CollectionChildren } from "@react-types/shared";
 import { GLASS_MENU_SURFACE } from "@/shared/ui/layout/glass-surface";
-import type { Torrent } from "@/modules/dashboard/types/torrent";
-import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
-import type { ContextMenuVirtualElement } from "@/shared/hooks/ui/useContextMenuPosition";
+import type {
+    ContextMenuKey,
+    QueueMenuAction,
+    TableContextMenu,
+    TorrentTableRowMenuViewModel,
+} from "@/modules/dashboard/types/torrentTableSurfaces";
 import { useRecoveryContext } from "@/app/context/RecoveryContext";
 import { SetLocationInlineEditor } from "@/modules/dashboard/components/SetLocationInlineEditor";
 import { getSurfaceCaptionKey } from "@/app/utils/setLocation";
 import { useResolvedRecoveryClassification } from "@/modules/dashboard/hooks/useResolvedRecoveryClassification";
+import { useTranslation } from "react-i18next";
+import { getEmphasisClassForAction } from "@/shared/utils/recoveryFormat";
 
 type RowMenuAction = {
     key: string;
@@ -24,13 +29,9 @@ type RowMenuAction = {
     disabled?: boolean;
 };
 
-type ContextMenuKey = TorrentTableAction | "copy-hash" | "copy-magnet";
-
 const getTorrentKey = (
     entry?: { id?: string | number; hash?: string } | null
 ) => entry?.id?.toString() ?? entry?.hash ?? "";
-
-type QueueMenuAction = { key: TorrentTableAction; label: string };
 
 const mapRecommendedActionToEmphasis = (
     action?: string
@@ -64,28 +65,21 @@ interface RowMenuViewModel {
     };
 }
 
+export interface TorrentTableRowMenuProps {
+    viewModel: TorrentTableRowMenuViewModel;
+}
+
 export default function TorrentTable_RowMenu({
-    contextMenu,
-    onClose,
-    handleContextMenuAction,
-    queueMenuActions,
-    getContextMenuShortcut,
-    t,
-    isClipboardSupported,
-    getEmphasisClassForAction,
-}: {
-    contextMenu: {
-        virtualElement: ContextMenuVirtualElement;
-        torrent: Torrent;
-    } | null;
-    onClose: () => void;
-    handleContextMenuAction: (key?: string) => Promise<void>;
-    queueMenuActions: QueueMenuAction[];
-    getContextMenuShortcut: (key: ContextMenuKey) => string;
-    t: (k: string, opts?: Record<string, unknown>) => string;
-    isClipboardSupported?: boolean;
-    getEmphasisClassForAction?: (a?: string) => string;
-}) {
+    viewModel,
+}: TorrentTableRowMenuProps) {
+    const {
+        contextMenu,
+        onClose,
+        handleContextMenuAction,
+        queueMenuActions,
+        getContextMenuShortcut,
+        isClipboardSupported,
+    } = viewModel;
     return (
         <AnimatePresence>
             {contextMenu ? (
@@ -95,9 +89,7 @@ export default function TorrentTable_RowMenu({
                     handleContextMenuAction={handleContextMenuAction}
                     queueMenuActions={queueMenuActions}
                     getContextMenuShortcut={getContextMenuShortcut}
-                    t={t}
                     isClipboardSupported={isClipboardSupported}
-                    getEmphasisClassForAction={getEmphasisClassForAction}
                 />
             ) : null}
         </AnimatePresence>
@@ -110,22 +102,16 @@ function TorrentTable_RowMenuInner({
     handleContextMenuAction,
     queueMenuActions,
     getContextMenuShortcut,
-    t,
     isClipboardSupported,
-    getEmphasisClassForAction,
 }: {
-    contextMenu: {
-        virtualElement: ContextMenuVirtualElement;
-        torrent: Torrent;
-    };
+    contextMenu: TableContextMenu;
     onClose: () => void;
     handleContextMenuAction: (key?: string) => Promise<void>;
     queueMenuActions: QueueMenuAction[];
     getContextMenuShortcut: (key: ContextMenuKey) => string;
-    t: (k: string, opts?: Record<string, unknown>) => string;
     isClipboardSupported?: boolean;
-    getEmphasisClassForAction?: (a?: string) => string;
 }) {
+    const { t } = useTranslation();
     const {
         inlineSetLocationState,
         releaseInlineSetLocation,
@@ -136,7 +122,6 @@ function TorrentTable_RowMenuInner({
     } = useRecoveryContext();
 
     const contextTorrent = contextMenu.torrent;
-    const torrentKey = getTorrentKey(contextTorrent);
     const shouldShowOpenFolder = Boolean(canOpenFolder);
     const canSetLocation =
         setLocationCapability.canBrowse || setLocationCapability.supportsManual;
@@ -197,7 +182,9 @@ function TorrentTable_RowMenuInner({
             queueActions: queueMenuActions,
             dataTitle: t("table.data.title"),
             showOpenFolder: shouldShowOpenFolder,
-            openFolderDisabled: !(contextTorrent.savePath || contextTorrent.downloadDir),
+            openFolderDisabled: !(
+                contextTorrent.savePath || contextTorrent.downloadDir
+            ),
             inlineEditor: {
                 visible: shouldShowInlineEditor,
                 caption: inlineCaption,
@@ -217,25 +204,25 @@ function TorrentTable_RowMenuInner({
         shouldShowInlineEditor,
     ]);
 
-    const handleInlineSubmit = () => {
+    const handleInlineSubmit = useCallback(() => {
         void confirmInlineSetLocation().then((success) => {
             if (success) {
                 onClose();
             }
         });
-    };
-    const handleInlineCancel = () => {
+    }, [confirmInlineSetLocation, onClose]);
+    const handleInlineCancel = useCallback(() => {
         releaseInlineSetLocation();
         onClose();
-    };
+    }, [onClose, releaseInlineSetLocation]);
     const handleMenuClose = () => {
         releaseInlineSetLocation();
         onClose();
     };
-    const handleSetDownloadPath = () => {
+    const handleSetDownloadPath = useCallback(() => {
         if (!canSetLocation) return;
         void handleContextMenuAction("set-download-path");
-    };
+    }, [canSetLocation, handleContextMenuAction]);
 
     const menuItems = useMemo<CollectionChildren<object>>(() => {
         const items: Array<React.ReactElement> = [];
@@ -294,9 +281,7 @@ function TorrentTable_RowMenuInner({
                     isDisabled={rowMenuViewModel.openFolderDisabled}
                     className={cn(
                         primaryEmphasisAction === "openFolder"
-                            ? getEmphasisClassForAction?.(
-                                  primaryEmphasisAction
-                              )
+                            ? getEmphasisClassForAction(primaryEmphasisAction)
                             : ""
                     )}
                     onPress={() => void handleContextMenuAction("open-folder")}
@@ -311,9 +296,7 @@ function TorrentTable_RowMenuInner({
                 key="set-download-path"
                 className={cn(
                     primaryEmphasisAction === "setLocation"
-                        ? getEmphasisClassForAction?.(
-                              primaryEmphasisAction
-                          )
+                        ? getEmphasisClassForAction(primaryEmphasisAction)
                         : ""
                 )}
                 isDisabled={!canSetLocation}
@@ -395,14 +378,14 @@ function TorrentTable_RowMenuInner({
             );
         }
 
-        return items as unknown as CollectionChildren<object>;
+        return items as CollectionChildren<object>;
     }, [
         rowMenuViewModel,
+        primaryEmphasisAction,
         canSetLocation,
         isClipboardSupported,
         inlineSetLocationState,
         getContextMenuShortcut,
-        getEmphasisClassForAction,
         handleContextMenuAction,
         handleInlineCancel,
         handleInlineLocationChange,

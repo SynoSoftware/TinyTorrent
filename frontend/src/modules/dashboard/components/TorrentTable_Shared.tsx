@@ -1,11 +1,11 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { memo } from "react";
 import { motion } from "framer-motion";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import {
     flexRender,
-    type Header,
-    type Cell,
     type Row,
+    type Table,
 } from "@tanstack/react-table";
 import { cn } from "@heroui/react";
 import {
@@ -14,6 +14,9 @@ import {
     CELL_PADDING_CLASS,
 } from "@/config/logic";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
+
+type TorrentTableHeader = ReturnType<Table<Torrent>["getFlatHeaders"]>[number];
+type TorrentTableCell = ReturnType<Row<Torrent>["getVisibleCells"]>[number];
 
 export const toCssVarSafeId = (value: string) =>
     value.replace(/[^a-zA-Z0-9_-]/g, "-");
@@ -41,7 +44,7 @@ export const TableHeaderContent = memo(
         layoutEnabled = true,
         showSortIcon = true,
     }: {
-        header: Header<Torrent, unknown>;
+        header: TorrentTableHeader;
         isMeasurement?: boolean;
         useBaseClass?: boolean;
         layoutEnabled?: boolean;
@@ -97,7 +100,7 @@ export const TableCellContent = memo(
         cell,
         isMeasurement = false,
     }: {
-        cell: Cell<Torrent, unknown>;
+        cell: TorrentTableCell;
         isMeasurement?: boolean;
     }) => {
         const align = cell.column.columnDef.meta?.align || "start";
@@ -143,9 +146,9 @@ export const ColumnMeasurementLayer = memo(
         rows,
         measureLayerRef,
     }: {
-        headers: Header<Torrent, unknown>[];
+        headers: TorrentTableHeader[];
         rows: Row<Torrent>[];
-        measureLayerRef: React.RefObject<HTMLDivElement | null>;
+        measureLayerRef: React.Ref<HTMLDivElement>;
     }) => {
         return (
             <div

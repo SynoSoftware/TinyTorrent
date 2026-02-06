@@ -6,7 +6,6 @@ import {
     useReactTable,
     type Column,
     type ColumnSizingInfoState,
-    type Header,
     type Row,
     type RowSelectionState,
     type SortingState,
@@ -18,7 +17,9 @@ import React, {
     useMemo,
     useRef,
     useState,
+    type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import {
     KEY_SCOPE,
@@ -27,7 +28,6 @@ import {
     TABLE_LAYOUT,
 } from "@/config/logic";
 import type { TorrentTableViewModel } from "@/app/viewModels/useAppViewModel";
-import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import { useTorrentTableColumns } from "@/modules/dashboard/hooks/useTorrentTableColumns";
 import { useOpenTorrentFolder } from "@/app/hooks/useOpenTorrentFolder";
@@ -44,7 +44,6 @@ import { useTorrentTableVirtualization } from "@/modules/dashboard/hooks/useTorr
 import { useQueueReorderController } from "@/modules/dashboard/hooks/useQueueReorderController";
 import { useRowSelectionController } from "@/modules/dashboard/hooks/useRowSelectionController";
 import { useContextMenuPosition } from "@/shared/hooks/ui/useContextMenuPosition";
-import type { ContextMenuVirtualElement } from "@/shared/hooks/ui/useContextMenuPosition";
 import { useKeyboardScope } from "@/shared/hooks/useKeyboardScope";
 import { useRecoveryContext } from "@/app/context/RecoveryContext";
 import {
@@ -54,37 +53,27 @@ import {
 } from "@/modules/dashboard/components/TorrentTable_ColumnDefs";
 import { useTorrentSpeedHistory } from "@/modules/dashboard/hooks/useTorrentSpeedHistory";
 import useLayoutMetrics from "@/shared/hooks/useLayoutMetrics";
+import { DASHBOARD_FILTERS } from "@/modules/dashboard/types/dashboardFilter";
+import type {
+    HeaderContextMenu,
+    QueueMenuAction,
+    TableContextMenu,
+    TorrentTableBodyViewModel,
+    TorrentTableHeaderMenuViewModel,
+    TorrentTableHeadersViewModel,
+    TorrentTableRowMenuViewModel,
+    TorrentTableSurfaces,
+} from "@/modules/dashboard/types/torrentTableSurfaces";
+import { getTableTotalWidthCss } from "@/modules/dashboard/components/TorrentTable_Shared";
+import { cn } from "@heroui/react";
+import STATUS from "@/shared/status";
 
 type TableVirtualizer = Virtualizer<HTMLDivElement, Element>;
-
-type QueueMenuAction = {
-    key: TorrentTableAction;
-    label: string;
-};
-
-type TableContextMenu = {
-    virtualElement: ContextMenuVirtualElement;
-    torrent: Torrent;
-};
-
-type HeaderContextMenu = {
-    virtualElement: ContextMenuVirtualElement;
-    columnId: string | null;
-};
-
-type HeaderMenuActionOptions = {
-    keepOpen?: boolean;
-};
-
-type HeaderMenuItem = {
-    column: Column<Torrent>;
-    label: string;
-    isPinned: boolean;
-};
 
 type InteractionSensors = ReturnType<typeof useTorrentTableInteractions>;
 
 const AUTO_FIT_TOLERANCE_PX = 8;
+const DND_OVERLAY_CLASSES = "pointer-events-none fixed inset-0 z-40";
 
 const formatShortcutLabel = (value?: string | string[]) =>
     Array.isArray(value) ? value.join(" / ") : (value ?? "");
@@ -124,107 +113,38 @@ export interface UseTorrentTableViewModelParams {
 
 export interface UseTorrentTableViewModelResult {
     refs: {
-        parentRef: React.RefObject<HTMLDivElement | null>;
-        tableContainerRef: React.RefObject<HTMLDivElement | null>;
-        measureLayerRef: React.RefObject<HTMLDivElement | null>;
+        setTableContainerRef: (node: HTMLDivElement | null) => void;
+        setMeasureLayerRef: (node: HTMLDivElement | null) => void;
     };
     state: {
-        columnOrder: string[];
-        columnSizingInfo: ColumnSizingInfoState;
-        contextMenu: TableContextMenu | null;
-        headerContextMenu: HeaderContextMenu | null;
         isColumnModalOpen: boolean;
-        isColumnOrderChanging: boolean;
         activeDragHeaderId: string | null;
-        activeRowId: string | null;
-        dropTargetRowId: string | null;
-        highlightedRowId: string | null;
         isAnimationSuppressed: boolean;
         isAnyColumnResizing: boolean;
-        canReorderQueue: boolean;
     };
     table: {
         instance: ReturnType<typeof useReactTable<Torrent>>;
-        rows: Row<Torrent>[];
-        rowIds: string[];
-        rowVirtualizer: TableVirtualizer;
         measurementRows: Row<Torrent>[];
-        measurementHeaders: Header<Torrent, unknown>[];
-        marqueeRect: {
-            left: number;
-            top: number;
-            width: number;
-            height: number;
-        } | null;
-        renderVisibleCells: (row: Row<Torrent>) => React.ReactNode[];
-        headerSortableIds: string[];
-        rowsById: Map<string, Row<Torrent>>;
-    };
-    column: {
-        handleColumnResizeStart: (
-            column: Column<Torrent>,
-            clientX: number,
-        ) => void;
-        handleColumnAutoFitRequest: (column: Column<Torrent>) => void;
-        autoFitAllColumns: () => void;
-        hookActiveResizeColumnId: string | null;
-    };
-    selection: {
-        handleRowClick: (
-            event: React.MouseEvent,
-            rowId: string,
-            index: number,
-        ) => void;
+        measurementHeaders: ReturnType<
+            ReturnType<typeof useReactTable<Torrent>>["getFlatHeaders"]
+        >;
     };
     interaction: {
         sensors: InteractionSensors["sensors"];
-        rowSensors: InteractionSensors["rowSensors"];
         handleDragStart: InteractionSensors["handleDragStart"];
         handleDragEnd: InteractionSensors["handleDragEnd"];
         handleDragCancel: InteractionSensors["handleDragCancel"];
-        handleRowDragStart: InteractionSensors["handleRowDragStart"];
-        handleRowDragEnd: InteractionSensors["handleRowDragEnd"];
-        handleRowDragCancel: InteractionSensors["handleRowDragCancel"];
         handleKeyDown: InteractionSensors["handleKeyDown"];
-        handleRowDoubleClick: (torrent: Torrent) => void;
-        handleContextMenu: (event: React.MouseEvent, torrent: Torrent) => void;
-        handleDropTargetChange: (id: string | null) => void;
     };
     menus: {
-        queueMenuActions: QueueMenuAction[];
-        getContextMenuShortcut: (action: string) => string;
-        isClipboardSupported: boolean | undefined;
-        handleContextMenuAction: (key?: string) => Promise<void>;
         closeContextMenu: () => void;
-        headerMenuTriggerRect: DOMRect | null;
-        headerMenuActiveColumn: Column<Torrent> | null;
-        headerMenuItems: HeaderMenuItem[];
-        headerMenuHideLabel: string;
-        isHeaderMenuHideEnabled: boolean;
-        handleHeaderMenuAction: (
-            action: () => void,
-            options?: HeaderMenuActionOptions,
-        ) => void;
-        closeHeaderMenu: () => void;
-        handleHeaderContextMenu: (
-            event: React.MouseEvent,
-            columnId: string | null,
-        ) => void;
-        handleHeaderContainerContextMenu: (
-            event: React.MouseEvent<HTMLDivElement>,
-        ) => void;
-    };
-    labels: {
-        addTorrentShortcut: string;
-    };
-    layout: {
-        rowHeight: number;
     };
     lifecycle: {
         activateScope: () => void;
         deactivateScope: () => void;
         setIsColumnModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
     };
+    surfaces: TorrentTableSurfaces;
 }
 
 export function useTorrentTableViewModel({
@@ -234,6 +154,20 @@ export function useTorrentTableViewModel({
     onRequestDetailsFullscreen,
 }: UseTorrentTableViewModelParams): UseTorrentTableViewModelResult {
     const { t } = useTranslation();
+    const overlayPortalHost = useMemo(
+        () =>
+            typeof document !== "undefined" && document.body
+                ? document.body
+                : null,
+        [],
+    );
+    const renderOverlayPortal = useCallback(
+        (overlay: ReactNode) => {
+            if (!overlayPortalHost) return null;
+            return createPortal(overlay, overlayPortalHost);
+        },
+        [overlayPortalHost],
+    );
     const {
         torrents,
         filter,
@@ -346,10 +280,15 @@ export function useTorrentTableViewModel({
             .map(getDisplayTorrent);
 
         const filteredByState =
-            filter === "all"
+            filter === DASHBOARD_FILTERS.ALL
                 ? displayTorrents
                 : displayTorrents.filter(
-                      (torrent) => torrent.isGhost || torrent.state === filter,
+                      (torrent) =>
+                          torrent.isGhost ||
+                          torrent.state === filter ||
+                          (torrent.state === STATUS.torrent.CHECKING &&
+                              (filter === STATUS.torrent.DOWNLOADING ||
+                                  filter === STATUS.torrent.SEEDING)),
                   );
 
         const normalizedQuery = searchQuery.trim().toLowerCase();
@@ -533,7 +472,7 @@ export function useTorrentTableViewModel({
         clearSelection: selection.clearSelection,
     };
 
-    const openColumnModal = useCallback((_trigger?: HTMLElement | null) => {
+    const openColumnModal = useCallback(() => {
         setIsColumnModalOpen(true);
     }, []);
 
@@ -671,7 +610,7 @@ export function useTorrentTableViewModel({
                 .getAllLeafColumns()
                 .filter((column) => column.getIsVisible())
                 .map((column) => column.id),
-        [columnOrder, columnVisibility, table],
+        [table],
     );
 
     const queueMenuActions = useMemo<QueueMenuAction[]>(
@@ -749,89 +688,228 @@ export function useTorrentTableViewModel({
     const closeHeaderMenu = useCallback(() => {
         setHeaderContextMenu(null);
     }, []);
-
-    return {
-        refs: {
-            parentRef,
-            tableContainerRef,
-            measureLayerRef,
-        },
-        state: {
-            columnOrder,
+    const setTableContainerRef = useCallback((node: HTMLDivElement | null) => {
+        tableContainerRef.current = node;
+    }, []);
+    const setMeasureLayerRef = useCallback((node: HTMLDivElement | null) => {
+        measureLayerRef.current = node;
+    }, []);
+    const refBindings = useMemo(
+        () => ({
+            setTableContainerRef,
+            setMeasureLayerRef,
+        }),
+        [setMeasureLayerRef, setTableContainerRef],
+    );
+    useEffect(() => {
+        tableContainerRef.current?.focus();
+    }, []);
+    const headerContainerClass = useMemo(
+        () =>
+            (cn(
+                "flex w-full sticky top-0 z-20 border-b border-content1/20 bg-content1/10 backdrop-blur-sm",
+            ) ?? "") as string,
+        [],
+    );
+    const activeDragRow = useMemo(
+        () => (activeRowId ? rowsById.get(activeRowId) ?? null : null),
+        [activeRowId, rowsById],
+    );
+    const headersViewModel = useMemo<TorrentTableHeadersViewModel>(
+        () => ({
+            headerContainerClass,
+            handlers: {
+                handleHeaderContainerContextMenu,
+                handleHeaderContextMenu,
+                handleColumnAutoFitRequest,
+                handleColumnResizeStart,
+            },
+            table: {
+                headerSortableIds,
+                tableApi: table,
+                getTableTotalWidthCss,
+            },
+            state: {
+                columnSizingInfo,
+                hookActiveResizeColumnId,
+                isAnimationSuppressed,
+            },
+        }),
+        [
+            headerContainerClass,
+            handleHeaderContainerContextMenu,
+            handleHeaderContextMenu,
+            handleColumnAutoFitRequest,
+            handleColumnResizeStart,
+            headerSortableIds,
+            table,
             columnSizingInfo,
-            contextMenu,
-            headerContextMenu,
-            isColumnModalOpen,
-            isColumnOrderChanging,
-            activeDragHeaderId,
-            activeRowId,
-            dropTargetRowId,
-            highlightedRowId,
+            hookActiveResizeColumnId,
             isAnimationSuppressed,
-            isAnyColumnResizing,
-            canReorderQueue,
-        },
-        table: {
-            instance: table,
-            rows,
+        ],
+    );
+    const bodyViewModel = useMemo<TorrentTableBodyViewModel>(
+        () => ({
+            refs: {
+                parentRef,
+            },
+            data: {
+                isLoading: viewModel.isLoading,
+                hasSourceTorrents: viewModel.torrents.length > 0,
+                visibleRowCount: rows.length,
+                tableLayout: TABLE_LAYOUT,
+                rowHeight,
+                marqueeRect,
+            },
+            labels: {
+                emptyHint: t("table.empty_hint", {
+                    shortcut: ADD_TORRENT_SHORTCUT,
+                }),
+                emptyHintSubtext: t("table.empty_hint_subtext"),
+                noResults: t("table.no_results"),
+                headerName: t("table.header_name"),
+                headerSpeed: t("table.header_speed"),
+            },
+            dnd: {
+                rowSensors: interactions.rowSensors,
+                handleRowDragStart: interactions.handleRowDragStart,
+                handleRowDragEnd: interactions.handleRowDragEnd,
+                handleRowDragCancel: interactions.handleRowDragCancel,
+                renderOverlayPortal,
+                overlayClassName: DND_OVERLAY_CLASSES,
+            },
+            table: {
+                rowIds,
+                rowVirtualizer,
+                rows,
+                tableApi: table,
+                renderVisibleCells,
+                activeDragRow,
+            },
+            rowInteraction: {
+                contextMenuTorrentId: contextMenu?.torrent.id ?? null,
+                handleRowClick: selection.handleRowClick,
+                handleRowDoubleClick,
+                handleContextMenu,
+                handleDropTargetChange,
+            },
+            state: {
+                canReorderQueue,
+                dropTargetRowId,
+                activeRowId,
+                highlightedRowId,
+                isAnyColumnResizing,
+                columnOrder,
+                isAnimationSuppressed,
+                isColumnOrderChanging,
+            },
+        }),
+        [
+            parentRef,
+            viewModel.isLoading,
+            viewModel.torrents,
+            rowHeight,
+            marqueeRect,
+            t,
+            interactions.rowSensors,
+            interactions.handleRowDragStart,
+            interactions.handleRowDragEnd,
+            interactions.handleRowDragCancel,
+            renderOverlayPortal,
             rowIds,
             rowVirtualizer,
-            measurementRows,
-            measurementHeaders,
-            marqueeRect,
-            renderVisibleCells,
-            headerSortableIds,
-            rowsById,
-        },
-        column: {
-            handleColumnResizeStart,
-            handleColumnAutoFitRequest,
-            autoFitAllColumns,
-            hookActiveResizeColumnId,
-        },
-        selection: {
-            handleRowClick: selection.handleRowClick,
-        },
-        interaction: {
-            sensors: interactions.sensors,
-            rowSensors: interactions.rowSensors,
-            handleDragStart: interactions.handleDragStart,
-            handleDragEnd: interactions.handleDragEnd,
-            handleDragCancel: interactions.handleDragCancel,
-            handleRowDragStart: interactions.handleRowDragStart,
-            handleRowDragEnd: interactions.handleRowDragEnd,
-            handleRowDragCancel: interactions.handleRowDragCancel,
-            handleKeyDown: interactions.handleKeyDown,
+            rows,
+            table,
+            activeDragRow,
+            contextMenu?.torrent.id,
+            selection.handleRowClick,
             handleRowDoubleClick,
             handleContextMenu,
             handleDropTargetChange,
-        },
-        menus: {
+            canReorderQueue,
+            dropTargetRowId,
+            activeRowId,
+            highlightedRowId,
+            isAnyColumnResizing,
+            columnOrder,
+            isAnimationSuppressed,
+            isColumnOrderChanging,
+        ],
+    );
+    const rowMenuViewModel = useMemo<TorrentTableRowMenuViewModel>(
+        () => ({
+            contextMenu,
+            onClose: closeContextMenu,
+            handleContextMenuAction,
             queueMenuActions,
             getContextMenuShortcut,
             isClipboardSupported,
-            handleContextMenuAction,
+        }),
+        [
+            contextMenu,
             closeContextMenu,
+            handleContextMenuAction,
+            queueMenuActions,
+            isClipboardSupported,
+        ],
+    );
+    const headerMenuViewModel = useMemo<TorrentTableHeaderMenuViewModel>(
+        () => ({
             headerMenuTriggerRect,
+            onClose: closeHeaderMenu,
             headerMenuActiveColumn,
             headerMenuItems,
             headerMenuHideLabel,
             isHeaderMenuHideEnabled,
+            autoFitAllColumns,
             handleHeaderMenuAction,
+        }),
+        [
+            headerMenuTriggerRect,
             closeHeaderMenu,
-            handleHeaderContextMenu,
-            handleHeaderContainerContextMenu,
+            headerMenuActiveColumn,
+            headerMenuItems,
+            headerMenuHideLabel,
+            isHeaderMenuHideEnabled,
+            autoFitAllColumns,
+            handleHeaderMenuAction,
+        ],
+    );
+
+    return {
+        refs: refBindings,
+        state: {
+            isColumnModalOpen,
+            activeDragHeaderId,
+            isAnimationSuppressed,
+            isAnyColumnResizing,
         },
-        labels: {
-            addTorrentShortcut: ADD_TORRENT_SHORTCUT,
+        table: {
+            instance: table,
+            measurementRows,
+            measurementHeaders,
         },
-        layout: {
-            rowHeight,
+        interaction: {
+            sensors: interactions.sensors,
+            handleDragStart: interactions.handleDragStart,
+            handleDragEnd: interactions.handleDragEnd,
+            handleDragCancel: interactions.handleDragCancel,
+            handleKeyDown: interactions.handleKeyDown,
+        },
+        menus: {
+            closeContextMenu,
         },
         lifecycle: {
             activateScope,
             deactivateScope,
             setIsColumnModalOpen,
+        },
+        surfaces: {
+            renderOverlayPortal,
+            headersViewModel,
+            bodyViewModel,
+            rowMenuViewModel,
+            headerMenuViewModel,
         },
     };
 }

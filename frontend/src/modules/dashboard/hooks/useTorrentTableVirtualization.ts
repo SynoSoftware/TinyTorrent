@@ -3,10 +3,10 @@ import type { MutableRefObject, RefObject } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type {
     Row,
-    Header,
     Column,
     SortingState,
     RowSelectionState,
+    Table,
 } from "@tanstack/react-table";
 import { useMarqueeSelection } from "./useMarqueeSelection";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
@@ -21,7 +21,7 @@ export type UseTorrentTableVirtualizationDeps = {
     TABLE_LAYOUT: { rowHeight: number | string; overscan: number };
     table: {
         getTotalSize: () => number;
-        getFlatHeaders: () => Header<Torrent, unknown>[];
+        getFlatHeaders: () => ReturnType<Table<Torrent>["getFlatHeaders"]>;
         getAllLeafColumns: () => Column<Torrent>[];
     };
     isAnyColumnResizing: boolean;
@@ -142,9 +142,11 @@ export const useTorrentTableVirtualization = (
             return didChange ? normalizeColumnSizingState(next) : prev;
         });
     }, [
+        AUTO_FIT_TOLERANCE_PX,
         getMeasuredColumnMinWidth,
         isAnyColumnResizing,
         measuredMinWidths,
+        normalizeColumnSizingState,
         setColumnSizing,
         table,
     ]);

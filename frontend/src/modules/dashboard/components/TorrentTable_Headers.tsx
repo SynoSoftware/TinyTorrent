@@ -1,19 +1,18 @@
 import React from "react";
 import { SortableContext } from "@dnd-kit/sortable";
-import { ArrowDown, ArrowUp } from "lucide-react";
 import type {
-    Header,
-    Table,
-    Column,
     HeaderGroup,
-    ColumnSizingInfoState,
+    Table,
 } from "@tanstack/react-table";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
+import type { TorrentTableHeadersViewModel } from "@/modules/dashboard/types/torrentTableSurfaces";
 import { cn } from "@heroui/react";
 import { TableHeaderContent, getColumnWidthCss } from "./TorrentTable_Shared";
 import { PANEL_SHADOW } from "@/shared/ui/layout/glass-surface";
 import { horizontalListSortingStrategy } from "@dnd-kit/sortable";
 import TorrentTable_Header from "./TorrentTable_Header";
+
+type TorrentTableHeader = ReturnType<Table<Torrent>["getFlatHeaders"]>[number];
 
 // Header rendering for the torrent table.
 // Extracted from `TorrentTable.tsx` and made props-driven to avoid
@@ -23,15 +22,10 @@ export const ColumnHeaderPreview = ({
     header,
     isAnimationSuppressed: isAnimationSuppressed = false,
 }: {
-    header: Header<Torrent, unknown>;
+    header: TorrentTableHeader;
     isAnimationSuppressed?: boolean;
 }) => {
     const { column } = header;
-    const align = column.columnDef.meta?.align || "start";
-    const isSelection = header.id.toString() === "selection";
-    const sortState = column.getIsSorted();
-    const SortArrowIcon = sortState === "desc" ? ArrowDown : ArrowUp;
-    const sortArrowOpacity = sortState ? "opacity-100" : "opacity-0";
     return (
         <div
             className={cn(
@@ -53,37 +47,28 @@ export const ColumnHeaderPreview = ({
     );
 };
 
-interface Props {
-    headerContainerClass: string;
-    handleHeaderContainerContextMenu: (
-        e: React.MouseEvent<HTMLDivElement>
-    ) => void;
-    headerSortableIds: string[];
-    table: Table<Torrent>;
-    getTableTotalWidthCss: (n: number) => string;
-    handleHeaderContextMenu: (e: React.MouseEvent, id: string | null) => void;
-    handleColumnAutoFitRequest: (c: Column<Torrent>) => void;
-    handleColumnResizeStart: (c: Column<Torrent>, clientX: number) => void;
-    columnSizingInfo: ColumnSizingInfoState;
-    hookActiveResizeColumnId: string | null;
-    isAnimationSuppressed?: boolean;
+export interface TorrentTableHeadersProps {
+    viewModel: TorrentTableHeadersViewModel;
 }
 
-export const TorrentTable_Headers: React.FC<
-    Props & { isAnimationSuppressed?: boolean }
-> = ({
-    headerContainerClass,
-    handleHeaderContainerContextMenu,
-    headerSortableIds,
-    table,
-    getTableTotalWidthCss,
-    handleHeaderContextMenu,
-    handleColumnAutoFitRequest,
-    handleColumnResizeStart,
-    columnSizingInfo,
-    hookActiveResizeColumnId,
-    isAnimationSuppressed: isAnimationSuppressed,
+export const TorrentTable_Headers: React.FC<TorrentTableHeadersProps> = ({
+    viewModel,
 }) => {
+    const {
+        headerContainerClass,
+        handlers: {
+            handleHeaderContainerContextMenu,
+            handleHeaderContextMenu,
+            handleColumnAutoFitRequest,
+            handleColumnResizeStart,
+        },
+        table: { headerSortableIds, tableApi, getTableTotalWidthCss },
+        state: {
+            columnSizingInfo,
+            hookActiveResizeColumnId,
+            isAnimationSuppressed,
+        },
+    } = viewModel;
     return (
         <div
             className={headerContainerClass}
@@ -93,7 +78,7 @@ export const TorrentTable_Headers: React.FC<
                 items={headerSortableIds}
                 strategy={horizontalListSortingStrategy}
             >
-                {table
+                {tableApi
                     .getHeaderGroups()
                     .map((headerGroup: HeaderGroup<Torrent>) => (
                         <div
@@ -101,12 +86,12 @@ export const TorrentTable_Headers: React.FC<
                             className="flex w-full min-w-max"
                             style={{
                                 width: getTableTotalWidthCss(
-                                    table.getTotalSize()
+                                    tableApi.getTotalSize()
                                 ),
                             }}
                         >
                             {headerGroup.headers.map(
-                                (header: Header<Torrent, unknown>) => (
+                                (header: TorrentTableHeader) => (
                                     <TorrentTable_Header
                                         key={header.id}
                                         header={header}

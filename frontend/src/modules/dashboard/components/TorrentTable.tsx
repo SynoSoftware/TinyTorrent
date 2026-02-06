@@ -1,21 +1,13 @@
 import { DndContext, DragOverlay, closestCenter } from "@dnd-kit/core";
 import { cn } from "@heroui/react";
 import React, {
-    useCallback,
-    useEffect,
     useMemo,
-    type ReactNode,
 } from "react";
-import { createPortal } from "react-dom";
-import { useTranslation } from "react-i18next";
-import { TABLE_LAYOUT } from "@/config/logic";
 import type { TorrentTableViewModel } from "@/app/viewModels/useAppViewModel";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
-import { getEmphasisClassForAction } from "@/shared/utils/recoveryFormat";
 import { BLOCK_SHADOW } from "@/shared/ui/layout/glass-surface";
 import {
     ColumnMeasurementLayer,
-    getTableTotalWidthCss,
 } from "./TorrentTable_Shared";
 import {
     ColumnHeaderPreview,
@@ -26,8 +18,6 @@ import TorrentTable_RowMenu from "./TorrentTable_RowMenu";
 import TorrentTable_HeaderMenu from "./TorrentTable_HeaderMenu";
 import TorrentTable_ColumnSettingsModal from "./TorrentTable_ColumnSettingsModal";
 import { useTorrentTableViewModel } from "@/modules/dashboard/viewModels/useTorrentTableViewModel";
-
-const DND_OVERLAY_CLASSES = "pointer-events-none fixed inset-0 z-40";
 
 interface TorrentTableProps {
     viewModel: TorrentTableViewModel;
@@ -44,7 +34,6 @@ export function TorrentTable({
     onRequestDetails,
     onRequestDetailsFullscreen,
 }: TorrentTableProps) {
-    const { t } = useTranslation();
     const tableViewModel = useTorrentTableViewModel({
         viewModel,
         disableDetailOpen,
@@ -56,37 +45,12 @@ export function TorrentTable({
         refs,
         state,
         table,
-        column,
-        selection,
         interaction,
         menus,
-        labels,
-        layout,
         lifecycle,
+        surfaces,
     } = tableViewModel;
-
-    const overlayPortalHost = useMemo(
-        () =>
-            typeof document !== "undefined" && document.body
-                ? document.body
-                : null,
-        [],
-    );
-    const renderOverlayPortal = useCallback(
-        (overlay: ReactNode) => {
-            if (!overlayPortalHost) return null;
-            return createPortal(overlay, overlayPortalHost);
-        },
-        [overlayPortalHost],
-    );
-
-    const headerContainerClass = useMemo(
-        () =>
-            (cn(
-                "flex w-full sticky top-0 z-20 border-b border-content1/20 bg-content1/10 backdrop-blur-sm",
-            ) ?? "") as string,
-        [],
-    );
+    const { setTableContainerRef, setMeasureLayerRef } = refs;
     const tableShellClass = useMemo(
         () =>
             cn(
@@ -103,18 +67,11 @@ export function TorrentTable({
                 .find((header) => header.id === state.activeDragHeaderId),
         [state.activeDragHeaderId, table.instance],
     );
-    const activeDragRow = state.activeRowId
-        ? table.rowsById.get(state.activeRowId) ?? null
-        : null;
-
-    useEffect(() => {
-        refs.tableContainerRef.current?.focus();
-    }, [refs.tableContainerRef]);
 
     return (
         <>
             <div
-                ref={refs.tableContainerRef}
+                ref={setTableContainerRef}
                 tabIndex={0}
                 onKeyDown={interaction.handleKeyDown}
                 onFocus={lifecycle.activateScope}
@@ -136,7 +93,7 @@ export function TorrentTable({
                 <ColumnMeasurementLayer
                     headers={table.measurementHeaders}
                     rows={table.measurementRows}
-                    measureLayerRef={refs.measureLayerRef}
+                    measureLayerRef={setMeasureLayerRef}
                 />
                 <DndContext
                     collisionDetection={closestCenter}
@@ -147,70 +104,18 @@ export function TorrentTable({
                 >
                     <div className={tableShellClass}>
                         <TorrentTable_Headers
-                            headerContainerClass={headerContainerClass}
-                            handleHeaderContainerContextMenu={
-                                menus.handleHeaderContainerContextMenu
-                            }
-                            headerSortableIds={table.headerSortableIds}
-                            table={table.instance}
-                            getTableTotalWidthCss={getTableTotalWidthCss}
-                            handleHeaderContextMenu={menus.handleHeaderContextMenu}
-                            handleColumnAutoFitRequest={
-                                column.handleColumnAutoFitRequest
-                            }
-                            handleColumnResizeStart={
-                                column.handleColumnResizeStart
-                            }
-                            columnSizingInfo={state.columnSizingInfo}
-                            hookActiveResizeColumnId={
-                                column.hookActiveResizeColumnId
-                            }
-                            isAnimationSuppressed={state.isAnimationSuppressed}
+                            viewModel={surfaces.headersViewModel}
                         />
 
-                        <TorrentTable_Body
-                            parentRef={refs.parentRef}
-                            isLoading={viewModel.isLoading}
-                            torrents={viewModel.torrents}
-                            TABLE_LAYOUT={TABLE_LAYOUT}
-                            rowHeight={layout.rowHeight}
-                            t={t}
-                            ADD_TORRENT_SHORTCUT={labels.addTorrentShortcut}
-                            rowSensors={interaction.rowSensors}
-                            handleRowDragStart={interaction.handleRowDragStart}
-                            handleRowDragEnd={interaction.handleRowDragEnd}
-                            handleRowDragCancel={interaction.handleRowDragCancel}
-                            rowIds={table.rowIds}
-                            rowVirtualizer={table.rowVirtualizer}
-                            rows={table.rows}
-                            table={table.instance}
-                            renderVisibleCells={table.renderVisibleCells}
-                            activeDragRow={activeDragRow}
-                            renderOverlayPortal={renderOverlayPortal}
-                            DND_OVERLAY_CLASSES={DND_OVERLAY_CLASSES}
-                            contextMenu={state.contextMenu}
-                            handleRowClick={selection.handleRowClick}
-                            handleRowDoubleClick={interaction.handleRowDoubleClick}
-                            handleContextMenu={interaction.handleContextMenu}
-                            canReorderQueue={state.canReorderQueue}
-                            dropTargetRowId={state.dropTargetRowId}
-                            activeRowId={state.activeRowId}
-                            highlightedRowId={state.highlightedRowId}
-                            handleDropTargetChange={
-                                interaction.handleDropTargetChange
-                            }
-                            isAnyColumnResizing={state.isAnyColumnResizing}
-                            columnOrder={state.columnOrder}
-                            isAnimationSuppressed={state.isAnimationSuppressed}
-                            isColumnOrderChanging={state.isColumnOrderChanging}
-                            marqueeRect={table.marqueeRect}
-                        />
+                        <TorrentTable_Body viewModel={surfaces.bodyViewModel} />
                     </div>
-                    {renderOverlayPortal(
+                    {surfaces.renderOverlayPortal(
                         <DragOverlay
                             adjustScale={false}
                             dropAnimation={null}
-                            className={DND_OVERLAY_CLASSES}
+                            className={
+                                surfaces.bodyViewModel.dnd.overlayClassName
+                            }
                         >
                             {activeHeader ? (
                                 <ColumnHeaderPreview
@@ -224,33 +129,14 @@ export function TorrentTable({
                     )}
                 </DndContext>
 
-                {renderOverlayPortal(
-                    <TorrentTable_RowMenu
-                        contextMenu={state.contextMenu}
-                        onClose={menus.closeContextMenu}
-                        handleContextMenuAction={menus.handleContextMenuAction}
-                        queueMenuActions={menus.queueMenuActions}
-                        getContextMenuShortcut={menus.getContextMenuShortcut}
-                        t={t}
-                        isClipboardSupported={menus.isClipboardSupported}
-                        getEmphasisClassForAction={getEmphasisClassForAction}
-                    />,
+                {surfaces.renderOverlayPortal(
+                    <TorrentTable_RowMenu viewModel={surfaces.rowMenuViewModel} />,
                 )}
 
-                {state.headerContextMenu &&
-                    menus.headerMenuTriggerRect &&
-                    renderOverlayPortal(
+                {surfaces.headerMenuViewModel.headerMenuTriggerRect &&
+                    surfaces.renderOverlayPortal(
                         <TorrentTable_HeaderMenu
-                            headerMenuTriggerRect={menus.headerMenuTriggerRect}
-                            onClose={menus.closeHeaderMenu}
-                            headerMenuActiveColumn={menus.headerMenuActiveColumn}
-                            headerMenuItems={menus.headerMenuItems}
-                            headerMenuHideLabel={menus.headerMenuHideLabel}
-                            isHeaderMenuHideEnabled={
-                                menus.isHeaderMenuHideEnabled
-                            }
-                            autoFitAllColumns={column.autoFitAllColumns}
-                            handleHeaderMenuAction={menus.handleHeaderMenuAction}
+                            viewModel={surfaces.headerMenuViewModel}
                         />,
                     )}
             </div>
@@ -265,6 +151,7 @@ export function TorrentTable({
 }
 
 declare module "@tanstack/react-table" {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     interface ColumnMeta<TData, TValue> {
         align?: "start" | "center" | "end";
     }

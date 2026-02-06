@@ -22,13 +22,18 @@ export function useAddModalState({
                 onOpenAddTorrentFromFile(acceptedFiles[0]);
             }
         },
-        [onOpenAddTorrentFromFile]
+        [onOpenAddTorrentFromFile],
     );
 
     const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
         onDrop,
         noClick: true,
         noKeyboard: true,
+        // Restrict the file picker to torrent files when opened programmatically.
+        accept: {
+            "application/x-bittorrent": [".torrent"],
+        },
+        multiple: false,
     });
 
     useEffect(() => {
@@ -38,8 +43,8 @@ export function useAddModalState({
                 typeof payload === "string"
                     ? payload
                     : typeof payload === "object" && payload !== null
-                    ? (payload as { link?: string }).link
-                    : undefined;
+                      ? (payload as { link?: string }).link
+                      : undefined;
             const normalized = normalizeMagnetLink(link);
             if (!normalized) return;
             deepLinkHandledRef.current = true;

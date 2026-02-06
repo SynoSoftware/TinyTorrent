@@ -1,6 +1,7 @@
+/* eslint-disable react-refresh/only-export-components */
 // FILE: src/modules/dashboard/components/ColumnDefinitions.tsx
 
-import { Chip, cn, Button } from "@heroui/react";
+import { cn } from "@heroui/react";
 import type { LucideIcon } from "lucide-react";
 import {
     FileText, // name
@@ -13,75 +14,30 @@ import {
     HardDrive, // size
     TrendingUp, // ratio
     Clock, // added
-    WifiOff,
     Users,
-    FileWarning,
-    ListStart,
-    Pause,
-    Bug,
-    ArrowDown,
-    ArrowUp,
-    RefreshCw,
-    CheckCircle,
-    Hourglass,
-    AlertCircle,
-    AlertTriangle,
-    Lock,
-    Search,
 } from "lucide-react";
 
-import {
-    type TorrentStatus,
-    type RecoveryState,
-} from "@/services/rpc/entities";
 import STATUS from "@/shared/status";
-import {
-    formatRecoveryStatus,
-    formatRecoveryStatusFromClassification,
-    formatRecoveryTooltip,
-    formatPrimaryActionHintFromClassification,
-} from "@/shared/utils/recoveryFormat";
 import { type TFunction } from "i18next";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import {
-    type CSSProperties,
     type ReactNode,
     type RefObject,
-    type Dispatch,
-    type SetStateAction,
 } from "react";
 import { TABLE_LAYOUT, ICON_STROKE_WIDTH_DENSE } from "@/config/logic";
-import useLayoutMetrics from "@/shared/hooks/useLayoutMetrics";
-import { useUiClock } from "@/shared/hooks/useUiClock";
 import { SmoothProgressBar } from "@/shared/ui/components/SmoothProgressBar";
 import {
     formatBytes,
     formatDate,
     formatEtaAbsolute,
     formatRelativeTime,
-    formatSpeed,
     formatTime,
 } from "@/shared/utils/format";
-import { buildSplinePath } from "@/shared/utils/spline";
 import type { Table } from "@tanstack/react-table";
 import type { OptimisticStatusMap } from "@/modules/dashboard/types/optimistic";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
-import { useMemo, useState, useEffect, useCallback } from "react";
-import { useLifecycle } from "@/app/context/LifecycleContext";
-import { useRecoveryContext } from "@/app/context/RecoveryContext";
-import type {
-    SetLocationOptions,
-    SetLocationSurface,
-} from "@/app/context/RecoveryContext";
-import {
-    formatMissingFileDetails,
-} from "@/modules/dashboard/utils/missingFiles";
-import { useMissingFilesProbe } from "@/services/recovery/missingFilesStore";
-import { useResolvedRecoveryClassification } from "@/modules/dashboard/hooks/useResolvedRecoveryClassification";
-import type {
-    MissingFilesClassification,
-    RecoveryRecommendedAction,
-} from "@/services/recovery/recovery-controller";
+import { TorrentTable_SpeedColumnCell } from "@/modules/dashboard/components/TorrentTable_SpeedColumnCell";
+import { TorrentTable_StatusColumnCell } from "@/modules/dashboard/components/TorrentTable_StatusColumnCell";
 
 // --- TYPES ---
 export type ColumnId =
@@ -126,20 +82,6 @@ export interface ColumnDefinition {
     headerIcon?: LucideIcon;
 }
 
-type StatusColor =
-    | "success"
-    | "default"
-    | "primary"
-    | "secondary"
-    | "warning"
-    | "danger";
-
-type StatusMeta = {
-    color: StatusColor;
-    icon: LucideIcon;
-    labelKey: string;
-};
-
 const ratioValue = (torrent: Torrent) => {
     if (typeof torrent.ratio === "number") return torrent.ratio;
     if (torrent.downloaded > 0) return torrent.uploaded / torrent.downloaded;
@@ -163,26 +105,8 @@ const getEffectiveProgress = (torrent: Torrent) => {
     return normalizedProgress;
 };
 
-const ACTION_HINT_KEYS: Record<RecoveryRecommendedAction, string | undefined> = {
-    downloadMissing: "recovery.status.preparing",
-    locate: "recovery.status.preparing",
-    retry: "recovery.status.retrying",
-    openFolder: undefined,
-    chooseLocation: "recovery.status.preparing",
-};
-
 const DENSE_TEXT = `${TABLE_LAYOUT.fontSize} ${TABLE_LAYOUT.fontMono} leading-none cap-height-text`;
 const DENSE_NUMERIC = `${DENSE_TEXT} tabular-nums`;
-
-const DEFAULT_SPARKLINE_HEIGHT = 12;
-
-const STATUS_CHIP_STYLE: CSSProperties = {
-    width: "var(--tt-status-chip-w)",
-    minWidth: "var(--tt-status-chip-w)",
-    maxWidth: "var(--tt-status-chip-w)",
-    height: "var(--tt-status-chip-h)",
-    boxSizing: "border-box",
-};
 
 const getOrdinalSuffix = (value: number) => {
     const normalized = value % 100;
@@ -208,439 +132,6 @@ const formatQueueOrdinal = (queuePosition?: number) => {
     }
     const displayValue = queuePosition + 1;
     return `${displayValue}${getOrdinalSuffix(displayValue)}`;
-};
-
-type MissingFilesStatusCellProps = {
-    torrent: Torrent;
-    t: TFunction;
-    handleRetry?: () => Promise<void>;
-    handleDownloadMissing: (
-        torrent: Torrent,
-        options?: { recreateFolder?: boolean }
-    ) => Promise<void>;
-    handleSetLocation: (
-        torrent: Torrent,
-        options?: SetLocationOptions
-    ) => Promise<void>;
-    openFolder?: (path?: string | null) => void;
-};
-
-const MissingFilesStatusCell = ({
-    torrent,
-    t,
-    handleRetry,
-    handleDownloadMissing,
-    handleSetLocation,
-    openFolder,
-}: MissingFilesStatusCellProps) => {
-    const [statusHint, setStatusHint] = useState<string | null>(null);
-    const [primaryBusy, setPrimaryBusy] = useState(false);
-    const [secondaryBusy, setSecondaryBusy] = useState(false);
-
-    const { setLocationCapability, canOpenFolder } = useRecoveryContext();
-    const downloadDir = torrent.savePath ?? torrent.downloadDir ?? "";
-    const classification = useResolvedRecoveryClassification(torrent);
-    if (!classification) {
-        return (
-            <div className="min-w-0 w-full flex items-center justify-center h-full">
-                <div className="surface-layer-1 rounded-panel p-panel flex-1 min-w-0 flex items-center gap-tight">
-                    <AlertTriangle className="toolbar-icon-size-md text-warning" />
-                    <span className="text-scaled font-semibold text-foreground">
-                        {t("recovery.generic_header")}
-                    </span>
-                </div>
-            </div>
-        );
-    }
-    const recommendedActions = classification.recommendedActions;
-    const probe = useMissingFilesProbe(torrent.id);
-    const probeLines = formatMissingFileDetails(t, probe);
-    const canSetLocation =
-        setLocationCapability.canBrowse || setLocationCapability.supportsManual;
-
-    const handleOpenFolder = useCallback(() => {
-        if (!downloadDir) return;
-        openFolder?.(downloadDir);
-    }, [downloadDir, openFolder]);
-
-    useEffect(() => {
-        setStatusHint(null);
-    }, [torrent.state]);
-
-    const runAction = useCallback(
-        (
-            action?: () => Promise<unknown>,
-            setter?: Dispatch<SetStateAction<boolean>>,
-            hintKey?: string
-        ) => {
-            if (!action || !setter) return undefined;
-            return async () => {
-                setter(true);
-                if (hintKey) {
-                    setStatusHint(t(hintKey));
-                }
-                try {
-                    await action();
-                } finally {
-                    setter(false);
-                    setStatusHint(null);
-                }
-            };
-        },
-        [t]
-    );
-
-    const buildActionConfig = (
-        action: RecoveryRecommendedAction,
-        setter?: Dispatch<SetStateAction<boolean>>
-    ) => {
-        const hintKey = ACTION_HINT_KEYS[action];
-        const common = {
-            size: "md" as const,
-            className: "font-medium",
-        };
-        switch (action) {
-            case "downloadMissing":
-                return {
-                    ...common,
-                    variant: "shadow" as const,
-                    color: "primary" as const,
-                    label: t("recovery.action_download"),
-                    onPress: runAction(
-                        () => handleDownloadMissing(torrent),
-                        setter,
-                        hintKey
-                    ),
-                    isDisabled: !handleDownloadMissing,
-                };
-            case "locate":
-            case "chooseLocation":
-                if (!handleSetLocation || !canSetLocation) return null;
-                return {
-                    ...common,
-                    variant: "shadow" as const,
-                    color: "primary" as const,
-                    label:
-                        action === "chooseLocation"
-                            ? t("recovery.action.choose_location")
-                            : t("recovery.action_locate"),
-                    onPress: runAction(
-                        () =>
-                            handleSetLocation(torrent, {
-                                mode:
-                                    action === "chooseLocation"
-                                        ? "manual"
-                                        : "browse",
-                            }),
-                        setter,
-                        hintKey
-                    ),
-                    isDisabled: false,
-                };
-            case "retry":
-                return {
-                    ...common,
-                    variant: "shadow" as const,
-                    color: "primary" as const,
-                    label: t("recovery.action_retry"),
-                    onPress: runAction(handleRetry, setter, hintKey),
-                    isDisabled: !handleRetry,
-                };
-            case "openFolder":
-                if (!canOpenFolder) return null;
-                return {
-                    ...common,
-                    variant: "light" as const,
-                    color: "default" as const,
-                    label: t("recovery.action_open_folder"),
-                    onPress: handleOpenFolder,
-                    isDisabled: !(torrent.savePath || torrent.downloadDir),
-                };
-            default:
-                return null;
-        }
-    };
-
-    const statusText = formatRecoveryStatusFromClassification(
-        classification,
-        t
-    );
-    const primaryHint = formatPrimaryActionHintFromClassification(
-        classification,
-        t
-    );
-    const displayStatus = statusHint ?? statusText;
-
-    const defaultPrimaryAction: RecoveryRecommendedAction =
-        classification.kind === "volumeLoss"
-            ? "retry"
-            : classification.kind === "pathLoss" ||
-              classification.kind === "accessDenied"
-            ? "locate"
-            : "downloadMissing";
-    const defaultSecondaryAction: RecoveryRecommendedAction | null =
-        classification.kind === "dataGap"
-            ? "openFolder"
-            : classification.kind === "pathLoss"
-            ? "downloadMissing"
-            : null;
-    const primaryActionName =
-        recommendedActions[0] ?? defaultPrimaryAction;
-    const secondaryActionName =
-        recommendedActions[1] ?? defaultSecondaryAction;
-
-    const primaryConfig =
-        (buildActionConfig(primaryActionName, setPrimaryBusy) ??
-            buildActionConfig("downloadMissing", setPrimaryBusy))!;
-    const secondaryConfig =
-        secondaryActionName &&
-        secondaryActionName !== primaryActionName
-            ? buildActionConfig(secondaryActionName, setSecondaryBusy)
-            : null;
-
-
-    return (
-        <div className="min-w-0 w-full flex items-center justify-center h-full">
-            <div className="flex flex-wrap items-center gap-tools min-w-0">
-                <div className="surface-layer-1 rounded-panel p-panel flex-1 min-w-0 flex items-center gap-tight">
-                    <AlertTriangle className="toolbar-icon-size-md text-warning" />
-                    <div className="flex flex-col gap-tight min-w-0">
-                        <div className="flex flex-col gap-tight min-w-0">
-                            <span
-                                className="text-scaled font-semibold text-foreground truncate"
-                                title={displayStatus}
-                            >
-                                {displayStatus}
-                            </span>
-                            {primaryHint && (
-                                <span className="text-label text-foreground/70">
-                                    {primaryHint}
-                                </span>
-                            )}
-                            {probeLines.map((line) => (
-                                <span
-                                    key={line}
-                                    className="text-label font-mono text-foreground/70 truncate"
-                                >
-                                    {line}
-                                </span>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-                <div className="flex items-center gap-tools">
-                    <Button
-                        variant={primaryConfig.variant}
-                        color={primaryConfig.color}
-                        size={primaryConfig.size}
-                        className={cn(
-                            "ml-tight font-medium",
-                            primaryConfig.className
-                        )}
-                        isDisabled={
-                            primaryConfig.isDisabled || primaryBusy
-                        }
-                        isLoading={primaryBusy}
-                        onPress={primaryConfig.onPress}
-                    >
-                        {primaryConfig.label}
-                    </Button>
-                    {secondaryConfig && (
-                        <Button
-                            variant={secondaryConfig.variant}
-                            size={secondaryConfig.size}
-                            className={secondaryConfig.className}
-                            color={secondaryConfig.color ?? "default"}
-                            isDisabled={
-                                (secondaryConfig.isDisabled ?? false) ||
-                                secondaryBusy
-                            }
-                            isLoading={secondaryBusy}
-                            onPress={secondaryConfig.onPress}
-                        >
-                            {secondaryConfig.label}
-                        </Button>
-                    )}
-                </div>
-            </div>
-        </div>
-    );
-};
-
-const SpeedColumnCell = ({ torrent, table }: ColumnRendererProps) => {
-    const { tick } = useUiClock(); // Force periodic re-render to sample external telemetry.
-    void tick; // Force periodic re-render to sample external telemetry.
-
-    const isDownloading = torrent.state === STATUS.torrent.DOWNLOADING;
-    const isSeeding = torrent.state === STATUS.torrent.SEEDING;
-
-    const speedValue = isDownloading
-        ? torrent.speed.down
-        : isSeeding
-        ? torrent.speed.up
-        : null;
-
-    const meta = table.options.meta as DashboardTableMeta | undefined;
-    const rawHistory = meta?.speedHistoryRef?.current?.[torrent.id] ?? [];
-
-    // Preserve signal integrity: unknown ≠ zero
-    const sanitizedHistory: number[] = rawHistory.filter((v): v is number =>
-        Number.isFinite(v)
-    );
-
-    const current = Number.isFinite(speedValue) ? speedValue : NaN;
-
-    const sparklineHistory: number[] = Number.isFinite(current)
-        ? ([...sanitizedHistory, current] as number[])
-        : sanitizedHistory;
-
-    const hasSignal = sparklineHistory.length >= 2;
-    const maxSpeed = hasSignal ? Math.max(...sparklineHistory) : 0;
-
-    const { rowHeight } = useLayoutMetrics();
-    const resolvedRow = Number.isFinite(rowHeight)
-        ? rowHeight
-        : DEFAULT_SPARKLINE_HEIGHT * 2.5;
-
-    const { width: SPARKLINE_WIDTH, height: SPARKLINE_HEIGHT } = useMemo(() => {
-        const height = Math.max(6, Math.round(resolvedRow * 0.45));
-        return {
-            width: Math.max(24, Math.round(resolvedRow * 2.3)),
-            height,
-        };
-    }, [resolvedRow]);
-
-    const path = hasSignal
-        ? buildSplinePath(
-              sparklineHistory,
-              SPARKLINE_WIDTH,
-              SPARKLINE_HEIGHT - 1,
-              maxSpeed
-          )
-        : "";
-
-    const speedState = isDownloading ? "down" : isSeeding ? "seed" : "idle";
-
-    const SPEED_COLOR: Record<typeof speedState, string> = {
-        down: "text-success",
-        seed: "text-primary",
-        idle: "text-foreground/60",
-    };
-
-    return (
-        <div className="relative w-full h-full min-w-0 min-h-0">
-            {/* Sparkline fills entire cell */}
-            {hasSignal && (
-                <svg
-                    className={cn(
-                        "absolute inset-0 w-full h-full overflow-visible",
-                        SPEED_COLOR[speedState],
-                        "opacity-50"
-                    )}
-                    viewBox={`0 0 ${SPARKLINE_WIDTH} ${SPARKLINE_HEIGHT}`}
-                    preserveAspectRatio="none"
-                    aria-hidden
-                >
-                    <path
-                        d={path}
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.4"
-                        strokeLinecap="round"
-                    />
-                </svg>
-            )}
-
-            {/* Text padding wrapper */}
-            <div className="relative z-10 flex items-center h-full pointer-events-none">
-                <span
-                    className={cn(
-                        DENSE_NUMERIC,
-                        "font-medium",
-                        SPEED_COLOR[speedState],
-                        "drop-shadow-[0_1px_1px_rgba(0,0,0,0.25)] dark:drop-shadow-[0_1px_1px_rgba(255,255,255,0.15)]"
-                    )}
-                >
-                    {speedValue !== null ? formatSpeed(speedValue) : "–"}
-                </span>
-            </div>
-        </div>
-    );
-};
-
-// Allow both canonical TorrentStatus keys and RecoveryState keys
-const statusMap: Record<TorrentStatus | RecoveryState, StatusMeta> = {
-    downloading: {
-        color: "success",
-        icon: ArrowDown,
-        labelKey: "table.status_dl",
-    },
-    seeding: {
-        color: "primary",
-        icon: ArrowUp,
-        labelKey: "table.status_seed",
-    },
-    paused: {
-        color: "warning",
-        icon: Pause,
-        labelKey: "table.status_pause",
-    },
-    checking: {
-        color: "warning",
-        icon: RefreshCw,
-        labelKey: "table.status_checking",
-    },
-    queued: {
-        color: "secondary",
-        icon: ListStart,
-        labelKey: "table.status_queued",
-    },
-    stalled: {
-        color: "secondary",
-        icon: WifiOff,
-        labelKey: "table.status_stalled",
-    },
-    error: {
-        color: "danger",
-        icon: Bug,
-        labelKey: "table.status_error",
-    },
-    missing_files: {
-        color: "warning",
-        icon: FileWarning,
-        labelKey: "table.status_missing_files",
-    },
-    // Recovery / overlay states (these override the base torrent state visually)
-    ok: {
-        color: "success",
-        icon: CheckCircle,
-        labelKey: "recovery.status.ok",
-    },
-    transientWaiting: {
-        color: "secondary",
-        icon: Hourglass,
-        labelKey: "recovery.status.transientWaiting",
-    },
-    needsUserAction: {
-        color: "warning",
-        icon: AlertCircle,
-        labelKey: "recovery.status.needsUserAction",
-    },
-    needsUserConfirmation: {
-        color: "warning",
-        icon: AlertCircle,
-        labelKey: "recovery.status.needsUserConfirmation",
-    },
-    blocked: {
-        color: "danger",
-        icon: Lock,
-        labelKey: "recovery.status.blocked",
-    },
-    verifying: {
-        color: "warning",
-        icon: Search,
-        labelKey: "recovery.status.verifying",
-    },
 };
 
 export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
@@ -725,95 +216,16 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
         defaultVisible: true,
         sortAccessor: (torrent) => torrent.state,
         headerIcon: Activity,
-        render: ({ torrent, t, table }) => {
-            const {
-                handleRetry,
-                handleDownloadMissing,
-                handleSetLocation,
-            } = useRecoveryContext();
-            const classification = useResolvedRecoveryClassification(torrent);
-
-            // Recovery state from envelope remains authoritative for transient machine states
-            // (verifying/transientWaiting/blocked), while missing-files details come from
-            // gate-resolved classification.
-            const effectiveState =
-                torrent.errorEnvelope &&
-                torrent.errorEnvelope.recoveryState &&
-                torrent.errorEnvelope.recoveryState !== "ok"
-                    ? torrent.errorEnvelope.recoveryState
-                    : torrent.state;
-
-            const isMissingFilesCell =
-                effectiveState === "missing_files" ||
-                classification?.kind === "pathLoss" ||
-                classification?.kind === "volumeLoss" ||
-                classification?.kind === "accessDenied";
-            const conf = statusMap[effectiveState] ?? statusMap.paused;
-            const Icon = conf.icon;
-
-            const statusLabel = classification
-                ? formatRecoveryStatusFromClassification(classification, t)
-                : formatRecoveryStatus(
-                      torrent.errorEnvelope,
-                      t,
-                      torrent.state,
-                      conf.labelKey
-                  );
-
-            let tooltip =
-                (classification
-                    ? formatRecoveryStatusFromClassification(classification, t)
-                    : formatRecoveryTooltip(
-                          torrent.errorEnvelope,
-                          t,
-                          torrent.state,
-                          conf.labelKey
-                      )) || t(conf.labelKey);
-
-            if (isMissingFilesCell) {
-                return (
-                    <MissingFilesStatusCell
-                        torrent={torrent}
-                        t={t}
-                        handleRetry={handleRetry}
-                        handleDownloadMissing={handleDownloadMissing}
-                        handleSetLocation={handleSetLocation}
-                        openFolder={
-                            (table.options.meta as DashboardTableMeta | undefined)
-                                ?.openFolder
-                        }
-                    />
-                );
-            }
-
-            return (
-                <div className="min-w-0 w-full flex items-center justify-center h-full">
-                    <Chip
-                        size="md"
-                        variant="flat"
-                        color={conf.color}
-                        style={STATUS_CHIP_STYLE}
-                        classNames={{
-                            base: "h-status-chip px-tight inline-flex items-center justify-center gap-tools whitespace-nowrap",
-                            content:
-                                "font-bold text-scaled  tracking-wider  whitespace-nowrap text-foreground",
-                        }}
-                    >
-                        <div className="flex items-center justify-center gap-tools">
-                            <StatusIcon
-                                Icon={Icon}
-                                size="md"
-                                strokeWidth={ICON_STROKE_WIDTH_DENSE}
-                                className="text-current"
-                            />
-                            <span className="truncate" title={tooltip}>
-                                {statusLabel}
-                            </span>
-                        </div>
-                    </Chip>
-                </div>
-            );
-        },
+        render: ({ torrent, t, table }) => (
+            <TorrentTable_StatusColumnCell
+                torrent={torrent}
+                t={t}
+                openFolder={
+                    (table.options.meta as DashboardTableMeta | undefined)
+                        ?.openFolder
+                }
+            />
+        ),
     },
 
     queue: {
@@ -891,7 +303,9 @@ export const TORRENTTABLE_COLUMN_DEFS: Record<ColumnId, ColumnDefinition> = {
                 ? torrent.speed.up
                 : torrent.speed.down,
         headerIcon: Gauge,
-        render: (ctx) => <SpeedColumnCell {...ctx} />,
+        render: ({ torrent, table }) => (
+            <TorrentTable_SpeedColumnCell torrent={torrent} table={table} />
+        ),
     },
 
     peers: {

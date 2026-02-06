@@ -7,6 +7,197 @@ import { CONFIG } from "@/config/logic";
 export const clamp = (value: number, min: number, max: number) =>
     Math.min(Math.max(value, min), max);
 
+export type PieceStatus = "done" | "downloading" | "missing";
+
+export const normalizePiecePercent = (value: number) => {
+    const numeric = Number.isFinite(value) ? value : 0;
+    return clamp(numeric, 0, 1);
+};
+
+export const classifyPieceState = (
+    value: number,
+    hasBinaryPieceStates: boolean
+): PieceStatus => {
+    if (hasBinaryPieceStates) return value === 1 ? "done" : "missing";
+    if (value === 2) return "done";
+    if (value === 1) return "downloading";
+    return "missing";
+};
+
+export const buildPieceGridRows = (
+    pieceCount: number,
+    columns: number,
+    rowBounds: { base: number; max: number }
+) => {
+    const safeCount = Number.isFinite(pieceCount)
+        ? Math.max(0, Math.round(pieceCount))
+        : 0;
+    const rowsFromPieces =
+        safeCount > 0 ? Math.ceil(safeCount / Math.max(1, columns)) : 0;
+    return Math.min(
+        rowBounds.max,
+        Math.max(rowBounds.base, rowsFromPieces)
+    );
+};
+
+export type CanvasFitResult = {
+    cssW: number;
+    cssH: number;
+    dpr: number;
+};
+
+export const fitCanvasToContainer = (
+    canvas: HTMLCanvasElement,
+    container: HTMLElement | null,
+    minCssHeight = 2
+): CanvasFitResult => {
+    if (!container) return { cssW: canvas.width, cssH: canvas.height, dpr: 1 };
+
+    const rect = container.getBoundingClientRect();
+    const cssW = Math.max(1, rect.width);
+    const cssH = Math.max(minCssHeight, rect.height || 0);
+    const dpr = window.devicePixelRatio || 1;
+
+    const pxW = Math.max(1, Math.floor(cssW * dpr));
+    const pxH = Math.max(1, Math.floor(cssH * dpr));
+
+    if (canvas.width !== pxW || canvas.height !== pxH) {
+        canvas.width = pxW;
+        canvas.height = pxH;
+        canvas.style.width = `${cssW}px`;
+        canvas.style.height = `${cssH}px`;
+    }
+
+    return { cssW, cssH, dpr };
+};
+
+export const resolveCanvasColor = (value: string): string => {
+    if (!value.startsWith("var(")) return normalizeCanvasColor(value);
+    const name = value.slice(4, -1).trim();
+    return getCssToken(name);
+};
+
+export type PieceMapGeometry = {
+    cellW: number;
+    baseH: number;
+    peakH: number;
+    sigma: number;
+    yStarts: Float32Array;
+    totalH: number;
+};
+
+export type PieceMapGeometryParams = {
+    cssW: number;
+    cssH: number;
+    columns: number;
+    rows: number;
+    focusRow: number;
+    strength: number;
+    sigma: number;
+};
+
+export const computePieceMapGeometry = ({
+    cssW,
+    cssH,
+    columns,
+    rows,
+    focusRow,
+    strength,
+    sigma,
+}: PieceMapGeometryParams): PieceMapGeometry => {
+    const cellW = Math.max(2, cssW / Math.max(1, columns));
+    const baseH = Math.max(2, cellW * 0.35);
+    const peakH = Math.max(baseH + 1, cellW * 1.15);
+    const clampedSigma = clamp(sigma, 2.5, 18);
+    const clampedStrength = clamp(strength, 0.15, 2.0);
+
+    const yStarts = new Float32Array(rows + 1);
+    const desired = new Float32Array(rows);
+    const clampedFocusRow = clamp(focusRow, 0, Math.max(0, rows - 1));
+    const inv2s2 = 1 / (2 * clampedSigma * clampedSigma);
+
+    let sum = 0;
+    for (let r = 0; r < rows; r++) {
+        const d = r - clampedFocusRow;
+        const g = Math.exp(-(d * d) * inv2s2);
+        const h = baseH + clampedStrength * (peakH - baseH) * g;
+        desired[r] = h;
+        sum += h;
+    }
+
+    const rawScale = sum > 0 ? cssH / sum : 1;
+    const scale = Number.isFinite(rawScale) ? rawScale : 1;
+
+    yStarts[0] = 0;
+    for (let r = 0; r < rows; r++) {
+        const scaledHeight = Math.max(4, desired[r] * scale);
+        yStarts[r + 1] = yStarts[r] + scaledHeight;
+    }
+
+    return {
+        cellW,
+        baseH: baseH * scale,
+        peakH: peakH * scale,
+        sigma: clampedSigma,
+        yStarts,
+        totalH: yStarts[rows],
+    };
+};
+
+export const findRowAtY = (
+    y: number,
+    yStarts: Float32Array,
+    rowCount: number
+): number | null => {
+    if (y < 0 || y >= yStarts[yStarts.length - 1]) return null;
+
+    let lo = 0;
+    let hi = yStarts.length - 1;
+    while (lo < hi) {
+        const mid = (lo + hi) >>> 1;
+        if (yStarts[mid] <= y) lo = mid + 1;
+        else hi = mid;
+    }
+
+    const row = Math.max(0, lo - 1);
+    return row >= 0 && row < rowCount ? row : null;
+};
+
+export type PieceHitCell = { x: number; y: number; w: number; h: number };
+
+export type PieceHitResult = {
+    index: number;
+    row: number;
+    col: number;
+    cell: PieceHitCell;
+};
+
+export const findPieceAtPoint = (
+    x: number,
+    y: number,
+    geometry: PieceMapGeometry,
+    columns: number,
+    totalPieces: number
+): PieceHitResult | null => {
+    const row = findRowAtY(y, geometry.yStarts, geometry.yStarts.length - 1);
+    if (row == null) return null;
+
+    const col = Math.floor(x / geometry.cellW);
+    if (col < 0 || col >= columns) return null;
+
+    const index = row * columns + col;
+    if (index < 0 || index >= totalPieces) return null;
+
+    const y0 = geometry.yStarts[row];
+    const y1 = geometry.yStarts[row + 1];
+    return {
+        index,
+        row,
+        col,
+        cell: { x: col * geometry.cellW, y: y0, w: geometry.cellW, h: y1 - y0 },
+    };
+};
+
 export type FrameHandle = number | ReturnType<typeof setTimeout>;
 
 export const scheduleFrame = (callback: FrameRequestCallback): FrameHandle =>

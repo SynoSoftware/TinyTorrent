@@ -1,49 +1,16 @@
-import {
-    type MouseEvent,
-    useCallback,
-    useEffect,
-    useMemo,
-    useRef,
-    useState,
-} from "react";
 import { cn, Tooltip } from "@heroui/react";
-import { useVirtualizer } from "@tanstack/react-virtual";
-import { useTranslation } from "react-i18next";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
-
-import useLayoutMetrics from "@/shared/hooks/useLayoutMetrics";
+import { ShieldCheck, Zap, Ban, Copy, UserPlus, Info } from "lucide-react";
+import { useRef } from "react";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
-import { formatSpeed } from "@/shared/utils/format";
-import type { TorrentPeerEntity } from "@/services/rpc/entities";
 import { PeerMap } from "@/modules/dashboard/components/TorrentDetails_Peers_Map";
-import { usePeerHover } from "@/shared/hooks/usePeerHover";
 import { ICON_STROKE_WIDTH } from "@/config/logic";
 import { GLASS_TOOLTIP_CLASSNAMES } from "@/modules/dashboard/hooks/utils/constants";
 import { TEXT_ROLES } from "../hooks/utils/textRoles";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
-import { ShieldCheck, Zap, Ban, Copy, UserPlus, Info } from "lucide-react";
+import type { TorrentPeerEntity } from "@/services/rpc/entities";
 import type { PeerContextAction } from "@/modules/dashboard/types/peerContextAction";
-import { useTorrentClipboard } from "@/modules/dashboard/hooks/useTorrentClipboard";
-
-
-type PeerContextMenuState = {
-    peer: TorrentPeerEntity;
-    x: number;
-    y: number;
-};
-
-const FLAG_MAP: Record<string, string> = {
-    D: "peers.flags.downloading",
-    U: "peers.flags.uploading",
-    K: "peers.flags.uninterested_remote",
-    I: "peers.flags.uninterested_local",
-    c: "peers.flags.choked_remote",
-    X: "peers.flags.dex_discovery",
-    H: "peers.flags.dht_discovery",
-    E: "peers.flags.encrypted",
-    P: "peers.flags.utp",
-    u: "peers.flags.utp",
-};
+import { useTorrentDetailsPeersViewModel } from "@/modules/dashboard/hooks/useTorrentDetailsPeersViewModel";
 
 interface PeersTabProps {
     peers: TorrentPeerEntity[];
@@ -63,101 +30,29 @@ export const PeersTab = ({
     torrentProgress = 0,
     isStandalone = false,
 }: PeersTabProps) => {
-    const { hoveredPeer, setHoveredPeer } = usePeerHover();
-    const { t } = useTranslation();
-    const { copyToClipboard } = useTorrentClipboard();
     const listRef = useRef<HTMLDivElement | null>(null);
-    const [peerContextMenu, setPeerContextMenu] =
-        useState<PeerContextMenuState | null>(null);
-
-    const { rowHeight, fileContextMenuMargin, fileContextMenuWidth } =
-        useLayoutMetrics();
-
-    const safePeers = peers || [];
-    const isEmpty = safePeers.length === 0;
-
-    const orderedPeers = useMemo(() => {
-        if (!sortBySpeed) return safePeers;
-        return [...safePeers].sort(
-            (a, b) =>
-                b.rateToClient + b.rateToPeer - (a.rateToClient + a.rateToPeer)
-        );
-    }, [safePeers, sortBySpeed]);
-
-    const rowVirtualizer = useVirtualizer({
-        count: orderedPeers.length,
-        getScrollElement: () => listRef.current,
-        estimateSize: () => rowHeight || 34,
-        overscan: 10,
+    const viewModel = useTorrentDetailsPeersViewModel({
+        peers,
+        listRef,
+        onPeerContextAction,
+        sortBySpeed,
+        torrentProgress,
     });
 
-    useEffect(() => {
-        const handlePointerDown = () => setPeerContextMenu(null);
-        window.addEventListener("pointerdown", handlePointerDown);
-        return () =>
-            window.removeEventListener("pointerdown", handlePointerDown);
-    }, []);
+    if (viewModel.state.isEmpty) {
+        const EmptyContent = (
+            <p className={`${TEXT_ROLES.primary} text-foreground/30`}>
+                {viewModel.labels.emptyMessage}
+            </p>
+        );
 
-    const handlePeerContextMenu = useCallback(
-        (event: MouseEvent, peer: TorrentPeerEntity) => {
-            event.preventDefault();
-            const rect = listRef.current?.getBoundingClientRect();
-            if (!rect) return;
-            const x = event.clientX - rect.left;
-            const y = event.clientY - rect.top;
-            const margin = fileContextMenuMargin;
-            const menuW = fileContextMenuWidth || 200;
-            const boundedX = Math.min(
-                Math.max(x, margin),
-                rect.width - menuW - margin
-            );
-            const boundedY = Math.min(
-                Math.max(y, margin),
-                rect.height - margin
-            );
-            setPeerContextMenu({ peer, x: boundedX, y: boundedY });
-        },
-        [fileContextMenuMargin, fileContextMenuWidth]
-    );
-
-    const handleAction = (action: PeerContextAction) => {
-        if (!peerContextMenu) return;
-        if (action === "copy_ip") {
-            void copyToClipboard(peerContextMenu.peer.address);
-        }
-        onPeerContextAction?.(action, peerContextMenu.peer);
-        setPeerContextMenu(null);
-    };
-
-    const renderFlags = (flagStr: string) => (
-        <div className="flex gap-tight">
-            {flagStr.split("").map((f, i) => (
-                <Tooltip
-                    key={`${f}-${i}`}
-                    content={t(FLAG_MAP[f] || "peers.flags.unknown")}
-                    classNames={GLASS_TOOLTIP_CLASSNAMES}
-                    delay={500}
-                >
-                    <span className="cursor-help hover:text-primary transition-colors">
-                        {f}
-                    </span>
-                </Tooltip>
-            ))}
-        </div>
-    );
-
-    if (isEmpty) {
         return isStandalone ? (
             <GlassPanel className="flex h-full items-center justify-center border-default/10 text-center">
-                <p className={`${TEXT_ROLES.primary} text-foreground/30`}>
-                    {t("torrent_modal.peers.empty_backend")}
-                </p>
+                {EmptyContent}
             </GlassPanel>
         ) : (
             <div className="flex h-full items-center justify-center border-default/10 text-center">
-                <p className={`${TEXT_ROLES.primary} text-foreground/30`}>
-                    {t("torrent_modal.peers.empty_backend")}
-                </p>
+                {EmptyContent}
             </div>
         );
     }
@@ -174,9 +69,9 @@ export const PeersTab = ({
                         </div>
                         <div className="h-full w-full">
                             <PeerMap
-                                peers={peers}
-                                hoveredPeerId={hoveredPeer}
-                                onHover={setHoveredPeer}
+                                peers={viewModel.data.peers}
+                                hoveredPeerId={viewModel.state.hoveredPeer}
+                                onHover={viewModel.actions.setHoveredPeer}
                                 torrentProgress={torrentProgress}
                             />
                         </div>
@@ -193,19 +88,19 @@ export const PeersTab = ({
                     <div className="flex-1 min-h-0 relative overflow-hidden rounded-2xl border border-content1/30 bg-content1/10 flex flex-col">
                         <div className="flex items-center gap-panel px-panel py-tight text-label uppercase tracking-tight text-foreground/30 border-b border-content1/10">
                             <span className="w-col-id">
-                                {t("peers.columns.flags")}
+                                {viewModel.labels.flagsHeader}
                             </span>
                             <span className="flex-1">
-                                {t("peers.columns.endpoint")}
+                                {viewModel.labels.endpointHeader}
                             </span>
                             <span className="w-col-client">
-                                {t("peers.columns.client_identification")}
+                                {viewModel.labels.clientHeader}
                             </span>
                             <span className="w-col-speed text-right">
-                                {t("peers.columns.downstream")}
+                                {viewModel.labels.downstreamHeader}
                             </span>
                             <span className="w-col-speed text-right">
-                                {t("peers.columns.upstream")}
+                                {viewModel.labels.upstreamHeader}
                             </span>
                         </div>
 
@@ -215,122 +110,113 @@ export const PeersTab = ({
                         >
                             <div
                                 style={{
-                                    height: `${rowVirtualizer.getTotalSize()}px`,
+                                    height: `${viewModel.metrics.totalSize}px`,
                                     position: "relative",
                                 }}
                             >
-                                {rowVirtualizer
-                                    .getVirtualItems()
-                                    .map((virtualRow) => {
-                                        const peer =
-                                            orderedPeers[virtualRow.index];
-                                        const safeAddr =
-                                            (peer.address &&
-                                                String(peer.address).trim()) ||
-                                            (peer.clientName &&
-                                                String(
-                                                    peer.clientName
-                                                ).trim()) ||
-                                            `peer-${virtualRow.index}`;
-                                        const isHovered =
-                                            hoveredPeer === peer.address;
-                                        const isUTP =
-                                            peer.flagStr.includes("P") ||
-                                            peer.flagStr.includes("u");
-                                        const isEncrypted =
-                                            peer.flagStr.includes("E");
-                                        const isHostile =
-                                            torrentProgress < 1 &&
-                                            peer.peerIsChoking &&
-                                            peer.clientIsInterested;
-
-                                        return (
-                                            <div
-                                                key={`${safeAddr}-${virtualRow.index}`}
-                                                className={cn(
-                                                    "absolute left-0 right-0 flex items-center px-panel transition-colors border-b border-content1/5",
-                                                    isHovered
-                                                        ? "bg-primary/10"
-                                                        : "hover:bg-content1/5",
-                                                    isHostile && "bg-danger/5"
-                                                )}
-                                                style={{
-                                                    top: virtualRow.start,
-                                                    height: virtualRow.size,
-                                                }}
-                                                onMouseEnter={() =>
-                                                    setHoveredPeer(peer.address)
-                                                }
-                                                onMouseLeave={() =>
-                                                    setHoveredPeer(null)
-                                                }
-                                                onContextMenu={(e) =>
-                                                    handlePeerContextMenu(
-                                                        e,
-                                                        peer
+                                {viewModel.data.rowViewModels.map((rowView) => (
+                                    <div
+                                        key={rowView.key}
+                                        className={cn(
+                                            "absolute left-0 right-0 flex items-center px-panel transition-colors border-b border-content1/5",
+                                            rowView.isHovered
+                                                ? "bg-primary/10"
+                                                : "hover:bg-content1/5",
+                                            rowView.isHostile && "bg-danger/5"
+                                        )}
+                                        style={{
+                                            top: rowView.start,
+                                            height: rowView.size,
+                                        }}
+                                        onMouseEnter={() =>
+                                            viewModel.actions.setHoveredPeer(
+                                                rowView.peer.address
+                                            )
+                                        }
+                                        onMouseLeave={
+                                            viewModel.actions.clearHoveredPeer
+                                        }
+                                        onContextMenu={(event) =>
+                                            viewModel.actions.openContextMenu(
+                                                event,
+                                                rowView.peer
+                                            )
+                                        }
+                                    >
+                                        <div className="w-col-id font-mono text-label text-foreground/60">
+                                            <div className="flex gap-tight">
+                                                {rowView.flagCodes.map(
+                                                    (flag, index) => (
+                                                        <Tooltip
+                                                            key={`${flag}-${index}`}
+                                                            content={viewModel.actions.getFlagLabel(
+                                                                flag
+                                                            )}
+                                                            classNames={
+                                                                GLASS_TOOLTIP_CLASSNAMES
+                                                            }
+                                                            delay={500}
+                                                        >
+                                                            <span className="cursor-help hover:text-primary transition-colors">
+                                                                {flag}
+                                                            </span>
+                                                        </Tooltip>
                                                     )
-                                                }
-                                            >
-                                                <div className="w-col-id font-mono text-label text-foreground/60">
-                                                    {renderFlags(peer.flagStr)}
-                                                </div>
-                                                <div className="flex-1 min-w-0 flex items-center gap-tools">
-                                                    {isEncrypted && (
-                                                        <StatusIcon
-                                                            Icon={ShieldCheck}
-                                                            size="sm"
-                                                            className="text-success/50"
-                                                        />
-                                                    )}
-                                                    {isUTP && (
-                                                        <StatusIcon
-                                                            Icon={Zap}
-                                                            size="sm"
-                                                            className="text-primary/50"
-                                                        />
-                                                    )}
-                                                    <span
-                                                        className={cn(
-                                                            "text-scaled font-mono truncate",
-                                                            isHostile
-                                                                ? "text-danger"
-                                                                : "text-foreground/90"
-                                                        )}
-                                                    >
-                                                        {peer.address}
-                                                    </span>
-                                                </div>
-                                                <div className="w-col-client text-label text-foreground/40 truncate">
-                                                    {peer.clientName || "-"}
-                                                </div>
-                                                <div className="w-col-speed font-mono text-scaled text-success text-right tabular-nums">
-                                                    {peer.rateToClient > 0
-                                                        ? formatSpeed(
-                                                              peer.rateToClient
-                                                          )
-                                                        : "-"}
-                                                </div>
-                                                <div className="w-col-speed font-mono text-scaled text-primary text-right tabular-nums">
-                                                    {peer.rateToPeer > 0
-                                                        ? formatSpeed(
-                                                              peer.rateToPeer
-                                                          )
-                                                        : "-"}
-                                                </div>
+                                                )}
                                             </div>
-                                        );
-                                    })}
+                                        </div>
+
+                                        <div className="flex-1 min-w-0 flex items-center gap-tools">
+                                            {rowView.isEncrypted && (
+                                                <StatusIcon
+                                                    Icon={ShieldCheck}
+                                                    size="sm"
+                                                    className="text-success/50"
+                                                />
+                                            )}
+                                            {rowView.isUTP && (
+                                                <StatusIcon
+                                                    Icon={Zap}
+                                                    size="sm"
+                                                    className="text-primary/50"
+                                                />
+                                            )}
+                                            <span
+                                                className={cn(
+                                                    "text-scaled font-mono truncate",
+                                                    rowView.isHostile
+                                                        ? "text-danger"
+                                                        : "text-foreground/90"
+                                                )}
+                                            >
+                                                {rowView.peer.address}
+                                            </span>
+                                        </div>
+
+                                        <div className="w-col-client text-label text-foreground/40 truncate">
+                                            {rowView.clientName}
+                                        </div>
+                                        <div className="w-col-speed font-mono text-scaled text-success text-right tabular-nums">
+                                            {rowView.downRateLabel}
+                                        </div>
+                                        <div className="w-col-speed font-mono text-scaled text-primary text-right tabular-nums">
+                                            {rowView.upRateLabel}
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
 
-                            {peerContextMenu && (
+                            {viewModel.state.peerContextMenu && (
                                 <div
                                     className="pointer-events-auto absolute z-50 rounded-2xl border border-content1/40 bg-content1/90 p-tight backdrop-blur-3xl shadow-2xl"
                                     style={{
-                                        top: peerContextMenu.y,
-                                        left: peerContextMenu.x,
+                                        top: viewModel.state.peerContextMenu.y,
+                                        left: viewModel.state.peerContextMenu.x,
                                         minWidth: 200,
                                     }}
-                                    onPointerDown={(e) => e.stopPropagation()}
+                                    onPointerDown={(event) =>
+                                        event.stopPropagation()
+                                    }
                                 >
                                     <div className="px-panel py-tight border-b border-content1/10 mb-tight flex items-center gap-tools">
                                         <StatusIcon
@@ -341,41 +227,56 @@ export const PeersTab = ({
                                         <span
                                             className={`${TEXT_ROLES.label} text-foreground/40 truncate`}
                                         >
-                                            {peerContextMenu.peer.address}
+                                            {
+                                                viewModel.state.peerContextMenu
+                                                    .peer.address
+                                            }
                                         </span>
                                     </div>
                                     <button
-                                        onClick={() => handleAction("copy_ip")}
+                                        onClick={() =>
+                                            viewModel.actions.runContextAction(
+                                                "copy_ip"
+                                            )
+                                        }
                                         className="w-full flex items-center gap-tools px-panel py-tight rounded-xl text-scaled font-semibold hover:bg-content1/10 transition-colors"
                                     >
                                         <StatusIcon
                                             Icon={Copy}
                                             size="sm"
                                             strokeWidth={ICON_STROKE_WIDTH}
-                                        />{" "}
-                                        {t("peers.action_copy_ip")}
+                                        />
+                                        {viewModel.labels.copyIpAction}
                                     </button>
                                     <button
-                                        onClick={() => handleAction("add_peer")}
+                                        onClick={() =>
+                                            viewModel.actions.runContextAction(
+                                                "add_peer"
+                                            )
+                                        }
                                         className="w-full flex items-center gap-tools px-panel py-tight rounded-xl text-scaled font-semibold hover:bg-content1/10 transition-colors"
                                     >
                                         <StatusIcon
                                             Icon={UserPlus}
                                             size="sm"
                                             strokeWidth={ICON_STROKE_WIDTH}
-                                        />{" "}
-                                        {t("peers.action_add_peer")}
+                                        />
+                                        {viewModel.labels.addPeerAction}
                                     </button>
                                     <button
-                                        onClick={() => handleAction("ban_ip")}
+                                        onClick={() =>
+                                            viewModel.actions.runContextAction(
+                                                "ban_ip"
+                                            )
+                                        }
                                         className="w-full flex items-center gap-tools px-panel py-tight rounded-xl text-scaled font-semibold text-danger hover:bg-danger/10 transition-colors border-t border-content1/10 mt-tight"
                                     >
                                         <StatusIcon
                                             Icon={Ban}
                                             size="sm"
                                             strokeWidth={ICON_STROKE_WIDTH}
-                                        />{" "}
-                                        {t("peers.action_ban_ip")}
+                                        />
+                                        {viewModel.labels.banIpAction}
                                     </button>
                                 </div>
                             )}

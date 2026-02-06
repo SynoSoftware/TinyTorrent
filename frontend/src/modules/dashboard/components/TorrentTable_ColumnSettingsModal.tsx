@@ -1,5 +1,6 @@
 import React from "react";
 import type { Table } from "@tanstack/react-table";
+import type { Torrent } from "@/modules/dashboard/types/torrent";
 import {
     Modal,
     ModalBody,
@@ -22,7 +23,7 @@ import { INTERACTION_CONFIG } from "@/config/logic";
 interface Props {
     isOpen: boolean;
     onOpenChange: (open: boolean) => void;
-    table: Table<any>;
+    table: Table<Torrent>;
 }
 
 export const TorrentTable_ColumnSettingsModal: React.FC<Props> = ({
@@ -54,7 +55,7 @@ export const TorrentTable_ColumnSettingsModal: React.FC<Props> = ({
                             {t("table.column_picker_title")}
                         </ModalHeader>
                         <ModalBody>
-                            {table.getAllLeafColumns().map((column: any) => {
+                            {table.getAllLeafColumns().map((column) => {
                                 const rawId = column.id;
                                 if (rawId === "selection") return null;
                                 const id = rawId as ColumnId;

@@ -1,14 +1,10 @@
 import React from "react";
-import type { Row } from "@tanstack/react-table";
-import type { VirtualItem, Virtualizer } from "@tanstack/react-virtual";
-import type { SensorDescriptor } from "@dnd-kit/core";
-import type { Torrent } from "@/modules/dashboard/types/torrent";
+import type { VirtualItem } from "@tanstack/react-virtual";
+import type { TorrentTableBodyViewModel } from "@/modules/dashboard/types/torrentTableSurfaces";
 import {
     DndContext,
     DragOverlay,
     closestCenter,
-    type DragEndEvent,
-    type DragStartEvent,
 } from "@dnd-kit/core";
 import {
     SortableContext,
@@ -21,88 +17,59 @@ import { FileUp } from "lucide-react";
 import { PANEL_SHADOW } from "@/shared/ui/layout/glass-surface";
 import { getTableTotalWidthCss } from "./TorrentTable_Shared";
 
-// Props mirror the variables previously used inline in TorrentTable.tsx
-type RowVirtualizerShape = Virtualizer<any, Element>;
-
 export interface TorrentTableBodyProps {
-    parentRef: React.RefObject<HTMLDivElement | null>;
-    isLoading: boolean;
-    torrents: Torrent[];
-    TABLE_LAYOUT: { rowHeight: number | string; overscan: number };
-    // numeric row height (from useLayoutMetrics) to keep virtualization and
-    // visual components perfectly aligned.
-    rowHeight: number;
-    t: (key: string, opts?: Record<string, unknown>) => string;
-    ADD_TORRENT_SHORTCUT: string;
-    rowSensors: SensorDescriptor<any>[];
-    handleRowDragStart: (e: DragStartEvent) => void;
-    handleRowDragEnd: (e: DragEndEvent) => void;
-    handleRowDragCancel: () => void;
-    rowIds: string[];
-    rowVirtualizer: RowVirtualizerShape;
-    rows: Row<Torrent>[];
-    table: { getTotalSize: () => number };
-    renderVisibleCells: (row: Row<Torrent>) => React.ReactNode;
-    activeDragRow?: Row<Torrent> | null;
-    renderOverlayPortal: (node: React.ReactNode) => React.ReactNode;
-    DND_OVERLAY_CLASSES: string;
-    contextMenu?: { torrent: { id: string } } | null;
-    handleRowClick: (e: React.MouseEvent, rowId: string, index: number) => void;
-    handleRowDoubleClick: (row: Torrent) => void;
-    handleContextMenu: (e: React.MouseEvent, row: Torrent) => void;
-    canReorderQueue: boolean;
-    dropTargetRowId?: string | null;
-    activeRowId?: string | null;
-    highlightedRowId?: string | null;
-    handleDropTargetChange: (id: string | null) => void;
-    isAnyColumnResizing: boolean;
-    columnOrder: string[];
-    isAnimationSuppressed: boolean;
-    isColumnOrderChanging: boolean;
-    marqueeRect?: {
-        left: number;
-        top: number;
-        width: number;
-        height: number;
-    } | null;
+    viewModel: TorrentTableBodyViewModel;
 }
 
 export const TorrentTable_Body: React.FC<TorrentTableBodyProps> = (props) => {
+    const { viewModel } = props;
+    const { parentRef } = viewModel.refs;
     const {
-        parentRef,
         isLoading,
-        torrents,
-        TABLE_LAYOUT,
-        t,
-        ADD_TORRENT_SHORTCUT,
+        hasSourceTorrents,
+        visibleRowCount,
+        tableLayout,
+        rowHeight,
+        marqueeRect,
+    } = viewModel.data;
+    const { emptyHint, emptyHintSubtext, noResults, headerName, headerSpeed } =
+        viewModel.labels;
+    const {
         rowSensors,
         handleRowDragStart,
         handleRowDragEnd,
         handleRowDragCancel,
+        renderOverlayPortal,
+        overlayClassName,
+    } = viewModel.dnd;
+    const {
         rowIds,
         rowVirtualizer,
         rows,
-        table,
+        tableApi,
         renderVisibleCells,
         activeDragRow,
-        renderOverlayPortal,
-        DND_OVERLAY_CLASSES,
-        contextMenu,
+    } = viewModel.table;
+    const {
+        contextMenuTorrentId,
         handleRowClick,
         handleRowDoubleClick,
         handleContextMenu,
+        handleDropTargetChange,
+    } = viewModel.rowInteraction;
+    const {
         canReorderQueue,
         dropTargetRowId,
         activeRowId,
         highlightedRowId,
-        handleDropTargetChange,
         isAnyColumnResizing,
         columnOrder,
-        isAnimationSuppressed: isAnimationSuppressed,
+        isAnimationSuppressed,
         isColumnOrderChanging,
-        marqueeRect,
-        rowHeight,
-    } = props;
+    } = viewModel.state;
+    const showSkeleton = isLoading && !hasSourceTorrents;
+    const showEmptyState = !isLoading && !hasSourceTorrents;
+    const showNoResultsState = !isLoading && hasSourceTorrents && visibleRowCount === 0;
 
     return (
         <div
@@ -110,14 +77,14 @@ export const TorrentTable_Body: React.FC<TorrentTableBodyProps> = (props) => {
             className="relative flex-1 h-full min-h-0 overflow-y-auto w-full overlay-scrollbar"
             style={{ scrollbarGutter: "stable" }}
         >
-            {isLoading && torrents.length === 0 ? (
+            {showSkeleton ? (
                 <div className="w-full">
                     {Array.from({ length: 10 }).map((_, i) => (
                         <div
                             key={i}
                             className="flex items-center w-full border-b border-content1/5 px-panel"
                             style={{
-                                height: TABLE_LAYOUT.rowHeight,
+                                height: tableLayout.rowHeight,
                             }}
                         >
                             <div className="w-full h-indicator">
@@ -126,7 +93,7 @@ export const TorrentTable_Body: React.FC<TorrentTableBodyProps> = (props) => {
                         </div>
                     ))}
                 </div>
-            ) : torrents.length === 0 ? (
+            ) : showEmptyState ? (
                 <div className="h-full flex flex-col items-center justify-center gap-stage px-stage text-foreground/60">
                     <div
                         className="flex items-center gap-tools text-xs font-semibold uppercase text-foreground/60"
@@ -139,17 +106,13 @@ export const TorrentTable_Body: React.FC<TorrentTableBodyProps> = (props) => {
                             size="lg"
                             className="text-primary"
                         />
-                        <span>
-                            {t("table.empty_hint", {
-                                shortcut: ADD_TORRENT_SHORTCUT,
-                            })}
-                        </span>
+                        <span>{emptyHint}</span>
                     </div>
                     <p
                         className="text-scaled uppercase text-foreground/40"
                         style={{ letterSpacing: "var(--tt-tracking-wide)" }}
                     >
-                        {t("table.empty_hint_subtext")}
+                        {emptyHintSubtext}
                     </p>
                     <div className="w-full max-w-3xl space-y-tight">
                         <div
@@ -159,8 +122,8 @@ export const TorrentTable_Body: React.FC<TorrentTableBodyProps> = (props) => {
                             }}
                         >
                             <span className="h-indicator w-full rounded-full bg-content1/20" />
-                            <span>{t("table.header_name")}</span>
-                            <span>{t("table.header_speed")}</span>
+                            <span>{headerName}</span>
+                            <span>{headerSpeed}</span>
                         </div>
                         {Array.from({ length: 3 }).map((_, index) => (
                             <div
@@ -173,6 +136,10 @@ export const TorrentTable_Body: React.FC<TorrentTableBodyProps> = (props) => {
                             </div>
                         ))}
                     </div>
+                </div>
+            ) : showNoResultsState ? (
+                <div className="h-full flex items-center justify-center px-stage text-scaled uppercase text-foreground/50">
+                    {noResults}
                 </div>
             ) : (
                 <DndContext
@@ -191,7 +158,7 @@ export const TorrentTable_Body: React.FC<TorrentTableBodyProps> = (props) => {
                             style={{
                                 height: rowVirtualizer.getTotalSize(),
                                 width: getTableTotalWidthCss(
-                                    table.getTotalSize()
+                                    tableApi.getTotalSize()
                                 ),
                             }}
                         >
@@ -207,7 +174,7 @@ export const TorrentTable_Body: React.FC<TorrentTableBodyProps> = (props) => {
                                             virtualRow={virtualRow}
                                             isSelected={row.getIsSelected()}
                                             isContext={
-                                                contextMenu?.torrent.id ===
+                                                contextMenuTorrentId ===
                                                 row.original.id
                                             }
                                             onClick={handleRowClick}
@@ -240,13 +207,13 @@ export const TorrentTable_Body: React.FC<TorrentTableBodyProps> = (props) => {
                         <DragOverlay
                             adjustScale={false}
                             dropAnimation={null}
-                            className={DND_OVERLAY_CLASSES}
+                            className={overlayClassName}
                         >
                             {activeDragRow ? (
                                 <div
                                     style={{
                                         width: getTableTotalWidthCss(
-                                            table.getTotalSize()
+                                            tableApi.getTotalSize()
                                         ),
                                         height: rowHeight,
                                     }}

@@ -1074,6 +1074,11 @@
         "hint": {
             "reannounce": "Waiting for tracker retry",
             "changeLocation": "Needs file relocation",
+            "chooseLocation": "Needs file relocation",
+            "locate": "Needs file relocation",
+            "downloadMissing": "Download missing pieces",
+            "retry": "Retrying location check",
+            "resume": "Resume download",
             "forceRecheck": "Suggested: force recheck",
             "openFolder": "Open folder to adjust permissions",
             "pause": "Paused: disk full",

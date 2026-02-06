@@ -7,6 +7,7 @@ import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
 import type { TorrentTableAction } from "@/modules/dashboard/types/torrentTable";
 import type { DetailTab, PeerSortStrategy } from "@/modules/dashboard/types/torrentDetail";
+import { DASHBOARD_FILTERS, type DashboardFilter } from "@/modules/dashboard/types/dashboardFilter";
 import type { TFunction } from "i18next";
 
 export interface CommandPaletteDeps {
@@ -16,7 +17,7 @@ export interface CommandPaletteDeps {
     openAddMagnet: () => void;
     openSettings: () => void;
     refreshTorrents: () => Promise<void>;
-    setFilter: (value: string) => void;
+    setFilter: (value: DashboardFilter) => void;
     selectedTorrents: Torrent[];
     detailData: TorrentDetail | null;
     handleBulkAction: (action: TorrentTableAction) => void;
@@ -94,21 +95,21 @@ export function buildCommandPaletteActions({
             group: groups.filters,
             title: t("nav.filter_all"),
             description: t("command_palette.filters.all_description"),
-            onSelect: () => setFilter("all"),
+            onSelect: () => setFilter(DASHBOARD_FILTERS.ALL),
         },
         {
             id: "filter-downloading",
             group: groups.filters,
             title: t("nav.filter_downloading"),
             description: t("command_palette.filters.downloading_description"),
-            onSelect: () => setFilter(STATUS.torrent.DOWNLOADING),
+            onSelect: () => setFilter(DASHBOARD_FILTERS.DOWNLOADING),
         },
         {
             id: "filter-seeding",
             group: groups.filters,
             title: t("nav.filter_seeding"),
             description: t("command_palette.filters.seeding_description"),
-            onSelect: () => setFilter(STATUS.torrent.SEEDING),
+            onSelect: () => setFilter(DASHBOARD_FILTERS.SEEDING),
         },
     ];
 }

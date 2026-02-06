@@ -12,6 +12,7 @@ import type { WorkspaceStyle } from "@/app/hooks/useWorkspaceShell";
 import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
 import type { OptimisticStatusMap } from "@/modules/dashboard/types/optimistic";
 import type { CapabilityStore } from "@/app/types/capabilities";
+import type { DashboardFilter } from "@/modules/dashboard/types/dashboardFilter";
 import type {
     PeerSortStrategy,
     DetailTab,
@@ -28,7 +29,7 @@ import type { UiMode } from "@/app/utils/uiMode";
  */
 
 export interface TorrentTableViewModel {
-    filter: string;
+    filter: DashboardFilter;
     searchQuery: string;
     torrents: Torrent[];
     ghostTorrents: Torrent[];
@@ -44,31 +45,39 @@ export interface DashboardDetailViewModel {
     detailData: TorrentDetail | null;
     handleRequestDetails: (torrent: Torrent) => Promise<void>;
     closeDetail: () => void;
-    handleFileSelectionChange: (
-        indexes: number[],
-        wanted: boolean
-    ) => Promise<void>;
-    sequentialToggleHandler?: (enabled: boolean) => Promise<void>;
-    superSeedingToggleHandler?: (enabled: boolean) => Promise<void>;
-    handleEnsureValid?: (torrentId: string | number) => Promise<void>;
-    handleEnsureDataPresent?: (torrentId: string | number) => Promise<void>;
-    handleEnsureAtLocation?: (
-        torrentId: string | number,
-        path: string
-    ) => Promise<void>;
-    peerSortStrategy: PeerSortStrategy;
-    inspectorTabCommand: DetailTab | null;
-    onInspectorTabCommandHandled: () => void;
     isDetailRecoveryBlocked?: boolean;
-    handlePeerContextAction?: (
-        action: PeerContextAction,
-        peer: TorrentPeerEntity
-    ) => void;
+    tabs: {
+        navigation: {
+            inspectorTabCommand: DetailTab | null;
+            onInspectorTabCommandHandled: () => void;
+        };
+        content: {
+            handleFileSelectionChange: (
+                indexes: number[],
+                wanted: boolean
+            ) => Promise<void>;
+            handleEnsureValid?: (torrentId: string | number) => Promise<void>;
+            handleEnsureDataPresent?: (
+                torrentId: string | number
+            ) => Promise<void>;
+            handleEnsureAtLocation?: (
+                torrentId: string | number,
+                path: string
+            ) => Promise<void>;
+        };
+        peers: {
+            peerSortStrategy: PeerSortStrategy;
+            handlePeerContextAction?: (
+                action: PeerContextAction,
+                peer: TorrentPeerEntity
+            ) => void;
+        };
+    };
 }
 
 export interface DashboardViewModel {
     workspaceStyle: WorkspaceStyle;
-    filter: string;
+    filter: DashboardFilter;
     searchQuery: string;
     detailSplitDirection?: "horizontal" | "vertical";
     table: TorrentTableViewModel;
@@ -133,9 +142,9 @@ export interface WorkspaceShellViewModel {
 }
 
 export interface NavbarViewModel {
-    filter: string;
+    filter: DashboardFilter;
     searchQuery: string;
-    setFilter: (value: string) => void;
+    setFilter: (value: DashboardFilter) => void;
     setSearchQuery: (value: string) => void;
     onAddTorrent: () => void;
     onAddMagnet: () => void;

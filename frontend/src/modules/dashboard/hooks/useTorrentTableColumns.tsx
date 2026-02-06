@@ -62,12 +62,15 @@ export function useTorrentTableColumns({
                 enableResizing: true,
                 meta: { align: def.align },
                 cell: ({ row, table }) => {
-                    return def.render({
-                        torrent: row.original,
-                        t,
-                        isSelected: row.getIsSelected(),
-                        table,
-                    });
+                    const CellRenderer = def.render;
+                    return (
+                        <CellRenderer
+                            torrent={row.original}
+                            t={t}
+                            isSelected={row.getIsSelected()}
+                            table={table}
+                        />
+                    );
                 },
             } as ColumnDef<Torrent>;
         });

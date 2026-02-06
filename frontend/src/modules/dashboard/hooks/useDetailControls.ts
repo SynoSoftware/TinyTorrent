@@ -2,25 +2,27 @@ import { useCallback } from "react";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
 import type { CapabilityStore } from "@/app/types/capabilities";
 import { TorrentIntents } from "@/app/intents/torrentIntents";
-import { useRequiredTorrentActions } from "@/app/context/TorrentActionsContext";
 import { isRpcCommandError } from "@/services/rpc/errors";
+import type { TorrentIntentExtended } from "@/app/intents/torrentIntents";
+import { RpcCommandError } from "@/services/rpc/errors";
 interface UseDetailControlsParams {
     detailData: TorrentDetail | null;
     mutateDetail: (
         updater: (current: TorrentDetail) => TorrentDetail | null,
     ) => void;
     capabilities: CapabilityStore;
+    dispatch: (intent: TorrentIntentExtended) => Promise<void>;
 }
 
 export function useDetailControls({
     detailData,
     mutateDetail,
     capabilities,
+    dispatch,
 }: UseDetailControlsParams) {
-    const { dispatch } = useRequiredTorrentActions();
     const { sequentialDownload, superSeeding } = capabilities;
 
-    const isUnsupportedCapabilityError = (error: unknown) => {
+    const isUnsupportedCapabilityError = (error: Error) => {
         if (!isRpcCommandError(error)) {
             return false;
         }
@@ -89,7 +91,11 @@ export function useDetailControls({
                     ),
                 );
             } catch (error) {
-                if (isUnsupportedCapabilityError(error)) {
+                const typedError =
+                    error instanceof Error
+                        ? error
+                        : new RpcCommandError(String(error));
+                if (isUnsupportedCapabilityError(typedError)) {
                     // revert optimistic update when capability is unsupported
                     mutateDetail((current) => ({
                         ...current,
@@ -112,7 +118,11 @@ export function useDetailControls({
                     TorrentIntents.setSuperSeeding(detailData.id, enabled),
                 );
             } catch (error) {
-                if (isUnsupportedCapabilityError(error)) {
+                const typedError =
+                    error instanceof Error
+                        ? error
+                        : new RpcCommandError(String(error));
+                if (isUnsupportedCapabilityError(typedError)) {
                     // revert optimistic update when capability is unsupported
                     mutateDetail((current) => ({
                         ...current,
