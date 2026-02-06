@@ -30,6 +30,7 @@ import type {
     AddTorrentModalProps,
     AddTorrentSource,
 } from "@/modules/torrent-add/components/AddTorrentModal";
+import type { TransmissionFreeSpace } from "@/services/rpc/types";
 import type { AddMagnetModalProps } from "@/modules/torrent-add/components/AddMagnetModal";
 import type { TorrentRecoveryModalProps } from "@/modules/dashboard/components/TorrentRecoveryModal";
 import type { RecoveryControllerResult } from "@/modules/dashboard/hooks/useRecoveryController";
@@ -606,10 +607,10 @@ export interface AddTorrentModalPropsDeps {
     settingsConfig: SettingsSnapshot["config"];
     isAddingTorrent: boolean;
     isFinalizingExisting: boolean;
-    isResolvingMagnet: boolean;
     onCancel: () => void;
     onConfirm: UseAddTorrentControllerResult["handleTorrentWindowConfirm"];
     torrentClient: EngineAdapter;
+    checkFreeSpace?: (path: string) => Promise<TransmissionFreeSpace>;
     browseDirectory?: (currentPath: string) => Promise<string | null>;
 }
 
@@ -619,12 +620,19 @@ export function useAddTorrentModalProps({
     settingsConfig,
     isAddingTorrent,
     isFinalizingExisting,
-    isResolvingMagnet,
     onCancel,
     onConfirm,
     torrentClient,
+    checkFreeSpace: checkFreeSpaceOverride,
     browseDirectory,
 }: AddTorrentModalPropsDeps): AddTorrentModalProps | null {
+    const checkFreeSpace = useMemo(
+        () =>
+            checkFreeSpaceOverride ??
+            torrentClient.checkFreeSpace?.bind(torrentClient),
+        [checkFreeSpaceOverride, torrentClient]
+    );
+
     return useMemo(() => {
         if (!addSource) return null;
         return {
@@ -637,10 +645,9 @@ export function useAddTorrentModalProps({
             onDownloadDirChange: addTorrentDefaults.setDownloadDir,
             onCommitModeChange: addTorrentDefaults.setCommitMode,
             isSubmitting: isAddingTorrent || isFinalizingExisting,
-            isResolvingSource: isResolvingMagnet,
             onCancel,
             onConfirm,
-            checkFreeSpace: torrentClient.checkFreeSpace,
+            checkFreeSpace,
             onBrowseDirectory: browseDirectory,
         };
     }, [
@@ -649,10 +656,9 @@ export function useAddTorrentModalProps({
         settingsConfig.download_dir,
         isAddingTorrent,
         isFinalizingExisting,
-        isResolvingMagnet,
         onCancel,
         onConfirm,
-        torrentClient,
+        checkFreeSpace,
         browseDirectory,
     ]);
 }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import type { Dispatch, MutableRefObject, SetStateAction } from "react";
+import type { MutableRefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { useActionFeedback } from "@/app/hooks/useActionFeedback";
 import { useAddModalState } from "@/app/hooks/useAddModalState";
@@ -35,7 +35,6 @@ export interface UseAddTorrentControllerResult {
         selection: AddTorrentSelection,
     ) => Promise<void>;
     closeAddTorrentWindow: () => void;
-    isResolvingMagnet: boolean;
     isFinalizingExisting: boolean;
     isAddingTorrent: boolean;
     setAddSource: (source: AddTorrentSource | null) => void;
@@ -52,7 +51,6 @@ export function useAddTorrentController({
     const { t } = useTranslation();
     const { showFeedback } = useActionFeedback();
     const [addSource, setAddSource] = useState<AddTorrentSource | null>(null);
-    const isResolvingMagnet = false;
     const [isMagnetModalOpen, setMagnetModalOpen] = useState(false);
     const [magnetModalInitialValue, setMagnetModalInitialValue] = useState("");
     const [isAddingTorrent, setIsAddingTorrent] = useState(false);
@@ -264,7 +262,6 @@ export function useAddTorrentController({
         handleMagnetSubmit,
         handleTorrentWindowConfirm,
         closeAddTorrentWindow,
-        isResolvingMagnet,
         isFinalizingExisting,
         isAddingTorrent,
         setAddSource,

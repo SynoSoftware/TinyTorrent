@@ -16,18 +16,19 @@ export default heroui({
             colors: {
                 // Brand primaries
                 primary: {
-                    DEFAULT: "#00E5FF",
-                    foreground: "#002B33",
-                    50: "#E6F6EF", // Useful for subtle hover states
-                    100: "#C0E8D6",
-                    200: "#99D9BD",
-                    300: "#73CAA4",
-                    400: "#4DBB8B",
-                    500: "#009F6B",
-                    600: "#008C5E",
-                    700: "#007951",
-                    800: "#006644",
-                    900: "#005337",
+                    DEFAULT: "#0075FF", // strong brand blue (great on light theme)
+                    foreground: "#FFFFFF",
+
+                    50: "#EAF3FF",
+                    100: "#D6E8FF",
+                    200: "#ADD1FF",
+                    300: "#7FB7FF",
+                    400: "#3A97FF", // close to #008AFF vibe
+                    500: "#0075FF", // DEFAULT
+                    600: "#005FE6",
+                    700: "#0049C2",
+                    800: "#00359A",
+                    900: "#001F66",
                 },
 
                 // Functional

@@ -147,6 +147,8 @@
     --table-font: var(--fz-scaled);
     /* Increase handle hit-area so it's easier to grab on touch/precision devices */
     --tt-resize-handle-w: calc(3 * var(--u) * var(--z));
+    /* Add-torrent pane rhythm authority: edge padding and inter-pane spacing share this single token. */
+    --tt-add-modal-pane-gap: var(--spacing-tight);
     /* Backward-compatible aliases (read-only; keep single source here) */
     --tt-unit: var(--u);
     --tt-font-size-base: var(--fz-scaled);
@@ -188,10 +190,27 @@
     --tt-priority-badge-padding-y: var(--p-1);
     --tt-file-icon-size: calc(4 * var(--u) * var(--z));
     --tt-file-checkbox-padding: var(--p-1);
+    --tt-add-file-col-select-w: calc(12 * var(--u) * var(--z));
+    --tt-add-file-col-name-min-w: calc(28 * var(--u) * var(--z));
+    --tt-add-file-col-size-min-w: calc(14 * var(--u) * var(--z));
+    --tt-add-file-col-size-w: calc(20 * var(--u) * var(--z));
+    --tt-add-file-col-priority-min-w: calc(20 * var(--u) * var(--z));
+    --tt-add-file-col-priority-w: calc(24 * var(--u) * var(--z));
+    --tt-add-file-table-min-w: calc(
+        var(--tt-add-file-col-select-w) + var(--tt-add-file-col-name-min-w) +
+            var(--tt-add-file-col-size-w) + var(--tt-add-file-col-priority-w)
+    );
 
-    /* Added semantic tokens for previously inline arbitrary Tailwind calcs */
-    --tt-file-grid-template: calc(40 * var(--u) * var(--z)) minmax(0, 1fr)
-        calc(90 * var(--u) * var(--z)) calc(110 * var(--u) * var(--z)); /* FLAG: maps previous "40px minmax(0,1fr) 90px 110px" */
+    /* Responsive file table topology.
+       Keep non-name columns compact and allow the name column to absorb free space.
+       This prevents non-fullscreen overflow while preserving readability. */
+    --tt-file-grid-template: var(--tt-add-file-col-select-w)
+        minmax(var(--tt-add-file-col-name-min-w), 1fr)
+        minmax(var(--tt-add-file-col-size-min-w), var(--tt-add-file-col-size-w))
+        minmax(
+            var(--tt-add-file-col-priority-min-w),
+            var(--tt-add-file-col-priority-w)
+        );
     --tt-modal-max-width: calc(300 * var(--u) * var(--z));
     --tt-modal-max-width-compact: calc(var(--tt-modal-max-width) / 2);
     --tt-modal-body-max-height: calc(400 * var(--u) * var(--z));
@@ -300,6 +319,12 @@
     }
     .w-resize-handle {
         width: var(--tt-resize-handle-w);
+    }
+    .min-w-add-file-table {
+        min-width: var(--tt-add-file-table-min-w);
+    }
+    .w-add-modal-pane-gap {
+        width: var(--tt-add-modal-pane-gap);
     }
     .w-divider {
         width: var(--tt-divider-width);
@@ -888,6 +913,9 @@ main .torrent-table-watermark {
 
     .p-tight {
         padding: var(--spacing-tight);
+    }
+    .p-add-modal-pane-gap {
+        padding: var(--tt-add-modal-pane-gap);
     }
 
     .px-panel {

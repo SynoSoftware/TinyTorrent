@@ -915,11 +915,122 @@ export class TransmissionAdapter implements EngineAdapter {
     }
     //TODO: check all these if ok... not sure about merge.
     public async checkFreeSpace(path: string): Promise<TransmissionFreeSpace> {
-        const fs = await this.send(
-            { method: "free-space", arguments: { path } },
-            zTransmissionFreeSpace,
+        const normalizedPath = path.trim();
+        const fallbackCandidates =
+            TransmissionAdapter.buildFreeSpaceFallbackCandidates(normalizedPath);
+
+        let lastError: unknown = null;
+        const attemptedCandidates: string[] = [];
+        for (const candidate of fallbackCandidates) {
+            attemptedCandidates.push(candidate);
+            console.debug("[tiny-torrent][rpc][free-space] candidate:start", {
+                requestedPath: normalizedPath,
+                candidate,
+            });
+            try {
+                const fs = await this.send(
+                    { method: "free-space", arguments: { path: candidate } },
+                    zTransmissionFreeSpace,
+                );
+                console.debug("[tiny-torrent][rpc][free-space] candidate:ok", {
+                    requestedPath: normalizedPath,
+                    candidate,
+                    reportedPath: fs.path,
+                    sizeBytes: fs.sizeBytes,
+                    totalSize: fs.totalSize,
+                });
+                return fs;
+            } catch (error) {
+                lastError = error;
+                console.debug("[tiny-torrent][rpc][free-space] candidate:error", {
+                    requestedPath: normalizedPath,
+                    candidate,
+                    message:
+                        error instanceof Error ? error.message : String(error),
+                });
+            }
+        }
+
+        const lastMessage =
+            lastError instanceof Error
+                ? lastError.message
+                : "free-space failed";
+        throw new Error(
+            `free-space failed for "${normalizedPath}". tried: ${attemptedCandidates.join(" -> ")}. ${lastMessage}`,
         );
-        return fs;
+    }
+
+    private static buildFreeSpaceFallbackCandidates(path: string): string[] {
+        const trimmed = path.trim();
+        if (!trimmed) {
+            return [];
+        }
+
+        const dedupe = (values: string[]) => Array.from(new Set(values));
+
+        const windowsDriveMatch = trimmed.match(/^([a-zA-Z]):[\\/]/);
+        if (windowsDriveMatch) {
+            const drive = windowsDriveMatch[1].toUpperCase();
+            const normalized = `${drive}:${trimmed.slice(2)}`.replace(
+                /\//g,
+                "\\",
+            );
+            const withoutTrailing = normalized.replace(/[\\]+$/g, "");
+            const rest = withoutTrailing.slice(3);
+            const segments = rest
+                ? rest.split("\\").filter((segment) => segment.length > 0)
+                : [];
+            const candidates: string[] = [
+                normalized,
+                normalized.replace(/\\/g, "/"),
+                withoutTrailing,
+                withoutTrailing.replace(/\\/g, "/"),
+            ];
+            for (let length = segments.length - 1; length >= 0; length -= 1) {
+                if (length === 0) {
+                    candidates.push(`${drive}:\\`);
+                    candidates.push(`${drive}:/`);
+                    continue;
+                }
+                const backslashCandidate = `${drive}:\\${segments
+                    .slice(0, length)
+                    .join("\\")}`;
+                candidates.push(backslashCandidate);
+                candidates.push(backslashCandidate.replace(/\\/g, "/"));
+            }
+            return dedupe(candidates);
+        }
+
+        if (/^\\\\/.test(trimmed)) {
+            const normalized = trimmed.replace(/\//g, "\\");
+            const withoutPrefix = normalized.replace(/^\\\\/, "");
+            const segments = withoutPrefix
+                .split("\\")
+                .filter((segment) => segment.length > 0);
+            const candidates: string[] = [normalized];
+            for (let length = segments.length - 1; length >= 2; length -= 1) {
+                candidates.push(`\\\\${segments.slice(0, length).join("\\")}`);
+            }
+            return dedupe(candidates);
+        }
+
+        if (trimmed.startsWith("/")) {
+            const withoutTrailing = trimmed.replace(/\/+$/g, "") || "/";
+            const segments = withoutTrailing
+                .split("/")
+                .filter((segment) => segment.length > 0);
+            const candidates: string[] = [trimmed, withoutTrailing];
+            for (let length = segments.length - 1; length >= 0; length -= 1) {
+                if (length === 0) {
+                    candidates.push("/");
+                    continue;
+                }
+                candidates.push(`/${segments.slice(0, length).join("/")}`);
+            }
+            return dedupe(candidates);
+        }
+
+        return [trimmed];
     }
 
     private async fetchTransmissionTorrents(): Promise<TransmissionTorrent[]> {
