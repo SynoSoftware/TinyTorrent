@@ -31,7 +31,6 @@ import {
 import { useSessionSpeedHistory } from "@/shared/hooks/useSessionSpeedHistory";
 
 import type { SessionStats, NetworkTelemetry } from "@/services/rpc/entities";
-import type { TorrentEntity } from "@/services/rpc/entities";
 import type { HeartbeatSource } from "@/services/rpc/heartbeat";
 import type { ConnectionStatus } from "@/shared/types/rpc";
 import type { WorkspaceStyle } from "@/app/hooks/useWorkspaceShell";
@@ -464,17 +463,11 @@ export function StatusBar({ viewModel }: StatusBarProps) {
         uiMode,
         handleReconnect,
         selectedCount = 0,
-        torrents,
+        activeDownloadCount,
+        activeDownloadRequiredBytes,
     } = viewModel;
     const { t } = useTranslation();
     const shell = getShellTokens(workspaceStyle);
-
-    // StatusBar must not independently fetch the full torrent list; prefer
-    // the parent-provided `torrents` (from Heartbeat) to avoid N+1 storms.
-    // Keep a nullable placeholder so `sourceTorrents` logic remains simple.
-    const [fetchedTorrents, setFetchedTorrents] = React.useState<
-        TorrentEntity[] | null
-    >(null);
 
     // Disk safety calculation (canonical logic)
     const freeBytes =
@@ -482,29 +475,13 @@ export function StatusBar({ viewModel }: StatusBarProps) {
         (sessionStats as unknown as { downloadDirFreeSpace?: number })
             ?.downloadDirFreeSpace;
 
-    const sourceTorrents =
-        torrents && torrents.length > 0 ? torrents : fetchedTorrents || [];
-
-    const activeTorrents = (sourceTorrents || []).filter(
-        (t) =>
-            !t.isFinished &&
-            t.state !== STATUS.torrent.PAUSED &&
-            t.state !== STATUS.torrent.MISSING_FILES &&
-            !t.isGhost
-    );
-
     let diskState: DiskState = "unknown";
 
     if (freeBytes != null) {
-        if (activeTorrents.length > 0) {
-            const requiredBytes = activeTorrents.reduce(
-                (sum, t) => sum + (t.leftUntilDone ?? 0),
-                0
-            );
-
-            if (freeBytes < requiredBytes) {
+        if (activeDownloadCount > 0) {
+            if (freeBytes < activeDownloadRequiredBytes) {
                 diskState = "bad";
-            } else if (freeBytes < requiredBytes * 1.15) {
+            } else if (freeBytes < activeDownloadRequiredBytes * 1.15) {
                 diskState = "warn";
             } else {
                 diskState = "ok";
@@ -521,7 +498,7 @@ export function StatusBar({ viewModel }: StatusBarProps) {
     const isSelection = selectedCount > 0;
 
     const { down: downloadHistory, up: uploadHistory } =
-        useSessionSpeedHistory(sessionStats);
+        useSessionSpeedHistory();
 
     // Separate tooltips: telemetry (passive) vs control (action)
     const engineTelemetryTooltip = t("status_bar.engine_telemetry_tooltip", {

@@ -53,104 +53,111 @@ export interface UseAddTorrentModalViewModelParams {
 }
 
 export interface UseAddTorrentModalViewModelResult {
-    applyDroppedPath: (path?: string) => void;
-    canCollapseSettings: boolean;
-    canConfirm: boolean;
-    completeGate: () => void;
-    destinationDraft: string;
-    destinationGateCompleted: boolean;
-    destinationGateTried: boolean;
-    dropActive: boolean;
-    files: ReturnType<typeof buildFiles>;
-    filter: string;
-    filteredFiles: ReturnType<typeof buildFiles>;
-    formRef: React.RefObject<HTMLFormElement | null>;
-    handleBrowse: () => Promise<void>;
-    handleDestinationGateContinue: () => void;
-    handleDestinationInputBlur: () => void;
-    handleDestinationInputKeyDown: (
-        event: ReactKeyboardEvent<HTMLInputElement>
-    ) => void;
-    handleDragLeave: () => void;
-    handleDragOver: (event: React.DragEvent) => void;
-    handleDrop: (event: React.DragEvent<HTMLDivElement>) => void;
-    handleFormKeyDown: (event: ReactKeyboardEvent<HTMLFormElement>) => void;
-    handleFormSubmit: (event: FormEvent<HTMLFormElement>) => Promise<void>;
-    handleModalCancel: () => void;
-    handleRowClick: (index: number, shiftKey: boolean) => void;
-    handleSettingsPanelCollapse: () => void;
-    handleSettingsPanelExpand: () => void;
-    handleSmartSelect: (command: SmartSelectCommand) => void;
-    hasDestination: boolean;
-    isDiskSpaceCritical: boolean;
-    isDestinationDraftValid: boolean;
-    isFileTableInteractive: boolean;
-    isFullscreen: boolean;
-    isPanelResizeActive: boolean;
-    isSelectionEmpty: boolean;
-    isSettingsCollapsed: boolean;
-    isTouchingDirectory: boolean;
-    layout: {
-        rowHeight: number;
-    };
-    markGateTried: () => void;
-    modalMotionProps: {
-        initial: { opacity: number; scale: number; y: number };
-        animate: {
-            opacity: number;
-            scale: number;
-            y: number;
-            transition: typeof INTERACTION_CONFIG.modalBloom.transition;
+    modal: {
+        formRef: React.RefObject<HTMLFormElement | null>;
+        handleFormKeyDown: (event: ReactKeyboardEvent<HTMLFormElement>) => void;
+        handleFormSubmit: (event: FormEvent<HTMLFormElement>) => Promise<void>;
+        handleModalCancel: () => void;
+        modalMotionProps: {
+            initial: { opacity: number; scale: number; y: number };
+            animate: {
+                opacity: number;
+                scale: number;
+                y: number;
+                transition: typeof INTERACTION_CONFIG.modalBloom.transition;
+            };
+            exit: {
+                opacity: number;
+                scale: number;
+                y: number;
+                transition: typeof INTERACTION_CONFIG.modalBloom.transition;
+            };
         };
-        exit: {
-            opacity: number;
-            scale: number;
-            y: number;
-            transition: typeof INTERACTION_CONFIG.modalBloom.transition;
-        };
+        modalSize: "lg" | "5xl" | "full";
+        requestSubmit: () => void;
+        shouldShowCloseConfirm: boolean;
+        shouldShowSubmittingOverlay: boolean;
+        requestCloseConfirm: () => void;
+        cancelCloseConfirm: () => void;
+        submitError: string | null;
+        submitLocked: boolean;
     };
-    modalSize: "lg" | "5xl" | "full";
-    onCyclePriority: (index: number) => void;
-    onSetPriority: (index: number, value: "low" | "normal" | "high") => void;
-    onRowSelectionChange: (
-        next:
-            | import("@tanstack/react-table").RowSelectionState
-            | ((prev: import("@tanstack/react-table").RowSelectionState) => import("@tanstack/react-table").RowSelectionState)
-    ) => void;
-    primaryBlockReason: string | null;
-    priorities: Map<number, "low" | "normal" | "high">;
-    recentPaths: string[];
-    requestSubmit: () => void;
-    requestCloseConfirm: () => void;
-    resolvedState: ResolvedState;
-    rowSelection: import("@tanstack/react-table").RowSelectionState;
-    selectedCount: number;
-    selectedIndexes: Set<number>;
-    selectedSize: number;
-    sequential: boolean;
-    setFilter: (value: string) => void;
-    setIsFullscreen: (next: boolean) => void;
-    setIsPanelResizeActive: (active: boolean) => void;
-    setSequential: (next: boolean) => void;
-    setSkipHashCheck: (next: boolean) => void;
-    settingsPanelRef: React.RefObject<ImperativePanelHandle | null>;
-    shouldShowCloseConfirm: boolean;
-    shouldShowSubmittingOverlay: boolean;
-    showBrowseAction: boolean;
-    showDestinationGate: boolean;
-    skipHashCheck: boolean;
-    sourceLabel: string | undefined;
-    spaceErrorDetail: string | null;
-    step1DestinationMessage: string;
-    step1StatusKind: AddTorrentDestinationStatusKind;
-    step2StatusKind: AddTorrentDestinationStatusKind;
-    step2StatusMessage: string;
-    submitError: string | null;
-    submitLocked: boolean;
-    toggleSettingsPanel: () => void;
-    uiMode: "Full" | "Rpc";
-    updateDestinationDraft: (value: string) => void;
-    cancelCloseConfirm: () => void;
+    destination: {
+        destinationDraft: string;
+        handleBrowse: () => Promise<void>;
+        handleDestinationGateContinue: () => void;
+        handleDestinationInputBlur: () => void;
+        handleDestinationInputKeyDown: (
+            event: ReactKeyboardEvent<HTMLInputElement>
+        ) => void;
+        hasDestination: boolean;
+        isDestinationDraftValid: boolean;
+        isTouchingDirectory: boolean;
+        recentPaths: string[];
+        showBrowseAction: boolean;
+        showDestinationGate: boolean;
+        step1DestinationMessage: string;
+        step1StatusKind: AddTorrentDestinationStatusKind;
+        step2StatusKind: AddTorrentDestinationStatusKind;
+        step2StatusMessage: string;
+        spaceErrorDetail: string | null;
+        uiMode: "Full" | "Rpc";
+        updateDestinationDraft: (value: string) => void;
+    };
+    dragDrop: {
+        applyDroppedPath: (path?: string) => void;
+        dropActive: boolean;
+        handleDragLeave: () => void;
+        handleDragOver: (event: React.DragEvent) => void;
+        handleDrop: (event: React.DragEvent<HTMLDivElement>) => void;
+    };
+    table: {
+        files: ReturnType<typeof buildFiles>;
+        filteredFiles: ReturnType<typeof buildFiles>;
+        handleRowClick: (index: number, shiftKey: boolean) => void;
+        handleSmartSelect: (command: SmartSelectCommand) => void;
+        isFileTableInteractive: boolean;
+        isSelectionEmpty: boolean;
+        layout: {
+            rowHeight: number;
+        };
+        onCyclePriority: (index: number) => void;
+        onSetPriority: (index: number, value: "low" | "normal" | "high") => void;
+        onRowSelectionChange: (
+            next:
+                | import("@tanstack/react-table").RowSelectionState
+                | ((prev: import("@tanstack/react-table").RowSelectionState) => import("@tanstack/react-table").RowSelectionState)
+        ) => void;
+        priorities: Map<number, "low" | "normal" | "high">;
+        resolvedState: ResolvedState;
+        rowSelection: import("@tanstack/react-table").RowSelectionState;
+        selectedCount: number;
+        selectedSize: number;
+    };
+    settings: {
+        canCollapseSettings: boolean;
+        isFullscreen: boolean;
+        isPanelResizeActive: boolean;
+        isSettingsCollapsed: boolean;
+        sequential: boolean;
+        setIsFullscreen: (next: boolean) => void;
+        setIsPanelResizeActive: (active: boolean) => void;
+        setSequential: (next: boolean) => void;
+        setSkipHashCheck: (next: boolean) => void;
+        settingsPanelRef: React.RefObject<ImperativePanelHandle | null>;
+        skipHashCheck: boolean;
+        toggleSettingsPanel: () => void;
+        handleSettingsPanelCollapse: () => void;
+        handleSettingsPanelExpand: () => void;
+    };
+    submission: {
+        canConfirm: boolean;
+        isDiskSpaceCritical: boolean;
+        primaryBlockReason: string | null;
+    };
+    source: {
+        sourceLabel: string | undefined;
+    };
 }
 
 export function useAddTorrentModalViewModel({
@@ -251,8 +258,6 @@ export function useAddTorrentModalViewModel({
 
     const files = useMemo(() => buildFiles(source?.metadata), [source?.metadata]);
     const {
-        filter,
-        setFilter,
         rowSelection,
         selectedIndexes,
         selectedCount,
@@ -576,82 +581,89 @@ export function useAddTorrentModalViewModel({
     }, []);
 
     return {
-        applyDroppedPath,
-        canCollapseSettings: true,
-        canConfirm,
-        completeGate,
-        destinationDraft,
-        destinationGateCompleted,
-        destinationGateTried,
-        dropActive,
-        files,
-        filter,
-        filteredFiles,
-        formRef,
-        handleBrowse,
-        handleDestinationGateContinue,
-        handleDestinationInputBlur,
-        handleDestinationInputKeyDown,
-        handleDragLeave,
-        handleDragOver,
-        handleDrop,
-        handleFormKeyDown,
-        handleFormSubmit,
-        handleModalCancel,
-        handleRowClick,
-        handleSettingsPanelCollapse,
-        handleSettingsPanelExpand,
-        handleSmartSelect,
-        hasDestination: isDestinationValid,
-        isDiskSpaceCritical,
-        isDestinationDraftValid,
-        isFileTableInteractive:
-            isOpen && !showDestinationGate && resolvedState === "ready",
-        isFullscreen,
-        isPanelResizeActive,
-        isSelectionEmpty,
-        isSettingsCollapsed,
-        isTouchingDirectory,
-        layout: { rowHeight },
-        markGateTried,
-        modalMotionProps,
-        modalSize,
-        onCyclePriority: cyclePriority,
-        onSetPriority: setPriority,
-        onRowSelectionChange: setRowSelection,
-        primaryBlockReason,
-        priorities,
-        recentPaths: addTorrentHistory,
-        requestSubmit,
-        requestCloseConfirm,
-        resolvedState,
-        rowSelection,
-        selectedCount,
-        selectedIndexes,
-        selectedSize,
-        sequential,
-        setFilter,
-        setIsFullscreen,
-        setIsPanelResizeActive,
-        setSequential,
-        setSkipHashCheck,
-        settingsPanelRef,
-        shouldShowCloseConfirm: submitCloseConfirm,
-        shouldShowSubmittingOverlay: isSubmitting || submitLocked,
-        showBrowseAction: Boolean(onBrowseDirectory) && canBrowse,
-        showDestinationGate,
-        skipHashCheck,
-        sourceLabel: source?.label,
-        spaceErrorDetail,
-        step1DestinationMessage: destinationStatus.step1StatusMessage,
-        step1StatusKind: destinationStatus.step1StatusKind,
-        step2StatusKind: destinationStatus.step2StatusKind,
-        step2StatusMessage: destinationStatus.step2StatusMessage,
-        submitError,
-        submitLocked,
-        toggleSettingsPanel,
-        uiMode,
-        updateDestinationDraft,
-        cancelCloseConfirm,
+        modal: {
+            formRef,
+            handleFormKeyDown,
+            handleFormSubmit,
+            handleModalCancel,
+            modalMotionProps,
+            modalSize,
+            requestSubmit,
+            shouldShowCloseConfirm: submitCloseConfirm,
+            shouldShowSubmittingOverlay: isSubmitting || submitLocked,
+            requestCloseConfirm,
+            cancelCloseConfirm,
+            submitError,
+            submitLocked,
+        },
+        destination: {
+            destinationDraft,
+            handleBrowse,
+            handleDestinationGateContinue,
+            handleDestinationInputBlur,
+            handleDestinationInputKeyDown,
+            hasDestination: isDestinationValid,
+            isDestinationDraftValid,
+            isTouchingDirectory,
+            recentPaths: addTorrentHistory,
+            showBrowseAction: Boolean(onBrowseDirectory) && canBrowse,
+            showDestinationGate,
+            step1DestinationMessage: destinationStatus.step1StatusMessage,
+            step1StatusKind: destinationStatus.step1StatusKind,
+            step2StatusKind: destinationStatus.step2StatusKind,
+            step2StatusMessage: destinationStatus.step2StatusMessage,
+            spaceErrorDetail,
+            uiMode,
+            updateDestinationDraft,
+        },
+        dragDrop: {
+            applyDroppedPath,
+            dropActive,
+            handleDragLeave,
+            handleDragOver,
+            handleDrop,
+        },
+        table: {
+            files,
+            filteredFiles,
+            handleRowClick,
+            handleSmartSelect,
+            isFileTableInteractive:
+                isOpen && !showDestinationGate && resolvedState === "ready",
+            isSelectionEmpty,
+            layout: { rowHeight },
+            onCyclePriority: cyclePriority,
+            onSetPriority: setPriority,
+            onRowSelectionChange: setRowSelection,
+            priorities,
+            resolvedState,
+            rowSelection,
+            selectedCount,
+            selectedSize,
+        },
+        settings: {
+            canCollapseSettings: true,
+            isFullscreen,
+            isPanelResizeActive,
+            isSettingsCollapsed,
+            sequential,
+            setIsFullscreen,
+            setIsPanelResizeActive,
+            setSequential,
+            setSkipHashCheck,
+            settingsPanelRef,
+            skipHashCheck,
+            toggleSettingsPanel,
+            handleSettingsPanelCollapse,
+            handleSettingsPanelExpand,
+        },
+        submission: {
+            canConfirm,
+            isDiskSpaceCritical,
+            primaryBlockReason,
+        },
+        source: {
+            sourceLabel: source?.label,
+        },
     };
 }

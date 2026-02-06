@@ -1,7 +1,5 @@
-import { useEffect, useMemo, useRef } from "react";
-import type { MutableRefObject } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import Runtime from "@/app/runtime";
-import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import useWorkbenchScale from "./hooks/useWorkbenchScale";
 
 import { CommandPalette } from "./components/CommandPalette";
@@ -17,54 +15,62 @@ import { TorrentCommandProvider } from "@/app/context/TorrentCommandContext";
 import { AddTorrentModal } from "@/modules/torrent-add/components/AddTorrentModal";
 import { AddMagnetModal } from "@/modules/torrent-add/components/AddMagnetModal";
 import { createTorrentDispatch } from "./actions/torrentDispatch";
-import { useWorkspaceShellViewModel } from "@/app/viewModels/useWorkspaceShellViewModel";
+import {
+    useWorkspaceShellViewModel,
+    type WorkspaceRefreshHandles,
+} from "@/app/viewModels/useWorkspaceShellViewModel";
 import { useAppViewModel } from "@/app/viewModels/useAppViewModel";
 import { useTorrentClient } from "./providers/TorrentClientProvider";
 import { useSession } from "@/app/context/SessionContext";
 
-type AppContentProps = {
-    refreshSessionStatsDataRef: MutableRefObject<() => Promise<void>>;
-    refreshTorrentsRef: MutableRefObject<() => Promise<void>>;
-    refreshDetailDataRef: MutableRefObject<() => Promise<void>>;
-    torrentClientRef: MutableRefObject<EngineAdapter | null>;
+const NOOP_REFRESH_HANDLES: WorkspaceRefreshHandles = {
+    refreshSessionStatsData: async () => {},
+    refreshTorrents: async () => {},
+    refreshDetailData: async () => {},
 };
 
-function AppContent({
-    refreshSessionStatsDataRef,
-    refreshTorrentsRef,
-    refreshDetailDataRef,
-    torrentClientRef,
-}: AppContentProps) {
-    const controller = useWorkspaceShellViewModel({
-        refreshSessionStatsDataRef,
-        refreshTorrentsRef,
-        refreshDetailDataRef,
-        torrentClientRef,
-    });
+type AppContentProps = {
+    registerRefreshHandles: (handles: WorkspaceRefreshHandles) => void;
+};
+
+function AppContent({ registerRefreshHandles }: AppContentProps) {
+    const controller = useWorkspaceShellViewModel();
+
+    useLayoutEffect(() => {
+        registerRefreshHandles(controller.shell.refreshHandles);
+    }, [controller.shell.refreshHandles, registerRefreshHandles]);
+
     const viewModel = useAppViewModel({
-        workspaceShell: controller.workspace,
-        statusBar: controller.workspace.statusBar,
-        dashboard: controller.workspace.dashboard,
+        workspaceShell: controller.shell.workspace,
+        statusBar: controller.shell.statusBar,
+        dashboard: controller.shell.workspace.dashboard,
     });
 
     return (
-        <TorrentCommandProvider value={controller.commandApi}>
-            <GlobalHotkeysHost {...controller.globalHotkeys} />
-            <RecoveryProvider value={controller.recoveryContext}>
-                <WorkspaceShell workspaceViewModel={viewModel.workspace} />
-                <TorrentRecoveryModal {...controller.recoveryModalProps} />
+        <TorrentCommandProvider value={controller.commands.commandApi}>
+            <GlobalHotkeysHost {...controller.commands.globalHotkeys} />
+            <RecoveryProvider value={controller.recovery.recoveryContext}>
+                <WorkspaceShell
+                    workspaceViewModel={viewModel.workspace}
+                    statusBarViewModel={viewModel.statusBar}
+                />
+                <TorrentRecoveryModal
+                    {...controller.recovery.recoveryModalProps}
+                />
             </RecoveryProvider>
             <CommandPalette
-                isOpen={controller.commandPaletteState.isOpen}
-                onOpenChange={controller.commandPaletteState.setIsOpen}
+                isOpen={controller.commands.commandPaletteState.isOpen}
+                onOpenChange={controller.commands.commandPaletteState.setIsOpen}
                 actions={viewModel.workspace.commandPalette.actions}
                 getContextActions={
                     viewModel.workspace.commandPalette.getContextActions
                 }
             />
-            <AddMagnetModal {...controller.addMagnetModalProps} />
-            {controller.addTorrentModalProps && (
-                <AddTorrentModal {...controller.addTorrentModalProps} />
+            <AddMagnetModal {...controller.addTorrent.addMagnetModalProps} />
+            {controller.addTorrent.addTorrentModalProps && (
+                <AddTorrentModal
+                    {...controller.addTorrent.addTorrentModalProps}
+                />
             )}
         </TorrentCommandProvider>
     );
@@ -73,35 +79,43 @@ function AppContent({
 export default function App() {
     const torrentClient = useTorrentClient();
     const { reportCommandError } = useSession();
-    const torrentClientRef = useRef<EngineAdapter | null>(null);
-    const refreshSessionStatsDataRef = useRef<() => Promise<void>>(
-        async () => {}
+    const refreshHandlesRef = useRef<WorkspaceRefreshHandles>(
+        NOOP_REFRESH_HANDLES
     );
-    const refreshTorrentsRef = useRef<() => Promise<void>>(async () => {});
-    const refreshDetailDataRef = useRef<() => Promise<void>>(async () => {});
 
-    useEffect(() => {
-        torrentClientRef.current = torrentClient;
-    }, [torrentClient]);
+    const registerRefreshHandles = useCallback(
+        (handles: WorkspaceRefreshHandles) => {
+            refreshHandlesRef.current = handles;
+        },
+        []
+    );
+
+    const refreshTorrents = useCallback(async () => {
+        await refreshHandlesRef.current.refreshTorrents();
+    }, []);
+
+    const refreshSessionStatsData = useCallback(async () => {
+        await refreshHandlesRef.current.refreshSessionStatsData();
+    }, []);
+
+    const refreshDetailData = useCallback(async () => {
+        await refreshHandlesRef.current.refreshDetailData();
+    }, []);
 
     const torrentDispatch = useMemo(
         () =>
             createTorrentDispatch({
                 client: torrentClient,
-                clientRef: torrentClientRef,
-                refreshTorrentsRef,
-                refreshSessionStatsDataRef,
-                refreshDetailData: async () => {
-                    await refreshDetailDataRef.current();
-                },
+                refreshTorrents,
+                refreshSessionStatsData,
+                refreshDetailData,
                 reportCommandError,
             }),
         [
             torrentClient,
-            torrentClientRef,
-            refreshTorrentsRef,
-            refreshSessionStatsDataRef,
-            refreshDetailDataRef,
+            refreshTorrents,
+            refreshSessionStatsData,
+            refreshDetailData,
             reportCommandError,
         ]
     );
@@ -167,10 +181,7 @@ export default function App() {
                 <TorrentActionsProvider actions={actions}>
                     <SelectionProvider>
                         <AppContent
-                            refreshSessionStatsDataRef={refreshSessionStatsDataRef}
-                            refreshTorrentsRef={refreshTorrentsRef}
-                            refreshDetailDataRef={refreshDetailDataRef}
-                            torrentClientRef={torrentClientRef}
+                            registerRefreshHandles={registerRefreshHandles}
                         />
                     </SelectionProvider>
                 </TorrentActionsProvider>

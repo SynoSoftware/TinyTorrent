@@ -145,7 +145,8 @@ export interface StatusBarViewModelDeps {
     uiCapabilities: { uiMode: UiMode };
     reconnect: () => void;
     selectedCount: number;
-    torrents: Torrent[];
+    activeDownloadCount: number;
+    activeDownloadRequiredBytes: number;
 }
 
 export function useStatusBarViewModel({
@@ -157,7 +158,8 @@ export function useStatusBarViewModel({
     uiCapabilities,
     reconnect,
     selectedCount,
-    torrents,
+    activeDownloadCount,
+    activeDownloadRequiredBytes,
 }: StatusBarViewModelDeps): StatusBarViewModel {
     return useMemo(
         () => ({
@@ -170,7 +172,8 @@ export function useStatusBarViewModel({
             uiMode: uiCapabilities.uiMode,
             handleReconnect: reconnect,
             selectedCount,
-            torrents,
+            activeDownloadCount,
+            activeDownloadRequiredBytes,
         }),
         [
             workspaceStyle,
@@ -181,7 +184,8 @@ export function useStatusBarViewModel({
             uiCapabilities.uiMode,
             reconnect,
             selectedCount,
-            torrents,
+            activeDownloadCount,
+            activeDownloadRequiredBytes,
         ]
     );
 }
@@ -263,7 +267,6 @@ export interface SettingsModalViewModelDeps {
     actions: SettingsActions;
     toggleWorkspaceStyle: () => void;
     reconnect: () => void;
-    shellAgentAvailable: boolean;
     workspaceStyle: WorkspaceStyle;
     hasDismissedInsights: boolean;
     openSettings: () => void;
@@ -277,7 +280,6 @@ export function useSettingsModalViewModel({
     actions,
     toggleWorkspaceStyle,
     reconnect,
-    shellAgentAvailable,
     workspaceStyle,
     hasDismissedInsights,
     openSettings,
@@ -296,7 +298,6 @@ export function useSettingsModalViewModel({
             onRestoreInsights: restoreHudCards,
             onToggleWorkspaceStyle: toggleWorkspaceStyle,
             onReconnect: reconnect,
-            isNativeMode: shellAgentAvailable,
             isImmersive: workspaceStyle === "immersive",
             hasDismissedInsights,
             onApplyUserPreferencesPatch: actions.applyUserPreferencesPatch,
@@ -309,7 +310,6 @@ export function useSettingsModalViewModel({
             actions,
             toggleWorkspaceStyle,
             reconnect,
-            shellAgentAvailable,
             workspaceStyle,
             hasDismissedInsights,
             openSettings,
@@ -432,7 +432,6 @@ export interface WorkspaceShellModelDeps {
     hud: ReturnType<typeof useHudViewModel>;
     deletion: ReturnType<typeof useDeletionViewModel>;
     navbar: NavbarViewModel;
-    statusBar: StatusBarViewModel;
     commandPalette: {
         actions: CommandAction[];
         getContextActions: (
@@ -450,7 +449,6 @@ export function useWorkspaceShellModel({
     hud,
     deletion,
     navbar,
-    statusBar,
     commandPalette,
 }: WorkspaceShellModelDeps): WorkspaceShellViewModel {
     return useMemo(
@@ -465,7 +463,6 @@ export function useWorkspaceShellModel({
             hud,
             deletion,
             navbar,
-            statusBar,
             isNativeHost: Runtime.isNativeHost,
             commandPalette,
         }),
@@ -478,7 +475,6 @@ export function useWorkspaceShellModel({
             hud,
             deletion,
             navbar,
-            statusBar,
             commandPalette,
         ]
     );

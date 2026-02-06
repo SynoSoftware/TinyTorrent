@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { useTorrentClient } from "@/app/providers/TorrentClientProvider";
 import type { HeartbeatMode, HeartbeatPayload } from "@/services/rpc/heartbeat";
+import { useEngineHeartbeatDomain } from "@/app/providers/engineDomains";
 
 // Pure subscription hook to the engine heartbeat.
 // This hook MUST NOT create its own timers — it only increments `tick`
@@ -10,28 +10,43 @@ export const useEngineHeartbeat = (params?: {
     detailId?: string | null;
     pollingIntervalMs?: number;
 }) => {
-    const client = useTorrentClient();
+    const heartbeatDomain = useEngineHeartbeatDomain();
     const [tick, setTick] = useState(0);
     const lastPayload = useRef<HeartbeatPayload | null>(null);
 
     useEffect(() => {
-        const subscription = client.subscribeToHeartbeat({
-            mode: params?.mode ?? "table",
+        const mode = params?.mode ?? "table";
+        const handleUpdate = (payload: HeartbeatPayload) => {
+            lastPayload.current = payload;
+            setTick((t) => t + 1);
+        };
+        const handleError = () => {
+            // Ignore — consumers may surface errors via other mechanisms.
+        };
+
+        if (mode === "table") {
+            const subscription = heartbeatDomain.subscribeTable({
+                pollingIntervalMs: params?.pollingIntervalMs,
+                onUpdate: handleUpdate,
+                onError: handleError,
+            });
+            return () => subscription.unsubscribe();
+        }
+
+        const subscription = heartbeatDomain.subscribeNonTable({
+            mode,
             detailId: params?.detailId,
             pollingIntervalMs: params?.pollingIntervalMs,
-            onUpdate: (payload) => {
-                lastPayload.current = payload;
-                setTick((t) => t + 1);
-            },
-            onError: () => {
-                // Ignore — consumers may surface errors via other mechanisms.
-            },
+            onUpdate: handleUpdate,
+            onError: handleError,
         });
         return () => subscription.unsubscribe();
-        // Intentionally omit client referential stability assumptions here;
-        // client object identity is stable while inside ClientProvider lifecycle.
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [params?.mode, params?.detailId, params?.pollingIntervalMs]);
+    }, [
+        heartbeatDomain,
+        params?.detailId,
+        params?.mode,
+        params?.pollingIntervalMs,
+    ]);
 
     return { tick, lastPayload: lastPayload.current } as const;
 };

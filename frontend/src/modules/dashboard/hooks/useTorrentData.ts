@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import type { HeartbeatPayload } from "@/services/rpc/heartbeat";
@@ -10,6 +10,7 @@ import { GHOST_TIMEOUT_MS } from "@/config/logic";
 import { buildUniqueTorrentOrder } from "./utils/torrent-order.ts";
 import { isRpcCommandError } from "@/services/rpc/errors";
 import { scheduler } from "@/app/services/scheduler";
+import { subscribeToTableHeartbeat } from "@/app/services/tableHeartbeat";
 
 type UseTorrentDataOptions = {
     client: EngineAdapter;
@@ -29,9 +30,66 @@ type UseTorrentDataResult = {
     isInitialLoadFinished: boolean;
     refresh: () => Promise<void>;
     queueActions: QueueActionHandlers;
+    runtimeSummary: TorrentRuntimeSummary;
     ghostTorrents: Torrent[];
     addGhostTorrent: (options: GhostTorrentOptions) => string;
     removeGhostTorrent: (id: string) => void;
+};
+
+export interface TorrentRuntimeSummary {
+    activeDownloadCount: number;
+    activeDownloadRequiredBytes: number;
+    verifyingCount: number;
+    verifyingAverageProgress: number;
+    singleVerifyingName: string | null;
+}
+
+const EMPTY_TORRENT_RUNTIME_SUMMARY: TorrentRuntimeSummary = {
+    activeDownloadCount: 0,
+    activeDownloadRequiredBytes: 0,
+    verifyingCount: 0,
+    verifyingAverageProgress: 0,
+    singleVerifyingName: null,
+};
+
+const deriveTorrentRuntimeSummary = (
+    torrents: Torrent[],
+): TorrentRuntimeSummary => {
+    if (torrents.length === 0) return EMPTY_TORRENT_RUNTIME_SUMMARY;
+
+    let activeDownloadCount = 0;
+    let activeDownloadRequiredBytes = 0;
+    let verifyingCount = 0;
+    let verifyingProgressTotal = 0;
+    let singleVerifyingName: string | null = null;
+
+    torrents.forEach((torrent) => {
+        const isActiveDownload =
+            !torrent.isFinished &&
+            torrent.state !== STATUS.torrent.PAUSED &&
+            torrent.state !== STATUS.torrent.MISSING_FILES &&
+            !torrent.isGhost;
+        if (isActiveDownload) {
+            activeDownloadCount += 1;
+            activeDownloadRequiredBytes += torrent.leftUntilDone ?? 0;
+        }
+
+        if (torrent.state === STATUS.torrent.CHECKING) {
+            verifyingCount += 1;
+            verifyingProgressTotal +=
+                torrent.verificationProgress ?? torrent.progress ?? 0;
+            singleVerifyingName = torrent.name;
+        }
+    });
+
+    return {
+        activeDownloadCount,
+        activeDownloadRequiredBytes,
+        verifyingCount,
+        verifyingAverageProgress:
+            verifyingCount > 0 ? verifyingProgressTotal / verifyingCount : 0,
+        singleVerifyingName: verifyingCount === 1 ? singleVerifyingName : null,
+    };
 };
 
 const arePeerSummariesEqual = (
@@ -343,8 +401,8 @@ export function useTorrentData({
     useEffect(() => {
         if (!sessionReady) return;
         const intervalMs = Math.max(1000, pollingIntervalMs);
-        const subscription = client.subscribeToHeartbeat({
-            mode: "table",
+        const subscription = subscribeToTableHeartbeat({
+            client,
             pollingIntervalMs: intervalMs,
             onUpdate: handleHeartbeatUpdate,
             onError: () => {
@@ -364,10 +422,16 @@ export function useTorrentData({
         reportReadError,
     ]);
 
+    const runtimeSummary = useMemo(
+        () => deriveTorrentRuntimeSummary(torrents),
+        [torrents],
+    );
+
     return {
         torrents,
         isInitialLoadFinished,
         refresh,
+        runtimeSummary,
         queueActions: {
             moveToTop: async (ids) => {
                 await client.moveToTop(ids);

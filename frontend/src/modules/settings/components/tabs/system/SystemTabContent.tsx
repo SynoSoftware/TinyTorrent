@@ -131,11 +131,7 @@ function StatusChip({
     );
 }
 
-interface SystemTabContentProps {
-    isNativeMode: boolean;
-}
-
-export function SystemTabContent({ isNativeMode }: SystemTabContentProps) {
+export function SystemTabContent() {
     const { t } = useTranslation();
     const { shellAgent } = useShellAgent();
     const { uiMode } = useUiModeCapabilities();
@@ -146,8 +142,7 @@ export function SystemTabContent({ isNativeMode }: SystemTabContentProps) {
     });
     const [integrationLoading, setIntegrationLoading] = useState(true);
     const [associationPending, setAssociationPending] = useState(false);
-    const canUseShell =
-        isNativeMode && uiMode === "Full" && shellAgent.isAvailable;
+    const canUseShell = uiMode === "Full" && shellAgent.isAvailable;
 
     const refreshIntegration = useCallback(async () => {
         if (!canUseShell) {

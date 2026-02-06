@@ -1,4 +1,3 @@
-import type { MutableRefObject } from "react";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import { isRpcCommandError } from "@/services/rpc/errors";
 import type {
@@ -8,9 +7,8 @@ import type {
 
 export interface CreateTorrentDispatchOptions {
     client: EngineAdapter | null | undefined;
-    clientRef: MutableRefObject<EngineAdapter | null>;
-    refreshTorrentsRef: MutableRefObject<() => Promise<void>>;
-    refreshSessionStatsDataRef: MutableRefObject<() => Promise<void>>;
+    refreshTorrents: () => Promise<void>;
+    refreshSessionStatsData: () => Promise<void>;
     refreshDetailData: () => Promise<void>;
     reportCommandError?: (error: unknown) => void;
 }
@@ -18,14 +16,12 @@ export interface CreateTorrentDispatchOptions {
 // TODO: Target architecture:
 // TODO: - Define a single “command bus” boundary (e.g., `TorrentCommandBus`) with a small, stable API.
 // TODO: - Move refresh policy into one owner (Session provider / ViewModel), not per-intent switch cases.
-// TODO: - Collapse `client/clientRef` duplication: one authority selects the active client.
 // TODO: - Ensure intent mapping exists in exactly one place (avoid duplicates across hooks/orchestrators).
 
 export function createTorrentDispatch({
     client,
-    clientRef,
-    refreshTorrentsRef,
-    refreshSessionStatsDataRef,
+    refreshTorrents,
+    refreshSessionStatsData,
     refreshDetailData,
     reportCommandError,
 }: CreateTorrentDispatchOptions) {
@@ -41,13 +37,13 @@ export function createTorrentDispatch({
         try {
             await operation();
             if (options?.refreshTorrents ?? true) {
-                await refreshTorrentsRef.current();
+                await refreshTorrents();
             }
             if (options?.refreshDetail ?? true) {
                 await refreshDetailData();
             }
             if (options?.refreshStats ?? true) {
-                await refreshSessionStatsDataRef.current();
+                await refreshSessionStatsData();
             }
         } catch (error) {
             if ((options?.reportError ?? true) && reportCommandError) {
@@ -60,8 +56,8 @@ export function createTorrentDispatch({
     };
 
     return async (intent: TorrentIntentExtended) => {
-        const activeClient = clientRef.current || client;
-        if (!activeClient) return;
+        if (!client) return;
+        const activeClient = client;
 
         // TODO: Replace this large `switch` with a table-driven mapping:
         // TODO: - `intent.type` => `{ run(client), refresh: {torrents,detail,stats}, optimistic?: ... }`

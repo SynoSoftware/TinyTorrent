@@ -100,7 +100,7 @@ type RecoveryQueueEntry = {
 };
 
 interface RecoveryControllerServices {
-    clientRef: MutableRefObject<EngineAdapter | null>;
+    client: EngineAdapter;
 }
 
 interface RecoveryControllerData {
@@ -109,8 +109,8 @@ interface RecoveryControllerData {
 }
 
 interface RecoveryControllerRefreshDeps {
-    refreshTorrentsRef: MutableRefObject<() => Promise<void>>;
-    refreshSessionStatsDataRef: MutableRefObject<() => Promise<void>>;
+    refreshTorrents: () => Promise<void>;
+    refreshSessionStatsData: () => Promise<void>;
     refreshDetailData: () => Promise<void>;
     clearDetail: () => void;
     pendingDeletionHashesRef: MutableRefObject<Set<string>>;
@@ -182,7 +182,7 @@ export function useRecoveryController({
     data,
     refresh,
 }: UseRecoveryControllerParams): RecoveryControllerResult {
-    const { clientRef } = services;
+    const { client } = services;
     const { canBrowse, supportsManual } = useUiModeCapabilities();
     const setLocationCapability = useMemo(
         () => ({ canBrowse, supportsManual }),
@@ -195,8 +195,8 @@ export function useRecoveryController({
     const { shellAgent } = useShellAgent();
     const { torrents, detailData } = data;
     const {
-        refreshTorrentsRef,
-        refreshSessionStatsDataRef,
+        refreshTorrents,
+        refreshSessionStatsData,
         refreshDetailData,
         clearDetail,
         pendingDeletionHashesRef,
@@ -255,7 +255,7 @@ export function useRecoveryController({
             options?: RecoverySequenceOptions,
             signal?: AbortSignal,
         ) => {
-            const activeClient = clientRef.current;
+            const activeClient = client;
             const envelope = torrent.errorEnvelope;
             if (!activeClient || !envelope) return null;
 
@@ -310,12 +310,12 @@ export function useRecoveryController({
                 throw err;
             }
         },
-        [clientRef, engineCapabilities],
+        [client, engineCapabilities],
     );
 
     const probeMissingFilesIfStale = useCallback(
         async (torrent: Torrent | TorrentDetail) => {
-            const activeClient = clientRef.current;
+            const activeClient = client;
             if (!activeClient) return;
             if (!torrent.errorEnvelope) return;
             const id = torrent.id ?? torrent.hash;
@@ -337,7 +337,7 @@ export function useRecoveryController({
                 console.error("probeMissingFiles failed", err);
             }
         },
-        [clientRef, engineCapabilities],
+        [client, engineCapabilities],
     );
 
     useEffect(() => {
@@ -528,16 +528,16 @@ export function useRecoveryController({
 
     const refreshAfterRecovery = useCallback(
         async (target: Torrent | TorrentDetail) => {
-            await refreshTorrentsRef.current?.();
-            await refreshSessionStatsDataRef.current?.();
+            await refreshTorrents?.();
+            await refreshSessionStatsData?.();
             if (detailData?.id === target.id) {
                 await refreshDetailData();
             }
         },
         [
             refreshDetailData,
-            refreshSessionStatsDataRef,
-            refreshTorrentsRef,
+            refreshSessionStatsData,
+            refreshTorrents,
             detailData,
         ],
     );
@@ -624,7 +624,6 @@ export function useRecoveryController({
     useEffect(() => {
         if (engineCapabilities.executionModel !== "local") return;
         const task = scheduler.scheduleRecurringTask(() => {
-            const client = clientRef.current;
             const currentTorrents = torrentsRef.current;
             if (
                 !client ||
@@ -669,7 +668,7 @@ export function useRecoveryController({
         }, VOLUME_LOSS_CHECK_INTERVAL_MS);
         return () => task.cancel();
     }, [
-        clientRef,
+        client,
         recoverySession,
         resolveRecoverySession,
         engineCapabilities,
@@ -679,7 +678,6 @@ export function useRecoveryController({
 
     const waitForActiveState = useCallback(
         async (torrentId: string, timeoutMs = 1000) => {
-            const client = clientRef.current;
             if (!client || !client.getTorrentDetails) {
                 return true;
             }
@@ -697,7 +695,7 @@ export function useRecoveryController({
             }
             return false;
         },
-        [clientRef],
+        [client],
     );
 
     const resumeTorrentWithRecovery = useCallback(
@@ -795,7 +793,7 @@ export function useRecoveryController({
 
     const executeRetryFetch = useCallback(
         async (target: Torrent | TorrentDetail) => {
-            const activeClient = clientRef.current;
+            const activeClient = client;
             if (!activeClient) return;
             clearVerifyGuardEntry(getRecoveryFingerprint(target));
 
@@ -816,7 +814,7 @@ export function useRecoveryController({
                 showFeedback(t("recovery.feedback.retry_failed"), "warning");
             }
         },
-        [clientRef, requestRecovery, refreshAfterRecovery, showFeedback, t],
+        [client, requestRecovery, refreshAfterRecovery, showFeedback, t],
     );
 
     const handleRecoveryRetry = useCallback(async () => {

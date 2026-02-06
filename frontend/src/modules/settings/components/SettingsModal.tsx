@@ -90,7 +90,6 @@ export function SettingsModal({ viewModel }: SettingsModalProps) {
         onRestoreInsights,
         onToggleWorkspaceStyle,
         onReconnect,
-        isNativeMode,
         isImmersive,
         hasDismissedInsights,
         onApplyUserPreferencesPatch,
@@ -147,7 +146,6 @@ export function SettingsModal({ viewModel }: SettingsModalProps) {
         uiMode === "Full" && shellAgentAvailable;
     // TODO: Replace `connectionMode` checks with `uiMode = Full | Rpc`.
     // TODO: Settings should not know about tinytorrent-local-shell naming; it should read `uiMode` from the Session+UiMode provider and derive:
-    // TODO: - `effectiveNativeMode = isNativeMode && uiMode === "Full"`
     // TODO: - `canBrowseDirectories = uiMode === "Full"`
     const [jsonCopyStatus, setJsonCopyStatus] = useState<
         "idle" | "copied" | "failed"
@@ -162,7 +160,6 @@ export function SettingsModal({ viewModel }: SettingsModalProps) {
         };
     }, []);
 
-    const effectiveNativeMode = isNativeMode && hasNativeShellBridge;
     const canBrowseDirectories = canBrowse;
 
     const setFieldDraft = useCallback(
@@ -518,7 +515,7 @@ export function SettingsModal({ viewModel }: SettingsModalProps) {
     const visibleTabs = useMemo(
         () =>
             SETTINGS_TABS.filter((tab) => {
-                if (isNativeMode && tab.id === "connection") return false;
+                if (uiMode === "Full" && tab.id === "connection") return false;
                 if (tab.isCustom) {
                     if (tab.id === "system") {
                         return systemTabVisible;
@@ -529,7 +526,7 @@ export function SettingsModal({ viewModel }: SettingsModalProps) {
                     hasVisibleBlocks(section.blocks)
                 );
             }),
-        [hasVisibleBlocks, systemTabVisible, isNativeMode]
+        [hasVisibleBlocks, systemTabVisible, uiMode]
     );
 
     const safeVisibleTabs = visibleTabs.length
@@ -547,33 +544,33 @@ export function SettingsModal({ viewModel }: SettingsModalProps) {
         }
     }, [activeTab, safeVisibleTabs]);
 
-    const settingsFormContext = useMemo(
+    const settingsFormState = useMemo(
         () => ({
             config,
             updateConfig,
             setFieldDraft,
+            jsonCopyStatus,
+            configJson,
+        }),
+        [config, updateConfig, setFieldDraft, jsonCopyStatus, configJson]
+    );
+    const settingsFormActions = useMemo(
+        () => ({
             capabilities,
             buttonActions,
             canBrowseDirectories,
             onBrowse: handleBrowse,
-            jsonCopyStatus,
             onCopyConfigJson: handleCopyConfigJson,
-            configJson,
             onReconnect: safeReconnect,
             isImmersive: Boolean(isImmersive),
         }),
         [
+            capabilities,
             buttonActions,
             canBrowseDirectories,
-            config,
-            configJson,
             handleBrowse,
             handleCopyConfigJson,
-            jsonCopyStatus,
             safeReconnect,
-            updateConfig,
-            setFieldDraft,
-            capabilities,
             isImmersive,
         ]
     );
@@ -588,7 +585,7 @@ export function SettingsModal({ viewModel }: SettingsModalProps) {
             classNames={{
                 base: cn(
                     GLASS_MODAL_SURFACE,
-                    isNativeMode
+                    uiMode === "Full"
                         ? "flex flex-row max-h-full max-w-full overflow-hidden"
                         : "flex flex-row h-[var(--tt-modal-settings-h)] max-h-[var(--tt-modal-settings-h)] min-h-[var(--tt-modal-settings-min-h)] overflow-hidden"
                 ),
@@ -737,17 +734,16 @@ export function SettingsModal({ viewModel }: SettingsModalProps) {
                                             {t("settings.load_error")}
                                         </div>
                                     )}
-                                    <SettingsFormProvider
-                                        value={settingsFormContext}
-                                    >
+                                        <SettingsFormProvider
+                                            stateValue={settingsFormState}
+                                            actionsValue={settingsFormActions}
+                                        >
                                         {activeTabDefinition.id ===
                                         "connection" ? (
-                                        <ConnectionTabContent isNativeMode={isNativeMode} />
+                                        <ConnectionTabContent />
                                         ) : activeTabDefinition.id ===
                                           "system" ? (
-                                            <SystemTabContent
-                                                isNativeMode={effectiveNativeMode}
-                                            />
+                                            <SystemTabContent />
                                         ) : activeTabDefinition.id === "gui" ? (
                                             <InterfaceTabContent
                                                 isImmersive={Boolean(

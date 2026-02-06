@@ -15,7 +15,6 @@ import { useSession } from "@/app/context/SessionContext";
 
 interface ConnectionManagerProps {
     onReconnect: () => void;
-    isNativeMode: boolean;
 }
 
 interface ConnectionManagerState {
@@ -56,7 +55,6 @@ function useConnectionManagerState(): ConnectionManagerState {
 
 export function ConnectionCredentialsCard({
     onReconnect,
-    isNativeMode,
 }: ConnectionManagerProps) {
     const { t } = useTranslation();
     const [showAdvanced, setShowAdvanced] = useState(false);
@@ -79,6 +77,7 @@ export function ConnectionCredentialsCard({
 
     const { uiMode } = uiCapabilities;
     const isFullMode = uiMode === "Full";
+    const isNativeMode = isFullMode;
     const modeLabelKey = useMemo(() => {
         if (rpcStatus !== STATUS.connection.CONNECTED) {
             return "settings.connection.detecting_mode_label";

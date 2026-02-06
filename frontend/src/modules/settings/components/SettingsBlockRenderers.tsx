@@ -19,7 +19,10 @@ import {
 import { ICON_STROKE_WIDTH } from "@/config/logic";
 import { LanguageMenu } from "@/shared/ui/controls/LanguageMenu";
 import { BufferedInput } from "@/modules/settings/components/BufferedInput";
-import { useSettingsForm } from "@/modules/settings/context/SettingsFormContext";
+import {
+    useSettingsFormActions,
+    useSettingsFormState,
+} from "@/modules/settings/context/SettingsFormContext";
 
 // TODO: Architectural boundary: SettingsBlockRenderers must be view-only.
 // TODO: - No RPC calls, no ShellExtensions calls, no capability inference.
@@ -35,7 +38,7 @@ export function SwitchSliderRenderer({
     block: Extract<SectionBlock, { type: "switch-slider" }>;
 }) {
     const { t } = useTranslation();
-    const { config, updateConfig } = useSettingsForm();
+    const { config, updateConfig } = useSettingsFormState();
 
     const rawValue = config[block.sliderKey] as number;
     const isSwitchOn = config[block.switchKey] as boolean;
@@ -88,7 +91,8 @@ export function SwitchRenderer({
     block: Extract<SectionBlock, { type: "switch" }>;
 }) {
     const { t } = useTranslation();
-    const { config, updateConfig, isImmersive, capabilities } = useSettingsForm();
+    const { config, updateConfig } = useSettingsFormState();
+    const { capabilities, isImmersive } = useSettingsFormActions();
     const dependsOn = block.dependsOn;
     const baseDisabled = dependsOn ? !(config[dependsOn] as boolean) : false;
     const blocklistUnsupported =
@@ -129,15 +133,13 @@ export function SwitchRenderer({
 // Extracted to be reusable by InputPair
 export function SingleInputRenderer({ block }: { block: InputBlock }) {
     const { t } = useTranslation();
+    const { config, updateConfig, setFieldDraft } = useSettingsFormState();
     const {
-        config,
-        updateConfig,
-        setFieldDraft,
         capabilities,
         buttonActions,
         canBrowseDirectories,
         onBrowse,
-    } = useSettingsForm();
+    } = useSettingsFormActions();
 
     const dependsOn = block.dependsOn;
     const isDisabled = dependsOn ? !(config[dependsOn] as boolean) : false;
@@ -295,7 +297,7 @@ export function DaySelectorRenderer({
     block: Extract<SectionBlock, { type: "day-selector" }>;
 }) {
     const { t } = useTranslation();
-    const { config, updateConfig } = useSettingsForm();
+    const { config, updateConfig } = useSettingsFormState();
     const selectedMask = config["alt_speed_time_day"] as number;
 
     const toggleDay = (mask: number) => {
@@ -345,7 +347,7 @@ export function SelectRenderer({
     block: Extract<SectionBlock, { type: "select" }>;
 }) {
     const { t } = useTranslation();
-    const { config, updateConfig } = useSettingsForm();
+    const { config, updateConfig } = useSettingsFormState();
 
     return (
         <Select
@@ -380,7 +382,7 @@ export function ButtonRowRenderer({
     block: Extract<SectionBlock, { type: "button-row" }>;
 }) {
     const { t } = useTranslation();
-    const { buttonActions } = useSettingsForm();
+    const { buttonActions } = useSettingsFormActions();
 
     return (
         <div className="flex">
@@ -429,7 +431,8 @@ export function RawConfigRenderer({
     block: Extract<SectionBlock, { type: "raw-config" }>;
 }) {
     const { t } = useTranslation();
-    const { onCopyConfigJson, jsonCopyStatus, configJson } = useSettingsForm();
+    const { jsonCopyStatus, configJson } = useSettingsFormState();
+    const { onCopyConfigJson } = useSettingsFormActions();
 
     return (
         <div className="space-y-tight">

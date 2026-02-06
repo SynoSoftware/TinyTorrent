@@ -1,5 +1,11 @@
-import { createContext, useContext, useEffect, useMemo, useRef } from "react";
-import type { ReactNode } from "react";
+import {
+    createContext,
+    useContext,
+    useEffect,
+    useMemo,
+    useRef,
+    type ReactNode,
+} from "react";
 import type {
     EngineAdapter,
     EngineCapabilities,
@@ -20,6 +26,7 @@ import { useTransmissionSession } from "@/app/hooks/useTransmissionSession";
 import type { TransmissionSessionSettings } from "@/services/rpc/types";
 import { resetMissingFilesStore } from "@/services/recovery/missingFilesStore";
 import { resetRecoveryControllerState } from "@/services/recovery/recovery-controller";
+import { useSessionSpeedHistoryFeed } from "@/shared/hooks/useSessionSpeedHistory";
 
 export interface SessionContextValue {
     torrentClient: EngineAdapter;
@@ -32,14 +39,20 @@ export interface SessionContextValue {
     updateRequestTimeout: (timeout: number) => void;
     engineInfo: EngineInfo | null;
     isDetectingEngine: boolean;
-    sessionStats: SessionStats | null;
-    liveTransportStatus: HeartbeatSource;
-    refreshSessionStatsData: () => Promise<void>;
     uiCapabilities: UiCapabilities;
     engineCapabilities: EngineCapabilities;
 }
 
+export interface SessionTelemetryContextValue {
+    sessionStats: SessionStats | null;
+    liveTransportStatus: HeartbeatSource;
+    refreshSessionStatsData: () => Promise<void>;
+}
+
 const SessionContext = createContext<SessionContextValue | null>(null);
+const SessionTelemetryContext = createContext<SessionTelemetryContextValue | null>(
+    null,
+);
 
 interface SessionProviderProps {
     children: ReactNode;
@@ -59,14 +72,6 @@ export function SessionProvider({ children }: SessionProviderProps) {
         isDetectingEngine,
     } = useTransmissionSession(torrentClient);
 
-    const isMountedRef = useRef(false);
-    useEffect(() => {
-        isMountedRef.current = true;
-        return () => {
-            isMountedRef.current = false;
-        };
-    }, []);
-
     const previousClientRef = useRef<EngineAdapter | null>(null);
     useEffect(() => {
         if (previousClientRef.current !== torrentClient) {
@@ -75,14 +80,6 @@ export function SessionProvider({ children }: SessionProviderProps) {
             previousClientRef.current = torrentClient;
         }
     }, [torrentClient]);
-
-    const { sessionStats, liveTransportStatus, refreshSessionStatsData } =
-        useSessionStats({
-            torrentClient,
-            reportReadError,
-            isMountedRef,
-            sessionReady: rpcStatus === STATUS.connection.CONNECTED,
-        });
 
     const { activeProfile } = useConnectionConfig();
     const { shellAgent } = useShellAgent();
@@ -112,9 +109,6 @@ export function SessionProvider({ children }: SessionProviderProps) {
             updateRequestTimeout,
             engineInfo,
             isDetectingEngine,
-            sessionStats,
-            liveTransportStatus,
-            refreshSessionStatsData,
             uiCapabilities,
             engineCapabilities,
         }),
@@ -129,9 +123,6 @@ export function SessionProvider({ children }: SessionProviderProps) {
             updateRequestTimeout,
             engineInfo,
             isDetectingEngine,
-            sessionStats,
-            liveTransportStatus,
-            refreshSessionStatsData,
             uiCapabilities,
             engineCapabilities,
         ],
@@ -139,8 +130,44 @@ export function SessionProvider({ children }: SessionProviderProps) {
 
     return (
         <SessionContext.Provider value={sessionValue}>
-            {children}
+            <SessionTelemetryProvider>{children}</SessionTelemetryProvider>
         </SessionContext.Provider>
+    );
+}
+
+function SessionTelemetryProvider({ children }: SessionProviderProps) {
+    const { torrentClient, reportReadError, rpcStatus } = useSession();
+    const isMountedRef = useRef(false);
+
+    useEffect(() => {
+        isMountedRef.current = true;
+        return () => {
+            isMountedRef.current = false;
+        };
+    }, []);
+
+    const { sessionStats, liveTransportStatus, refreshSessionStatsData } =
+        useSessionStats({
+            torrentClient,
+            reportReadError,
+            isMountedRef,
+            sessionReady: rpcStatus === STATUS.connection.CONNECTED,
+        });
+    useSessionSpeedHistoryFeed(sessionStats);
+
+    const telemetryValue = useMemo(
+        () => ({
+            sessionStats,
+            liveTransportStatus,
+            refreshSessionStatsData,
+        }),
+        [sessionStats, liveTransportStatus, refreshSessionStatsData],
+    );
+
+    return (
+        <SessionTelemetryContext.Provider value={telemetryValue}>
+            {children}
+        </SessionTelemetryContext.Provider>
     );
 }
 
@@ -148,6 +175,16 @@ export function useSession() {
     const context = useContext(SessionContext);
     if (!context) {
         throw new Error("useSession must be used within SessionProvider");
+    }
+    return context;
+}
+
+export function useSessionTelemetry() {
+    const context = useContext(SessionTelemetryContext);
+    if (!context) {
+        throw new Error(
+            "useSessionTelemetry must be used within SessionProvider",
+        );
     }
     return context;
 }

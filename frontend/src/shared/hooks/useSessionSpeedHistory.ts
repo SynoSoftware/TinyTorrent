@@ -1,40 +1,107 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { CONFIG } from "@/config/logic";
 import type { SessionStats } from "@/services/rpc/entities";
-import { useUiClock } from "@/shared/hooks/useUiClock";
+import { subscribeUiClock } from "@/shared/hooks/useUiClock";
 
 const HISTORY_POINTS = CONFIG.performance.history_data_points;
 
 const createHistoryBuffer = () =>
     new Array(HISTORY_POINTS).fill(0);
 
-export const useSessionSpeedHistory = (sessionStats: SessionStats | null) => {
-    const { tick } = useUiClock();
-    const statsRef = useRef<SessionStats | null>(sessionStats);
-    const [history, setHistory] = useState(() => ({
+type SessionHistorySnapshot = {
+    down: number[];
+    up: number[];
+};
+
+class SessionSpeedHistoryStore {
+    private subscribers = new Set<() => void>();
+    private stats: SessionStats | null = null;
+    private history: SessionHistorySnapshot = {
         down: createHistoryBuffer(),
         up: createHistoryBuffer(),
-    }));
+    };
+    private feedOwners = 0;
+    private unsubscribeClock?: () => void;
 
+    public setStats(next: SessionStats | null) {
+        this.stats = next;
+    }
+
+    public getSnapshot() {
+        return this.history;
+    }
+
+    public subscribe(listener: () => void) {
+        this.subscribers.add(listener);
+        return () => {
+            this.subscribers.delete(listener);
+        };
+    }
+
+    public attachFeedOwner() {
+        this.feedOwners += 1;
+        this.ensureClock();
+        return () => {
+            this.feedOwners = Math.max(0, this.feedOwners - 1);
+            if (this.feedOwners === 0) {
+                this.unsubscribeClock?.();
+                this.unsubscribeClock = undefined;
+            }
+        };
+    }
+
+    private emit() {
+        this.subscribers.forEach((listener) => {
+            try {
+                listener();
+            } catch {
+                // Keep telemetry stream resilient to consumer errors.
+            }
+        });
+    }
+
+    private advance() {
+        const nextDown = this.history.down.slice(1);
+        const nextUp = this.history.up.slice(1);
+        const down = this.stats?.downloadSpeed ?? 0;
+        const up = this.stats?.uploadSpeed ?? 0;
+        nextDown.push(down);
+        nextUp.push(up);
+        this.history = { down: nextDown, up: nextUp };
+        this.emit();
+    }
+
+    private ensureClock() {
+        if (this.unsubscribeClock) return;
+        this.unsubscribeClock = subscribeUiClock(() => {
+            this.advance();
+        });
+    }
+}
+
+const sessionSpeedHistoryStore = new SessionSpeedHistoryStore();
+
+export const useSessionSpeedHistoryFeed = (sessionStats: SessionStats | null) => {
     useEffect(() => {
-        statsRef.current = sessionStats;
+        sessionSpeedHistoryStore.setStats(sessionStats);
     }, [sessionStats]);
 
     useEffect(() => {
-        setHistory((prev) => {
-            const nextDown = prev.down.slice(1);
-            const nextUp = prev.up.slice(1);
-            const down = statsRef.current?.downloadSpeed ?? 0;
-            const up = statsRef.current?.uploadSpeed ?? 0;
-            nextDown.push(down);
-            nextUp.push(up);
-            return {
-                down: nextDown,
-                up: nextUp,
-            };
+        return sessionSpeedHistoryStore.attachFeedOwner();
+    }, []);
+};
+
+export const useSessionSpeedHistory = () => {
+    const [history, setHistory] = useState(() =>
+        sessionSpeedHistoryStore.getSnapshot()
+    );
+
+    useEffect(() => {
+        return sessionSpeedHistoryStore.subscribe(() => {
+            setHistory(sessionSpeedHistoryStore.getSnapshot());
         });
-    }, [tick]);
+    }, []);
 
     return history;
 };

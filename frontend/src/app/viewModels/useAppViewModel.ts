@@ -4,7 +4,6 @@ import type { SettingsConfig } from "@/modules/settings/data/config";
 import type {
     SessionStats,
     NetworkTelemetry,
-    TorrentEntity,
     TorrentPeerEntity,
 } from "@/services/rpc/entities";
 import type { HeartbeatSource } from "@/services/rpc/heartbeat";
@@ -90,7 +89,6 @@ export interface SettingsModalViewModel {
     onRestoreInsights?: () => void;
     onToggleWorkspaceStyle?: () => void;
     onReconnect: () => void;
-    isNativeMode: boolean;
     isImmersive?: boolean;
     hasDismissedInsights: boolean;
     onApplyUserPreferencesPatch?: (
@@ -127,7 +125,6 @@ export interface WorkspaceShellViewModel {
         confirmDelete: (overrideDeleteData?: boolean) => Promise<void>;
     };
     navbar: NavbarViewModel;
-    statusBar: StatusBarViewModel;
     isNativeHost: boolean;
     commandPalette: {
         actions: CommandAction[];
@@ -178,7 +175,8 @@ export interface StatusBarViewModel {
     uiMode: UiMode;
     handleReconnect: () => void;
     selectedCount: number;
-    torrents: TorrentEntity[];
+    activeDownloadCount: number;
+    activeDownloadRequiredBytes: number;
 }
 
 export interface AppViewModel {

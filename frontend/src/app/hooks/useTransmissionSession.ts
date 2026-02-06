@@ -9,6 +9,7 @@ import type {
 } from "@/shared/types/rpc";
 import { STATUS } from "@/shared/status";
 import { useRpcConnection } from "./useRpcConnection";
+import { useEngineSessionDomain } from "@/app/providers/engineDomains";
 
 type UseTransmissionSessionResult = {
     client: EngineAdapter;
@@ -28,6 +29,7 @@ type UseTransmissionSessionResult = {
 export function useTransmissionSession(
     client: EngineAdapter
 ): UseTransmissionSessionResult {
+    const sessionDomain = useEngineSessionDomain(client);
     const {
         rpcStatus,
         isReady,
@@ -50,28 +52,23 @@ export function useTransmissionSession(
     }, []);
 
     const refreshSessionSettings = useCallback(async () => {
-        if (!client.fetchSessionSettings) {
-            throw new Error(
-                "Session settings not supported by the torrent client"
-            );
-        }
-        const session = await client.fetchSessionSettings();
+        const session = await sessionDomain.fetchSessionSettings();
         if (isMountedRef.current) {
             setSessionSettings(session);
         }
         return session;
-    }, [client]);
+    }, [sessionDomain]);
 
     const updateRequestTimeout = useCallback(
         (timeout: number) => {
-            client.updateRequestTimeout?.(timeout);
+            sessionDomain.updateRequestTimeout(timeout);
         },
-        [client]
+        [sessionDomain]
     );
 
     useEffect(() => {
         let active = true;
-        if (!client.detectEngine || rpcStatus !== STATUS.connection.CONNECTED) {
+        if (!sessionDomain.canDetectEngine || rpcStatus !== STATUS.connection.CONNECTED) {
             if (active) {
                 setEngineInfo(null);
                 setIsDetectingEngine(false);
@@ -80,7 +77,7 @@ export function useTransmissionSession(
         }
         // TODO: Treat `engineInfo` as debug/diagnostics only. UI mode (TinyTorrent vs Transmission UX) must be derived from `uiMode = "Full" | "Rpc"` (loopback + ShellExtensions availability), not from engine detection.
         setIsDetectingEngine(true);
-        void client
+        void sessionDomain
             .detectEngine()
             .then((info) => {
                 if (!active) return;
@@ -97,7 +94,7 @@ export function useTransmissionSession(
         return () => {
             active = false;
         };
-    }, [client, rpcStatus]);
+    }, [sessionDomain, rpcStatus]);
     // TODO: Pull session detection/rpcStatus/engineInfo into the planned Session provider so AppContent reads from one source of truth instead of hook chaining.
 
     return {
