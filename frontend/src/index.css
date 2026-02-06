@@ -190,6 +190,9 @@
     --tt-priority-badge-padding-y: var(--p-1);
     --tt-file-icon-size: calc(4 * var(--u) * var(--z));
     --tt-file-checkbox-padding: var(--p-1);
+    --tt-add-file-col-select-min-w: calc(
+        var(--tt-size-btn) + var(--spacing-tools)
+    );
     --tt-add-file-col-select-w: calc(12 * var(--u) * var(--z));
     --tt-add-file-col-name-min-w: calc(28 * var(--u) * var(--z));
     --tt-add-file-col-size-min-w: calc(14 * var(--u) * var(--z));
@@ -197,14 +200,19 @@
     --tt-add-file-col-priority-min-w: calc(20 * var(--u) * var(--z));
     --tt-add-file-col-priority-w: calc(24 * var(--u) * var(--z));
     --tt-add-file-table-min-w: calc(
-        var(--tt-add-file-col-select-w) + var(--tt-add-file-col-name-min-w) +
-            var(--tt-add-file-col-size-w) + var(--tt-add-file-col-priority-w)
+        var(--tt-add-file-col-select-min-w) +
+            var(--tt-add-file-col-name-min-w) +
+            var(--tt-add-file-col-size-min-w) +
+            var(--tt-add-file-col-priority-min-w)
     );
 
     /* Responsive file table topology.
        Keep non-name columns compact and allow the name column to absorb free space.
        This prevents non-fullscreen overflow while preserving readability. */
-    --tt-file-grid-template: var(--tt-add-file-col-select-w)
+    --tt-file-grid-template: minmax(
+            var(--tt-add-file-col-select-min-w),
+            var(--tt-add-file-col-select-w)
+        )
         minmax(var(--tt-add-file-col-name-min-w), 1fr)
         minmax(var(--tt-add-file-col-size-min-w), var(--tt-add-file-col-size-w))
         minmax(

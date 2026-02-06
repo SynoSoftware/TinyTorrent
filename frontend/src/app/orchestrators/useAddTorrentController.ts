@@ -10,7 +10,7 @@ import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
 import type {
     AddTorrentSelection,
     AddTorrentSource,
-} from "@/modules/torrent-add/components/AddTorrentModal";
+} from "@/modules/torrent-add/types";
 import { readTorrentFileAsMetainfoBase64 } from "@/modules/torrent-add/services/torrent-metainfo";
 import { TorrentIntents } from "@/app/intents/torrentIntents";
 // feedback tone type no longer required here; controller reads feedback hook internally
