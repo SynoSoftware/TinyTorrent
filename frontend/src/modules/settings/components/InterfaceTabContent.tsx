@@ -1,7 +1,10 @@
 import { Button, Switch } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 import { SettingsSection } from "@/modules/settings/components/SettingsSection";
-import { useSettingsForm } from "@/modules/settings/context/SettingsFormContext";
+import {
+    useSettingsFormActions,
+    useSettingsFormState,
+} from "@/modules/settings/context/SettingsFormContext";
 import { LanguageMenu } from "@/shared/ui/controls/LanguageMenu";
 import { RawConfigRenderer } from "@/modules/settings/components/SettingsBlockRenderers";
 
@@ -21,7 +24,8 @@ export function InterfaceTabContent({
     hasDismissedInsights,
 }: InterfaceTabContentProps) {
     const { t } = useTranslation();
-    const { config, updateConfig, buttonActions } = useSettingsForm();
+    const { config, updateConfig } = useSettingsFormState();
+    const { buttonActions } = useSettingsFormActions();
 
     const canToggleShell = typeof onToggleWorkspaceStyle === "function";
 

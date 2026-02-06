@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { STATUS } from "@/shared/status";
-import type { EngineAdapter } from "@/services/rpc/engine-adapter";
-import type { MutableRefObject } from "react";
 import { useEngineCapabilities } from "@/app/hooks/useEngineCapabilities";
 import type {
     DetailTab,
@@ -39,6 +37,7 @@ import type {
     SettingsActions,
 } from "@/app/viewModels/workspaceShellModels";
 import type {
+    StatusBarViewModel,
     StatusBarTransportStatus,
     WorkspaceShellViewModel,
 } from "./useAppViewModel";
@@ -49,7 +48,7 @@ import { useWorkspaceShell } from "@/app/hooks/useWorkspaceShell";
 import { useWorkspaceModals } from "@/app/WorkspaceModalContext";
 import { useSettingsFlow } from "@/app/hooks/useSettingsFlow";
 import { useTorrentClient } from "@/app/providers/TorrentClientProvider";
-import { useSession } from "@/app/context/SessionContext";
+import { useSession, useSessionTelemetry } from "@/app/context/SessionContext";
 import { useTorrentData } from "@/modules/dashboard/hooks/useTorrentData";
 import { useTorrentDetail } from "@/modules/dashboard/hooks/useTorrentDetail";
 import { useDetailControls } from "@/modules/dashboard/hooks/useDetailControls";
@@ -67,61 +66,64 @@ import { useHudCards } from "@/app/hooks/useHudCards";
 import type { TransmissionFreeSpace } from "@/services/rpc/types";
 
 export interface WorkspaceShellController {
-    workspace: WorkspaceShellViewModel;
-    commandApi: {
-        handleTorrentAction: (
-            action: TorrentTableAction,
-            torrent: Torrent,
-            options?: { deleteData?: boolean },
-        ) => Promise<void>;
-        handleBulkAction: (action: TorrentTableAction) => Promise<void>;
-        openAddMagnet: () => void;
-        openAddTorrentPicker: () => void;
+    shell: {
+        workspace: WorkspaceShellViewModel;
+        statusBar: StatusBarViewModel;
+        refreshHandles: WorkspaceRefreshHandles;
     };
-    commandPaletteState: {
-        isOpen: boolean;
-        setIsOpen: (value: boolean) => void;
+    commands: {
+        commandApi: {
+            handleTorrentAction: (
+                action: TorrentTableAction,
+                torrent: Torrent,
+                options?: { deleteData?: boolean },
+            ) => Promise<void>;
+            handleBulkAction: (action: TorrentTableAction) => Promise<void>;
+            openAddMagnet: () => void;
+            openAddTorrentPicker: () => void;
+        };
+        commandPaletteState: {
+            isOpen: boolean;
+            setIsOpen: (value: boolean) => void;
+        };
+        globalHotkeys: {
+            torrents: Torrent[];
+            selectedTorrents: Torrent[];
+            detailData: TorrentDetail | null;
+            handleRequestDetails: (torrent: Torrent) => Promise<void>;
+            handleCloseDetail: () => void;
+        };
     };
-    globalHotkeys: {
-        torrents: Torrent[];
-        selectedTorrents: Torrent[];
-        detailData: TorrentDetail | null;
-        handleRequestDetails: (torrent: Torrent) => Promise<void>;
-        handleCloseDetail: () => void;
+    recovery: {
+        recoveryContext: RecoveryContextValue;
+        recoveryModalProps: Pick<
+            { viewModel: RecoveryModalViewModel },
+            "viewModel"
+        >;
     };
-    recoveryContext: RecoveryContextValue;
-    recoveryModalProps: Pick<
-        { viewModel: RecoveryModalViewModel },
-        "viewModel"
-    >;
-    addMagnetModalProps: AddMagnetModalProps;
-    addTorrentModalProps: AddTorrentModalProps | null;
+    addTorrent: {
+        addMagnetModalProps: AddMagnetModalProps;
+        addTorrentModalProps: AddTorrentModalProps | null;
+    };
 }
 
-export interface UseWorkspaceShellViewModelParams {
-    refreshSessionStatsDataRef: MutableRefObject<() => Promise<void>>;
-    refreshTorrentsRef: MutableRefObject<() => Promise<void>>;
-    refreshDetailDataRef: MutableRefObject<() => Promise<void>>;
-    torrentClientRef: MutableRefObject<EngineAdapter | null>;
+export interface WorkspaceRefreshHandles {
+    refreshSessionStatsData: () => Promise<void>;
+    refreshTorrents: () => Promise<void>;
+    refreshDetailData: () => Promise<void>;
 }
 
-export function useWorkspaceShellViewModel({
-    refreshSessionStatsDataRef,
-    refreshTorrentsRef,
-    refreshDetailDataRef,
-    torrentClientRef,
-}: UseWorkspaceShellViewModelParams): WorkspaceShellController {
+export function useWorkspaceShellViewModel(): WorkspaceShellController {
     const { t } = useTranslation();
     const torrentClient = useTorrentClient();
     const {
         rpcStatus,
-        sessionStats,
-        liveTransportStatus,
-        refreshSessionStatsData,
         reconnect,
         markTransportConnected,
         uiCapabilities,
     } = useSession();
+    const { sessionStats, liveTransportStatus, refreshSessionStatsData } =
+        useSessionTelemetry();
     // feedback handled within lower-level hooks when needed
     const commandPalette = useCommandPalette();
     const focusSearchInput = useCallback(() => {
@@ -172,14 +174,6 @@ export function useWorkspaceShellViewModel({
     const isMountedRef = useRef(false);
 
     useEffect(() => {
-        torrentClientRef.current = torrentClient;
-    }, [torrentClient, torrentClientRef]);
-
-    useEffect(() => {
-        refreshSessionStatsDataRef.current = refreshSessionStatsData;
-    }, [refreshSessionStatsData, refreshSessionStatsDataRef]);
-
-    useEffect(() => {
         isMountedRef.current = true;
         return () => {
             isMountedRef.current = false;
@@ -190,8 +184,6 @@ export function useWorkspaceShellViewModel({
 
     const settingsFlow = useSettingsFlow({
         torrentClient,
-        refreshTorrentsRef,
-        refreshSessionStatsDataRef,
         isSettingsOpen,
         isMountedRef,
     });
@@ -205,6 +197,7 @@ export function useWorkspaceShellViewModel({
         torrents,
         isInitialLoadFinished,
         refresh: refreshTorrents,
+        runtimeSummary,
         ghostTorrents,
     } = useTorrentData({
         client: torrentClient,
@@ -212,10 +205,6 @@ export function useWorkspaceShellViewModel({
         pollingIntervalMs,
         markTransportConnected,
     });
-
-    useEffect(() => {
-        refreshTorrentsRef.current = refreshTorrents;
-    }, [refreshTorrents, refreshTorrentsRef]);
 
     const {
         detailData,
@@ -228,14 +217,10 @@ export function useWorkspaceShellViewModel({
         isMountedRef,
     });
 
-    useEffect(() => {
-        refreshDetailDataRef.current = refreshDetailData;
-    }, [refreshDetailData, refreshDetailDataRef]);
-
     const orchestrator = useTorrentOrchestrator({
-        clientRef: torrentClientRef,
-        refreshTorrentsRef,
-        refreshSessionStatsDataRef,
+        client: torrentClient,
+        refreshTorrents,
+        refreshSessionStatsData,
         refreshDetailData,
         torrents,
         detailData,
@@ -424,11 +409,8 @@ export function useWorkspaceShellViewModel({
     };
 
     const refreshAfterRecheck = useCallback(async () => {
-        const refresh = refreshTorrentsRef.current;
-        if (refresh) {
-            await refresh();
-        }
-    }, [refreshTorrentsRef]);
+        await refreshTorrents();
+    }, [refreshTorrents]);
 
     const {
         optimisticStatuses,
@@ -521,32 +503,29 @@ export function useWorkspaceShellViewModel({
     );
 
     const rehashStatus = useMemo(() => {
-        const verifyingTorrents = torrents.filter(
-            (torrent) => torrent.state === "checking",
-        );
-        if (!verifyingTorrents.length) {
+        if (!runtimeSummary.verifyingCount) {
             return undefined;
         }
-        const totalProgress = verifyingTorrents.reduce(
-            (acc, torrent) =>
-                acc + (torrent.verificationProgress ?? torrent.progress ?? 0),
-            0,
-        );
-        const value = (totalProgress / verifyingTorrents.length) * 100;
+        const value = runtimeSummary.verifyingAverageProgress * 100;
         const label =
-            verifyingTorrents.length === 1
+            runtimeSummary.verifyingCount === 1
                 ? t("toolbar.rehash_progress.single", {
-                      name: verifyingTorrents[0].name,
+                      name: runtimeSummary.singleVerifyingName ?? "",
                   })
                 : t("toolbar.rehash_progress.multiple", {
-                      count: verifyingTorrents.length,
+                      count: runtimeSummary.verifyingCount,
                   });
         return {
             active: true,
             value: Math.min(Math.max(value, 0), 100),
             label,
         };
-    }, [t, torrents]);
+    }, [
+        runtimeSummary.singleVerifyingName,
+        runtimeSummary.verifyingAverageProgress,
+        runtimeSummary.verifyingCount,
+        t,
+    ]);
 
     const transportStatus: StatusBarTransportStatus =
         rpcStatus === STATUS.connection.CONNECTED
@@ -670,7 +649,8 @@ export function useWorkspaceShellViewModel({
         uiCapabilities,
         reconnect,
         selectedCount: selectedIds.length,
-        torrents,
+        activeDownloadCount: runtimeSummary.activeDownloadCount,
+        activeDownloadRequiredBytes: runtimeSummary.activeDownloadRequiredBytes,
     });
 
     const navbarSelectionActions = useMemo(
@@ -769,7 +749,6 @@ export function useWorkspaceShellViewModel({
         actions: settingsActions,
         toggleWorkspaceStyle,
         reconnect,
-        shellAgentAvailable: shellAgent.isAvailable,
         workspaceStyle,
         hasDismissedInsights,
         openSettings,
@@ -838,7 +817,6 @@ export function useWorkspaceShellViewModel({
         hud: hudViewModel,
         deletion: deletionViewModel,
         navbar: navbarViewModel,
-        statusBar: statusBarViewModel,
         commandPalette: commandPaletteModel,
     });
 
@@ -929,23 +907,42 @@ export function useWorkspaceShellViewModel({
         browseDirectory,
     });
 
+    const refreshHandles = useMemo<WorkspaceRefreshHandles>(
+        () => ({
+            refreshSessionStatsData,
+            refreshTorrents,
+            refreshDetailData,
+        }),
+        [refreshSessionStatsData, refreshTorrents, refreshDetailData],
+    );
+
     return {
-        workspace: workspaceShellModel,
-        commandApi,
-        commandPaletteState: {
-            isOpen: commandPalette.isOpen,
-            setIsOpen: commandPalette.setIsOpen,
+        shell: {
+            workspace: workspaceShellModel,
+            statusBar: statusBarViewModel,
+            refreshHandles,
         },
-        globalHotkeys: {
-            torrents,
-            selectedTorrents,
-            detailData,
-            handleRequestDetails,
-            handleCloseDetail,
+        commands: {
+            commandApi,
+            commandPaletteState: {
+                isOpen: commandPalette.isOpen,
+                setIsOpen: commandPalette.setIsOpen,
+            },
+            globalHotkeys: {
+                torrents,
+                selectedTorrents,
+                detailData,
+                handleRequestDetails,
+                handleCloseDetail,
+            },
         },
-        recoveryContext,
-        recoveryModalProps: { viewModel: recoveryModalViewModel },
-        addMagnetModalProps,
-        addTorrentModalProps,
+        recovery: {
+            recoveryContext,
+            recoveryModalProps: { viewModel: recoveryModalViewModel },
+        },
+        addTorrent: {
+            addMagnetModalProps,
+            addTorrentModalProps,
+        },
     };
 }

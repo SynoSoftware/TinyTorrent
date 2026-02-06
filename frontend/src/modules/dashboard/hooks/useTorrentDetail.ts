@@ -9,6 +9,7 @@ import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import { useSession } from "@/app/context/SessionContext";
 import { STATUS } from "@/shared/status";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
+import { useEngineHeartbeatDomain } from "@/app/providers/engineDomains";
 
 interface UseTorrentDetailParams {
     torrentClient: EngineAdapter;
@@ -32,6 +33,7 @@ export function useTorrentDetail({
     torrentClient,
     isMountedRef,
 }: UseTorrentDetailParams): UseTorrentDetailResult {
+    const heartbeatDomain = useEngineHeartbeatDomain(torrentClient);
     const { reportReadError, rpcStatus } = useSession();
     const sessionReady = rpcStatus === STATUS.connection.CONNECTED;
     const [detailData, setDetailData] = useState<TorrentDetail | null>(null);
@@ -106,7 +108,7 @@ export function useTorrentDetail({
 
     useEffect(() => {
         if (!sessionReady || !detailData?.id) return;
-        const subscription = torrentClient.subscribeToHeartbeat({
+        const subscription = heartbeatDomain.subscribeNonTable({
             mode: "detail",
             detailId: detailData.id,
             onUpdate: ({ detail, timestampMs }) => {
@@ -130,7 +132,7 @@ export function useTorrentDetail({
     }, [
         sessionReady,
         detailData?.id,
-        torrentClient,
+        heartbeatDomain,
         reportReadError,
         commitDetailState,
         isMountedRef,

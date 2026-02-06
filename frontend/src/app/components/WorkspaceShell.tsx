@@ -1,6 +1,7 @@
 import { AnimatePresence, motion, type Transition } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import { Button, cn } from "@heroui/react";
+import { memo } from "react";
 import RemoveConfirmationModal from "@/modules/torrent-remove/components/RemoveConfirmationModal";
 import { X } from "lucide-react";
 import { STATUS } from "@/shared/status";
@@ -21,7 +22,10 @@ import {
     INTERACTION_CONFIG,
 } from "@/config/logic";
 import { StatusIcon } from "@/shared/ui/components/StatusIcon";
-import type { WorkspaceShellViewModel } from "@/app/viewModels/useAppViewModel";
+import type {
+    StatusBarViewModel,
+    WorkspaceShellViewModel,
+} from "@/app/viewModels/useAppViewModel";
 
 const MODAL_SPRING_TRANSITION = INTERACTION_CONFIG.modalBloom.transition;
 const TOAST_SPRING_TRANSITION: Transition = {
@@ -37,11 +41,19 @@ const HUD_COLUMNS = {
     3: "xl:grid-cols-3",
 };
 
+const MemoNavbar = memo(Navbar);
+const MemoDashboardLayout = memo(Dashboard_Layout);
+const MemoSettingsModal = memo(SettingsModal);
+
 interface WorkspaceShellProps {
     workspaceViewModel: WorkspaceShellViewModel;
+    statusBarViewModel: StatusBarViewModel;
 }
 
-export function WorkspaceShell({ workspaceViewModel }: WorkspaceShellProps) {
+export function WorkspaceShell({
+    workspaceViewModel,
+    statusBarViewModel,
+}: WorkspaceShellProps) {
     const {
         dragAndDrop,
         workspaceStyle: workspaceStyleControls,
@@ -50,24 +62,25 @@ export function WorkspaceShell({ workspaceViewModel }: WorkspaceShellProps) {
         hud,
         deletion,
         navbar,
-        statusBar,
         isNativeHost,
     } = workspaceViewModel;
     const { getRootProps, getInputProps } = dragAndDrop;
     const { workspaceStyle, toggleWorkspaceStyle } = workspaceStyleControls;
     const { visibleHudCards, dismissHudCard, hasDismissedInsights } = hud;
     const { pendingDelete, clearPendingDelete, confirmDelete } = deletion;
-    const { rpcStatus, handleReconnect } = statusBar;
+    const { rpcStatus, handleReconnect } = statusBarViewModel;
     const isImmersiveShell = workspaceStyle === "immersive";
     const { t } = useTranslation();
 
-    const renderNavbar = () => <Navbar viewModel={navbar} />;
+    const renderNavbar = () => <MemoNavbar viewModel={navbar} />;
 
     const renderModeLayoutSection = () => (
-        <Dashboard_Layout viewModel={dashboard} />
+        <MemoDashboardLayout viewModel={dashboard} />
     );
 
-    const renderStatusBarSection = () => <StatusBar viewModel={statusBar} />;
+    const renderStatusBarSection = () => (
+        <StatusBar viewModel={statusBarViewModel} />
+    );
 
     const renderDeleteModal = () => (
         <RemoveConfirmationModal
@@ -313,7 +326,7 @@ export function WorkspaceShell({ workspaceViewModel }: WorkspaceShellProps) {
 
             {renderDeleteModal()}
 
-            <SettingsModal viewModel={settingsModal} />
+            <MemoSettingsModal viewModel={settingsModal} />
         </div>
     );
 }

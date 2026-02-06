@@ -4,7 +4,7 @@ import type {
     TabDefinition,
 } from "@/modules/settings/data/settings-tabs";
 import { SettingsSection } from "@/modules/settings/components/SettingsSection";
-import { useSettingsForm } from "@/modules/settings/context/SettingsFormContext";
+import { useSettingsFormState } from "@/modules/settings/context/SettingsFormContext";
 import {
     SwitchSliderRenderer,
     SwitchRenderer,
@@ -39,7 +39,7 @@ const BLOCK_COMPONENTS: Record<string, (props: { block: any }) => ReactNode> = {
 
 export function SettingsFormBuilder({ tab }: SettingsFormBuilderProps) {
     const { t } = useTranslation();
-    const { config } = useSettingsForm();
+    const { config } = useSettingsFormState();
 
     return (
         <>

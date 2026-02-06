@@ -2,24 +2,26 @@ import { useTranslation } from "react-i18next";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import { SpeedChart } from "@/modules/dashboard/components/TorrentDetails_Speed_Chart";
 import { useEngineSpeedHistory } from "@/shared/hooks/useEngineSpeedHistory";
-import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
-import { TEXT_ROLES } from "../hooks/utils/textRoles";
-import { cn } from "@heroui/react";
 import STATUS from "@/shared/status";
 
 interface SpeedTabProps {
-    torrent: TorrentDetail;
+    torrentId: string | number;
+    torrentState?: string;
     isStandalone?: boolean;
 }
 
-export const SpeedTab = ({ torrent, isStandalone = false }: SpeedTabProps) => {
+export const SpeedTab = ({
+    torrentId,
+    torrentState,
+    isStandalone = false,
+}: SpeedTabProps) => {
     const { t } = useTranslation();
-    const isChecking = torrent.state === STATUS.torrent.CHECKING;
+    const isChecking = torrentState === STATUS.torrent.CHECKING;
     if (isChecking) {
         return null;
     }
     const { down: downHistory, up: upHistory } = useEngineSpeedHistory(
-        torrent.id
+        String(torrentId)
     );
     const isHistoryEmpty = downHistory.length === 0 && upHistory.length === 0;
 

@@ -115,9 +115,6 @@ const renderVisibleCells = (row: Row<Torrent>) =>
         );
     });
 
-const isQueueSortActive = (sorting: SortingState) =>
-    sorting.some((item) => item.id === "queue");
-
 export interface UseTorrentTableViewModelParams {
     viewModel: TorrentTableViewModel;
     disableDetailOpen?: boolean;
@@ -130,15 +127,10 @@ export interface UseTorrentTableViewModelResult {
         parentRef: React.RefObject<HTMLDivElement | null>;
         tableContainerRef: React.RefObject<HTMLDivElement | null>;
         measureLayerRef: React.RefObject<HTMLDivElement | null>;
-        focusReturnRef: React.MutableRefObject<HTMLElement | null>;
     };
     state: {
-        sorting: SortingState;
         columnOrder: string[];
-        columnVisibility: Record<string, boolean>;
-        columnSizing: Record<string, number>;
         columnSizingInfo: ColumnSizingInfoState;
-        rowSelection: RowSelectionState;
         contextMenu: TableContextMenu | null;
         headerContextMenu: HeaderContextMenu | null;
         isColumnModalOpen: boolean;
@@ -147,15 +139,12 @@ export interface UseTorrentTableViewModelResult {
         activeRowId: string | null;
         dropTargetRowId: string | null;
         highlightedRowId: string | null;
-        pendingQueueOrder: string[] | null;
         isAnimationSuppressed: boolean;
         isAnyColumnResizing: boolean;
         canReorderQueue: boolean;
-        queueSortActive: boolean;
     };
     table: {
         instance: ReturnType<typeof useReactTable<Torrent>>;
-        data: Torrent[];
         rows: Row<Torrent>[];
         rowIds: string[];
         rowVirtualizer: TableVirtualizer;
@@ -172,7 +161,6 @@ export interface UseTorrentTableViewModelResult {
         rowsById: Map<string, Row<Torrent>>;
     };
     column: {
-        measuredMinWidths: Record<string, number>;
         handleColumnResizeStart: (
             column: Column<Torrent>,
             clientX: number,
@@ -182,16 +170,10 @@ export interface UseTorrentTableViewModelResult {
         hookActiveResizeColumnId: string | null;
     };
     selection: {
-        selectedTorrents: Torrent[];
         handleRowClick: (
             event: React.MouseEvent,
             rowId: string,
             index: number,
-        ) => void;
-        ensureContextSelection: (
-            rowId: string,
-            rowIndex: number,
-            currentSelection: RowSelectionState,
         ) => void;
     };
     interaction: {
@@ -307,7 +289,6 @@ export function useTorrentTableViewModel({
     const tableContainerRef = useRef<HTMLDivElement | null>(null);
     const measureLayerRef = useRef<HTMLDivElement | null>(null);
     const rowVirtualizerRef = useRef<TableVirtualizer | null>(null);
-    const focusReturnRef = useRef<HTMLElement | null>(null);
     const rowsRef = useRef<Row<Torrent>[]>([]);
     const selectionBridgeRef = useRef<{
         getSelectionSnapshot: () => RowSelectionState;
@@ -552,8 +533,7 @@ export function useTorrentTableViewModel({
         clearSelection: selection.clearSelection,
     };
 
-    const openColumnModal = useCallback((trigger?: HTMLElement | null) => {
-        focusReturnRef.current = trigger ?? null;
+    const openColumnModal = useCallback((_trigger?: HTMLElement | null) => {
         setIsColumnModalOpen(true);
     }, []);
 
@@ -751,7 +731,6 @@ export function useTorrentTableViewModel({
         }
     }, [contextMenu, torrents]);
 
-    const queueSortActive = isQueueSortActive(sorting);
     const isAnimationSuppressed =
         isAnyColumnResizing || animationSuppressionActive;
 
@@ -776,15 +755,10 @@ export function useTorrentTableViewModel({
             parentRef,
             tableContainerRef,
             measureLayerRef,
-            focusReturnRef,
         },
         state: {
-            sorting,
             columnOrder,
-            columnVisibility,
-            columnSizing,
             columnSizingInfo,
-            rowSelection,
             contextMenu,
             headerContextMenu,
             isColumnModalOpen,
@@ -793,15 +767,12 @@ export function useTorrentTableViewModel({
             activeRowId,
             dropTargetRowId,
             highlightedRowId,
-            pendingQueueOrder,
             isAnimationSuppressed,
             isAnyColumnResizing,
             canReorderQueue,
-            queueSortActive,
         },
         table: {
             instance: table,
-            data: tableData,
             rows,
             rowIds,
             rowVirtualizer,
@@ -813,16 +784,13 @@ export function useTorrentTableViewModel({
             rowsById,
         },
         column: {
-            measuredMinWidths,
             handleColumnResizeStart,
             handleColumnAutoFitRequest,
             autoFitAllColumns,
             hookActiveResizeColumnId,
         },
         selection: {
-            selectedTorrents: selection.selectedTorrents,
             handleRowClick: selection.handleRowClick,
-            ensureContextSelection: selection.ensureContextSelection,
         },
         interaction: {
             sensors: interactions.sensors,

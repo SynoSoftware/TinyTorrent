@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useTorrentClient } from "@/app/providers/TorrentClientProvider";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 import type {
     ReportCommandErrorFn,
@@ -7,6 +6,7 @@ import type {
     ConnectionStatus,
 } from "@/shared/types/rpc";
 import { STATUS } from "@/shared/status";
+import { useEngineSessionDomain } from "@/app/providers/engineDomains";
 
 type UseRpcConnectionResult = {
     rpcStatus: ConnectionStatus;
@@ -20,8 +20,7 @@ type UseRpcConnectionResult = {
 export function useRpcConnection(
     client?: EngineAdapter
 ): UseRpcConnectionResult {
-    const defaultClient = useTorrentClient();
-    const resolvedClient: EngineAdapter = client ?? defaultClient;
+    const sessionDomain = useEngineSessionDomain(client);
 
     const [rpcStatus, setRpcStatus] = useState<ConnectionStatus>(
         STATUS.connection.IDLE
@@ -65,18 +64,7 @@ export function useRpcConnection(
         updateStatus(STATUS.connection.IDLE);
         setIsReady(false);
         try {
-            // Prefer a raw session-settings probe which allows errors to
-            // surface (so the UI sees true connection failures). Fall back
-            // to getSessionStats when fetchSessionSettings is not available.
-            const anyClient = resolvedClient as any;
-            if (
-                anyClient &&
-                typeof anyClient.fetchSessionSettings === "function"
-            ) {
-                await anyClient.fetchSessionSettings();
-            } else {
-                await resolvedClient.getSessionStats();
-            }
+            await sessionDomain.probeConnection();
 
             updateStatus(STATUS.connection.CONNECTED);
             if (isMountedRef.current) setIsReady(true);
@@ -86,7 +74,7 @@ export function useRpcConnection(
             if (isMountedRef.current) setIsReady(false);
             throw err;
         }
-    }, [resolvedClient, updateStatus]);
+    }, [sessionDomain, updateStatus]);
 
     useEffect(() => {
         isMountedRef.current = true;
@@ -102,17 +90,7 @@ export function useRpcConnection(
         setIsReady(false);
 
         try {
-            const anyClient = resolvedClient as any;
-            if (anyClient && typeof anyClient.resetConnection === "function") {
-                try {
-                    anyClient.resetConnection();
-                } catch (err) {
-                    console.debug(
-                        "[tiny-torrent][rpc] resetConnection failed",
-                        err
-                    );
-                }
-            }
+            sessionDomain.resetConnection();
 
             await connect();
         } catch (err) {
@@ -120,7 +98,7 @@ export function useRpcConnection(
             reportTransportError(err);
             if (isMountedRef.current) setIsReady(false);
         }
-    }, [resolvedClient, connect, reportTransportError]);
+    }, [sessionDomain, connect, reportTransportError]);
 
     return {
         rpcStatus,

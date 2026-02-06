@@ -11,6 +11,7 @@ import {
 } from "@/modules/settings/data/config";
 import { usePreferences } from "@/app/context/PreferencesContext";
 import { useSession } from "@/app/context/SessionContext";
+import { useEngineSessionDomain } from "@/app/providers/engineDomains";
 
 const padTime = (value: number) => String(value).padStart(2, "0");
 const minutesToTimeString = (time: number | undefined, fallback: string) => {
@@ -202,8 +203,6 @@ const mapConfigToSession = (
 
 interface UseSettingsFlowParams {
     torrentClient: EngineAdapter;
-    refreshTorrentsRef: MutableRefObject<() => Promise<void>>;
-    refreshSessionStatsDataRef: MutableRefObject<() => Promise<void>>;
     isSettingsOpen: boolean;
     isMountedRef: MutableRefObject<boolean>;
 }
@@ -212,11 +211,10 @@ export type UseSettingsFlowResult = ReturnType<typeof useSettingsFlow>;
 
 export function useSettingsFlow({
     torrentClient,
-    refreshTorrentsRef,
-    refreshSessionStatsDataRef,
     isSettingsOpen,
     isMountedRef,
 }: UseSettingsFlowParams) {
+    const sessionDomain = useEngineSessionDomain(torrentClient);
     const {
         reportCommandError,
         rpcStatus,
@@ -289,13 +287,8 @@ export function useSettingsFlow({
             let sessionPayload: Partial<TransmissionSessionSettings> | null =
                 null;
             try {
-                if (!torrentClient.updateSessionSettings) {
-                    throw new Error(
-                        "Session settings not supported by this client",
-                    );
-                }
                 sessionPayload = mapConfigToSession(config, sessionSettings);
-                await torrentClient.updateSessionSettings(sessionPayload);
+                await sessionDomain.updateSessionSettings(sessionPayload);
                 if (isMountedRef.current) {
                     setSettingsConfig(config);
                     if (sessionPayload) {
@@ -304,8 +297,12 @@ export function useSettingsFlow({
                             ...sessionPayload,
                         }));
                     }
-                    await refreshTorrentsRef.current();
-                    await refreshSessionStatsDataRef.current();
+                    try {
+                        const latest = await refreshSessionSettings();
+                        setSessionSettings(latest);
+                    } catch {
+                        // Keep save flow resilient even if post-save sync fails.
+                    }
                 }
             } catch (error) {
                 console.error("Failed to save settings", {
@@ -328,28 +325,24 @@ export function useSettingsFlow({
             }
         },
         [
-            refreshSessionStatsDataRef,
-            refreshTorrentsRef,
             reportCommandError,
-            torrentClient,
             isMountedRef,
             sessionSettings,
+            refreshSessionSettings,
+            sessionDomain,
         ],
     );
 
     const handleTestPort = useCallback(async (): Promise<boolean> => {
-        if (!torrentClient.testPort) {
-            throw new Error("settings.modal.error_test_port");
-        }
         try {
-            return await torrentClient.testPort();
+            return await sessionDomain.testPort();
         } catch (error) {
             if (isMountedRef.current && !isRpcCommandError(error)) {
                 reportCommandError(error);
             }
             throw error;
         }
-    }, [reportCommandError, torrentClient, isMountedRef]);
+    }, [isMountedRef, reportCommandError, sessionDomain]);
 
     const applyUserPreferencesPatch = useCallback(
         (patch: Partial<PreferencePayload>) => {

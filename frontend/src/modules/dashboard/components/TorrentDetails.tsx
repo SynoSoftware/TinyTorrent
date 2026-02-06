@@ -164,8 +164,8 @@ export function TorrentDetails({
                 )}
                 {active === "speed" && torrent && (
                     <SpeedTab
-                        // SpeedTab expects engine-driven histories; pass basic props
-                        torrent={torrent}
+                        torrentId={torrent.id}
+                        torrentState={typeof torrent.state === "string" ? torrent.state : undefined}
                         isStandalone={isStandalone}
                     />
                 )}

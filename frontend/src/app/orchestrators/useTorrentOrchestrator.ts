@@ -1,5 +1,4 @@
 import { useRef } from "react";
-import type { MutableRefObject } from "react";
 import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 // ServerClass type not needed in this orchestrator
 import type { SettingsConfig } from "@/modules/settings/data/config";
@@ -11,9 +10,9 @@ import { useAddTorrentController } from "@/app/orchestrators/useAddTorrentContro
 import type { UseAddTorrentControllerResult } from "@/app/orchestrators/useAddTorrentController";
 
 export interface UseTorrentOrchestratorParams {
-    clientRef: MutableRefObject<EngineAdapter | null>;
-    refreshTorrentsRef: MutableRefObject<() => Promise<void>>;
-    refreshSessionStatsDataRef: MutableRefObject<() => Promise<void>>;
+    client: EngineAdapter;
+    refreshTorrents: () => Promise<void>;
+    refreshSessionStatsData: () => Promise<void>;
     refreshDetailData: () => Promise<void>;
     torrents: Array<Torrent | TorrentDetail>;
     detailData: TorrentDetail | null;
@@ -27,9 +26,9 @@ export interface UseTorrentOrchestratorResult {
 }
 
 export function useTorrentOrchestrator({
-    clientRef,
-    refreshTorrentsRef,
-    refreshSessionStatsDataRef,
+    client,
+    refreshTorrents,
+    refreshSessionStatsData,
     refreshDetailData,
     torrents,
     detailData,
@@ -48,15 +47,15 @@ export function useTorrentOrchestrator({
 
     const recovery = useRecoveryController({
         services: {
-            clientRef,
+            client,
         },
         data: {
             torrents,
             detailData,
         },
         refresh: {
-            refreshTorrentsRef,
-            refreshSessionStatsDataRef,
+            refreshTorrents,
+            refreshSessionStatsData,
             refreshDetailData,
             clearDetail,
             pendingDeletionHashesRef,

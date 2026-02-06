@@ -6,6 +6,10 @@ import type { SessionStats } from "@/services/rpc/entities";
 import type { ReportReadErrorFn } from "@/shared/types/rpc";
 import type { HeartbeatSource } from "@/services/rpc/heartbeat";
 import { isRpcCommandError } from "@/services/rpc/errors";
+import {
+    useEngineHeartbeatDomain,
+    useEngineSessionDomain,
+} from "@/app/providers/engineDomains";
 
 interface UseSessionStatsParams {
     torrentClient: EngineAdapter;
@@ -20,6 +24,8 @@ export function useSessionStats({
     isMountedRef,
     sessionReady,
 }: UseSessionStatsParams) {
+    const heartbeatDomain = useEngineHeartbeatDomain(torrentClient);
+    const sessionDomain = useEngineSessionDomain(torrentClient);
     const [sessionStats, setSessionStats] = useState<SessionStats | null>(null);
     const [liveTransportStatus, setLiveTransportStatus] =
         useState<HeartbeatSource>("polling");
@@ -30,7 +36,7 @@ export function useSessionStats({
 
     const refreshSessionStatsData = useCallback(async () => {
         try {
-            const stats = await torrentClient.getSessionStats();
+            const stats = await sessionDomain.getSessionStats();
             if (isMountedRef.current) {
                 setSessionStats(stats);
             }
@@ -39,12 +45,11 @@ export function useSessionStats({
                 reportReadError();
             }
         }
-    }, [isMountedRef, reportReadError, torrentClient]);
+    }, [isMountedRef, reportReadError, sessionDomain]);
 
     useEffect(() => {
         if (!sessionReady) return;
-        const subscription = torrentClient.subscribeToHeartbeat({
-            mode: "table",
+        const subscription = heartbeatDomain.subscribeTable({
             onUpdate: ({ sessionStats: stats, source }) => {
                 if (!isMountedRef.current || !stats) return;
                 setSessionStats(stats);
@@ -60,13 +65,7 @@ export function useSessionStats({
         return () => {
             subscription.unsubscribe();
         };
-    }, [sessionReady, torrentClient, isMountedRef, reportReadError]);
-
-    useEffect(() => {
-        console.log(
-            `[tiny-torrent][heartbeat] liveTransportStatus -> ${liveTransportStatus}`
-        );
-    }, [liveTransportStatus]);
+    }, [heartbeatDomain, isMountedRef, reportReadError, sessionReady]);
 
     return {
         sessionStats,
