@@ -1,5 +1,8 @@
-import type { ErrorEnvelope } from "@/services/rpc/entities";
-import type { MissingFilesClassification } from "@/services/recovery/recovery-controller";
+import type { ErrorEnvelope, RecoveryAction } from "@/services/rpc/entities";
+import type {
+    MissingFilesClassification,
+    RecoveryRecommendedAction,
+} from "@/services/recovery/recovery-controller";
 import type { TFunction } from "i18next";
 
 // TODO: Move recovery formatting to accept the *recovery gate output* (typed `{state, confidence, recommendedActions}`) instead of parsing `ErrorEnvelope` directly.
@@ -11,14 +14,36 @@ import type { TFunction } from "i18next";
 // TODO: - Add new formatters that accept gate state and remove reliance on `errorMessage` string parsing.
 // TODO: Align with todo.md tasks 9, 10, 12.
 
-const RECOVERY_HINT_KEY: Record<string, string> = {
+type RecoveryHintAction =
+    | RecoveryAction
+    | RecoveryRecommendedAction
+    | "unknown";
+
+const RECOVERY_HINT_KEY: Record<RecoveryHintAction, string> = {
     changeLocation: "recovery.hint.changeLocation",
+    chooseLocation: "recovery.hint.chooseLocation",
+    downloadMissing: "recovery.hint.downloadMissing",
+    locate: "recovery.hint.locate",
     forceRecheck: "recovery.hint.forceRecheck",
     openFolder: "recovery.hint.openFolder",
     pause: "recovery.hint.pause",
     reannounce: "recovery.hint.reannounce",
+    reDownload: "recovery.hint.downloadMissing",
+    resume: "recovery.hint.resume",
     removeReadd: "recovery.hint.removeReadd",
+    retry: "recovery.hint.retry",
+    setLocation: "recovery.hint.chooseLocation",
+    dismiss: "recovery.hint.unknown",
     unknown: "recovery.hint.unknown",
+};
+
+const resolveRecoveryHintKey = (action: string) =>
+    RECOVERY_HINT_KEY[action as RecoveryHintAction] ?? `recovery.hint.${action}`;
+
+const translateRecoveryHint = (action: string, t: TFunction) => {
+    const key = resolveRecoveryHintKey(action);
+    const value = t(key);
+    return value === key ? t("recovery.hint.unknown") : value;
 };
 
 const RECOVERY_STATE_LABEL_KEY: Record<string, string> = {
@@ -112,9 +137,7 @@ export const formatRecoveryTooltip = (
     if (envelope.automationHint?.recommendedAction) {
         const action = envelope.automationHint.recommendedAction;
         if (!(envelope.errorClass === "missingFiles" && action === "removeReadd")) {
-            const hintKey =
-                RECOVERY_HINT_KEY[action] ?? `recovery.hint.${action}`;
-            const hint = t(hintKey);
+            const hint = translateRecoveryHint(action, t);
             parts.push(hint);
         }
     }
@@ -128,8 +151,7 @@ export const formatPrimaryActionHint = (
 ) => {
     if (!envelope?.primaryAction) return null;
     const action = envelope.primaryAction;
-    const key = RECOVERY_HINT_KEY[action] ?? `recovery.hint.${action}`;
-    return t(key);
+    return translateRecoveryHint(action, t);
 };
 
 export default formatRecoveryStatus;
@@ -252,6 +274,5 @@ export const formatPrimaryActionHintFromClassification = (
         return null;
     }
     const action = classification.recommendedActions[0];
-    const key = RECOVERY_HINT_KEY[action] ?? `recovery.hint.${action}`;
-    return t(key);
+    return translateRecoveryHint(action, t);
 };

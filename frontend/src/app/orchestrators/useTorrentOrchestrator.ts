@@ -3,14 +3,15 @@ import type { EngineAdapter } from "@/services/rpc/engine-adapter";
 // ServerClass type not needed in this orchestrator
 import type { SettingsConfig } from "@/modules/settings/data/config";
 import type { Torrent, TorrentDetail } from "@/modules/dashboard/types/torrent";
-import { useRequiredTorrentActions } from "@/app/context/TorrentActionsContext";
 import { useRecoveryController } from "@/modules/dashboard/hooks/useRecoveryController";
 import type { RecoveryControllerResult } from "@/modules/dashboard/hooks/useRecoveryController";
 import { useAddTorrentController } from "@/app/orchestrators/useAddTorrentController";
 import type { UseAddTorrentControllerResult } from "@/app/orchestrators/useAddTorrentController";
+import type { TorrentIntentExtended } from "@/app/intents/torrentIntents";
 
 export interface UseTorrentOrchestratorParams {
     client: EngineAdapter;
+    dispatch: (intent: TorrentIntentExtended) => Promise<void>;
     refreshTorrents: () => Promise<void>;
     refreshSessionStatsData: () => Promise<void>;
     refreshDetailData: () => Promise<void>;
@@ -27,6 +28,7 @@ export interface UseTorrentOrchestratorResult {
 
 export function useTorrentOrchestrator({
     client,
+    dispatch,
     refreshTorrents,
     refreshSessionStatsData,
     refreshDetailData,
@@ -35,7 +37,6 @@ export function useTorrentOrchestrator({
     settingsConfig,
     clearDetail,
 }: UseTorrentOrchestratorParams): UseTorrentOrchestratorResult {
-    const { dispatch } = useRequiredTorrentActions();
     const pendingDeletionHashesRef = useRef<Set<string>>(new Set());
 
     const addTorrent = useAddTorrentController({
@@ -60,6 +61,7 @@ export function useTorrentOrchestrator({
             clearDetail,
             pendingDeletionHashesRef,
         },
+        dispatch,
     });
 
     return {

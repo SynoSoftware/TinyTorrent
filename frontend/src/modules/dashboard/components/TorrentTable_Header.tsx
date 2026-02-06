@@ -4,7 +4,11 @@ import { useSortable, defaultAnimateLayoutChanges } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@heroui/react";
 import { ArrowDown, ArrowUp } from "lucide-react";
-import { flexRender, type Column, type Header } from "@tanstack/react-table";
+import {
+    flexRender,
+    type Column,
+    type Table,
+} from "@tanstack/react-table";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import {
     ICON_STROKE_WIDTH_DENSE,
@@ -14,6 +18,8 @@ import {
 } from "@/config/logic";
 import { PANEL_SHADOW } from "@/shared/ui/layout/glass-surface";
 import { getColumnWidthCss } from "./TorrentTable_Shared";
+
+type TorrentTableHeader = ReturnType<Table<Torrent>["getFlatHeaders"]>[number];
 
 const SUPPORTS_POINTER_EVENTS =
     typeof window !== "undefined" && "PointerEvent" in window;
@@ -34,7 +40,7 @@ const TorrentTable_Header = memo(
         isAnimationSuppressed: isAnimationSuppressed = false,
         isResizing = false,
     }: {
-        header: Header<Torrent, unknown>;
+        header: TorrentTableHeader;
         isOverlay?: boolean;
         onContextMenu?: (e: React.MouseEvent) => void;
         onAutoFitColumn?: (column: Column<Torrent>) => void;

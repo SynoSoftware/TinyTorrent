@@ -37,6 +37,7 @@ import type { RecoveryControllerResult } from "@/modules/dashboard/hooks/useReco
 import type { AmbientHudCard, DeleteIntent } from "@/app/types/workspace";
 import type { SettingsConfig } from "@/modules/settings/data/config";
 import type { UseAddTorrentControllerResult } from "@/app/orchestrators/useAddTorrentController";
+import type { DashboardFilter } from "@/modules/dashboard/types/dashboardFilter";
 import { scheduler } from "@/app/services/scheduler";
 import { getSurfaceCaptionKey } from "@/app/utils/setLocation";
 import type {
@@ -46,7 +47,7 @@ import type {
 
 export interface DashboardLayoutState {
     workspaceStyle: WorkspaceStyle;
-    filter: string;
+    filter: DashboardFilter;
     searchQuery: string;
     isDragActive: boolean;
     tableWatermarkEnabled: boolean;
@@ -89,12 +90,22 @@ export interface DashboardCapabilities {
     capabilities: CapabilityStore;
 }
 
+export interface DashboardViewModelDeps {
+    layout: DashboardLayoutState;
+    table: DashboardTableState;
+    detail: DashboardDetailState;
+    controls: DashboardDetailControls;
+    caps: DashboardCapabilities;
+}
+
 export function useDashboardViewModel(
-    layout: DashboardLayoutState,
-    table: DashboardTableState,
-    detail: DashboardDetailState,
-    controls: DashboardDetailControls,
-    caps: DashboardCapabilities
+    {
+        layout,
+        table,
+        detail,
+        controls,
+        caps,
+    }: DashboardViewModelDeps,
 ): DashboardViewModel {
     return useMemo(
         () => ({
@@ -118,18 +129,25 @@ export function useDashboardViewModel(
                 detailData: detail.detailData,
                 handleRequestDetails: controls.handleRequestDetails,
                 closeDetail: controls.closeDetail,
-                handleFileSelectionChange: controls.handleFileSelectionChange,
-                sequentialToggleHandler: controls.handleSequentialToggle,
-                superSeedingToggleHandler: controls.handleSuperSeedingToggle,
-                handleEnsureValid: controls.handleEnsureValid,
-                handleEnsureDataPresent: controls.handleEnsureDataPresent,
-                handleEnsureAtLocation: controls.handleEnsureAtLocation,
-                peerSortStrategy: detail.peerSortStrategy,
-                inspectorTabCommand: detail.inspectorTabCommand,
-                onInspectorTabCommandHandled: () =>
-                    controls.setInspectorTabCommand(null),
                 isDetailRecoveryBlocked: detail.isDetailRecoveryBlocked,
-                handlePeerContextAction: undefined,
+                tabs: {
+                    navigation: {
+                        inspectorTabCommand: detail.inspectorTabCommand,
+                        onInspectorTabCommandHandled: () =>
+                            controls.setInspectorTabCommand(null),
+                    },
+                    content: {
+                        handleFileSelectionChange:
+                            controls.handleFileSelectionChange,
+                        handleEnsureValid: controls.handleEnsureValid,
+                        handleEnsureDataPresent: controls.handleEnsureDataPresent,
+                        handleEnsureAtLocation: controls.handleEnsureAtLocation,
+                    },
+                    peers: {
+                        peerSortStrategy: detail.peerSortStrategy,
+                        handlePeerContextAction: undefined,
+                    },
+                },
             },
         }),
         [layout, table, detail, controls, caps]
@@ -191,9 +209,9 @@ export function useStatusBarViewModel({
 }
 
 export interface NavbarQueryState {
-    filter: string;
+    filter: DashboardFilter;
     searchQuery: string;
-    setFilter: (value: string) => void;
+    setFilter: (value: DashboardFilter) => void;
     setSearchQuery: (value: string) => void;
     hasSelection: boolean;
 }
@@ -215,11 +233,20 @@ export interface NavbarShellControls {
     handleWindowCommand: (command: "minimize" | "maximize" | "close") => void;
 }
 
+export interface NavbarViewModelDeps {
+    query: NavbarQueryState;
+    derived: NavbarDerivedState;
+    navigation: NavbarNavigation;
+    shell: NavbarShellControls;
+}
+
 export function useNavbarViewModel(
-    query: NavbarQueryState,
-    derived: NavbarDerivedState,
-    navigation: NavbarNavigation,
-    shell: NavbarShellControls
+    {
+        query,
+        derived,
+        navigation,
+        shell,
+    }: NavbarViewModelDeps,
 ): NavbarViewModel {
     return useMemo(
         () => ({
@@ -510,12 +537,22 @@ export interface RecoveryContextSnapshot {
     getRecoverySessionForKey: RecoveryControllerResult["actions"]["getRecoverySessionForKey"];
 }
 
+export interface RecoveryContextModelDeps {
+    env: RecoveryContextEnv;
+    inlineEditor: RecoveryInlineEditorControls;
+    session: RecoveryContextSessionState;
+    setLocationCapability: RecoveryControllerResult["setLocation"]["capability"];
+    getRecoverySessionForKey: RecoveryControllerResult["actions"]["getRecoverySessionForKey"];
+}
+
 export function useRecoveryContextModel(
-    env: RecoveryContextEnv,
-    inlineEditor: RecoveryInlineEditorControls,
-    session: RecoveryContextSessionState,
-    setLocationCapability: RecoveryControllerResult["setLocation"]["capability"],
-    getRecoverySessionForKey: RecoveryControllerResult["actions"]["getRecoverySessionForKey"]
+    {
+        env,
+        inlineEditor,
+        session,
+        setLocationCapability,
+        getRecoverySessionForKey,
+    }: RecoveryContextModelDeps,
 ): RecoveryContextSnapshot {
     return useMemo(
         () => ({

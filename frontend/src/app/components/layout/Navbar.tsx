@@ -1,4 +1,5 @@
 import { Input, Tab, Tabs, cn } from "@heroui/react";
+import type { Key } from "react";
 import {
     DownloadCloud,
     ListChecks,
@@ -31,6 +32,7 @@ import {
     GLASS_BLOCK_SURFACE,
 } from "@/shared/ui/layout/glass-surface";
 import { getShellTokens } from "@/config/logic";
+import { isDashboardFilter } from "@/modules/dashboard/types/dashboardFilter";
 
 import type { NavbarViewModel } from "@/app/viewModels/useAppViewModel";
 
@@ -59,6 +61,11 @@ export function Navbar({ viewModel }: NavbarProps) {
     const shell = getShellTokens(workspaceStyle);
     const { isDark, toggle } = useTheme();
     const Icon = isDark ? Moon : Sun;
+    const handleFilterSelectionChange = (key: Key) => {
+        if (typeof key !== "string") return;
+        if (!isDashboardFilter(key)) return;
+        setFilter(key);
+    };
 
     return (
         <header
@@ -124,9 +131,7 @@ export function Navbar({ viewModel }: NavbarProps) {
                                 size="lg"
                                 radius="full"
                                 selectedKey={filter}
-                                onSelectionChange={(k) =>
-                                    setFilter(k as string)
-                                }
+                                onSelectionChange={handleFilterSelectionChange}
                                 classNames={{
                                     base: "",
                                     tabList:

@@ -78,14 +78,18 @@ export function useRpcConnection(
 
     useEffect(() => {
         isMountedRef.current = true;
-        void connect();
+        // `connect` already updates status state on failure. Swallow here to
+        // avoid unhandled promise rejections during initial mount probing.
+        const mountProbeTimer = window.setTimeout(() => {
+            void connect().catch(() => {});
+        }, 0);
         return () => {
+            window.clearTimeout(mountProbeTimer);
             isMountedRef.current = false;
         };
     }, [connect]);
 
     const reconnect = useCallback(async () => {
-        console.log("[tiny-torrent][rpc] reconnect requested");
         updateStatus(STATUS.connection.IDLE);
         setIsReady(false);
 
@@ -98,7 +102,7 @@ export function useRpcConnection(
             reportTransportError(err);
             if (isMountedRef.current) setIsReady(false);
         }
-    }, [sessionDomain, connect, reportTransportError]);
+    }, [sessionDomain, connect, reportTransportError, updateStatus]);
 
     return {
         rpcStatus,

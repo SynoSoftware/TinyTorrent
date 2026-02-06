@@ -64,10 +64,10 @@ export function useEngineSessionDomain(
     const contextClient = useTorrentClient();
     const client = getClient(clientOverride) ?? contextClient;
     return useMemo<EngineSessionDomain>(() => {
-        const fetchSessionSettings = client.fetchSessionSettings?.bind(client);
-        const updateSessionSettings = client.updateSessionSettings?.bind(client);
-        const testPort = client.testPort?.bind(client);
-        const detectEngine = client.detectEngine?.bind(client);
+        const fetchSessionSettings = client.fetchSessionSettings;
+        const updateSessionSettings = client.updateSessionSettings;
+        const testPort = client.testPort;
+        const detectEngine = client.detectEngine;
         const canFetchSessionSettings =
             typeof fetchSessionSettings === "function";
         const canUpdateSessionSettings =
@@ -81,44 +81,44 @@ export function useEngineSessionDomain(
             canTestPort,
             canDetectEngine,
             probeConnection: async () => {
-                if (fetchSessionSettings) {
-                    await fetchSessionSettings();
+                if (typeof fetchSessionSettings === "function") {
+                    await fetchSessionSettings.call(client);
                     return;
                 }
                 await client.getSessionStats();
             },
             getSessionStats: () => client.getSessionStats(),
             fetchSessionSettings: async () => {
-                if (!fetchSessionSettings) {
+                if (typeof fetchSessionSettings !== "function") {
                     throw new Error(
                         "Session settings not supported by the torrent client",
                     );
                 }
-                return fetchSessionSettings();
+                return fetchSessionSettings.call(client);
             },
             updateSessionSettings: async (
                 settings: Partial<TransmissionSessionSettings>,
             ) => {
-                if (!updateSessionSettings) {
+                if (typeof updateSessionSettings !== "function") {
                     throw new Error(
                         "Session settings not supported by this client",
                     );
                 }
-                await updateSessionSettings(settings);
+                await updateSessionSettings.call(client, settings);
             },
             testPort: async () => {
-                if (!testPort) {
+                if (typeof testPort !== "function") {
                     throw new Error("settings.modal.error_test_port");
                 }
-                return testPort();
+                return testPort.call(client);
             },
             detectEngine: async () => {
-                if (!detectEngine) {
+                if (typeof detectEngine !== "function") {
                     throw new Error(
                         "Engine detection not supported by this client",
                     );
                 }
-                return detectEngine();
+                return detectEngine.call(client);
             },
             resetConnection: () => {
                 if (typeof client.resetConnection === "function") {

@@ -1,8 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import { SpeedChart } from "@/modules/dashboard/components/TorrentDetails_Speed_Chart";
-import { useEngineSpeedHistory } from "@/shared/hooks/useEngineSpeedHistory";
-import STATUS from "@/shared/status";
+import { useTorrentDetailsSpeedViewModel } from "@/modules/dashboard/hooks/useTorrentDetailsSpeedViewModel";
 
 interface SpeedTabProps {
     torrentId: string | number;
@@ -16,17 +15,19 @@ export const SpeedTab = ({
     isStandalone = false,
 }: SpeedTabProps) => {
     const { t } = useTranslation();
-    const isChecking = torrentState === STATUS.torrent.CHECKING;
-    if (isChecking) {
-        return null;
-    }
-    const { down: downHistory, up: upHistory } = useEngineSpeedHistory(
-        String(torrentId)
-    );
-    const isHistoryEmpty = downHistory.length === 0 && upHistory.length === 0;
+    const { isChecking, downHistory, upHistory, isHistoryEmpty } =
+        useTorrentDetailsSpeedViewModel({
+            torrentId,
+            torrentState,
+        });
 
     const Content = (
         <>
+            {isChecking && (
+                <div className="mb-tight shrink-0 rounded-2xl border border-warning/30 bg-warning/10 p-panel text-scaled text-warning">
+                    {t("labels.status.torrent.checking")}
+                </div>
+            )}
             {isHistoryEmpty && (
                 <div className="mb-tight shrink-0 rounded-2xl border border-content1/20 bg-background/20 p-panel text-scaled text-foreground/50">
                     {t("torrent_modal.speed.collecting_samples")}

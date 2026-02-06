@@ -1,13 +1,6 @@
 import { cn } from "@heroui/react";
-import { useTranslation } from "react-i18next";
-import { GeneralTab } from "./TorrentDetails_General";
-import { ContentTab } from "./TorrentDetails_Content";
-import { PiecesTab } from "./TorrentDetails_Pieces";
-import { SpeedTab } from "./TorrentDetails_Speed";
-import { PeersTab } from "./TorrentDetails_Peers";
-import { TrackersTab } from "./TorrentDetails_Trackers";
 import { TorrentDetailHeader } from "./TorrentDetails_Header";
-import { useDetailTabs } from "../hooks/useDetailTabs";
+import { useTorrentDetailTabCoordinator } from "../hooks/useDetailTabs";
 import { useTorrentDetailHeaderStatus } from "../hooks/useTorrentDetailHeaderStatus";
 import {
     BLOCK_SHADOW,
@@ -45,26 +38,19 @@ export function TorrentDetails({
     onDock?: () => void;
     onPopout?: () => void;
 }) {
-    const { t } = useTranslation();
-    const {
-        detailData: torrent,
-        handleFileSelectionChange,
-        handleEnsureValid,
-        handleEnsureDataPresent,
-        handleEnsureAtLocation,
-        peerSortStrategy,
-        inspectorTabCommand,
-        onInspectorTabCommandHandled,
-        isDetailRecoveryBlocked,
-        handlePeerContextAction,
-    } = viewModel;
+    const { detailData: torrent } = viewModel;
     const { statusLabel, tooltip, primaryHint } = useTorrentDetailHeaderStatus({
         torrent,
     });
-    const { active, setActive, handleKeyDown } = useDetailTabs({
-        activeTorrentId: torrent?.id,
-        inspectorTabCommand,
-        onInspectorTabCommandHandled,
+    const {
+        active,
+        setActive,
+        handleKeyDown,
+        activeSurface,
+    } = useTorrentDetailTabCoordinator({
+        viewModel,
+        isRecoveryBlocked: isRecoveryBlocked ?? viewModel.isDetailRecoveryBlocked,
+        isStandalone,
     });
 
     return (
@@ -94,81 +80,7 @@ export function TorrentDetails({
             />
 
             <div className="flex-1 min-h-0 bg-transparent py-tight ">
-                {active === "general" && torrent && (
-                    <GeneralTab
-                        torrent={torrent}
-                        downloadDir={torrent.downloadDir ?? ""}
-                        activePeers={torrent.peers?.length ?? 0}
-                        isRecoveryBlocked={isRecoveryBlocked}
-                    />
-                )}
-                {active === "content" && torrent && (
-                    <ContentTab
-                        files={torrent.files ?? []}
-                        emptyMessage={t("torrent_modal.files_empty")}
-                        onFilesToggle={handleFileSelectionChange}
-                        onRecheck={
-                            torrent.id ?? torrent.hash
-                                ? () =>
-                                      void handleEnsureValid?.(
-                                          torrent.id ?? torrent.hash
-                                      )
-                                : undefined
-                        }
-                        onDownloadMissing={
-                            torrent.id ?? torrent.hash
-                                ? () =>
-                                      void handleEnsureDataPresent?.(
-                                          torrent.id ?? torrent.hash
-                                      )
-                                : undefined
-                        }
-                        onOpenFolder={
-                            (torrent.id ?? torrent.hash) &&
-                            torrent.savePath &&
-                            torrent.savePath.trim().length > 0
-                                ? () =>
-                                      void handleEnsureAtLocation?.(
-                                          torrent.id ?? torrent.hash,
-                                          torrent.savePath ?? ""
-                                      )
-                                : undefined
-                        }
-                        isStandalone={isStandalone}
-                    />
-                )}
-                {active === "pieces" && torrent && (
-                    <PiecesTab
-                        piecePercent={torrent.progress ?? 0}
-                        pieceCount={torrent.pieceCount}
-                        pieceSize={torrent.pieceSize}
-                        pieceStates={torrent.pieceStates}
-                        pieceAvailability={torrent.pieceAvailability}
-                    />
-                )}
-                {active === "trackers" && torrent && (
-                    <TrackersTab
-                        trackers={torrent.trackers ?? []}
-                        emptyMessage={t("torrent_modal.trackers.empty_backend")}
-                        isStandalone={isStandalone}
-                    />
-                )}
-                {active === "peers" && torrent && (
-                    <PeersTab
-                        peers={torrent.peers ?? []}
-                        onPeerContextAction={handlePeerContextAction}
-                        torrentProgress={torrent.progress ?? 0}
-                        sortBySpeed={peerSortStrategy === "speed"}
-                        isStandalone={isStandalone}
-                    />
-                )}
-                {active === "speed" && torrent && (
-                    <SpeedTab
-                        torrentId={torrent.id}
-                        torrentState={typeof torrent.state === "string" ? torrent.state : undefined}
-                        isStandalone={isStandalone}
-                    />
-                )}
+                {activeSurface}
             </div>
         </div>
     );

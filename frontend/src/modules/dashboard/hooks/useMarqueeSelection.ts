@@ -124,8 +124,7 @@ export function useMarqueeSelection<TRow>({
                         (bottomContent - 1) / rowHeight
                     );
                     const isAdditive =
-                        state.isAdditive ||
-                        (event as unknown as MouseEvent).shiftKey;
+                        state.isAdditive || event.shiftKey;
                     const nextSelection: Record<string, boolean> = isAdditive
                         ? { ...getBaseSelection() }
                         : {};
@@ -168,7 +167,6 @@ export function useMarqueeSelection<TRow>({
             const scrollTop =
                 parentRef.current?.scrollTop ?? container.scrollTop ?? 0;
             const endClientY = event.clientY - rect.top;
-            const startContentY = state.startClientY + scrollTop;
             const endContentY = endClientY + scrollTop;
 
             marqueeStateRef.current = null;

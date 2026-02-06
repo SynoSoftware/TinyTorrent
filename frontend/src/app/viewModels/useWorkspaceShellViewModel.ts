@@ -36,6 +36,10 @@ import type {
     SettingsSnapshot,
     SettingsActions,
 } from "@/app/viewModels/workspaceShellModels";
+import {
+    DASHBOARD_FILTERS,
+    type DashboardFilter,
+} from "@/modules/dashboard/types/dashboardFilter";
 import type {
     StatusBarViewModel,
     StatusBarTransportStatus,
@@ -55,23 +59,26 @@ import { useDetailControls } from "@/modules/dashboard/hooks/useDetailControls";
 import { useTorrentOrchestrator } from "@/app/orchestrators/useTorrentOrchestrator";
 import { useSelection } from "@/app/context/SelectionContext";
 import { useTorrentWorkflow } from "@/app/hooks/useTorrentWorkflow";
-import { useRequiredTorrentActions } from "@/app/context/TorrentActionsContext";
 import {
     dispatchTorrentAction,
     dispatchTorrentSelectionAction,
 } from "@/app/utils/torrentActionDispatcher";
-import { TorrentIntents } from "@/app/intents/torrentIntents";
+import {
+    TorrentIntents,
+    type TorrentIntentExtended,
+} from "@/app/intents/torrentIntents";
 import { useShellAgent } from "@/app/hooks/useShellAgent";
 import { useHudCards } from "@/app/hooks/useHudCards";
 import type { TransmissionFreeSpace } from "@/services/rpc/types";
+import { createTorrentDispatch } from "@/app/actions/torrentDispatch";
 
 export interface WorkspaceShellController {
     shell: {
         workspace: WorkspaceShellViewModel;
         statusBar: StatusBarViewModel;
-        refreshHandles: WorkspaceRefreshHandles;
     };
     commands: {
+        dispatch: (intent: TorrentIntentExtended) => Promise<void>;
         commandApi: {
             handleTorrentAction: (
                 action: TorrentTableAction,
@@ -107,12 +114,6 @@ export interface WorkspaceShellController {
     };
 }
 
-export interface WorkspaceRefreshHandles {
-    refreshSessionStatsData: () => Promise<void>;
-    refreshTorrents: () => Promise<void>;
-    refreshDetailData: () => Promise<void>;
-}
-
 export function useWorkspaceShellViewModel(): WorkspaceShellController {
     const { t } = useTranslation();
     const torrentClient = useTorrentClient();
@@ -121,6 +122,7 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         reconnect,
         markTransportConnected,
         uiCapabilities,
+        reportCommandError,
     } = useSession();
     const { sessionStats, liveTransportStatus, refreshSessionStatsData } =
         useSessionTelemetry();
@@ -160,11 +162,7 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         return async (path: string): Promise<TransmissionFreeSpace> => {
             try {
                 return await shellAgent.checkFreeSpace(path);
-            } catch (shellError) {
-                console.debug(
-                    "[add-torrent][free-space] shell probe failed; falling back to daemon RPC",
-                    shellError,
-                );
+            } catch {
                 return rpcCheckFreeSpace(path);
             }
         };
@@ -217,8 +215,27 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         isMountedRef,
     });
 
+    const dispatch = useMemo(
+        () =>
+            createTorrentDispatch({
+                client: torrentClient,
+                refreshTorrents,
+                refreshSessionStatsData,
+                refreshDetailData,
+                reportCommandError,
+            }),
+        [
+            torrentClient,
+            refreshTorrents,
+            refreshSessionStatsData,
+            refreshDetailData,
+            reportCommandError,
+        ],
+    );
+
     const orchestrator = useTorrentOrchestrator({
         client: torrentClient,
+        dispatch,
         refreshTorrents,
         refreshSessionStatsData,
         refreshDetailData,
@@ -309,6 +326,7 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         detailData,
         mutateDetail,
         capabilities,
+        dispatch,
     });
 
     const handleRequestDetails = useCallback(
@@ -357,8 +375,6 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         if (isStillPresent) return;
         handleCloseDetail();
     }, [detailData, torrents, handleCloseDetail]);
-
-    const { dispatch } = useRequiredTorrentActions();
 
     const handleEnsureValid = useCallback(
         async (torrentId: string | number) => {
@@ -546,7 +562,9 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         };
     }, [selectedTorrents]);
 
-    const [filter, setFilter] = useState("all");
+    const [filter, setFilter] = useState<DashboardFilter>(
+        DASHBOARD_FILTERS.ALL,
+    );
     const [searchQuery, setSearchQuery] = useState("");
     const [peerSortStrategy, setPeerSortStrategy] =
         useState<PeerSortStrategy>("none");
@@ -632,13 +650,13 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         [capabilities],
     );
 
-    const dashboardViewModel = useDashboardViewModel(
-        dashboardLayoutState,
-        dashboardTableState,
-        dashboardDetailState,
-        dashboardDetailControls,
-        dashboardCapabilities,
-    );
+    const dashboardViewModel = useDashboardViewModel({
+        layout: dashboardLayoutState,
+        table: dashboardTableState,
+        detail: dashboardDetailState,
+        controls: dashboardDetailControls,
+        caps: dashboardCapabilities,
+    });
 
     const statusBarViewModel = useStatusBarViewModel({
         workspaceStyle,
@@ -705,12 +723,12 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         [workspaceStyle, handleWindowCommand],
     );
 
-    const navbarViewModel = useNavbarViewModel(
-        navbarQueryState,
-        navbarDerivedState,
-        navbarNavigation,
-        navbarShellControls,
-    );
+    const navbarViewModel = useNavbarViewModel({
+        query: navbarQueryState,
+        derived: navbarDerivedState,
+        navigation: navbarNavigation,
+        shell: navbarShellControls,
+    });
 
     const settingsSnapshot = useMemo<SettingsSnapshot>(
         () => ({
@@ -850,13 +868,13 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         [recoverySession],
     );
 
-    const recoveryContextSnapshot = useRecoveryContextModel(
-        recoveryContextEnv,
-        recoveryInlineEditorControls,
-        recoverySessionState,
+    const recoveryContextSnapshot = useRecoveryContextModel({
+        env: recoveryContextEnv,
+        inlineEditor: recoveryInlineEditorControls,
+        session: recoverySessionState,
         setLocationCapability,
         getRecoverySessionForKey,
-    );
+    });
 
     const recoveryContext = useMemo(
         () => ({
@@ -907,22 +925,13 @@ export function useWorkspaceShellViewModel(): WorkspaceShellController {
         browseDirectory,
     });
 
-    const refreshHandles = useMemo<WorkspaceRefreshHandles>(
-        () => ({
-            refreshSessionStatsData,
-            refreshTorrents,
-            refreshDetailData,
-        }),
-        [refreshSessionStatsData, refreshTorrents, refreshDetailData],
-    );
-
     return {
         shell: {
             workspace: workspaceShellModel,
             statusBar: statusBarViewModel,
-            refreshHandles,
         },
         commands: {
+            dispatch,
             commandApi,
             commandPaletteState: {
                 isOpen: commandPalette.isOpen,

@@ -3,12 +3,23 @@ import { useRecoveryContext } from "@/app/context/RecoveryContext";
 import { useMissingFilesClassification } from "@/services/recovery/missingFilesStore";
 import { resolveRecoveryClassification } from "@/modules/dashboard/utils/recoveryClassification";
 import type { MissingFilesClassification } from "@/services/recovery/recovery-controller";
+import type { ErrorClass } from "@/services/rpc/entities";
 
 const getTorrentKey = (entry?: { id?: string | number; hash?: string } | null) =>
     entry?.id?.toString() ?? entry?.hash ?? "";
 
+const ACTIONABLE_RECOVERY_ERROR_CLASSES = new Set<ErrorClass>([
+    "missingFiles",
+    "permissionDenied",
+    "diskFull",
+]);
+
 export function useResolvedRecoveryClassification(
-    torrent?: { id?: string | number; hash?: string } | null
+    torrent?: {
+        id?: string | number;
+        hash?: string;
+        errorEnvelope?: { errorClass?: ErrorClass | null } | null;
+    } | null
 ): MissingFilesClassification | null {
     const { getRecoverySessionForKey } = useRecoveryContext();
     const torrentKey = getTorrentKey(torrent);
@@ -18,12 +29,20 @@ export function useResolvedRecoveryClassification(
         torrent?.id ?? torrent?.hash ?? undefined
     );
     return useMemo(
-        () =>
-            resolveRecoveryClassification({
+        () => {
+            const isActionable =
+                torrent?.errorEnvelope?.errorClass != null &&
+                ACTIONABLE_RECOVERY_ERROR_CLASSES.has(
+                    torrent.errorEnvelope.errorClass,
+                );
+            if (!isActionable && !sessionClassification) {
+                return null;
+            }
+            return resolveRecoveryClassification({
                 sessionClassification,
                 storedClassification,
-            }),
-        [sessionClassification, storedClassification]
+            });
+        },
+        [sessionClassification, storedClassification, torrent?.errorEnvelope?.errorClass]
     );
 }
-

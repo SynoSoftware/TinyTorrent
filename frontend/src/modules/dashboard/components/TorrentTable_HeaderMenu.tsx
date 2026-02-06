@@ -11,39 +11,27 @@ import {
 } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 import { GLASS_MENU_SURFACE } from "@/shared/ui/layout/glass-surface";
-import type { Column } from "@tanstack/react-table";
-import type { Torrent } from "@/modules/dashboard/types/torrent";
-type HeaderMenuItem = {
-    column: Column<Torrent>;
-    label: string;
-    isPinned: boolean;
-};
-type HeaderMenuActionOptions = { keepOpen?: boolean };
+import type { TorrentTableHeaderMenuViewModel } from "@/modules/dashboard/types/torrentTableSurfaces";
+
+export interface TorrentTableHeaderMenuProps {
+    viewModel: TorrentTableHeaderMenuViewModel;
+}
 
 export default function TorrentTable_HeaderMenu({
-    headerMenuTriggerRect,
-    onClose,
-    headerMenuActiveColumn,
-    headerMenuItems,
-    headerMenuHideLabel,
-    isHeaderMenuHideEnabled,
-    autoFitAllColumns,
-    handleHeaderMenuAction,
-}: {
-    headerMenuTriggerRect: DOMRect | null;
-    onClose: () => void;
-    headerMenuActiveColumn: Column<Torrent> | null;
-    headerMenuItems: HeaderMenuItem[];
-    headerMenuHideLabel: string;
-    isHeaderMenuHideEnabled: boolean;
-    autoFitAllColumns: () => void;
-    handleHeaderMenuAction: (
-        action: () => void,
-        options?: HeaderMenuActionOptions
-    ) => void;
-}) {
-    if (!headerMenuTriggerRect) return null;
+    viewModel,
+}: TorrentTableHeaderMenuProps) {
     const { t } = useTranslation();
+    const {
+        headerMenuTriggerRect,
+        onClose,
+        headerMenuActiveColumn,
+        headerMenuItems,
+        headerMenuHideLabel,
+        isHeaderMenuHideEnabled,
+        autoFitAllColumns,
+        handleHeaderMenuAction,
+    } = viewModel;
+    if (!headerMenuTriggerRect) return null;
     return (
         <AnimatePresence>
             <Dropdown

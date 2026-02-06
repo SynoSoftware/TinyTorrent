@@ -30,6 +30,7 @@ import {
     clearProbe as clearCachedProbe,
     pruneMissingFilesStore,
     setClassificationOverride,
+    getClassificationOverride,
 } from "@/services/recovery/missingFilesStore";
 import type {
     RecoveryGateAction,
@@ -44,16 +45,21 @@ import type {
     SetLocationSurface,
 } from "@/app/context/RecoveryContext";
 import { useShellAgent } from "@/app/hooks/useShellAgent";
-import { useRequiredTorrentActions } from "@/app/context/TorrentActionsContext";
 import { useSession } from "@/app/context/SessionContext";
 import { useActionFeedback } from "@/app/hooks/useActionFeedback";
 import { useTranslation } from "react-i18next";
 import { useUiModeCapabilities } from "@/app/context/UiModeContext";
+import type { TorrentIntentExtended } from "@/app/intents/torrentIntents";
 
 const PROBE_TTL_MS = 5000;
 const PROBE_RUN_INTERVAL_MS = 5000;
 const VOLUME_LOSS_CHECK_INTERVAL_MS = 2000;
 const PICK_PATH_SUCCESS_DELAY_MS = 600;
+const RECOVERY_ACTIONABLE_ERROR_CLASSES = new Set([
+    "missingFiles",
+    "permissionDenied",
+    "diskFull",
+]);
 
 const delay = (ms: number) =>
     new Promise<void>((resolve) => {
@@ -89,6 +95,28 @@ const isRecoveryActiveState = (state?: string) => {
     );
 };
 
+const isActionableRecoveryErrorClass = (errorClass?: string | null) =>
+    Boolean(
+        errorClass && RECOVERY_ACTIONABLE_ERROR_CLASSES.has(errorClass),
+    );
+
+const shouldUseRecoveryGateForResume = (torrent: Torrent | TorrentDetail) => {
+    if (!isActionableRecoveryErrorClass(torrent.errorEnvelope?.errorClass)) {
+        return false;
+    }
+    return (
+        torrent.state === STATUS.torrent.PAUSED ||
+        torrent.state === STATUS.torrent.ERROR ||
+        torrent.state === STATUS.torrent.MISSING_FILES
+    );
+};
+
+const clearClassificationOverrideIfPresent = (id?: string | number) => {
+    if (id === undefined || id === null) return;
+    if (getClassificationOverride(id) === undefined) return;
+    setClassificationOverride(id, undefined);
+};
+
 type RecoveryQueueEntry = {
     torrent: Torrent | TorrentDetail;
     action: RecoveryGateAction;
@@ -120,6 +148,7 @@ interface UseRecoveryControllerParams {
     services: RecoveryControllerServices;
     data: RecoveryControllerData;
     refresh: RecoveryControllerRefreshDeps;
+    dispatch: (intent: TorrentIntentExtended) => Promise<void>;
 }
 
 interface RecoverySessionState {
@@ -181,6 +210,7 @@ export function useRecoveryController({
     services,
     data,
     refresh,
+    dispatch,
 }: UseRecoveryControllerParams): RecoveryControllerResult {
     const { client } = services;
     const { canBrowse, supportsManual } = useUiModeCapabilities();
@@ -191,7 +221,6 @@ export function useRecoveryController({
     const { engineCapabilities, reportCommandError } = useSession();
     const { showFeedback } = useActionFeedback();
     const { t } = useTranslation();
-    const { dispatch } = useRequiredTorrentActions();
     const { shellAgent } = useShellAgent();
     const { torrents, detailData } = data;
     const {
@@ -258,6 +287,11 @@ export function useRecoveryController({
             const activeClient = client;
             const envelope = torrent.errorEnvelope;
             if (!activeClient || !envelope) return null;
+            if (!isActionableRecoveryErrorClass(envelope.errorClass)) {
+                const classificationKey = torrent.id ?? torrent.hash;
+                clearClassificationOverrideIfPresent(classificationKey);
+                return null;
+            }
 
             const classification = classifyMissingFilesState(
                 envelope,
@@ -317,7 +351,13 @@ export function useRecoveryController({
         async (torrent: Torrent | TorrentDetail) => {
             const activeClient = client;
             if (!activeClient) return;
-            if (!torrent.errorEnvelope) return;
+            if (
+                !isActionableRecoveryErrorClass(
+                    torrent.errorEnvelope?.errorClass,
+                )
+            ) {
+                return;
+            }
             const id = torrent.id ?? torrent.hash;
             if (!id) return;
 
@@ -344,8 +384,9 @@ export function useRecoveryController({
         const runProbe = () => {
             const errored = torrentsRef.current.filter(
                 (torrent) =>
-                    torrent.errorEnvelope !== undefined &&
-                    torrent.errorEnvelope !== null,
+                    isActionableRecoveryErrorClass(
+                        torrent.errorEnvelope?.errorClass,
+                    ),
             );
             errored.forEach((torrent) => {
                 void probeMissingFilesIfStale(torrent);
@@ -436,6 +477,11 @@ export function useRecoveryController({
             const envelope = torrent.errorEnvelope;
             if (!envelope) return null;
             if (action === "setLocation") return null;
+            if (!isActionableRecoveryErrorClass(envelope.errorClass)) {
+                const key = torrent.id ?? torrent.hash;
+                clearClassificationOverrideIfPresent(key);
+                return null;
+            }
 
             const downloadDir = torrent.savePath ?? torrent.downloadDir ?? "";
             const fallbackClassification = classifyMissingFilesState(
@@ -622,6 +668,21 @@ export function useRecoveryController({
     );
 
     useEffect(() => {
+        torrents.forEach((torrent) => {
+            const id = torrent.id ?? torrent.hash;
+            if (!id) return;
+            if (
+                isActionableRecoveryErrorClass(
+                    torrent.errorEnvelope?.errorClass,
+                )
+            ) {
+                return;
+            }
+            clearClassificationOverrideIfPresent(id);
+        });
+    }, [torrents]);
+
+    useEffect(() => {
         if (engineCapabilities.executionModel !== "local") return;
         const task = scheduler.scheduleRecurringTask(() => {
             const currentTorrents = torrentsRef.current;
@@ -702,7 +763,7 @@ export function useRecoveryController({
         async (torrent: Torrent | TorrentDetail) => {
             const id = torrent.id ?? torrent.hash;
             if (!id) return;
-            if (torrent.errorEnvelope) {
+            if (shouldUseRecoveryGateForResume(torrent)) {
                 const gateResult = await requestRecovery({
                     torrent,
                     action: "resume",
