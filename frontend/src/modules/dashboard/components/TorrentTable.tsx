@@ -510,7 +510,7 @@ export function TorrentTable({
         columnOrder,
         columnVisibility,
         columnSizing,
-        columnSizingInfo,
+        Boolean(columnSizingInfo.isResizingColumn),
         sorting
     );
     const { createVirtualElement } =

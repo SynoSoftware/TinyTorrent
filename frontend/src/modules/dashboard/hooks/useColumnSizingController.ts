@@ -26,6 +26,10 @@ const normalizeColumnSizingState = (s?: Record<string, number>) => {
     return out;
 };
 
+type ColumnSizingInfoUpdater =
+    | ColumnSizingInfoState
+    | ((info: ColumnSizingInfoState) => ColumnSizingInfoState);
+
 export type UseColumnSizingControllerDeps<TData> = {
     table: Table<TData>;
     columnSizing: Record<string, number>;
@@ -241,11 +245,11 @@ export const useColumnSizingController = <TData,>({
                     )
                 );
             },
-            handleColumnSizingInfoChange: (info: any) => {
-                setColumnSizingInfo(
-                    typeof info === "function"
-                        ? info
-                        : () => info as ColumnSizingInfoState
+            handleColumnSizingInfoChange: (
+                info: ColumnSizingInfoUpdater
+            ) => {
+                setColumnSizingInfo((prev) =>
+                    typeof info === "function" ? info(prev) : info
                 );
             },
             measuredMinWidths,

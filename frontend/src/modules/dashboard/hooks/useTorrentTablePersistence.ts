@@ -1,15 +1,25 @@
 import { useEffect, useRef } from "react";
-import type { VisibilityState, SortingState } from "@tanstack/react-table";
+import type {
+    SortingState,
+    VisibilityState,
+} from "@tanstack/react-table";
 import { usePreferences } from "@/app/context/PreferencesContext";
 
 // Persist table layout state via the Preferences provider.
 // Extracted from `TorrentTable.tsx` to keep persistence concerns isolated.
+type TorrentTablePersistentState = {
+    columnOrder: string[];
+    columnVisibility: VisibilityState;
+    columnSizing: Record<string, number>;
+    sorting: SortingState;
+};
+
 export const useTorrentTablePersistence = (
-    initialState: any,
+    initialState: TorrentTablePersistentState,
     columnOrder: string[],
     columnVisibility: VisibilityState,
     columnSizing: Record<string, number>,
-    columnSizingInfo: any,
+    isColumnResizing: boolean,
     sorting: SortingState
 ) => {
     const { setTorrentTableState } = usePreferences();
@@ -30,7 +40,7 @@ export const useTorrentTablePersistence = (
             sorting,
         };
 
-        if (columnSizingInfo.isResizingColumn) {
+        if (isColumnResizing) {
             if (saveTimeoutRef.current) {
                 window.clearTimeout(saveTimeoutRef.current);
                 saveTimeoutRef.current = null;
@@ -49,7 +59,7 @@ export const useTorrentTablePersistence = (
     }, [
         columnOrder,
         columnSizing,
-        columnSizingInfo.isResizingColumn,
+        isColumnResizing,
         columnVisibility,
         sorting,
     ]);
@@ -63,7 +73,7 @@ export const useTorrentTablePersistence = (
             }
             setTorrentTableState(latestStateRef.current);
         };
-    }, []);
+    }, [setTorrentTableState]);
 };
 
 export default useTorrentTablePersistence;

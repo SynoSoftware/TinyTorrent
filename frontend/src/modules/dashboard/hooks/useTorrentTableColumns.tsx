@@ -10,8 +10,7 @@ import { ICON_STROKE_WIDTH_DENSE } from "@/config/logic";
 import type { Torrent } from "@/modules/dashboard/types/torrent";
 import type { DashboardTableMeta } from "@/modules/dashboard/components/TorrentTable_ColumnDefs";
 import type { OptimisticStatusMap } from "@/modules/dashboard/types/optimistic";
-import { useRecoveryContext } from "@/app/context/RecoveryContext";
-import { useLifecycle } from "@/app/context/LifecycleContext";
+import type { RefObject } from "react";
 
 export function useTorrentTableColumns({
     t,
@@ -20,14 +19,10 @@ export function useTorrentTableColumns({
     openFolder,
 }: {
     t: TFunction;
-    speedHistoryRef: React.RefObject<Record<string, Array<number | null>>>;
+    speedHistoryRef: RefObject<Record<string, Array<number | null>>>;
     optimisticStatuses: OptimisticStatusMap;
     openFolder?: (path?: string | null) => void;
 }): { columns: ColumnDef<Torrent>[]; tableMeta: DashboardTableMeta } {
-    const { handleRetry } = useRecoveryContext();
-    const { serverClass } = useLifecycle();
-    // TODO: Replace `serverClass` in table meta with `uiMode = Full | Rpc`.
-    // TODO: Table rendering should not carry daemon identity through meta; only UI capability tier matters.
     const columns = useMemo<ColumnDef<Torrent>[]>(() => {
         const cols = DEFAULT_COLUMN_ORDER.map((colId) => {
             const id = colId as ColumnId;
@@ -83,12 +78,10 @@ export function useTorrentTableColumns({
         () => ({
             speedHistoryRef,
             optimisticStatuses,
-            serverClass,
             openFolder,
         }),
-        [openFolder, optimisticStatuses, speedHistoryRef, serverClass]
+        [openFolder, optimisticStatuses, speedHistoryRef]
     );
-    // TODO: After migration, DashboardTableMeta should include `uiMode` (or `canBrowse/canOpenFolder` booleans) instead of serverClass.
 
     return { columns, tableMeta };
 }

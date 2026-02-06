@@ -1,4 +1,4 @@
-import React, { useCallback } from "react";
+import React from "react";
 import {
     KeyboardSensor,
     MouseSensor,
@@ -8,11 +8,51 @@ import {
     type DragStartEvent,
     type DragEndEvent,
 } from "@dnd-kit/core";
+import type { Row, RowSelectionState, SortingState } from "@tanstack/react-table";
 import { useTorrentTableKeyboard } from "./useTorrentTableKeyboard";
+import type { Torrent } from "@/modules/dashboard/types/torrent";
+import type { AnimationSuppressionKey } from "@/modules/dashboard/hooks/useTableAnimationGuard";
+
+type RowVirtualizerLike = {
+    scrollToIndex: (index: number) => void;
+};
+
+type DragHandlers = {
+    handleRowDragStart: (event: DragStartEvent) => void;
+    handleRowDragEnd: (event: DragEndEvent) => Promise<void>;
+    handleRowDragCancel: () => void;
+};
+
+type TorrentTableInteractionsDeps = DragHandlers & {
+    setActiveDragHeaderId: (id: string | null) => void;
+    setColumnOrder: React.Dispatch<React.SetStateAction<string[]>>;
+    arrayMove: (items: string[], oldIndex: number, newIndex: number) => string[];
+    table: {
+        setColumnOrder: (updater: React.SetStateAction<string[]>) => void;
+        getRowModel: () => { rows: Array<Row<Torrent>> };
+    };
+    anchorIndex: number | null;
+    focusIndex: number | null;
+    setRowSelection: (next: RowSelectionState) => void;
+    setAnchorIndex: (index: number | null) => void;
+    setFocusIndex: (index: number | null) => void;
+    setHighlightedRowId: (id: string | null) => void;
+    selectAllRows: () => void;
+    rowVirtualizer: RowVirtualizerLike;
+    canReorderQueue: boolean;
+    beginAnimationSuppression: (key: AnimationSuppressionKey) => void;
+    endAnimationSuppression: (key: AnimationSuppressionKey) => void;
+    setActiveRowId: (id: string | null) => void;
+    setDropTargetRowId: (id: string | null) => void;
+    rowIds: string[];
+    rowsById: Map<string, Row<Torrent>>;
+    sorting: SortingState;
+    rows: Array<Row<Torrent>>;
+};
 
 // Hook: provide DnD sensors and table interaction handlers.
 // Extracted from `TorrentTable.tsx` and parameterized via a deps object.
-export const useTorrentTableInteractions = (deps: any = {}) => {
+export const useTorrentTableInteractions = (deps: TorrentTableInteractionsDeps) => {
     const sensors = useSensors(
         useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
         useSensor(TouchSensor, {
@@ -36,15 +76,14 @@ export const useTorrentTableInteractions = (deps: any = {}) => {
         setActiveDragHeaderId(null);
         const { active, over } = event;
         if (active && over && active.id !== over.id) {
-            setColumnOrder((order: any) => {
+            setColumnOrder((order) => {
                 const oldIndex = order.indexOf(active.id as string);
                 const newIndex = order.indexOf(over.id as string);
                 if (oldIndex < 0 || newIndex < 0) return order;
-                const move = deps.arrayMove as any;
-                if (!move) return order;
+                const move = deps.arrayMove;
                 const next = move(order, oldIndex, newIndex);
                 try {
-                    table.setColumnOrder(next as string[]);
+                    table.setColumnOrder(next);
                 } catch {}
                 return next;
             });

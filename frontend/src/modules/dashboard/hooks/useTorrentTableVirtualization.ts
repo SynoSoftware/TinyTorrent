@@ -1,4 +1,5 @@
-import React, { useLayoutEffect, useEffect, useMemo } from "react";
+import { useLayoutEffect, useEffect, useMemo } from "react";
+import type { MutableRefObject, RefObject } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type {
     Row,
@@ -19,7 +20,7 @@ import type { Torrent } from "@/modules/dashboard/types/torrent";
 // documents the exact surface the parent must provide.
 export type UseTorrentTableVirtualizationDeps = {
     rows: Row<Torrent>[];
-    parentRef: React.RefObject<HTMLDivElement | null>;
+    parentRef: RefObject<HTMLDivElement | null>;
     rowHeight: number;
     TABLE_LAYOUT: { rowHeight: number | string; overscan: number };
     table: {
@@ -44,7 +45,7 @@ export type UseTorrentTableVirtualizationDeps = {
         s?: Record<string, number>
     ) => Record<string, number>;
     AUTO_FIT_TOLERANCE_PX: number;
-    rowsRef: React.MutableRefObject<Row<Torrent>[]>;
+    rowsRef: MutableRefObject<Row<Torrent>[]>;
     getSelectionSnapshot: () => RowSelectionState;
     previewSelection: (s: RowSelectionState) => void;
     commitSelection: (
@@ -92,7 +93,7 @@ export const useTorrentTableVirtualization = (
 
     // If the row height token or computed value changes, ensure the virtualizer
     // refreshes its measurements so total size and virtual items update.
-    React.useEffect(() => {
+    useEffect(() => {
         try {
             rowVirtualizer.measure();
         } catch {
@@ -103,13 +104,10 @@ export const useTorrentTableVirtualization = (
     const measurementItems = rowVirtualizer.getVirtualItems();
     const measurementRows = measurementItems
         .map((virtualRow) => rows[virtualRow.index])
-        .filter((row): row is Row<any> => Boolean(row));
+        .filter((row): row is Row<Torrent> => Boolean(row));
     const measurementHeaders = table
         .getFlatHeaders()
-        .filter(
-            (header: any) =>
-                !header.isPlaceholder && header.column.getIsVisible()
-        );
+        .filter((header) => !header.isPlaceholder && header.column.getIsVisible());
 
     useLayoutEffect(() => {
         if (isAnyColumnResizing) return;
@@ -129,7 +127,7 @@ export const useTorrentTableVirtualization = (
         setColumnSizing((prev: Record<string, number>) => {
             let didChange = false;
             const next = { ...prev };
-            table.getAllLeafColumns().forEach((column: any) => {
+            table.getAllLeafColumns().forEach((column) => {
                 if (!column.getCanResize()) return;
                 const minWidth = getMeasuredColumnMinWidth(
                     column.id,
@@ -162,12 +160,12 @@ export const useTorrentTableVirtualization = (
     // This hook owns no alternate ordering: rowIds is derived directly from the
     // provided React Table rows and must stay aligned with the parent's rowIds
     // so DnD/virtualization share a single ordering authority.
-    const rowIds = useMemo(() => rows.map((row: any) => row.id), [rows]);
+    const rowIds = useMemo(() => rows.map((row) => row.id), [rows]);
     if (import.meta.env.DEV) {
-        const modelIds = rows.map((row: any) => row.id);
+        const modelIds = rows.map((row) => row.id);
         if (
             rowIds.length !== modelIds.length ||
-            !rowIds.every((id: string, idx: number) => id === modelIds[idx])
+            !rowIds.every((id, idx) => id === modelIds[idx])
         ) {
             throw new Error(
                 "Virtualization invariant violated: rowIds must match provided rows"

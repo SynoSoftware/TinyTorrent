@@ -1,5 +1,5 @@
 // FILE: src/modules/dashboard/torrent-detail/GeneralTab.tsx
-import { Button, Switch } from "@heroui/react";
+import { Button } from "@heroui/react";
 import {
     ArrowDownCircle,
     ArrowUpCircle,
@@ -13,15 +13,12 @@ import {
     Trash2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import React, { useEffect, useMemo, useState } from "react";
+import React from "react";
 import RemoveConfirmationModal from "@/modules/torrent-remove/components/RemoveConfirmationModal";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { TorrentDetail } from "@/modules/dashboard/types/torrent";
-import { useRecoveryContext } from "@/app/context/RecoveryContext";
-import { useTorrentCommands } from "@/app/context/TorrentCommandContext";
-import type { CapabilityState } from "@/app/types/capabilities";
-import { formatPercent, formatRatio } from "@/shared/utils/format";
+import { useTorrentDetailsGeneralViewModel } from "@/modules/dashboard/hooks/useTorrentDetailsGeneralViewModel";
 import { GlassPanel } from "@/shared/ui/layout/GlassPanel";
 import { SmoothProgressBar } from "@/shared/ui/components/SmoothProgressBar";
 import { ICON_STROKE_WIDTH } from "@/config/logic";
@@ -29,28 +26,11 @@ import { writeClipboard } from "@/shared/utils/clipboard";
 import { TEXT_ROLES } from "../hooks/utils/textRoles";
 import StatusIcon from "@/shared/ui/components/StatusIcon";
 import { ToolbarIconButton } from "@/shared/ui/layout/toolbar-button";
-import {
-    formatMissingFileDetails,
-} from "@/modules/dashboard/utils/missingFiles";
-import { extractDriveLabel } from "@/shared/utils/recoveryFormat";
-import {
-    useMissingFilesProbe,
-} from "@/services/recovery/missingFilesStore";
-import { useResolvedRecoveryClassification } from "@/modules/dashboard/hooks/useResolvedRecoveryClassification";
-import { useOpenTorrentFolder } from "@/app/hooks/useOpenTorrentFolder";
-import STATUS from "@/shared/status";
 import { SetLocationInlineEditor } from "@/modules/dashboard/components/SetLocationInlineEditor";
-import { getSurfaceCaptionKey } from "@/app/utils/setLocation";
 
 interface GeneralTabProps {
     torrent: TorrentDetail;
     downloadDir: string;
-    sequentialCapability: CapabilityState;
-    superSeedingCapability: CapabilityState;
-    onSequentialToggle?: (enabled: boolean) => Promise<void> | void;
-    onSuperSeedingToggle?: (enabled: boolean) => Promise<void> | void;
-    progressPercent: number;
-    timeRemainingLabel: string;
     activePeers: number;
     isRecoveryBlocked?: boolean;
 }
@@ -89,132 +69,22 @@ const GeneralInfoCard = ({
     </GlassPanel>
 );
 
-const getTorrentKey = (
-    entry?: { id?: string | number; hash?: string } | null
-) => entry?.id?.toString() ?? entry?.hash ?? "";
-
 export const GeneralTab = ({
     torrent,
     downloadDir,
-    sequentialCapability: _sequentialCapability,
-    superSeedingCapability: _superSeedingCapability,
-    onSequentialToggle: _onSequentialToggle,
-    onSuperSeedingToggle: _onSuperSeedingToggle,
-    progressPercent: _progressPercent,
-    timeRemainingLabel: _timeRemainingLabel,
     activePeers,
     isRecoveryBlocked,
 }: GeneralTabProps) => {
     const { t } = useTranslation();
     const handleCopyHash = () => writeClipboard(torrent.hash);
 
-    const renderCapabilityNote = (state: CapabilityState) => {
-        if (state === "supported") return null;
-        const message =
-            state === "unsupported"
-                ? t("torrent_modal.controls.not_supported")
-                : t("torrent_modal.controls.capability_probe_pending");
-        return <span className="text-scaled text-warning">{message}</span>;
-    };
-
     const peerCount = activePeers;
-    const {
-        handleSetLocation,
-        handleDownloadMissing,
-        inlineSetLocationState,
-        cancelInlineSetLocation,
-        releaseInlineSetLocation,
-        confirmInlineSetLocation,
-        handleInlineLocationChange,
-        setLocationCapability,
-        canOpenFolder,
-    } = useRecoveryContext();
-    // TODO: General tab recovery/set-location actions must use the single recovery gate/state machine; avoid any local sequencing or reclassification in this component.
-    // TODO: ViewModel boundary: GeneralTab should be a pure View. It should not read `serverClass` or `connectionMode` directly.
-    // TODO: Replace `serverClass/connectionMode` usage with `uiMode = Full | Rpc` + recovery gate outputs (state/confidence/actions).
-    // TODO: `probeMode` must not be derived from daemon identity; it should be derived from whether filesystem probing is supported in the current UI mode (Full => allowed via ShellExtensions; Rpc => not supported).
-    const currentTorrentKey = getTorrentKey(torrent);
-    const probe = useMissingFilesProbe(torrent.id);
-    const probeLines = formatMissingFileDetails(t, probe);
-    const effectiveState =
-        torrent.errorEnvelope?.recoveryState &&
-        torrent.errorEnvelope.recoveryState !== "ok"
-            ? torrent.errorEnvelope.recoveryState
-            : torrent.state;
-    const showMissingFilesError =
-        effectiveState === STATUS.torrent.MISSING_FILES;
-
-    const classification = useResolvedRecoveryClassification(torrent);
-    const classificationLabel = classification
-        ? (() => {
-              if (classification.confidence === "unknown") {
-                  return t("recovery.inline_fallback");
-              }
-              switch (classification.kind) {
-                  case "pathLoss":
-                      return t("recovery.status.folder_not_found", {
-                          path:
-                              classification.path ??
-                              downloadDir ??
-                              t("labels.unknown"),
-                      });
-                  case "volumeLoss":
-                      return t("recovery.status.drive_disconnected", {
-                          drive:
-                              classification.root ??
-                              extractDriveLabel(
-                                  classification.path ?? downloadDir
-                              ) ??
-                              t("labels.unknown"),
-                      });
-                  case "accessDenied":
-                      return t("recovery.status.access_denied");
-                  default:
-                      return t("recovery.generic_header");
-              }
-          })()
-        : null;
-
-    const openFolder = useOpenTorrentFolder();
-    const currentPath =
-        downloadDir ?? torrent.savePath ?? torrent.downloadDir ?? "";
-
-    const { handleTorrentAction } = useTorrentCommands();
-    const canSetLocation =
-        setLocationCapability.canBrowse || setLocationCapability.supportsManual;
-    const handleSetLocationAction = () => {
-        if (!handleSetLocation) return;
-        void handleSetLocation(torrent, {
-            surface: "general-tab",
-            mode: "manual",
-        });
-    };
-
-    const inlineEditorKey = inlineSetLocationState?.torrentKey ?? "";
-    const showInlineEditor =
-        inlineSetLocationState?.surface === "general-tab" &&
-        inlineEditorKey &&
-        inlineEditorKey === currentTorrentKey;
-    const generalIsVerifying =
-        inlineSetLocationState?.status === "verifying";
-    const generalIsBusy = inlineSetLocationState?.status !== "idle";
-    const showUnknownConfidence = classification?.confidence === "unknown";
-    const generalStatusMessage = generalIsVerifying
-        ? t("recovery.status.applying_location")
-        : showUnknownConfidence
-        ? t("recovery.inline_fallback")
-        : undefined;
-    const generalCaption = t(getSurfaceCaptionKey("general-tab"));
-    useEffect(
-        () => () => {
-            releaseInlineSetLocation();
-        },
-        [releaseInlineSetLocation]
-    );
-
-    const handleResumeAction = () => {
-        void handleTorrentAction("resume", torrent);
-    };
+    const general = useTorrentDetailsGeneralViewModel({
+        torrent,
+        downloadDir,
+        isRecoveryBlocked,
+        t,
+    });
 
     const stateKey = typeof torrent.state === "string" ? torrent.state : "unknown";
     const statusLabelKey = `table.status_${stateKey}`;
@@ -225,39 +95,11 @@ export const GeneralTab = ({
     const recoveryStateLabel = torrent.errorEnvelope?.errorClass
         ? t(`recovery.class.${torrent.errorEnvelope.errorClass}`)
         : statusLabel;
-    const statusIconClass = showMissingFilesError
+    const statusIconClass = general.showMissingFilesError
         ? "text-warning/70"
         : "text-foreground/60";
 
-    const mainAction = handleResumeAction;
-    const mainLabel = t("toolbar.resume");
-    const downloadRate = torrent.speed?.down ?? 0;
-    const uploadRate = torrent.speed?.up ?? 0;
-    const recoveryBlockedMessage = isRecoveryBlocked
-        ? t("recovery.status.blocked")
-        : null;
-
-    const handlePauseAction = () => {
-        console.warn(
-            "pause action requires a typed onPause handler; global events removed"
-        );
-    };
-
-    const [showRemoveModal, setShowRemoveModal] = useState(false);
-
-    const handleRemoveAction = () => {
-        setShowRemoveModal(true);
-    };
-
-    const handleRemoveConfirm = async (deleteData: boolean) => {
-        setShowRemoveModal(false);
-        const action = deleteData ? "remove-with-data" : "remove";
-        try {
-            await handleTorrentAction(action, torrent);
-        } catch (err) {
-            console.error("remove torrent action failed", err);
-        }
-    };
+    const recoveryBlockedMessage = general.recoveryBlockedMessage;
 
     const getIconForAction = (id: string | null | undefined) => {
         switch (id) {
@@ -282,9 +124,8 @@ export const GeneralTab = ({
         }
     };
 
-    const isActive =
-        torrent.state === "downloading" || torrent.state === "seeding";
-    const mainActionLabel = isActive ? t("toolbar.pause") : t("toolbar.resume");
+    const isActive = general.isActive;
+    const mainActionLabel = general.mainActionLabel;
 
     return (
         <div className="space-y-stage">
@@ -318,34 +159,34 @@ export const GeneralTab = ({
                     </div>
                 </div>
             </GlassPanel>
-            {showInlineEditor && inlineSetLocationState && (
+            {general.showInlineEditor && general.inlineSetLocationState && (
                 <SetLocationInlineEditor
-                    value={inlineSetLocationState.inputPath}
-                    error={inlineSetLocationState.error}
-                    isBusy={generalIsBusy}
-                    caption={generalCaption}
-                    statusMessage={generalStatusMessage}
-                    disableCancel={generalIsVerifying}
-                    onChange={handleInlineLocationChange}
-                    onSubmit={() => void confirmInlineSetLocation()}
-                    onCancel={cancelInlineSetLocation}
+                    value={general.inlineSetLocationState.inputPath}
+                    error={general.inlineSetLocationState.error}
+                    isBusy={general.generalIsBusy}
+                    caption={general.generalCaption}
+                    statusMessage={general.generalStatusMessage}
+                    disableCancel={general.generalIsVerifying}
+                    onChange={general.onInlineChange}
+                    onSubmit={() => void general.onInlineSubmit()}
+                    onCancel={general.onInlineCancel}
                 />
             )}
 
-            {showMissingFilesError && (
+            {general.showMissingFilesError && (
                 <GlassPanel className="p-panel border border-warning/30 bg-warning/10">
                     <div className="flex flex-col gap-tools">
                         <span className="text-scaled font-semibold uppercase tracking-tight text-warning">
                             {t("torrent_modal.errors.no_data_found_title")}
                         </span>
                         <div className="flex flex-col gap-tight text-label font-mono text-warning/80">
-                            {probeLines.map((line) => (
+                            {general.probeLines.map((line) => (
                                 <span key={line}>{line}</span>
                             ))}
                         </div>
-                        {classificationLabel && (
+                        {general.classificationLabel && (
                             <div className="text-label text-foreground/70">
-                                {classificationLabel}
+                                {general.classificationLabel}
                             </div>
                         )}
                         {recoveryBlockedMessage && (
@@ -358,10 +199,7 @@ export const GeneralTab = ({
                                 variant="shadow"
                                 size="md"
                                 color="primary"
-                                onPress={() =>
-                                    handleDownloadMissing?.(torrent)
-                                }
-                                isDisabled={!handleDownloadMissing}
+                                onPress={general.onDownloadMissing}
                                 className="h-auto"
                             >
                                 {t("recovery.action_download")}
@@ -370,8 +208,10 @@ export const GeneralTab = ({
                                 variant="light"
                                 size="md"
                                 color="default"
-                                onPress={() => void openFolder(currentPath)}
-                                isDisabled={!currentPath || !canOpenFolder}
+                                onPress={general.onOpenFolder}
+                                isDisabled={
+                                    !general.currentPath || !general.canOpenFolder
+                                }
                                 className="h-auto"
                             >
                                 {t("recovery.action_open_folder")}
@@ -400,10 +240,7 @@ export const GeneralTab = ({
                                         size="md"
                                         variant="flat"
                                         color={isActive ? "default" : "primary"}
-                                        onPress={() => {
-                                            if (isActive) handlePauseAction();
-                                            else handleResumeAction();
-                                        }}
+                                        onPress={general.onToggleStartStop}
                                         isDisabled={Boolean(isRecoveryBlocked)}
                                     >
                                         {(() => {
@@ -430,10 +267,8 @@ export const GeneralTab = ({
                                         size="md"
                                         variant="flat"
                                         color="default"
-                                        onPress={() =>
-                                            void handleSetLocationAction()
-                                        }
-                                        isDisabled={!canSetLocation}
+                                        onPress={general.onSetLocation}
+                                        isDisabled={!general.canSetLocation}
                                     >
                                         <>
                                             <Folder
@@ -454,7 +289,7 @@ export const GeneralTab = ({
                                         size="md"
                                         variant="flat"
                                         color="danger"
-                                        onPress={() => handleRemoveAction()}
+                                        onPress={general.openRemoveModal}
                                     >
                                         <>
                                             <Trash2
@@ -471,11 +306,11 @@ export const GeneralTab = ({
                     </GlassPanel>
                 </div>
             </div>
-            {showRemoveModal && (
+            {general.showRemoveModal && (
                 <RemoveConfirmationModal
-                    isOpen={showRemoveModal}
-                    onClose={() => setShowRemoveModal(false)}
-                    onConfirm={handleRemoveConfirm}
+                    isOpen={general.showRemoveModal}
+                    onClose={general.closeRemoveModal}
+                    onConfirm={general.onConfirmRemove}
                     torrentCount={1}
                     torrentIds={[torrent.id]}
                 />

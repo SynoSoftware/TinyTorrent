@@ -8,17 +8,16 @@ import { PeersTab } from "./TorrentDetails_Peers";
 import { TrackersTab } from "./TorrentDetails_Trackers";
 import { TorrentDetailHeader } from "./TorrentDetails_Header";
 import { useDetailTabs } from "../hooks/useDetailTabs";
+import { useTorrentDetailHeaderStatus } from "../hooks/useTorrentDetailHeaderStatus";
 import {
     BLOCK_SHADOW,
     GLASS_BLOCK_SURFACE,
 } from "@/shared/ui/layout/glass-surface";
-import type { CapabilityStore } from "@/app/types/capabilities";
 import type { DashboardDetailViewModel } from "@/app/viewModels/useAppViewModel";
 
 export interface TorrentDetailsProps {
     viewModel: DashboardDetailViewModel;
     className?: string;
-    capabilities: CapabilityStore;
     isRecoveryBlocked?: boolean;
     isStandalone?: boolean;
     isDetailFullscreen?: boolean;
@@ -35,7 +34,6 @@ export interface TorrentDetailsProps {
 export function TorrentDetails({
     viewModel,
     className,
-    capabilities,
     isRecoveryBlocked,
     isDetailFullscreen = false,
     isStandalone = false,
@@ -51,8 +49,6 @@ export function TorrentDetails({
     const {
         detailData: torrent,
         handleFileSelectionChange,
-        sequentialToggleHandler,
-        superSeedingToggleHandler,
         handleEnsureValid,
         handleEnsureDataPresent,
         handleEnsureAtLocation,
@@ -62,6 +58,9 @@ export function TorrentDetails({
         isDetailRecoveryBlocked,
         handlePeerContextAction,
     } = viewModel;
+    const { statusLabel, tooltip, primaryHint } = useTorrentDetailHeaderStatus({
+        torrent,
+    });
     const { active, setActive, handleKeyDown } = useDetailTabs({
         activeTorrentId: torrent?.id,
         inspectorTabCommand,
@@ -89,6 +88,9 @@ export function TorrentDetails({
                 onClose={onClose}
                 activeTab={active}
                 onTabChange={setActive}
+                statusLabel={statusLabel}
+                statusTooltip={tooltip}
+                primaryHint={primaryHint}
             />
 
             <div className="flex-1 min-h-0 bg-transparent py-tight ">
@@ -96,15 +98,6 @@ export function TorrentDetails({
                     <GeneralTab
                         torrent={torrent}
                         downloadDir={torrent.downloadDir ?? ""}
-                        sequentialCapability={capabilities.sequentialDownload}
-                        superSeedingCapability={capabilities.superSeeding}
-                        onSequentialToggle={sequentialToggleHandler}
-                        onSuperSeedingToggle={superSeedingToggleHandler}
-                        /* set-location handled via TorrentActionsContext */
-                        progressPercent={Math.round(
-                            (torrent.progress ?? 0) * 100
-                        )}
-                        timeRemainingLabel={t("general.unknown")}
                         activePeers={torrent.peers?.length ?? 0}
                         isRecoveryBlocked={isRecoveryBlocked}
                     />

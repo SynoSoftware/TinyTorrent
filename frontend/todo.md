@@ -9,40 +9,38 @@
 
 ## Active Tasks
 
-[_] 26. architectural - Extract File Explorer Logic (Step 1: Create ViewModel)
-Create `src/modules/dashboard/viewModels/useFileExplorerViewModel.ts`.
-Move tree-building (`useFileTree`) and toggle logic (`useOptimisticToggle`) here.
-Define a clear input/output contract: `(files) -> { treeNodes, toggleNode, selectAction }`.
+[_] 30. architectural - Remove residual dashboard TODO stopgaps
+Resolve or delete TODO notes that are outdated after authority consolidation.
+Keep only TODOs that map to explicit tracked tasks in this file.
 
-[ ] 27. architectural - Refactor ContentTab (Step 2: Migrate Legacy View)
-Update `TorrentDetails_Content.tsx` to delete its internal logic and consume `useFileExplorerViewModel`.
-Ensure no behavior change in the Details panel (regression test).
+[ ] 31. medium - Action parity audit (toolbar/context/hotkeys)
+Verify Pause/Resume/Recheck/Remove/Queue actions use one command path across toolbar buttons, context menus, and hotkeys.
+If divergences exist, normalize through the same command dispatcher/view-model boundary.
 
 [ ] 28. feature - Implement AddTorrentFileTable (Step 3: Reuse Logic)
 Create `AddTorrentFileTable.tsx` using `useFileExplorerViewModel`.
 This proves the architecture allows the same file logic to drive two different UI presentations (readonly-ish details vs editable add-modal).
 
-[_] 13b. high - Torrent table view-model - Build a `TorrentTableViewModel` that owns filtering, selection, virtualization, column sizing, and capability checks, then feed it into `TorrentTable`/`TorrentTable_Body`/`TorrentTable_Header` so these components are pure. Acceptance: Table body/header receive a single view-model + command callbacks, `useColumnSizingController`/`useMarqueeSelection` are owned solely by the view-model provider, and table-related task-13 TODOs are cleared.
+[ ] 13d. medium - Settings/Recovery view-model cleanup
+Ensure Settings components, recovery modal, and related helpers derive gating/capabilities from dedicated view-model fragments rather than embedding logic.
+Acceptance: settings/recovery surfaces consume view-model outputs for `uiMode` and recovery state; obsolete TODOs removed.
 
-[_] 13d. medium - Settings/Recovery view-model cleanup  - Ensure Settings components, the recovery modal, and related helpers derive gating/capabilities from dedicated view-model fragments rather than embedding logic. Acceptance: Settings/recovery tooling consume view-model outputs for `uiMode`/recovery state, and any TODO instructing logic to move to view-models is satisfied.
+[ ] 13b. high - Torrent table view-model
+Build a `useTorrentTableViewModel` that owns filtering, selection, virtualization, column sizing, and capability checks, then feed it into `TorrentTable`/`TorrentTable_Body`/`TorrentTable_Header` so these components are pure.
+Acceptance: table body/header receive a single view-model + command callbacks, `useColumnSizingController`/virtualization/marquee selection are owned by the table VM provider, and table task-13 TODOs are cleared.
+Current progress: typed contracts for table hooks and persistence cleanup are complete.
+Remaining: move virtualization/selection/interaction orchestration out of `TorrentTable.tsx` into a single table VM.
 
-[_] 15. medium — Collapse UIActionGate into the action/workflow owner  
-Move “removed” state and delete-lifecycle ownership into the same layer that owns torrent action dispatch/workflows.  
-SelectionContext remains authoritative for selection only.  
-After this step, there must be a single owner for: optimistic delete masking, selection clearing, and delete sequencing.  
-Update or delete any TODOs/comments that assume split ownership.  
-Files: `src/app/hooks/useTorrentWorkflow.ts`, `src/app/orchestrators/useTorrentOrchestrator.ts`
+[ ] 22. architectural - Recovery capability clarity
+Explicitly surface host-side filesystem expectations (missing-files classification, directory creation, free-space checks) through EngineAdapter/ShellAgent capabilities and guard UI code on those explicit capabilities.
+Remove residual conditional logic that infers Local vs Remote behavior.
 
-[_] 22. architectural - Recovery capability clarity - Explicitly surface any host-side filesystem expectations (missing-files classification, directory creation, free-space checks) through the EngineAdapter contract and guard UI code on those capabilities; the current conditional logic that infers Local vs Remote behavior leaves the Recovery UX execution model unstable.
-
-[_] 23. architectural - Recovery lifetime ownership - Attach `missingFilesStore`/probe caches to a clear owner (client/session/recovery gate) instead of module-level maps that must be manually cleared from unrelated helpers; the spec requires recovery state to reset whenever the client/session changes, which the current globals cannot guarantee.
+[ ] 23. architectural - Recovery lifetime ownership
+Attach `missingFilesStore`/probe caches to a clear owner (client/session/recovery gate) instead of module-level maps that must be manually cleared from unrelated helpers; recovery state must reset when client/session changes.
 Inventory all polling/timers (heartbeat, UiClock, recovery probes, modal timers).  
 Consolidate behind a single scheduling authority or provider.  
 Document what runs, when, and how it scales with list size.  
-Files: `src/services/rpc/heartbeat.ts`, `src/shared/hooks/useUiClock.ts`, `src/app/orchestrators/useTorrentOrchestrator.ts`, `src/modules/dashboard/components/TorrentRecoveryModal.tsx`
-
-[ ] 24. architectural – Orchestrator responsibility collapse
-`useTorrentOrchestrator.ts` still aggregates multiple independent lifecycles (add-torrent flows, global listeners, RPC/telemetry wiring, timers). Recovery extraction reduces pressure but does not resolve the broader issue: the orchestrator acts as a god-object for UI-side coordination. A future pass must either split responsibilities by domain (recovery / creation / lifecycle) or introduce a thin composition layer so no single hook owns unrelated concerns.
+Files: `src/services/rpc/heartbeat.ts`, `src/shared/hooks/useUiClock.ts`, `src/modules/dashboard/hooks/useRecoveryController.ts`, `src/modules/dashboard/components/TorrentRecoveryModal.tsx`
 
 [ ] 25. architectural – Scheduling authority
 Polling and timers (heartbeat, UI clock, recovery probes, modal delays) are currently created across multiple modules with no single owner. This makes scaling behavior, teardown correctness, and regression analysis unclear. Inventory existing timers and document ownership, then consolidate under a single scheduling authority or provider in a future pass.
@@ -74,3 +72,8 @@ Polling and timers (heartbeat, UI clock, recovery probes, modal delays) are curr
 - [x] 19. Deprecate RPC-extended documentation
 - [x] 20. Unify timers and background scheduling (partial): Core scheduling consolidated.
 - [x] 21. architectural - Recovery orchestration boundary: Move all recovery sequencing, queue state, and inline set-location state out of `useTorrentOrchestrator.ts` into a focused recovery controller.
+- [x] 24. architectural - Orchestrator responsibility collapse: `useTorrentOrchestrator` reduced to a thin integration wire that only composes add/recovery controllers and shared deletion-hash state; dead event-bus and UI attach/detach glue removed.
+- [x] 26. architectural - Extract File Explorer Logic (Step 1): created `useFileExplorerViewModel`.
+- [x] 27. architectural - Refactor ContentTab (Step 2): `TorrentDetails_Content` now consumes `useFileExplorerViewModel`.
+- [x] 27b. architectural - Details authority consolidation: extracted `useTorrentDetailHeaderStatus` and `useTorrentDetailsGeneralViewModel`.
+- [x] 27c. architectural - Torrent table persistence authority cleanup: persisted stable table layout state only (no transient resize state).

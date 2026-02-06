@@ -50,7 +50,6 @@ export function Dashboard_Layout({
         torrents,
         ghostTorrents,
         isLoading,
-        capabilities,
         optimisticStatuses,
         tableWatermarkEnabled,
         isDropActive = false,
@@ -337,7 +336,6 @@ export function Dashboard_Layout({
                             >
                                 <TorrentDetails
                                     viewModel={detail}
-                                    capabilities={capabilities}
                                     isDetailFullscreen={false}
                                     isRecoveryBlocked={isDetailRecoveryBlocked}
                                     onDock={handleDetailDock}
@@ -379,7 +377,6 @@ export function Dashboard_Layout({
                         >
                             <TorrentDetails
                                 viewModel={detail}
-                                capabilities={capabilities}
                                 isDetailFullscreen={isDetailFullscreen}
                                 isRecoveryBlocked={isDetailRecoveryBlocked}
                                 isStandalone={true}
